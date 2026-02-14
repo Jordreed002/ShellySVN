@@ -320,7 +320,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
       {/* Main Checkout Dialog */}
       <div className="modal-overlay" onClick={handleClose}>
         <div 
-          className="modal w-[550px]" 
+          className="modal w-[560px]" 
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

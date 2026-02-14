@@ -81,7 +81,7 @@ export function SparseCheckoutDialog({
   
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[600px]" onClick={e => e.stopPropagation()}>
+      <div className="modal w-[560px]" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="flex items-center gap-3">
             <FolderTree className="w-5 h-5 text-accent" />

@@ -12,7 +12,7 @@ import {
   FileEdit,
   Turtle
 } from 'lucide-react'
-import { AddRepoModal } from './AddRepoModal'
+import { AddRepoModal } from './ui/AddRepoModal'
 import { CheckoutDialog } from './ui/CheckoutDialog'
 
 // Shell/Turtle SVG Logo for ShellySVN

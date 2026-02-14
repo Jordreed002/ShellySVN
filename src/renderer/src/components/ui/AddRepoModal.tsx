@@ -16,7 +16,7 @@ interface AddRepoModalProps {
   isOpen: boolean
   onClose: () => void
   onOpenRepo: (path: string) => void
-  onCheckout: (url: string, path: string) => void
+  onCheckout?: (url: string, path: string) => void
   recentRepos?: AppSettings['recentRepositories']
 }
 
@@ -87,7 +87,7 @@ export function AddRepoModal({
     setError(null)
     
     try {
-      onCheckout(checkoutUrl, checkoutPath)
+      onCheckout?.(checkoutUrl, checkoutPath)
       onClose()
     } catch (err) {
       setError((err as Error).message)

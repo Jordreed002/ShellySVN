@@ -23,7 +23,7 @@ import {
   Loader2,
   Bookmark
 } from 'lucide-react'
-import { AddRepoModal } from './AddRepoModal'
+import { AddRepoModal } from './ui/AddRepoModal'
 import { StatusDot } from './ui/StatusIcon'
 import { SettingsDialog } from './ui/SettingsDialog'
 import { BookmarksManager } from './ui/BookmarksManager'
