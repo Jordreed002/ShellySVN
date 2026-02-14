@@ -43,3 +43,4 @@ temp/
 # Binaries (downloaded in CI)
 binaries/*/
 !binaries/.gitkeep
+Shelly.af
