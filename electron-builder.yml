@@ -85,8 +85,8 @@ linux:
 # Publishing configuration
 publish:
   provider: github
-  owner: shellysvn
-  repo: shellysvn
+  owner: Jordreed002
+  repo: ShellySVN
 
 # Compression
 compression: maximum
