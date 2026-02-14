@@ -3,7 +3,7 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build](https://github.com/shellysvn/shellysvn/actions/workflows/build-electron.yml/badge.svg)](https://github.com/shellysvn/shellysvn/actions/workflows/build-electron.yml)
+[![Build](https://github.com/Jordreed002/shellysvn/actions/workflows/build-electron.yml/badge.svg)](https://github.com/Jordreed002/shellysvn/actions/workflows/build-electron.yml)
 [![Electron](https://img.shields.io/badge/Electron-33+-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.2+-fbf0df?logo=bun&logoColor=black)](https://bun.sh/)
 
@@ -96,7 +96,7 @@ ShellySVN is a native desktop application that provides a graphical interface fo
 | macOS | Apple Silicon (ARM64) | `ShellySVN-x.x.x-arm64.dmg` |
 | macOS | Universal | `ShellySVN-x.x.x-universal.dmg` |
 
-> Download the latest release from the [Releases](https://github.com/shellysvn/shellysvn/releases) page.
+> Download the latest release from the [Releases](https://github.com/Jordreed002/shellysvn/releases) page.
 
 ---
 
@@ -110,7 +110,7 @@ ShellySVN is a native desktop application that provides a graphical interface fo
 
 ```bash
 # Clone the repository
-git clone https://github.com/shellysvn/shellysvn.git
+git clone https://github.com/Jordreed002/shellysvn.git
 cd shellysvn
 
 # Install dependencies
@@ -268,7 +268,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**[Report a Bug](https://github.com/shellysvn/shellysvn/issues/new?template=bug_report.md)** • **[Request a Feature](https://github.com/shellysvn/shellysvn/issues/new?template=feature_request.md)**
+**[Report a Bug](https://github.com/Jordreed002/shellysvn/issues/new?template=bug_report.md)** • **[Request a Feature](https://github.com/Jordreed002/shellysvn/issues/new?template=feature_request.md)**
 
 Made with ❤️ by the ShellySVN Team
 
