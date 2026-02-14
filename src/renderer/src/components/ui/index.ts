@@ -50,3 +50,5 @@ export { OfflineIndicator, OfflineStatusBar, OfflineAwareContainer, OfflineCache
 export { VirtualizedFileList, VirtualizedTree, LargeRepoIndicator } from './VirtualizedList'
 export type { TreeNode } from './VirtualizedList'
 export { CommitTemplateManager } from './CommitTemplateManager'
+export { BranchVisualization, BranchTreeNode, useBranchVisualization } from './BranchVisualization'
+export type { BranchNode, BranchVisualizationConfig, BranchNodeProps } from './BranchVisualization'
