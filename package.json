@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "A standalone Subversion client for macOS, Windows, and Linux",
   "main": "./out/main/index.js",
+  "bin": {
+    "shellysvn-cli": "./out/main/cli.js"
+  },
   "author": {
     "name": "ShellySVN",
     "email": "hello@shellysvn.com"
@@ -25,7 +28,9 @@
     "typecheck": "tsc --noEmit",
     "engine:dev": "cd packages/logic-engine && bun run src/index.ts",
     "engine:build": "cd packages/logic-engine && bun run build",
-    "engine:build:all": "cd packages/logic-engine && bun run build:all"
+    "engine:build:all": "cd packages/logic-engine && bun run build:all",
+    "cli": "node ./out/main/cli.js",
+    "cli:dev": "bun run src/main/cli.ts"
   },
   "workspaces": [
     "packages/*"
