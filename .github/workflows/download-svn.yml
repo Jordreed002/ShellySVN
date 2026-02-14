@@ -44,9 +44,9 @@ jobs:
           # Create binaries directory
           New-Item -ItemType Directory -Force -Path binaries\win32-x64\svn
           
-          # Download VisualSVN/SlikSVV portable binaries
-          # Using VisualSVN as it provides standalone binaries
-          $svnUrl = "https://www.visualsvn.com/files/Apache-Subversion-${{ env.SVN_VERSION }}/x64/svn-win32-${{ env.SVN_VERSION }}.zip"
+          # Download VisualSVN command-line tools
+          # URL format changed in late 2025 - now a unified package
+          $svnUrl = "https://www.visualsvn.com/files/Apache-Subversion-${{ env.SVN_VERSION }}-3.zip"
           
           Write-Host "Downloading SVN from $svnUrl"
           Invoke-WebRequest -Uri $svnUrl -OutFile svn.zip
@@ -54,8 +54,8 @@ jobs:
           # Extract
           Expand-Archive -Path svn.zip -DestinationPath svn-temp
           
-          # Move binaries to expected location
-          Move-Item -Path "svn-temp\svn-win32-${{ env.SVN_VERSION }}\bin\*" -Destination "binaries\win32-x64\svn\" -Force
+          # Move binaries to expected location (new package structure)
+          Move-Item -Path "svn-temp\bin\*" -Destination "binaries\win32-x64\svn\" -Force
           
           # Verify
           binaries\win32-x64\svn\svn.exe --version
