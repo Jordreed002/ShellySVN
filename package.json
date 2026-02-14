@@ -1,0 +1,55 @@
+{
+  "name": "shellysvn",
+  "version": "0.1.0",
+  "description": "A standalone Subversion client for macOS and Windows",
+  "main": "./out/main/index.js",
+  "author": {
+    "name": "ShellySVN",
+    "email": "hello@shellysvn.com"
+  },
+  "homepage": "https://github.com/shellysvn/shellysvn",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "postinstall": "electron-builder install-app-deps",
+    "build:unpack": "bun run build && electron-builder --dir",
+    "build:win": "bun run build && electron-builder --win",
+    "build:mac": "bun run build && electron-builder --mac",
+    "build:mac-universal": "bun run build && electron-builder --mac --universal",
+    "release": "bun run build && electron-builder",
+    "typecheck": "tsc --noEmit",
+    "engine:dev": "cd packages/logic-engine && bun run src/index.ts",
+    "engine:build": "cd packages/logic-engine && bun run build",
+    "engine:build:all": "cd packages/logic-engine && bun run build:all"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@tanstack/react-query": "^5.62.0",
+    "@tanstack/react-router": "^1.92.0",
+    "@tanstack/react-virtual": "^3.11.0",
+    "lucide-react": "^0.563.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@tanstack/router-plugin": "^1.92.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.14",
+    "@types/react-dom": "^18.3.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}

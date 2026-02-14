@@ -1,0 +1,127 @@
+name: Build Logic Engine
+
+on:
+  workflow_call:
+    outputs:
+      cache-key:
+        description: 'Cache key for logic engine binaries'
+        value: ${{ jobs.build.outputs.cache-key }}
+  push:
+    paths:
+      - 'packages/logic-engine/**'
+  workflow_dispatch:
+
+env:
+  CACHE_KEY_PREFIX: 'logic-engine-v1'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32
+            arch: x64
+            runner: windows-latest
+            target: bun-windows-x64
+            ext: .exe
+            artifact-name: shelly-engine-win32-x64
+          - platform: darwin
+            arch: x64
+            runner: macos-13
+            target: bun-darwin-x64
+            ext: ''
+            artifact-name: shelly-engine-darwin-x64
+          - platform: darwin
+            arch: arm64
+            runner: macos-14
+            target: bun-darwin-arm64
+            ext: ''
+            artifact-name: shelly-engine-darwin-arm64
+    
+    outputs:
+      cache-key: ${{ env.CACHE_KEY_PREFIX }}-${{ github.sha }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+      
+      - name: Install dependencies
+        working-directory: packages/logic-engine
+        run: bun install --frozen-lockfile
+      
+      - name: Build binary
+        working-directory: packages/logic-engine
+        run: |
+          bun build ./src/index.ts \
+            --compile \
+            --target=${{ matrix.target }} \
+            --outfile=dist/shelly-engine${{ matrix.ext }} \
+            --minify \
+            --define ENGINE_VERSION='"${{ github.ref_name }}"' \
+            --define BUILD_SHA='"${{ github.sha }}"'
+      
+      - name: Verify binary
+        working-directory: packages/logic-engine
+        run: |
+          ./dist/shelly-engine${{ matrix.ext }} --version
+      
+      - name: Move to binaries directory
+        run: |
+          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          mv packages/logic-engine/dist/shelly-engine${{ matrix.ext }} binaries/${{ matrix.platform }}-${{ matrix.arch }}/
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}/shelly-engine${{ matrix.ext }}
+          retention-days: 7
+
+  # Create universal macOS binary
+  create-universal:
+    needs: build
+    runs-on: macos-14
+    
+    steps:
+      - name: Download x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-darwin-x64
+          path: binaries/darwin-x64
+      
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-darwin-arm64
+          path: binaries/darwin-arm64
+      
+      - name: Create universal binary
+        run: |
+          mkdir -p binaries/darwin-universal
+          
+          # Create universal binary using lipo
+          lipo -create \
+            binaries/darwin-x64/shelly-engine \
+            binaries/darwin-arm64/shelly-engine \
+            -output binaries/darwin-universal/shelly-engine
+          
+          chmod +x binaries/darwin-universal/shelly-engine
+          
+          # Verify
+          lipo -info binaries/darwin-universal/shelly-engine
+          binaries/darwin-universal/shelly-engine --version
+      
+      - name: Upload universal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shelly-engine-darwin-universal
+          path: binaries/darwin-universal/shelly-engine
+          retention-days: 7

@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# Generated files
+src/renderer/src/routeTree.gen.ts
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+bun-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Electron
+*.blockmap
+
+# Test
+coverage/
+
+# Temporary
+tmp/
+temp/
+*.stackdump
+
+# Binaries (downloaded in CI)
+binaries/*/
+!binaries/.gitkeep

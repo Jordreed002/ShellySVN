@@ -1,0 +1,599 @@
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sidebar-width: 260px;
+  --header-height: 40px;
+  --titlebar-height: 32px;
+  --toolbar-height: 44px;
+  
+  /* Colors for CSS usage */
+  --color-bg: #0d1117;
+  --color-bg-secondary: #161b22;
+  --color-bg-tertiary: #21262d;
+  --color-bg-elevated: #30363d;
+  --color-border: #30363d;
+  --color-text: #e6edf3;
+  --color-text-secondary: #8b949e;
+  --color-accent: #58a6ff;
+}
+
+/* Reset */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+/* Custom Scrollbar - Refined */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(110, 118, 129, 0.4);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(110, 118, 129, 0.6);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Overlay Scrollbar Effect */
+.scrollbar-overlay {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(110, 118, 129, 0.3) transparent;
+}
+
+.scrollbar-overlay::-webkit-scrollbar-thumb {
+  background: rgba(110, 118, 129, 0.3);
+}
+
+.scrollbar-overlay::-webkit-scrollbar-thumb:hover {
+  background: rgba(110, 118, 129, 0.5);
+}
+
+/* Drag region for macOS */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Focus Ring */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(88, 166, 255, 0.3);
+}
+
+/* Transitions */
+.transition-fast {
+  transition: all 0.15s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.transition-normal {
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Button Base Styles */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-150 cursor-pointer select-none;
+  }
+  
+  .btn-primary {
+    @apply bg-accent text-white hover:bg-accent-hover active:scale-[0.98] shadow-sm hover:shadow-glow-accent;
+  }
+  
+  .btn-secondary {
+    @apply bg-bg-tertiary text-text border border-border hover:bg-bg-elevated hover:border-border-focus active:scale-[0.98];
+  }
+  
+  .btn-ghost {
+    @apply bg-transparent text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated;
+  }
+  
+  .btn-danger {
+    @apply bg-error text-white hover:brightness-110 active:scale-[0.98] shadow-sm hover:shadow-glow-error;
+  }
+  
+  .btn-success {
+    @apply bg-success text-white hover:brightness-110 active:scale-[0.98] shadow-sm hover:shadow-glow-success;
+  }
+  
+  .btn-icon {
+    @apply p-2 rounded-md text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated transition-fast;
+  }
+  
+  .btn-icon-sm {
+    @apply p-1.5 rounded text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated transition-fast;
+  }
+
+  /* Input Styles */
+  .input {
+    @apply w-full px-3 py-2 bg-bg-secondary border border-border rounded-md text-text placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-fast;
+  }
+
+  /* Card Styles */
+  .card {
+    @apply bg-bg-secondary border border-border rounded-lg shadow-card;
+  }
+  
+  .card-elevated {
+    @apply bg-bg-tertiary border border-border rounded-lg shadow-dropdown;
+  }
+
+  /* Badge Styles */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-2xs font-medium rounded-full;
+  }
+  
+  .badge-normal {
+    @apply bg-svn-normal/20 text-svn-normal;
+  }
+  
+  .badge-added {
+    @apply bg-svn-added/20 text-svn-added;
+  }
+  
+  .badge-modified {
+    @apply bg-svn-modified/20 text-svn-modified;
+  }
+  
+  .badge-conflict {
+    @apply bg-svn-conflict/20 text-svn-conflict;
+  }
+  
+  .badge-unversioned {
+    @apply bg-svn-unversioned/20 text-svn-unversioned;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    @apply absolute z-50 px-2 py-1 text-xs bg-bg-elevated text-text border border-border rounded shadow-dropdown animate-fade-in;
+  }
+
+  /* Divider */
+  .divider {
+    @apply w-full h-px bg-border;
+  }
+  
+  .divider-vertical {
+    @apply w-px h-full bg-border;
+  }
+
+  /* Context Menu */
+  .context-menu {
+    @apply fixed z-50 min-w-[180px] py-1 bg-bg-tertiary border border-border rounded-lg shadow-dropdown animate-scale-in;
+  }
+  
+  .context-menu-item {
+    @apply flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-elevated cursor-pointer transition-fast;
+  }
+  
+  .context-menu-item-danger {
+    @apply hover:text-error;
+  }
+  
+  .context-menu-divider {
+    @apply my-1 h-px bg-border;
+  }
+
+  /* Dropdown */
+  .dropdown {
+    @apply absolute z-50 mt-1 min-w-full bg-bg-tertiary border border-border rounded-lg shadow-dropdown animate-slide-down overflow-hidden;
+  }
+  
+  .dropdown-item {
+    @apply flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-elevated cursor-pointer transition-fast;
+  }
+  
+  .dropdown-item-active {
+    @apply bg-accent text-white hover:bg-accent-hover;
+  }
+
+  /* File Row */
+  .file-row {
+    @apply flex items-center gap-3 px-4 py-2 border-b border-border-muted cursor-pointer transition-fast;
+  }
+  
+  .file-row:hover {
+    @apply bg-bg-tertiary;
+  }
+  
+  .file-row-selected {
+    @apply bg-accent/10 hover:bg-accent/15;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    @apply fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in;
+  }
+  
+  .modal {
+    @apply relative z-50 bg-bg-secondary border border-border rounded-xl shadow-dropdown animate-scale-in overflow-hidden max-h-[90vh];
+  }
+  
+  .modal-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0;
+  }
+  
+  .modal-body {
+    @apply px-6 py-4 overflow-auto;
+  }
+  
+  .modal-footer {
+    @apply flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-bg-tertiary/50 flex-shrink-0;
+  }
+
+  /* Breadcrumb */
+  .breadcrumb {
+    @apply flex items-center gap-1 text-sm;
+  }
+  
+  .breadcrumb-item {
+    @apply flex items-center gap-1 text-text-secondary hover:text-text cursor-pointer transition-fast;
+  }
+  
+  .breadcrumb-separator {
+    @apply text-text-faint mx-0.5;
+  }
+  
+  .breadcrumb-current {
+    @apply text-text font-medium;
+  }
+
+  /* Tree Item */
+  .tree-item {
+    @apply flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer transition-fast rounded-md mx-1;
+  }
+  
+  .tree-item:hover {
+    @apply bg-bg-tertiary;
+  }
+  
+  .tree-item-active {
+    @apply bg-accent/10 text-accent;
+  }
+
+  /* Toolbar */
+  .toolbar {
+    @apply flex items-center gap-2 h-[--toolbar-height] px-4 bg-bg-secondary border-b border-border;
+  }
+  
+  .toolbar-group {
+    @apply flex items-center gap-1;
+  }
+  
+  .toolbar-divider {
+    @apply w-px h-5 bg-border mx-1;
+  }
+}
+
+/* SVN Status Dot Indicator */
+.svn-status-dot {
+  @apply w-2.5 h-2.5 rounded-full flex-shrink-0;
+}
+
+.svn-status-dot-normal {
+  @apply bg-svn-normal;
+}
+
+.svn-status-dot-added {
+  @apply bg-svn-added;
+}
+
+.svn-status-dot-modified {
+  @apply bg-svn-modified;
+}
+
+.svn-status-dot-conflict {
+  @apply bg-svn-conflict animate-pulse-subtle;
+}
+
+.svn-status-dot-unversioned {
+  @apply bg-svn-unversioned;
+}
+
+/* Drag & Drop Zone */
+.drop-zone {
+  @apply border-2 border-dashed border-border rounded-xl p-8 text-center transition-all duration-200;
+}
+
+.drop-zone-active {
+  @apply border-accent bg-accent/5;
+}
+
+.drop-zone-reject {
+  @apply border-error bg-error/5;
+}
+
+/* Empty State */
+.empty-state {
+  @apply flex flex-col items-center justify-center py-12 text-center;
+}
+
+.empty-state-icon {
+  @apply w-16 h-16 mb-4 text-text-faint;
+}
+
+.empty-state-title {
+  @apply text-lg font-medium text-text mb-2;
+}
+
+.empty-state-description {
+  @apply text-sm text-text-secondary max-w-sm;
+}
+
+/* Loading Spinner */
+.spinner {
+  @apply w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin;
+}
+
+/* Tooltip Arrow */
+.tooltip-arrow {
+  @apply absolute w-2 h-2 bg-bg-elevated border-l border-t border-border rotate-45;
+}
+
+/* Native Window Controls Region */
+.window-controls {
+  @apply flex items-center gap-0;
+}
+
+.window-control {
+  @apply w-11 h-8 flex items-center justify-center transition-fast;
+}
+
+/* Mac Traffic Lights Spacing */
+.mac-traffic-lights {
+  @apply pl-16;
+}
+
+/* Grid Lines for File Explorer */
+.grid-lines {
+  background-image: 
+    linear-gradient(to right, rgba(48, 54, 61, 0.5) 1px, transparent 1px);
+  background-size: 100% 100%;
+}
+
+/* Subtle Noise Texture */
+.noise-texture {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.02;
+}
+
+/* Custom Checkbox */
+.checkbox {
+  @apply w-4 h-4 rounded border border-border bg-bg-tertiary appearance-none cursor-pointer transition-fast relative;
+}
+
+.checkbox:checked {
+  @apply bg-accent border-accent;
+}
+
+.checkbox:checked::after {
+  content: '';
+  @apply absolute left-[5px] top-[2px] w-[5px] h-[9px] border-r-2 border-b-2 border-white rotate-45;
+}
+
+/* Virtualized List Item */
+.virtual-item {
+  @apply absolute top-0 left-0 w-full;
+}
+
+/* Column Resize Handle */
+.resize-handle {
+  @apply absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-accent/50 transition-fast;
+}
+
+/* Status Bar */
+.status-bar {
+  @apply flex items-center gap-4 h-6 px-4 text-xs text-text-secondary bg-bg-secondary border-t border-border;
+}
+
+/* Activity Indicator */
+.activity-indicator {
+  @apply flex items-center gap-2 px-2 py-1 bg-bg-tertiary rounded-md;
+}
+
+.activity-dot {
+  @apply w-2 h-2 rounded-full bg-success animate-pulse-subtle;
+}
+
+/* Command Palette */
+.command-palette {
+  @apply fixed inset-0 z-50 flex items-start justify-center pt-[15vh];
+}
+
+.command-palette-input {
+  @apply w-full px-4 py-3 bg-bg-tertiary border-b border-border text-text placeholder:text-text-muted focus:outline-none text-base;
+}
+
+.command-palette-list {
+  @apply max-h-[50vh] overflow-y-auto;
+}
+
+.command-palette-item {
+  @apply flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-bg-elevated transition-fast;
+}
+
+.command-palette-item-active {
+  @apply bg-bg-elevated;
+}
+
+/* Diff Viewer */
+.diff-file-header {
+  @apply font-medium;
+}
+
+.diff-hunk-header {
+  @apply font-mono;
+}
+
+.diff-line-added {
+  @apply bg-svn-added/10;
+}
+
+.diff-line-removed {
+  @apply bg-svn-deleted/10;
+}
+
+.diff-line-context {
+  @apply bg-transparent;
+}
+
+.diff-line-hunk {
+  @apply text-text-muted;
+}
+
+.diff-line-number {
+  @apply select-none;
+}
+
+.diff-line-prefix {
+  @apply select-none;
+}
+
+.diff-line-content {
+  @apply text-text;
+}
+
+/* Diff syntax highlighting */
+.diff-line-added .diff-line-content {
+  @apply text-svn-added;
+}
+
+.diff-line-removed .diff-line-content {
+  @apply text-svn-deleted;
+}
+
+/* Animation Speed Variants */
+.animations-none * {
+  transition: none !important;
+  animation: none !important;
+}
+
+.animations-fast * {
+  transition-duration: 0.05s !important;
+}
+
+.animations-normal * {
+  /* Default - no override needed */
+}
+
+/* Font Size Variants */
+.font-size-small {
+  font-size: 13px;
+}
+
+.font-size-medium {
+  font-size: 14px;
+}
+
+.font-size-large {
+  font-size: 16px;
+}
+
+/* Compact File Rows */
+.compact-file-row {
+  @apply py-1;
+}
+
+/* Slide up animation for toast-style notifications */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
+}
+
+/* Scale in animation */
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.15s ease-out;
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+/* Accent glow effect */
+.shadow-glow-accent {
+  box-shadow: 0 0 20px var(--color-accent);
+}
+
+/* SVN Status Colors */
+:root {
+  --svn-normal: #7c3aed;
+  --svn-added: #22c55e;
+  --svn-modified: #3b82f6;
+  --svn-deleted: #ef4444;
+  --svn-conflict: #f59e0b;
+  --svn-unversioned: #6b7280;
+}

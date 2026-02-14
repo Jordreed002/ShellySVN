@@ -1,0 +1,23 @@
+{
+  "name": "@shellysvn/logic-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ShellySVN Logic Engine - SVN operations compiled with Bun",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --compile --outfile=dist/shelly-engine",
+    "build:win": "bun build ./src/index.ts --compile --target=bun-windows-x64 --outfile=dist/shelly-engine.exe",
+    "build:mac-x64": "bun build ./src/index.ts --compile --target=bun-darwin-x64 --outfile=dist/shelly-engine-darwin-x64",
+    "build:mac-arm64": "bun build ./src/index.ts --compile --target=bun-darwin-arm64 --outfile=dist/shelly-engine-darwin-arm64",
+    "build:all": "bun run build:win && bun run build:mac-x64 && bun run build:mac-arm64"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "typescript": "^5.7.2"
+  }
+}

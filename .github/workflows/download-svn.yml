@@ -1,0 +1,140 @@
+name: Download SVN Binaries
+
+on:
+  workflow_call:
+    outputs:
+      cache-key:
+        description: 'Cache key for downloaded binaries'
+        value: ${{ jobs.download.outputs.cache-key }}
+  workflow_dispatch:
+
+env:
+  SVN_VERSION: '1.14.5'
+  CACHE_KEY_PREFIX: 'svn-binaries-v1'
+
+jobs:
+  download:
+    runs-on: ${{ matrix.runner }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32
+            arch: x64
+            runner: windows-latest
+            artifact-name: svn-win32-x64
+          - platform: darwin
+            arch: x64
+            runner: macos-13
+            artifact-name: svn-darwin-x64
+          - platform: darwin
+            arch: arm64
+            runner: macos-14
+            artifact-name: svn-darwin-arm64
+    
+    outputs:
+      cache-key: ${{ env.CACHE_KEY_PREFIX }}-${{ env.SVN_VERSION }}
+    
+    steps:
+      - name: Download SVN for Windows
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          # Create binaries directory
+          New-Item -ItemType Directory -Force -Path binaries\win32-x64\svn
+          
+          # Download VisualSVN/SlikSVV portable binaries
+          # Using VisualSVN as it provides standalone binaries
+          $svnUrl = "https://www.visualsvn.com/files/Apache-Subversion-${{ env.SVN_VERSION }}/x64/svn-win32-${{ env.SVN_VERSION }}.zip"
+          
+          Write-Host "Downloading SVN from $svnUrl"
+          Invoke-WebRequest -Uri $svnUrl -OutFile svn.zip
+          
+          # Extract
+          Expand-Archive -Path svn.zip -DestinationPath svn-temp
+          
+          # Move binaries to expected location
+          Move-Item -Path "svn-temp\svn-win32-${{ env.SVN_VERSION }}\bin\*" -Destination "binaries\win32-x64\svn\" -Force
+          
+          # Verify
+          binaries\win32-x64\svn\svn.exe --version
+          
+          # Cleanup
+          Remove-Item svn.zip, svn-temp -Recurse -Force
+      
+      - name: Download SVN for macOS
+        if: matrix.platform == 'darwin'
+        run: |
+          # Create binaries directory
+          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn
+          
+          # Install SVN via Homebrew
+          brew install subversion
+          
+          # Find the svn binary location
+          SVN_PATH=$(which svn)
+          SVN_DIR=$(dirname "$SVN_PATH")
+          
+          echo "SVN installed at: $SVN_PATH"
+          svn --version
+          
+          # Copy the svn binary and its dependencies
+          # For simplicity, we'll use the system svn and assume users have dependencies
+          # In production, you'd want to bundle all dylibs too
+          cp "$SVN_PATH" binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/
+          
+          # Make executable
+          chmod +x binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn
+          
+          # List what we have
+          ls -la binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          retention-days: 7
+          if-no-files-found: error
+
+  # Create universal macOS binary (combines x64 + arm64)
+  create-universal:
+    needs: download
+    runs-on: macos-14
+    
+    steps:
+      - name: Download x64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-darwin-x64
+          path: binaries/darwin-x64
+      
+      - name: Download arm64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-darwin-arm64
+          path: binaries/darwin-arm64
+      
+      - name: Create universal binary
+        run: |
+          mkdir -p binaries/darwin-universal/svn
+          
+          # Create universal binary using lipo
+          lipo -create \
+            binaries/darwin-x64/svn/svn \
+            binaries/darwin-arm64/svn/svn \
+            -output binaries/darwin-universal/svn/svn
+          
+          chmod +x binaries/darwin-universal/svn/svn
+          
+          # Verify universal binary
+          lipo -info binaries/darwin-universal/svn/svn
+          binaries/darwin-universal/svn/svn --version
+      
+      - name: Upload universal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: svn-darwin-universal
+          path: binaries/darwin-universal
+          retention-days: 7

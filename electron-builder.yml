@@ -1,0 +1,102 @@
+appId: com.shellysvn.app
+productName: ShellySVN
+copyright: Copyright © 2026 ShellySVN
+
+directories:
+  buildResources: build
+  output: release/${version}
+
+files:
+  - out/**/*
+  - "!**/*.map"
+  - "!src/**/*"
+  - package.json
+
+# Bundle native binaries
+extraResources:
+  - from: binaries/${os}-${arch}
+    to: binaries
+    filter:
+      - "**/*"
+
+# Windows configuration
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  extraResources:
+    - from: binaries/win32-x64
+      to: binaries
+      filter:
+        - shelly-engine.exe
+        - svn/**/*
+
+# NSIS installer options
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  license: build/license.txt
+
+# macOS configuration
+mac:
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  extraResources:
+    - from: binaries/darwin-x64
+      to: binaries
+      filter:
+        - shelly-engine
+        - svn/**/*
+    - from: binaries/darwin-arm64
+      to: binaries
+      filter:
+        - shelly-engine
+        - svn/**/*
+
+# DMG options
+dmg:
+  artifactName: ${name}-${version}-${arch}.${ext}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Linux configuration (for future use)
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  icon: build/icons
+
+# Publishing configuration
+publish:
+  provider: github
+  owner: shellysvn
+  repo: shellysvn
+
+# Compression
+compression: maximum
+
+# ASAR configuration
+asar: true
+asarUnpack:
+  - "**/*.node"

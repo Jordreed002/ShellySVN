@@ -1,0 +1,248 @@
+name: Build Electron App
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================
+  # Build SVN Binaries
+  # ============================================
+  svn-binaries:
+    uses: ./.github/workflows/download-svn.yml
+  
+  # ============================================
+  # Build Logic Engine
+  # ============================================
+  logic-engine:
+    uses: ./.github/workflows/build-logic-engine.yml
+  
+  # ============================================
+  # Build Electron App - macOS
+  # ============================================
+  build-macos:
+    needs: [svn-binaries, logic-engine]
+    runs-on: ${{ matrix.runner }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-13
+          - arch: arm64
+            runner: macos-14
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Download SVN binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-darwin-${{ matrix.arch }}
+          path: binaries/darwin-${{ matrix.arch }}
+      
+      - name: Download Logic Engine
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-darwin-${{ matrix.arch }}
+          path: binaries/darwin-${{ matrix.arch }}
+      
+      - name: Make binaries executable
+        run: |
+          chmod +x binaries/darwin-${{ matrix.arch }}/shelly-engine
+          chmod +x binaries/darwin-${{ matrix.arch }}/svn/svn
+      
+      - name: Build frontend
+        run: bun run build
+      
+      - name: Build Electron app
+        run: bunx electron-builder --mac --${{ matrix.arch }} --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip code signing (user selected no signing)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-macOS-${{ matrix.arch }}
+          path: |
+            release/**/*.dmg
+            release/**/*.zip
+          retention-days: 7
+  
+  # ============================================
+  # Build Electron App - Windows
+  # ============================================
+  build-windows:
+    needs: [svn-binaries, logic-engine]
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Download SVN binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-win32-x64
+          path: binaries/win32-x64
+      
+      - name: Download Logic Engine
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-win32-x64
+          path: binaries/win32-x64
+      
+      - name: Build frontend
+        run: bun run build
+      
+      - name: Build Electron app
+        run: bunx electron-builder --win --x64 --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-Windows-x64
+          path: |
+            release/**/*.exe
+            release/**/*.zip
+          retention-days: 7
+
+  # ============================================
+  # Create Universal macOS DMG
+  # ============================================
+  create-universal-macos:
+    needs: build-macos
+    runs-on: macos-14
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Download universal SVN
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-darwin-universal
+          path: binaries/darwin-universal
+      
+      - name: Download universal Logic Engine
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-darwin-universal
+          path: binaries/darwin-universal
+      
+      - name: Make binaries executable
+        run: |
+          chmod +x binaries/darwin-universal/shelly-engine
+          chmod +x binaries/darwin-universal/svn/svn
+      
+      - name: Build frontend
+        run: bun run build
+      
+      - name: Build Universal macOS app
+        run: bunx electron-builder --mac --universal --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      
+      - name: Upload universal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-macOS-universal
+          path: |
+            release/**/*.dmg
+            release/**/*.zip
+          retention-days: 7
+
+  # ============================================
+  # Release
+  # ============================================
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ShellySVN v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## ShellySVN v${{ steps.get_version.outputs.VERSION }}
+            
+            ### Downloads
+            - **Windows**: `ShellySVN-Setup-x.x.x.exe`
+            - **macOS (Intel)**: `ShellySVN-x.x.x-x64.dmg`
+            - **macOS (Apple Silicon)**: `ShellySVN-x.x.x-arm64.dmg`
+            - **macOS (Universal)**: `ShellySVN-x.x.x-universal.dmg`
+            
+            ### What's Changed
+            See commit history for details.
+          files: |
+            artifacts/**/*
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
