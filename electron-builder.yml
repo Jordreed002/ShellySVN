@@ -2,6 +2,12 @@ appId: com.shellysvn.app
 productName: ShellySVN
 copyright: Copyright © 2026 ShellySVN
 
+# Protocol handler registration
+protocols:
+  name: ShellySVN
+  schemes:
+    - shellysvn
+
 directories:
   buildResources: build
   output: release/${version}
