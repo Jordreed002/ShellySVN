@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from 'react'
 import { Sidebar } from './Sidebar'
 import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog'
 import { CommandPalette } from './ui/CommandPalette'
+import { StatusBar } from './ui/StatusBar'
 import { useSettings } from '../hooks/useSettings'
 import { useVisualSettings } from '../hooks/useVisualSettings'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
@@ -64,6 +65,8 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex-1 overflow-hidden">
           {children}
         </div>
+        {/* Status bar (respects showStatusBar setting) */}
+        <StatusBar />
       </main>
       
       {/* Keyboard Shortcuts Dialog */}
