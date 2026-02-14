@@ -2,6 +2,7 @@ import { ipcMain, app } from 'electron'
 import { readFile, writeFile, access, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { getSettingsManager } from '../settings-manager'
 
 /**
  * Async JSON-based store
@@ -25,6 +26,13 @@ class SimpleStore {
       await access(this.filePath)
       const content = await readFile(this.filePath, 'utf-8')
       this.data = JSON.parse(content)
+      
+      // Sync settings to SettingsManager on load
+      if (this.data['settings']) {
+        const settingsManager = getSettingsManager()
+        await settingsManager.ready()
+        await settingsManager.updateSettings(this.data['settings'] as any)
+      }
     } catch {
       // File doesn't exist or parse error, use defaults
       this.data = {}
@@ -59,6 +67,16 @@ class SimpleStore {
     await this.loadPromise
     this.data[key] = value
     await this.save()
+    
+    // Notify SettingsManager when settings are updated
+    if (key === 'settings') {
+      try {
+        const settingsManager = getSettingsManager()
+        await settingsManager.updateSettings(value as any)
+      } catch (error) {
+        console.error('[Store] Failed to sync settings to manager:', error)
+      }
+    }
   }
 
   async delete(key: string): Promise<void> {
