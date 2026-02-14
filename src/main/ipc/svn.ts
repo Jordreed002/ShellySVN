@@ -4,12 +4,27 @@ import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, dirname } from 'path'
 import { existsSync, mkdirSync } from 'fs'
+import { XMLParser } from 'fast-xml-parser'
 import type { 
   SvnStatusResult, SvnLogResult, SvnInfoResult, SvnDiffResult, 
   SvnDiffFile, SvnDiffHunk, SvnChangelistResult, SvnShelveListResult, 
   CheckoutOptions, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
   SvnExecutionContext
 } from '@shared/types'
+
+/**
+ * XML parser configuration
+ * Always validate and parse attributes for proper XML handling
+ */
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  textNodeName: '#text',
+  parseAttributeValue: true,
+  trimValues: true,
+  parseTagValue: false,
+  allowBooleanAttributes: true
+})
 
 /**
  * SSL failure types that can be bypassed
@@ -172,41 +187,88 @@ async function executeSvn(
 }
 
 /**
- * Parse SVN status XML output
+ * Parse SVN status XML output using proper XML parser
  */
 function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
   const entries: SvnStatusResult['entries'] = []
   
-  // Simple XML parsing for status output
-  const entryMatches = xml.matchAll(/<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?<wc-status[^>]*item="([^"]*)"[^>]*>[\s\S]*?(<commit[^>]*>[\s\S]*?<\/commit>)?/g)
-  
-  for (const match of entryMatches) {
-    const path = match[1]
-    const status = match[2] || ' '
-    
-    // Extract commit info if present
-    let revision: number | undefined
-    let author: string | undefined
-    let date: string | undefined
-    
-    if (match[3]) {
-      const revMatch = match[3].match(/revision="(\d+)"/)
-      const authorMatch = match[3].match(/<author>([^<]+)<\/author>/)
-      const dateMatch = match[3].match(/<date>([^<]+)<\/date>/)
-      
-      if (revMatch) revision = parseInt(revMatch[1], 10)
-      if (authorMatch) author = authorMatch[1]
-      if (dateMatch) date = dateMatch[1]
+  try {
+    const parsed = xmlParser.parse(xml) as {
+      status?: {
+        target?: {
+          '@_path'?: string
+          entry?: Array<{
+            '@_path': string
+            'wc-status'?: {
+              '@_item': string
+              '@_revision'?: string
+              commit?: {
+                '@_revision': string
+                author?: string
+                date?: string
+              }
+            }
+          }> | {
+            '@_path': string
+            'wc-status'?: {
+              '@_item': string
+              '@_revision'?: string
+              commit?: {
+                '@_revision': string
+                author?: string
+                date?: string
+              }
+            }
+          }
+        }
+      }
     }
     
-    entries.push({
-      path,
-      status: status as SvnStatusResult['entries'][0]['status'],
-      revision,
-      author,
-      date,
-      isDirectory: false // Will be determined by file system check if needed
-    })
+    const target = parsed.status?.target
+    if (!target) {
+      return { path: basePath, entries: [], revision: 0 }
+    }
+    
+    const entryList = target.entry
+    if (!entryList) {
+      return { path: basePath, entries: [], revision: 0 }
+    }
+    
+    // Handle single entry (not array) or array of entries
+    const entriesArray = Array.isArray(entryList) ? entryList : [entryList]
+    
+    for (const entry of entriesArray) {
+      if (!entry || typeof entry !== 'object') continue
+      
+      const wcStatus = entry['wc-status']
+      if (!wcStatus) continue
+      
+      const path = entry['@_path'] || ''
+      const status = wcStatus['@_item'] || 'normal'
+      
+      // Extract commit info if present
+      let revision: number | undefined
+      let author: string | undefined
+      let date: string | undefined
+      
+      if (wcStatus.commit) {
+        revision = wcStatus.commit['@_revision'] ? parseInt(wcStatus.commit['@_revision'], 10) : undefined
+        author = wcStatus.commit.author
+        date = wcStatus.commit.date
+      }
+      
+      entries.push({
+        path,
+        status: status as SvnStatusResult['entries'][0]['status'],
+        revision,
+        author,
+        date,
+        isDirectory: false // Will be determined by file system check if needed
+      })
+    }
+  } catch (error) {
+    console.error('[SVN] Failed to parse status XML:', error)
+    // Return empty result on parse error
   }
   
   return {
@@ -217,52 +279,156 @@ function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
 }
 
 /**
- * Parse SVN info XML output  
+ * Parse SVN info XML output using proper XML parser
  */
 function parseSvnInfoXml(xml: string): SvnInfoResult {
-  const urlMatch = xml.match(/<url>([^<]+)<\/url>/)
-  const rootMatch = xml.match(/<root>([^<]+)<\/root>/)
-  const uuidMatch = xml.match(/<uuid>([^<]+)<\/uuid>/)
-  const revMatch = xml.match(/revision="(\d+)"/)
-  const authorMatch = xml.match(/<author>([^<]+)<\/author>/)
-  const dateMatch = xml.match(/<date>([^<]+)<\/date>/)
-  
-  return {
-    path: '',
-    url: urlMatch?.[1] || '',
-    repositoryRoot: rootMatch?.[1] || '',
-    repositoryUuid: uuidMatch?.[1] || '',
-    revision: revMatch ? parseInt(revMatch[1], 10) : 0,
-    nodeKind: 'dir',
-    lastChangedAuthor: authorMatch?.[1] || '',
-    lastChangedRevision: revMatch ? parseInt(revMatch[1], 10) : 0,
-    lastChangedDate: dateMatch?.[1] || ''
+  try {
+    const parsed = xmlParser.parse(xml) as {
+      info?: {
+        entry?: {
+          '@_path'?: string
+          '@_revision'?: string
+          url?: string
+          repository?: {
+            root?: string
+            uuid?: string
+          }
+          commit?: {
+            '@_revision'?: string
+            author?: string
+            date?: string
+          }
+        }
+      }
+    }
+    
+    const entry = parsed.info?.entry
+    if (!entry) {
+      return {
+        path: '',
+        url: '',
+        repositoryRoot: '',
+        repositoryUuid: '',
+        revision: 0,
+        nodeKind: 'dir',
+        lastChangedAuthor: '',
+        lastChangedRevision: 0,
+        lastChangedDate: ''
+      }
+    }
+    
+    const revision = entry['@_revision'] ? parseInt(entry['@_revision'], 10) : 0
+    const commitRevision = entry.commit?.['@_revision'] ? parseInt(entry.commit['@_revision'], 10) : 0
+    
+    return {
+      path: entry['@_path'] || '',
+      url: entry.url || '',
+      repositoryRoot: entry.repository?.root || '',
+      repositoryUuid: entry.repository?.uuid || '',
+      revision,
+      nodeKind: 'dir',
+      lastChangedAuthor: entry.commit?.author || '',
+      lastChangedRevision: commitRevision,
+      lastChangedDate: entry.commit?.date || ''
+    }
+  } catch (error) {
+    console.error('[SVN] Failed to parse info XML:', error)
+    return {
+      path: '',
+      url: '',
+      repositoryRoot: '',
+      repositoryUuid: '',
+      revision: 0,
+      nodeKind: 'dir',
+      lastChangedAuthor: '',
+      lastChangedRevision: 0,
+      lastChangedDate: ''
+    }
   }
 }
 
 /**
- * Parse SVN log XML output
+ * Parse SVN log XML output using proper XML parser
  */
 function parseSvnLogXml(xml: string): SvnLogResult {
   const entries: SvnLogResult['entries'] = []
   
-  const logEntryMatches = xml.matchAll(/<logentry[^>]*revision="(\d+)"[^>]*>([\s\S]*?)<\/logentry>/g)
-  
-  for (const match of logEntryMatches) {
-    const revision = parseInt(match[1], 10)
-    const content = match[2]
+  try {
+    const parsed = xmlParser.parse(xml) as {
+      log?: {
+        logentry?: Array<{
+          '@_revision': string
+          author?: string
+          date?: string
+          msg?: string
+          paths?: {
+            path?: Array<{
+              '#text': string
+              '@_action'?: string
+              '@_kind'?: string
+            }> | {
+              '#text': string
+              '@_action'?: string
+              '@_kind'?: string
+            }
+          }
+        }> | {
+          '@_revision': string
+          author?: string
+          date?: string
+          msg?: string
+          paths?: {
+            path?: Array<{
+              '#text': string
+              '@_action'?: string
+              '@_kind'?: string
+            }> | {
+              '#text': string
+              '@_action'?: string
+              '@_kind'?: string
+            }
+          }
+        }
+      }
+    }
     
-    const authorMatch = content.match(/<author>([^<]+)<\/author>/)
-    const dateMatch = content.match(/<date>([^<]+)<\/date>/)
-    const msgMatch = content.match(/<msg>([^<]*)<\/msg>/)
+    const logEntries = parsed.log?.logentry
+    if (!logEntries) {
+      return { entries: [], startRevision: 0, endRevision: 0 }
+    }
     
-    entries.push({
-      revision,
-      author: authorMatch?.[1] || 'unknown',
-      date: dateMatch?.[1] || '',
-      message: msgMatch?.[1] || '',
-      paths: []
-    })
+    // Handle single entry (not array) or array of entries
+    const entriesArray = Array.isArray(logEntries) ? logEntries : [logEntries]
+    
+    for (const entry of entriesArray) {
+      if (!entry || typeof entry !== 'object') continue
+      
+      // Parse paths if present
+      const paths: Array<{ path: string; action: 'A' | 'D' | 'M' | 'R'; kind: string }> = []
+      if (entry.paths?.path) {
+        const pathList = Array.isArray(entry.paths.path) ? entry.paths.path : [entry.paths.path]
+        for (const p of pathList) {
+          if (p && typeof p === 'object') {
+            paths.push({
+              path: p['#text'] || '',
+              action: (p['@_action'] || '') as 'A' | 'D' | 'M' | 'R',
+              kind: p['@_kind'] || ''
+            })
+          }
+        }
+      }
+      
+      entries.push({
+        revision: parseInt(entry['@_revision'], 10) || 0,
+        author: entry.author || 'unknown',
+        date: entry.date || '',
+        message: entry.msg || '',
+        paths
+      })
+    }
+  } catch (error) {
+    console.error('[SVN] Failed to parse log XML:', error)
+    // Return empty result on parse error
   }
   
   const revisions = entries.map(e => e.revision)
