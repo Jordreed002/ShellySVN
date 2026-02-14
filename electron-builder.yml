@@ -12,13 +12,6 @@ files:
   - "!src/**/*"
   - package.json
 
-# Bundle native binaries
-extraResources:
-  - from: binaries/${os}-${arch}
-    to: binaries
-    filter:
-      - "**/*"
-
 # Windows configuration
 win:
   target:
@@ -57,11 +50,13 @@ mac:
         - x64
         - arm64
   extraResources:
+    # x64 binaries (for Intel Macs)
     - from: binaries/darwin-x64
       to: binaries
       filter:
         - shelly-engine
         - svn/**/*
+    # arm64 binaries (for Apple Silicon)
     - from: binaries/darwin-arm64
       to: binaries
       filter:
