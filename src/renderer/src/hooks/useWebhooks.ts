@@ -1,6 +1,66 @@
 import { useState, useCallback, useEffect } from 'react'
 
 /**
+ * Default timeout for webhook requests (10 seconds)
+ */
+const DEFAULT_WEBHOOK_TIMEOUT = 10000
+
+/**
+ * Generate HMAC-SHA256 signature for webhook payload
+ * Uses Web Crypto API for secure signature generation
+ */
+async function generateHmacSignature(secret: string, payload: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const keyData = encoder.encode(secret)
+  const messageData = encoder.encode(payload)
+  
+  // Import the secret key
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  
+  // Generate signature
+  const signature = await crypto.subtle.sign('HMAC', key, messageData)
+  
+  // Convert to hex string
+  const hashArray = Array.from(new Uint8Array(signature))
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  
+  return `sha256=${hashHex}`
+}
+
+/**
+ * Fetch with timeout using AbortController
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeout: number = DEFAULT_WEBHOOK_TIMEOUT
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeout / 1000} seconds`)
+    }
+    throw error
+  }
+}
+
+/**
  * Webhook configuration
  */
 export interface WebhookConfig {
@@ -14,6 +74,7 @@ export interface WebhookConfig {
   createdAt: number
   lastTriggered?: number
   lastStatus?: 'success' | 'failed' | 'pending'
+  timeout?: number  // Timeout in milliseconds (default: 10000)
 }
 
 /**
@@ -230,23 +291,29 @@ export function useWebhooks() {
     
     try {
       const startTime = Date.now()
+      const payloadString = JSON.stringify(payload)
       
-      // Generate signature if secret is set
+      // Build headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'X-ShellySVN-Event': payload.event
+        'X-ShellySVN-Event': payload.event,
+        'X-ShellySVN-Delivery': delivery.id,
+        'X-ShellySVN-Timestamp': String(payload.timestamp)
       }
       
+      // Generate proper HMAC-SHA256 signature if secret is set
       if (webhook.secret) {
-        // Simple HMAC signature (in production, use proper crypto)
-        headers['X-ShellySVN-Signature'] = `sha256=${btoa(webhook.secret + JSON.stringify(payload))}`
+        const signature = await generateHmacSignature(webhook.secret, payloadString)
+        headers['X-ShellySVN-Signature-256'] = signature
       }
       
-      const response = await fetch(webhook.url, {
+      // Use fetch with timeout
+      const timeout = webhook.timeout || DEFAULT_WEBHOOK_TIMEOUT
+      const response = await fetchWithTimeout(webhook.url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload)
-      })
+        body: payloadString
+      }, timeout)
       
       const responseTime = Date.now() - startTime
       
@@ -295,7 +362,7 @@ export function useWebhooks() {
   }, [deliveries, saveDeliveries, updateWebhook])
   
   /**
-   * Trigger webhooks for an event
+   * Trigger webhooks for an event (parallel delivery)
    */
   const triggerEvent = useCallback(async (
     event: WebhookEvent,
@@ -308,16 +375,33 @@ export function useWebhooks() {
       (!w.repositoryPath || w.repositoryPath === repository.path)
     )
     
-    for (const webhook of matchingWebhooks) {
-      const payload: WebhookPayload = {
+    if (matchingWebhooks.length === 0) return
+    
+    // Create all payloads
+    const payloads = matchingWebhooks.map(webhook => ({
+      webhook,
+      payload: {
         event,
         timestamp: Date.now(),
         repository,
         data
+      } as WebhookPayload
+    }))
+    
+    // Deliver all webhooks in parallel for better performance
+    const results = await Promise.allSettled(
+      payloads.map(({ webhook, payload }) => triggerWebhook(webhook, payload))
+    )
+    
+    // Log any failures for debugging
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(
+          `Webhook delivery failed for ${matchingWebhooks[index].name}:`,
+          result.reason
+        )
       }
-      
-      await triggerWebhook(webhook, payload)
-    }
+    })
   }, [webhooks, triggerWebhook])
   
   /**
