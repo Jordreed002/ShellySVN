@@ -147,6 +147,14 @@ if (process.contextIsolated) {
     console.error('Failed to expose API:', error)
   }
 } else {
-  // @ts-ignore (for non-context-isolated environments)
-  window.api = api
+  // SECURITY WARNING: Context isolation is disabled. This is insecure.
+  // Only use in development environments.
+  console.warn(
+    '[SECURITY WARNING] Context isolation is disabled. ' +
+    'This should only be used during development.'
+  )
+  // Direct assignment for non-isolated environments
+  // Cast through unknown to avoid type conflicts
+  ;(window as unknown as { electron: typeof electronAPI }).electron = electronAPI
+  ;(window as unknown as { api: typeof api }).api = api
 }

@@ -469,15 +469,16 @@ export function registerFsHandlers(): void {
   // Read file content
   ipcMain.handle('fs:readFile', async (_, path: string): Promise<{ success: boolean; content?: string; error?: string }> => {
     try {
-      const fs = await import('fs')
-      const stats = fs.statSync(path)
+      // PERFORMANCE: Use async file operations to avoid blocking
+      const { stat, readFile } = await import('fs/promises')
+      const stats = await stat(path)
       
       // Limit file size to 1MB for preview
       if (stats.size > 1024 * 1024) {
         return { success: false, error: 'File too large for preview (>1MB)' }
       }
       
-      const content = fs.readFileSync(path, 'utf-8')
+      const content = await readFile(path, 'utf-8')
       return { success: true, content }
     } catch (err) {
       return { success: false, error: (err as Error).message }

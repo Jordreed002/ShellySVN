@@ -281,6 +281,7 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = {}) {
   
   /**
    * Get cache statistics
+   * PERFORMANCE: Uses estimated entry size to avoid O(n) JSON.stringify calls
    */
   const getStats = useCallback(() => {
     const now = Date.now()
@@ -288,35 +289,37 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = {}) {
     let validStatus = 0
     let validLog = 0
     let validEntries = 0
-    let totalSize = 0
     
+    // Count valid entries - O(n) but just iteration, no serialization
     for (const entry of cacheRef.current.info.values()) {
       if (entry.expiresAt > now) validInfo++
-      totalSize += JSON.stringify(entry).length
     }
     
     for (const entry of cacheRef.current.status.values()) {
       if (entry.expiresAt > now) validStatus++
-      totalSize += JSON.stringify(entry).length
     }
     
     for (const entry of cacheRef.current.log.values()) {
       if (entry.expiresAt > now) validLog++
-      totalSize += JSON.stringify(entry).length
     }
     
     for (const entry of cacheRef.current.entries.values()) {
       if (entry.expiresAt > now) validEntries++
-      totalSize += JSON.stringify(entry).length
     }
+    
+    // Estimate size based on average entry size (~2KB per entry)
+    // This avoids expensive JSON.stringify for each entry
+    const totalEntries = validInfo + validStatus + validLog + validEntries
+    const estimatedSize = totalEntries * 2048
     
     return {
       infoCount: validInfo,
       statusCount: validStatus,
       logCount: validLog,
       entriesCount: validEntries,
-      totalSize,
-      formattedSize: formatBytes(totalSize)
+      totalSize: estimatedSize,
+      formattedSize: formatBytes(estimatedSize),
+      isEstimated: true
     }
   }, [])
   
