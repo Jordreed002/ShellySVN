@@ -61,7 +61,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="h-[32px] bg-bg-tertiary titlebar-drag flex items-center px-4 border-b border-border">
           <span className="text-xs text-text-muted font-medium">ShellySVN</span>
         </div>
-        <div className="flex-1 overflow-auto scrollbar-overlay">
+        <div className="flex-1 overflow-hidden">
           {children}
         </div>
       </main>

@@ -1,14 +1,21 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, memo } from 'react'
 import { X, FileText, FileImage, FileCode, File, Copy, Check, ChevronRight } from 'lucide-react'
 
 interface FilePreviewProps {
   filePath: string | null
   isOpen: boolean
   onClose: () => void
+  onOpen?: () => void
   className?: string
 }
 
-export function FilePreview({ filePath, isOpen, onClose, className = '' }: FilePreviewProps) {
+export const FilePreview = memo(function FilePreview({ 
+  filePath, 
+  isOpen, 
+  onClose, 
+  onOpen,
+  className = '' 
+}: FilePreviewProps) {
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,19 +76,30 @@ export function FilePreview({ filePath, isOpen, onClose, className = '' }: FileP
 
   const filename = filePath ? filePath.split(/[/\\]/).pop() || filePath : 'Preview'
 
+  // Memoize truncated content for performance
+  const displayContent = useMemo(() => {
+    if (!content) return null
+    // Limit to 30KB for better performance
+    if (content.length > 30000) {
+      return content.slice(0, 30000) + '\n\n... (content truncated)'
+    }
+    return content
+  }, [content])
+
   return (
     <div 
       className={`
         flex flex-col bg-bg-secondary border-l border-border
-        transition-all duration-300 ease-in-out overflow-hidden
+        transition-[width] duration-150 ease-out overflow-hidden
+        will-change-[width] h-full min-h-0 flex-shrink-0
         ${isOpen ? 'w-80' : 'w-0'}
         ${className}
       `}
     >
       {/* Collapsed state - show toggle button */}
-      {!isOpen && (
+      {!isOpen && onOpen && (
         <button
-          onClick={() => onClose()}
+          onClick={onOpen}
           className="absolute right-0 top-1/2 -translate-y-1/2 p-2 bg-bg-tertiary border border-border rounded-l hover:bg-bg-elevated transition-fast"
           title="Open preview panel"
         >
@@ -93,7 +111,6 @@ export function FilePreview({ filePath, isOpen, onClose, className = '' }: FileP
       <div className={`
         flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border
         ${isOpen ? 'opacity-100' : 'opacity-0'}
-        transition-opacity duration-200
       `}>
         <div className="flex items-center gap-2 min-w-0">
           {fileType === 'image' && <FileImage className="w-4 h-4 text-accent flex-shrink-0" />}
@@ -124,11 +141,7 @@ export function FilePreview({ filePath, isOpen, onClose, className = '' }: FileP
       </div>
 
       {/* Content */}
-      <div className={`
-        flex-1 overflow-auto p-4
-        ${isOpen ? 'opacity-100' : 'opacity-0'}
-        transition-opacity duration-200 delay-100
-      `}>
+      <div className="flex-1 overflow-auto p-4">
         {!filePath ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <File className="w-12 h-12 text-text-muted mb-3" />
@@ -155,9 +168,9 @@ export function FilePreview({ filePath, isOpen, onClose, className = '' }: FileP
               }}
             />
           </div>
-        ) : content ? (
+        ) : displayContent ? (
           <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
-            {content.length > 50000 ? content.slice(0, 50000) + '\n\n... (content truncated)' : content}
+            {displayContent}
           </pre>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -168,13 +181,9 @@ export function FilePreview({ filePath, isOpen, onClose, className = '' }: FileP
       </div>
 
       {/* Footer */}
-      <div className={`
-        px-4 py-2 bg-bg-tertiary border-t border-border text-xs text-text-muted truncate
-        ${isOpen ? 'opacity-100' : 'opacity-0'}
-        transition-opacity duration-200
-      `}>
+      <div className="px-4 py-2 bg-bg-tertiary border-t border-border text-xs text-text-muted truncate">
         {filePath || 'No file selected'}
       </div>
     </div>
   )
-}
+})

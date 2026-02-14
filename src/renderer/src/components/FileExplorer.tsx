@@ -554,9 +554,9 @@ export function FileExplorer() {
   }
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="h-full flex overflow-hidden">
       {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
         {/* Breadcrumb Header */}
         <div className="h-[--header-height] flex items-center px-4 bg-bg-secondary border-b border-border">
           {/* Up navigation button */}
@@ -732,6 +732,7 @@ export function FileExplorer() {
         filePath={showPreview && selectedEntry && !selectedEntry.isDirectory ? selectedEntry.path : null}
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
+        onOpen={() => setShowPreview(true)}
       />
       
       {/* Commit Dialog */}
