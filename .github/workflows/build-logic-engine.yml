@@ -59,14 +59,7 @@ jobs:
       
       - name: Build binary
         working-directory: packages/logic-engine
-        run: |
-          bun build ./src/index.ts \
-            --compile \
-            --target=${{ matrix.target }} \
-            --outfile=dist/shelly-engine${{ matrix.ext }} \
-            --minify \
-            --define ENGINE_VERSION='"${{ github.ref_name }}"' \
-            --define BUILD_SHA='"${{ github.sha }}"'
+        run: bun build ./src/index.ts --compile --target=${{ matrix.target }} --outfile=dist/shelly-engine${{ matrix.ext }} --minify --define ENGINE_VERSION='"${{ github.ref_name }}"' --define BUILD_SHA='"${{ github.sha }}"'
       
       - name: Verify binary
         working-directory: packages/logic-engine
