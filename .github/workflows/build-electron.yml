@@ -2,9 +2,6 @@ name: Build Electron App
 
 on:
   push:
-    branches:
-      - main
-      - master
     tags:
       - 'v*'
   pull_request:
@@ -12,24 +9,168 @@ on:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a GitHub release'
+        required: false
+        default: 'false'
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SVN_VERSION: '1.14.5'
+
 jobs:
   # ============================================
-  # Build SVN Binaries
+  # Build SVN Binaries (with caching)
   # ============================================
   svn-binaries:
-    uses: ./.github/workflows/download-svn.yml
-  
+    runs-on: ${{ matrix.runner }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32
+            arch: x64
+            runner: windows-latest
+            artifact-name: svn-win32-x64
+          - platform: darwin
+            arch: x64
+            runner: macos-15-intel
+            artifact-name: svn-darwin-x64
+          - platform: darwin
+            arch: arm64
+            runner: macos-14
+            artifact-name: svn-darwin-arm64
+    
+    steps:
+      - name: Cache SVN binaries
+        id: cache-svn
+        uses: actions/cache@v4
+        with:
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          key: svn-${{ matrix.platform }}-${{ matrix.arch }}-${{ env.SVN_VERSION }}
+      
+      - name: Download SVN for Windows
+        if: matrix.platform == 'win32' && steps.cache-svn.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path binaries\win32-x64\svn
+          $svnUrl = "https://www.visualsvn.com/files/Apache-Subversion-${{ env.SVN_VERSION }}-3.zip"
+          Write-Host "Downloading SVN from $svnUrl"
+          Invoke-WebRequest -Uri $svnUrl -OutFile svn.zip
+          Expand-Archive -Path svn.zip -DestinationPath svn-temp
+          Move-Item -Path "svn-temp\bin\*" -Destination "binaries\win32-x64\svn\" -Force
+          binaries\win32-x64\svn\svn.exe --version
+          Remove-Item svn.zip, svn-temp -Recurse -Force
+      
+      - name: Download SVN for macOS
+        if: matrix.platform == 'darwin' && steps.cache-svn.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/lib
+          brew install subversion dylibbundler
+          SVN_PATH=$(which svn)
+          echo "SVN installed at: $SVN_PATH"
+          svn --version
+          cp "$SVN_PATH" binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/
+          dylibbundler -od -b \
+            -x binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn \
+            -d binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/lib \
+            -p @executable_path/lib
+          chmod +x binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn
+          binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn --version
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          retention-days: 1
+
   # ============================================
-  # Build Logic Engine
+  # Build Logic Engine (with caching)
   # ============================================
   logic-engine:
-    uses: ./.github/workflows/build-logic-engine.yml
-  
+    runs-on: ${{ matrix.runner }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32
+            arch: x64
+            runner: windows-latest
+            target: bun-windows-x64
+            ext: .exe
+            artifact-name: shelly-engine-win32-x64
+          - platform: darwin
+            arch: x64
+            runner: macos-15-intel
+            target: bun-darwin-x64
+            ext: ''
+            artifact-name: shelly-engine-darwin-x64
+          - platform: darwin
+            arch: arm64
+            runner: macos-14
+            target: bun-darwin-arm64
+            ext: ''
+            artifact-name: shelly-engine-darwin-arm64
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Generate cache key from source
+        id: cache-key
+        run: |
+          echo "key=logic-engine-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('packages/logic-engine/**/*.ts', 'packages/logic-engine/package.json', 'bun.lock') }}" >> $GITHUB_OUTPUT
+        shell: bash
+      
+      - name: Cache Logic Engine binary
+        id: cache-engine
+        uses: actions/cache@v4
+        with:
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          key: ${{ steps.cache-key.outputs.key }}
+      
+      - name: Setup Bun
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+      
+      - name: Install dependencies
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        working-directory: packages/logic-engine
+        run: bun install --frozen-lockfile
+      
+      - name: Build binary
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        working-directory: packages/logic-engine
+        run: bun build ./src/index.ts --compile --target=${{ matrix.target }} --outfile=dist/shelly-engine${{ matrix.ext }} --minify --define ENGINE_VERSION='"${{ github.ref_name }}"' --define BUILD_SHA='"${{ github.sha }}"'
+      
+      - name: Verify binary
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        working-directory: packages/logic-engine
+        run: ./dist/shelly-engine${{ matrix.ext }} --version
+      
+      - name: Move to binaries directory
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          mv packages/logic-engine/dist/shelly-engine${{ matrix.ext }} binaries/${{ matrix.platform }}-${{ matrix.arch }}/
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}/shelly-engine${{ matrix.ext }}
+          retention-days: 1
+
   # ============================================
   # Build Electron App - macOS
   # ============================================
@@ -57,6 +198,16 @@ jobs:
         with:
           bun-version: '1.2.0'
       
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: bun-deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-deps-${{ runner.os }}-
+      
       - name: Install dependencies
         run: bun install --frozen-lockfile
       
@@ -77,6 +228,16 @@ jobs:
           chmod +x binaries/darwin-${{ matrix.arch }}/shelly-engine
           chmod +x binaries/darwin-${{ matrix.arch }}/svn/svn
       
+      - name: Cache Electron build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            out
+            .cache
+          key: electron-out-${{ matrix.arch }}-${{ hashFiles('src/**/*', 'package.json', 'bun.lock') }}
+          restore-keys: |
+            electron-out-${{ matrix.arch }}-
+      
       - name: Build frontend
         run: bun run build
       
@@ -84,7 +245,6 @@ jobs:
         run: bunx electron-builder --mac --${{ matrix.arch }} --config
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip code signing (user selected no signing)
           CSC_IDENTITY_AUTO_DISCOVERY: false
       
       - name: Upload artifact
@@ -114,6 +274,16 @@ jobs:
         with:
           bun-version: '1.2.0'
       
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: bun-deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-deps-${{ runner.os }}-
+      
       - name: Install dependencies
         run: bun install --frozen-lockfile
       
@@ -128,6 +298,16 @@ jobs:
         with:
           name: shelly-engine-win32-x64
           path: binaries/win32-x64
+      
+      - name: Cache Electron build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            out
+            .cache
+          key: electron-out-win32-x64-${{ hashFiles('src/**/*', 'package.json', 'bun.lock') }}
+          restore-keys: |
+            electron-out-win32-x64-
       
       - name: Build frontend
         run: bun run build
@@ -147,67 +327,12 @@ jobs:
           retention-days: 7
 
   # ============================================
-  # Create Universal macOS DMG
-  # ============================================
-  create-universal-macos:
-    needs: build-macos
-    runs-on: macos-14
-    if: startsWith(github.ref, 'refs/tags/v')
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.2.0'
-      
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-      
-      - name: Download universal SVN
-        uses: actions/download-artifact@v4
-        with:
-          name: svn-darwin-universal
-          path: binaries/darwin-universal
-      
-      - name: Download universal Logic Engine
-        uses: actions/download-artifact@v4
-        with:
-          name: shelly-engine-darwin-universal
-          path: binaries/darwin-universal
-      
-      - name: Make binaries executable
-        run: |
-          chmod +x binaries/darwin-universal/shelly-engine
-          chmod +x binaries/darwin-universal/svn/svn
-      
-      - name: Build frontend
-        run: bun run build
-      
-      - name: Build Universal macOS app
-        run: bunx electron-builder --mac --universal --config
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-      
-      - name: Upload universal artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShellySVN-macOS-universal
-          path: |
-            release/**/*.dmg
-            release/**/*.zip
-          retention-days: 7
-
-  # ============================================
-  # Release
+  # Release (only on tags or manual dispatch)
   # ============================================
   release:
     needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.create_release == 'true'
     
     permissions:
       contents: write
@@ -236,7 +361,6 @@ jobs:
             - **Windows**: `ShellySVN-Setup-x.x.x.exe`
             - **macOS (Intel)**: `ShellySVN-x.x.x-x64.dmg`
             - **macOS (Apple Silicon)**: `ShellySVN-x.x.x-arm64.dmg`
-            - **macOS (Universal)**: `ShellySVN-x.x.x-universal.dmg`
             
             ### What's Changed
             See commit history for details.
