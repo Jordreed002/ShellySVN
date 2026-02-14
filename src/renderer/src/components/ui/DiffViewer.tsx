@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { X, FileText, AlertTriangle, Loader, Image as ImageIcon, ExternalLink } from 'lucide-react'
 import type { SvnDiffResult, SvnDiffLine } from '@shared/types'
 import { ImageDiffViewer, isImageFile } from './ImageDiffViewer'
+import { useSettings } from '@renderer/hooks/useSettings'
 
 interface DiffViewerProps {
   isOpen: boolean
@@ -10,14 +11,55 @@ interface DiffViewerProps {
 }
 
 export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
+  const { settings } = useSettings()
   const [diff, setDiff] = useState<SvnDiffResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showImageDiff, setShowImageDiff] = useState(false)
+  const [isOpeningExternal, setIsOpeningExternal] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   
   // Check if file is an image
   const isImage = isImageFile(filePath)
+  
+  // Check if external diff tool is configured
+  const hasExternalDiffTool = settings.diffMerge.externalDiffTool && settings.diffMerge.externalDiffTool.trim() !== ''
+  
+  // Open in external diff tool
+  const handleOpenExternal = async () => {
+    if (!hasExternalDiffTool) return
+    
+    setIsOpeningExternal(true)
+    try {
+      // For working copy diff, we compare BASE vs working file
+      // Export BASE revision to a temp location for comparison
+      const tempPath = await window.api.app.getPath('temp')
+      const baseFileName = `.svn-tmp-base-${Date.now()}-${filePath.split(/[/\\]/).pop()}`
+      const basePath = `${tempPath}/${baseFileName}`
+      
+      // Export the BASE revision
+      await window.api.svn.export(
+        filePath,
+        basePath,
+        'BASE'
+      )
+      
+      // Open external diff tool with BASE (left) vs working copy (right)
+      const result = await window.api.external.openDiffTool(
+        settings.diffMerge.externalDiffTool,
+        basePath,
+        filePath
+      )
+      
+      if (!result.success) {
+        setError(result.error || 'Failed to open external diff tool')
+      }
+    } catch (err) {
+      setError((err as Error).message || 'Failed to open external diff tool')
+    } finally {
+      setIsOpeningExternal(false)
+    }
+  }
   
   useEffect(() => {
     if (isOpen && filePath) {
@@ -84,9 +126,26 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
             <FileText className="w-5 h-5 text-accent" />
             Diff: {fileName}
           </h2>
-          <button onClick={onClose} className="btn-icon-sm">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {hasExternalDiffTool && (
+              <button 
+                onClick={handleOpenExternal}
+                disabled={isOpeningExternal || isLoading}
+                className="btn btn-secondary text-sm"
+                title={`Open in ${settings.diffMerge.externalDiffTool}`}
+              >
+                {isOpeningExternal ? (
+                  <Loader className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="w-4 h-4" />
+                )}
+                External
+              </button>
+            )}
+            <button onClick={onClose} className="btn-icon-sm">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         {/* Content */}

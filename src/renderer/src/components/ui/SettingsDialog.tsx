@@ -25,6 +25,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useSettingsPreview } from '@renderer/contexts/SettingsPreviewContext'
 import type { 
   AppSettings, 
   LogLevel, 
@@ -126,34 +127,37 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: SettingsDialogProps) {
   const { settings: savedSettings, updateSettings, isUpdating } = useSettings()
+  const { 
+    startPreview, 
+    updatePreviewSetting, 
+    updateNestedPreviewSetting, 
+    commitPreview, 
+    cancelPreview,
+    hasPreviewChanges 
+  } = useSettingsPreview()
+  
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab)
   const [localSettings, setLocalSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
-  const [hasChanges, setHasChanges] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
-  // Load settings when dialog opens
+  // Load settings and start preview when dialog opens
   useEffect(() => {
     if (isOpen && savedSettings) {
-      setLocalSettings({ ...DEFAULT_SETTINGS, ...savedSettings })
-      setHasChanges(false)
+      const settings = { ...DEFAULT_SETTINGS, ...savedSettings }
+      setLocalSettings(settings)
+      startPreview(settings) // Start live preview
       setShowResetConfirm(false)
       // Set initial tab when dialog opens
       if (initialTab) {
         setActiveTab(initialTab)
       }
     }
-  }, [isOpen, savedSettings, initialTab])
-
-  // Track changes
-  useEffect(() => {
-    if (savedSettings) {
-      const changed = JSON.stringify(localSettings) !== JSON.stringify({ ...DEFAULT_SETTINGS, ...savedSettings })
-      setHasChanges(changed)
-    }
-  }, [localSettings, savedSettings])
+  }, [isOpen, savedSettings, initialTab, startPreview])
 
   const updateLocalSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     setLocalSettings(prev => ({ ...prev, [key]: value }))
+    // Apply to preview immediately for visual settings
+    updatePreviewSetting(key, value)
   }
 
   const updateNestedSetting = <K extends keyof AppSettings, SK extends keyof AppSettings[K]>(
@@ -163,27 +167,29 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   ) => {
     setLocalSettings(prev => {
       const nestedValue = prev[key] as unknown as Record<string, unknown>
-      return {
+      const updated = {
         ...prev,
         [key]: {
           ...nestedValue,
           [subKey]: value
         }
       }
+      return updated
     })
+    // Apply to preview immediately for visual settings
+    updateNestedPreviewSetting(key, subKey, value)
   }
 
   const handleSave = async () => {
     await updateSettings(localSettings)
-    setHasChanges(false)
+    commitPreview() // Commit the preview changes
     onClose()
   }
 
   const handleReset = async () => {
     setLocalSettings(DEFAULT_SETTINGS)
-    await updateSettings(DEFAULT_SETTINGS)
+    startPreview(DEFAULT_SETTINGS) // Reset preview too
     setShowResetConfirm(false)
-    setHasChanges(false)
   }
 
   const handleClearCredentials = async () => {
@@ -196,11 +202,11 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   }
 
   const handleClose = () => {
-    if (hasChanges) {
-      onClose()
-    } else {
-      onClose()
+    // Cancel preview and revert any unsaved visual changes
+    if (savedSettings) {
+      cancelPreview(savedSettings)
     }
+    onClose()
   }
 
   if (!isOpen) return null
@@ -324,7 +330,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
           {/* Footer */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-tertiary/30">
             <div className="flex items-center gap-2">
-              {hasChanges && (
+              {hasPreviewChanges && (
                 <span className="text-xs text-warning flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
                   Unsaved changes
@@ -337,7 +343,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
               </button>
               <button
                 onClick={handleSave}
-                disabled={!hasChanges || isUpdating}
+                disabled={!hasPreviewChanges || isUpdating}
                 className="btn btn-primary"
               >
                 {isUpdating ? (
