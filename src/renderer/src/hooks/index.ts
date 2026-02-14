@@ -1,3 +1,5 @@
 export { useSettings } from './useSettings'
 export { useOperationQueue, useOperationExecutor } from './useOperationQueue'
 export type { Operation, OperationType, OperationStatus } from './useOperationQueue'
+export { useIncrementalStatus, getStatusDisplay, formatElapsedTime } from './useIncrementalStatus'
+export type { IncrementalStatusProgress, IncrementalStatusResult, StatusUpdateEvent } from './useIncrementalStatus'
