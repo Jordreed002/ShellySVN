@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
-import { X, FileText, AlertTriangle, Loader } from 'lucide-react'
+import { X, FileText, AlertTriangle, Loader, Image as ImageIcon, ExternalLink } from 'lucide-react'
 import type { SvnDiffResult, SvnDiffLine } from '@shared/types'
+import { ImageDiffViewer, isImageFile } from './ImageDiffViewer'
 
 interface DiffViewerProps {
   isOpen: boolean
@@ -12,12 +13,25 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
   const [diff, setDiff] = useState<SvnDiffResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showImageDiff, setShowImageDiff] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
+  
+  // Check if file is an image
+  const isImage = isImageFile(filePath)
   
   useEffect(() => {
     if (isOpen && filePath) {
+      // If it's an image, show the image diff viewer
+      if (isImage) {
+        setShowImageDiff(true)
+        setIsLoading(false)
+        setDiff(null)
+        return
+      }
+      
       setIsLoading(true)
       setError(null)
+      setShowImageDiff(false)
       
       window.api.svn.diff(filePath)
         .then(result => {
@@ -29,7 +43,7 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
           setIsLoading(false)
         })
     }
-  }, [isOpen, filePath])
+  }, [isOpen, filePath, isImage])
   
   // Keyboard shortcut to close
   useEffect(() => {
@@ -44,6 +58,17 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
   }, [isOpen, onClose])
   
   if (!isOpen) return null
+  
+  // For image files, render ImageDiffViewer directly
+  if (isImage && showImageDiff) {
+    return (
+      <ImageDiffViewer
+        isOpen={isOpen}
+        filePath={filePath}
+        onClose={onClose}
+      />
+    )
+  }
   
   const fileName = filePath.split(/[/\\]/).pop() || filePath
   
@@ -92,11 +117,37 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
               {diff.isBinary ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3 text-center p-8">
-                    <FileText className="w-10 h-10 text-text-muted" />
-                    <div>
-                      <p className="text-text font-medium mb-1">Binary File</p>
-                      <p className="text-text-secondary text-sm">Cannot display diff for binary files</p>
-                    </div>
+                    {isImageFile(filePath) ? (
+                      <>
+                        <ImageIcon className="w-10 h-10 text-accent" />
+                        <div>
+                          <p className="text-text font-medium mb-1">Image File</p>
+                          <p className="text-text-secondary text-sm mb-3">Visual comparison available</p>
+                          <button 
+                            onClick={() => setShowImageDiff(true)}
+                            className="btn btn-primary"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            Open Visual Diff
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-10 h-10 text-text-muted" />
+                        <div>
+                          <p className="text-text font-medium mb-1">Binary File</p>
+                          <p className="text-text-secondary text-sm">Cannot display diff for binary files</p>
+                          <button 
+                            onClick={() => window.api.external.openFile(filePath)}
+                            className="btn btn-secondary mt-3"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            Open Externally
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : !diff.hasChanges ? (
