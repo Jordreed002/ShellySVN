@@ -1,14 +1,3 @@
-// Re-export types from shared
-export type {
-  SvnStatusChar,
-  SvnStatusEntry,
-  SvnStatusResult,
-  SvnLogEntry,
-  SvnLogPath,
-  SvnLogResult,
-  SvnInfoResult
-} from './types'
-
 // These types are duplicated here for the logic engine's independence
 // In production, they would be imported from @shellysvn/shared
 
@@ -78,4 +67,65 @@ export interface SvnInfoResult {
   lastChangedRevision: number;
   lastChangedDate: string;
   workingCopyRoot?: string;
+}
+
+// Additional types for extended operations
+export interface SvnDiffLine {
+  type: 'added' | 'removed' | 'context' | 'header' | 'hunk';
+  content: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
+export interface SvnDiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: SvnDiffLine[];
+}
+
+export interface SvnDiffFile {
+  oldPath: string;
+  newPath: string;
+  hunks: SvnDiffHunk[];
+  isBinary?: boolean;
+}
+
+export interface SvnDiffResult {
+  files: SvnDiffFile[];
+  hasChanges: boolean;
+  isBinary?: boolean;
+  rawDiff?: string;
+}
+
+export interface SvnBlameLine {
+  lineNumber: number;
+  revision: number;
+  author: string;
+  date: string;
+  content: string;
+}
+
+export interface SvnBlameResult {
+  path: string;
+  lines: SvnBlameLine[];
+  startRevision: number;
+  endRevision: number;
+}
+
+export interface SvnRepoEntry {
+  name: string;
+  path: string;
+  url: string;
+  kind: 'file' | 'dir';
+  size?: number;
+  revision: number;
+  author: string;
+  date: string;
+}
+
+export interface SvnListResult {
+  path: string;
+  entries: SvnRepoEntry[];
 }
