@@ -9,3 +9,5 @@ export { useDeepLinks, useDeepLinkGenerator, DeepLinkHandler } from './useDeepLi
 export type { DeepLink, DeepLinkAction } from './useDeepLinks'
 export { useCommitTemplates, applyTemplateString } from './useCommitTemplates'
 export type { CommitTemplate, TemplateVariable } from './useCommitTemplates'
+export { useReviewMode } from './useReviewMode'
+export type { ReviewItem, ReviewComment, ReviewBundle } from './useReviewMode'
