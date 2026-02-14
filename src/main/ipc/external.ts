@@ -4,7 +4,7 @@ import { existsSync, statSync } from 'fs'
 import { normalize } from 'path'
 
 /**
- * SECURITY: Whitelist of allowed diff tools
+ * SECURITY: Whitelist of allowed diff tools (known aliases)
  * Prevents arbitrary command execution via tool parameter
  */
 const ALLOWED_DIFF_TOOLS: Record<string, { command: string; getArgs: (left: string, right: string) => string[] }> = {
@@ -30,6 +30,30 @@ const ALLOWED_MERGE_TOOLS: Record<string, { command: string; getArgs: (base: str
   'diffmerge': { command: 'diffmerge', getArgs: (b, m, t, mg) => ['-merge', '-result', mg, m, t, b] },
   'p4merge': { command: 'p4merge', getArgs: (b, m, t, mg) => [b, t, m, mg] },
   'tortoisemerge': { command: 'TortoiseMerge', getArgs: (b, m, t, mg) => ['/base:' + b, '/mine:' + m, '/theirs:' + t, '/merged:' + mg] },
+}
+
+/**
+ * SECURITY: Validate that a path is a valid executable or script path
+ * Allows custom tool paths while preventing security issues
+ */
+function validateToolPath(path: string): { valid: boolean; error?: string; normalized?: string } {
+  try {
+    const normalized = normalize(path)
+    
+    // Check for path traversal attempts
+    if (normalized.includes('..')) {
+      return { valid: false, error: 'Path traversal not allowed' }
+    }
+    
+    // Check that file exists
+    if (!existsSync(normalized)) {
+      return { valid: false, error: 'Tool executable does not exist' }
+    }
+    
+    return { valid: true, normalized }
+  } catch (error) {
+    return { valid: false, error: (error as Error).message }
+  }
 }
 
 /**
@@ -66,16 +90,7 @@ export function registerExternalHandlers(): void {
   // Open external diff tool
   ipcMain.handle('external:openDiffTool', async (_, tool: string, left: string, right: string) => {
     try {
-      // SECURITY: Validate tool name against whitelist
-      const toolConfig = ALLOWED_DIFF_TOOLS[tool.toLowerCase()]
-      if (!toolConfig) {
-        return { 
-          success: false, 
-          error: `Unknown diff tool: ${tool}. Allowed tools: ${Object.keys(ALLOWED_DIFF_TOOLS).join(', ')}` 
-        }
-      }
-      
-      // SECURITY: Validate file paths
+      // SECURITY: Validate file paths first
       const leftValidation = validateFilePath(left)
       if (!leftValidation.valid) {
         return { success: false, error: `Left file: ${leftValidation.error}` }
@@ -86,11 +101,31 @@ export function registerExternalHandlers(): void {
         return { success: false, error: `Right file: ${rightValidation.error}` }
       }
       
-      const args = toolConfig.getArgs(leftValidation.normalized!, rightValidation.normalized!)
+      // Determine the actual command to use
+      let command: string
+      let args: string[]
       
-      console.log(`[EXTERNAL] Launching diff tool: ${toolConfig.command}`)
+      // Check if tool is a known alias
+      const toolConfig = ALLOWED_DIFF_TOOLS[tool.toLowerCase()]
+      if (toolConfig) {
+        command = toolConfig.command
+        args = toolConfig.getArgs(leftValidation.normalized!, rightValidation.normalized!)
+      } else {
+        // Treat tool as a custom path - validate it
+        const toolPathValidation = validateToolPath(tool)
+        if (!toolPathValidation.valid) {
+          return { 
+            success: false, 
+            error: `Unknown diff tool '${tool}' and custom path invalid: ${toolPathValidation.error}` 
+          }
+        }
+        command = toolPathValidation.normalized!
+        args = [leftValidation.normalized!, rightValidation.normalized!]
+      }
       
-      const proc = spawn(toolConfig.command, args, {
+      console.log(`[EXTERNAL] Launching diff tool: ${command}`)
+      
+      const proc = spawn(command, args, {
         detached: true,
         stdio: 'ignore',
         windowsHide: true
@@ -107,15 +142,6 @@ export function registerExternalHandlers(): void {
   // Open external merge tool
   ipcMain.handle('external:openMergeTool', async (_, tool: string, base: string, mine: string, theirs: string, merged: string) => {
     try {
-      // SECURITY: Validate tool name against whitelist
-      const toolConfig = ALLOWED_MERGE_TOOLS[tool.toLowerCase()]
-      if (!toolConfig) {
-        return { 
-          success: false, 
-          error: `Unknown merge tool: ${tool}. Allowed tools: ${Object.keys(ALLOWED_MERGE_TOOLS).join(', ')}` 
-        }
-      }
-      
       // SECURITY: Validate file paths (merged file doesn't need to exist)
       const baseValidation = validateFilePath(base)
       if (!baseValidation.valid) {
@@ -138,16 +164,37 @@ export function registerExternalHandlers(): void {
         return { success: false, error: 'Path traversal not allowed in merged file path' }
       }
       
-      const args = toolConfig.getArgs(
-        baseValidation.normalized!, 
-        mineValidation.normalized!, 
-        theirsValidation.normalized!, 
-        mergedNormalized
-      )
+      // Determine the actual command to use
+      let command: string
+      let args: string[]
       
-      console.log(`[EXTERNAL] Launching merge tool: ${toolConfig.command}`)
+      // Check if tool is a known alias
+      const toolConfig = ALLOWED_MERGE_TOOLS[tool.toLowerCase()]
+      if (toolConfig) {
+        command = toolConfig.command
+        args = toolConfig.getArgs(
+          baseValidation.normalized!, 
+          mineValidation.normalized!, 
+          theirsValidation.normalized!, 
+          mergedNormalized
+        )
+      } else {
+        // Treat tool as a custom path - validate it
+        const toolPathValidation = validateToolPath(tool)
+        if (!toolPathValidation.valid) {
+          return { 
+            success: false, 
+            error: `Unknown merge tool '${tool}' and custom path invalid: ${toolPathValidation.error}` 
+          }
+        }
+        command = toolPathValidation.normalized!
+        // Default args for custom tools: base mine theirs merged
+        args = [baseValidation.normalized!, mineValidation.normalized!, theirsValidation.normalized!, mergedNormalized]
+      }
       
-      const proc = spawn(toolConfig.command, args, {
+      console.log(`[EXTERNAL] Launching merge tool: ${command}`)
+      
+      const proc = spawn(command, args, {
         detached: true,
         stdio: 'ignore',
         windowsHide: true
