@@ -172,7 +172,8 @@ export function Sidebar() {
       } catch {}
       
       // Add drives (Windows) or root (Mac/Linux)
-      if (process.platform === 'win32') {
+      const isWindows = navigator.platform.toLowerCase().startsWith('win')
+      if (isWindows) {
         // On Windows, add drives
         items.push({ name: 'This PC', path: 'DRIVES://', icon: HardDrive })
       } else {
