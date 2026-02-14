@@ -53,7 +53,10 @@ export function registerAppHandlers(): void {
     return app.getVersion()
   })
 
-  ipcMain.handle('app:getPath', (_, name: 'home' | 'appData' | 'desktop' | 'documents') => {
+  ipcMain.handle('app:getPath', (_, name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => {
+    if (name === 'temp') {
+      return app.getPath('temp')
+    }
     return app.getPath(name)
   })
 

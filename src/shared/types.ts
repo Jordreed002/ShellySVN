@@ -159,7 +159,7 @@ export type DialogChannels = {
 
 export type AppChannels = {
   'app:getVersion': () => string;
-  'app:getPath': (name: 'home' | 'appData' | 'desktop' | 'documents') => string;
+  'app:getPath': (name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => string;
   'app:openExternal': (url: string) => void;
 };
 
@@ -541,7 +541,7 @@ export interface ElectronAPI {
   };
   app: {
     getVersion: () => Promise<string>;
-    getPath: (name: 'home' | 'appData' | 'desktop' | 'documents') => Promise<string>;
+    getPath: (name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => Promise<string>;
     openExternal: (url: string) => Promise<void>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
     getCacheSize: () => Promise<{ size: number; files: number }>;
