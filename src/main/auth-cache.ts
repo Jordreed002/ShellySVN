@@ -22,11 +22,28 @@ class AuthCache {
   private credentials: Map<string, CachedCredential> = new Map()
   private storePath: string
   private encryptionAvailable: boolean
+  private persistCredentials: boolean
 
   constructor(userDataPath: string) {
     this.storePath = join(userDataPath, 'auth-cache.json')
     this.encryptionAvailable = safeStorage.isEncryptionAvailable()
-    this.load()
+    
+    // SECURITY: Only persist credentials if encryption is available
+    // If encryption is unavailable, credentials are stored in memory only (session-only)
+    this.persistCredentials = this.encryptionAvailable
+    
+    if (!this.encryptionAvailable) {
+      console.warn(
+        '[SECURITY] Encryption not available. Credentials will be stored in memory only.',
+        'You will need to re-enter credentials after restarting the application.',
+        'On Linux, ensure you have a keyring service (gnome-keyring or kwallet) running.'
+      )
+    }
+    
+    // Only load from disk if we're persisting
+    if (this.persistCredentials) {
+      this.load()
+    }
   }
 
   /**
@@ -35,24 +52,36 @@ class AuthCache {
   isEncryptionAvailable(): boolean {
     return this.encryptionAvailable
   }
-
+  
   /**
-   * Store credential (encrypt password)
+   * Check if credentials will be persisted to disk
    */
-  set(realm: string, username: string, password: string): void {
-    const encryptedPassword = this.encrypt(password)
-    const credential: CachedCredential = {
-      realm,
-      username,
-      password: encryptedPassword,
-      createdAt: Date.now()
-    }
-    this.credentials.set(realm, credential)
-    this.save()
+  isPersistenceEnabled(): boolean {
+    return this.persistCredentials
   }
 
   /**
-   * Get credential (decrypt password)
+   * Store credential (encrypt password if persistence enabled)
+   */
+  set(realm: string, username: string, password: string): void {
+    // If persisting, encrypt the password; otherwise store plaintext in memory only
+    const storedPassword = this.persistCredentials ? this.encrypt(password) : password
+    const credential: CachedCredential = {
+      realm,
+      username,
+      password: storedPassword,
+      createdAt: Date.now()
+    }
+    this.credentials.set(realm, credential)
+    
+    // Only save to disk if persistence is enabled
+    if (this.persistCredentials) {
+      this.save()
+    }
+  }
+
+  /**
+   * Get credential (decrypt password if persistence enabled)
    */
   get(realm: string): { username: string; password: string } | null {
     const credential = this.credentials.get(realm)
@@ -61,7 +90,10 @@ class AuthCache {
     }
     
     try {
-      const decryptedPassword = this.decrypt(credential.password)
+      // If persisted, decrypt; otherwise password is stored plaintext in memory
+      const decryptedPassword = this.persistCredentials 
+        ? this.decrypt(credential.password) 
+        : credential.password
       return {
         username: credential.username,
         password: decryptedPassword
@@ -79,7 +111,9 @@ class AuthCache {
    */
   delete(realm: string): void {
     this.credentials.delete(realm)
-    this.save()
+    if (this.persistCredentials) {
+      this.save()
+    }
   }
 
   /**
@@ -87,7 +121,9 @@ class AuthCache {
    */
   clear(): void {
     this.credentials.clear()
-    this.save()
+    if (this.persistCredentials) {
+      this.save()
+    }
   }
 
   /**
@@ -110,12 +146,13 @@ class AuthCache {
 
   /**
    * Encrypt a password using safeStorage
+   * SECURITY: Only called when encryption is available
    */
   private encrypt(plaintext: string): string {
     if (!this.encryptionAvailable) {
-      // Fallback: base64 encode (not secure, but better than plaintext)
-      console.warn('Encryption not available, using fallback encoding')
-      return Buffer.from(plaintext).toString('base64')
+      // SECURITY: This should never be called when encryption is unavailable
+      // Credentials are stored in memory only in that case
+      throw new Error('Cannot encrypt: secure storage not available')
     }
     
     const encrypted = safeStorage.encryptString(plaintext)
@@ -124,11 +161,13 @@ class AuthCache {
 
   /**
    * Decrypt a password using safeStorage
+   * SECURITY: Only called when encryption is available
    */
   private decrypt(ciphertext: string): string {
     if (!this.encryptionAvailable) {
-      // Fallback: base64 decode
-      return Buffer.from(ciphertext, 'base64').toString('utf-8')
+      // SECURITY: This should never be called when encryption is unavailable
+      // Credentials are stored in memory only in that case
+      throw new Error('Cannot decrypt: secure storage not available')
     }
     
     const buffer = Buffer.from(ciphertext, 'base64')
@@ -159,8 +198,14 @@ class AuthCache {
 
   /**
    * Save credentials to disk
+   * SECURITY: Only saves if persistence is enabled (encryption available)
    */
   private save(): void {
+    // Don't persist if encryption is not available
+    if (!this.persistCredentials) {
+      return
+    }
+    
     try {
       const data: StoredCache = {
         version: 1,

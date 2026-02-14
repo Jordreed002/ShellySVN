@@ -88,13 +88,21 @@ app.on('window-all-closed', () => {
 })
 
 // Handle certificate errors (for self-signed SVN servers)
-app.on('certificate-error', (event, _webContents, _url, _error, _certificate, callback) => {
-  // For development, allow all certificates
-  // In production, you may want to be more restrictive
-  if (is.dev) {
-    event.preventDefault()
-    callback(true)
-  } else {
-    callback(false)
-  }
+// SECURITY: We log certificate errors but do NOT automatically accept them.
+// SVN certificate handling is done at the SVN command level with --trust-server-cert-failures
+// which requires explicit user consent through the UI.
+app.on('certificate-error', (_event, _webContents, url, error, certificate, callback) => {
+  // Log all certificate errors for security audit
+  console.warn(`[SECURITY] Certificate error for ${url}:`, {
+    error,
+    subject: certificate.subjectName,
+    issuer: certificate.issuerName,
+    fingerprint: certificate.fingerprint,
+    isDev: is.dev
+  })
+  
+  // Block the certificate - do not automatically accept
+  // This ensures HTTPS connections in the app (like webhook calls) are secure
+  // SVN-specific certificate handling is done via SVN command options
+  callback(false)
 })
