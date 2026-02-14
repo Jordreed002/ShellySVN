@@ -120,7 +120,8 @@ export function useSettings() {
   // Mutation for updating settings
   const updateMutation = useMutation({
     mutationFn: async (updates: Partial<AppSettings>) => {
-      const current = settings || DEFAULT_SETTINGS
+      // Read the LATEST cached value directly from queryClient to avoid stale closures
+      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS
       const updated = { ...current, ...updates }
       await window.api.store.set('settings', updated)
       return updated
@@ -133,7 +134,8 @@ export function useSettings() {
   
   // Add a repository to recent list
   const addRecentRepo = async (repoPath: string) => {
-    const current = settings || DEFAULT_SETTINGS
+    // Read the latest cached value to avoid race conditions
+    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS
     const currentRecents = current.recentRepositories || []
     
     // Remove if already exists (to move to top)
@@ -147,14 +149,15 @@ export function useSettings() {
   
   // Remove a repository from recent list
   const removeRecentRepo = async (repoPath: string) => {
-    const current = settings || DEFAULT_SETTINGS
+    // Read the latest cached value to avoid race conditions
+    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS
     const updated = (current.recentRepositories || []).filter(p => p !== repoPath)
     await updateMutation.mutateAsync({ recentRepositories: updated })
   }
   
   // Add a path to recent paths
   const addRecentPath = async (path: string) => {
-    const current = settings || DEFAULT_SETTINGS
+    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS
     const currentPaths = current.recentPaths || []
     const filtered = currentPaths.filter(p => p !== path)
     const updated = [path, ...filtered].slice(0, MAX_RECENT_PATHS)
@@ -163,7 +166,7 @@ export function useSettings() {
   
   // Add a bookmark
   const addBookmark = async (path: string, name: string) => {
-    const current = settings || DEFAULT_SETTINGS
+    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS
     const currentBookmarks = current.bookmarks || []
     // Check if already bookmarked
     if (currentBookmarks.some(b => b.path === path)) return
@@ -174,7 +177,7 @@ export function useSettings() {
   
   // Remove a bookmark
   const removeBookmark = async (path: string) => {
-    const current = settings || DEFAULT_SETTINGS
+    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS
     const updated = (current.bookmarks || []).filter(b => b.path !== path)
     await updateMutation.mutateAsync({ bookmarks: updated })
   }
