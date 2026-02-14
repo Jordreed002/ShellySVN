@@ -67,28 +67,38 @@ jobs:
         if: matrix.platform == 'darwin'
         run: |
           # Create binaries directory
-          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn
+          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/lib
           
-          # Install SVN via Homebrew
-          brew install subversion
+          # Install SVN and dylibbundler via Homebrew
+          brew install subversion dylibbundler
           
           # Find the svn binary location
           SVN_PATH=$(which svn)
-          SVN_DIR=$(dirname "$SVN_PATH")
           
           echo "SVN installed at: $SVN_PATH"
           svn --version
           
-          # Copy the svn binary and its dependencies
-          # For simplicity, we'll use the system svn and assume users have dependencies
-          # In production, you'd want to bundle all dylibs too
+          # Copy the svn binary
           cp "$SVN_PATH" binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/
+          
+          # Bundle all dependencies using dylibbundler
+          # This copies all dylibs to lib/ folder and fixes install names
+          dylibbundler -od -b \
+            -x binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn \
+            -d binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/lib \
+            -p @executable_path/lib
           
           # Make executable
           chmod +x binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn
           
+          # Verify the bundled binary works
+          binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn --version
+          
           # List what we have
+          echo "Bundled contents:"
           ls -la binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/
+          echo "Bundled libraries:"
+          ls -la binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/lib/
       
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -118,9 +128,9 @@ jobs:
       
       - name: Create universal binary
         run: |
-          mkdir -p binaries/darwin-universal/svn
+          mkdir -p binaries/darwin-universal/svn/lib
           
-          # Create universal binary using lipo
+          # Create universal svn binary using lipo
           lipo -create \
             binaries/darwin-x64/svn/svn \
             binaries/darwin-arm64/svn/svn \
@@ -128,8 +138,29 @@ jobs:
           
           chmod +x binaries/darwin-universal/svn/svn
           
+          # Create universal dylibs by merging x64 and arm64 versions
+          # Get list of dylibs from x64 (they should be the same in arm64)
+          for dylib in binaries/darwin-x64/svn/lib/*.dylib; do
+            libname=$(basename "$dylib")
+            arm64_lib="binaries/darwin-arm64/svn/lib/$libname"
+            
+            if [ -f "$arm64_lib" ]; then
+              echo "Creating universal dylib: $libname"
+              lipo -create "$dylib" "$arm64_lib" -output "binaries/darwin-universal/svn/lib/$libname"
+            else
+              echo "Warning: $libname not found in arm64, copying x64 version"
+              cp "$dylib" binaries/darwin-universal/svn/lib/
+            fi
+          done
+          
           # Verify universal binary
+          echo "Universal svn binary:"
           lipo -info binaries/darwin-universal/svn/svn
+          
+          echo "Universal dylibs:"
+          ls -la binaries/darwin-universal/svn/lib/
+          
+          # Test the universal binary
           binaries/darwin-universal/svn/svn --version
       
       - name: Upload universal artifact
