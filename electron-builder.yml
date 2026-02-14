@@ -74,13 +74,47 @@ dmg:
       type: link
       path: /Applications
 
-# Linux configuration (for future use)
+# Linux configuration
 linux:
   target:
-    - AppImage
-    - deb
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
   category: Development
   icon: build/icons
+  desktop:
+    Name: ShellySVN
+    Comment: Modern Subversion Client
+    Categories: Development;RevisionControl;
+    StartupWMClass: shellysvn
+  maintainer: ShellySVN Team <hello@shellysvn.com>
+  extraResources:
+    - from: binaries/linux-x64
+      to: binaries
+      filter:
+        - shelly-engine
+        - svn/**/*
+  executableName: ShellySVN
+  synopsis: A modern Subversion client for professionals
+  description: ShellySVN is a native desktop application that provides a graphical interface for Subversion (SVN) version control.
+
+# Debian package options
+deb:
+  priority: optional
+  compression: xz
+
+# RPM package options  
+rpm:
+  compression: xz
 
 # Publishing configuration
 publish:

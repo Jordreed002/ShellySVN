@@ -1,7 +1,7 @@
 {
   "name": "shellysvn",
   "version": "0.1.0",
-  "description": "A standalone Subversion client for macOS and Windows",
+  "description": "A standalone Subversion client for macOS, Windows, and Linux",
   "main": "./out/main/index.js",
   "author": {
     "name": "ShellySVN",
@@ -16,6 +16,11 @@
     "build:win": "bun run build && electron-builder --win",
     "build:mac": "bun run build && electron-builder --mac",
     "build:mac-universal": "bun run build && electron-builder --mac --universal",
+    "build:linux": "bun run build && electron-builder --linux",
+    "build:linux-appimage": "bun run build && electron-builder --linux AppImage",
+    "build:linux-deb": "bun run build && electron-builder --linux deb",
+    "build:linux-rpm": "bun run build && electron-builder --linux rpm",
+    "build:all": "bun run build && electron-builder --win --mac --linux",
     "release": "bun run build && electron-builder",
     "typecheck": "tsc --noEmit",
     "engine:dev": "cd packages/logic-engine && bun run src/index.ts",
