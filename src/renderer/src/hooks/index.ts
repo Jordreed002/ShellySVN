@@ -15,3 +15,5 @@ export { useAccessibility, createAnnouncer, accessibilityStyles } from './useAcc
 export type { AccessibilitySettings } from './useAccessibility'
 export { useWorkspaceLayouts } from './useWorkspaceLayouts'
 export type { WorkspaceLayout, PanelConfig } from './useWorkspaceLayouts'
+export { useShortcutBindings } from './useShortcutBindings'
+export type { ShortcutBinding, ShortcutCategory } from './useShortcutBindings'
