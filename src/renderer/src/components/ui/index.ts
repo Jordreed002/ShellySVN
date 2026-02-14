@@ -54,3 +54,4 @@ export { BranchVisualization, BranchTreeNode, useBranchVisualization } from './B
 export type { BranchNode, BranchVisualizationConfig, BranchNodeProps } from './BranchVisualization'
 export { RepoBrowserEnhanced, useRepoBrowser } from './RepoBrowserEnhanced'
 export type { RepoBrowserNode, BrowserState, RepoBrowserEnhancedProps } from './RepoBrowserEnhanced'
+export { StatusBar } from './StatusBar'
