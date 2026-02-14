@@ -11,6 +11,7 @@ import type {
   CheckoutOptions, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
   SvnExecutionContext
 } from '@shared/types'
+import { getSettingsManager } from '../settings-manager'
 
 /**
  * XML parser configuration
@@ -89,24 +90,38 @@ async function cleanupTempSvnConfig(configDir: string): Promise<void> {
 }
 
 /**
- * Execute SVN command directly (for development)
- * In production, this would use the bundled logic engine
+ * Execute SVN command with settings-aware context
+ * 
+ * This function now automatically applies global settings (proxy, SSL, timeout)
+ * from the settings manager, while still allowing per-operation overrides.
  */
 async function executeSvn(
   args: string[], 
   cwd?: string, 
-  context?: SvnExecutionContext
+  operationContext?: Partial<SvnExecutionContext>
 ): Promise<string> {
+  // Get global settings context and merge with operation-specific overrides
+  const settingsManager = getSettingsManager()
+  const globalContext = settingsManager.getSvnExecutionContext()
+  
+  // Merge contexts: operation-specific settings override global settings
+  const context: SvnExecutionContext = {
+    proxySettings: operationContext?.proxySettings ?? globalContext.proxySettings,
+    connectionTimeout: operationContext?.connectionTimeout ?? globalContext.connectionTimeout,
+    sslVerify: operationContext?.sslVerify ?? globalContext.sslVerify,
+    clientCertificatePath: operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath
+  }
+  
   // Create temp config if proxy settings are provided
   let tempConfigDir: string | null = null
   
-  if (context?.proxySettings?.enabled) {
+  if (context.proxySettings?.enabled) {
     tempConfigDir = await createTempSvnConfig(context.proxySettings)
   }
   
   return new Promise((resolve, reject) => {
-    // Use system SVN for development
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn'
+    // Use custom SVN path from settings, or fall back to system SVN
+    const svnCommand = settingsManager.getSvnClientPath()
     
     // Build environment - no credentials in environment variables
     const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' }
@@ -121,8 +136,8 @@ async function executeSvn(
     
     finalArgs.push(...args)
     
-    // Build SSL options if needed
-    if (context?.sslVerify === false) {
+    // Build SSL options if needed (sslVerify false means skip verification)
+    if (context.sslVerify === false) {
       // Add SSL trust options for non-interactive mode
       if (!finalArgs.includes('--non-interactive')) {
         finalArgs.push('--non-interactive')
@@ -134,6 +149,11 @@ async function executeSvn(
       
       // Log SSL bypass for security audit
       console.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`)
+    }
+    
+    // Add client certificate if configured
+    if (context.clientCertificatePath && context.clientCertificatePath.trim()) {
+      finalArgs.push('--certificate', context.clientCertificatePath.trim())
     }
     
     console.log(`[SVN] Running: svn ${finalArgs.join(' ')} in ${cwd || process.cwd()}`)
@@ -157,7 +177,7 @@ async function executeSvn(
     
     // Set up timeout if specified
     let timeoutId: NodeJS.Timeout | null = null
-    if (context?.connectionTimeout && context.connectionTimeout > 0) {
+    if (context.connectionTimeout && context.connectionTimeout > 0) {
       timeoutId = setTimeout(() => {
         proc.kill()
         if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
@@ -676,7 +696,12 @@ export function registerSvnHandlers(): void {
 
   // SVN Checkout
   ipcMain.handle('svn:checkout', async (_, url: string, path: string, revision?: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', options?: CheckoutOptions) => {
+    const settingsManager = getSettingsManager()
     const args = ['checkout', '--non-interactive']
+    
+    // Add working copy format from settings
+    const wcFormat = settingsManager.getWorkingCopyFormat()
+    args.push('--compatible-version', wcFormat)
     
     // Add revision if specified
     if (revision) args.push('-r', revision)
@@ -684,7 +709,10 @@ export function registerSvnHandlers(): void {
     // Add depth if specified
     if (depth) args.push('--depth', depth)
     
-    // Add SSL trust options
+    // Build execution context - merge per-operation options with global settings
+    const operationContext: Partial<SvnExecutionContext> = {}
+    
+    // Add SSL trust options - operation-specific trust overrides global settings
     if (options?.trustSsl) {
       // Map failure types to SVN's expected format
       const failures = options.sslFailures || ['unknown-ca']
@@ -704,12 +732,7 @@ export function registerSvnHandlers(): void {
         }
       }).join(',')
       
-      if (options.trustPermanently) {
-        args.push('--trust-server-cert-failures', failureStr)
-      } else {
-        // For temporary trust, still use the failures flag
-        args.push('--trust-server-cert-failures', failureStr)
-      }
+      args.push('--trust-server-cert-failures', failureStr)
     }
     
     // Add credentials if provided
@@ -724,7 +747,7 @@ export function registerSvnHandlers(): void {
     args.push(url, path)
     
     try {
-      const output = await executeSvn(args)
+      const output = await executeSvn(args, undefined, operationContext)
       const match = output.match(/Checked out revision (\d+)\./)
       return { 
         success: true, 
