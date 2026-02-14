@@ -49,3 +49,4 @@ export { StatusProgressBar, IncrementalStatusWidget } from './IncrementalStatusP
 export { OfflineIndicator, OfflineStatusBar, OfflineAwareContainer, OfflineCacheManager } from './OfflineIndicator'
 export { VirtualizedFileList, VirtualizedTree, LargeRepoIndicator } from './VirtualizedList'
 export type { TreeNode } from './VirtualizedList'
+export { CommitTemplateManager } from './CommitTemplateManager'

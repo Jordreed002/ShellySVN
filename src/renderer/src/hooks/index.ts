@@ -7,3 +7,5 @@ export { useOfflineCache, useOfflineDetector, useOfflineAware } from './useOffli
 export { useLazyDataLoader, useLazyVirtualList, useLargeFileList, useLazyDirectoryTree } from './useLazyLoading'
 export { useDeepLinks, useDeepLinkGenerator, DeepLinkHandler } from './useDeepLinks'
 export type { DeepLink, DeepLinkAction } from './useDeepLinks'
+export { useCommitTemplates, applyTemplateString } from './useCommitTemplates'
+export type { CommitTemplate, TemplateVariable } from './useCommitTemplates'
