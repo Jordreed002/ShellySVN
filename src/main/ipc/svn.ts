@@ -1,12 +1,77 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
-import { writeFile } from 'fs/promises'
+import { writeFile, mkdtemp, rm } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join, dirname } from 'path'
+import { existsSync, mkdirSync } from 'fs'
 import type { 
   SvnStatusResult, SvnLogResult, SvnInfoResult, SvnDiffResult, 
   SvnDiffFile, SvnDiffHunk, SvnChangelistResult, SvnShelveListResult, 
   CheckoutOptions, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
   SvnExecutionContext
 } from '@shared/types'
+
+/**
+ * SSL failure types that can be bypassed
+ * SECURITY: 'other' is excluded as it's too broad and may bypass security checks
+ */
+const ALLOWED_SSL_FAILURES = ['unknown-ca', 'hostname-mismatch', 'expired', 'not-yet-valid'] as const
+
+/**
+ * Create a temporary SVN config directory with proxy settings
+ * SECURITY: This avoids putting credentials in environment variables
+ */
+async function createTempSvnConfig(
+  proxySettings: SvnExecutionContext['proxySettings']
+): Promise<string | null> {
+  if (!proxySettings?.enabled || !proxySettings.host || !proxySettings.port) {
+    return null
+  }
+  
+  const configDir = await mkdtemp(join(tmpdir(), 'svn-config-'))
+  const serversPath = join(configDir, 'servers')
+  const serversDir = dirname(serversPath)
+  
+  if (!existsSync(serversDir)) {
+    mkdirSync(serversDir, { recursive: true })
+  }
+  
+  // Build servers config file
+  const configLines = [
+    '[global]',
+    `http-proxy-host = ${proxySettings.host}`,
+    `http-proxy-port = ${proxySettings.port}`,
+  ]
+  
+  if (proxySettings.username) {
+    configLines.push(`http-proxy-username = ${proxySettings.username}`)
+  }
+  
+  if (proxySettings.password) {
+    // SECURITY: Password stored in temp file with restricted permissions
+    // File is deleted after SVN operation completes
+    configLines.push(`http-proxy-password = ${proxySettings.password}`)
+  }
+  
+  if (proxySettings.bypassForLocal) {
+    configLines.push('http-proxy-exceptions = localhost, 127.0.0.1')
+  }
+  
+  await writeFile(serversPath, configLines.join('\n'), { mode: 0o600 })
+  
+  return configDir
+}
+
+/**
+ * Clean up temporary SVN config directory
+ */
+async function cleanupTempSvnConfig(configDir: string): Promise<void> {
+  try {
+    await rm(configDir, { recursive: true, force: true })
+  } catch (error) {
+    console.warn('[SVN] Failed to cleanup temp config dir:', error)
+  }
+}
 
 /**
  * Execute SVN command directly (for development)
@@ -17,44 +82,51 @@ async function executeSvn(
   cwd?: string, 
   context?: SvnExecutionContext
 ): Promise<string> {
+  // Create temp config if proxy settings are provided
+  let tempConfigDir: string | null = null
+  
+  if (context?.proxySettings?.enabled) {
+    tempConfigDir = await createTempSvnConfig(context.proxySettings)
+  }
+  
   return new Promise((resolve, reject) => {
     // Use system SVN for development
     const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn'
     
-    // Build environment with proxy settings if provided
+    // Build environment - no credentials in environment variables
     const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' }
     
-    // Apply proxy settings
-    if (context?.proxySettings?.enabled) {
-      const proxy = context.proxySettings
-      if (proxy.host && proxy.port) {
-        let proxyUrl = `http://${proxy.host}:${proxy.port}`
-        if (proxy.username) {
-          proxyUrl = `http://${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@${proxy.host}:${proxy.port}`
-        }
-        env.HTTP_PROXY = proxyUrl
-        env.HTTPS_PROXY = proxyUrl
-        if (proxy.bypassForLocal) {
-          env.NO_PROXY = 'localhost,127.0.0.1'
-        }
-      }
+    // Build final args
+    const finalArgs: string[] = []
+    
+    // Add config directory if using proxy
+    if (tempConfigDir) {
+      finalArgs.push('--config-dir', tempConfigDir)
     }
     
-    // Build final args with SSL options if needed
-    const finalArgs = [...args]
+    finalArgs.push(...args)
+    
+    // Build SSL options if needed
     if (context?.sslVerify === false) {
       // Add SSL trust options for non-interactive mode
       if (!finalArgs.includes('--non-interactive')) {
         finalArgs.push('--non-interactive')
       }
-      finalArgs.push('--trust-server-cert-failures', 'unknown-ca,hostname-mismatch,expired,not-yet-valid,other')
+      
+      // SECURITY: Only allow specific failure types, exclude 'other'
+      const failures = ALLOWED_SSL_FAILURES.join(',')
+      finalArgs.push('--trust-server-cert-failures', failures)
+      
+      // Log SSL bypass for security audit
+      console.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`)
     }
     
     console.log(`[SVN] Running: svn ${finalArgs.join(' ')} in ${cwd || process.cwd()}`)
     
     const proc = spawn(svnCommand, finalArgs, {
       cwd: cwd || process.cwd(),
-      env
+      env,
+      windowsHide: true  // Hide from process listing on Windows
     })
     
     let stdout = ''
@@ -73,12 +145,15 @@ async function executeSvn(
     if (context?.connectionTimeout && context.connectionTimeout > 0) {
       timeoutId = setTimeout(() => {
         proc.kill()
+        if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
         reject(new Error(`SVN operation timed out after ${context.connectionTimeout} seconds`))
       }, context.connectionTimeout * 1000)
     }
     
     proc.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
+      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
+      
       console.log(`[SVN] Exit code: ${code}`)
       if (code === 0) {
         resolve(stdout)
@@ -89,6 +164,7 @@ async function executeSvn(
     
     proc.on('error', (err) => {
       if (timeoutId) clearTimeout(timeoutId)
+      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
       console.error(`[SVN] Error:`, err)
       reject(err)
     })
