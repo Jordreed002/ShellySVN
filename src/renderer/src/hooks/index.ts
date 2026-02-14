@@ -4,3 +4,4 @@ export type { Operation, OperationType, OperationStatus } from './useOperationQu
 export { useIncrementalStatus, getStatusDisplay, formatElapsedTime } from './useIncrementalStatus'
 export type { IncrementalStatusProgress, IncrementalStatusResult, StatusUpdateEvent } from './useIncrementalStatus'
 export { useOfflineCache, useOfflineDetector, useOfflineAware } from './useOfflineCache'
+export { useLazyDataLoader, useLazyVirtualList, useLargeFileList, useLazyDirectoryTree } from './useLazyLoading'
