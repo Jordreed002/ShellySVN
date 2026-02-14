@@ -6,6 +6,7 @@ export { ContextMenu, useContextMenu, getSvnContextMenuItems } from './ContextMe
 export type { ContextMenuItem } from './ContextMenu'
 export { FileRow, FileListHeader } from './FileRow'
 export type { FileRowProps } from './FileRow'
+export { FileTreeView, useFileTreeView } from './FileTreeView'
 export { AddRepoModal, AddRepoButton } from './AddRepoModal'
 export { ProgressDialog } from './ProgressDialog'
 export type { ProgressDialogProps } from './ProgressDialog'
