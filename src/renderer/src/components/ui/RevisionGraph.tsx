@@ -55,6 +55,7 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [isExporting, setIsExporting] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   
   // Fetch log data with extended info
@@ -231,6 +232,37 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
     }
   }, [isOpen])
   
+  const handleExport = useCallback(async () => {
+    const svg = svgRef.current
+    if (!svg) return
+    
+    setIsExporting(true)
+    
+    try {
+      const serializer = new XMLSerializer()
+      let svgString = serializer.serializeToString(svg)
+      
+      if (!svgString.includes('xmlns')) {
+        svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+      }
+      
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `revision-graph-${new Date().toISOString().slice(0, 10)}.svg`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export graph:', error)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [])
+  
   if (!isOpen) return null
   
   return (
@@ -335,8 +367,16 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
             )}
           </div>
           
-          <button className="btn btn-secondary btn-sm">
-            <Download className="w-4 h-4" />
+          <button 
+            onClick={handleExport}
+            disabled={isExporting}
+            className="btn btn-secondary btn-sm"
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
             Export
           </button>
         </div>
