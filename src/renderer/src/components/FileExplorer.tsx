@@ -16,6 +16,7 @@ import { LogViewer } from './ui/LogViewer'
 import { SettingsDialog } from './ui/SettingsDialog'
 import { useFileExplorerActions } from '../hooks/useSvnActions'
 import { useSettings } from '../hooks/useSettings'
+import { useFolderSizes } from '../hooks/useFolderSizes'
 
 // Cache configuration
 const FILE_CACHE_TIME = 5 * 60 * 1000      // 5 minutes - files rarely change
@@ -223,6 +224,9 @@ export function FileExplorer() {
   const entries = useMemo(() => {
     return (files || []).map(fileInfoToEntry)
   }, [files])
+  
+  // Calculate folder sizes when enabled
+  const { folderSizes } = useFolderSizes(entries, settings.showFolderSizes)
   
   // Use filter hook for type/status filtering
   const { filteredEntries: typeFilteredEntries, fileTypeFilter, setFileTypeFilter, statusFilter, setStatusFilter, hasActiveFilters } = useFileFilters(entries)
@@ -688,6 +692,8 @@ export function FileExplorer() {
                   columnWidths={columnWidths}
                   compact={settings.compactFileRows}
                   showThumbnails={settings.showThumbnails}
+                  showFolderSizes={settings.showFolderSizes}
+                  folderSizes={folderSizes}
                   style={settings.fileListHeight === 'fill' ? {
                     position: 'absolute',
                     top: 0,

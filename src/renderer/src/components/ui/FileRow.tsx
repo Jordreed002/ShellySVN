@@ -122,6 +122,8 @@ export interface FileRowProps {
   depth?: number
   compact?: boolean
   showThumbnails?: boolean
+  showFolderSizes?: boolean
+  folderSizes?: Record<string, number>
   onSelect: (entry: SvnStatusEntry, event?: { ctrlKey?: boolean; shiftKey?: boolean; metaKey?: boolean }) => void
   onToggle?: (entry: SvnStatusEntry) => void
   onNavigate?: (entry: SvnStatusEntry) => void
@@ -146,6 +148,8 @@ export const FileRow = memo(function FileRow({
   depth = 0,
   compact = false,
   showThumbnails = false,
+  showFolderSizes = false,
+  folderSizes = {},
   onSelect,
   onToggle,
   onNavigate,
@@ -321,7 +325,11 @@ export const FileRow = memo(function FileRow({
               className="text-right text-sm text-text-secondary font-mono flex-shrink-0"
               style={{ width: columnWidths.size }}
             >
-              {entry.isDirectory ? '-' : '-'}
+              {entry.isDirectory 
+                ? (showFolderSizes && folderSizes[entry.path] 
+                  ? formatSize(folderSizes[entry.path]) 
+                  : '-')
+                : '-'}
             </div>
           </>
         )}
