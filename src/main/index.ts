@@ -106,15 +106,11 @@ app.on('window-all-closed', () => {
 // SECURITY: We log certificate errors but do NOT automatically accept them.
 // SVN certificate handling is done at the SVN command level with --trust-server-cert-failures
 // which requires explicit user consent through the UI.
-app.on('certificate-error', (_event, _webContents, url, error, certificate, callback) => {
-  // Log all certificate errors for security audit
-  console.warn(`[SECURITY] Certificate error for ${url}:`, {
-    error,
-    subject: certificate.subjectName,
-    issuer: certificate.issuerName,
-    fingerprint: certificate.fingerprint,
-    isDev: is.dev
-  })
+app.on('certificate-error', (_event, _webContents, url, error, _certificate, callback) => {
+  // SECURITY: Log certificate error without exposing sensitive certificate details
+  // Only log the URL (truncated) and error type for audit purposes
+  const safeUrl = url.length > 100 ? url.substring(0, 100) + '...' : url
+  console.warn(`[SECURITY] Certificate error for ${safeUrl}: ${error}`)
   
   // Block the certificate - do not automatically accept
   // This ensures HTTPS connections in the app (like webhook calls) are secure
