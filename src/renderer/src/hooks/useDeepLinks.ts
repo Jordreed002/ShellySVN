@@ -39,22 +39,14 @@ export function useDeepLinks() {
    */
   const onAction = useCallback((action: DeepLinkAction, handler: (link: DeepLink) => void) => {
     // Listen for IPC messages from main process
-    // Note: This requires the main process to emit 'deep-link' events
-    // via ipcRenderer.send('deep-link', link)
+    const unsubscribe = window.api.deepLink.onAction((link) => {
+      if (link.action === action) {
+        setLastLink(link)
+        handler(link)
+      }
+    })
     
-    // For now, we'll use a simple event system
-    // TODO: Add proper IPC event handling when main process integration is complete
-    const eventName = `deep-link-${action}`
-    const listener = (event: CustomEvent<DeepLink>) => {
-      setLastLink(event.detail)
-      handler(event.detail)
-    }
-    
-    window.addEventListener(eventName, listener as EventListener)
-    
-    return () => {
-      window.removeEventListener(eventName, listener as EventListener)
-    }
+    return unsubscribe
   }, [])
   
   /**

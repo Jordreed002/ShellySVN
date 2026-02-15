@@ -1,6 +1,24 @@
 import { useState, useCallback, useEffect } from 'react'
 
 /**
+ * Template context for variable resolvers
+ */
+interface TemplateContext {
+  path?: string
+  files?: string[]
+}
+
+let templateContext: TemplateContext = {}
+
+function getContext(): TemplateContext {
+  return templateContext
+}
+
+export function setTemplateContext(context: TemplateContext): void {
+  templateContext = context
+}
+
+/**
  * Commit template structure
  */
 export interface CommitTemplate {
@@ -65,19 +83,44 @@ const BUILTIN_VARIABLES: TemplateVariable[] = [
     name: 'branch',
     description: 'Current branch name (from svn info)',
     example: 'trunk',
-    resolver: () => 'trunk' // Would need svn info to get actual branch
+    resolver: async () => {
+      const { path } = getContext()
+      if (!path) return 'trunk'
+
+      try {
+        const info = await window.api.svn.info(path)
+        const url = (info as { url?: string })?.url || ''
+
+        if (url.includes('/trunk')) return 'trunk'
+        const branchMatch = url.match(/\/branches\/([^/]+)/)
+        if (branchMatch) return `branches/${branchMatch[1]}`
+        const tagMatch = url.match(/\/tags\/([^/]+)/)
+        if (tagMatch) return `tags/${tagMatch[1]}`
+
+        return 'trunk'
+      } catch {
+        return 'trunk'
+      }
+    }
   },
   {
     name: 'files',
-    description: 'List of changed files (placeholder)',
+    description: 'List of changed files',
     example: 'file1.ts, file2.ts',
-    resolver: () => ''
+    resolver: () => {
+      const { files } = getContext()
+      if (!files || files.length === 0) return ''
+      return files.map(f => f.split(/[/\\]/).pop() || f).join(', ')
+    }
   },
   {
     name: 'filecount',
-    description: 'Number of changed files (placeholder)',
+    description: 'Number of changed files',
     example: '5',
-    resolver: () => '0'
+    resolver: () => {
+      const { files } = getContext()
+      return String(files?.length || 0)
+    }
   }
 ]
 

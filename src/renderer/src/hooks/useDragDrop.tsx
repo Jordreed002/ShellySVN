@@ -518,8 +518,17 @@ export async function performSvnOperation(
       } else if (operation === 'move') {
         await api.svn.move(source, destination)
       } else if (operation === 'link') {
-        // SVN externals - not implemented yet
-        console.log('Creating external link not implemented yet')
+        // Create SVN external
+        const externalName = fileName || source.split(/[/\\]/).pop() || 'external'
+        const result = await api.svn.externals.add(target, {
+          url: source,
+          path: externalName,
+          name: externalName
+        })
+
+        if (!result.success) {
+          throw new Error(`Failed to create external link for ${source}`)
+        }
       }
     } catch (err) {
       console.error(`Failed to ${operation} ${source} to ${destination}:`, err)

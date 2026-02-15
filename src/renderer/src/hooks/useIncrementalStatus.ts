@@ -265,32 +265,26 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
   }, [cancelScan])
   
   // File system watching for auto-refresh
-  // Note: This requires IPC integration with main process using chokidar
-  // TODO: Implement fs.watch and fs.unwatch in main process
   useEffect(() => {
     if (!enableWatch || !path) return
     
     // Debounce function for rapid changes
-    const debouncedScan = () => {
-      if (watchTimeoutRef.current) {
-        clearTimeout(watchTimeoutRef.current)
+    const debounce = <T extends (...args: unknown[]) => unknown>(fn: T, delay: number) => {
+      let timeoutId: ReturnType<typeof setTimeout>
+      return (...args: Parameters<T>) => {
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => fn(...args), delay)
       }
-      
-      watchTimeoutRef.current = setTimeout(() => {
-        startScan()
-      }, watchDebounce)
     }
     
-    // Placeholder for file system watching
-    // When implemented in main process, uncomment:
-    // window.api.fs.watch(path, debouncedScan)
-    void debouncedScan // Suppress unused warning until watch is implemented
+    const debouncedScan = debounce(() => {
+      startScan()
+    }, watchDebounce)
+    
+    const cleanup = window.api.fs.watch(path, debouncedScan, { watchSvnOnly: false })
     
     return () => {
-      if (watchTimeoutRef.current) {
-        clearTimeout(watchTimeoutRef.current)
-      }
-      // window.api.fs.unwatch(path)
+      if (cleanup) cleanup()
     }
   }, [enableWatch, path, watchDebounce, startScan])
   

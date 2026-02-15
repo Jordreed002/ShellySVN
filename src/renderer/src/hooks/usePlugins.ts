@@ -204,11 +204,14 @@ export function usePlugins() {
           const result = await window.api.fs.readFile(path)
           return result.content || ''
         },
-        writeFile: async (_path: string, _content: string) => {
+        writeFile: async (path: string, content: string) => {
           if (!plugin.manifest.permissions.includes('fs:write')) {
             throw new Error('Plugin does not have fs:write permission')
           }
-          // Implementation would write to file
+          const result = await window.api.fs.writeFile(path, content)
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to write file')
+          }
         },
         listDirectory: async (path: string) => {
           if (!plugin.manifest.permissions.includes('fs:read')) {
@@ -220,15 +223,20 @@ export function usePlugins() {
       },
       ui: {
         showMessage: (message: string, type: 'info' | 'warning' | 'error' = 'info') => {
-          // Implementation would show message in UI
-          console.log(`[${type.toUpperCase()}] ${message}`)
+          // Dispatch custom event for toast system
+          window.dispatchEvent(new CustomEvent('shelly:toast', {
+            detail: { message, type, pluginId: plugin.manifest.id }
+          }))
         },
         showInput: async (promptText: string, defaultValue?: string) => {
           // Implementation would show input dialog
           return window.prompt(promptText, defaultValue || '') || null
         },
         refreshUI: () => {
-          // Implementation would refresh UI
+          // Dispatch refresh event
+          window.dispatchEvent(new CustomEvent('shelly:refresh', {
+            detail: { pluginId: plugin.manifest.id }
+          }))
         }
       },
       settings: {
