@@ -120,3 +120,6 @@ export function registerStoreHandlers(): void {
     await (await getStore()).delete(key)
   })
 }
+
+// Export getStore for use in other main process modules
+export { getStore }
