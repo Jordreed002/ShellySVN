@@ -10,6 +10,10 @@ import { registerAuthHandlers } from './ipc/auth'
 import { registerExternalHandlers } from './ipc/external'
 import { registerMonitorHandlers } from './ipc/monitor'
 import { registerShellIntegrationHandlers } from './shell/ShellIntegration'
+import { 
+  setupProtocolHandler, 
+  registerDeepLinkHandler 
+} from './services/protocol-handler'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -71,6 +75,17 @@ app.whenReady().then(() => {
   registerExternalHandlers()
   registerMonitorHandlers()
   registerShellIntegrationHandlers()
+
+  // Setup deep link protocol handler
+  setupProtocolHandler()
+
+  // Wire deep links to renderer
+  const deepLinkActions = ['checkout', 'export', 'open', 'log', 'diff', 'commit', 'update', 'blame', 'info'] as const
+  deepLinkActions.forEach(action => {
+    registerDeepLinkHandler(action, (link) => {
+      mainWindow?.webContents.send('deep-link', link)
+    })
+  })
 
   createWindow()
 
