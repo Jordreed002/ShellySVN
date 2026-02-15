@@ -17,21 +17,36 @@
   --color-bg-tertiary-rgb: 33 38 45;
   --color-bg-elevated-rgb: 48 54 61;
   
+  /* Background colors - Direct format for CSS usage */
+  --color-bg: rgb(13 17 23);
+  --color-bg-secondary: rgb(22 27 34);
+  --color-bg-tertiary: rgb(33 38 45);
+  --color-bg-elevated: rgb(48 54 61);
+  
   /* Border colors */
   --color-border-rgb: 48 54 61;
   --color-border-muted-rgb: 33 38 45;
+  --color-border: rgb(48 54 61);
+  --color-border-muted: rgb(33 38 45);
   
   /* Text colors */
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 139 148 158;
   --color-text-muted-rgb: 110 118 129;
   --color-text-faint-rgb: 72 79 88;
+  --color-text: rgb(230 237 243);
+  --color-text-secondary: rgb(139 148 158);
+  --color-text-muted: rgb(110 118 129);
+  --color-text-faint: rgb(72 79 88);
   
   /* Accent/Primary colors (user customizable) */
   --color-accent-rgb: 88 166 255;
   --color-accent-hover-rgb: 121 184 255;
   --color-accent-muted-rgb: 56 139 253;
   --color-accent-glow: rgba(88, 166, 255, 0.4);
+  --color-accent: rgb(88 166 255);
+  --color-accent-hover: rgb(121 184 255);
+  --color-accent-muted: rgb(56 139 253);
   
   /* SVN Status Colors */
   --color-svn-normal-rgb: 63 185 80;
@@ -45,6 +60,17 @@
   --color-svn-external-rgb: 57 197 207;
   --color-svn-ignored-rgb: 72 79 88;
   --color-svn-obstructed-rgb: 240 136 62;
+  --color-svn-normal: rgb(63 185 80);
+  --color-svn-added: rgb(88 166 255);
+  --color-svn-modified: rgb(210 153 34);
+  --color-svn-deleted: rgb(248 81 73);
+  --color-svn-conflict: rgb(248 81 73);
+  --color-svn-unversioned: rgb(110 118 129);
+  --color-svn-missing: rgb(248 81 73);
+  --color-svn-replaced: rgb(163 113 247);
+  --color-svn-external: rgb(57 197 207);
+  --color-svn-ignored: rgb(72 79 88);
+  --color-svn-obstructed: rgb(240 136 62);
   
   /* UI State Colors */
   --color-success-rgb: 63 185 80;
@@ -54,6 +80,10 @@
   --color-error-rgb: 248 81 73;
   --color-error-glow: rgba(248, 81, 73, 0.4);
   --color-info-rgb: 88 166 255;
+  --color-success: rgb(63 185 80);
+  --color-warning: rgb(210 153 34);
+  --color-error: rgb(248 81 73);
+  --color-info: rgb(88 166 255);
 }
 
 /* Light theme */
@@ -63,19 +93,32 @@
   --color-bg-secondary-rgb: 246 248 250;
   --color-bg-tertiary-rgb: 234 238 242;
   --color-bg-elevated-rgb: 255 255 255;
+  --color-bg: rgb(255 255 255);
+  --color-bg-secondary: rgb(246 248 250);
+  --color-bg-tertiary: rgb(234 238 242);
+  --color-bg-elevated: rgb(255 255 255);
   
   /* Border colors */
   --color-border-rgb: 208 215 222;
   --color-border-muted-rgb: 234 238 242;
+  --color-border: rgb(208 215 222);
+  --color-border-muted: rgb(234 238 242);
   
   /* Text colors */
   --color-text-rgb: 31 35 40;
   --color-text-secondary-rgb: 87 96 106;
   --color-text-muted-rgb: 140 149 159;
   --color-text-faint-rgb: 140 149 159;
+  --color-text: rgb(31 35 40);
+  --color-text-secondary: rgb(87 96 106);
+  --color-text-muted: rgb(140 149 159);
+  --color-text-faint: rgb(140 149 159);
   
   /* Accent colors stay the same but glow is adjusted */
   --color-accent-glow: rgba(88, 166, 255, 0.25);
+  --color-accent: rgb(88 166 255);
+  --color-accent-hover: rgb(121 184 255);
+  --color-accent-muted: rgb(56 139 253);
   
   /* SVN Status Colors - slightly adjusted for light theme */
   --color-svn-normal-rgb: 26 127 55;
@@ -84,6 +127,12 @@
   --color-svn-deleted-rgb: 207 34 46;
   --color-svn-conflict-rgb: 207 34 46;
   --color-svn-unversioned-rgb: 87 96 106;
+  --color-svn-normal: rgb(26 127 55);
+  --color-svn-added: rgb(9 105 218);
+  --color-svn-modified: rgb(154 103 0);
+  --color-svn-deleted: rgb(207 34 46);
+  --color-svn-conflict: rgb(207 34 46);
+  --color-svn-unversioned: rgb(87 96 106);
   
   /* UI State Colors */
   --color-success-rgb: 26 127 55;
@@ -92,6 +141,9 @@
   --color-warning-glow: rgba(154, 103, 0, 0.25);
   --color-error-rgb: 207 34 46;
   --color-error-glow: rgba(207, 34, 46, 0.25);
+  --color-success: rgb(26 127 55);
+  --color-warning: rgb(154 103 0);
+  --color-error: rgb(207 34 46);
 }
 
 /* Dark theme (explicit, same as default) */
@@ -101,19 +153,32 @@
   --color-bg-secondary-rgb: 22 27 34;
   --color-bg-tertiary-rgb: 33 38 45;
   --color-bg-elevated-rgb: 48 54 61;
+  --color-bg: rgb(13 17 23);
+  --color-bg-secondary: rgb(22 27 34);
+  --color-bg-tertiary: rgb(33 38 45);
+  --color-bg-elevated: rgb(48 54 61);
   
   /* Border colors */
   --color-border-rgb: 48 54 61;
   --color-border-muted-rgb: 33 38 45;
+  --color-border: rgb(48 54 61);
+  --color-border-muted: rgb(33 38 45);
   
   /* Text colors */
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 139 148 158;
   --color-text-muted-rgb: 110 118 129;
   --color-text-faint-rgb: 72 79 88;
+  --color-text: rgb(230 237 243);
+  --color-text-secondary: rgb(139 148 158);
+  --color-text-muted: rgb(110 118 129);
+  --color-text-faint: rgb(72 79 88);
   
   /* Accent colors */
   --color-accent-glow: rgba(88, 166, 255, 0.4);
+  --color-accent: rgb(88 166 255);
+  --color-accent-hover: rgb(121 184 255);
+  --color-accent-muted: rgb(56 139 253);
   
   /* SVN Status Colors */
   --color-svn-normal-rgb: 63 185 80;
@@ -122,6 +187,12 @@
   --color-svn-deleted-rgb: 248 81 73;
   --color-svn-conflict-rgb: 248 81 73;
   --color-svn-unversioned-rgb: 110 118 129;
+  --color-svn-normal: rgb(63 185 80);
+  --color-svn-added: rgb(88 166 255);
+  --color-svn-modified: rgb(210 153 34);
+  --color-svn-deleted: rgb(248 81 73);
+  --color-svn-conflict: rgb(248 81 73);
+  --color-svn-unversioned: rgb(110 118 129);
   
   /* UI State Colors */
   --color-success-rgb: 63 185 80;
@@ -130,6 +201,9 @@
   --color-warning-glow: rgba(210, 153, 34, 0.4);
   --color-error-rgb: 248 81 73;
   --color-error-glow: rgba(248, 81, 73, 0.4);
+  --color-success: rgb(63 185 80);
+  --color-warning: rgb(210 153 34);
+  --color-error: rgb(248 81 73);
 }
 
 /* Reset */

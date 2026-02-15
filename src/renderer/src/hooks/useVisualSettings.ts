@@ -48,11 +48,15 @@ export function useVisualSettings(settings: AppSettings | undefined) {
         // Set RGB values for Tailwind opacity support
         document.documentElement.style.setProperty('--color-accent-rgb', `${rgb.r} ${rgb.g} ${rgb.b}`)
         
+        // Set direct color for CSS var usage
+        document.documentElement.style.setProperty('--color-accent', `rgb(${rgb.r} ${rgb.g} ${rgb.b})`)
+        
         // Calculate hover variant (slightly lighter) and set as RGB
         const hoverColor = adjustColorBrightness(accentColor, 20)
         const hoverRgb = hexToRgb(hoverColor)
         if (hoverRgb) {
           document.documentElement.style.setProperty('--color-accent-hover-rgb', `${hoverRgb.r} ${hoverRgb.g} ${hoverRgb.b}`)
+          document.documentElement.style.setProperty('--color-accent-hover', `rgb(${hoverRgb.r} ${hoverRgb.g} ${hoverRgb.b})`)
         }
         
         // Calculate muted variant (slightly darker) and set as RGB
@@ -60,6 +64,7 @@ export function useVisualSettings(settings: AppSettings | undefined) {
         const mutedRgb = hexToRgb(mutedColor)
         if (mutedRgb) {
           document.documentElement.style.setProperty('--color-accent-muted-rgb', `${mutedRgb.r} ${mutedRgb.g} ${mutedRgb.b}`)
+          document.documentElement.style.setProperty('--color-accent-muted', `rgb(${mutedRgb.r} ${mutedRgb.g} ${mutedRgb.b})`)
         }
         
         // Calculate glow color (accent with transparency)
