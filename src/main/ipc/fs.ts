@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
-import { readdir, stat, copyFile as fsCopyFile, mkdir } from 'fs/promises'
+import { readdir, stat, copyFile as fsCopyFile, writeFile as fsWriteFile, mkdir } from 'fs/promises'
+import chokidar from 'chokidar'
 import { existsSync } from 'fs'
 import { join, basename, normalize, dirname } from 'path'
 import { spawn, ChildProcess } from 'child_process'
@@ -208,6 +209,9 @@ export function applySvnStatusToFiles(
 
 // Track active background scans
 const activeScans = new Map<string, ChildProcess>()
+
+// Track active file watchers
+const activeWatchers = new Map<string, chokidar.FSWatcher>()
 
 function cancelDeepScan(dirPath: string) {
   const proc = activeScans.get(dirPath)
@@ -515,5 +519,76 @@ export function registerFsHandlers(): void {
       console.error('[FS] Copy file error:', err)
       return { success: false, error: (err as Error).message }
     }
+  })
+  
+  // Write file (for plugins)
+  ipcMain.handle('fs:writeFile', async (_, path: string, content: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Ensure directory exists
+      const dir = dirname(path)
+      await mkdir(dir, { recursive: true })
+      
+      await fsWriteFile(path, content, 'utf-8')
+      return { success: true }
+    } catch (err) {
+      console.error('[FS] Write file error:', err)
+      return { success: false, error: (err as Error).message }
+    }
+  })
+  
+  // File System Watching
+  ipcMain.handle('fs:watch', async (event, path: string, options?: { 
+    watchSvnOnly?: boolean 
+  }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (activeWatchers.has(path)) {
+        return { success: true }
+      }
+      
+      const watchSvnOnly = options?.watchSvnOnly ?? false
+      
+      const watcher = chokidar.watch(path, {
+        ignored: [
+          /(^|[\/\\])\../, // hidden files
+          /node_modules/
+        ],
+        ignoreInitial: true,
+        awaitWriteFinish: {
+          stabilityThreshold: 300,
+          pollInterval: 100
+        },
+        depth: watchSvnOnly ? 0 : undefined
+      })
+      
+      watcher.on('all', (eventType, changedPath) => {
+        if (watchSvnOnly && !changedPath.includes('.svn')) {
+          return
+        }
+        
+        event.sender.send('fs:watch:change', {
+          path,
+          eventType,
+          changedPath
+        })
+      })
+      
+      watcher.on('error', (error) => {
+        console.error('[FS] Watcher error:', error)
+      })
+      
+      activeWatchers.set(path, watcher)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+  
+  ipcMain.handle('fs:unwatch', async (_, path: string): Promise<{ success: boolean }> => {
+    const watcher = activeWatchers.get(path)
+    if (watcher) {
+      await watcher.close()
+      activeWatchers.delete(path)
+    }
+    return { success: true }
   })
 }
