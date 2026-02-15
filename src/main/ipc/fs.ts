@@ -6,6 +6,7 @@ import { join, basename, normalize, dirname } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import { platform } from 'os'
 import type { FileInfo, SvnStatusChar } from '@shared/types'
+import { validatePath, InputValidationError } from '../utils/validation'
 
 interface SvnStatusEntry {
   status: SvnStatusChar
@@ -473,18 +474,24 @@ export function registerFsHandlers(): void {
   // Read file content
   ipcMain.handle('fs:readFile', async (_, path: string): Promise<{ success: boolean; content?: string; error?: string }> => {
     try {
+      // SECURITY: Validate path input
+      const validatedPath = validatePath(path, { mustExist: true, mustBeFile: true, maxSize: 1024 * 1024 })
+      
       // PERFORMANCE: Use async file operations to avoid blocking
       const { stat, readFile } = await import('fs/promises')
-      const stats = await stat(path)
+      const stats = await stat(validatedPath)
       
       // Limit file size to 1MB for preview
       if (stats.size > 1024 * 1024) {
         return { success: false, error: 'File too large for preview (>1MB)' }
       }
       
-      const content = await readFile(path, 'utf-8')
+      const content = await readFile(validatedPath, 'utf-8')
       return { success: true, content }
     } catch (err) {
+      if (err instanceof InputValidationError) {
+        return { success: false, error: `Validation error: ${err.message}` }
+      }
       return { success: false, error: (err as Error).message }
     }
   })
@@ -492,10 +499,18 @@ export function registerFsHandlers(): void {
   // Read image file as base64 for thumbnails
   ipcMain.handle('fs:readImageAsBase64', async (_, filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
     try {
-      const buffer = await readFile(filePath)
+      // SECURITY: Validate path and allowed extensions
+      const validatedPath = validatePath(filePath, {
+        mustExist: true,
+        mustBeFile: true,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp'],
+        maxSize: 10 * 1024 * 1024  // 10MB max for images
+      })
+      
+      const buffer = await readFile(validatedPath)
       const base64 = buffer.toString('base64')
       // Detect mime type from extension
-      const ext = filePath.split('.').pop()?.toLowerCase() || ''
+      const ext = validatedPath.split('.').pop()?.toLowerCase() || ''
       const mimeTypes: Record<string, string> = {
         'png': 'image/png',
         'jpg': 'image/jpeg',
@@ -508,6 +523,9 @@ export function registerFsHandlers(): void {
       const mimeType = mimeTypes[ext] || 'image/png'
       return { success: true, data: `data:${mimeType};base64,${base64}` }
     } catch (error) {
+      if (error instanceof InputValidationError) {
+        return { success: false, error: `Validation error: ${error.message}` }
+      }
       return { success: false, error: (error as Error).message }
     }
   })
@@ -530,15 +548,22 @@ export function registerFsHandlers(): void {
   // Copy file (for non-versioned files)
   ipcMain.handle('fs:copyFile', async (_, source: string, target: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      // SECURITY: Validate both paths
+      const validatedSource = validatePath(source, { mustExist: true, mustBeFile: true })
+      const validatedTarget = validatePath(target, { allowAbsolute: true })
+      
       // Ensure target directory exists
-      const targetDir = dirname(target)
+      const targetDir = dirname(validatedTarget)
       if (!existsSync(targetDir)) {
         await mkdir(targetDir, { recursive: true })
       }
       
-      await fsCopyFile(source, target)
+      await fsCopyFile(validatedSource, validatedTarget)
       return { success: true }
     } catch (err) {
+      if (err instanceof InputValidationError) {
+        return { success: false, error: `Validation error: ${err.message}` }
+      }
       console.error('[FS] Copy file error:', err)
       return { success: false, error: (err as Error).message }
     }
@@ -547,13 +572,24 @@ export function registerFsHandlers(): void {
   // Write file (for plugins)
   ipcMain.handle('fs:writeFile', async (_, path: string, content: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      // SECURITY: Validate path (allow absolute for plugin files)
+      const validatedPath = validatePath(path, { allowAbsolute: true })
+      
+      // Validate content size (limit to 10MB for safety)
+      if (content.length > 10 * 1024 * 1024) {
+        return { success: false, error: 'Content too large (max 10MB)' }
+      }
+      
       // Ensure directory exists
-      const dir = dirname(path)
+      const dir = dirname(validatedPath)
       await mkdir(dir, { recursive: true })
       
-      await fsWriteFile(path, content, 'utf-8')
+      await fsWriteFile(validatedPath, content, 'utf-8')
       return { success: true }
     } catch (err) {
+      if (err instanceof InputValidationError) {
+        return { success: false, error: `Validation error: ${err.message}` }
+      }
       console.error('[FS] Write file error:', err)
       return { success: false, error: (err as Error).message }
     }
