@@ -1,11 +1,11 @@
 import { useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useRef } from 'react'
+import { useRef, memo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { SvnLogEntry } from '@shared/types'
 
-// Commit row component
-function CommitRow({ entry }: { entry: SvnLogEntry }) {
+// Commit row component - memoized for performance in virtualized lists
+const CommitRow = memo(function CommitRow({ entry }: { entry: SvnLogEntry }) {
   const date = new Date(entry.date).toLocaleString()
   
   return (
@@ -26,7 +26,7 @@ function CommitRow({ entry }: { entry: SvnLogEntry }) {
       </div>
     </div>
   )
-}
+})
 
 export function CommitHistory() {
   const { path } = useSearch({ from: '/history/' })
