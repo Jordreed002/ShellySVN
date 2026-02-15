@@ -533,6 +533,9 @@ export interface ElectronAPI {
     readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
     getFolderSizes: (folderPaths: string[]) => Promise<Record<string, number>>;
     copyFile: (source: string, target: string) => Promise<{ success: boolean; error?: string }>;
+    writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
+    watch: (path: string, callback: (event: { path: string; eventType: string; changedPath: string }) => void, options?: { watchSvnOnly?: boolean }) => (() => void) | undefined;
+    unwatch: (path: string) => Promise<{ success: boolean }>;
   };
   dialog: {
     openDirectory: () => Promise<string | null>;
@@ -559,6 +562,17 @@ export interface ElectronAPI {
     has: (realm: string) => Promise<boolean>;
     clear: () => Promise<{ success: boolean }>;
     isEncryptionAvailable: () => Promise<boolean>;
+  };
+  shell: {
+    register: () => Promise<{ success: boolean }>;
+    unregister: () => Promise<{ success: boolean }>;
+    isRegistered: () => Promise<{ registered: boolean }>;
+    updateOverlay: (path: string, status: string) => Promise<{ success: boolean }>;
+    clearOverlay: (path: string) => Promise<{ success: boolean }>;
+    clearAllOverlays: () => Promise<{ success: boolean }>;
+  };
+  deepLink: {
+    onAction: (callback: (link: { action: string; params: Record<string, string>; path?: string; url?: string }) => void) => () => void;
   };
 }
 
