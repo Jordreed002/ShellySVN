@@ -145,27 +145,32 @@ class SettingsManager {
 
   /**
    * Deep merge utility
+   * Type-safe implementation for merging partial settings
    */
-  private mergeDeep(target: any, source: any): any {
+  private mergeDeep<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
     const output = { ...target }
     if (this.isObject(target) && this.isObject(source)) {
       Object.keys(source).forEach(key => {
-        if (this.isObject(source[key])) {
+        const typedKey = key as keyof T
+        if (this.isObject(source[typedKey])) {
           if (!(key in target)) {
-            Object.assign(output, { [key]: source[key] })
+            Object.assign(output, { [key]: source[typedKey] })
           } else {
-            output[key] = this.mergeDeep(target[key], source[key])
+            output[typedKey] = this.mergeDeep(
+              target[typedKey] as Record<string, unknown>,
+              source[typedKey] as Partial<Record<string, unknown>>
+            ) as T[keyof T]
           }
         } else {
-          Object.assign(output, { [key]: source[key] })
+          Object.assign(output, { [key]: source[typedKey] })
         }
       })
     }
     return output
   }
 
-  private isObject(item: any): boolean {
-    return item && typeof item === 'object' && !Array.isArray(item)
+  private isObject(item: unknown): item is Record<string, unknown> {
+    return item !== null && typeof item === 'object' && !Array.isArray(item)
   }
 
   /**
@@ -182,10 +187,10 @@ class SettingsManager {
         }
         
         // Read existing file to preserve other keys
-        let existingData: any = {}
+        let existingData: Record<string, unknown> = {}
         try {
           const content = await readFile(this.filePath, 'utf-8')
-          existingData = JSON.parse(content)
+          existingData = JSON.parse(content) as Record<string, unknown>
         } catch {
           // File doesn't exist
         }

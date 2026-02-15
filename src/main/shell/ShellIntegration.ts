@@ -38,6 +38,18 @@ interface OverlayIcon {
   status: SvnStatusChar
 }
 
+/**
+ * Data structure for Windows shell helper commands
+ */
+interface WindowsHelperData {
+  appId?: string
+  appName?: string
+  iconPath?: string
+  path?: string
+  status?: SvnStatusChar
+  overlays?: OverlayIcon[]
+}
+
 export class ShellIntegrationManager {
   private isWindows: boolean
   private isMac: boolean
@@ -198,7 +210,7 @@ export class ShellIntegrationManager {
     console.log('[Shell] Windows shell extension unregistered')
   }
   
-  private async notifyWindowsHelper(command: string, data: any): Promise<void> {
+  private async notifyWindowsHelper(command: string, data: WindowsHelperData): Promise<void> {
     return new Promise((resolve) => {
       if (!this.helperPath) {
         resolve()

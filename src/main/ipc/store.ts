@@ -3,6 +3,7 @@ import { readFile, writeFile, access, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { getSettingsManager } from '../settings-manager'
+import type { AppSettings } from '@shared/types'
 
 /**
  * Async JSON-based store
@@ -11,14 +12,21 @@ import { getSettingsManager } from '../settings-manager'
 class SimpleStore {
   private filePath: string
   private data: Record<string, unknown>
-  private loadPromise: Promise<void>
+  private _loadPromise: Promise<void>
   private savePromise: Promise<void> = Promise.resolve()
 
   constructor(name: string = 'config') {
     const userDataPath = app.getPath('userData')
     this.filePath = join(userDataPath, `${name}.json`)
     this.data = {}
-    this.loadPromise = this.load()
+    this._loadPromise = this.load()
+  }
+  
+  /**
+   * Get the load promise for awaiting initialization
+   */
+  get loadPromise(): Promise<void> {
+    return this._loadPromise
   }
 
   private async load(): Promise<void> {
@@ -31,7 +39,7 @@ class SimpleStore {
       if (this.data['settings']) {
         const settingsManager = getSettingsManager()
         await settingsManager.ready()
-        await settingsManager.updateSettings(this.data['settings'] as any)
+        await settingsManager.updateSettings(this.data['settings'] as Partial<AppSettings>)
       }
     } catch {
       // File doesn't exist or parse error, use defaults
@@ -72,7 +80,7 @@ class SimpleStore {
     if (key === 'settings') {
       try {
         const settingsManager = getSettingsManager()
-        await settingsManager.updateSettings(value as any)
+        await settingsManager.updateSettings(value as Partial<AppSettings>)
       } catch (error) {
         console.error('[Store] Failed to sync settings to manager:', error)
       }
@@ -100,7 +108,7 @@ async function getStore(): Promise<SimpleStore> {
   if (!storePromise) {
     storePromise = (async () => {
       const store = new SimpleStore('shellysvn-config')
-      await (store as any).loadPromise
+      await store.loadPromise
       return store
     })()
   }
