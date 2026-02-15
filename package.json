@@ -26,6 +26,10 @@
     "build:all": "bun run build && electron-builder --win --mac --linux",
     "release": "bun run build && electron-builder",
     "typecheck": "tsc --noEmit",
+    "test:e2e": "bunx playwright test --config=tests/playwright.config.ts",
+    "test:e2e:ui": "bunx playwright test --config=tests/playwright.config.ts --ui",
+    "test:e2e:debug": "bunx playwright test --config=tests/playwright.config.ts --debug",
+    "test:e2e:report": "bunx playwright show-report tests/report",
     "engine:dev": "cd packages/logic-engine && bun run src/index.ts",
     "engine:build": "cd packages/logic-engine && bun run build",
     "engine:build:all": "cd packages/logic-engine && bun run build:all",
@@ -49,6 +53,7 @@
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@playwright/test": "^1.58.2",
     "@tanstack/router-plugin": "^1.92.0",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.14",
