@@ -16,6 +16,7 @@ import { app, ipcMain } from 'electron'
 import { join } from 'path'
 import { spawn } from 'child_process'
 import type { SvnStatusChar } from '@shared/types'
+import debug from '../utils/debug'
 
 // Icon overlay status mapping
 export const OVERLAY_STATUS_MAP: Record<SvnStatusChar, { icon: string; priority: number }> = {
@@ -81,7 +82,7 @@ export class ShellIntegrationManager {
    */
   async register(): Promise<boolean> {
     if (!this.isWindows && !this.isMac) {
-      console.log('[Shell] Shell integration not supported on this platform')
+      debug.log('[Shell] Shell integration not supported on this platform')
       return false
     }
     
@@ -95,7 +96,7 @@ export class ShellIntegrationManager {
       this.isRegistered = true
       return true
     } catch (err) {
-      console.error('[Shell] Failed to register shell integration:', err)
+      debug.error('[Shell] Failed to register shell integration:', err)
       return false
     }
   }
@@ -116,7 +117,7 @@ export class ShellIntegrationManager {
       this.isRegistered = false
       return true
     } catch (err) {
-      console.error('[Shell] Failed to unregister shell integration:', err)
+      debug.error('[Shell] Failed to unregister shell integration:', err)
       return false
     }
   }
@@ -190,8 +191,8 @@ export class ShellIntegrationManager {
     // Check if helper exists
     const fs = require('fs')
     if (!fs.existsSync(this.helperPath)) {
-      console.log('[Shell] Windows shell helper not found at:', this.helperPath)
-      console.log('[Shell] Shell integration requires compilation of native shell extension')
+      debug.log('[Shell] Windows shell helper not found at:', this.helperPath)
+      debug.log('[Shell] Shell integration requires compilation of native shell extension')
       return
     }
     
@@ -202,12 +203,12 @@ export class ShellIntegrationManager {
       iconPath: join(app.getPath('userData'), 'icons')
     })
     
-    console.log('[Shell] Windows shell extension registered')
+    debug.log('[Shell] Windows shell extension registered')
   }
   
   private async unregisterWindowsShellExtension(): Promise<void> {
     await this.notifyWindowsHelper('unregister', {})
-    console.log('[Shell] Windows shell extension unregistered')
+    debug.log('[Shell] Windows shell extension unregistered')
   }
   
   private async notifyWindowsHelper(command: string, data: WindowsHelperData): Promise<void> {
@@ -223,7 +224,7 @@ export class ShellIntegrationManager {
       })
       
       proc.on('error', (err) => {
-        console.error('[Shell] Helper error:', err)
+        debug.error('[Shell] Helper error:', err)
         resolve() // Don't fail the operation
       })
       
@@ -242,8 +243,8 @@ export class ShellIntegrationManager {
     // 2. Proper provisioning profile
     // 3. App Store distribution OR Developer ID signing
     
-    console.log('[Shell] macOS Finder Sync requires native extension compilation')
-    console.log('[Shell] See resources/shell/ShellySVNFinderSync for implementation')
+    debug.log('[Shell] macOS Finder Sync requires native extension compilation')
+    debug.log('[Shell] See resources/shell/ShellySVNFinderSync for implementation')
     
     // For now, we'll use a simpler approach: Finder toolbar item
     // This can be done via AppleScript

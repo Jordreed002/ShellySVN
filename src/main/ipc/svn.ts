@@ -13,6 +13,7 @@ import type {
 } from '@shared/types'
 import { getSettingsManager } from '../settings-manager'
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor'
+import debug from '../utils/debug'
 
 /**
  * Helper to get hooks for a working copy from store
@@ -26,7 +27,7 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
       return stored[workingCopyPath]
     }
   } catch (error) {
-    console.error('[SVN] Failed to get hooks:', error)
+    debug.error('[SVN] Failed to get hooks:', error)
   }
   return []
 }
@@ -103,7 +104,7 @@ async function cleanupTempSvnConfig(configDir: string): Promise<void> {
   try {
     await rm(configDir, { recursive: true, force: true })
   } catch (error) {
-    console.warn('[SVN] Failed to cleanup temp config dir:', error)
+    debug.warn('[SVN] Failed to cleanup temp config dir:', error)
   }
 }
 
@@ -166,7 +167,7 @@ async function executeSvn(
       finalArgs.push('--trust-server-cert-failures', failures)
       
       // Log SSL bypass for security audit
-      console.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`)
+      debug.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`)
     }
     
     // Add client certificate if configured
@@ -174,7 +175,7 @@ async function executeSvn(
       finalArgs.push('--certificate', context.clientCertificatePath.trim())
     }
     
-    console.log(`[SVN] Running: svn ${finalArgs.join(' ')} in ${cwd || process.cwd()}`)
+    debug.log(`[SVN] Running: svn ${finalArgs.join(' ')} in ${cwd || process.cwd()}`)
     
     const proc = spawn(svnCommand, finalArgs, {
       cwd: cwd || process.cwd(),
@@ -207,7 +208,7 @@ async function executeSvn(
       if (timeoutId) clearTimeout(timeoutId)
       if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
       
-      console.log(`[SVN] Exit code: ${code}`)
+      debug.log(`[SVN] Exit code: ${code}`)
       if (code === 0) {
         resolve(stdout)
       } else {
@@ -218,7 +219,7 @@ async function executeSvn(
     proc.on('error', (err) => {
       if (timeoutId) clearTimeout(timeoutId)
       if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
-      console.error(`[SVN] Error:`, err)
+      debug.error(`[SVN] Error:`, err)
       reject(err)
     })
   })
@@ -305,7 +306,7 @@ function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
       })
     }
   } catch (error) {
-    console.error('[SVN] Failed to parse status XML:', error)
+    debug.error('[SVN] Failed to parse status XML:', error)
     // Return empty result on parse error
   }
   
@@ -370,7 +371,7 @@ function parseSvnInfoXml(xml: string): SvnInfoResult {
       lastChangedDate: entry.commit?.date || ''
     }
   } catch (error) {
-    console.error('[SVN] Failed to parse info XML:', error)
+    debug.error('[SVN] Failed to parse info XML:', error)
     return {
       path: '',
       url: '',
@@ -465,7 +466,7 @@ function parseSvnLogXml(xml: string): SvnLogResult {
       })
     }
   } catch (error) {
-    console.error('[SVN] Failed to parse log XML:', error)
+    debug.error('[SVN] Failed to parse log XML:', error)
     // Return empty result on parse error
   }
   
@@ -623,7 +624,7 @@ export function registerSvnHandlers(): void {
       const xml = await executeSvn(['status', '--xml', path])
       return parseSvnStatusXml(xml, path)
     } catch (error) {
-      console.error('[SVN] Status error:', error)
+      debug.error('[SVN] Status error:', error)
       // Return empty result instead of throwing
       return { path, entries: [], revision: 0 }
     }
@@ -635,7 +636,7 @@ export function registerSvnHandlers(): void {
       const xml = await executeSvn(['log', '--xml', '-l', String(limit), path])
       return parseSvnLogXml(xml)
     } catch (error) {
-      console.error('[SVN] Log error:', error)
+      debug.error('[SVN] Log error:', error)
       return { entries: [], startRevision: 0, endRevision: 0 }
     }
   })
@@ -646,7 +647,7 @@ export function registerSvnHandlers(): void {
       const xml = await executeSvn(['info', '--xml', path])
       return parseSvnInfoXml(xml)
     } catch (error) {
-      console.error('[SVN] Info error:', error)
+      debug.error('[SVN] Info error:', error)
       throw error
     }
   })
@@ -663,7 +664,7 @@ export function registerSvnHandlers(): void {
       const output = await executeSvn(args)
       return parseSvnDiff(output)
     } catch (error) {
-      console.error('[SVN] Diff error:', error)
+      debug.error('[SVN] Diff error:', error)
       return { files: [], hasChanges: false, rawDiff: (error as Error).message }
     }
   })
@@ -693,7 +694,7 @@ export function registerSvnHandlers(): void {
       executeHooksForType(hooks, 'post-update', { 
         workingCopyPath: path, 
         revision: result.revision 
-      }).catch(err => console.error('[SVN] Post-update hook error:', err))
+      }).catch(err => debug.error('[SVN] Post-update hook error:', err))
     }
     
     return result
@@ -747,7 +748,7 @@ export function registerSvnHandlers(): void {
         files: paths,
         message,
         revision: result.revision
-      }).catch(err => console.error('[SVN] Post-commit hook error:', err))
+      }).catch(err => debug.error('[SVN] Post-commit hook error:', err))
     }
     
     return result
@@ -1047,7 +1048,7 @@ export function registerSvnHandlers(): void {
       
       return { success: true }
     } catch (error) {
-      console.error('[SVN] Changelist delete error:', error)
+      debug.error('[SVN] Changelist delete error:', error)
       return { success: false }
     }
   })
@@ -1143,7 +1144,7 @@ export function registerSvnHandlers(): void {
       const xml = await executeSvn(args)
       return parseSvnBlameXml(xml, path)
     } catch (error) {
-      console.error('[SVN] Blame error:', error)
+      debug.error('[SVN] Blame error:', error)
       return { path, lines: [], startRevision: 0, endRevision: 0 }
     }
   })
@@ -1162,7 +1163,7 @@ export function registerSvnHandlers(): void {
       const xml = await executeSvn(args)
       return parseSvnListXml(xml, url)
     } catch (error) {
-      console.error('[SVN] List error:', error)
+      debug.error('[SVN] List error:', error)
       return { path: url, entries: [] }
     }
   })
@@ -1180,7 +1181,7 @@ export function registerSvnHandlers(): void {
       await writeFile(outputPath, output, 'utf-8')
       return { success: true, output }
     } catch (error) {
-      console.error('[SVN] Patch create error:', error)
+      debug.error('[SVN] Patch create error:', error)
       return { success: false, output: (error as Error).message }
     }
   })
@@ -1203,7 +1204,7 @@ export function registerSvnHandlers(): void {
         output
       }
     } catch (error) {
-      console.error('[SVN] Patch apply error:', error)
+      debug.error('[SVN] Patch apply error:', error)
       return {
         success: false,
         filesPatched: 0,
@@ -1222,7 +1223,7 @@ export function registerSvnHandlers(): void {
       const output = await executeSvn(['propget', 'svn:externals', '-R', path])
       return parseSvnExternals(output, path)
     } catch (error) {
-      console.error('[SVN] Externals list error:', error)
+      debug.error('[SVN] Externals list error:', error)
       return []
     }
   })
@@ -1251,7 +1252,7 @@ export function registerSvnHandlers(): void {
       await executeSvn(['propset', 'svn:externals', newValue, workingCopyPath])
       return { success: true }
     } catch (error) {
-      console.error('[SVN] Externals add error:', error)
+      debug.error('[SVN] Externals add error:', error)
       return { success: false }
     }
   })
@@ -1273,7 +1274,7 @@ export function registerSvnHandlers(): void {
       }
       return { success: true }
     } catch (error) {
-      console.error('[SVN] Externals remove error:', error)
+      debug.error('[SVN] Externals remove error:', error)
       return { success: false }
     }
   })

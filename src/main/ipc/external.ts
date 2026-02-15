@@ -2,6 +2,7 @@ import { ipcMain, shell } from 'electron'
 import { spawn } from 'child_process'
 import { existsSync, statSync } from 'fs'
 import { normalize } from 'path'
+import debug from '../utils/debug'
 
 /**
  * SECURITY: Whitelist of allowed diff tools (known aliases)
@@ -123,7 +124,7 @@ export function registerExternalHandlers(): void {
         args = [leftValidation.normalized!, rightValidation.normalized!]
       }
       
-      console.log(`[EXTERNAL] Launching diff tool: ${command}`)
+      debug.log(`[EXTERNAL] Launching diff tool: ${command}`)
       
       const proc = spawn(command, args, {
         detached: true,
@@ -192,7 +193,7 @@ export function registerExternalHandlers(): void {
         args = [baseValidation.normalized!, mineValidation.normalized!, theirsValidation.normalized!, mergedNormalized]
       }
       
-      console.log(`[EXTERNAL] Launching merge tool: ${command}`)
+      debug.log(`[EXTERNAL] Launching merge tool: ${command}`)
       
       const proc = spawn(command, args, {
         detached: true,
