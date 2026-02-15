@@ -1,10 +1,12 @@
 /**
  * Auth credential cache for SVN operations
  * Stores credentials in memory + encrypted on disk using electron's safeStorage
+ * 
+ * PERFORMANCE: Uses async file operations to avoid blocking the event loop
  */
 import { safeStorage } from 'electron'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { join } from 'path'
+import { readFile, writeFile, access, mkdir } from 'fs/promises'
+import { join, dirname } from 'path'
 
 interface CachedCredential {
   realm: string
@@ -23,6 +25,8 @@ class AuthCache {
   private storePath: string
   private encryptionAvailable: boolean
   private persistCredentials: boolean
+  private loadPromise: Promise<void>
+  private savePromise: Promise<void> = Promise.resolve()
 
   constructor(userDataPath: string) {
     this.storePath = join(userDataPath, 'auth-cache.json')
@@ -41,9 +45,15 @@ class AuthCache {
     }
     
     // Only load from disk if we're persisting
-    if (this.persistCredentials) {
-      this.load()
-    }
+    // Store promise for async initialization
+    this.loadPromise = this.persistCredentials ? this.load() : Promise.resolve()
+  }
+  
+  /**
+   * Wait for initial load to complete
+   */
+  async ready(): Promise<void> {
+    await this.loadPromise
   }
 
   /**
@@ -176,20 +186,21 @@ class AuthCache {
 
   /**
    * Load credentials from disk
+   * PERFORMANCE: Uses async file operations
    */
-  private load(): void {
+  private async load(): Promise<void> {
     try {
-      if (existsSync(this.storePath)) {
-        const content = readFileSync(this.storePath, 'utf-8')
-        const data: StoredCache = JSON.parse(content)
-        
-        if (data.version === 1 && Array.isArray(data.credentials)) {
-          for (const cred of data.credentials) {
-            this.credentials.set(cred.realm, cred)
-          }
+      await access(this.storePath)
+      const content = await readFile(this.storePath, 'utf-8')
+      const data: StoredCache = JSON.parse(content)
+      
+      if (data.version === 1 && Array.isArray(data.credentials)) {
+        for (const cred of data.credentials) {
+          this.credentials.set(cred.realm, cred)
         }
       }
     } catch (error) {
+      // File doesn't exist or parse error
       console.error('Failed to load auth cache:', error)
       // Start fresh on error
       this.credentials.clear()
@@ -199,29 +210,33 @@ class AuthCache {
   /**
    * Save credentials to disk
    * SECURITY: Only saves if persistence is enabled (encryption available)
+   * PERFORMANCE: Uses async file operations with debouncing
    */
-  private save(): void {
+  private async save(): Promise<void> {
     // Don't persist if encryption is not available
     if (!this.persistCredentials) {
       return
     }
     
-    try {
-      const data: StoredCache = {
-        version: 1,
-        credentials: Array.from(this.credentials.values())
+    // Debounce saves by waiting for previous save to complete
+    await this.savePromise
+    
+    this.savePromise = (async () => {
+      try {
+        const data: StoredCache = {
+          version: 1,
+          credentials: Array.from(this.credentials.values())
+        }
+        
+        // Ensure directory exists
+        const dir = dirname(this.storePath)
+        await mkdir(dir, { recursive: true })
+        
+        await writeFile(this.storePath, JSON.stringify(data, null, 2), 'utf-8')
+      } catch (error) {
+        console.error('Failed to save auth cache:', error)
       }
-      
-      // Ensure directory exists
-      const dir = join(this.storePath, '..')
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true })
-      }
-      
-      writeFileSync(this.storePath, JSON.stringify(data, null, 2), 'utf-8')
-    } catch (error) {
-      console.error('Failed to save auth cache:', error)
-    }
+    })()
   }
 }
 
