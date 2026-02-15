@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   File, 
   FileCode, 
@@ -97,7 +97,6 @@ export function FileThumbnail({
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   
   const filename = filePath.split(/[/\\]/).pop() || filePath
   const Icon = getFileIcon(filename, isDirectory)
@@ -113,45 +112,21 @@ export function FileThumbnail({
     setLoading(true)
     setError(false)
     
-    // Use file:// protocol for local files
-    const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`
-    
-    const img = new Image()
-    img.onload = () => {
-      // Create thumbnail using canvas
-      const canvas = canvasRef.current
-      if (!canvas) {
+    // Use IPC to read image as base64 (avoids file:// protocol security issues)
+    window.api.fs.readImageAsBase64(filePath)
+      .then(result => {
+        if (result.success && result.data) {
+          setThumbnailUrl(result.data)
+        } else {
+          setError(true)
+        }
         setLoading(false)
-        return
-      }
-      
-      const maxSize = size * 2 // Render at 2x for crispness
-      const scale = Math.min(maxSize / img.width, maxSize / img.height, 1)
-      const width = Math.round(img.width * scale)
-      const height = Math.round(img.height * scale)
-      
-      canvas.width = width
-      canvas.height = height
-      
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, width, height)
-        setThumbnailUrl(canvas.toDataURL('image/png'))
-      }
-      setLoading(false)
-    }
-    
-    img.onerror = () => {
-      setError(true)
-      setLoading(false)
-    }
-    
-    img.src = fileUrl
-    
-    return () => {
-      img.src = ''
-    }
-  }, [filePath, isImage, showPreview, size, isDirectory])
+      })
+      .catch(() => {
+        setError(true)
+        setLoading(false)
+      })
+  }, [filePath, isImage, showPreview, isDirectory])
   
   // For directories or non-image files, show icon
   if (isDirectory || !isImage || !showPreview) {
@@ -185,16 +160,13 @@ export function FileThumbnail({
   
   // Show thumbnail
   return (
-    <>
-      <canvas ref={canvasRef} className="hidden" />
-      <img 
-        src={thumbnailUrl}
-        alt={filename}
-        className={`rounded-sm object-contain ${className}`}
-        style={{ width: size, height: size }}
-        loading="lazy"
-      />
-    </>
+    <img 
+      src={thumbnailUrl}
+      alt={filename}
+      className={`rounded-sm object-contain ${className}`}
+      style={{ width: size, height: size }}
+      loading="lazy"
+    />
   )
 }
 
@@ -204,42 +176,33 @@ export function useThumbnails(filePaths: string[], maxSize: number = 16) {
   
   useEffect(() => {
     const newThumbnails = new Map<string, string>()
-    let loaded = 0
-    const total = filePaths.filter(p => isImageFile(p)).length
+    const imagePaths = filePaths.filter(p => isImageFile(p))
     
-    if (total === 0) {
+    if (imagePaths.length === 0) {
       setThumbnails(newThumbnails)
       return
     }
     
-    filePaths.forEach(path => {
-      if (!isImageFile(path)) return
-      
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const scale = Math.min(maxSize / img.width, maxSize / img.height, 1)
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
-        
-        const ctx = canvas.getContext('2d')
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-          newThumbnails.set(path, canvas.toDataURL('image/png'))
-        }
-        
-        loaded++
-        if (loaded === total) {
-          setThumbnails(new Map(newThumbnails))
-        }
-      }
-      img.onerror = () => {
-        loaded++
-        if (loaded === total) {
-          setThumbnails(new Map(newThumbnails))
-        }
-      }
-      img.src = `file:///${path.replace(/\\/g, '/')}`
+    let loaded = 0
+    const total = imagePaths.length
+    
+    imagePaths.forEach(path => {
+      window.api.fs.readImageAsBase64(path)
+        .then(result => {
+          if (result.success && result.data) {
+            newThumbnails.set(path, result.data)
+          }
+          loaded++
+          if (loaded === total) {
+            setThumbnails(new Map(newThumbnails))
+          }
+        })
+        .catch(() => {
+          loaded++
+          if (loaded === total) {
+            setThumbnails(new Map(newThumbnails))
+          }
+        })
     })
   }, [filePaths.join(','), maxSize])
   

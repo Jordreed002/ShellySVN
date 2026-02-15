@@ -531,6 +531,7 @@ export interface ElectronAPI {
     cancelScan: (path: string) => Promise<void>;
     isVersioned: (path: string) => Promise<boolean>;
     readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
+    readImageAsBase64: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
     getFolderSizes: (folderPaths: string[]) => Promise<Record<string, number>>;
     copyFile: (source: string, target: string) => Promise<{ success: boolean; error?: string }>;
     writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;

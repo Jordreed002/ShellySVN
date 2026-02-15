@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { readdir, stat, copyFile as fsCopyFile, writeFile as fsWriteFile, mkdir } from 'fs/promises'
+import { readdir, stat, copyFile as fsCopyFile, writeFile as fsWriteFile, mkdir, readFile } from 'fs/promises'
 import chokidar from 'chokidar'
 import { existsSync } from 'fs'
 import { join, basename, normalize, dirname } from 'path'
@@ -486,6 +486,29 @@ export function registerFsHandlers(): void {
       return { success: true, content }
     } catch (err) {
       return { success: false, error: (err as Error).message }
+    }
+  })
+  
+  // Read image file as base64 for thumbnails
+  ipcMain.handle('fs:readImageAsBase64', async (_, filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
+    try {
+      const buffer = await readFile(filePath)
+      const base64 = buffer.toString('base64')
+      // Detect mime type from extension
+      const ext = filePath.split('.').pop()?.toLowerCase() || ''
+      const mimeTypes: Record<string, string> = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'ico': 'image/x-icon',
+        'bmp': 'image/bmp'
+      }
+      const mimeType = mimeTypes[ext] || 'image/png'
+      return { success: true, data: `data:${mimeType};base64,${base64}` }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
     }
   })
   

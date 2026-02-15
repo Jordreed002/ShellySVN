@@ -103,6 +103,9 @@ const api: ElectronAPI = {
     isVersioned: (path) => ipcRenderer.invoke('fs:isVersioned', path) as Promise<boolean>,
     // Read file content for preview
     readFile: (path) => ipcRenderer.invoke('fs:readFile', path) as Promise<{ success: boolean; content?: string; error?: string }>,
+    // Read image file as base64 for thumbnails
+    readImageAsBase64: (filePath) => 
+      ipcRenderer.invoke('fs:readImageAsBase64', filePath) as Promise<{ success: boolean; data?: string; error?: string }>,
     // Calculate folder sizes
     getFolderSizes: (folderPaths) => ipcRenderer.invoke('fs:getFolderSizes', folderPaths) as Promise<Record<string, number>>,
     // Copy file (for non-versioned files)
