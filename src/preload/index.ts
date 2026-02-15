@@ -106,7 +106,23 @@ const api: ElectronAPI = {
     // Calculate folder sizes
     getFolderSizes: (folderPaths) => ipcRenderer.invoke('fs:getFolderSizes', folderPaths) as Promise<Record<string, number>>,
     // Copy file (for non-versioned files)
-    copyFile: (source, target) => ipcRenderer.invoke('fs:copyFile', source, target) as Promise<{ success: boolean; error?: string }>
+    copyFile: (source, target) => ipcRenderer.invoke('fs:copyFile', source, target) as Promise<{ success: boolean; error?: string }>,
+    // Write file (for plugins)
+    writeFile: (path, content) => ipcRenderer.invoke('fs:writeFile', path, content) as Promise<{ success: boolean; error?: string }>,
+    // Watch directory for changes
+    watch: (path: string, callback: (event: { path: string; eventType: string; changedPath: string }) => void, options?: { watchSvnOnly?: boolean }) => {
+      const handler = (_: unknown, event: { path: string; eventType: string; changedPath: string }) => callback(event)
+      ipcRenderer.on('fs:watch:change', handler)
+      ipcRenderer.invoke('fs:watch', path, options)
+      
+      // Return cleanup function
+      return () => {
+        ipcRenderer.removeListener('fs:watch:change', handler)
+        ipcRenderer.invoke('fs:unwatch', path)
+      }
+    },
+    // Stop watching directory
+    unwatch: (path: string) => ipcRenderer.invoke('fs:unwatch', path) as Promise<{ success: boolean }>
   },
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
@@ -134,6 +150,24 @@ const api: ElectronAPI = {
     has: (realm: string) => ipcRenderer.invoke('auth:has', realm) as Promise<boolean>,
     clear: () => ipcRenderer.invoke('auth:clear') as Promise<{ success: boolean }>,
     isEncryptionAvailable: () => ipcRenderer.invoke('auth:isEncryptionAvailable') as Promise<boolean>
+  },
+  shell: {
+    register: () => ipcRenderer.invoke('shell:register') as Promise<{ success: boolean }>,
+    unregister: () => ipcRenderer.invoke('shell:unregister') as Promise<{ success: boolean }>,
+    isRegistered: () => ipcRenderer.invoke('shell:isRegistered') as Promise<{ registered: boolean }>,
+    updateOverlay: (path: string, status: string) => 
+      ipcRenderer.invoke('shell:updateOverlay', path, status) as Promise<{ success: boolean }>,
+    clearOverlay: (path: string) => 
+      ipcRenderer.invoke('shell:clearOverlay', path) as Promise<{ success: boolean }>,
+    clearAllOverlays: () => 
+      ipcRenderer.invoke('shell:clearAllOverlays') as Promise<{ success: boolean }>
+  },
+  deepLink: {
+    onAction: (callback: (link: { action: string; params: Record<string, string>; path?: string; url?: string }) => void) => {
+      const handler = (_: unknown, link: unknown) => callback(link as { action: string; params: Record<string, string>; path?: string; url?: string })
+      ipcRenderer.on('deep-link', handler)
+      return () => ipcRenderer.removeListener('deep-link', handler)
+    }
   }
 }
 
