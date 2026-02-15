@@ -45,8 +45,11 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
       setIsRegistering(true)
       setError(null)
       
-      // This would call the shell integration IPC
-      // For now, we'll just save the preference
+      const result = await window.api.shell.register()
+      if (!result.success) {
+        throw new Error('Failed to register shell integration')
+      }
+      
       const newStatus: ShellStatus = {
         ...status!,
         registered: true,
@@ -55,7 +58,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
       }
       
       await window.api.store.set('shell:status', newStatus)
-      return { success: true }
+      return result
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shell:status'] })
@@ -73,6 +76,11 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
       setIsRegistering(true)
       setError(null)
       
+      const result = await window.api.shell.unregister()
+      if (!result.success) {
+        throw new Error('Failed to unregister shell integration')
+      }
+      
       const newStatus: ShellStatus = {
         ...status!,
         registered: false,
@@ -81,7 +89,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
       }
       
       await window.api.store.set('shell:status', newStatus)
-      return { success: true }
+      return result
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shell:status'] })
