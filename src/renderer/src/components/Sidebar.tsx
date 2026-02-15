@@ -468,6 +468,8 @@ export function Sidebar() {
             <button 
               onClick={() => setIsSettingsDialogOpen(true)}
               className="hover:text-text transition-fast"
+              data-testid="settings-button"
+              title="Settings"
             >
               <Settings className="w-4 h-4" />
             </button>

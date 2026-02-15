@@ -167,6 +167,7 @@ export function WelcomeScreen() {
             <button
               onClick={() => setIsAddRepoModalOpen(true)}
               className="btn btn-secondary gap-2"
+              data-testid="browse-button"
             >
               <FolderOpen className="w-4 h-4" />
               Browse
@@ -174,6 +175,7 @@ export function WelcomeScreen() {
             <button
               onClick={() => setIsCheckoutDialogOpen(true)}
               className="btn btn-primary gap-2"
+              data-testid="checkout-button"
             >
               <GitBranch className="w-4 h-4" />
               Checkout

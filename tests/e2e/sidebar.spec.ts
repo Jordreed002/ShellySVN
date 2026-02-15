@@ -44,8 +44,8 @@ test.describe('Sidebar Navigation', () => {
   })
 
   test('settings button opens SettingsDialog', async ({ page }) => {
-    // Find and click settings button (gear icon in sidebar footer)
-    const settingsButton = page.locator('aside button').last()
+    // Find and click settings button using data-testid
+    const settingsButton = page.getByTestId('settings-button')
     await settingsButton.click()
 
     // Wait for modal to appear
@@ -64,7 +64,7 @@ test.describe('Sidebar Navigation', () => {
     ).toBe(true)
 
     // Close the modal by clicking the close button
-    await page.locator('.modal-header button').first().click()
+    await page.getByTestId('modal-close-button').click()
     await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 5000 })
   })
 

@@ -259,7 +259,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
             <h3 className="text-base font-medium text-text">
               {TABS.find(t => t.id === activeTab)?.label}
             </h3>
-            <button onClick={handleClose} className="btn-icon-sm">
+            <button onClick={handleClose} className="btn-icon-sm" data-testid="modal-close-button">
               <X className="w-4 h-4" />
             </button>
           </div>

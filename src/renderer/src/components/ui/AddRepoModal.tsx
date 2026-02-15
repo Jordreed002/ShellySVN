@@ -126,6 +126,7 @@ export function AddRepoModal({
           <button
             onClick={onClose}
             className="btn-icon-sm"
+            data-testid="modal-close-button"
           >
             <X className="w-4 h-4" />
           </button>

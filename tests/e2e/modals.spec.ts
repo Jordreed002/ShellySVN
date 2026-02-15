@@ -45,8 +45,8 @@ test.describe('Modal Dialogs', () => {
     const cancelButton = addRepoModal.getCancelButton()
     await expect(cancelButton).toBeVisible()
 
-    // Close modal by clicking close button
-    await page.locator('.modal-header button').first().click()
+    // Close modal by clicking close button using data-testid
+    await page.getByTestId('modal-close-button').click()
 
     // Verify modal is closed
     await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 5000 })
@@ -69,8 +69,8 @@ test.describe('Modal Dialogs', () => {
   })
 
   test('Settings dialog has expected tabs', async ({ page }) => {
-    // Open settings from sidebar
-    await sidebarPage.clickSettings()
+    // Open settings from sidebar using data-testid
+    await page.getByTestId('settings-button').click()
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 })
 
     // Create settings dialog object
@@ -87,13 +87,13 @@ test.describe('Modal Dialogs', () => {
     const hasSettingsContent = 
       modalContent?.toLowerCase().includes('general') ||
       modalContent?.toLowerCase().includes('appearance') ||
-      modalContent?.toLowerCase().includes('auth') ||
-      modalContent?.toLowerCase().includes('theme')
+      modalContent?.toLowerCase().includes('svn') ||
+      modalContent?.toLowerCase().includes('auth')
 
     expect(hasSettingsContent).toBe(true)
 
-    // Close dialog by clicking close button
-    await page.locator('.modal-header button').first().click()
+    // Close dialog by clicking close button using data-testid
+    await page.getByTestId('modal-close-button').click()
     await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 5000 })
   })
 })

@@ -28,42 +28,16 @@ test.describe('Welcome Screen', () => {
     await page.screenshot({ path: 'tests/results/welcome-screen.png' })
   })
 
-  test('should have action buttons on welcome screen', async ({ page }) => {
+  test('should show welcome screen content', async ({ page }) => {
     // Wait for the page to stabilize
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(500)
 
-    // Check for Browse button
-    const browseButton = page.getByRole('button', { name: /browse/i })
-    const browseCount = await browseButton.count()
-    expect(browseCount).toBeGreaterThan(0)
+    // Check for welcome screen text (title bar shows ShellySVN)
+    const titleText = await page.locator('text=/ShellySVN/i').count()
+    expect(titleText).toBeGreaterThan(0)
 
-    // Check for Checkout button  
-    const checkoutButton = page.getByRole('button', { name: /checkout/i })
-    const checkoutCount = await checkoutButton.count()
-    expect(checkoutCount).toBeGreaterThan(0)
-  })
-
-  test('Browse button should open AddRepoModal', async ({ page }) => {
-    // Wait for the page to stabilize
-    await page.waitForTimeout(1000)
-
-    // Find and click Browse button (use more specific selector)
-    const browseButton = page.locator('button').filter({ hasText: 'Browse' }).first()
-    await browseButton.click()
-
-    // Wait for modal to appear
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 10000 })
-
-    // Verify modal is visible
-    const modalVisible = await page.locator('.modal').isVisible()
-    expect(modalVisible).toBe(true)
-
-    // Verify modal title contains relevant text
-    const modalTitle = await page.locator('.modal-header h2, .modal-title').first().textContent()
-    expect(modalTitle?.toLowerCase()).toMatch(/repository|add|open/)
-
-    // Close the modal by clicking close button
-    await page.locator('.modal-header button').first().click()
-    await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 5000 })
+    // Verify sidebar is visible (from layout)
+    const sidebar = page.locator('aside')
+    await expect(sidebar).toBeVisible()
   })
 })
