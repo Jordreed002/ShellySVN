@@ -1,6 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { AppSettings, ProxySettings, DiffMergeSettings, DialogSettings, NotificationSettings, IntegrationSettings } from '@shared/types'
 
+/**
+ * Return type for useSettings hook
+ * Provides explicit typing for the hook's public API
+ */
+export interface UseSettingsReturn {
+  settings: AppSettings
+  isLoading: boolean
+  error: Error | null
+  updateSettings: (updates: Partial<AppSettings>) => Promise<AppSettings>
+  addRecentRepo: (repoPath: string) => Promise<void>
+  removeRecentRepo: (repoPath: string) => Promise<void>
+  addRecentPath: (path: string) => Promise<void>
+  addBookmark: (path: string, name: string) => Promise<void>
+  removeBookmark: (path: string) => Promise<void>
+  isUpdating: boolean
+}
+
 const DEFAULT_PROXY_SETTINGS: ProxySettings = {
   enabled: false,
   host: '',
@@ -105,7 +122,7 @@ const MAX_RECENT_REPOS = 10
 const MAX_RECENT_PATHS = 20
 const MAX_BOOKMARKS = 50
 
-export function useSettings() {
+export function useSettings(): UseSettingsReturn {
   const queryClient = useQueryClient()
   
   const { data: settings, isLoading, error } = useQuery({
