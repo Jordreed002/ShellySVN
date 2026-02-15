@@ -12,6 +12,24 @@ import type {
   SvnExecutionContext
 } from '@shared/types'
 import { getSettingsManager } from '../settings-manager'
+import { executeHooksForType, HookScript } from '../hooks/HookExecutor'
+
+/**
+ * Helper to get hooks for a working copy from store
+ */
+async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
+  try {
+    const { getStore } = await import('./store')
+    const store = await getStore()
+    const stored = await store.get<Record<string, HookScript[]>>('shellysvn:hook-scripts')
+    if (stored && stored[workingCopyPath]) {
+      return stored[workingCopyPath]
+    }
+  } catch (error) {
+    console.error('[SVN] Failed to get hooks:', error)
+  }
+  return []
+}
 
 /**
  * XML parser configuration
@@ -652,22 +670,87 @@ export function registerSvnHandlers(): void {
 
   // SVN Update
   ipcMain.handle('svn:update', async (_, path: string) => {
+    const hooks = await getHooksForWorkingCopy(path)
+    
+    // Pre-update hooks
+    const preResult = await executeHooksForType(hooks, 'pre-update', {
+      workingCopyPath: path
+    })
+    if (!preResult.allSucceeded) {
+      return { success: false, error: preResult.error || 'Pre-update hook blocked' }
+    }
+    
+    // Execute SVN update
     const output = await executeSvn(['update', path])
     const match = output.match(/Updated to revision (\d+)\./)
-    return { 
+    const result = { 
       success: true, 
       revision: match ? parseInt(match[1], 10) : 0 
     }
+    
+    // Post-update hooks (async)
+    if (result.success) {
+      executeHooksForType(hooks, 'post-update', { 
+        workingCopyPath: path, 
+        revision: result.revision 
+      }).catch(err => console.error('[SVN] Post-update hook error:', err))
+    }
+    
+    return result
   })
 
   // SVN Commit
   ipcMain.handle('svn:commit', async (_, paths: string[], message: string) => {
+    const workingCopyPath = paths[0]
+    
+    // Fetch hooks for this working copy
+    const hooks = await getHooksForWorkingCopy(workingCopyPath)
+    
+    // Execute start-commit hooks
+    const startResult = await executeHooksForType(hooks, 'start-commit', {
+      workingCopyPath,
+      files: paths,
+      message
+    })
+    if (!startResult.allSucceeded) {
+      return {
+        success: false,
+        error: startResult.error || 'Start-commit hook blocked the operation'
+      }
+    }
+    
+    // Execute pre-commit hooks
+    const preResult = await executeHooksForType(hooks, 'pre-commit', {
+      workingCopyPath,
+      files: paths,
+      message
+    })
+    if (!preResult.allSucceeded) {
+      return {
+        success: false,
+        error: preResult.error || 'Pre-commit hook blocked the operation'
+      }
+    }
+    
+    // Execute SVN commit
     const output = await executeSvn(['commit', '-m', message, ...paths])
     const match = output.match(/Committed revision (\d+)\./)
-    return { 
+    const result = { 
       success: true, 
       revision: match ? parseInt(match[1], 10) : 0 
     }
+    
+    // After successful commit, execute post-commit hooks (async, don't wait)
+    if (result.success) {
+      executeHooksForType(hooks, 'post-commit', {
+        workingCopyPath,
+        files: paths,
+        message,
+        revision: result.revision
+      }).catch(err => console.error('[SVN] Post-commit hook error:', err))
+    }
+    
+    return result
   })
 
   // SVN Revert
@@ -791,6 +874,20 @@ export function registerSvnHandlers(): void {
 
   // SVN Lock
   ipcMain.handle('svn:lock', async (_, path: string, message?: string) => {
+    // Get parent directory as working copy path
+    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
+    const hooks = await getHooksForWorkingCopy(workingCopyPath)
+    
+    // Pre-lock hooks
+    const preResult = await executeHooksForType(hooks, 'pre-lock', {
+      workingCopyPath,
+      files: [path],
+      message
+    })
+    if (!preResult.allSucceeded) {
+      return { success: false, error: preResult.error || 'Pre-lock hook blocked' }
+    }
+    
     const args = ['lock']
     if (message) args.push('-m', message)
     args.push(path)
@@ -800,6 +897,19 @@ export function registerSvnHandlers(): void {
 
   // SVN Unlock
   ipcMain.handle('svn:unlock', async (_, path: string, force?: boolean) => {
+    // Get parent directory as working copy path
+    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
+    const hooks = await getHooksForWorkingCopy(workingCopyPath)
+    
+    // Pre-unlock hooks
+    const preResult = await executeHooksForType(hooks, 'pre-unlock', {
+      workingCopyPath,
+      files: [path]
+    })
+    if (!preResult.allSucceeded) {
+      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' }
+    }
+    
     const args = ['unlock']
     if (force) args.push('--force')
     args.push(path)
