@@ -163,6 +163,13 @@ export class ShellIntegrationManager {
     return this.overlayCache.get(path)
   }
   
+  /**
+   * Check if shell integration is currently registered
+   */
+  getIsRegistered(): boolean {
+    return this.isRegistered
+  }
+  
   // ========================================
   // Windows Implementation
   // ========================================
@@ -289,7 +296,7 @@ export function registerShellIntegrationHandlers(): void {
   
   // Check if registered
   ipcMain.handle('shell:isRegistered', async () => {
-    // Check registration status
-    return { registered: false } // Placeholder
+    const shell = getShellIntegration()
+    return { registered: shell.getIsRegistered() }
   })
 }

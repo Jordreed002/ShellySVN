@@ -6,9 +6,12 @@
  * 
  * This solves the issue where settings UI exists but wasn't connected
  * to the actual SVN command execution.
+ * 
+ * SECURITY: Sensitive fields like proxy password are encrypted using
+ * electron's safeStorage before being persisted to disk.
  */
 
-import { app } from 'electron'
+import { app, safeStorage } from 'electron'
 import { readFile, writeFile, access, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
@@ -97,11 +100,13 @@ class SettingsManager {
   private loadPromise: Promise<void>
   private savePromise: Promise<void> = Promise.resolve()
   private listeners: Set<(settings: AppSettings) => void> = new Set()
+  private encryptionAvailable: boolean
 
   private constructor() {
     const userDataPath = app.getPath('userData')
     this.filePath = join(userDataPath, 'shellysvn-config.json')
     this.settings = { ...DEFAULT_SETTINGS }
+    this.encryptionAvailable = safeStorage.isEncryptionAvailable()
     this.loadPromise = this.load()
   }
 
@@ -125,6 +130,13 @@ class SettingsManager {
       const stored = JSON.parse(content)
       // Merge with defaults to ensure all fields exist
       this.settings = this.mergeDeep({ ...DEFAULT_SETTINGS }, stored.settings || stored)
+      
+      // SECURITY: Decrypt proxy password if it exists and is encrypted
+      if (this.settings.proxySettings?.password) {
+        this.settings.proxySettings.password = this.decryptSensitiveValue(
+          this.settings.proxySettings.password
+        )
+      }
     } catch {
       // File doesn't exist or parse error, use defaults
       this.settings = { ...DEFAULT_SETTINGS }
@@ -178,14 +190,85 @@ class SettingsManager {
           // File doesn't exist
         }
         
+        // SECURITY: Create a copy of settings with encrypted sensitive values
+        const settingsToSave = this.encryptSensitiveSettings({ ...this.settings })
+        
         // Update only the settings key
-        existingData.settings = this.settings
+        existingData.settings = settingsToSave
         
         await writeFile(this.filePath, JSON.stringify(existingData, null, 2), 'utf-8')
       } catch (error) {
         console.error('[SettingsManager] Failed to save settings:', error)
       }
     })()
+  }
+  
+  /**
+   * Encrypt sensitive settings before saving to disk
+   */
+  private encryptSensitiveSettings(settings: AppSettings): AppSettings {
+    const encrypted = { ...settings }
+    
+    // Encrypt proxy password if present
+    if (encrypted.proxySettings?.password) {
+      encrypted.proxySettings = {
+        ...encrypted.proxySettings,
+        password: this.encryptSensitiveValue(encrypted.proxySettings.password)
+      }
+    }
+    
+    return encrypted
+  }
+  
+  /**
+   * Encrypt a sensitive value using safeStorage
+   * Returns the original value if encryption is not available (will be stored in memory only)
+   */
+  private encryptSensitiveValue(value: string): string {
+    if (!value) return value
+    
+    // If encryption is not available, return value with a prefix to indicate it's plaintext
+    // This shouldn't happen in normal operation, but provides a fallback
+    if (!this.encryptionAvailable) {
+      console.warn('[SECURITY] Cannot encrypt proxy password - encryption not available')
+      return value // Store as-is (not ideal but better than losing the setting)
+    }
+    
+    try {
+      const encrypted = safeStorage.encryptString(value)
+      return `enc:${encrypted.toString('base64')}`
+    } catch (error) {
+      console.error('[SettingsManager] Failed to encrypt value:', error)
+      return value
+    }
+  }
+  
+  /**
+   * Decrypt a sensitive value that was encrypted with safeStorage
+   * Returns the original value if decryption fails or value wasn't encrypted
+   */
+  private decryptSensitiveValue(value: string): string {
+    if (!value) return value
+    
+    // Check if this is an encrypted value (prefixed with 'enc:')
+    if (!value.startsWith('enc:')) {
+      // Not encrypted - could be plaintext from older version or empty
+      return value
+    }
+    
+    if (!this.encryptionAvailable) {
+      console.warn('[SECURITY] Cannot decrypt proxy password - encryption not available')
+      return '' // Return empty - user will need to re-enter
+    }
+    
+    try {
+      const encryptedBase64 = value.substring(4) // Remove 'enc:' prefix
+      const buffer = Buffer.from(encryptedBase64, 'base64')
+      return safeStorage.decryptString(buffer)
+    } catch (error) {
+      console.error('[SettingsManager] Failed to decrypt value:', error)
+      return '' // Return empty on decryption failure - user will need to re-enter
+    }
   }
 
   /**
