@@ -2,8 +2,7 @@ import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
 import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
-import { join, dirname } from 'path'
-import { existsSync, mkdirSync } from 'fs'
+import { join } from 'path'
 import { XMLParser } from 'fast-xml-parser'
 import type { 
   SvnStatusResult, SvnLogResult, SvnInfoResult, SvnDiffResult, 
@@ -63,13 +62,9 @@ async function createTempSvnConfig(
     return null
   }
   
+  // mkdtemp creates the directory for us
   const configDir = await mkdtemp(join(tmpdir(), 'svn-config-'))
   const serversPath = join(configDir, 'servers')
-  const serversDir = dirname(serversPath)
-  
-  if (!existsSync(serversDir)) {
-    mkdirSync(serversDir, { recursive: true })
-  }
   
   // Build servers config file
   const configLines = [

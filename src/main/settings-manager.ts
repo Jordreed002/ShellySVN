@@ -13,7 +13,6 @@
 
 import { app, safeStorage } from 'electron'
 import { readFile, writeFile, access, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
 import { join } from 'path'
 import type { AppSettings, SvnExecutionContext, ProxySettings } from '@shared/types'
 
@@ -181,10 +180,9 @@ class SettingsManager {
     
     this.savePromise = (async () => {
       try {
+        // Ensure directory exists (mkdir with recursive won't throw if exists)
         const dir = join(this.filePath, '..')
-        if (!existsSync(dir)) {
-          await mkdir(dir, { recursive: true })
-        }
+        await mkdir(dir, { recursive: true })
         
         // Read existing file to preserve other keys
         let existingData: Record<string, unknown> = {}
