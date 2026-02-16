@@ -1,6 +1,6 @@
 import { ipcMain, shell } from 'electron'
 import { spawn } from 'child_process'
-import { existsSync, statSync } from 'fs'
+import { access, stat } from 'fs/promises'
 import { normalize } from 'path'
 import debug from '../utils/debug'
 
@@ -36,8 +36,9 @@ const ALLOWED_MERGE_TOOLS: Record<string, { command: string; getArgs: (base: str
 /**
  * SECURITY: Validate that a path is a valid executable or script path
  * Allows custom tool paths while preventing security issues
+ * PERFORMANCE: Uses async file operations
  */
-function validateToolPath(path: string): { valid: boolean; error?: string; normalized?: string } {
+async function validateToolPath(path: string): Promise<{ valid: boolean; error?: string; normalized?: string }> {
   try {
     const normalized = normalize(path)
     
@@ -46,8 +47,10 @@ function validateToolPath(path: string): { valid: boolean; error?: string; norma
       return { valid: false, error: 'Path traversal not allowed' }
     }
     
-    // Check that file exists
-    if (!existsSync(normalized)) {
+    // Check that file exists (async)
+    try {
+      await access(normalized)
+    } catch {
       return { valid: false, error: 'Tool executable does not exist' }
     }
     
@@ -60,8 +63,9 @@ function validateToolPath(path: string): { valid: boolean; error?: string; norma
 /**
  * Validate that a path exists and is accessible
  * SECURITY: Prevents path traversal and access to sensitive files
+ * PERFORMANCE: Uses async file operations
  */
-function validateFilePath(path: string): { valid: boolean; error?: string; normalized?: string } {
+async function validateFilePath(path: string): Promise<{ valid: boolean; error?: string; normalized?: string }> {
   try {
     const normalized = normalize(path)
     
@@ -70,13 +74,15 @@ function validateFilePath(path: string): { valid: boolean; error?: string; norma
       return { valid: false, error: 'Path traversal not allowed' }
     }
     
-    // Check that file exists
-    if (!existsSync(normalized)) {
+    // Check that file exists and get stats (async)
+    let stats
+    try {
+      stats = await stat(normalized)
+    } catch {
       return { valid: false, error: 'File does not exist' }
     }
     
     // Verify it's a file, not a directory
-    const stats = statSync(normalized)
     if (!stats.isFile()) {
       return { valid: false, error: 'Path must be a file' }
     }
@@ -92,12 +98,12 @@ export function registerExternalHandlers(): void {
   ipcMain.handle('external:openDiffTool', async (_, tool: string, left: string, right: string) => {
     try {
       // SECURITY: Validate file paths first
-      const leftValidation = validateFilePath(left)
+      const leftValidation = await validateFilePath(left)
       if (!leftValidation.valid) {
         return { success: false, error: `Left file: ${leftValidation.error}` }
       }
       
-      const rightValidation = validateFilePath(right)
+      const rightValidation = await validateFilePath(right)
       if (!rightValidation.valid) {
         return { success: false, error: `Right file: ${rightValidation.error}` }
       }
@@ -113,7 +119,7 @@ export function registerExternalHandlers(): void {
         args = toolConfig.getArgs(leftValidation.normalized!, rightValidation.normalized!)
       } else {
         // Treat tool as a custom path - validate it
-        const toolPathValidation = validateToolPath(tool)
+        const toolPathValidation = await validateToolPath(tool)
         if (!toolPathValidation.valid) {
           return { 
             success: false, 
@@ -144,17 +150,17 @@ export function registerExternalHandlers(): void {
   ipcMain.handle('external:openMergeTool', async (_, tool: string, base: string, mine: string, theirs: string, merged: string) => {
     try {
       // SECURITY: Validate file paths (merged file doesn't need to exist)
-      const baseValidation = validateFilePath(base)
+      const baseValidation = await validateFilePath(base)
       if (!baseValidation.valid) {
         return { success: false, error: `Base file: ${baseValidation.error}` }
       }
       
-      const mineValidation = validateFilePath(mine)
+      const mineValidation = await validateFilePath(mine)
       if (!mineValidation.valid) {
         return { success: false, error: `Mine file: ${mineValidation.error}` }
       }
       
-      const theirsValidation = validateFilePath(theirs)
+      const theirsValidation = await validateFilePath(theirs)
       if (!theirsValidation.valid) {
         return { success: false, error: `Theirs file: ${theirsValidation.error}` }
       }
@@ -181,7 +187,7 @@ export function registerExternalHandlers(): void {
         )
       } else {
         // Treat tool as a custom path - validate it
-        const toolPathValidation = validateToolPath(tool)
+        const toolPathValidation = await validateToolPath(tool)
         if (!toolPathValidation.valid) {
           return { 
             success: false, 
@@ -218,7 +224,10 @@ export function registerExternalHandlers(): void {
         return { success: false, error: 'Path traversal not allowed' }
       }
       
-      if (!existsSync(normalized)) {
+      // Check folder exists (async)
+      try {
+        await access(normalized)
+      } catch {
         return { success: false, error: 'Folder does not exist' }
       }
       
@@ -233,7 +242,7 @@ export function registerExternalHandlers(): void {
   ipcMain.handle('external:openFile', async (_, path: string) => {
     try {
       // SECURITY: Validate path
-      const validation = validateFilePath(path)
+      const validation = await validateFilePath(path)
       if (!validation.valid) {
         return { success: false, error: validation.error }
       }

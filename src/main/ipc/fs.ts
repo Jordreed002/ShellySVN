@@ -1,7 +1,6 @@
 import { ipcMain } from 'electron'
-import { readdir, stat, copyFile as fsCopyFile, writeFile as fsWriteFile, mkdir, readFile } from 'fs/promises'
+import { readdir, stat, copyFile as fsCopyFile, writeFile as fsWriteFile, mkdir, readFile, access } from 'fs/promises'
 import chokidar from 'chokidar'
-import { existsSync } from 'fs'
 import { join, basename, normalize, dirname } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import { platform } from 'os'
@@ -299,23 +298,22 @@ async function listDrives(): Promise<FileInfo[]> {
     const mountPoints = ['/Volumes', '/mnt', '/media']
     
     for (const mountPoint of mountPoints) {
-      if (existsSync(mountPoint)) {
-        try {
-          const entries = await readdir(mountPoint, { withFileTypes: true })
-          for (const entry of entries) {
-            if (entry.isDirectory() && !entry.name.startsWith('.')) {
-              files.push({
-                name: entry.name,
-                path: join(mountPoint, entry.name),
-                isDirectory: true,
-                size: 0,
-                modifiedTime: new Date().toISOString(),
-                svnStatus: undefined
-              })
-            }
+      try {
+        await access(mountPoint)
+        const entries = await readdir(mountPoint, { withFileTypes: true })
+        for (const entry of entries) {
+          if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            files.push({
+              name: entry.name,
+              path: join(mountPoint, entry.name),
+              isDirectory: true,
+              size: 0,
+              modifiedTime: new Date().toISOString(),
+              svnStatus: undefined
+            })
           }
-        } catch { /* skip inaccessible mount points */ }
-      }
+        }
+      } catch { /* skip inaccessible mount points */ }
     }
     
     // Always add root
@@ -552,11 +550,9 @@ export function registerFsHandlers(): void {
       const validatedSource = validatePath(source, { mustExist: true, mustBeFile: true })
       const validatedTarget = validatePath(target, { allowAbsolute: true })
       
-      // Ensure target directory exists
+      // Ensure target directory exists (mkdir with recursive won't throw if exists)
       const targetDir = dirname(validatedTarget)
-      if (!existsSync(targetDir)) {
-        await mkdir(targetDir, { recursive: true })
-      }
+      await mkdir(targetDir, { recursive: true })
       
       await fsCopyFile(validatedSource, validatedTarget)
       return { success: true }

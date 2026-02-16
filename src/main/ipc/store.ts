@@ -1,6 +1,5 @@
 import { ipcMain, app } from 'electron'
 import { readFile, writeFile, access, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
 import { join } from 'path'
 import { getSettingsManager } from '../settings-manager'
 import type { AppSettings } from '@shared/types'
@@ -53,11 +52,9 @@ class SimpleStore {
     
     this.savePromise = (async () => {
       try {
-        // Ensure directory exists
+        // Ensure directory exists (mkdir with recursive won't throw if exists)
         const dir = join(this.filePath, '..')
-        if (!existsSync(dir)) {
-          await mkdir(dir, { recursive: true })
-        }
+        await mkdir(dir, { recursive: true })
         
         await writeFile(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8')
       } catch (error) {
