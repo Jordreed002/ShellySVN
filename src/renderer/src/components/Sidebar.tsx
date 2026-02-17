@@ -2,17 +2,16 @@ import { useState, useCallback, useEffect } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useQuery } from '@tanstack/react-query'
-import { 
-  Folder, 
-  History, 
-  Settings, 
-  ChevronRight, 
+import {
+  Folder,
+  History,
+  Settings,
+  ChevronRight,
   ChevronDown,
   Plus,
   MoreHorizontal,
   Search,
   RefreshCw,
-  GitBranch,
   Home,
   HardDrive,
   FileText,
@@ -21,9 +20,11 @@ import {
   ExternalLink,
   Key,
   Loader2,
-  Bookmark
+  Bookmark,
+  Globe
 } from 'lucide-react'
 import { AddRepoModal } from './ui/AddRepoModal'
+import { CheckoutDialog } from './ui/CheckoutDialog'
 import { StatusDot } from './ui/StatusIcon'
 import { SettingsDialog } from './ui/SettingsDialog'
 import { BookmarksManager } from './ui/BookmarksManager'
@@ -140,6 +141,8 @@ export function Sidebar() {
   
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set())
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false)
+  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false)
+  const [checkoutUrl, setCheckoutUrl] = useState('')
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [quickAccess, setQuickAccess] = useState<QuickAccessItem[]>([])
@@ -150,29 +153,30 @@ export function Sidebar() {
   const recentRepos = settings?.recentRepositories || []
   const bookmarks = settings?.bookmarks || []
   
+  const isWindows = navigator.platform.toLowerCase().startsWith('win')
+
   // Load quick access locations
   useEffect(() => {
     const loadQuickAccess = async () => {
       const items: QuickAccessItem[] = []
-      
+
       // Get common paths
       try {
         const homePath = await window.api.app.getPath('home')
         items.push({ name: 'Home', path: homePath, icon: Home })
       } catch {}
-      
+
       try {
         const desktopPath = await window.api.app.getPath('desktop')
         items.push({ name: 'Desktop', path: desktopPath, icon: Monitor })
       } catch {}
-      
+
       try {
         const docsPath = await window.api.app.getPath('documents')
         items.push({ name: 'Documents', path: docsPath, icon: FileText })
       } catch {}
-      
+
       // Add drives (Windows) or root (Mac/Linux)
-      const isWindows = navigator.platform.toLowerCase().startsWith('win')
       if (isWindows) {
         // On Windows, add drives
         items.push({ name: 'This PC', path: 'DRIVES://', icon: HardDrive })
@@ -180,12 +184,12 @@ export function Sidebar() {
         // On Mac/Linux, add root
         items.push({ name: 'Root', path: '/', icon: HardDrive })
       }
-      
+
       setQuickAccess(items)
     }
-    
+
     loadQuickAccess()
-  }, [])
+  }, [isWindows])
   
   // Handler for opening a repo - saves to recent and navigates
   const handleOpenRepo = useCallback(async (path: string) => {
@@ -251,13 +255,10 @@ export function Sidebar() {
   return (
     <>
       <aside className="w-[--sidebar-width] bg-bg-secondary border-r border-border flex flex-col overflow-hidden">
-        {/* Title Bar */}
-        <div className="h-[--titlebar-height] flex items-center justify-between px-4 bg-bg-tertiary border-b border-border">
-          <div className="flex items-center gap-2">
-            <GitBranch className="w-4 h-4 text-accent" />
-            <span className="text-sm font-semibold text-text">ShellySVN</span>
-          </div>
-          <button 
+        {/* Add Repo Button */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-bg-tertiary">
+          <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Repositories</span>
+          <button
             onClick={() => setIsAddRepoModalOpen(true)}
             className="btn-icon-sm"
             title="Add Repository"
@@ -265,7 +266,7 @@ export function Sidebar() {
             <Plus className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Search */}
         <div className="p-2 border-b border-border">
           <div className="relative">
@@ -326,6 +327,15 @@ export function Sidebar() {
             >
               <History className="w-4 h-4" />
               <span>History</span>
+            </Link>
+            <Link
+              to="/repo-browser"
+              search={{ url: '' }}
+              className="tree-item"
+              activeProps={{ className: 'tree-item-active' }}
+            >
+              <Globe className="w-4 h-4" />
+              <span>Repo Browser</span>
             </Link>
           </div>
           
@@ -482,12 +492,22 @@ export function Sidebar() {
         isOpen={isAddRepoModalOpen}
         onClose={() => setIsAddRepoModalOpen(false)}
         onOpenRepo={handleOpenRepo}
-        onCheckout={(url, path) => {
-          console.log('Checkout:', url, path)
+        onCheckout={(url) => {
+          setCheckoutUrl(url)
+          setIsAddRepoModalOpen(false)
+          setIsCheckoutDialogOpen(true)
         }}
         recentRepos={recentRepos}
       />
-      
+
+      {/* Checkout Dialog */}
+      <CheckoutDialog
+        isOpen={isCheckoutDialogOpen}
+        onClose={() => setIsCheckoutDialogOpen(false)}
+        onComplete={handleOpenRepo}
+        initialUrl={checkoutUrl}
+      />
+
       {/* Settings Dialog */}
       <SettingsDialog
         isOpen={isSettingsDialogOpen}

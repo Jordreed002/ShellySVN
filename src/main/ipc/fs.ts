@@ -40,7 +40,7 @@ const SVN_STATUS_MAP: Record<string, SvnStatusChar> = {
 
 // Status priority (higher = more important to show)
 const STATUS_PRIORITY: Record<SvnStatusChar, number> = {
-  'C': 100, '!': 90, '~': 85, 'M': 80, 'D': 70, 'R': 60, 'A': 50, 'X': 40, '?': 30, 'I': 20, ' ': 0
+  'C': 100, '!': 90, '~': 85, 'M': 80, 'D': 70, 'R': 60, 'A': 50, 'X': 40, '?': 30, 'I': 20, 'O': 10, ' ': 0
 }
 
 function getWorstStatus(a: SvnStatusChar, b: SvnStatusChar): SvnStatusChar {
@@ -144,34 +144,38 @@ async function isVersioned(dirPath: string): Promise<boolean> {
  * List directory contents from filesystem only (instant)
  */
 async function listDirectoryFiles(dirPath: string): Promise<FileInfo[]> {
-  const entries = await readdir(dirPath, { withFileTypes: true })
-  const files: FileInfo[] = []
-  
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue
-    
-    const fullPath = join(dirPath, entry.name)
-    
-    try {
-      const stats = await stat(fullPath)
-      files.push({
-        name: entry.name,
-        path: fullPath,
-        isDirectory: entry.isDirectory(),
-        size: entry.isDirectory() ? 0 : stats.size,
-        modifiedTime: stats.mtime.toISOString(),
-        svnStatus: undefined
-      })
-    } catch { continue }
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true })
+    const files: FileInfo[] = []
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+
+      const fullPath = join(dirPath, entry.name)
+
+      try {
+        const stats = await stat(fullPath)
+        files.push({
+          name: entry.name,
+          path: fullPath,
+          isDirectory: entry.isDirectory(),
+          size: entry.isDirectory() ? 0 : stats.size,
+          modifiedTime: stats.mtime.toISOString(),
+          svnStatus: undefined
+        })
+      } catch { continue }
+    }
+
+    files.sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1
+      if (!a.isDirectory && b.isDirectory) return 1
+      return a.name.localeCompare(b.name)
+    })
+
+    return files
+  } catch {
+    return []
   }
-  
-  files.sort((a, b) => {
-    if (a.isDirectory && !b.isDirectory) return -1
-    if (!a.isDirectory && b.isDirectory) return 1
-    return a.name.localeCompare(b.name)
-  })
-  
-  return files
 }
 
 /**

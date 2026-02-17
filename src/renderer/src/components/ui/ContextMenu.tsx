@@ -221,6 +221,7 @@ export function getSvnContextMenuItems(
   isDirectory: boolean,
   actions: {
     onUpdate?: () => void
+    onDownload?: () => void
     onCommit?: () => void
     onRevert?: () => void
     onAdd?: () => void
@@ -233,7 +234,6 @@ export function getSvnContextMenuItems(
     onOpenInExplorer?: () => void
     onCopyPath?: () => void
     onPreview?: () => void
-    // Extended actions
     onBlame?: () => void
     onProperties?: () => void
     onAddToIgnore?: () => void
@@ -251,17 +251,26 @@ export function getSvnContextMenuItems(
     onCheckForModifications?: () => void
   }
 ): ContextMenuItem[] {
-  const isVersioned = status !== '?' && status !== 'I'
+  const isVersioned = status !== '?' && status !== 'I' && status !== 'O'
   const isModified = status === 'M'
   const isConflicted = status === 'C'
   const isUnversioned = status === '?'
   const isDeleted = status === 'D'
   const isAdded = status === 'A'
+  const isRemoteOnly = status === 'O'
   const isFile = !isDirectory
   
   const items: ContextMenuItem[] = []
   
-  // === Working Copy Operations (for directories) ===
+  if (isRemoteOnly && isDirectory && actions.onDownload) {
+    items.push({
+      id: 'download',
+      label: 'Download',
+      icon: Download,
+      onClick: actions.onDownload
+    })
+  }
+  
   if (isDirectory && isVersioned) {
     if (actions.onCheckForModifications) {
       items.push({
@@ -325,7 +334,7 @@ export function getSvnContextMenuItems(
   if (isUnversioned && actions.onAdd) {
     items.push({
       id: 'add',
-      label: 'Add',
+      label: 'Add to Revision',
       icon: Plus,
       onClick: actions.onAdd
     })

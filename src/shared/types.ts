@@ -19,6 +19,7 @@ export type SvnStatusChar =
   | '?'  // Unversioned
   | '!'  // Missing
   | '~'  // Obstructed
+  | 'O'  // Remote-only (sparse checkout, not on disk)
 
 export interface SvnStatusEntry {
   path: string;
@@ -460,8 +461,11 @@ export interface ElectronAPI {
     status: (path: string) => Promise<SvnStatusResult>;
     log: (path: string, limit?: number, startRev?: number, endRev?: number) => Promise<SvnLogResult>;
     info: (path: string) => Promise<SvnInfoResult>;
+    infoUrl: (url: string) => Promise<SvnInfoResult>;
+    getWorkingCopyContext: (path: string) => Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>;
     diff: (path: string, revision?: string) => Promise<SvnDiffResult>;
-    update: (path: string) => Promise<{ success: boolean; revision: number }>;
+    update: (path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => Promise<{ success: boolean; revision: number; error?: string }>;
+    updateItem: (path: string) => Promise<{ success: boolean; revision: number; error?: string }>;
     commit: (paths: string[], message: string) => Promise<{ success: boolean; revision: number }>;
     revert: (paths: string[]) => Promise<{ success: boolean }>;
     add: (paths: string[]) => Promise<{ success: boolean }>;
@@ -496,7 +500,7 @@ export interface ElectronAPI {
     propset: (path: string, name: string, value: string) => Promise<{ success: boolean }>;
     propdel: (path: string, name: string) => Promise<{ success: boolean }>;
     blame: (path: string, startRevision?: number, endRevision?: number) => Promise<SvnBlameResult>;
-    list: (url: string, revision?: string, depth?: 'empty' | 'immediates' | 'infinity') => Promise<SvnListResult>;
+    list: (url: string, revision?: string, depth?: 'empty' | 'immediates' | 'infinity', credentials?: { username: string; password: string }) => Promise<SvnListResult>;
     patch: {
       create: (paths: string[], outputPath: string) => Promise<{ success: boolean; output: string }>;
       apply: (patchPath: string, targetPath: string, dryRun?: boolean) => Promise<SvnPatchResult>;
@@ -549,6 +553,12 @@ export interface ElectronAPI {
     openExternal: (url: string) => Promise<void>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
     getCacheSize: () => Promise<{ size: number; files: number }>;
+    window: {
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      close: () => Promise<void>;
+      isMaximized: () => Promise<boolean>;
+    };
   };
   store: {
     get: <T>(key: string) => Promise<T | undefined>;

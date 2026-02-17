@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { 
-  ElectronAPI, FileFilter, FileInfo, FsStatusResult, SvnDiffResult, 
+  ElectronAPI, FileFilter, FileInfo, FsStatusResult, SvnDiffResult, SvnInfoResult,
   AuthCredential, AuthListEntry, SvnChangelistResult, SvnShelveListResult, 
   WorkingCopyInfo, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal 
 } from '@shared/types'
@@ -11,9 +11,12 @@ const api: ElectronAPI = {
     status: (path) => ipcRenderer.invoke('svn:status', path),
     log: (path, limit?, startRev?, endRev?) => 
       ipcRenderer.invoke('svn:log', path, limit, startRev, endRev),
-    info: (path) => ipcRenderer.invoke('svn:info', path),
+    info: (path) => ipcRenderer.invoke('svn:info', path) as Promise<SvnInfoResult>,
+    infoUrl: (url) => ipcRenderer.invoke('svn:infoUrl', url) as Promise<SvnInfoResult>,
+    getWorkingCopyContext: (path) => ipcRenderer.invoke('svn:getWorkingCopyContext', path) as Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>,
     diff: (path, revision?) => ipcRenderer.invoke('svn:diff', path, revision) as Promise<SvnDiffResult>,
-    update: (path) => ipcRenderer.invoke('svn:update', path),
+    update: (path, depth?) => ipcRenderer.invoke('svn:update', path, depth) as Promise<{ success: boolean; revision: number; error?: string }>,
+    updateItem: (path) => ipcRenderer.invoke('svn:updateItem', path) as Promise<{ success: boolean; revision: number; error?: string }>,
     commit: (paths, message) => ipcRenderer.invoke('svn:commit', paths, message),
     revert: (paths) => ipcRenderer.invoke('svn:revert', paths),
     add: (paths) => ipcRenderer.invoke('svn:add', paths),
@@ -51,8 +54,8 @@ const api: ElectronAPI = {
     blame: (path, startRevision?, endRevision?) => 
       ipcRenderer.invoke('svn:blame', path, startRevision, endRevision) as Promise<SvnBlameResult>,
     // Repository Browser
-    list: (url, revision?, depth?) => 
-      ipcRenderer.invoke('svn:list', url, revision, depth) as Promise<SvnListResult>,
+    list: (url, revision?, depth?, credentials?) =>
+      ipcRenderer.invoke('svn:list', url, revision, depth, credentials) as Promise<SvnListResult>,
     // Patch Operations
     patch: {
       create: (paths, outputPath) => 
@@ -137,7 +140,13 @@ const api: ElectronAPI = {
     getPath: (name) => ipcRenderer.invoke('app:getPath', name),
     openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
     clearCache: () => ipcRenderer.invoke('app:clearCache') as Promise<{ success: boolean; error?: string }>,
-    getCacheSize: () => ipcRenderer.invoke('app:getCacheSize') as Promise<{ size: number; files: number }>
+    getCacheSize: () => ipcRenderer.invoke('app:getCacheSize') as Promise<{ size: number; files: number }>,
+    window: {
+      minimize: () => ipcRenderer.invoke('app:window:minimize'),
+      maximize: () => ipcRenderer.invoke('app:window:maximize'),
+      close: () => ipcRenderer.invoke('app:window:close'),
+      isMaximized: () => ipcRenderer.invoke('app:window:isMaximized') as Promise<boolean>
+    }
   },
   store: {
     get: <T>(key: string) => ipcRenderer.invoke('store:get', key) as Promise<T | undefined>,

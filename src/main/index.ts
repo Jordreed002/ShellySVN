@@ -26,7 +26,8 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { height: 32 },
     trafficLightPosition: { x: 15, y: 10 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

@@ -65,6 +65,20 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
     }
   }, [isOpen, initialUrl, settings?.defaultCheckoutDirectory])
   
+  // Auto-fill saved credentials when auth dialog appears
+  useEffect(() => {
+    if (showAuth && authRealm) {
+      window.api.auth.get(authRealm).then(savedCreds => {
+        if (savedCreds) {
+          setUsername(savedCreds.username)
+          setPassword(savedCreds.password)
+        }
+      }).catch(() => {
+        // Ignore errors - user can type manually
+      })
+    }
+  }, [showAuth, authRealm])
+  
   // Parse SVN SSL error to extract certificate info
   const parseSslError = (errorMsg: string): { certificate: SslCertificate; failures: string[] } | null => {
     // SVN SSL error format:
@@ -87,12 +101,11 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
     const validFromMatch = errorMsg.match(/Valid:\s*from\s+(.+?)\s+until/i)
     const validUntilMatch = errorMsg.match(/until\s+(.+?)(?:\n|$)/i)
     
-    // Extract failure reasons
     const failures: string[] = []
-    if (errorMsg.includes('not issued by a trusted authority')) {
+    if (errorMsg.match(/not issued by a trusted authority|issuer is not trusted/i)) {
       failures.push('untrusted-issuer')
     }
-    if (errorMsg.includes('hostname does not match')) {
+    if (errorMsg.match(/hostname does not match|certificate issued for a different hostname/i)) {
       failures.push('hostname-mismatch')
     }
     if (errorMsg.includes('has expired')) {
@@ -101,20 +114,20 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
     if (errorMsg.includes('not yet valid')) {
       failures.push('not-yet-valid')
     }
-    
-    if (fingerprintMatch) {
+
+    if (failures.length > 0 || fingerprintMatch) {
       return {
         certificate: {
-          fingerprint: fingerprintMatch[1],
+          fingerprint: fingerprintMatch?.[1] || 'Unknown',
           subject: subjectMatch?.[1]?.trim(),
           issuer: issuerMatch?.[1]?.trim(),
           validFrom: validFromMatch?.[1]?.trim(),
           validUntil: validUntilMatch?.[1]?.trim()
         },
-        failures
+        failures: failures.length > 0 ? failures : ['unknown-ca']
       }
     }
-    
+
     return null
   }
   

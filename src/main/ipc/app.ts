@@ -1,4 +1,4 @@
-import { ipcMain, app, shell } from 'electron'
+import { ipcMain, app, shell, BrowserWindow } from 'electron'
 import { readdir, stat, unlink, rmdir } from 'fs/promises'
 import { join } from 'path'
 
@@ -119,7 +119,7 @@ export function registerAppHandlers(): void {
   ipcMain.handle('app:getCacheSize', async () => {
     try {
       const userDataPath = app.getPath('userData')
-      
+
       const cacheDirs = [
         join(userDataPath, 'Cache'),
         join(userDataPath, 'Code Cache'),
@@ -128,19 +128,46 @@ export function registerAppHandlers(): void {
         join(userDataPath, 'GrShaderCache'),
         join(userDataPath, 'shelly-cache', 'logs'),
       ]
-      
+
       let totalSize = 0
       let totalFiles = 0
-      
+
       for (const cacheDir of cacheDirs) {
         const result = await getDirectorySize(cacheDir)
         totalSize += result.size
         totalFiles += result.files
       }
-      
+
       return { size: totalSize, files: totalFiles }
     } catch {
       return { size: 0, files: 0 }
     }
+  })
+
+  // Window control handlers
+  ipcMain.handle('app:window:minimize', () => {
+    const window = BrowserWindow.getFocusedWindow()
+    if (window) window.minimize()
+  })
+
+  ipcMain.handle('app:window:maximize', () => {
+    const window = BrowserWindow.getFocusedWindow()
+    if (window) {
+      if (window.isMaximized()) {
+        window.unmaximize()
+      } else {
+        window.maximize()
+      }
+    }
+  })
+
+  ipcMain.handle('app:window:close', () => {
+    const window = BrowserWindow.getFocusedWindow()
+    if (window) window.close()
+  })
+
+  ipcMain.handle('app:window:isMaximized', () => {
+    const window = BrowserWindow.getFocusedWindow()
+    return window?.isMaximized() ?? false
   })
 }

@@ -646,6 +646,56 @@ export function registerSvnHandlers(): void {
       throw error
     }
   })
+
+  ipcMain.handle('svn:infoUrl', async (_, url: string): Promise<SvnInfoResult> => {
+    try {
+      const args = ['info', '--xml', '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other', url]
+      const xml = await executeSvn(args)
+      return parseSvnInfoXml(xml)
+    } catch (error) {
+      debug.error('[SVN] Info URL error:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('svn:getWorkingCopyContext', async (_, localPath: string): Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null> => {
+    const { existsSync } = require('fs')
+    const { dirname, join } = require('path')
+    
+    let currentPath = localPath
+    let attempts = 0
+    const maxAttempts = 50
+    
+    while (attempts < maxAttempts) {
+      attempts++
+      
+      const svnDir = join(currentPath, '.svn')
+      if (existsSync(svnDir)) {
+        try {
+          const xml = await executeSvn(['info', '--xml', currentPath])
+          const info = parseSvnInfoXml(xml)
+          
+          if (info.workingCopyRoot && info.repositoryRoot && info.url) {
+            const relativePath = localPath.slice(currentPath.length)
+            const constructedUrl = info.url + relativePath.split(/[/\\]/).join('/')
+            
+            return {
+              workingCopyRoot: info.workingCopyRoot,
+              repositoryRoot: info.repositoryRoot,
+              url: constructedUrl
+            }
+          }
+        } catch {
+        }
+      }
+      
+      const parent = dirname(currentPath)
+      if (parent === currentPath) break
+      currentPath = parent
+    }
+    
+    return null
+  })
   
   // SVN Diff
   ipcMain.handle('svn:diff', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
@@ -665,7 +715,7 @@ export function registerSvnHandlers(): void {
   })
 
   // SVN Update
-  ipcMain.handle('svn:update', async (_, path: string) => {
+  ipcMain.handle('svn:update', async (_, path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => {
     const hooks = await getHooksForWorkingCopy(path)
     
     // Pre-update hooks
@@ -677,7 +727,11 @@ export function registerSvnHandlers(): void {
     }
     
     // Execute SVN update
-    const output = await executeSvn(['update', path])
+    const args = ['update']
+    if (depth) args.push('--depth', depth)
+    args.push(path)
+    
+    const output = await executeSvn(args)
     const match = output.match(/Updated to revision (\d+)\./)
     const result = { 
       success: true, 
@@ -693,6 +747,59 @@ export function registerSvnHandlers(): void {
     }
     
     return result
+  })
+
+  ipcMain.handle('svn:updateItem', async (_, localPath: string): Promise<{ success: boolean; revision: number; error?: string }> => {
+    const { existsSync, mkdirSync } = require('fs')
+    const { dirname } = require('path')
+    
+    try {
+      const context = await (async () => {
+        let currentPath = localPath
+        for (let i = 0; i < 50; i++) {
+          const svnDir = join(currentPath, '.svn')
+          if (existsSync(svnDir)) {
+            try {
+              const xml = await executeSvn(['info', '--xml', currentPath])
+              const info = parseSvnInfoXml(xml)
+              if (info.workingCopyRoot && info.url) {
+                const relativePath = localPath.slice(currentPath.length)
+                return {
+                  workingCopyRoot: info.workingCopyRoot,
+                  url: info.url + relativePath.split(/[/\\]/).join('/')
+                }
+              }
+            } catch {}
+          }
+          const parent = dirname(currentPath)
+          if (parent === currentPath) break
+          currentPath = parent
+        }
+        return null
+      })()
+      
+      if (!context) {
+        return { success: false, revision: 0, error: 'Not inside a working copy' }
+      }
+      
+      if (!existsSync(localPath)) {
+        mkdirSync(localPath, { recursive: true })
+      }
+      
+      const output = await executeSvn(['update', '--depth', 'infinity', localPath])
+      const match = output.match(/Updated to revision (\d+)\./)
+      
+      return { 
+        success: true, 
+        revision: match ? parseInt(match[1], 10) : 0 
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        revision: 0, 
+        error: (error as Error)?.message || 'Update failed' 
+      }
+    }
   })
 
   // SVN Commit
@@ -775,13 +882,8 @@ export function registerSvnHandlers(): void {
 
   // SVN Checkout
   ipcMain.handle('svn:checkout', async (_, url: string, path: string, revision?: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', options?: CheckoutOptions) => {
-    const settingsManager = getSettingsManager()
     const args = ['checkout', '--non-interactive']
-    
-    // Add working copy format from settings
-    const wcFormat = settingsManager.getWorkingCopyFormat()
-    args.push('--compatible-version', wcFormat)
-    
+
     // Add revision if specified
     if (revision) args.push('-r', revision)
     
@@ -791,9 +893,7 @@ export function registerSvnHandlers(): void {
     // Build execution context - merge per-operation options with global settings
     const operationContext: Partial<SvnExecutionContext> = {}
     
-    // Add SSL trust options - operation-specific trust overrides global settings
     if (options?.trustSsl) {
-      // Map failure types to SVN's expected format
       const failures = options.sslFailures || ['unknown-ca']
       const failureStr = failures.map(f => {
         switch (f) {
@@ -801,7 +901,8 @@ export function registerSvnHandlers(): void {
           case 'unknown-ca':
             return 'unknown-ca'
           case 'hostname-mismatch':
-            return 'hostname-mismatch'
+          case 'cn-mismatch':
+            return 'cn-mismatch'
           case 'expired':
             return 'expired'
           case 'not-yet-valid':
@@ -810,7 +911,7 @@ export function registerSvnHandlers(): void {
             return 'other'
         }
       }).join(',')
-      
+
       args.push('--trust-server-cert-failures', failureStr)
     }
     
@@ -1148,19 +1249,16 @@ export function registerSvnHandlers(): void {
   // SVN List (Repository Browser)
   // ============================================
   
-  ipcMain.handle('svn:list', async (_, url: string, revision?: string, depth?: 'empty' | 'immediates' | 'infinity'): Promise<SvnListResult> => {
-    try {
-      const args = ['list', '--xml', '-v']
-      if (revision) args.push('-r', revision)
-      if (depth) args.push('--depth', depth)
-      args.push(url)
-      
-      const xml = await executeSvn(args)
-      return parseSvnListXml(xml, url)
-    } catch (error) {
-      debug.error('[SVN] List error:', error)
-      return { path: url, entries: [] }
-    }
+  ipcMain.handle('svn:list', async (_, url: string, revision?: string, depth?: 'empty' | 'immediates' | 'infinity', credentials?: { username: string; password: string }): Promise<SvnListResult> => {
+    const args = ['list', '--xml', '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other']
+    if (revision) args.push('-r', revision)
+    if (depth) args.push('--depth', depth)
+    if (credentials?.username) args.push('--username', credentials.username)
+    if (credentials?.password) args.push('--password', credentials.password)
+    args.push(url)
+
+    const xml = await executeSvn(args)
+    return parseSvnListXml(xml, url)
   })
   
   // ============================================

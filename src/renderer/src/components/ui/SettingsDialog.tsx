@@ -19,20 +19,14 @@ import {
   MessageSquare,
   Bell,
   Puzzle,
-  Shield,
+  Loader2,
   Clock,
-  Volume2,
-  Loader2
+  Shield,
+  Volume2
 } from 'lucide-react'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useSettingsPreview } from '@renderer/contexts/SettingsPreviewContext'
-import type { 
-  AppSettings, 
-  LogLevel, 
-  FontSize, 
-  StartupAction, 
-  WorkingCopyFormat
-} from '@shared/types'
+import type { AppSettings, LogLevel, FontSize, StartupAction, WorkingCopyFormat, AuthListEntry } from '@shared/types'
+import { useSettings } from '../../hooks/useSettings'
+import { useSettingsPreview } from '../../contexts/SettingsPreviewContext'
 
 type SettingsTab = 'general' | 'svn' | 'diffmerge' | 'dialogs' | 'notifications' | 'integration' | 'appearance' | 'auth' | 'advanced'
 
@@ -188,17 +182,8 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
 
   const handleReset = async () => {
     setLocalSettings(DEFAULT_SETTINGS)
-    startPreview(DEFAULT_SETTINGS) // Reset preview too
+    startPreview(DEFAULT_SETTINGS)
     setShowResetConfirm(false)
-  }
-
-  const handleClearCredentials = async () => {
-    updateLocalSetting('savedCredentials', [])
-  }
-
-  const handleRemoveCredential = (index: number) => {
-    const newCredentials = localSettings.savedCredentials.filter((_, i) => i !== index)
-    updateLocalSetting('savedCredentials', newCredentials)
   }
 
   const handleClose = () => {
@@ -310,11 +295,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
               />
             )}
             {activeTab === 'auth' && (
-              <AuthSettings
-                settings={localSettings}
-                onRemoveCredential={handleRemoveCredential}
-                onClearAll={handleClearCredentials}
-              />
+              <AuthSettings isOpen={isOpen} />
             )}
             {activeTab === 'advanced' && (
               <AdvancedSettings
@@ -1466,26 +1447,64 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
 // ============================================
 
 interface AuthSettingsProps {
-  settings: AppSettings
-  onRemoveCredential: (index: number) => void
-  onClearAll: () => void
+  isOpen: boolean
 }
 
-function AuthSettings({ settings, onRemoveCredential, onClearAll }: AuthSettingsProps) {
-  const credentials = settings.savedCredentials || []
+function AuthSettings({ isOpen }: AuthSettingsProps) {
+  const [credentials, setCredentials] = useState<AuthListEntry[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    if (!isOpen) return
+    
+    const loadCredentials = async () => {
+      setIsLoading(true)
+      try {
+        const list = await window.api.auth.list()
+        setCredentials(list)
+      } catch {
+        setCredentials([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadCredentials()
+  }, [isOpen])
+
+  const handleRemove = async (realm: string) => {
+    try {
+      await window.api.auth.delete(realm)
+      const list = await window.api.auth.list()
+      setCredentials(list)
+    } catch {
+      setCredentials([])
+    }
+  }
+
+  const handleClearAll = async () => {
+    try {
+      await window.api.auth.clear()
+      setCredentials([])
+    } catch {
+      setCredentials([])
+    }
+  }
 
   return (
     <div className="space-y-6">
-      {/* Info */}
       <div className="p-4 rounded-lg bg-info/10 border border-info/20">
         <p className="text-sm text-info">
           Saved credentials are stored securely in your system's keychain.
         </p>
       </div>
 
-      {/* Credentials List */}
       <SettingsGroup title="Saved Credentials" description="Authentication data stored for SVN repositories">
-        {credentials.length === 0 ? (
+        {isLoading ? (
+          <div className="py-8 text-center">
+            <Loader2 className="w-8 h-8 text-text-muted mx-auto mb-3 animate-spin" />
+            <p className="text-sm text-text-muted">Loading credentials...</p>
+          </div>
+        ) : credentials.length === 0 ? (
           <div className="py-8 text-center">
             <Key className="w-10 h-10 text-text-faint mx-auto mb-3" />
             <p className="text-sm text-text-muted">No saved credentials</p>
@@ -1495,9 +1514,9 @@ function AuthSettings({ settings, onRemoveCredential, onClearAll }: AuthSettings
           </div>
         ) : (
           <div className="space-y-2">
-            {credentials.map((cred, index) => (
+            {credentials.map((cred) => (
               <div
-                key={index}
+                key={cred.realm}
                 className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border group"
               >
                 <div className="flex-1 min-w-0 mr-4">
@@ -1505,7 +1524,8 @@ function AuthSettings({ settings, onRemoveCredential, onClearAll }: AuthSettings
                   <p className="text-xs text-text-muted truncate">{cred.realm}</p>
                 </div>
                 <button
-                  onClick={() => onRemoveCredential(index)}
+                  type="button"
+                  onClick={() => handleRemove(cred.realm)}
                   className="btn-icon-sm opacity-0 group-hover:opacity-100 text-error hover:bg-error/10 transition-all"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -1516,12 +1536,12 @@ function AuthSettings({ settings, onRemoveCredential, onClearAll }: AuthSettings
         )}
       </SettingsGroup>
 
-      {/* Clear All */}
       {credentials.length > 0 && (
-        <div className="pt-4 border-t border-border">
+        <div className="flex justify-end">
           <button
-            onClick={onClearAll}
-            className="btn btn-danger"
+            type="button"
+            onClick={handleClearAll}
+            className="btn btn-ghost text-error hover:bg-error/10"
           >
             <Trash2 className="w-4 h-4" />
             Clear All Credentials

@@ -2,7 +2,7 @@ import { useSearch, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
-import { RefreshCw, FolderX, AlertCircle, Inbox, Loader, ArrowUp } from 'lucide-react'
+import { RefreshCw, FolderX, AlertCircle, Inbox, Loader, ArrowUp, Lock, X } from 'lucide-react'
 import type { FileInfo, SvnStatusEntry, SvnStatusChar, FsStatusResult } from '@shared/types'
 import { Breadcrumb } from './ui/Breadcrumb'
 import { Toolbar } from './ui/Toolbar'
@@ -121,6 +121,25 @@ export function FileExplorer() {
   const [logViewerPath, setLogViewerPath] = useState<string | null>(null)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false)
+  const [authRealm, setAuthRealm] = useState('')
+  const [authUsername, setAuthUsername] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  
+  // Auto-fill saved credentials when auth prompt appears
+  useEffect(() => {
+    if (showAuthPrompt && authRealm) {
+      window.api.auth.get(authRealm).then(savedCreds => {
+        if (savedCreds) {
+          setAuthUsername(savedCreds.username)
+          setAuthPassword(savedCreds.password)
+        }
+      }).catch(() => {
+        // Ignore errors - user can type manually
+      })
+    }
+  }, [showAuthPrompt, authRealm])
+  
   // Preview state
   const [showPreview, setShowPreview] = useState(false)
   
@@ -187,13 +206,81 @@ export function FileExplorer() {
     staleTime: DEEP_STATUS_STALE_TIME,
     refetchOnWindowFocus: false
   })
-  
-  // Apply status to files (shallow first, then deep)
+
+  // Phase 4: Get SVN info for remote file detection (sparse checkout support)
+  const { data: svnInfo } = useQuery({
+    queryKey: ['svn:info', path],
+    queryFn: () => window.api.svn.info(path),
+    enabled: !!path && path !== 'DRIVES://' && isVersioned === true,
+    staleTime: FILE_CACHE_TIME
+  })
+
+  const { data: workingCopyContext } = useQuery({
+    queryKey: ['svn:getWorkingCopyContext', path],
+    queryFn: () => window.api.svn.getWorkingCopyContext(path),
+    enabled: !!path && path !== 'DRIVES://' && (isVersioned === false || rawFiles?.length === 0),
+    staleTime: FILE_CACHE_TIME
+  })
+
+  const effectiveRepoRoot = svnInfo?.repositoryRoot || workingCopyContext?.repositoryRoot
+  const effectiveUrl = svnInfo?.url || workingCopyContext?.url
+
+  const { data: storedCreds } = useQuery({
+    queryKey: ['auth', effectiveRepoRoot],
+    queryFn: async () => {
+      if (!effectiveRepoRoot) return null
+      try {
+        return await window.api.auth.get(effectiveRepoRoot)
+      } catch {
+        return null
+      }
+    },
+    enabled: !!effectiveRepoRoot,
+    staleTime: FILE_CACHE_TIME
+  })
+
+  // Phase 5: Get remote files from server (for sparse checkout support)
+  const { data: remoteFiles, isFetching: isLoadingRemote } = useQuery({
+    queryKey: ['svn:list', effectiveUrl, storedCreds],
+    queryFn: async () => {
+      if (!effectiveUrl) return { path: '', entries: [] }
+      const creds = storedCreds ? { username: storedCreds.username, password: storedCreds.password } : undefined
+      try {
+        const result = await window.api.svn.list(effectiveUrl, 'HEAD', 'immediates', creds)
+        return result
+      } catch (err) {
+        const errorMsg = (err as Error)?.message || ''
+        if (errorMsg.includes('credentials') || errorMsg.includes('Authentication') || errorMsg.includes('E215004')) {
+          if (effectiveRepoRoot) {
+            setAuthRealm(effectiveRepoRoot)
+            setShowAuthPrompt(true)
+          }
+        }
+        return { path: '', entries: [] }
+      }
+    },
+    enabled: !!effectiveUrl && !showAuthPrompt,
+    staleTime: STATUS_STALE_TIME,
+    refetchOnWindowFocus: false,
+    retry: false
+  })
+
+  const handleAuthSubmit = useCallback(async () => {
+    if (!authUsername || !authRealm) return
+    
+    try {
+      await window.api.auth.set(authRealm, authUsername, authPassword)
+      queryClient.invalidateQueries({ queryKey: ['auth', authRealm] })
+      setShowAuthPrompt(false)
+      setAuthUsername('')
+      setAuthPassword('')
+    } catch {
+    }
+  }, [authUsername, authPassword, authRealm, queryClient])
+
   const files = useMemo(() => {
-    if (!rawFiles) return []
-    
-    let result = rawFiles
-    
+    let result = rawFiles || []
+
     if (statusData) {
       result = result.map(file => {
         const directStatus = statusData.directStatus[file.name]
@@ -212,13 +299,36 @@ export function FileExplorer() {
         return file
       })
     }
-    
+
     if (deepStatusData) {
       result = applyDeepStatus(result, deepStatusData)
     }
-    
+
+    if (remoteFiles?.entries && remoteFiles.entries.length > 0) {
+      const localNames = new Set(result.map(f => f.name))
+
+      remoteFiles.entries.forEach(entry => {
+        if (!localNames.has(entry.name)) {
+          result.push({
+            name: entry.name,
+            path: `${path}/${entry.name}`,
+            isDirectory: entry.kind === 'dir',
+            size: entry.size || 0,
+            modifiedTime: entry.date || '',
+            svnStatus: {
+              path: `${path}/${entry.name}`,
+              status: 'O' as SvnStatusChar,
+              revision: entry.revision,
+              author: entry.author,
+              isDirectory: entry.kind === 'dir'
+            }
+          })
+        }
+      })
+    }
+
     return result
-  }, [rawFiles, statusData, deepStatusData])
+  }, [rawFiles, statusData, deepStatusData, remoteFiles, path])
   
   // Convert to entries for virtualizer
   const entries = useMemo(() => {
@@ -456,6 +566,18 @@ export function FileExplorer() {
     onUpdate: async () => {
       if (selectedEntry) await actions.handleUpdate()
     },
+    onDownload: async (entry: SvnStatusEntry) => {
+      try {
+        const result = await window.api.svn.updateItem(entry.path)
+        if (result.success) {
+          queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] })
+          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] })
+          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] })
+          queryClient.invalidateQueries({ queryKey: ['svn:list'] })
+        }
+      } catch {
+      }
+    },
     onCommit: () => {
       // Commit all selected paths
       const paths = Array.from(selectedPaths)
@@ -498,14 +620,14 @@ export function FileExplorer() {
         setShowPreview(true)
       }
     }
-  }), [selectedEntry, selectedPaths, actions])
+  }), [selectedEntry, selectedPaths, actions, path, queryClient])
   
   const hasChanges = entries.some(e => 
     ['M', 'A', 'D', 'C'].includes(e.status)
   )
   
   const isLoading = isLoadingFiles
-  const isFetching = isLoadingStatus || isLoadingDeep || actions.isUpdating
+  const isFetching = isLoadingStatus || isLoadingDeep || isLoadingRemote || actions.isUpdating
 
   // Empty state - show when no path is set
   if (!path) {
@@ -772,6 +894,66 @@ export function FileExplorer() {
         isOpen={settingsDialogOpen}
         onClose={() => setSettingsDialogOpen(false)}
       />
+
+      {showAuthPrompt && (
+        <div className="modal-overlay" onClick={() => setShowAuthPrompt(false)}>
+          <div className="modal w-[400px]" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                <Lock className="w-5 h-5 text-accent" />
+                Authentication Required
+              </h2>
+              <button type="button" onClick={() => setShowAuthPrompt(false)} className="btn-icon-sm">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="modal-body space-y-4">
+              <p className="text-sm text-text-secondary">
+                Authentication is required to view remote files from this repository.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1.5">Realm</label>
+                <div className="px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-muted truncate">
+                  {authRealm}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1.5">Username</label>
+                <input
+                  type="text"
+                  value={authUsername}
+                  onChange={e => setAuthUsername(e.target.value)}
+                  className="input"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1.5">Password</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAuthSubmit()}
+                  className="input"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" onClick={() => setShowAuthPrompt(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAuthSubmit}
+                disabled={!authUsername}
+                className="btn btn-primary"
+              >
+                Save Credentials
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,16 +1,17 @@
 import type { SvnStatusChar } from '@shared/types'
-import { 
-  Check, 
-  Plus, 
-  AlertTriangle, 
-  Trash2, 
-  EyeOff, 
-  FileEdit, 
-  RefreshCw, 
-  Link, 
-  HelpCircle, 
-  FileX, 
-  AlertCircle 
+import {
+  Check,
+  Plus,
+  AlertTriangle,
+  Trash2,
+  EyeOff,
+  FileEdit,
+  RefreshCw,
+  Link,
+  HelpCircle,
+  FileX,
+  AlertCircle,
+  Cloud
 } from 'lucide-react'
 
 interface StatusIconConfig {
@@ -81,11 +82,17 @@ const STATUS_CONFIG: Record<SvnStatusChar, StatusIconConfig> = {
     bgColor: 'bg-svn-missing/20',
     label: 'Missing' 
   },
-  '~': { 
-    icon: AlertCircle, 
-    color: 'text-svn-obstructed', 
+  '~': {
+    icon: AlertCircle,
+    color: 'text-svn-obstructed',
     bgColor: 'bg-svn-obstructed/20',
-    label: 'Obstructed' 
+    label: 'Obstructed'
+  },
+  'O': {
+    icon: Cloud,
+    color: 'text-info',
+    bgColor: 'bg-info/20',
+    label: 'Remote Only'
   }
 }
 
@@ -162,7 +169,8 @@ export function StatusDot({
     'X': 'bg-svn-external',
     '?': 'bg-svn-unversioned',
     '!': 'bg-svn-missing',
-    '~': 'bg-svn-obstructed'
+    '~': 'bg-svn-obstructed',
+    'O': 'bg-info'
   }
   
   return (

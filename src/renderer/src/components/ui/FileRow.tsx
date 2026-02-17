@@ -18,6 +18,7 @@ import { FileThumbnail } from './FileThumbnail'
 // Context menu actions interface
 export interface FileRowActions {
   onUpdate?: (entry: SvnStatusEntry) => void
+  onDownload?: (entry: SvnStatusEntry) => void
   onCommit?: (entry: SvnStatusEntry) => void
   onRevert?: (entry: SvnStatusEntry) => void
   onAdd?: (entry: SvnStatusEntry) => void
@@ -207,6 +208,7 @@ export const FileRow = memo(function FileRow({
   // Context menu items with action callbacks
   const contextMenuItems = getSvnContextMenuItems(entry.status, entry.isDirectory, {
     onUpdate: actions.onUpdate ? () => actions.onUpdate!(entry) : undefined,
+    onDownload: actions.onDownload ? () => actions.onDownload!(entry) : undefined,
     onCommit: actions.onCommit ? () => actions.onCommit!(entry) : undefined,
     onRevert: actions.onRevert ? () => actions.onRevert!(entry) : undefined,
     onAdd: actions.onAdd ? () => actions.onAdd!(entry) : undefined,
