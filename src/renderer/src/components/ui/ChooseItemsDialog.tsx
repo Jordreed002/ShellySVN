@@ -5,7 +5,6 @@ import {
   Loader2,
   FolderOpen,
   AlertCircle,
-  AlertTriangle,
   CheckSquare,
   Square,
   HardDrive,
@@ -127,7 +126,6 @@ export function ChooseItemsDialog({
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [classifiedError, setClassifiedError] = useState<SparseCheckoutError | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [activeCredentials, setActiveCredentials] = useState<AuthCredential | undefined>(() => {
@@ -143,7 +141,6 @@ export function ChooseItemsDialog({
     nodes,
     roots,
     isNodeLoading,
-    getNodeError,
     clearNodeError
   } = useLazyTreeLoader(repoUrl, activeCredentials)
   
@@ -270,9 +267,7 @@ export function ChooseItemsDialog({
     }
   }
 
-  // Handle retry with network error detection
   const handleRetry = useCallback(() => {
-    setRetryCount(prev => prev + 1)
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current)
     }
@@ -281,7 +276,6 @@ export function ChooseItemsDialog({
     }, isNetworkError(error) ? 1000 : 0)
   }, [error, refreshTree])
 
-  // Handle select all
   const handleSelectAll = useCallback(() => {
     const allPaths = new Set<string>()
 
@@ -298,15 +292,11 @@ export function ChooseItemsDialog({
     setSelectedPaths(allPaths)
   }, [treeNodes])
 
-  // Handle deselect all
   const handleDeselectAll = useCallback(() => {
     setSelectedPaths(new Set())
   }, [])
 
-  // Handle confirm
   const handleConfirm = useCallback(() => {
-    // Convert Set to array and filter out intermediate directory selections
-    // Keep only the deepest selected items
     const pathsArray = Array.from(selectedPaths)
     onSelect(pathsArray)
   }, [selectedPaths, onSelect])
@@ -323,7 +313,6 @@ export function ChooseItemsDialog({
       setAuthLoading(false)
       setAuthError(null)
       setClassifiedError(null)
-      setRetryCount(0)
       const cached = credentialCache.get(repoUrl)
       setActiveCredentials(credentials || cached)
     }
@@ -572,7 +561,7 @@ export function ChooseItemsDialog({
                     onChange={e => setAuthUsername(e.target.value)}
                     placeholder="Enter username"
                     className="input"
-                    autoFocus
+                    disabled={authLoading}
                   />
                 </div>
 
@@ -587,8 +576,16 @@ export function ChooseItemsDialog({
                     onChange={e => setAuthPassword(e.target.value)}
                     placeholder="Enter password"
                     className="input"
+                    disabled={authLoading}
                   />
                 </div>
+
+                {authError && (
+                  <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{authError}</span>
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer">
@@ -597,18 +594,29 @@ export function ChooseItemsDialog({
                   onClick={() => {
                     setShowAuthPrompt(false)
                     setPendingPath(null)
+                    setAuthError(null)
                   }}
                   className="btn btn-secondary"
+                  disabled={authLoading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={!authUsername.trim()}
+                  disabled={!authUsername.trim() || authLoading}
                 >
-                  <Lock className="w-4 h-4" />
-                  Authenticate
+                  {authLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Authenticating...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      Authenticate
+                    </>
+                  )}
                 </button>
               </div>
             </form>

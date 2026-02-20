@@ -43,9 +43,8 @@ function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   const k = 1024
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  const size = bytes / Math.pow(k, i)
+  const size = bytes / k ** i
   
-  // Show decimal for MB and larger
   if (i >= 2) {
     return `${size.toFixed(1)} ${units[i]}`
   }
@@ -317,10 +316,10 @@ export function ProgressIndicator({
         )}
       </div>
       
-      {/* Footer with cancel button */}
       {isRunning && canCancel && onCancel && (
         <div className="px-4 py-3 border-t border-border bg-bg-tertiary">
           <button
+            type="button"
             onClick={onCancel}
             className="btn btn-secondary w-full"
           >

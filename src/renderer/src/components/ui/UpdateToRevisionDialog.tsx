@@ -128,7 +128,8 @@ export function UpdateToRevisionDialog({
   if (!isOpen) return null
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <>
+      <div className="modal-overlay" onClick={handleClose}>
       <div 
         className="modal w-[450px]" 
         onClick={(e) => e.stopPropagation()}
@@ -182,22 +183,23 @@ export function UpdateToRevisionDialog({
                 </p>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-text mb-2">
-                  Update Depth
-                </label>
-                {repoUrl && workingCopyRoot && (
-                  <button
-                    type="button"
-                    onClick={() => setShowChooseItemsDialog(true)}
-                    className="btn btn-secondary text-sm gap-2"
-                    disabled={isUpdating || isUpdatingMultiple}
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                    Choose items...
-                  </button>
-               )}
-               </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-text mb-2">
+                    Update Depth
+                  </label>
+                  {repoUrl && workingCopyRoot && (
+                    <button
+                      type="button"
+                      onClick={() => setShowChooseItemsDialog(true)}
+                      className="btn btn-secondary text-sm gap-2"
+                      disabled={isUpdating || isUpdatingMultiple}
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Choose items...
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <label className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer">
                     <input
@@ -312,17 +314,16 @@ export function UpdateToRevisionDialog({
        </div>
      </div>
 
-     {/* ChooseItemsDialog for sparse checkout */}
-     {showChooseItemsDialog && repoUrl && workingCopyRoot && (
-       <ChooseItemsDialog
-         isOpen={showChooseItemsDialog}
-         repoUrl={repoUrl}
-         credentials={credentials}
-         onSelect={handleSparseCheckoutSelection}
-         onCancel={() => setShowChooseItemsDialog(false)}
-         title="Choose Items to Update in Sparse Checkout"
-       />
+      {showChooseItemsDialog && repoUrl && workingCopyRoot && (
+        <ChooseItemsDialog
+          isOpen={showChooseItemsDialog}
+          repoUrl={repoUrl}
+          credentials={credentials}
+          onSelect={handleSparseCheckoutSelection}
+          onCancel={() => setShowChooseItemsDialog(false)}
+          title="Choose Items to Update in Sparse Checkout"
+        />
       )}
-    )}
+    </>
   )
 }
