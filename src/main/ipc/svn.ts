@@ -333,6 +333,7 @@ function parseSvnInfoXml(xml: string): SvnInfoResult {
             author?: string
             date?: string
           }
+          'wcroot-abspath'?: string
         }
       }
     }
@@ -348,7 +349,8 @@ function parseSvnInfoXml(xml: string): SvnInfoResult {
         nodeKind: 'dir',
         lastChangedAuthor: '',
         lastChangedRevision: 0,
-        lastChangedDate: ''
+        lastChangedDate: '',
+        workingCopyRoot: undefined
       }
     }
     
@@ -364,7 +366,8 @@ function parseSvnInfoXml(xml: string): SvnInfoResult {
       nodeKind: 'dir',
       lastChangedAuthor: entry.commit?.author || '',
       lastChangedRevision: commitRevision,
-      lastChangedDate: entry.commit?.date || ''
+      lastChangedDate: entry.commit?.date || '',
+      workingCopyRoot: entry['wcroot-abspath'] || undefined
     }
   } catch (error) {
     debug.error('[SVN] Failed to parse info XML:', error)
