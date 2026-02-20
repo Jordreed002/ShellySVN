@@ -174,6 +174,19 @@ export function VirtualizedFileList({
   )
 }
 
+export interface CheckboxSelectionProps {
+  /** Set of currently selected node paths */
+  selectedKeys: Set<string>
+  /** Callback when selection changes */
+  onSelectionChange: (keys: Set<string>) => void
+  /** Optional custom checkbox renderer */
+  renderCheckbox?: (props: {
+    checked: boolean | 'indeterminate'
+    onChange: () => void
+    node: TreeNode
+  }) => React.ReactNode
+}
+
 interface VirtualizedTreeProps {
   nodes: TreeNode[]
   onToggleExpand?: (node: TreeNode) => void
@@ -183,6 +196,8 @@ interface VirtualizedTreeProps {
   onSelect?: (node: TreeNode) => void
   estimatedRowHeight?: number
   className?: string
+  /** Enable checkbox selection with tri-state support */
+  checkboxSelection?: CheckboxSelectionProps
 }
 
 export interface TreeNode {
@@ -193,6 +208,39 @@ export interface TreeNode {
   hasChildren?: boolean
   status?: SvnStatusChar
   children?: TreeNode[]
+}
+
+type TriState = boolean | 'indeterminate'
+
+function getAllDescendantPaths(node: TreeNode): string[] {
+  const paths: string[] = []
+  if (node.children) {
+    for (const child of node.children) {
+      paths.push(child.path)
+      paths.push(...getAllDescendantPaths(child))
+    }
+  }
+  return paths
+}
+
+function getTriState(
+  node: TreeNode,
+  selectedKeys: Set<string>
+): TriState {
+  if (!node.children || node.children.length === 0) {
+    return selectedKeys.has(node.path)
+  }
+  
+  const descendantPaths = getAllDescendantPaths(node)
+  const selectedCount = descendantPaths.filter(p => selectedKeys.has(p)).length
+  
+  if (selectedCount === 0) {
+    return false
+  }
+  if (selectedCount === descendantPaths.length) {
+    return true
+  }
+  return 'indeterminate'
 }
 
 /**
@@ -206,11 +254,11 @@ export function VirtualizedTree({
   selectedPath,
   onSelect,
   estimatedRowHeight = 28,
-  className = ''
+  className = '',
+  checkboxSelection
 }: VirtualizedTreeProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   
-  // Flatten tree for virtualization
   const flattenedNodes = useMemo(() => {
     const result: { node: TreeNode; depth: number }[] = []
     
@@ -228,7 +276,6 @@ export function VirtualizedTree({
     return result
   }, [nodes, expandedPaths])
   
-  // Create virtualizer
   const rowVirtualizer = useVirtualizer({
     count: flattenedNodes.length,
     getScrollElement: () => parentRef.current,
@@ -237,6 +284,28 @@ export function VirtualizedTree({
   })
   
   const virtualItems = rowVirtualizer.getVirtualItems()
+  
+  const toggleNodeSelection = useCallback((node: TreeNode) => {
+    if (!checkboxSelection) return
+    
+    const { selectedKeys, onSelectionChange } = checkboxSelection
+    const newSelection = new Set(selectedKeys)
+    const triState = getTriState(node, selectedKeys)
+    
+    if (triState === true || triState === 'indeterminate') {
+      newSelection.delete(node.path)
+      for (const p of getAllDescendantPaths(node)) {
+        newSelection.delete(p)
+      }
+    } else {
+      newSelection.add(node.path)
+      for (const p of getAllDescendantPaths(node)) {
+        newSelection.add(p)
+      }
+    }
+    
+    onSelectionChange(newSelection)
+  }, [checkboxSelection])
   
   return (
     <div
@@ -256,6 +325,9 @@ export function VirtualizedTree({
           const isExpanded = expandedPaths.has(node.path)
           const isLoading = loadingPaths.has(node.path)
           const isSelected = selectedPath === node.path
+          const checkboxState = checkboxSelection 
+            ? getTriState(node, checkboxSelection.selectedKeys)
+            : undefined
           
           return (
             <div
@@ -276,7 +348,27 @@ export function VirtualizedTree({
               `}
               onClick={() => onSelect?.(node)}
             >
-              {/* Expand/collapse button */}
+              {checkboxSelection && (
+                checkboxSelection.renderCheckbox ? (
+                  checkboxSelection.renderCheckbox({
+                    checked: checkboxState ?? false,
+                    onChange: () => toggleNodeSelection(node),
+                    node
+                  })
+                ) : (
+                  <input
+                    type="checkbox"
+                    checked={checkboxState === true}
+                    ref={el => {
+                      if (el) el.indeterminate = checkboxState === 'indeterminate'
+                    }}
+                    onChange={() => toggleNodeSelection(node)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mr-2 w-4 h-4 flex-shrink-0"
+                  />
+                )
+              )}
+              
               {node.isDirectory && (
                 <span 
                   className="mr-1 p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
@@ -284,6 +376,15 @@ export function VirtualizedTree({
                     e.stopPropagation()
                     onToggleExpand?.(node)
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onToggleExpand?.(node)
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={isExpanded ? 'Collapse' : 'Expand'}
                 >
                   {isLoading ? (
                     <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
@@ -295,7 +396,6 @@ export function VirtualizedTree({
                 </span>
               )}
               
-              {/* Icon */}
               <span className="mr-2">
                 {node.isDirectory ? (
                   isExpanded ? (
@@ -308,12 +408,10 @@ export function VirtualizedTree({
                 )}
               </span>
               
-              {/* Name */}
               <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
                 {node.name}
               </span>
               
-              {/* Status */}
               {node.status && (
                 <span className="text-xs text-slate-400">
                   {node.status}
