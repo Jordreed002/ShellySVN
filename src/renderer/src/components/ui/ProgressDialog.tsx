@@ -1,18 +1,47 @@
-import { Loader2, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { Loader2, X, CheckCircle, AlertCircle, Clock } from 'lucide-react'
 
 export interface ProgressDialogProps {
   isOpen: boolean
   title: string
   message?: string
-  progress?: number // 0-100, undefined = indeterminate
-  currentFile?: string // Currently processing file
+  progress?: number
+  currentFile?: string
   filesProcessed?: number
   totalFiles?: number
+  bytesProcessed?: number
+  totalBytes?: number
   canCancel?: boolean
   onCancel?: () => void
   onClose?: () => void
   status?: 'running' | 'completed' | 'cancelled' | 'error'
   error?: string
+  estimatedTimeRemaining?: number
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const k = 1024
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const size = bytes / Math.pow(k, i)
+  if (i >= 2) {
+    return `${size.toFixed(1)} ${units[i]}`
+  }
+  return `${Math.round(size)} ${units[i]}`
+}
+
+function formatTime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`
+  } else {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+  }
 }
 
 export function ProgressDialog({
@@ -23,11 +52,14 @@ export function ProgressDialog({
   currentFile,
   filesProcessed,
   totalFiles,
+  bytesProcessed,
+  totalBytes,
   canCancel = true,
   onCancel,
   onClose,
   status = 'running',
-  error
+  error,
+  estimatedTimeRemaining
 }: ProgressDialogProps) {
   
   const isIndeterminate = progress === undefined
@@ -140,15 +172,36 @@ export function ProgressDialog({
             </div>
           )}
           
-          {/* File counter */}
-          {filesProcessed !== undefined && totalFiles !== undefined && (
-            <div className="flex items-center gap-2 text-sm text-text-secondary">
-              <span className="font-mono">
-                {filesProcessed} of {totalFiles}
-              </span>
-              <span className="text-text-muted">files processed</span>
-            </div>
-          )}
+          {/* File counter and size display */}
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            {filesProcessed !== undefined && totalFiles !== undefined && (
+              <div className="flex items-center gap-2 text-text-secondary">
+                <span className="font-mono">
+                  {filesProcessed} of {totalFiles}
+                </span>
+                <span className="text-text-muted">items</span>
+              </div>
+            )}
+            
+            {bytesProcessed !== undefined && totalBytes !== undefined && totalBytes > 0 && (
+              <div className="flex items-center gap-2 text-text-secondary">
+                <span className="font-mono text-text">
+                  {formatBytes(bytesProcessed)}
+                </span>
+                <span className="text-text-muted">/</span>
+                <span className="font-mono text-text">
+                  {formatBytes(totalBytes)}
+                </span>
+              </div>
+            )}
+            
+            {estimatedTimeRemaining !== undefined && estimatedTimeRemaining > 0 && isRunning && (
+              <div className="flex items-center gap-2 text-text-secondary">
+                <Clock className="w-4 h-4 text-text-muted" />
+                <span>~{formatTime(estimatedTimeRemaining)} remaining</span>
+              </div>
+            )}
+          </div>
           
           {/* Current file */}
           {currentFile && isRunning && (

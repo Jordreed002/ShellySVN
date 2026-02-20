@@ -1,12 +1,13 @@
-import { useState } from 'react'
-import { X, FolderTree, Loader2, AlertCircle, Check } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { X, FolderTree, AlertCircle, Check } from 'lucide-react'
+import { ProgressIndicator } from './ProgressIndicator'
 
 interface SparseCheckoutDialogProps {
   isOpen: boolean
   repoUrl: string
   targetPath: string
   onClose: () => void
-  onCheckout: (url: string, path: string, depth: DepthOption, includePaths: string[]) => Promise<{ success: boolean; error?: string }>
+  onCheckout: (url: string, path: string, depth: DepthOption, includePaths: string[], onProgress?: ProgressCallback) => Promise<{ success: boolean; error?: string }>
 }
 
 type DepthOption = 'empty' | 'files' | 'immediates' | 'infinity'
@@ -16,6 +17,17 @@ interface PathItem {
   selected: boolean
   hasChildren: boolean
 }
+
+export interface SparseCheckoutProgress {
+  status: 'running' | 'completed' | 'cancelled' | 'error'
+  currentItem?: string
+  itemsCompleted: number
+  totalItems: number
+  bytesTransferred: number
+  totalBytes: number
+}
+
+export type ProgressCallback = (progress: SparseCheckoutProgress) => void
 
 const DEPTH_OPTIONS: { value: DepthOption; label: string; description: string }[] = [
   { value: 'empty', label: 'Empty', description: 'No files or folders, only the root' },
@@ -37,9 +49,43 @@ export function SparseCheckoutDialog({
     { path: 'branches', selected: false, hasChildren: true },
     { path: 'tags', selected: false, hasChildren: true },
   ])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [isCancelled, setIsCancelled] = useState(false)
+  
+  const [progress, setProgress] = useState<SparseCheckoutProgress>({
+    status: 'running',
+    itemsCompleted: 0,
+    totalItems: 0,
+    bytesTransferred: 0,
+    totalBytes: 0
+  })
+  
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
+  useEffect(() => {
+    if (!isOpen) {
+      setDepth('immediates')
+      setIncludePaths([
+        { path: 'trunk', selected: true, hasChildren: true },
+        { path: 'branches', selected: false, hasChildren: true },
+        { path: 'tags', selected: false, hasChildren: true },
+      ])
+      setIsProcessing(false)
+      setError(null)
+      setSuccess(false)
+      setIsCancelled(false)
+      setProgress({
+        status: 'running',
+        itemsCompleted: 0,
+        totalItems: 0,
+        bytesTransferred: 0,
+        totalBytes: 0
+      })
+      abortControllerRef.current = null
+    }
+  }, [isOpen])
   
   if (!isOpen) return null
   
@@ -59,35 +105,85 @@ export function SparseCheckoutDialog({
     setIncludePaths(prev => prev.map(item => ({ ...item, selected: false })))
   }
   
+  const handleProgress = useCallback((p: SparseCheckoutProgress) => {
+    if (!isCancelled) {
+      setProgress(p)
+    }
+  }, [isCancelled])
+  
+  const handleCancel = useCallback(() => {
+    setIsCancelled(true)
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    setProgress(prev => ({ ...prev, status: 'cancelled' }))
+    setIsProcessing(false)
+  }, [])
+  
+  const handleClose = () => {
+    if (isProcessing && !isCancelled) {
+      handleCancel()
+    }
+    onClose()
+  }
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    setIsLoading(true)
+    setIsProcessing(true)
     setError(null)
+    setIsCancelled(false)
+    setProgress({
+      status: 'running',
+      itemsCompleted: 0,
+      totalItems: 0,
+      bytesTransferred: 0,
+      totalBytes: 0
+    })
+    
+    abortControllerRef.current = new AbortController()
     
     const selectedPaths = includePaths.filter(p => p.selected).map(p => p.path)
-    const result = await onCheckout(repoUrl, targetPath, depth, selectedPaths)
     
-    if (result.success) {
-      setSuccess(true)
-      setTimeout(() => {
-        onClose()
-      }, 1500)
-    } else {
-      setError(result.error || 'Checkout failed')
-      setIsLoading(false)
+    try {
+      const result = await onCheckout(repoUrl, targetPath, depth, selectedPaths, handleProgress)
+      
+      if (isCancelled) {
+        return
+      }
+      
+      if (result.success) {
+        setProgress(prev => ({ ...prev, status: 'completed' }))
+        setSuccess(true)
+        setTimeout(() => {
+          onClose()
+        }, 1500)
+      } else {
+        setProgress(prev => ({ ...prev, status: 'error' }))
+        setError(result.error || 'Checkout failed')
+        setIsProcessing(false)
+      }
+    } catch (err) {
+      if (isCancelled) {
+        return
+      }
+      setProgress(prev => ({ ...prev, status: 'error' }))
+      setError((err as Error).message || 'Checkout failed')
+      setIsProcessing(false)
     }
   }
   
+  const selectedCount = includePaths.filter(p => p.selected).length
+  
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal w-[560px]" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="flex items-center gap-3">
             <FolderTree className="w-5 h-5 text-accent" />
             <h2 className="text-lg font-semibold text-text">Sparse Checkout</h2>
           </div>
-          <button onClick={onClose} className="btn-icon-sm">
+          <button type="button" onClick={handleClose} className="btn-icon-sm">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -98,10 +194,25 @@ export function SparseCheckoutDialog({
             <p className="text-lg font-medium text-text">Checkout Complete!</p>
             <p className="text-sm text-text-secondary mt-2">{targetPath}</p>
           </div>
+        ) : isProcessing ? (
+          <div className="modal-body py-6">
+            <ProgressIndicator
+              status={progress.status}
+              currentItem={progress.currentItem}
+              itemsCompleted={progress.itemsCompleted}
+              totalItems={progress.totalItems}
+              bytesTransferred={progress.bytesTransferred}
+              totalBytes={progress.totalBytes}
+              canCancel={true}
+              onCancel={handleCancel}
+              onClose={handleClose}
+              operationType="download"
+              error={error || undefined}
+            />
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div className="modal-body space-y-6">
-              {/* Repository URL */}
               <div>
                 <label className="block text-sm font-medium text-text mb-2">Repository URL</label>
                 <input
@@ -112,7 +223,6 @@ export function SparseCheckoutDialog({
                 />
               </div>
               
-              {/* Target Path */}
               <div>
                 <label className="block text-sm font-medium text-text mb-2">Target Path</label>
                 <input
@@ -123,7 +233,6 @@ export function SparseCheckoutDialog({
                 />
               </div>
               
-              {/* Depth Selection */}
               <div>
                 <label className="block text-sm font-medium text-text mb-2">Initial Depth</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -147,7 +256,6 @@ export function SparseCheckoutDialog({
                 </div>
               </div>
               
-              {/* Include Paths */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium text-text">Include Paths</label>
@@ -193,7 +301,6 @@ export function SparseCheckoutDialog({
                 </p>
               </div>
               
-              {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 text-error text-sm">
                   <AlertCircle className="w-4 h-4" />
@@ -205,25 +312,18 @@ export function SparseCheckoutDialog({
             <div className="modal-footer">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 className="btn btn-secondary"
-                disabled={isLoading}
+                disabled={isProcessing}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isProcessing || selectedCount === 0}
                 className="btn btn-primary"
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Checking out...</span>
-                  </>
-                ) : (
-                  <span>Checkout</span>
-                )}
+                Checkout ({selectedCount})
               </button>
             </div>
           </form>
