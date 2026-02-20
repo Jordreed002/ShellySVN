@@ -297,12 +297,11 @@ export function ProgressIndicator({
           )}
         </div>
         
-        {/* Current item */}
         {currentItem && isRunning && (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-text-muted uppercase tracking-wide">
+            <span className="block text-xs font-medium text-text-muted uppercase tracking-wide">
               Current
-            </label>
+            </span>
             <div className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary rounded-md">
               <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />
               <span 

@@ -3,11 +3,8 @@
  * Provides comprehensive error handling, classification, and user-friendly messages
  */
 
-import { ErrorCode, type AppError } from '@shared/errors'
+import { type AppError } from '@shared/errors'
 
-/**
- * Sparse checkout specific error codes
- */
 export const SparseErrorType = {
   NETWORK_FAILURE: 'NETWORK_FAILURE',
   AUTH_REQUIRED: 'AUTH_REQUIRED',
