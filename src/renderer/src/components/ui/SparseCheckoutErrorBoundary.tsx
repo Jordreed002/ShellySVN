@@ -203,9 +203,9 @@ export function SparseErrorStateWrapper({
       {classifiedError.suggestions.length > 0 && (
         <div className="bg-surface-elevated rounded-lg p-4 max-w-md mb-4">
           <ul className="space-y-1">
-            {classifiedError.suggestions.map((suggestion, index) => (
+            {classifiedError.suggestions.map((suggestion) => (
               <li
-                key={index}
+                key={suggestion.slice(0, 30)}
                 className="text-sm text-text-secondary flex items-start gap-2"
               >
                 <span className="text-accent mt-0.5">•</span>

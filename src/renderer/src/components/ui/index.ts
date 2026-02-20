@@ -56,3 +56,5 @@ export type { BranchNode, BranchVisualizationConfig, BranchNodeProps } from './B
 export { RepoBrowserEnhanced, useRepoBrowser } from './RepoBrowserEnhanced'
 export type { RepoBrowserNode, BrowserState, RepoBrowserEnhancedProps } from './RepoBrowserEnhanced'
 export { StatusBar } from './StatusBar'
+export { ChooseItemsDialog } from './ChooseItemsDialog'
+export { SparseCheckoutErrorBoundary, SparseErrorStateWrapper } from './SparseCheckoutErrorBoundary'
