@@ -69,6 +69,13 @@ ShellySVN is a native desktop application that provides a graphical interface fo
   - Conflict resolution wizard
   - Hook scripts configuration
 
+- **Sparse Checkout** (new)
+  - Selective checkout of specific files and folders
+  - Lazy-loading tree browser with search
+  - Add remote items to existing working copy
+  - Visual toggle for showing remote vs local items
+  - Update individual items to working copy
+
 ### User Experience
 
 - **Command Palette** - Quick access to all actions (Ctrl/Cmd+K)
@@ -84,6 +91,37 @@ ShellySVN is a native desktop application that provides a graphical interface fo
 - **Lazy Loading** - On-demand SVN status fetching
 - **Background Scanning** - Non-blocking status updates
 - **Cached History** - Fast navigation through commit logs
+
+---
+
+## Sparse Checkout
+
+Sparse checkout lets you download only the files and folders you need from a large repository. This is useful when working with massive codebases where a full checkout would be impractical.
+
+### Ways to Use Sparse Checkout
+
+**1. During Checkout**
+
+Click "Choose items..." in the Checkout dialog to select which folders and files to download. The repository structure loads on-demand as you expand folders.
+
+**2. During Update**
+
+In the Update dialog, click "Choose items..." to modify which items are included in your working copy. Add new paths or remove existing ones.
+
+**3. From Repo Browser**
+
+Browse the repository remotely and click "Add to Working Copy" on any folder to add it to an existing sparse working copy.
+
+**4. From File Explorer**
+
+Toggle "Show remote items" in the toolbar to see files that exist in the repository but aren't in your working copy. Right-click any remote item and select "Update to Working Copy" to download it.
+
+### Tips
+
+- Use the search box in the item picker to quickly find files by name or path
+- Select/Deselect All buttons make bulk operations easy
+- Remote items appear with a distinct icon to differentiate from local files
+- Authentication prompts appear automatically for protected paths
 
 ---
 
@@ -246,7 +284,7 @@ We welcome contributions! Here's how to get started:
 - [ ] Git integration (hybrid repos)
 - [ ] Merge conflict resolution UI
 - [ ] Visual diff for images
-- [ ] Repository browser with remote browsing
+- [x] Repository browser with remote browsing
 - [ ] Plugin/extension system
 - [ ] Dark/light theme customization
 
