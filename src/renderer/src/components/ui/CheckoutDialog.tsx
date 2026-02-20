@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Download, FolderOpen, AlertCircle, CheckCircle, Loader2, Lock, Shield, User, Key, ChevronDown } from 'lucide-react'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { ChooseItemsDialog } from './ChooseItemsDialog'
 
 interface SslCertificate {
   fingerprint: string
@@ -40,6 +41,10 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
   const [sslCertificate, setSslCertificate] = useState<SslCertificate | null>(null)
   const [trustPermanently, setTrustPermanently] = useState(false)
   const [sslFailures, setSslFailures] = useState<string[]>([])
+  
+  // ChooseItemsDialog state
+  const [showChooseItemsDialog, setShowChooseItemsDialog] = useState(false)
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([])
   
   useEffect(() => {
     if (isOpen) {
@@ -162,12 +167,18 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
     setError(null)
     
     try {
+      // Use selected paths if available, otherwise use depth
+      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined
+      
+      // If we have selected paths, override depth to empty since we're doing sparse checkout
+      const checkoutDepth = sparsePaths ? 'empty' : depth
+      
       const result = await window.api.svn.checkout(
         url.trim(),
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
-        depth,
-        { trustSsl: true, trustPermanently, sslFailures }
+        checkoutDepth,
+        { trustSsl: true, trustPermanently, sslFailures, sparsePaths }
       )
       
       if (result.success) {
@@ -211,16 +222,23 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
     setError(null)
     
     try {
+      // Use selected paths if available, otherwise use depth
+      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined
+      
+      // If we have selected paths, override depth to empty since we're doing sparse checkout
+      const checkoutDepth = sparsePaths ? 'empty' : depth
+      
       const result = await window.api.svn.checkout(
         url.trim(),
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
-        depth,
+        checkoutDepth,
         { 
           credentials: { username: username.trim(), password },
           trustSsl: sslCertificate !== null,
           trustPermanently,
-          sslFailures
+          sslFailures,
+          sparsePaths
         }
       )
       
@@ -288,12 +306,18 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
         credentials: { username: username.trim(), password }
       } : undefined
       
+      // Use selected paths if available, otherwise use depth
+      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined
+      
+      // If we have selected paths, override depth to empty since we're doing sparse checkout
+      const checkoutDepth = sparsePaths ? 'empty' : depth
+      
       const result = await window.api.svn.checkout(
         url.trim(),
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
-        depth,
-        options
+        checkoutDepth,
+        { ...options, sparsePaths }
       )
       
       if (result.success) {
@@ -326,7 +350,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
     }
   }
   
-  if (!isOpen) return null
+    if (!isOpen) return null
   
   return (
     <>
@@ -435,9 +459,16 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                 
                 {/* Depth */}
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block">
-                    Checkout depth
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-sm font-medium text-text-secondary">
+                      Checkout depth
+                    </label>
+                    {selectedPaths.length > 0 && (
+                      <span className="text-xs text-accent">
+                        {selectedPaths.length} items selected
+                      </span>
+                    )}
+                  </div>
                   <select
                     value={depth}
                     onChange={(e) => setDepth(e.target.value as typeof depth)}
@@ -449,7 +480,32 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                     <option value="files">Files only</option>
                     <option value="empty">Only this item</option>
                   </select>
-                </div>
+                 </div>
+                 
+                {url.trim() && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowChooseItemsDialog(true)}
+                      className="btn btn-ghost text-sm"
+                      disabled={isCheckingOut}
+                    >
+                      Choose items...
+                    </button>
+                    {selectedPaths.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPaths([])
+                          setDepth('infinity')
+                        }}
+                        className="btn btn-ghost text-xs"
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                  </div>
+                )}
                 
                 {/* Credentials Section */}
                 <div className="border border-border rounded-lg">
@@ -748,6 +804,24 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
             </form>
           </div>
         </div>
+      )}
+      
+      {/* Choose Items Dialog */}
+      {showChooseItemsDialog && (
+        <ChooseItemsDialog
+          isOpen={showChooseItemsDialog}
+          repoUrl={url}
+          credentials={provideCredentials && username.trim() ? {
+            username: username.trim(),
+            password
+          } : undefined}
+          onSelect={(paths) => {
+            setSelectedPaths(paths)
+            setShowChooseItemsDialog(false)
+          }}
+          onCancel={() => setShowChooseItemsDialog(false)}
+          title="Choose Items to Checkout"
+        />
       )}
     </>
   )
