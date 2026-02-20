@@ -47,14 +47,20 @@ const mockUseQuery = vi.fn(() => ({
   refetch: vi.fn()
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: (...args: any[]) => mockUseQuery(...args),
-  QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
-  QueryClient: vi.fn(() => ({
-    defaultOptions: {},
-    setDefaultOptions: vi.fn()
-  }))
-}))
+vi.mock('@tanstack/react-query', () => {
+  class MockQueryClient {
+    defaultOptions = {}
+    setDefaultOptions = vi.fn()
+    getQueryCache = vi.fn(() => ({ subscribe: vi.fn() }))
+    getMutationCache = vi.fn(() => ({ subscribe: vi.fn() }))
+  }
+
+  return {
+    useQuery: (...args: any[]) => mockUseQuery(...args),
+    QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
+    QueryClient: MockQueryClient
+  }
+})
 
 // Mock window.api
 const mockCheckout = vi.fn()

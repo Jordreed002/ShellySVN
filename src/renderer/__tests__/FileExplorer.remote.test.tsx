@@ -22,7 +22,7 @@ const queryClient = new QueryClient({
   }
 })
 
-const mockWindowApi = {
+window.api = {
   svn: {
     list: mockSvnList,
     info: mockSvnInfo,
@@ -43,11 +43,6 @@ const mockWindowApi = {
     openExternal: vi.fn()
   }
 }
-
-Object.defineProperty(window, 'api', {
-  value: mockWindowApi,
-  writable: true
-})
 
 const mockNavigate = vi.fn()
 const mockUseSearch = vi.fn()

@@ -123,9 +123,9 @@ export class SparseCheckoutErrorBoundary extends Component<Props, State> {
             <div className="bg-surface-elevated rounded-lg p-4 max-w-md mb-4">
               <p className="text-xs font-medium text-text-secondary mb-2">Suggestions:</p>
               <ul className="space-y-1">
-                {error.suggestions.map((suggestion, index) => (
+                {error.suggestions.map((suggestion) => (
                   <li
-                    key={index}
+                    key={suggestion.slice(0, 30)}
                     className="text-sm text-text-secondary flex items-start gap-2"
                   >
                     <span className="text-accent mt-0.5 flex-shrink-0">•</span>
