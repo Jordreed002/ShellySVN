@@ -5,6 +5,7 @@ export { useIncrementalStatus, getStatusDisplay, formatElapsedTime } from './use
 export type { IncrementalStatusProgress, IncrementalStatusResult, StatusUpdateEvent } from './useIncrementalStatus'
 export { useOfflineCache, useOfflineDetector, useOfflineAware } from './useOfflineCache'
 export { useLazyDataLoader, useLazyVirtualList, useLargeFileList, useLazyDirectoryTree } from './useLazyLoading'
+export { useLazyTreeLoader } from './useLazyTreeLoader'
 export { useDeepLinks, useDeepLinkGenerator, DeepLinkHandler } from './useDeepLinks'
 export type { DeepLink, DeepLinkAction } from './useDeepLinks'
 export { useCommitTemplates, applyTemplateString } from './useCommitTemplates'

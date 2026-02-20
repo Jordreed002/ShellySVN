@@ -312,6 +312,8 @@ export interface CheckoutOptions {
   sslFailures?: string[];
   /** Authentication credentials */
   credentials?: AuthCredential;
+  /** Specific paths to checkout (sparse checkout) */
+  sparsePaths?: string[];
 }
 
 // ============================================
@@ -466,6 +468,7 @@ export interface ElectronAPI {
     diff: (path: string, revision?: string) => Promise<SvnDiffResult>;
     update: (path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => Promise<{ success: boolean; revision: number; error?: string }>;
     updateItem: (path: string) => Promise<{ success: boolean; revision: number; error?: string }>;
+    updateToRevision: (workingCopyRoot: string, url: string, localPath: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', setDepthSticky?: boolean) => Promise<{ success: boolean; revision: number; error?: string }>;
     commit: (paths: string[], message: string) => Promise<{ success: boolean; revision: number }>;
     revert: (paths: string[]) => Promise<{ success: boolean }>;
     add: (paths: string[]) => Promise<{ success: boolean }>;
@@ -585,6 +588,60 @@ export interface ElectronAPI {
   deepLink: {
     onAction: (callback: (link: { action: string; params: Record<string, string>; path?: string; url?: string }) => void) => () => void;
   };
+}
+
+// ============================================
+// Sparse Checkout & Lazy Loading Types
+// ============================================
+
+export type TreeSelectionState = {
+  selectedPaths: Set<string>;
+  expandedPaths: Set<string>;
+};
+
+export interface LazyTreeNode {
+  /** Full path to the node */
+  path: string;
+  /** Display name (basename of path) */
+  name: string;
+  /** Node type: file or directory */
+  kind: 'file' | 'dir';
+  /** Whether the node is currently being loaded */
+  isLoading: boolean;
+  /** Whether the node has been loaded and its children populated */
+  isLoaded: boolean;
+  /** Child nodes (only populated when isLoaded is true) */
+  children: LazyTreeNode[];
+  /** Whether the node has children (for directories) */
+  hasChildren: boolean;
+  /** SVN status for the node */
+  status?: SvnStatusEntry;
+}
+
+export interface SparseCheckoutResult {
+  /** Whether the checkout operation was successful */
+  success: boolean;
+  /** SVN revision at checkout */
+  revision?: number;
+  /** Error message if checkout failed */
+  error?: string;
+  /** Paths that were checked out */
+  pathsCheckedOut?: string[];
+  /** Total files/directories checked out */
+  count?: number;
+}
+
+export interface LazyTreeLoaderState {
+  /** Whether the tree is currently loading */
+  isLoading: boolean;
+  /** Loading error if any */
+  error?: string;
+  /** Map of all nodes by their path */
+  nodes: Map<string, LazyTreeNode>;
+  /** Root nodes of the tree */
+  roots: LazyTreeNode[];
+  /** Currently selected paths */
+  selection: TreeSelectionState;
 }
 
 declare global {
