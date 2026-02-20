@@ -262,10 +262,10 @@ export function getSvnContextMenuItems(
   
   const items: ContextMenuItem[] = []
   
-  if (isRemoteOnly && isDirectory && actions.onDownload) {
+  if (isRemoteOnly && actions.onDownload) {
     items.push({
       id: 'download',
-      label: 'Download',
+      label: 'Update to Working Copy',
       icon: Download,
       onClick: actions.onDownload
     })

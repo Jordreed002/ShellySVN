@@ -227,6 +227,7 @@ export const FileRow = memo(function FileRow({
           file-row
           ${isSelected ? 'file-row-selected' : ''}
           ${entry.isDirectory ? 'text-text' : 'text-text-secondary'}
+          ${entry.status === 'O' ? 'opacity-70 italic' : ''}
           ${compact ? 'py-1' : 'py-2'}
         `}
         style={style}

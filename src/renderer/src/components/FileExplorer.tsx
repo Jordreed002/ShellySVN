@@ -2,7 +2,7 @@ import { useSearch, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
-import { RefreshCw, FolderX, AlertCircle, Inbox, Loader, ArrowUp, Lock, X } from 'lucide-react'
+import { RefreshCw, FolderX, AlertCircle, Inbox, Loader, ArrowUp, Lock, X, Globe } from 'lucide-react'
 import type { FileInfo, SvnStatusEntry, SvnStatusChar, FsStatusResult } from '@shared/types'
 import { Breadcrumb } from './ui/Breadcrumb'
 import { Toolbar } from './ui/Toolbar'
@@ -14,6 +14,7 @@ import { CommitDialog } from './ui/CommitDialog'
 import { DiffViewer } from './ui/DiffViewer'
 import { LogViewer } from './ui/LogViewer'
 import { SettingsDialog } from './ui/SettingsDialog'
+import { UpdateToRevisionDialog } from './ui/UpdateToRevisionDialog'
 import { useFileExplorerActions } from '../hooks/useSvnActions'
 import { useSettings } from '../hooks/useSettings'
 import { useFolderSizes } from '../hooks/useFolderSizes'
@@ -116,10 +117,15 @@ export function FileExplorer() {
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
   
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [browseMode, setBrowseMode] = useState<'local' | 'online'>('local')
+  const [onlinePath, setOnlinePath] = useState<string>('')
+  const [showRemoteItems, setShowRemoteItems] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [diffViewerPath, setDiffViewerPath] = useState<string | null>(null)
   const [logViewerPath, setLogViewerPath] = useState<string | null>(null)
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
+  const [pendingUpdateEntry, setPendingUpdateEntry] = useState<SvnStatusEntry | null>(null)
   
   const [showAuthPrompt, setShowAuthPrompt] = useState(false)
   const [authRealm, setAuthRealm] = useState('')
@@ -225,6 +231,13 @@ export function FileExplorer() {
   const effectiveRepoRoot = svnInfo?.repositoryRoot || workingCopyContext?.repositoryRoot
   const effectiveUrl = svnInfo?.url || workingCopyContext?.url
 
+  const onlineUrl = useMemo(() => {
+    if (!effectiveRepoRoot) return ''
+    if (!onlinePath) return effectiveRepoRoot
+    const baseUrl = effectiveRepoRoot.replace(/\/$/, '')
+    return `${baseUrl}${onlinePath}`
+  }, [effectiveRepoRoot, onlinePath])
+
   const { data: storedCreds } = useQuery({
     queryKey: ['auth', effectiveRepoRoot],
     queryFn: async () => {
@@ -239,9 +252,35 @@ export function FileExplorer() {
     staleTime: FILE_CACHE_TIME
   })
 
-  // Phase 5: Get remote files from server (for sparse checkout support)
-  const { data: remoteFiles, isFetching: isLoadingRemote } = useQuery({
-    queryKey: ['svn:list', effectiveUrl, storedCreds],
+  // Phase 6: Get online files for repo browser mode
+  const { data: onlineFiles, isFetching: isLoadingOnline } = useQuery({
+    queryKey: ['svn:list:online', onlineUrl, storedCreds],
+    queryFn: async () => {
+      if (!onlineUrl) return { path: '', entries: [] }
+      const creds = storedCreds ? { username: storedCreds.username, password: storedCreds.password } : undefined
+      try {
+        const result = await window.api.svn.list(onlineUrl, 'HEAD', 'immediates', creds)
+        return result
+      } catch (err) {
+        const errorMsg = (err as Error)?.message || ''
+        if (errorMsg.includes('credentials') || errorMsg.includes('Authentication') || errorMsg.includes('E215004')) {
+          if (effectiveRepoRoot) {
+            setAuthRealm(effectiveRepoRoot)
+            setShowAuthPrompt(true)
+          }
+        }
+        return { path: '', entries: [] }
+      }
+    },
+    enabled: !!onlineUrl && !showAuthPrompt && browseMode === 'online',
+    staleTime: STATUS_STALE_TIME,
+    refetchOnWindowFocus: false,
+    retry: false
+  })
+
+  // Fetch remote items for merging with local items (sparse checkout support)
+  const { data: remoteItems, isFetching: isLoadingRemoteItems } = useQuery({
+    queryKey: ['svn:list:remote', effectiveUrl, storedCreds],
     queryFn: async () => {
       if (!effectiveUrl) return { path: '', entries: [] }
       const creds = storedCreds ? { username: storedCreds.username, password: storedCreds.password } : undefined
@@ -259,7 +298,7 @@ export function FileExplorer() {
         return { path: '', entries: [] }
       }
     },
-    enabled: !!effectiveUrl && !showAuthPrompt,
+    enabled: !!effectiveUrl && !showAuthPrompt && showRemoteItems && browseMode === 'local' && isVersioned === true,
     staleTime: STATUS_STALE_TIME,
     refetchOnWindowFocus: false,
     retry: false
@@ -279,6 +318,23 @@ export function FileExplorer() {
   }, [authUsername, authPassword, authRealm, queryClient])
 
   const files = useMemo(() => {
+    if (browseMode === 'online' && onlineFiles?.entries) {
+      return onlineFiles.entries.map(entry => ({
+        name: entry.name,
+        path: onlinePath === '' ? `/${entry.name}` : `${onlinePath}/${entry.name}`,
+        isDirectory: entry.kind === 'dir',
+        size: entry.size || 0,
+        modifiedTime: entry.date || '',
+        svnStatus: {
+          path: onlinePath === '' ? `/${entry.name}` : `${onlinePath}/${entry.name}`,
+          status: 'O' as SvnStatusChar,
+          revision: entry.revision,
+          author: entry.author,
+          isDirectory: entry.kind === 'dir'
+        }
+      }))
+    }
+
     let result = rawFiles || []
 
     if (statusData) {
@@ -304,31 +360,29 @@ export function FileExplorer() {
       result = applyDeepStatus(result, deepStatusData)
     }
 
-    if (remoteFiles?.entries && remoteFiles.entries.length > 0) {
-      const localNames = new Set(result.map(f => f.name))
-
-      remoteFiles.entries.forEach(entry => {
-        if (!localNames.has(entry.name)) {
-          result.push({
-            name: entry.name,
-            path: `${path}/${entry.name}`,
-            isDirectory: entry.kind === 'dir',
-            size: entry.size || 0,
-            modifiedTime: entry.date || '',
-            svnStatus: {
-              path: `${path}/${entry.name}`,
-              status: 'O' as SvnStatusChar,
-              revision: entry.revision,
-              author: entry.author,
-              isDirectory: entry.kind === 'dir'
-            }
-          })
-        }
-      })
+    if (showRemoteItems && remoteItems?.entries && svnInfo?.url) {
+      const localFileNames = new Set(result.map(f => f.name))
+      const remoteOnlyItems = remoteItems.entries
+        .filter(entry => !localFileNames.has(entry.name))
+        .map(entry => ({
+          name: entry.name,
+          path: path ? `${path}${path.includes('\\') ? '\\' : '/'}${entry.name}` : entry.name,
+          isDirectory: entry.kind === 'dir',
+          size: entry.size || 0,
+          modifiedTime: entry.date || '',
+          svnStatus: {
+            path: path ? `${path}${path.includes('\\') ? '\\' : '/'}${entry.name}` : entry.name,
+            status: 'O' as SvnStatusChar,
+            revision: entry.revision,
+            author: entry.author,
+            isDirectory: entry.kind === 'dir'
+          }
+        }))
+      result = [...result, ...remoteOnlyItems]
     }
 
     return result
-  }, [rawFiles, statusData, deepStatusData, remoteFiles, path])
+  }, [browseMode, onlineFiles, onlinePath, rawFiles, statusData, deepStatusData, path, showRemoteItems, remoteItems, svnInfo?.url])
   
   // Convert to entries for virtualizer
   const entries = useMemo(() => {
@@ -554,29 +608,39 @@ export function FileExplorer() {
     setFocusedIndex(-1)
     setLastSelectedIndex(-1)
   }, [path])
-  
+
+  const handleSetBrowseMode = useCallback((mode: 'local' | 'online') => {
+    setBrowseMode(mode)
+    if (mode === 'local') {
+      setOnlinePath('')
+    }
+    setSelectedPaths(new Set())
+    setFocusedIndex(-1)
+    setLastSelectedIndex(-1)
+  }, [])
+
   const handleNavigateToEntry = useCallback((entry: SvnStatusEntry) => {
+    if (browseMode === 'online') {
+      if (entry.isDirectory) {
+        setOnlinePath(entry.path)
+        setSelectedPaths(new Set())
+        setFocusedIndex(-1)
+      }
+      return
+    }
     if (entry.isDirectory) {
       navigate({ to: '/files', search: { path: entry.path } })
     }
-  }, [navigate])
+  }, [navigate, browseMode])
   
   // FileRow actions - works with multi-select
   const fileRowActions = useMemo(() => ({
     onUpdate: async () => {
       if (selectedEntry) await actions.handleUpdate()
     },
-    onDownload: async (entry: SvnStatusEntry) => {
-      try {
-        const result = await window.api.svn.updateItem(entry.path)
-        if (result.success) {
-          queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] })
-          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] })
-          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] })
-          queryClient.invalidateQueries({ queryKey: ['svn:list'] })
-        }
-      } catch {
-      }
+    onDownload: (entry: SvnStatusEntry) => {
+      setPendingUpdateEntry(entry)
+      setUpdateDialogOpen(true)
     },
     onCommit: () => {
       // Commit all selected paths
@@ -620,14 +684,68 @@ export function FileExplorer() {
         setShowPreview(true)
       }
     }
-  }), [selectedEntry, selectedPaths, actions, path, queryClient])
-  
+  }), [selectedEntry, selectedPaths, actions, path])
+
+  const handleUpdateToRevision = useCallback(async (depth: 'empty' | 'files' | 'immediates' | 'infinity', setDepthSticky: boolean) => {
+    if (!pendingUpdateEntry) return { success: false, revision: 0, error: 'No entry selected' }
+
+    const entry = pendingUpdateEntry
+    const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot || path
+    const isRemoteItem = entry.status === 'O'
+
+    if ((browseMode === 'online' || isRemoteItem) && effectiveRepoRoot) {
+      const repoRootClean = effectiveRepoRoot.replace(/\/$/, '')
+      const wcUrlClean = (effectiveUrl || '').replace(/\/$/, '')
+      const wcRelativePath = wcUrlClean.startsWith(repoRootClean)
+        ? wcUrlClean.slice(repoRootClean.length)
+        : ''
+
+      const entryRelativePath = entry.path
+      let relativeDestination: string
+      if (wcRelativePath && entryRelativePath.startsWith(wcRelativePath)) {
+        relativeDestination = entryRelativePath.slice(wcRelativePath.length)
+      } else {
+        relativeDestination = entryRelativePath
+      }
+
+      const pathClean = path.replace(/\/$/, '')
+      const localItemPath = pathClean + relativeDestination
+      const fullUrl = repoRootClean + entryRelativePath
+
+      try {
+        const result = await window.api.svn.updateToRevision(wcRoot, fullUrl, localItemPath, depth, setDepthSticky)
+        if (result.success) {
+          queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] })
+          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] })
+          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] })
+          queryClient.invalidateQueries({ queryKey: ['svn:list'] })
+        }
+        return result
+      } catch (err) {
+        return { success: false as const, revision: 0, error: (err as Error).message || 'Update failed' }
+      }
+    } else {
+      try {
+        const result = await window.api.svn.updateItem(entry.path)
+        if (result.success) {
+          queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] })
+          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] })
+          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] })
+          queryClient.invalidateQueries({ queryKey: ['svn:list'] })
+        }
+        return result
+      } catch (err) {
+        return { success: false as const, revision: 0, error: (err as Error).message || 'Update failed' }
+      }
+    }
+  }, [pendingUpdateEntry, svnInfo?.workingCopyRoot, workingCopyContext?.workingCopyRoot, path, browseMode, effectiveRepoRoot, effectiveUrl, queryClient])
+
   const hasChanges = entries.some(e => 
     ['M', 'A', 'D', 'C'].includes(e.status)
   )
   
   const isLoading = isLoadingFiles
-  const isFetching = isLoadingStatus || isLoadingDeep || isLoadingRemote || actions.isUpdating
+  const isFetching = isLoadingStatus || isLoadingDeep || isLoadingOnline || isLoadingRemoteItems || actions.isUpdating
 
   // Empty state - show when no path is set
   if (!path) {
@@ -685,17 +803,47 @@ export function FileExplorer() {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
         {/* Breadcrumb Header */}
         <div className="h-[--header-height] flex items-center px-4 bg-bg-secondary border-b border-border">
-          {/* Up navigation button */}
-          {parentPath && (
-            <button
-              onClick={() => handleNavigate(parentPath)}
-              className="btn-icon-sm mr-2"
-              title="Go to parent directory"
-            >
-              <ArrowUp className="w-4 h-4" />
-            </button>
+          {browseMode === 'online' ? (
+            <>
+              {onlinePath && onlinePath !== '' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const parts = onlinePath.split('/').filter(Boolean)
+                    parts.pop()
+                    setOnlinePath(parts.length === 0 ? '' : '/' + parts.join('/'))
+                    setSelectedPaths(new Set())
+                  }}
+                  className="btn-icon-sm mr-2"
+                  title="Go to parent directory"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+              )}
+              <span className="text-sm text-text-muted">
+                {effectiveRepoRoot}
+                {onlinePath && <span className="text-text">{onlinePath}</span>}
+              </span>
+              <span className="flex items-center gap-1.5 ml-3 px-2 py-0.5 bg-accent/10 text-accent text-xs font-medium rounded">
+                <Globe className="w-3 h-3" />
+                Online
+              </span>
+            </>
+          ) : (
+            <>
+              {parentPath && (
+                <button
+                  type="button"
+                  onClick={() => handleNavigate(parentPath)}
+                  className="btn-icon-sm mr-2"
+                  title="Go to parent directory"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+              )}
+              <Breadcrumb path={path} onNavigate={handleNavigate} />
+            </>
           )}
-          <Breadcrumb path={path} onNavigate={handleNavigate} />
           {isFetching && (
             <span title="Loading status...">
               <Loader className="w-4 h-4 text-accent animate-spin ml-2" />
@@ -735,6 +883,11 @@ export function FileExplorer() {
         isBookmarked={isBookmarked}
         onToggleBookmark={handleToggleBookmark}
         onSettings={() => setSettingsDialogOpen(true)}
+        browseMode={browseMode}
+        onBrowseModeChange={handleSetBrowseMode}
+        canBrowseOnline={!!effectiveUrl}
+        showRemoteItems={showRemoteItems}
+        onToggleRemoteItems={() => setShowRemoteItems(prev => !prev)}
       />
       
       {/* Filter Bar */}
@@ -889,10 +1042,26 @@ export function FileExplorer() {
         />
       )}
       
-      {/* Settings Dialog */}
       <SettingsDialog
         isOpen={settingsDialogOpen}
         onClose={() => setSettingsDialogOpen(false)}
+      />
+
+      <UpdateToRevisionDialog
+        isOpen={updateDialogOpen}
+        onClose={() => {
+          setUpdateDialogOpen(false)
+          setPendingUpdateEntry(null)
+        }}
+        onComplete={() => {
+          setUpdateDialogOpen(false)
+          setPendingUpdateEntry(null)
+        }}
+        itemName={pendingUpdateEntry?.path || ''}
+        onConfirm={handleUpdateToRevision}
+        repoUrl={effectiveUrl}
+        credentials={storedCreds ? { username: storedCreds.username, password: storedCreds.password } : undefined}
+        workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
       />
 
       {showAuthPrompt && (

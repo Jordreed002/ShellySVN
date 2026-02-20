@@ -15,7 +15,10 @@ import {
   Eye,
   EyeOff,
   Star,
-  StarOff
+  StarOff,
+  HardDrive,
+  Globe,
+  Cloud
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -43,9 +46,13 @@ interface ToolbarProps {
   showPreview?: boolean
   onTogglePreview?: () => void
   hasSelectionForPreview?: boolean
-  // Bookmarks
   isBookmarked?: boolean
   onToggleBookmark?: () => void
+  browseMode?: 'local' | 'online'
+  onBrowseModeChange?: (mode: 'local' | 'online') => void
+  canBrowseOnline?: boolean
+  showRemoteItems?: boolean
+  onToggleRemoteItems?: () => void
   className?: string
 }
 
@@ -75,6 +82,11 @@ export function Toolbar({
   hasSelectionForPreview = false,
   isBookmarked = false,
   onToggleBookmark,
+  browseMode = 'local',
+  onBrowseModeChange,
+  canBrowseOnline = false,
+  showRemoteItems = false,
+  onToggleRemoteItems,
   className = ''
 }: ToolbarProps) {
   const [showViewMenu, setShowViewMenu] = useState(false)
@@ -95,6 +107,7 @@ export function Toolbar({
         {/* Bookmark Toggle */}
         {onToggleBookmark && (
           <button
+            type="button"
             onClick={onToggleBookmark}
             className={`btn-icon-sm ${isBookmarked ? 'text-yellow-500' : ''}`}
             title={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
@@ -104,7 +117,48 @@ export function Toolbar({
         )}
       </div>
 
-      {/* SVN Actions - only show when in versioned directory */}
+      {canBrowseOnline && onBrowseModeChange && (
+        <div className="flex items-center bg-bg-tertiary rounded-md p-0.5 ml-2">
+          <button
+            type="button"
+            onClick={() => onBrowseModeChange('local')}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-fast ${
+              browseMode === 'local' 
+                ? 'bg-accent text-white' 
+                : 'text-text-muted hover:text-text'
+            }`}
+            title="View local files"
+          >
+            <HardDrive className="w-3.5 h-3.5" />
+            <span>Local</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onBrowseModeChange('online')}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-fast ${
+              browseMode === 'online' 
+                ? 'bg-accent text-white' 
+                : 'text-text-muted hover:text-text'
+            }`}
+            title="View online repository"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Online</span>
+          </button>
+        </div>
+      )}
+
+      {isVersioned && browseMode === 'local' && onToggleRemoteItems && (
+        <button
+          type="button"
+          onClick={onToggleRemoteItems}
+          className={`btn-icon-sm ml-2 ${showRemoteItems ? 'text-info bg-info/10' : ''}`}
+          title={showRemoteItems ? 'Hide remote items' : 'Show remote items (sparse checkout)'}
+        >
+          <Cloud className="w-4 h-4" />
+        </button>
+      )}
+
       {isVersioned && (
         <>
           <div className="toolbar-divider" />
