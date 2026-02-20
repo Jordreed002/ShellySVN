@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
+import { existsSync } from 'fs'
 import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -802,6 +803,67 @@ export function registerSvnHandlers(): void {
     }
   })
 
+  ipcMain.handle('svn:updateToRevision', async (_, workingCopyRoot: string, _url: string, localPath: string, depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity', setDepthSticky: boolean = false): Promise<{ success: boolean; revision: number; error?: string }> => {
+    const { relative, join } = require('path')
+    const { existsSync } = require('fs')
+    
+    try {
+      const relativePath = relative(workingCopyRoot, localPath)
+      
+      debug.log('[updateToRevision] workingCopyRoot:', workingCopyRoot)
+      debug.log('[updateToRevision] localPath:', localPath)
+      debug.log('[updateToRevision] relativePath:', relativePath)
+      debug.log('[updateToRevision] depth:', depth)
+      debug.log('[updateToRevision] setDepthSticky:', setDepthSticky)
+      
+      const pathParts = relativePath.split(/[/\\]/)
+      
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const partialPath = pathParts.slice(0, i + 1).join('/')
+        const fullPath = join(workingCopyRoot, partialPath)
+        
+        if (!existsSync(fullPath)) {
+          debug.log('[updateToRevision] Creating parent with --depth empty:', partialPath)
+          await executeSvn(['update', '--depth', 'empty', partialPath], workingCopyRoot)
+        }
+      }
+      
+      // ALSO create the target directory itself if it doesn't exist
+      // This is needed when adding NEW folders to a sparse checkout
+      const targetFullPath = join(workingCopyRoot, relativePath)
+      if (!existsSync(targetFullPath)) {
+        debug.log('[updateToRevision] Creating target with --depth empty:', relativePath)
+        await executeSvn(['update', '--depth', 'empty', relativePath], workingCopyRoot)
+      }
+      
+      // --depth and --set-depth are mutually exclusive in SVN
+      // Use --set-depth when sticky (it also applies depth for this update)
+      // Use --depth when not sticky (one-time depth)
+      const args = ['update']
+      if (setDepthSticky) {
+        args.push('--set-depth', depth)
+      } else {
+        args.push('--depth', depth)
+      }
+      args.push(relativePath)
+      
+      debug.log('[updateToRevision] Running svn with args:', args)
+      const output = await executeSvn(args, workingCopyRoot)
+      const match = output.match(/Updated to revision (\d+)\./)
+      
+      return { 
+        success: true, 
+        revision: match ? parseInt(match[1], 10) : 0 
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        revision: 0, 
+        error: (error as Error)?.message || 'Update failed' 
+      }
+    }
+  })
+
   // SVN Commit
   ipcMain.handle('svn:commit', async (_, paths: string[], message: string) => {
     const workingCopyPath = paths[0]
@@ -890,6 +952,14 @@ export function registerSvnHandlers(): void {
     // Add depth if specified
     if (depth) args.push('--depth', depth)
     
+    // Add sparse paths if specified (this enables sparse checkout)
+    if (options?.sparsePaths && options.sparsePaths.length > 0) {
+      // Set depth to empty first, then add specific paths
+      args.push('--depth', 'empty')
+      // Add each specific path
+      options.sparsePaths.forEach(p => args.push(p))
+    }
+    
     // Build execution context - merge per-operation options with global settings
     const operationContext: Partial<SvnExecutionContext> = {}
     
@@ -947,12 +1017,12 @@ export function registerSvnHandlers(): void {
 
   // SVN Export
   ipcMain.handle('svn:export', async (_, url: string, path: string, revision?: string) => {
-    const args = ['export', url, path]
+    const args = ['export', '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other', url, path]
     if (revision) args.push('-r', revision)
     const output = await executeSvn(args)
     const match = output.match(/Exported revision (\d+)\./)
-    return { 
-      success: true, 
+    return {
+      success: true,
       revision: match ? parseInt(match[1], 10) : 0,
       output
     }
@@ -960,10 +1030,10 @@ export function registerSvnHandlers(): void {
 
   // SVN Import
   ipcMain.handle('svn:import', async (_, path: string, url: string, message: string) => {
-    const output = await executeSvn(['import', '-m', message, path, url])
+    const output = await executeSvn(['import', '-m', message, '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other', path, url])
     const match = output.match(/Committed revision (\d+)\./)
-    return { 
-      success: true, 
+    return {
+      success: true,
       revision: match ? parseInt(match[1], 10) : 0,
       output
     }
@@ -1412,7 +1482,7 @@ function parseSvnBlameXml(xml: string, path: string): SvnBlameResult {
   }
 }
 
-function parseSvnListXml(xml: string, baseUrl: string): SvnListResult {
+export function parseSvnListXml(xml: string, baseUrl: string): SvnListResult {
   const entries: SvnListResult['entries'] = []
   
   // SVN list XML format:

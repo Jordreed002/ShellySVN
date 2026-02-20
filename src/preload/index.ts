@@ -17,6 +17,7 @@ const api: ElectronAPI = {
     diff: (path, revision?) => ipcRenderer.invoke('svn:diff', path, revision) as Promise<SvnDiffResult>,
     update: (path, depth?) => ipcRenderer.invoke('svn:update', path, depth) as Promise<{ success: boolean; revision: number; error?: string }>,
     updateItem: (path) => ipcRenderer.invoke('svn:updateItem', path) as Promise<{ success: boolean; revision: number; error?: string }>,
+    updateToRevision: (workingCopyRoot, url, localPath, depth?, setDepthSticky?) => ipcRenderer.invoke('svn:updateToRevision', workingCopyRoot, url, localPath, depth, setDepthSticky) as Promise<{ success: boolean; revision: number; error?: string }>,
     commit: (paths, message) => ipcRenderer.invoke('svn:commit', paths, message),
     revert: (paths) => ipcRenderer.invoke('svn:revert', paths),
     add: (paths) => ipcRenderer.invoke('svn:add', paths),
