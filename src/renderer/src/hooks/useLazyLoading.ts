@@ -26,6 +26,9 @@ const DEFAULT_CONFIG: LargeRepoConfig = {
   scrollDebounce: 16 // ~60fps
 }
 
+// Module-level constant for default config to avoid new instances on every render
+const EMPTY_PARTIAL_CONFIG: Partial<LargeRepoConfig> = {}
+
 /**
  * Chunked data structure
  */
@@ -62,7 +65,7 @@ interface LazyDataState<T> {
  */
 export function useLazyDataLoader<T>(
   fetchFn: (offset: number, limit: number) => Promise<{ items: T[]; total: number }>,
-  config: Partial<LargeRepoConfig> = {}
+  config: Partial<LargeRepoConfig> = EMPTY_PARTIAL_CONFIG
 ) {
   const cfg = { ...DEFAULT_CONFIG, ...config }
   

@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 
+// Module-level constant for default options to avoid new instances on every render
+const EMPTY_OPTIONS: UseDragDropOptions = {}
+
 export type DragDropOperation = 'move' | 'copy' | 'link'
 export type DropEffect = 'none' | 'copy' | 'move' | 'link'
 
@@ -38,7 +41,7 @@ export function useFileDragDrop({
   validateDrop,
   allowExternalFiles = true,
   onExternalFilesDrop
-}: UseDragDropOptions = {}) {
+}: UseDragDropOptions = EMPTY_OPTIONS) {
   const [state, setState] = useState<DragDropState>({
     isDragging: false,
     isOver: false,

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 
 /**
  * Theme color configuration
@@ -170,7 +170,10 @@ export function useThemes() {
   const [activeThemeId, setActiveThemeId] = useState<string>('light')
   const [isLoading, setIsLoading] = useState(true)
   
-  const activeTheme = themes.find(t => t.id === activeThemeId) || LIGHT_THEME
+  const activeTheme = useMemo(
+    () => themes.find(t => t.id === activeThemeId) || LIGHT_THEME,
+    [themes, activeThemeId]
+  )
   
   /**
    * Load themes from storage
@@ -359,10 +362,11 @@ export function useThemes() {
   
   // Apply active theme on change
   useEffect(() => {
-    if (activeTheme) {
-      applyTheme(activeTheme)
+    if (activeThemeId) {
+      const theme = themes.find(t => t.id === activeThemeId) || LIGHT_THEME
+      applyTheme(theme)
     }
-  }, [activeTheme, applyTheme])
+  }, [activeThemeId, themes, applyTheme])
   
   return {
     themes,

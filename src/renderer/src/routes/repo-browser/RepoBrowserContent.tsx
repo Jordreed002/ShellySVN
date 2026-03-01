@@ -41,6 +41,9 @@ function getRealmFromUrl(url: string): string {
 	return match ? match[1] : url;
 }
 
+// Module-level constant for default props to avoid new instances on every render
+const EMPTY_PROPS: RepoBrowserContentProps = {};
+
 interface RepoBrowserContentProps {
 	/** Optional local path to detect working copy context */
 	localPath?: string;
@@ -48,7 +51,7 @@ interface RepoBrowserContentProps {
 
 export function RepoBrowserContent({
 	localPath,
-}: RepoBrowserContentProps = {}) {
+}: RepoBrowserContentProps = EMPTY_PROPS) {
 	const search = useSearch({ from: "/repo-browser/" });
 	const navigate = useNavigate();
 
@@ -365,6 +368,23 @@ export function RepoBrowserContent({
 		}
 	};
 
+	// Stable callback handlers for event handlers to prevent child re-renders
+	const handleSelectNode = useCallback((entry: RepoNode) => {
+		setSelectedNode(entry);
+	}, []);
+
+	const handleCloseAuthPrompt = useCallback(() => {
+		setShowAuthPrompt(false);
+	}, []);
+
+	const handleOpenCheckout = useCallback(() => {
+		setIsCheckoutOpen(true);
+	}, []);
+
+	const handleCloseCheckout = useCallback(() => {
+		setIsCheckoutOpen(false);
+	}, []);
+
 	return (
 		<div className="flex-1 flex flex-col bg-bg overflow-hidden">
 			<div className="flex items-center gap-2 px-4 py-2 bg-bg-tertiary border-b border-border">
@@ -516,7 +536,7 @@ export function RepoBrowserContent({
 														? "bg-accent/10"
 														: "hover:bg-bg-tertiary"
 												}`}
-												onClick={() => setSelectedNode(entry)}
+												onClick={() => handleSelectNode(entry)}
 												onDoubleClick={() => handleBrowse(entry)}
 											>
 												<td className="px-4 py-2">
@@ -609,9 +629,7 @@ export function RepoBrowserContent({
 									{selectedNode.kind === "dir" && (
 										<button
 											type="button"
-											onClick={() => {
-												setIsCheckoutOpen(true);
-											}}
+											onClick={handleOpenCheckout}
 											className="w-full btn btn-primary text-sm"
 										>
 											<Download className="w-4 h-4" />
@@ -696,13 +714,13 @@ export function RepoBrowserContent({
 
 			<CheckoutDialog
 				isOpen={isCheckoutOpen}
-				onClose={() => setIsCheckoutOpen(false)}
+				onClose={handleCloseCheckout}
 				initialUrl={selectedNode?.url || repoUrl}
-				onComplete={() => setIsCheckoutOpen(false)}
+				onComplete={handleCloseCheckout}
 			/>
 
 			{showAuthPrompt && (
-				<div className="modal-overlay" onClick={() => setShowAuthPrompt(false)}>
+				<div className="modal-overlay" onClick={handleCloseAuthPrompt}>
 					<div className="modal w-[400px]" onClick={(e) => e.stopPropagation()}>
 						<div className="modal-header">
 							<h2 className="modal-title">
@@ -711,7 +729,7 @@ export function RepoBrowserContent({
 							</h2>
 							<button
 								type="button"
-								onClick={() => setShowAuthPrompt(false)}
+								onClick={handleCloseAuthPrompt}
 								className="btn-icon-sm"
 							>
 								<X className="w-4 h-4" />
@@ -757,7 +775,7 @@ export function RepoBrowserContent({
 						<div className="modal-footer">
 							<button
 								type="button"
-								onClick={() => setShowAuthPrompt(false)}
+								onClick={handleCloseAuthPrompt}
 								className="btn btn-ghost"
 							>
 								Cancel

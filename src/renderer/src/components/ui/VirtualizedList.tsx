@@ -1,8 +1,11 @@
-import { useRef, useCallback, useMemo } from 'react'
+import { useRef, useCallback, useMemo, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Loader2, ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react'
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types'
 import { getStatusDisplay } from '../../hooks/useIncrementalStatus'
+
+// Module-level constant for default Set props to avoid new instances on every render
+const EMPTY_SET = new Set<string>()
 
 interface VirtualizedFileListProps {
   files: SvnStatusEntry[]
@@ -27,7 +30,7 @@ export function VirtualizedFileList({
   onLoadMore,
   hasMore = false,
   isLoading = false,
-  selectedPaths = new Set(),
+  selectedPaths = EMPTY_SET,
   onSelectionChange,
   onFileClick,
   onFileDoubleClick,
@@ -58,12 +61,13 @@ export function VirtualizedFileList({
       lastItem.index >= files.length - loadThreshold
     )
   }, [hasMore, isLoading, lastItem, files.length, loadThreshold])
-  
-  // Handle load more
-  if (shouldLoadMore && onLoadMore) {
-    // Defer to next tick to avoid state update during render
-    setTimeout(() => onLoadMore(), 0)
-  }
+
+  // Handle load more in useEffect to avoid side effects during render
+  useEffect(() => {
+    if (shouldLoadMore && onLoadMore) {
+      onLoadMore()
+    }
+  }, [shouldLoadMore, onLoadMore])
   
   // Toggle selection
   const toggleSelection = useCallback((file: SvnStatusEntry) => {
@@ -249,8 +253,8 @@ function getTriState(
 export function VirtualizedTree({
   nodes,
   onToggleExpand,
-  expandedPaths = new Set(),
-  loadingPaths = new Set(),
+  expandedPaths = EMPTY_SET,
+  loadingPaths = EMPTY_SET,
   selectedPath,
   onSelect,
   estimatedRowHeight = 28,

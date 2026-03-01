@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { 
@@ -64,22 +64,26 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
     overscan: 10
   })
   
-  const handleNavigate = (entry: RepoEntry) => {
+  const handleNavigate = useCallback((entry: RepoEntry) => {
     if (entry.isDirectory) {
       setPathHistory([...pathHistory, currentUrl])
       setCurrentUrl(entry.path)
     } else if (onNavigate) {
       onNavigate(entry.path)
     }
-  }
-  
-  const handleBack = () => {
+  }, [pathHistory, currentUrl, onNavigate])
+
+  const handleBack = useCallback(() => {
     if (pathHistory.length > 0) {
       const previousUrl = pathHistory[pathHistory.length - 1]
       setPathHistory(pathHistory.slice(0, -1))
       setCurrentUrl(previousUrl)
     }
-  }
+  }, [pathHistory])
+
+  const handleRefresh = useCallback(() => {
+    refetch()
+  }, [refetch])
   
   if (!isOpen) return null
   
@@ -96,7 +100,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
         </button>
         
         <button
-          onClick={() => refetch()}
+          onClick={handleRefresh}
           className="btn btn-secondary btn-sm"
         >
           <RefreshCw className="w-4 h-4" />
@@ -104,11 +108,11 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
         
         <div className="flex-1" />
         
-        {onClose && (
+        {onClose ? (
           <button onClick={onClose} className="btn btn-secondary btn-sm">
             Close
           </button>
-        )}
+        ) : null}
       </div>
       
       {/* URL Bar */}
@@ -122,7 +126,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
             className="input flex-1 text-sm"
           />
           <button
-            onClick={() => refetch()}
+            onClick={handleRefresh}
             className="btn btn-primary btn-sm"
           >
             Go

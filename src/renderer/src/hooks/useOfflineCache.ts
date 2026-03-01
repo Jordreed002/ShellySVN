@@ -43,13 +43,16 @@ const DEFAULT_CONFIG: OfflineCacheConfig = {
   storageKey: 'shellysvn-offline-cache'
 }
 
+// Module-level constant for default config to avoid new instances on every render
+const EMPTY_PARTIAL_CONFIG: Partial<OfflineCacheConfig> = {}
+
 /**
  * Hook for managing offline cache of SVN data
- * 
+ *
  * Provides caching of svn:info, status, and log data for offline access.
  * Cache can be persisted to disk and restored on app restart.
  */
-export function useOfflineCache(config: Partial<OfflineCacheConfig> = {}) {
+export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PARTIAL_CONFIG) {
   const cfg = { ...DEFAULT_CONFIG, ...config }
   const cacheRef = useRef<OfflineCache>({
     info: new Map(),

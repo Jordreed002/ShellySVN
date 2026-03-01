@@ -1,7 +1,7 @@
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
+import { useRef, useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react'
 import { RefreshCw, FolderX, AlertCircle, Inbox, Loader, ArrowUp, Lock, X, Globe } from 'lucide-react'
 import type { FileInfo, SvnStatusEntry, SvnStatusChar, FsStatusResult } from '@shared/types'
 import { Breadcrumb } from './ui/Breadcrumb'
@@ -10,14 +10,27 @@ import { FileRow, FileListHeader } from './ui/FileRow'
 import { FilterBar, useFileFilters } from './ui/FilterBar'
 import { useDualPane } from './ui/DualPaneView'
 import { FilePreview } from './ui/FilePreview'
-import { CommitDialog } from './ui/CommitDialog'
-import { DiffViewer } from './ui/DiffViewer'
-import { LogViewer } from './ui/LogViewer'
-import { SettingsDialog } from './ui/SettingsDialog'
-import { UpdateToRevisionDialog } from './ui/UpdateToRevisionDialog'
 import { useFileExplorerActions } from '../hooks/useSvnActions'
 import { useSettings } from '../hooks/useSettings'
 import { useFolderSizes } from '../hooks/useFolderSizes'
+
+// Lazy load heavy dialog components for better initial bundle size
+const CommitDialog = lazy(() => import('./ui/CommitDialog').then(m => ({ default: m.CommitDialog })))
+const DiffViewer = lazy(() => import('./ui/DiffViewer').then(m => ({ default: m.DiffViewer })))
+const LogViewer = lazy(() => import('./ui/LogViewer').then(m => ({ default: m.LogViewer })))
+const SettingsDialog = lazy(() => import('./ui/SettingsDialog').then(m => ({ default: m.SettingsDialog })))
+const UpdateToRevisionDialog = lazy(() => import('./ui/UpdateToRevisionDialog').then(m => ({ default: m.UpdateToRevisionDialog })))
+
+// Loading fallback for lazy components
+function DialogLoader() {
+  return (
+    <div className="modal-overlay">
+      <div className="modal flex items-center justify-center">
+        <Loader className="w-6 h-6 animate-spin text-accent" />
+      </div>
+    </div>
+  )
+}
 
 // Cache configuration
 const FILE_CACHE_TIME = 5 * 60 * 1000      // 5 minutes - files rarely change
@@ -1017,52 +1030,68 @@ export function FileExplorer() {
       />
       
       {/* Commit Dialog */}
-      <CommitDialog
-        isOpen={actions.commitDialogOpen}
-        workingCopyPath={path || ''}
-        onClose={actions.closeCommitDialog}
-        onSubmit={actions.handleSubmitCommit}
-      />
-      
+      {actions.commitDialogOpen && (
+        <Suspense fallback={<DialogLoader />}>
+          <CommitDialog
+            isOpen={actions.commitDialogOpen}
+            workingCopyPath={path || ''}
+            onClose={actions.closeCommitDialog}
+            onSubmit={actions.handleSubmitCommit}
+          />
+        </Suspense>
+      )}
+
       {/* Diff Viewer */}
       {diffViewerPath && (
-        <DiffViewer
-          isOpen={!!diffViewerPath}
-          filePath={diffViewerPath}
-          onClose={() => setDiffViewerPath(null)}
-        />
+        <Suspense fallback={<DialogLoader />}>
+          <DiffViewer
+            isOpen={!!diffViewerPath}
+            filePath={diffViewerPath}
+            onClose={() => setDiffViewerPath(null)}
+          />
+        </Suspense>
       )}
-      
+
       {/* Log Viewer */}
       {logViewerPath && (
-        <LogViewer
-          isOpen={!!logViewerPath}
-          path={logViewerPath}
-          onClose={() => setLogViewerPath(null)}
-        />
+        <Suspense fallback={<DialogLoader />}>
+          <LogViewer
+            isOpen={!!logViewerPath}
+            path={logViewerPath}
+            onClose={() => setLogViewerPath(null)}
+          />
+        </Suspense>
       )}
-      
-      <SettingsDialog
-        isOpen={settingsDialogOpen}
-        onClose={() => setSettingsDialogOpen(false)}
-      />
 
-      <UpdateToRevisionDialog
-        isOpen={updateDialogOpen}
-        onClose={() => {
-          setUpdateDialogOpen(false)
-          setPendingUpdateEntry(null)
-        }}
-        onComplete={() => {
-          setUpdateDialogOpen(false)
-          setPendingUpdateEntry(null)
-        }}
-        itemName={pendingUpdateEntry?.path || ''}
-        onConfirm={handleUpdateToRevision}
-        repoUrl={effectiveUrl}
-        credentials={storedCreds ? { username: storedCreds.username, password: storedCreds.password } : undefined}
-        workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
-      />
+      {settingsDialogOpen && (
+        <Suspense fallback={<DialogLoader />}>
+          <SettingsDialog
+            isOpen={settingsDialogOpen}
+            onClose={() => setSettingsDialogOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {updateDialogOpen && (
+        <Suspense fallback={<DialogLoader />}>
+          <UpdateToRevisionDialog
+            isOpen={updateDialogOpen}
+            onClose={() => {
+              setUpdateDialogOpen(false)
+              setPendingUpdateEntry(null)
+            }}
+            onComplete={() => {
+              setUpdateDialogOpen(false)
+              setPendingUpdateEntry(null)
+            }}
+            itemName={pendingUpdateEntry?.path || ''}
+            onConfirm={handleUpdateToRevision}
+            repoUrl={effectiveUrl}
+            credentials={storedCreds ? { username: storedCreds.username, password: storedCreds.password } : undefined}
+            workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
+          />
+        </Suspense>
+      )}
 
       {showAuthPrompt && (
         <div className="modal-overlay" onClick={() => setShowAuthPrompt(false)}>

@@ -1,10 +1,10 @@
 import { memo, useRef } from 'react'
-import { 
-  Folder, 
-  File, 
-  FileCode, 
-  FileImage, 
-  FileText, 
+import {
+  Folder,
+  File,
+  FileCode,
+  FileImage,
+  FileText,
   FileArchive,
   FileSpreadsheet,
   FileJson,
@@ -14,6 +14,18 @@ import type { SvnStatusEntry } from '@shared/types'
 import { StatusIcon, StatusDot } from './StatusIcon'
 import { useContextMenu, getSvnContextMenuItems, ContextMenu } from './ContextMenu'
 import { FileThumbnail } from './FileThumbnail'
+
+// Module-level constants for default props to avoid new instances on every render
+const EMPTY_FOLDER_SIZES: Record<string, number> = {}
+const EMPTY_ACTIONS: FileRowActions = {}
+const DEFAULT_COLUMN_WIDTHS: FileRowProps['columnWidths'] = {
+  name: 300,
+  status: 80,
+  revision: 70,
+  author: 100,
+  date: 100,
+  size: 80
+}
 
 // Context menu actions interface
 export interface FileRowActions {
@@ -150,21 +162,14 @@ export const FileRow = memo(function FileRow({
   compact = false,
   showThumbnails = false,
   showFolderSizes = false,
-  folderSizes = {},
+  folderSizes = EMPTY_FOLDER_SIZES,
   onSelect,
   onToggle,
   onNavigate,
   style,
   showColumns = true,
-  columnWidths = {
-    name: 300,
-    status: 80,
-    revision: 70,
-    author: 100,
-    date: 100,
-    size: 80
-  },
-  actions = {}
+  columnWidths = DEFAULT_COLUMN_WIDTHS,
+  actions = EMPTY_ACTIONS
 }: FileRowProps) {
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu()
   
@@ -352,14 +357,7 @@ export const FileRow = memo(function FileRow({
 
 // Header row for the file list
 export function FileListHeader({
-  columnWidths = {
-    name: 300,
-    status: 80,
-    revision: 70,
-    author: 100,
-    date: 100,
-    size: 80
-  },
+  columnWidths = DEFAULT_COLUMN_WIDTHS,
   onColumnWidthChange,
   onSort,
   sortColumn,

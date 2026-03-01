@@ -1,8 +1,11 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, lazy, Suspense } from 'react'
 import { X, FileText, AlertTriangle, Loader, Image as ImageIcon, ExternalLink } from 'lucide-react'
 import type { SvnDiffResult, SvnDiffLine } from '@shared/types'
-import { ImageDiffViewer, isImageFile } from './ImageDiffViewer'
+import { isImageFile } from './ImageDiffViewer'
 import { useSettings } from '@renderer/hooks/useSettings'
+
+// Lazy load ImageDiffViewer - only loaded when viewing image files
+const ImageDiffViewer = lazy(() => import('./ImageDiffViewer').then(m => ({ default: m.ImageDiffViewer })))
 
 interface DiffViewerProps {
   isOpen: boolean
@@ -100,15 +103,23 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
   }, [isOpen, onClose])
   
   if (!isOpen) return null
-  
+
   // For image files, render ImageDiffViewer directly
   if (isImage && showImageDiff) {
     return (
-      <ImageDiffViewer
-        isOpen={isOpen}
-        filePath={filePath}
-        onClose={onClose}
-      />
+      <Suspense fallback={
+        <div className="modal-overlay">
+          <div className="modal flex items-center justify-center">
+            <Loader className="w-6 h-6 animate-spin text-accent" />
+          </div>
+        </div>
+      }>
+        <ImageDiffViewer
+          isOpen={isOpen}
+          filePath={filePath}
+          onClose={onClose}
+        />
+      </Suspense>
     )
   }
   
