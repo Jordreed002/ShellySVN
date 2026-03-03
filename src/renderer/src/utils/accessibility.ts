@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 /**
  * Accessibility utility functions and constants
  * Implements WCAG 2.1 AA compliance helpers
@@ -115,7 +117,7 @@ export function announce(
  */
 let idCounter = 0
 export function generateAriaId(prefix = 'aria'): string {
-  return `${prefix}-${++idCounter}-${Math.random().toString(36).substr(2, 9)}`
+  return `${prefix}-${++idCounter}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 /**
@@ -282,7 +284,7 @@ export function skipToMainContent(): void {
 /**
  * Visually hidden styles for screen reader only content
  */
-export const visuallyHiddenStyles: React.CSSProperties = {
+export const visuallyHiddenStyles: CSSProperties = {
   position: 'absolute',
   width: '1px',
   height: '1px',

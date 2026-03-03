@@ -731,7 +731,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
             )}
 
             {/* Footer */}
-            <div className="modal-footer" role="contentinfo">
+            <div className="modal-footer">
               <div
                 className="flex-1 text-sm text-text-faint"
                 aria-live="polite"

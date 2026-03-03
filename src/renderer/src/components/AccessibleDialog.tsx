@@ -69,7 +69,7 @@ export function AccessibleDialog({
   onOpen,
   onCloseComplete
 }: AccessibleDialogProps) {
-  const [dialogId] = useState(() => `dialog-${Math.random().toString(36).substr(2, 9)}`)
+  const [dialogId] = useState(() => `dialog-${Math.random().toString(36).slice(2, 11)}`)
   const titleId = `${dialogId}-title`
   const descriptionId = description ? `${dialogId}-description` : undefined
   const previousActiveElement = useRef<HTMLElement | null>(null)
@@ -229,7 +229,7 @@ export function AccessibleDialogFooter({
   className?: string
 }) {
   return (
-    <div className={`modal-footer ${className}`} role="contentinfo">
+    <div className={`modal-footer ${className}`}>
       {children}
     </div>
   )

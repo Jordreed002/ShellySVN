@@ -4,7 +4,7 @@
  * Tests the core SVN operations with mocked responses
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { MockSvnExecutor, MockSvnResponses } from '../mocks/MockSvnExecutor'
 
 describe('MockSvnExecutor', () => {
