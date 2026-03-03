@@ -73,7 +73,7 @@ export function LockManagementDialog({
   })
 
   // Generate unique IDs for accessibility
-  const dialogId = useMemo(() => `lock-dialog-${Math.random().toString(36).substr(2, 9)}`, [])
+  const dialogId = useMemo(() => `lock-dialog-${Math.random().toString(36).substring(2, 11)}`, [])
   const titleId = `${dialogId}-title`
 
   // Fetch all locks in the working copy
@@ -407,12 +407,16 @@ export function LockManagementDialog({
                     type="button"
                     onClick={() => handleStealLock(selectedLock)}
                     disabled={!!actionInProgress}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-warning/30 bg-warning/5 hover:bg-warning/10 transition-fast text-left group"
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-warning/30 bg-warning/5 hover:bg-warning/10 transition-fast text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ShieldAlert className="w-5 h-5 text-warning" aria-hidden="true" />
+                    {actionInProgress === 'steal' ? (
+                      <Loader2 className="w-5 h-5 text-warning animate-spin" aria-hidden="true" />
+                    ) : (
+                      <ShieldAlert className="w-5 h-5 text-warning" aria-hidden="true" />
+                    )}
                     <div>
                       <div className="text-sm font-medium text-warning group-hover:text-warning">
-                        Steal Lock
+                        {actionInProgress === 'steal' ? 'Stealing Lock...' : 'Steal Lock'}
                       </div>
                       <div className="text-xs text-text-muted">
                         Transfer the lock to yourself (requires lock permission)
@@ -424,12 +428,16 @@ export function LockManagementDialog({
                     type="button"
                     onClick={() => handleBreakLock(selectedLock)}
                     disabled={!!actionInProgress}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-error/30 bg-error/5 hover:bg-error/10 transition-fast text-left group"
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-error/30 bg-error/5 hover:bg-error/10 transition-fast text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ShieldCheck className="w-5 h-5 text-error" aria-hidden="true" />
+                    {actionInProgress === 'break' ? (
+                      <Loader2 className="w-5 h-5 text-error animate-spin" aria-hidden="true" />
+                    ) : (
+                      <ShieldCheck className="w-5 h-5 text-error" aria-hidden="true" />
+                    )}
                     <div>
                       <div className="text-sm font-medium text-error group-hover:text-error">
-                        Break Lock
+                        {actionInProgress === 'break' ? 'Breaking Lock...' : 'Break Lock'}
                       </div>
                       <div className="text-xs text-text-muted">
                         Remove the lock entirely (requires admin permission)

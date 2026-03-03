@@ -1195,8 +1195,9 @@ export function registerSvnHandlers(): void {
 
   // SVN Force Lock (Steal Lock) - Lock a file even if locked by another user
   ipcMain.handle('svn:lockForce', async (_, path: string, message?: string) => {
-    // Get parent directory as working copy path
-    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
+    // Get parent directory as working copy path (handle both Unix and Windows path separators)
+    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path
     const hooks = await getHooksForWorkingCopy(workingCopyPath)
 
     // Pre-lock hooks
@@ -1230,8 +1231,9 @@ export function registerSvnHandlers(): void {
 
   // SVN Force Unlock (Break Lock) - Unlock a file locked by another user
   ipcMain.handle('svn:unlockForce', async (_, path: string) => {
-    // Get parent directory as working copy path
-    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
+    // Get parent directory as working copy path (handle both Unix and Windows path separators)
+    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path
     const hooks = await getHooksForWorkingCopy(workingCopyPath)
 
     // Pre-unlock hooks
