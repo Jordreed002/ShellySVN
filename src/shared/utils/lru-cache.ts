@@ -21,13 +21,13 @@ interface CacheEntry<V> {
   expiresAt?: number // Expiration timestamp
 }
 
-interface LRUCacheOptions {
+interface LRUCacheOptions<V = unknown> {
   /** Maximum cache size in bytes (default: 100MB) */
   maxSize: number
   /** Default TTL for entries in milliseconds (optional) */
   defaultTTL?: number
   /** Callback when an entry is evicted */
-  onEvict?: <V>(key: string, value: V, reason: 'size' | 'ttl' | 'manual') => void
+  onEvict?: (key: string, value: V, reason: 'size' | 'ttl' | 'manual') => void
 }
 
 interface CacheStats {
@@ -47,12 +47,21 @@ interface CacheStats {
   utilization: number
 }
 
+/** Maximum depth for recursive size estimation to prevent stack overflow */
+const MAX_ESTIMATE_DEPTH = 10
+
 /**
  * Estimate the memory size of a value in bytes
+ * Uses a depth limit to prevent stack overflow on circular references
  */
-function estimateSize(value: unknown): number {
+function estimateSize(value: unknown, depth: number = 0, seen: WeakSet<object> = new WeakSet()): number {
   if (value === null || value === undefined) {
     return 8 // Primitive overhead
+  }
+
+  // Prevent infinite recursion on circular references
+  if (depth > MAX_ESTIMATE_DEPTH) {
+    return 64 // Fallback for deep nesting
   }
 
   switch (typeof value) {
@@ -64,24 +73,30 @@ function estimateSize(value: unknown): number {
       // UTF-8: 2 bytes per character on average, plus object overhead
       return (value as string).length * 2 + 16
     case 'object':
+      // Check for circular reference
+      if (seen.has(value as object)) {
+        return 8 // Circular reference - just count the reference
+      }
+      seen.add(value as object)
+
       if (Array.isArray(value)) {
         // Array overhead + recursive size estimation
         return (
           32 +
-          (value as unknown[]).reduce((sum: number, item) => sum + estimateSize(item), 0)
+          (value as unknown[]).reduce((sum: number, item) => sum + estimateSize(item, depth + 1, seen), 0)
         )
       }
       if (value instanceof Map) {
         let size = 32
         value.forEach((v, k) => {
-          size += estimateSize(k) + estimateSize(v) + 16
+          size += estimateSize(k, depth + 1, seen) + estimateSize(v, depth + 1, seen) + 16
         })
         return size
       }
       if (value instanceof Set) {
         let size = 32
         value.forEach((v) => {
-          size += estimateSize(v) + 16
+          size += estimateSize(v, depth + 1, seen) + 16
         })
         return size
       }
@@ -95,7 +110,7 @@ function estimateSize(value: unknown): number {
       return (
         32 +
         Object.entries(value as object).reduce(
-          (sum, [k, v]) => sum + estimateSize(k) + estimateSize(v) + 8,
+          (sum, [k, v]) => sum + estimateSize(k, depth + 1, seen) + estimateSize(v, depth + 1, seen) + 8,
           0
         )
       )
