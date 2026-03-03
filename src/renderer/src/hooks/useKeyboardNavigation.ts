@@ -276,8 +276,11 @@ export function useKeyboardNavigation<T = unknown>(
 export function useTypeAheadNavigation<T>(
   options: {
     itemCount: number
-    getItemLabel: (index: number, item: T) => string
-    onSelect?: (index: number, item: T) => void
+    /** Function to get label for an item at a given index */
+    getItemLabel: (index: number) => string
+    /** Function to get item data at a given index (optional, for onSelect callback) */
+    getItem?: (index: number) => T | undefined
+    onSelect?: (index: number, item: T | undefined) => void
     delay?: number
     enabled?: boolean
   }
@@ -289,6 +292,7 @@ export function useTypeAheadNavigation<T>(
   const {
     itemCount,
     getItemLabel,
+    getItem,
     onSelect,
     delay = 500,
     enabled = true
@@ -331,10 +335,9 @@ export function useTypeAheadNavigation<T>(
 
     // Find matching item
     for (let i = 0; i < itemCount; i++) {
-      // This assumes items are accessible - may need adjustment based on use case
-      const label = getItemLabel(i, undefined as T).toLowerCase()
+      const label = getItemLabel(i).toLowerCase()
       if (label.startsWith(newSearchTerm)) {
-        onSelect?.(i, undefined as T)
+        onSelect?.(i, getItem?.(i))
         return true
       }
     }
@@ -342,17 +345,17 @@ export function useTypeAheadNavigation<T>(
     // If no match with accumulated term, try just the new character
     if (searchTerm.length > 0) {
       for (let i = 0; i < itemCount; i++) {
-        const label = getItemLabel(i, undefined as T).toLowerCase()
+        const label = getItemLabel(i).toLowerCase()
         if (label.startsWith(char)) {
           setSearchTerm(char)
-          onSelect?.(i, undefined as T)
+          onSelect?.(i, getItem?.(i))
           return true
         }
       }
     }
 
     return false
-  }, [enabled, itemCount, searchTerm, getItemLabel, onSelect])
+  }, [enabled, itemCount, searchTerm, getItemLabel, getItem, onSelect])
 
   return {
     handleKeyDown,
