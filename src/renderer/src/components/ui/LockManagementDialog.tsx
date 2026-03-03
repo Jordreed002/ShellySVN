@@ -458,7 +458,7 @@ export function LockManagementDialog({
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" role="contentinfo">
+        <div className="modal-footer">
           <div className="flex-1 text-sm text-text-faint">
             {locks.length} locked file{locks.length !== 1 ? 's' : ''} in working copy
           </div>
