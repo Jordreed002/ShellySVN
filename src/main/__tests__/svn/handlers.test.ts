@@ -1,8 +1,12 @@
 /**
- * Tests for SVN command argument generation
+ * Documentation tests for SVN command argument patterns
  *
- * These tests verify the correct command-line arguments are generated
- * for various SVN operations.
+ * NOTE: These tests serve as documentation/specification for expected
+ * command-line argument patterns. They do NOT test actual production code
+ * and therefore do not contribute to coverage.
+ *
+ * For actual argument generation tests, see operations.test.ts which
+ * uses MockSvnExecutor to verify arguments are passed correctly.
  */
 
 import { describe, it, expect } from 'vitest'

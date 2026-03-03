@@ -5,57 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-
-// Re-implement parseSvnBlameXml for testing
-function parseSvnBlameXml(xml: string, path: string): {
-  path: string
-  lines: Array<{
-    lineNumber: number
-    revision: number
-    author: string
-    date: string
-    content: string
-  }>
-  startRevision: number
-  endRevision: number
-} {
-  const lines: Array<{
-    lineNumber: number
-    revision: number
-    author: string
-    date: string
-    content: string
-  }> = []
-
-  const entryMatches = xml.matchAll(/<entry[^>]*line-number="(\d+)"[^>]*>([\s\S]*?)<\/entry>/g)
-
-  for (const match of entryMatches) {
-    const lineNumber = parseInt(match[1], 10)
-    const content = match[2]
-
-    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/)
-    const authorMatch = content.match(/<author>([^<]+)<\/author>/)
-    const dateMatch = content.match(/<date>([^<]+)<\/date>/)
-    const textMatch = content.match(/<text>([^<]*)<\/text>/)
-
-    lines.push({
-      lineNumber,
-      revision: revMatch ? parseInt(revMatch[1], 10) : 0,
-      author: authorMatch?.[1] || 'unknown',
-      date: dateMatch?.[1] || '',
-      content: textMatch?.[1] || ''
-    })
-  }
-
-  const revisions = lines.map(l => l.revision).filter(r => r > 0)
-
-  return {
-    path,
-    lines,
-    startRevision: revisions.length > 0 ? Math.min(...revisions) : 0,
-    endRevision: revisions.length > 0 ? Math.max(...revisions) : 0
-  }
-}
+import { parseSvnBlameXml } from '@main/ipc/svn'
 
 describe('SVN Blame Parser', () => {
   describe('parseSvnBlameXml', () => {
@@ -194,7 +144,7 @@ describe('SVN Blame Parser', () => {
       expect(result.lines[0].content).toBe('')
     })
 
-    it('should handle special characters in content', () => {
+    it('should preserve XML entities in content (not decoded by regex parser)', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <blame>
   <target path="test.ts">
@@ -210,8 +160,9 @@ describe('SVN Blame Parser', () => {
 
       const result = parseSvnBlameXml(xml, 'test.ts')
 
-      // Note: XML entities would be decoded by actual parser
-      expect(result.lines[0].content).toContain('test&amp;pattern')
+      // Note: The blame parser uses regex parsing, not XML parser,
+      // so XML entities are NOT automatically decoded
+      expect(result.lines[0].content).toContain('&amp;')
     })
 
     it('should handle missing author gracefully', () => {
