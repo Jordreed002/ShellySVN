@@ -40,3 +40,14 @@ export type { Theme, ThemeColors } from './useThemes'
 export { useThumbnails, isImageFile } from './useThumbnails'
 export { usePlugins } from './usePlugins'
 export type { PluginManifest, PluginInstance, PluginAPI, PluginHookHandler, PluginPermission, PluginCommand } from './usePlugins'
+export { usePerformanceMonitor, formatBytes, formatDuration, DEFAULT_THRESHOLDS } from './usePerformanceMonitor'
+export type {
+  PerformanceMetric,
+  MemorySnapshot,
+  FrameRateSnapshot,
+  PerformanceAlert,
+  PerformanceThresholds,
+  PerformanceMonitorOptions,
+  PerformanceMonitorState,
+  PerformanceSummary
+} from './usePerformanceMonitor'
