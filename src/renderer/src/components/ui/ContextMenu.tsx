@@ -1,14 +1,14 @@
-import { 
-  useEffect, 
-  useRef, 
+import {
+  useEffect,
+  useRef,
   useState,
-  useCallback 
+  useCallback
 } from 'react'
-import { 
-  Download, 
-  Upload, 
-  Undo2, 
-  Plus, 
+import {
+  Download,
+  Upload,
+  Undo2,
+  Plus,
   Trash2,
   FileText,
   FolderOpen,
@@ -28,7 +28,8 @@ import {
   Wrench,
   FileCode,
   Layers,
-  ClipboardList
+  ClipboardList,
+  Shield
 } from 'lucide-react'
 import type { SvnStatusChar } from '@shared/types'
 
@@ -229,6 +230,7 @@ export function getSvnContextMenuItems(
     onResolve?: () => void
     onGetLock?: () => void
     onReleaseLock?: () => void
+    onManageLocks?: () => void
     onShowLog?: () => void
     onDiff?: () => void
     onOpenInExplorer?: () => void
@@ -377,6 +379,14 @@ export function getSvnContextMenuItems(
         label: 'Release Lock',
         icon: Unlock,
         onClick: actions.onReleaseLock
+      })
+    }
+    if (actions.onManageLocks) {
+      items.push({
+        id: 'manage-locks',
+        label: 'Manage Locks...',
+        icon: Shield,
+        onClick: actions.onManageLocks
       })
     }
   }

@@ -115,6 +115,41 @@ export interface SvnInfoResult {
   lastChangedRevision: number;
   lastChangedDate: string;
   workingCopyRoot?: string;
+  lock?: SvnLockInfo;
+}
+
+// ============================================
+// SVN Lock Types
+// ============================================
+
+export interface SvnLockInfo {
+  /** Path to the locked file */
+  path: string;
+  /** Username of the lock owner */
+  owner: string;
+  /** Lock comment (may be empty) */
+  comment: string;
+  /** Date when the lock was created (ISO 8601) */
+  date: string;
+  /** Lock token (unique identifier) */
+  token?: string;
+  /** Whether the lock is owned by the current user */
+  isOwner?: boolean;
+}
+
+export interface SvnLockResult {
+  success: boolean;
+  lock?: SvnLockInfo;
+  error?: string;
+}
+
+export interface SvnUnlockResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface SvnLockListResult {
+  locks: SvnLockInfo[];
 }
 
 // ============================================
@@ -466,6 +501,7 @@ export interface ElectronAPI {
     infoUrl: (url: string) => Promise<SvnInfoResult>;
     getWorkingCopyContext: (path: string) => Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>;
     diff: (path: string, revision?: string) => Promise<SvnDiffResult>;
+    diffStreaming: (path: string, revision?: string) => Promise<SvnDiffResult>;
     update: (path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => Promise<{ success: boolean; revision: number; error?: string }>;
     updateItem: (path: string) => Promise<{ success: boolean; revision: number; error?: string }>;
     updateToRevision: (workingCopyRoot: string, url: string, localPath: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', setDepthSticky?: boolean) => Promise<{ success: boolean; revision: number; error?: string }>;
@@ -476,6 +512,10 @@ export interface ElectronAPI {
     cleanup: (path: string) => Promise<{ success: boolean }>;
     lock: (path: string, message?: string) => Promise<{ success: boolean; output?: string }>;
     unlock: (path: string, force?: boolean) => Promise<{ success: boolean; output?: string }>;
+    lockInfo: (path: string) => Promise<SvnLockInfo | null>;
+    lockForce: (path: string, message?: string) => Promise<SvnLockResult>;
+    unlockForce: (path: string) => Promise<SvnUnlockResult>;
+    lockList: (path: string) => Promise<SvnLockInfo[]>;
     checkout: (url: string, path: string, revision?: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', options?: CheckoutOptions) => Promise<{ success: boolean; revision: number; output?: string }>;
     export: (url: string, path: string, revision?: string) => Promise<{ success: boolean; revision: number; output?: string }>;
     import: (path: string, url: string, message: string) => Promise<{ success: boolean; revision: number; output?: string }>;

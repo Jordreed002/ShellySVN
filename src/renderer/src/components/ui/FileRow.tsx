@@ -8,7 +8,8 @@ import {
   FileArchive,
   FileSpreadsheet,
   FileJson,
-  ChevronRight
+  ChevronRight,
+  Lock
 } from 'lucide-react'
 import type { SvnStatusEntry } from '@shared/types'
 import { StatusIcon, StatusDot } from './StatusIcon'
@@ -40,6 +41,7 @@ export interface FileRowActions {
   onOpenInExplorer?: (entry: SvnStatusEntry) => void
   onCopyPath?: (entry: SvnStatusEntry) => void
   onPreview?: (entry: SvnStatusEntry) => void
+  onManageLocks?: (entry: SvnStatusEntry) => void
 }
 
 // File type to icon mapping
@@ -223,6 +225,7 @@ export const FileRow = memo(function FileRow({
     onOpenInExplorer: actions.onOpenInExplorer ? () => actions.onOpenInExplorer!(entry) : undefined,
     onCopyPath: actions.onCopyPath ? () => actions.onCopyPath!(entry) : () => navigator.clipboard.writeText(entry.path),
     onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
+    onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
   })
 
   return (
@@ -284,13 +287,20 @@ export const FileRow = memo(function FileRow({
         </div>
         
         {/* Name Column */}
-        <div 
-          className="flex-1 truncate pr-4"
+        <div
+          className="flex-1 truncate pr-4 flex items-center gap-1.5"
           style={{ minWidth: columnWidths.name - 80 }}
         >
           <span className={entry.isDirectory ? 'font-medium' : ''}>
             {filename}
           </span>
+          {entry.lock && (
+            <Lock
+              className="w-3 h-3 text-warning flex-shrink-0"
+              title={`Locked by ${entry.lock.owner}${entry.lock.comment ? `: ${entry.lock.comment}` : ''}`}
+              aria-label={`Locked by ${entry.lock.owner}`}
+            />
+          )}
         </div>
         
         {/* Additional Columns */}

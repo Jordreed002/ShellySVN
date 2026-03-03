@@ -1,9 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { 
+import type {
   ElectronAPI, FileFilter, FileInfo, FsStatusResult, SvnDiffResult, SvnInfoResult,
-  AuthCredential, AuthListEntry, SvnChangelistResult, SvnShelveListResult, 
-  WorkingCopyInfo, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal 
+  AuthCredential, AuthListEntry, SvnChangelistResult, SvnShelveListResult,
+  WorkingCopyInfo, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
+  SvnLockInfo, SvnLockResult, SvnUnlockResult
 } from '@shared/types'
 
 const api: ElectronAPI = {
@@ -15,6 +16,7 @@ const api: ElectronAPI = {
     infoUrl: (url) => ipcRenderer.invoke('svn:infoUrl', url) as Promise<SvnInfoResult>,
     getWorkingCopyContext: (path) => ipcRenderer.invoke('svn:getWorkingCopyContext', path) as Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>,
     diff: (path, revision?) => ipcRenderer.invoke('svn:diff', path, revision) as Promise<SvnDiffResult>,
+    diffStreaming: (path, revision?) => ipcRenderer.invoke('svn:diffStreaming', path, revision) as Promise<SvnDiffResult>,
     update: (path, depth?) => ipcRenderer.invoke('svn:update', path, depth) as Promise<{ success: boolean; revision: number; error?: string }>,
     updateItem: (path) => ipcRenderer.invoke('svn:updateItem', path) as Promise<{ success: boolean; revision: number; error?: string }>,
     updateToRevision: (workingCopyRoot, url, localPath, depth?, setDepthSticky?) => ipcRenderer.invoke('svn:updateToRevision', workingCopyRoot, url, localPath, depth, setDepthSticky) as Promise<{ success: boolean; revision: number; error?: string }>,
@@ -25,6 +27,10 @@ const api: ElectronAPI = {
     cleanup: (path) => ipcRenderer.invoke('svn:cleanup', path),
     lock: (path, message?) => ipcRenderer.invoke('svn:lock', path, message),
     unlock: (path, force?) => ipcRenderer.invoke('svn:unlock', path, force),
+    lockInfo: (path) => ipcRenderer.invoke('svn:lockInfo', path) as Promise<SvnLockInfo | null>,
+    lockForce: (path, message?) => ipcRenderer.invoke('svn:lockForce', path, message) as Promise<SvnLockResult>,
+    unlockForce: (path) => ipcRenderer.invoke('svn:unlockForce', path) as Promise<SvnUnlockResult>,
+    lockList: (path) => ipcRenderer.invoke('svn:lockList', path) as Promise<SvnLockInfo[]>,
     checkout: (url, path, revision?, depth?, options?) => ipcRenderer.invoke('svn:checkout', url, path, revision, depth, options),
     export: (url, path, revision?) => ipcRenderer.invoke('svn:export', url, path, revision),
     import: (path, url, message) => ipcRenderer.invoke('svn:import', path, url, message),

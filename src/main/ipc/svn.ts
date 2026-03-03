@@ -5,11 +5,11 @@ import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { XMLParser } from 'fast-xml-parser'
-import type { 
-  SvnStatusResult, SvnLogResult, SvnInfoResult, SvnDiffResult, 
-  SvnDiffFile, SvnDiffHunk, SvnChangelistResult, SvnShelveListResult, 
+import type {
+  SvnStatusResult, SvnLogResult, SvnInfoResult, SvnDiffResult,
+  SvnDiffFile, SvnDiffHunk, SvnChangelistResult, SvnShelveListResult,
   CheckoutOptions, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
-  SvnExecutionContext
+  SvnExecutionContext, SvnLockInfo
 } from '@shared/types'
 import { getSettingsManager } from '../settings-manager'
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor'
@@ -226,7 +226,7 @@ async function executeSvn(
  */
 export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
   const entries: SvnStatusResult['entries'] = []
-  
+
   try {
     const parsed = xmlParser.parse(xml) as {
       status?: {
@@ -242,6 +242,12 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
                 author?: string
                 date?: string
               }
+              lock?: {
+                owner?: string
+                comment?: string
+                'creationdate'?: string
+                token?: string
+              }
             }
           }> | {
             '@_path': string
@@ -253,59 +259,76 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
                 author?: string
                 date?: string
               }
+              lock?: {
+                owner?: string
+                comment?: string
+                'creationdate'?: string
+                token?: string
+              }
             }
           }
         }
       }
     }
-    
+
     const target = parsed.status?.target
     if (!target) {
       return { path: basePath, entries: [], revision: 0 }
     }
-    
+
     const entryList = target.entry
     if (!entryList) {
       return { path: basePath, entries: [], revision: 0 }
     }
-    
+
     // Handle single entry (not array) or array of entries
     const entriesArray = Array.isArray(entryList) ? entryList : [entryList]
-    
+
     for (const entry of entriesArray) {
       if (!entry || typeof entry !== 'object') continue
-      
+
       const wcStatus = entry['wc-status']
       if (!wcStatus) continue
-      
+
       const path = entry['@_path'] || ''
       const status = wcStatus['@_item'] || 'normal'
-      
+
       // Extract commit info if present
       let revision: number | undefined
       let author: string | undefined
       let date: string | undefined
-      
+
       if (wcStatus.commit) {
         revision = wcStatus.commit['@_revision'] ? parseInt(wcStatus.commit['@_revision'], 10) : undefined
         author = wcStatus.commit.author
         date = wcStatus.commit.date
       }
-      
+
+      // Extract lock info if present
+      let lock: { owner: string; comment: string; date: string } | undefined
+      if (wcStatus.lock) {
+        lock = {
+          owner: wcStatus.lock.owner || '',
+          comment: wcStatus.lock.comment || '',
+          date: wcStatus.lock['creationdate'] || ''
+        }
+      }
+
       entries.push({
         path,
         status: status as SvnStatusResult['entries'][0]['status'],
         revision,
         author,
         date,
-        isDirectory: false // Will be determined by file system check if needed
+        isDirectory: false, // Will be determined by file system check if needed
+        lock
       })
     }
   } catch (error) {
     debug.error('[SVN] Failed to parse status XML:', error)
     // Return empty result on parse error
   }
-  
+
   return {
     path: basePath,
     entries,
@@ -333,11 +356,17 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
             author?: string
             date?: string
           }
+          lock?: {
+            owner?: string
+            comment?: string
+            'creationdate'?: string
+            token?: string
+          }
           'wcroot-abspath'?: string
         }
       }
     }
-    
+
     const entry = parsed.info?.entry
     if (!entry) {
       return {
@@ -353,10 +382,22 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
         workingCopyRoot: undefined
       }
     }
-    
+
     const revision = entry['@_revision'] ? parseInt(entry['@_revision'], 10) : 0
     const commitRevision = entry.commit?.['@_revision'] ? parseInt(entry.commit['@_revision'], 10) : 0
-    
+
+    // Parse lock info if present
+    let lockInfo: SvnLockInfo | undefined
+    if (entry.lock) {
+      lockInfo = {
+        path: entry['@_path'] || '',
+        owner: entry.lock.owner || '',
+        comment: entry.lock.comment || '',
+        date: entry.lock['creationdate'] || '',
+        token: entry.lock.token
+      }
+    }
+
     return {
       path: entry['@_path'] || '',
       url: entry.url || '',
@@ -367,7 +408,8 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
       lastChangedAuthor: entry.commit?.author || '',
       lastChangedRevision: commitRevision,
       lastChangedDate: entry.commit?.date || '',
-      workingCopyRoot: entry['wcroot-abspath'] || undefined
+      workingCopyRoot: entry['wcroot-abspath'] || undefined,
+      lock: lockInfo
     }
   } catch (error) {
     debug.error('[SVN] Failed to parse info XML:', error)
@@ -709,11 +751,42 @@ export function registerSvnHandlers(): void {
         args.push('-c', revision)
       }
       args.push(path)
-      
+
       const output = await executeSvn(args)
       return parseSvnDiff(output)
     } catch (error) {
       debug.error('[SVN] Diff error:', error)
+      return { files: [], hasChanges: false, rawDiff: (error as Error).message }
+    }
+  })
+
+  // SVN Streaming Diff - Memory-efficient diff parsing for large files
+  ipcMain.handle('svn:diffStreaming', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
+    try {
+      const { parseDiffStreaming } = await import('../utils/diff-parser')
+
+      const args = ['diff']
+      if (revision) {
+        args.push('-c', revision)
+      }
+      args.push(path)
+
+      const output = await executeSvn(args)
+
+      // Check for binary file indicator
+      if (output.includes('Cannot display: file marked as a binary type')) {
+        return {
+          files: [],
+          hasChanges: true,
+          isBinary: true,
+          rawDiff: output
+        }
+      }
+
+      // Use streaming parser for memory efficiency
+      return await parseDiffStreaming(output)
+    } catch (error) {
+      debug.error('[SVN] Streaming diff error:', error)
       return { files: [], hasChanges: false, rawDiff: (error as Error).message }
     }
   })
@@ -1091,7 +1164,7 @@ export function registerSvnHandlers(): void {
     // Get parent directory as working copy path
     const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
     const hooks = await getHooksForWorkingCopy(workingCopyPath)
-    
+
     // Pre-unlock hooks
     const preResult = await executeHooksForType(hooks, 'pre-unlock', {
       workingCopyPath,
@@ -1100,12 +1173,153 @@ export function registerSvnHandlers(): void {
     if (!preResult.allSucceeded) {
       return { success: false, error: preResult.error || 'Pre-unlock hook blocked' }
     }
-    
+
     const args = ['unlock']
     if (force) args.push('--force')
     args.push(path)
     const output = await executeSvn(args)
     return { success: true, output }
+  })
+
+  // SVN Lock Info - Get detailed lock information for a file
+  ipcMain.handle('svn:lockInfo', async (_, path: string): Promise<SvnLockInfo | null> => {
+    try {
+      const xml = await executeSvn(['info', '--xml', path])
+      const info = parseSvnInfoXml(xml)
+      return info.lock || null
+    } catch (error) {
+      debug.error('[SVN] Lock info error:', error)
+      return null
+    }
+  })
+
+  // SVN Force Lock (Steal Lock) - Lock a file even if locked by another user
+  ipcMain.handle('svn:lockForce', async (_, path: string, message?: string) => {
+    // Get parent directory as working copy path
+    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
+    const hooks = await getHooksForWorkingCopy(workingCopyPath)
+
+    // Pre-lock hooks
+    const preResult = await executeHooksForType(hooks, 'pre-lock', {
+      workingCopyPath,
+      files: [path],
+      message,
+      force: true
+    })
+    if (!preResult.allSucceeded) {
+      return { success: false, error: preResult.error || 'Pre-lock hook blocked' }
+    }
+
+    try {
+      const args = ['lock', '--force']
+      if (message) args.push('-m', message)
+      args.push(path)
+      await executeSvn(args)
+
+      // Get lock info after successful lock
+      const xml = await executeSvn(['info', '--xml', path])
+      const info = parseSvnInfoXml(xml)
+
+      return { success: true, lock: info.lock }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      debug.error('[SVN] Force lock error:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // SVN Force Unlock (Break Lock) - Unlock a file locked by another user
+  ipcMain.handle('svn:unlockForce', async (_, path: string) => {
+    // Get parent directory as working copy path
+    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
+    const hooks = await getHooksForWorkingCopy(workingCopyPath)
+
+    // Pre-unlock hooks
+    const preResult = await executeHooksForType(hooks, 'pre-unlock', {
+      workingCopyPath,
+      files: [path],
+      force: true
+    })
+    if (!preResult.allSucceeded) {
+      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' }
+    }
+
+    try {
+      const args = ['unlock', '--force', path]
+      await executeSvn(args)
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      debug.error('[SVN] Force unlock error:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // SVN Lock List - List all locks in a working copy
+  ipcMain.handle('svn:lockList', async (_, path: string): Promise<SvnLockInfo[]> => {
+    try {
+      // Use svn status --xml to find locked files
+      const xml = await executeSvn(['status', '--xml', path])
+      const locks: SvnLockInfo[] = []
+
+      const parsed = xmlParser.parse(xml) as {
+        status?: {
+          target?: {
+            entry?: Array<{
+              '@_path': string
+              'wc-status'?: {
+                '@_item': string
+                lock?: {
+                  owner?: string
+                  comment?: string
+                  'creationdate'?: string
+                  token?: string
+                }
+              }
+            }> | {
+              '@_path': string
+              'wc-status'?: {
+                '@_item': string
+                lock?: {
+                  owner?: string
+                  comment?: string
+                  'creationdate'?: string
+                  token?: string
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const target = parsed.status?.target
+      if (!target) return []
+
+      const entries = target.entry
+      if (!entries) return []
+
+      const entriesArray = Array.isArray(entries) ? entries : [entries]
+
+      for (const entry of entriesArray) {
+        if (!entry || typeof entry !== 'object') continue
+
+        const wcStatus = entry['wc-status']
+        if (wcStatus?.lock) {
+          locks.push({
+            path: entry['@_path'] || '',
+            owner: wcStatus.lock.owner || '',
+            comment: wcStatus.lock.comment || '',
+            date: wcStatus.lock['creationdate'] || '',
+            token: wcStatus.lock.token
+          })
+        }
+      }
+
+      return locks
+    } catch (error) {
+      debug.error('[SVN] Lock list error:', error)
+      return []
+    }
   })
 
   // SVN Resolve
