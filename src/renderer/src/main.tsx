@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsPreviewProvider } from './contexts/SettingsPreviewContext'
+import { GlobalErrorBoundary } from './components/ErrorBoundary'
 
 // Import styles
 import './styles/global.css'
@@ -30,13 +31,30 @@ const queryClient = new QueryClient({
   }
 })
 
+// Global error handler for logging
+const handleGlobalError = (error: Error, errorInfo: React.ErrorInfo) => {
+  // Log to console in development
+  if (import.meta.env.DEV) {
+    console.error('Global error caught:', error)
+    console.error('Component stack:', errorInfo.componentStack)
+  }
+
+  // In production, you could send this to an error tracking service
+  // Example: Sentry.captureException(error, { contexts: { react: { componentStack: errorInfo.componentStack } } })
+}
+
 // Render the app
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <SettingsPreviewProvider>
-        <RouterProvider router={router} />
-      </SettingsPreviewProvider>
-    </QueryClientProvider>
+    <GlobalErrorBoundary
+      onError={handleGlobalError}
+      maxRetries={3}
+    >
+      <QueryClientProvider client={queryClient}>
+        <SettingsPreviewProvider>
+          <RouterProvider router={router} />
+        </SettingsPreviewProvider>
+      </QueryClientProvider>
+    </GlobalErrorBoundary>
   </React.StrictMode>
 )
