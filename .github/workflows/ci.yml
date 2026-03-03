@@ -10,6 +10,9 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -21,6 +24,7 @@ jobs:
   lint-and-typecheck:
     name: Lint and TypeCheck
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -53,6 +57,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -93,6 +98,7 @@ jobs:
   build-verification:
     name: Build Verification
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [lint-and-typecheck, unit-tests]
 
     steps:
@@ -144,6 +150,7 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: macos-14
+    timeout-minutes: 30
     needs: [lint-and-typecheck, unit-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
