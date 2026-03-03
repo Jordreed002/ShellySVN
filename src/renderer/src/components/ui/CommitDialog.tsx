@@ -103,7 +103,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     }
   }, [statusData])
 
-  // AI-powered suggestions based on files
+  // Generate suggestions based on selected files
   const aiSuggestions = useMemo(() => {
     const selectedFilesList = files.filter(f => f.selected)
     if (selectedFilesList.length === 0) return []

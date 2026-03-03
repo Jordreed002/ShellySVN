@@ -265,7 +265,7 @@ function generateSuggestions(
   typeCounts: Map<ChangeType, number>
 ): CommitSuggestion[] {
   const suggestions: CommitSuggestion[] = []
-  const totalFiles = analyses.length
+  const totalFiles = analyses.length || 1 // Guard against division by zero
 
   // Generate suggestions for each change type present
   for (const [type, count] of typeCounts) {
@@ -502,12 +502,6 @@ export function validateCommitMessage(message: string): {
 
   if (!hasPrefix) {
     warnings.push('Message does not follow conventional commit format (e.g., "feat:", "fix:")')
-  }
-
-  // Check for issue tracker reference
-  const hasIssueRef = /(#\d+|[A-Z]+-\d+)/.test(trimmed)
-  if (!hasIssueRef) {
-    // This is just a suggestion, not a warning
   }
 
   return {

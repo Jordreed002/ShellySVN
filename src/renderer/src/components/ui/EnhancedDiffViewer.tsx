@@ -96,11 +96,17 @@ export function EnhancedDiffViewer({
     if (searchMatches.length === 0) return
 
     setCurrentMatchIndex(prev => {
-      if (direction === 'next') {
-        return prev < searchMatches.length - 1 ? prev + 1 : 0
-      } else {
-        return prev > 0 ? prev - 1 : searchMatches.length - 1
-      }
+      const newIndex = direction === 'next'
+        ? (prev < searchMatches.length - 1 ? prev + 1 : 0)
+        : (prev > 0 ? prev - 1 : searchMatches.length - 1)
+
+      // Scroll the matched element into view
+      setTimeout(() => {
+        const matchElement = contentRef.current?.querySelector(`[data-match-index="${newIndex}"]`)
+        matchElement?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 0)
+
+      return newIndex
     })
   }, [searchMatches.length])
 
@@ -327,9 +333,10 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
               {/* Lines */}
               <div className="relative">
                 {hunk.lines.map((line, lineIndex) => {
-                  const isMatch = searchMatches.some(
+                  const matchIndex = searchMatches.findIndex(
                     m => m.fileIndex === fileIndex && m.hunkIndex === hunkIndex && m.lineIndex === lineIndex
                   )
+                  const isMatch = matchIndex !== -1
                   const isCurrentMatch = searchMatches[currentMatchIndex]?.fileIndex === fileIndex &&
                     searchMatches[currentMatchIndex]?.hunkIndex === hunkIndex &&
                     searchMatches[currentMatchIndex]?.lineIndex === lineIndex
@@ -344,6 +351,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
                       searchQuery={searchQuery}
                       isMatch={isMatch}
                       isCurrentMatch={isCurrentMatch}
+                      matchIndex={matchIndex}
                       highlightStyle={highlightStyle}
                       onCopyLine={onCopyLine}
                       copiedLine={copiedLine}
@@ -371,6 +379,7 @@ interface UnifiedDiffLineProps {
   searchQuery: string
   isMatch: boolean
   isCurrentMatch: boolean
+  matchIndex: number
   highlightStyle: typeof oneDark
   onCopyLine: (content: string, lineNum: number) => void
   copiedLine: number | null
@@ -385,6 +394,7 @@ const UnifiedDiffLine = memo(function UnifiedDiffLine({
   searchQuery,
   isMatch,
   isCurrentMatch,
+  matchIndex,
   highlightStyle,
   onCopyLine,
   copiedLine,
@@ -488,6 +498,7 @@ const UnifiedDiffLine = memo(function UnifiedDiffLine({
       className={`${getLineClass()} flex group relative`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      data-match-index={isMatch ? matchIndex : undefined}
     >
       {/* Line number */}
       {showLineNumbers && (

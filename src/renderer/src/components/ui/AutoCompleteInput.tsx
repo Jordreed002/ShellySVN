@@ -195,7 +195,7 @@ export function AutoCompleteInput({
   }, [isNavigating])
 
   // Generate unique ID for accessibility
-  const listId = useMemo(() => `autocomplete-list-${id || Math.random().toString(36).substr(2, 9)}`, [id])
+  const listId = useMemo(() => `autocomplete-list-${id || Math.random().toString(36).substring(2, 11)}`, [id])
 
   return (
     <div className={`relative ${className}`}>
@@ -433,7 +433,7 @@ export function AutoCompleteTextInput({
     inputRef.current?.focus()
   }, [onChange, onSuggestionSelect])
 
-  const listId = useMemo(() => `autocomplete-list-${id || Math.random().toString(36).substr(2, 9)}`, [id])
+  const listId = useMemo(() => `autocomplete-list-${id || Math.random().toString(36).substring(2, 11)}`, [id])
 
   return (
     <div className={`relative ${className}`}>
