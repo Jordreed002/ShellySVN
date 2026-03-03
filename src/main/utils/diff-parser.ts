@@ -121,6 +121,9 @@ function parseHunkHeader(line: string): { oldStart: number; oldLines: number; ne
   }
 }
 
+/** Maximum line length to buffer (1MB) - prevents memory exhaustion from extremely long lines */
+const MAX_LINE_LENGTH = 1024 * 1024
+
 /**
  * Streaming Diff Parser
  *
@@ -150,6 +153,7 @@ export class StreamingDiffParser extends Transform {
   private chunkCount: number = 0
   private lineCount: number = 0
   private isComplete: boolean = false
+  private isDestroyed: boolean = false
   private error_: string | undefined
 
   private readonly chunkSize: number
@@ -172,7 +176,26 @@ export class StreamingDiffParser extends Transform {
    */
   _transform(chunk: Buffer | string, _encoding: BufferEncoding, callback: TransformCallback): void {
     try {
+      if (this.isDestroyed) {
+        callback()
+        return
+      }
+
       this.buffer += chunk.toString('utf8')
+
+      // Protect against extremely long lines
+      if (this.buffer.length > MAX_LINE_LENGTH) {
+        // Find the last newline and truncate to it
+        const lastNewline = this.buffer.lastIndexOf('\n')
+        if (lastNewline > 0) {
+          this.buffer = this.buffer.substring(lastNewline + 1)
+        } else {
+          // No newline found, truncate the buffer
+          this.buffer = ''
+        }
+        console.warn('[StreamingDiffParser] Line exceeded maximum length, truncated')
+      }
+
       this.processBuffer()
       callback()
     } catch (error) {
@@ -219,11 +242,14 @@ export class StreamingDiffParser extends Transform {
    * Process buffered data line by line
    */
   private processBuffer(): void {
+    if (this.isDestroyed) return
+
     const lines = this.buffer.split('\n')
     // Keep the last incomplete line in the buffer
     this.buffer = lines.pop() || ''
 
     for (const line of lines) {
+      if (this.isDestroyed) return
       this.processLine(line)
       this.lineCount++
     }
@@ -398,6 +424,19 @@ export class StreamingDiffParser extends Transform {
    */
   getError(): string | undefined {
     return this.error_
+  }
+
+  /**
+   * Destroy the parser and clean up resources
+   * Call this to abort parsing mid-stream
+   */
+  destroy(error?: Error | null): this {
+    this.isDestroyed = true
+    this.buffer = ''
+    this.files = []
+    this.currentFile = null
+    this.currentHunk = null
+    return super.destroy(error)
   }
 }
 
