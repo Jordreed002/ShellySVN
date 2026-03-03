@@ -1,0 +1,540 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a GitHub release'
+        required: false
+        default: 'false'
+        type: boolean
+      skip_linux:
+        description: 'Skip Linux builds'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SVN_VERSION: '1.14.5'
+
+jobs:
+  # ============================================
+  # Build SVN Binaries (with caching)
+  # ============================================
+  svn-binaries:
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32
+            arch: x64
+            runner: windows-latest
+            artifact-name: svn-win32-x64
+          - platform: darwin
+            arch: x64
+            runner: macos-15-intel
+            artifact-name: svn-darwin-x64
+          - platform: darwin
+            arch: arm64
+            runner: macos-14
+            artifact-name: svn-darwin-arm64
+          - platform: linux
+            arch: x64
+            runner: ubuntu-22.04
+            artifact-name: svn-linux-x64
+
+    steps:
+      - name: Cache SVN binaries
+        id: cache-svn
+        uses: actions/cache@v4
+        with:
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          key: svn-${{ matrix.platform }}-${{ matrix.arch }}-${{ env.SVN_VERSION }}
+
+      - name: Download SVN for Windows
+        if: matrix.platform == 'win32' && steps.cache-svn.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path binaries\win32-x64\svn
+          $svnUrl = "https://www.visualsvn.com/files/Apache-Subversion-${{ env.SVN_VERSION }}-3.zip"
+          Write-Host "Downloading SVN from $svnUrl"
+          Invoke-WebRequest -Uri $svnUrl -OutFile svn.zip
+          Expand-Archive -Path svn.zip -DestinationPath svn-temp
+          Move-Item -Path "svn-temp\bin\*" -Destination "binaries\win32-x64\svn\" -Force
+          binaries\win32-x64\svn\svn.exe --version
+          Remove-Item svn.zip, svn-temp -Recurse -Force
+
+      - name: Download SVN for macOS
+        if: matrix.platform == 'darwin' && steps.cache-svn.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/lib
+          brew install subversion dylibbundler
+          SVN_PATH=$(which svn)
+          echo "SVN installed at: $SVN_PATH"
+          svn --version
+          cp "$SVN_PATH" binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/
+          dylibbundler -od -b \
+            -x binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn \
+            -d binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/lib \
+            -p @executable_path/lib
+          chmod +x binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn
+          binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn --version
+
+      - name: Install SVN for Linux
+        if: matrix.platform == 'linux' && steps.cache-svn.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p binaries/linux-x64/svn
+          sudo apt-get update
+          sudo apt-get install -y subversion
+          SVN_PATH=$(which svn)
+          echo "SVN installed at: $SVN_PATH"
+          svn --version
+          # Copy svn binary and its dependencies
+          cp "$SVN_PATH" binaries/linux-x64/svn/
+          # Get shared library dependencies and copy them
+          ldd "$SVN_PATH" | grep "=> /" | awk '{print $3}' | xargs -I '{}' cp -v '{}' binaries/linux-x64/svn/ 2>/dev/null || true
+          chmod +x binaries/linux-x64/svn/svn
+          binaries/linux-x64/svn/svn --version || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          retention-days: 1
+
+  # ============================================
+  # Build Logic Engine (with caching)
+  # ============================================
+  logic-engine:
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win32
+            arch: x64
+            runner: windows-latest
+            target: bun-windows-x64
+            ext: .exe
+            artifact-name: shelly-engine-win32-x64
+          - platform: darwin
+            arch: x64
+            runner: macos-15-intel
+            target: bun-darwin-x64
+            ext: ''
+            artifact-name: shelly-engine-darwin-x64
+          - platform: darwin
+            arch: arm64
+            runner: macos-14
+            target: bun-darwin-arm64
+            ext: ''
+            artifact-name: shelly-engine-darwin-arm64
+          - platform: linux
+            arch: x64
+            runner: ubuntu-22.04
+            target: bun-linux-x64
+            ext: ''
+            artifact-name: shelly-engine-linux-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate cache key from source
+        id: cache-key
+        run: |
+          echo "key=logic-engine-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('packages/logic-engine/**/*.ts', 'packages/logic-engine/package.json', 'bun.lock') }}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Cache Logic Engine binary
+        id: cache-engine
+        uses: actions/cache@v4
+        with:
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Setup Bun
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+
+      - name: Install dependencies
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        working-directory: packages/logic-engine
+        run: bun install --frozen-lockfile
+
+      - name: Build binary
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        working-directory: packages/logic-engine
+        run: bun build ./src/index.ts --compile --target=${{ matrix.target }} --outfile=dist/shelly-engine${{ matrix.ext }} --minify --define ENGINE_VERSION='"${{ github.ref_name }}"' --define BUILD_SHA='"${{ github.sha }}"'
+
+      - name: Verify binary
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        working-directory: packages/logic-engine
+        run: ./dist/shelly-engine${{ matrix.ext }} --version
+
+      - name: Move to binaries directory
+        if: steps.cache-engine.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p binaries/${{ matrix.platform }}-${{ matrix.arch }}
+          mv packages/logic-engine/dist/shelly-engine${{ matrix.ext }} binaries/${{ matrix.platform }}-${{ matrix.arch }}/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: binaries/${{ matrix.platform }}-${{ matrix.arch }}/shelly-engine${{ matrix.ext }}
+          retention-days: 1
+
+  # ============================================
+  # Build Electron App - macOS
+  # ============================================
+  build-macos:
+    needs: [svn-binaries, logic-engine]
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: bun-deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download SVN binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-darwin-${{ matrix.arch }}
+          path: binaries/darwin-${{ matrix.arch }}
+
+      - name: Download Logic Engine
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-darwin-${{ matrix.arch }}
+          path: binaries/darwin-${{ matrix.arch }}
+
+      - name: Make binaries executable
+        run: |
+          chmod +x binaries/darwin-${{ matrix.arch }}/shelly-engine
+          chmod +x binaries/darwin-${{ matrix.arch }}/svn/svn
+
+      - name: Cache Electron build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            out
+            .cache
+          key: electron-out-${{ matrix.arch }}-${{ hashFiles('src/**/*', 'package.json', 'bun.lock') }}
+          restore-keys: |
+            electron-out-${{ matrix.arch }}-
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Build Electron app (unsigned)
+        if: ${{ secrets.MAC_CERTIFICATE_BASE64 == '' }}
+        run: bunx electron-builder --mac --${{ matrix.arch }} --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Build Electron app (signed)
+        if: ${{ secrets.MAC_CERTIFICATE_BASE64 != '' }}
+        run: bunx electron-builder --mac --${{ matrix.arch }} --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: true
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-macOS-${{ matrix.arch }}
+          path: |
+            release/**/*.dmg
+            release/**/*.zip
+          retention-days: 7
+
+  # ============================================
+  # Build Electron App - Windows
+  # ============================================
+  build-windows:
+    needs: [svn-binaries, logic-engine]
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: bun-deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download SVN binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-win32-x64
+          path: binaries/win32-x64
+
+      - name: Download Logic Engine
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-win32-x64
+          path: binaries/win32-x64
+
+      - name: Cache Electron build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            out
+            .cache
+          key: electron-out-win32-x64-${{ hashFiles('src/**/*', 'package.json', 'bun.lock') }}
+          restore-keys: |
+            electron-out-win32-x64-
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Build Electron app (unsigned)
+        if: ${{ secrets.WIN_CERTIFICATE_BASE64 == '' }}
+        run: bunx electron-builder --win --x64 --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Electron app (signed)
+        if: ${{ secrets.WIN_CERTIFICATE_BASE64 != '' }}
+        run: |
+          $certPath = Join-Path $env:TEMP "cert.pfx"
+          [System.Convert]::FromBase64String("${{ secrets.WIN_CERTIFICATE_BASE64 }}") | Set-Content $certPath -AsByteStream
+          bunx electron-builder --win --x64 --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CERTIFICATE_BASE64 }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
+          CSC_LINK: ${{ secrets.WIN_CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-Windows-x64
+          path: |
+            release/**/*.exe
+            release/**/*.zip
+          retention-days: 7
+
+  # ============================================
+  # Build Electron App - Linux
+  # ============================================
+  build-linux:
+    needs: [svn-binaries, logic-engine]
+    runs-on: ubuntu-22.04
+    if: inputs.skip_linux != 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.0'
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: bun-deps-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download SVN binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: svn-linux-x64
+          path: binaries/linux-x64
+
+      - name: Download Logic Engine
+        uses: actions/download-artifact@v4
+        with:
+          name: shelly-engine-linux-x64
+          path: binaries/linux-x64
+
+      - name: Make binaries executable
+        run: |
+          chmod +x binaries/linux-x64/shelly-engine || true
+          chmod +x binaries/linux-x64/svn/svn || true
+
+      - name: Cache Electron build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            out
+            .cache
+          key: electron-out-linux-x64-${{ hashFiles('src/**/*', 'package.json', 'bun.lock') }}
+          restore-keys: |
+            electron-out-linux-x64-
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Build Electron app
+        run: bunx electron-builder --linux --x64 --config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact (AppImage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-Linux-x64-AppImage
+          path: release/**/*.AppImage
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload artifact (deb)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-Linux-x64-deb
+          path: release/**/*.deb
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload artifact (tar.gz)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShellySVN-Linux-x64-tarball
+          path: release/**/*.tar.gz
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ============================================
+  # Release (only on tags or manual dispatch)
+  # ============================================
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.create_release == 'true'
+    # build-linux may be skipped, so we use always() to check
+    continue-on-error: true
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: List artifacts
+        run: find artifacts -type f -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.tar.gz" | head -50
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ShellySVN v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## ShellySVN v${{ steps.get_version.outputs.VERSION }}
+
+            ### Downloads
+
+            #### Windows
+            - `ShellySVN-Setup-x.x.x.exe` - Windows installer (x64)
+
+            #### macOS
+            - `ShellySVN-x.x.x-x64.dmg` - macOS Intel
+            - `ShellySVN-x.x.x-arm64.dmg` - macOS Apple Silicon (M1/M2/M3)
+
+            #### Linux
+            - `ShellySVN-x.x.x-x64.AppImage` - Universal Linux binary
+            - `ShellySVN-x.x.x-amd64.deb` - Debian/Ubuntu package
+            - `ShellySVN-x.x.x.tar.gz` - Portable tarball
+
+            ### System Requirements
+            - **Windows**: Windows 10/11 (64-bit)
+            - **macOS**: macOS 10.15 (Catalina) or later
+            - **Linux**: glibc 2.17+ (Ubuntu 18.04+, Debian 10+, etc.)
+
+            ### What's Changed
+            See [commit history](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details.
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.exe
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
+            artifacts/**/*.tar.gz
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
