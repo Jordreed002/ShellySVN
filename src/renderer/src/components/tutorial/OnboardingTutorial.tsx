@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useOnboarding, useFirstLaunch } from './useOnboarding'
 import { TUTORIAL_STEPS } from './tutorialSteps'
@@ -21,6 +21,8 @@ export function OnboardingTutorial({ onComplete, onSkip, forceShow = false }: On
   const isFirstLaunch = useFirstLaunch()
   const [isVisible, setIsVisible] = useState(false)
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const previousActiveElement = useRef<HTMLElement | null>(null)
 
   // Determine if tutorial should be shown
   useEffect(() => {
@@ -35,6 +37,22 @@ export function OnboardingTutorial({ onComplete, onSkip, forceShow = false }: On
       setCurrentStepIndex(onboardingState.currentStep || 0)
     }
   }, [isLoading, isFirstLaunch, onboardingState, forceShow])
+
+  // Focus management: trap focus in modal and restore on close
+  useEffect(() => {
+    if (isVisible) {
+      // Store the currently focused element to restore later
+      previousActiveElement.current = document.activeElement as HTMLElement
+
+      // Focus the modal container
+      setTimeout(() => {
+        modalRef.current?.focus()
+      }, 0)
+    } else {
+      // Restore focus when modal closes
+      previousActiveElement.current?.focus()
+    }
+  }, [isVisible])
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -129,8 +147,15 @@ export function OnboardingTutorial({ onComplete, onSkip, forceShow = false }: On
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-2xl mx-4 bg-bg-secondary border border-border rounded-xl shadow-dropdown animate-scale-in overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" role="presentation">
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-2xl mx-4 bg-bg-secondary border border-border rounded-xl shadow-dropdown animate-scale-in overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tutorial-title"
+        tabIndex={-1}
+      >
         {/* Header with close button */}
         <div className="absolute top-4 right-4">
           <button
@@ -147,8 +172,18 @@ export function OnboardingTutorial({ onComplete, onSkip, forceShow = false }: On
           <div
             className="h-full bg-accent transition-all duration-300"
             style={{ width: `${((currentStepIndex + 1) / totalSteps) * 100}%` }}
+            role="progressbar"
+            aria-valuenow={currentStepIndex + 1}
+            aria-valuemin={1}
+            aria-valuemax={totalSteps}
+            aria-label={`Step ${currentStepIndex + 1} of ${totalSteps}: ${currentStep.title}`}
           />
         </div>
+
+        {/* Screen reader title */}
+        <h2 id="tutorial-title" className="sr-only">
+          Tutorial: {currentStep.title} - Step {currentStepIndex + 1} of {totalSteps}
+        </h2>
 
         {/* Step content */}
         <div className="p-8">

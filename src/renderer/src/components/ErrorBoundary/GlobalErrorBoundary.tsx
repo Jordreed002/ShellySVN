@@ -183,6 +183,7 @@ interface GlobalErrorBoundaryState {
  */
 export class GlobalErrorBoundary extends Component<GlobalErrorBoundaryProps, GlobalErrorBoundaryState> {
   private retryTimeoutId: ReturnType<typeof setTimeout> | null = null
+  private copyTimeoutId: ReturnType<typeof setTimeout> | null = null
 
   constructor(props: GlobalErrorBoundaryProps) {
     super(props)
@@ -220,6 +221,9 @@ export class GlobalErrorBoundary extends Component<GlobalErrorBoundaryProps, Glo
     if (this.retryTimeoutId) {
       clearTimeout(this.retryTimeoutId)
     }
+    if (this.copyTimeoutId) {
+      clearTimeout(this.copyTimeoutId)
+    }
   }
 
   /**
@@ -247,17 +251,23 @@ export class GlobalErrorBoundary extends Component<GlobalErrorBoundaryProps, Glo
       this.retryTimeoutId = setTimeout(resolve, delay)
     })
 
-    this.setState((prev) => ({
-      retryCount: prev.retryCount + 1,
+    // Increment retry count and reset error state in a single update
+    // This prevents infinite loops if the same error occurs immediately after reset
+    const newRetryCount = retryCount + 1
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      classifiedError: null,
+      retryCount: newRetryCount,
       isRetrying: false
-    }))
+    })
 
     this.props.onRetry?.()
-    this.resetErrorBoundary()
   }
 
   /**
-   * Reset the error boundary state
+   * Reset the error boundary state completely (including retry count)
    */
   resetErrorBoundary = (): void => {
     this.setState({
@@ -287,9 +297,14 @@ export class GlobalErrorBoundary extends Component<GlobalErrorBoundaryProps, Glo
       .filter(Boolean)
       .join('\n\n')
 
-    await navigator.clipboard.writeText(text)
-    this.setState({ copied: true })
-    setTimeout(() => this.setState({ copied: false }), 2000)
+    try {
+      await navigator.clipboard.writeText(text)
+      this.setState({ copied: true })
+      this.copyTimeoutId = setTimeout(() => this.setState({ copied: false }), 2000)
+    } catch {
+      // Clipboard API not available or permission denied
+      console.warn('Failed to copy error details to clipboard')
+    }
   }
 
   /**
@@ -312,7 +327,11 @@ export class GlobalErrorBoundary extends Component<GlobalErrorBoundaryProps, Glo
       const canRetry = classifiedError?.retryable && retryCount < maxRetries
 
       return (
-        <div className="fixed inset-0 bg-bg flex items-center justify-center p-8 z-[9999]">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed inset-0 bg-bg flex items-center justify-center p-8 z-[9999]"
+        >
           <div className="max-w-2xl w-full">
             {/* Error icon and title */}
             <div className="flex flex-col items-center text-center mb-8">

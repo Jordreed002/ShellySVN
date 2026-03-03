@@ -226,6 +226,9 @@ export function withErrorBoundary<P extends object>(
  * Hook to create an error boundary reset handler
  * This can be useful for programmatically resetting error boundaries
  *
+ * Note: This hook requires ErrorBoundaryContext to be available.
+ * Wrap your app with ErrorBoundaryContext.Provider to use this hook.
+ *
  * @example
  * ```tsx
  * function MyComponent() {
@@ -241,12 +244,31 @@ export function withErrorBoundary<P extends object>(
  * }
  * ```
  */
+
+import { createContext, useContext } from 'react'
+
+interface ErrorBoundaryContextValue {
+  resetErrorBoundary: () => void
+}
+
+const ErrorBoundaryContext = createContext<ErrorBoundaryContextValue | null>(null)
+
+export const ErrorBoundaryProvider = ErrorBoundaryContext.Provider
+
 export function useErrorBoundaryReset(): () => void {
-  // This is a placeholder - in a real implementation you'd use context
-  // to communicate with the nearest error boundary
-  return () => {
-    console.warn('useErrorBoundaryReset: No error boundary context found')
+  const context = useContext(ErrorBoundaryContext)
+  if (!context) {
+    // Return a no-op function with a warning instead of throwing
+    // This prevents crashes if the hook is used outside the provider
+    if (import.meta.env.DEV) {
+      console.warn(
+        'useErrorBoundaryReset: No ErrorBoundaryContext found. ' +
+        'Wrap your component tree with ErrorBoundaryProvider to use this hook.'
+      )
+    }
+    return () => {}
   }
+  return context.resetErrorBoundary
 }
 
 /**

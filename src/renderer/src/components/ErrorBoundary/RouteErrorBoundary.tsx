@@ -17,6 +17,7 @@ import { Component, type ReactNode, type ErrorInfo } from 'react'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import {
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   ArrowLeft,
   Home,
@@ -237,6 +238,7 @@ class RouteErrorBoundaryInner extends Component<
   RouteErrorBoundaryState
 > {
   private retryTimeoutId: ReturnType<typeof setTimeout> | null = null
+  private copyTimeoutId: ReturnType<typeof setTimeout> | null = null
 
   constructor(props: RouteErrorBoundaryInner['props']) {
     super(props)
@@ -276,6 +278,9 @@ class RouteErrorBoundaryInner extends Component<
     if (this.retryTimeoutId) {
       clearTimeout(this.retryTimeoutId)
     }
+    if (this.copyTimeoutId) {
+      clearTimeout(this.copyTimeoutId)
+    }
   }
 
   handleRetry = async (): Promise<void> => {
@@ -295,13 +300,19 @@ class RouteErrorBoundaryInner extends Component<
       this.retryTimeoutId = setTimeout(resolve, delay)
     })
 
-    this.setState((prev) => ({
-      retryCount: prev.retryCount + 1,
+    // Increment retry count first, then reset error state (preserving retry count)
+    // This prevents infinite loops if the same error occurs immediately after reset
+    const newRetryCount = retryCount + 1
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      classifiedError: null,
+      retryCount: newRetryCount,
       isRetrying: false
-    }))
+    })
 
     this.props.onRetry()
-    this.resetErrorBoundary()
   }
 
   resetErrorBoundary = (): void => {
@@ -328,9 +339,14 @@ class RouteErrorBoundaryInner extends Component<
       .filter(Boolean)
       .join('\n\n')
 
-    await navigator.clipboard.writeText(text)
-    this.setState({ copied: true })
-    setTimeout(() => this.setState({ copied: false }), 2000)
+    try {
+      await navigator.clipboard.writeText(text)
+      this.setState({ copied: true })
+      this.copyTimeoutId = setTimeout(() => this.setState({ copied: false }), 2000)
+    } catch {
+      // Clipboard API not available or permission denied
+      console.warn('Failed to copy error details to clipboard')
+    }
   }
 
   render(): ReactNode {
@@ -355,11 +371,15 @@ class RouteErrorBoundaryInner extends Component<
       const iconMap = {
         error: <AlertCircle className="w-12 h-12 text-error" />,
         'not-found': <FileQuestion className="w-12 h-12 text-text-muted" />,
-        warning: <AlertCircle className="w-12 h-12 text-warning" />
+        warning: <AlertTriangle className="w-12 h-12 text-warning" />
       }
 
       return (
-        <div className="flex flex-col items-center justify-center p-8 min-h-[400px]">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="flex flex-col items-center justify-center p-8 min-h-[400px]"
+        >
           {/* Error icon */}
           <div className="w-16 h-16 rounded-full bg-surface-elevated flex items-center justify-center mb-6">
             {classifiedError ? iconMap[classifiedError.icon] : iconMap.error}

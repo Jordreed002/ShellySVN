@@ -1,7 +1,7 @@
-import { CheckCircle, Rocket, Settings, BookOpen, ExternalLink } from 'lucide-react'
+import { CheckCircle, Rocket, Settings, BookOpen } from 'lucide-react'
 import type { TutorialStepProps } from './types'
 
-export function CompleteStep({ onPrevious, isFirstStep, isLastStep, currentStep, totalSteps }: TutorialStepProps) {
+export function CompleteStep({ onNext, onPrevious, currentStep, totalSteps }: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-4">
@@ -74,9 +74,7 @@ export function CompleteStep({ onPrevious, isFirstStep, isLastStep, currentStep,
             Review Tutorial
           </button>
           <button
-            onClick={() => {
-              // The parent component will handle completion
-            }}
+            onClick={onNext}
             className="btn btn-primary"
             data-testid="complete-tutorial-btn"
           >
