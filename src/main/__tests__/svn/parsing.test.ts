@@ -3,467 +3,17 @@
  *
  * These tests verify that the XML parsing logic correctly handles
  * various SVN command outputs, including edge cases and malformed input.
+ *
+ * Tests the actual exported parsing functions from svn.ts for real coverage.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
-import { XMLParser } from 'fast-xml-parser'
-
-// Helper to access private parsing functions via module
-// We'll re-implement the parsing logic here for isolated testing
-
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-  textNodeName: '#text',
-  parseAttributeValue: true,
-  trimValues: true,
-  parseTagValue: false,
-  allowBooleanAttributes: true
-})
-
-// Re-implement parsing functions for isolated testing
-// These match the implementation in src/main/ipc/svn.ts
-
-interface SvnStatusEntry {
-  path: string
-  status: string
-  revision?: number
-  author?: string
-  date?: string
-  isDirectory: boolean
-}
-
-interface SvnStatusResult {
-  path: string
-  entries: SvnStatusEntry[]
-  revision: number
-}
-
-function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
-  const entries: SvnStatusResult['entries'] = []
-
-  try {
-    const parsed = xmlParser.parse(xml) as {
-      status?: {
-        target?: {
-          '@_path'?: string
-          entry?: Array<{
-            '@_path': string
-            'wc-status'?: {
-              '@_item': string
-              '@_revision'?: string
-              commit?: {
-                '@_revision': string
-                author?: string
-                date?: string
-              }
-            }
-          }> | {
-            '@_path': string
-            'wc-status'?: {
-              '@_item': string
-              '@_revision'?: string
-              commit?: {
-                '@_revision': string
-                author?: string
-                date?: string
-              }
-            }
-          }
-        }
-      }
-    }
-
-    const target = parsed.status?.target
-    if (!target) {
-      return { path: basePath, entries: [], revision: 0 }
-    }
-
-    const entryList = target.entry
-    if (!entryList) {
-      return { path: basePath, entries: [], revision: 0 }
-    }
-
-    const entriesArray = Array.isArray(entryList) ? entryList : [entryList]
-
-    for (const entry of entriesArray) {
-      if (!entry || typeof entry !== 'object') continue
-
-      const wcStatus = entry['wc-status']
-      if (!wcStatus) continue
-
-      const path = entry['@_path'] || ''
-      const status = wcStatus['@_item'] || 'normal'
-
-      let revision: number | undefined
-      let author: string | undefined
-      let date: string | undefined
-
-      if (wcStatus.commit) {
-        revision = wcStatus.commit['@_revision'] ? parseInt(wcStatus.commit['@_revision'], 10) : undefined
-        author = wcStatus.commit.author
-        date = wcStatus.commit.date
-      }
-
-      entries.push({
-        path,
-        status: status as SvnStatusResult['entries'][0]['status'],
-        revision,
-        author,
-        date,
-        isDirectory: false
-      })
-    }
-  } catch (error) {
-    // Return empty result on parse error
-  }
-
-  return {
-    path: basePath,
-    entries,
-    revision: 0
-  }
-}
-
-interface SvnInfoResult {
-  path: string
-  url: string
-  repositoryRoot: string
-  repositoryUuid: string
-  revision: number
-  nodeKind: 'file' | 'dir'
-  lastChangedAuthor: string
-  lastChangedRevision: number
-  lastChangedDate: string
-  workingCopyRoot?: string
-}
-
-function parseSvnInfoXml(xml: string): SvnInfoResult {
-  try {
-    const parsed = xmlParser.parse(xml) as {
-      info?: {
-        entry?: {
-          '@_path'?: string
-          '@_revision'?: string
-          url?: string
-          repository?: {
-            root?: string
-            uuid?: string
-          }
-          commit?: {
-            '@_revision'?: string
-            author?: string
-            date?: string
-          }
-          'wcroot-abspath'?: string
-        }
-      }
-    }
-
-    const entry = parsed.info?.entry
-    if (!entry) {
-      return {
-        path: '',
-        url: '',
-        repositoryRoot: '',
-        repositoryUuid: '',
-        revision: 0,
-        nodeKind: 'dir',
-        lastChangedAuthor: '',
-        lastChangedRevision: 0,
-        lastChangedDate: '',
-        workingCopyRoot: undefined
-      }
-    }
-
-    const revision = entry['@_revision'] ? parseInt(entry['@_revision'], 10) : 0
-    const commitRevision = entry.commit?.['@_revision'] ? parseInt(entry.commit['@_revision'], 10) : 0
-
-    return {
-      path: entry['@_path'] || '',
-      url: entry.url || '',
-      repositoryRoot: entry.repository?.root || '',
-      repositoryUuid: entry.repository?.uuid || '',
-      revision,
-      nodeKind: 'dir',
-      lastChangedAuthor: entry.commit?.author || '',
-      lastChangedRevision: commitRevision,
-      lastChangedDate: entry.commit?.date || '',
-      workingCopyRoot: entry['wcroot-abspath'] || undefined
-    }
-  } catch (error) {
-    return {
-      path: '',
-      url: '',
-      repositoryRoot: '',
-      repositoryUuid: '',
-      revision: 0,
-      nodeKind: 'dir',
-      lastChangedAuthor: '',
-      lastChangedRevision: 0,
-      lastChangedDate: ''
-    }
-  }
-}
-
-interface SvnLogEntry {
-  revision: number
-  author: string
-  date: string
-  message: string
-  paths: Array<{ path: string; action: 'A' | 'D' | 'M' | 'R'; kind: string }>
-}
-
-interface SvnLogResult {
-  entries: SvnLogEntry[]
-  startRevision: number
-  endRevision: number
-}
-
-function parseSvnLogXml(xml: string): SvnLogResult {
-  const entries: SvnLogResult['entries'] = []
-
-  try {
-    const parsed = xmlParser.parse(xml) as {
-      log?: {
-        logentry?: Array<{
-          '@_revision': string
-          author?: string
-          date?: string
-          msg?: string
-          paths?: {
-            path?: Array<{
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }> | {
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }
-          }
-        }> | {
-          '@_revision': string
-          author?: string
-          date?: string
-          msg?: string
-          paths?: {
-            path?: Array<{
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }> | {
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }
-          }
-        }
-      }
-    }
-
-    const logEntries = parsed.log?.logentry
-    if (!logEntries) {
-      return { entries: [], startRevision: 0, endRevision: 0 }
-    }
-
-    const entriesArray = Array.isArray(logEntries) ? logEntries : [logEntries]
-
-    for (const entry of entriesArray) {
-      if (!entry || typeof entry !== 'object') continue
-
-      const paths: Array<{ path: string; action: 'A' | 'D' | 'M' | 'R'; kind: string }> = []
-      if (entry.paths?.path) {
-        const pathList = Array.isArray(entry.paths.path) ? entry.paths.path : [entry.paths.path]
-        for (const p of pathList) {
-          if (p && typeof p === 'object') {
-            paths.push({
-              path: p['#text'] || '',
-              action: (p['@_action'] || '') as 'A' | 'D' | 'M' | 'R',
-              kind: p['@_kind'] || ''
-            })
-          }
-        }
-      }
-
-      entries.push({
-        revision: parseInt(entry['@_revision'], 10) || 0,
-        author: entry.author || 'unknown',
-        date: entry.date || '',
-        message: entry.msg || '',
-        paths
-      })
-    }
-  } catch (error) {
-    // Return empty result on parse error
-  }
-
-  const revisions = entries.map(e => e.revision)
-
-  return {
-    entries,
-    startRevision: revisions.length > 0 ? Math.min(...revisions) : 0,
-    endRevision: revisions.length > 0 ? Math.max(...revisions) : 0
-  }
-}
-
-interface SvnDiffLine {
-  type: 'added' | 'removed' | 'context' | 'header' | 'hunk'
-  content: string
-  oldLineNumber?: number
-  newLineNumber?: number
-}
-
-interface SvnDiffHunk {
-  oldStart: number
-  oldLines: number
-  newStart: number
-  newLines: number
-  lines: SvnDiffLine[]
-}
-
-interface SvnDiffFile {
-  oldPath: string
-  newPath: string
-  hunks: SvnDiffHunk[]
-  isBinary?: boolean
-}
-
-interface SvnDiffResult {
-  files: SvnDiffFile[]
-  hasChanges: boolean
-  isBinary?: boolean
-  rawDiff?: string
-}
-
-function parseSvnDiff(diffOutput: string): SvnDiffResult {
-  if (!diffOutput || diffOutput.trim() === '') {
-    return { files: [], hasChanges: false }
-  }
-
-  if (diffOutput.includes('Cannot display: file marked as a binary type')) {
-    return {
-      files: [],
-      hasChanges: true,
-      isBinary: true,
-      rawDiff: diffOutput
-    }
-  }
-
-  const files: SvnDiffFile[] = []
-  const lines = diffOutput.split('\n')
-
-  let currentFile: SvnDiffFile | null = null
-  let currentHunk: SvnDiffHunk | null = null
-  let oldLineNum = 0
-  let newLineNum = 0
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-
-    if (line.startsWith('Index: ')) {
-      if (currentFile && currentHunk) {
-        currentFile.hunks.push(currentHunk)
-      }
-      if (currentFile) {
-        files.push(currentFile)
-      }
-      currentFile = {
-        oldPath: '',
-        newPath: '',
-        hunks: []
-      }
-      currentHunk = null
-      continue
-    }
-
-    if (line.startsWith('=======')) {
-      continue
-    }
-
-    if (line.startsWith('--- ')) {
-      if (currentFile) {
-        currentFile.oldPath = line.substring(4).trim()
-      }
-      continue
-    }
-
-    if (line.startsWith('+++ ')) {
-      if (currentFile) {
-        currentFile.newPath = line.substring(4).trim()
-      }
-      continue
-    }
-
-    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
-    if (hunkMatch) {
-      if (currentHunk && currentFile) {
-        currentFile.hunks.push(currentHunk)
-      }
-      currentHunk = {
-        oldStart: parseInt(hunkMatch[1], 10),
-        oldLines: hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1,
-        newStart: parseInt(hunkMatch[3], 10),
-        newLines: hunkMatch[4] ? parseInt(hunkMatch[4], 10) : 1,
-        lines: []
-      }
-      oldLineNum = currentHunk.oldStart
-      newLineNum = currentHunk.newStart
-
-      currentHunk.lines.push({
-        type: 'hunk',
-        content: line
-      })
-      continue
-    }
-
-    if (currentHunk) {
-      if (line.startsWith('+')) {
-        currentHunk.lines.push({
-          type: 'added',
-          content: line,
-          newLineNumber: newLineNum++
-        })
-      } else if (line.startsWith('-')) {
-        currentHunk.lines.push({
-          type: 'removed',
-          content: line,
-          oldLineNumber: oldLineNum++
-        })
-      } else if (line.startsWith(' ')) {
-        currentHunk.lines.push({
-          type: 'context',
-          content: line,
-          oldLineNumber: oldLineNum++,
-          newLineNumber: newLineNum++
-        })
-      } else if (line === '') {
-        currentHunk.lines.push({
-          type: 'context',
-          content: '',
-          oldLineNumber: oldLineNum++,
-          newLineNumber: newLineNum++
-        })
-      }
-    }
-  }
-
-  if (currentHunk && currentFile) {
-    currentFile.hunks.push(currentHunk)
-  }
-  if (currentFile) {
-    files.push(currentFile)
-  }
-
-  return {
-    files,
-    hasChanges: files.length > 0
-  }
-}
-
-// ============================================
-// Test Suite
-// ============================================
+import { describe, it, expect } from 'vitest'
+import {
+  parseSvnStatusXml,
+  parseSvnInfoXml,
+  parseSvnLogXml,
+  parseSvnDiff
+} from '@main/ipc/svn'
 
 describe('SVN Status XML Parser', () => {
   describe('parseSvnStatusXml', () => {
@@ -605,6 +155,34 @@ describe('SVN Status XML Parser', () => {
 
       expect(result.entries).toHaveLength(1)
       expect(result.entries[0].status).toBe('conflicted')
+    })
+
+    it('should parse locked files', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<status>
+  <target path=".">
+    <entry path="locked.txt">
+      <wc-status item="modified">
+        <commit revision="1234">
+          <author>owner</author>
+          <date>2024-01-15T10:30:00.000000Z</date>
+        </commit>
+        <lock>
+          <owner>lockowner</owner>
+          <comment>Lock comment</comment>
+          <creationdate>2024-01-15T10:30:00.000000Z</creationdate>
+        </lock>
+      </wc-status>
+    </entry>
+  </target>
+</status>`
+
+      const result = parseSvnStatusXml(xml, '/test/path')
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.entries[0].lock).toBeDefined()
+      expect(result.entries[0].lock?.owner).toBe('lockowner')
+      expect(result.entries[0].lock?.comment).toBe('Lock comment')
     })
   })
 })
