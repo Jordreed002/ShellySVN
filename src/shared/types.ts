@@ -332,6 +332,10 @@ export interface AppSettings {
   svnConfigPath: string
   logCachePath: string
   maxLogCacheSize: number // MB
+
+  // Tutorial
+  hasCompletedTutorial: boolean
+  tutorialStep: number // Current step for resume capability
 }
 
 // ============================================

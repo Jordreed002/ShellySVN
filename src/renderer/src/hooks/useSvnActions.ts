@@ -295,6 +295,35 @@ export function useSvnActions() {
   }
 }
 
+/**
+ * Hook for lock management dialog state
+ */
+export function useLockManagement() {
+  const [lockDialogOpen, setLockDialogOpen] = useState(false)
+  const [lockDialogPath, setLockDialogPath] = useState<string | undefined>()
+  const [selectedLockPath, setSelectedLockPath] = useState<string | undefined>()
+
+  const openLockDialog = useCallback((workingCopyPath: string, selectedPath?: string) => {
+    setLockDialogPath(workingCopyPath)
+    setSelectedLockPath(selectedPath)
+    setLockDialogOpen(true)
+  }, [])
+
+  const closeLockDialog = useCallback(() => {
+    setLockDialogOpen(false)
+    setLockDialogPath(undefined)
+    setSelectedLockPath(undefined)
+  }, [])
+
+  return {
+    lockDialogOpen,
+    lockDialogPath,
+    selectedLockPath,
+    openLockDialog,
+    closeLockDialog
+  }
+}
+
 // Hook specifically for file explorer actions
 export function useFileExplorerActions(
   currentPath: string,
@@ -305,7 +334,8 @@ export function useFileExplorerActions(
   const svnActions = useSvnActions()
   const [commitDialogOpen, setCommitDialogOpen] = useState(false)
   const [commitPaths, setCommitPaths] = useState<string[]>([])
-  
+  const lockManagement = useLockManagement()
+
   // Get all selected paths as array
   const getSelectedPaths = useCallback(() => {
     if (selectedPaths && selectedPaths.size > 0) {
@@ -419,7 +449,13 @@ export function useFileExplorerActions(
       onRefresh()
     }
   }, [getSelectedPaths, svnActions, onRefresh])
-  
+
+  // Manage locks - opens the lock management dialog
+  const handleManageLocks = useCallback((entry?: SvnStatusEntry) => {
+    const path = entry?.path || selectedEntry?.path
+    lockManagement.openLockDialog(currentPath, path)
+  }, [currentPath, selectedEntry, lockManagement])
+
   // Submit commit
   const handleSubmitCommit = useCallback(async (paths: string[], message: string) => {
     const result = await svnActions.commit(paths, message)
@@ -429,7 +465,7 @@ export function useFileExplorerActions(
     }
     return result
   }, [svnActions, onRefresh])
-  
+
   return {
     // Actions
     handleUpdate,
@@ -441,13 +477,20 @@ export function useFileExplorerActions(
     handleLockSelected,
     handleUnlockSelected,
     handleResolveSelected,
-    
+    handleManageLocks,
+
     // Commit dialog
     commitDialogOpen,
     commitPaths,
     closeCommitDialog: () => setCommitDialogOpen(false),
     handleSubmitCommit,
-    
+
+    // Lock management dialog
+    lockDialogOpen: lockManagement.lockDialogOpen,
+    lockDialogPath: lockManagement.lockDialogPath,
+    selectedLockPath: lockManagement.selectedLockPath,
+    closeLockDialog: lockManagement.closeLockDialog,
+
     // State
     isUpdating: svnActions.isUpdating,
     lastError: svnActions.lastError,

@@ -85,7 +85,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   logLevel: 'info',
   svnConfigPath: '',
   logCachePath: '',
-  maxLogCacheSize: 100
+  maxLogCacheSize: 100,
+  hasCompletedTutorial: false,
+  tutorialStep: 0
 }
 
 /**
