@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar'
 import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog'
 import { CommandPalette } from './ui/CommandPalette'
 import { StatusBar } from './ui/StatusBar'
+import { OnboardingTutorial, useOnboarding } from './tutorial'
 import { useSettings } from '../hooks/useSettings'
 import { useVisualSettings } from '../hooks/useVisualSettings'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
@@ -16,7 +17,9 @@ export function Layout({ children }: LayoutProps) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
+  const [forceShowTutorial, setForceShowTutorial] = useState(false)
   const { settings } = useSettings()
+  const { resetTutorial } = useOnboarding()
   const navigate = useNavigate()
 
   const isMac = navigator.platform.toLowerCase().includes('mac')
@@ -26,6 +29,17 @@ export function Layout({ children }: LayoutProps) {
   const currentPath = (routerState.location.search as any)?.path as string | undefined
 
   useVisualSettings(settings)
+
+  // Listen for tutorial restart event from Settings
+  useEffect(() => {
+    const handleTutorialRestart = async () => {
+      await resetTutorial()
+      setForceShowTutorial(true)
+    }
+
+    window.addEventListener('tutorial:restart', handleTutorialRestart)
+    return () => window.removeEventListener('tutorial:restart', handleTutorialRestart)
+  }, [resetTutorial])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -124,6 +138,13 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Modals */}
       <KeyboardShortcutsDialog isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+
+      {/* Onboarding Tutorial */}
+      <OnboardingTutorial
+        forceShow={forceShowTutorial}
+        onComplete={() => setForceShowTutorial(false)}
+        onSkip={() => setForceShowTutorial(false)}
+      />
 
       <CommandPalette
         isOpen={showCommandPalette}

@@ -22,7 +22,9 @@ import {
   Loader2,
   Clock,
   Shield,
-  Volume2
+  Volume2,
+  Sparkles,
+  Play
 } from 'lucide-react'
 import type { AppSettings, LogLevel, FontSize, StartupAction, WorkingCopyFormat, AuthListEntry } from '@shared/types'
 import { useSettings } from '../../hooks/useSettings'
@@ -497,6 +499,25 @@ function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
             Confirm on destructive operations (revert, delete, etc.)
           </span>
         </label>
+      </SettingsGroup>
+
+      {/* Tutorial */}
+      <SettingsGroup title="Tutorial" description="Onboarding and help">
+        <div className="space-y-3">
+          <p className="text-sm text-text-secondary">
+            Learn how to use ShellySVN effectively with our interactive tutorial.
+          </p>
+          <button
+            onClick={() => {
+              // This will be handled by parent component
+              window.dispatchEvent(new CustomEvent('tutorial:restart'))
+            }}
+            className="btn btn-secondary gap-2"
+          >
+            <Play className="w-4 h-4" />
+            Restart Tutorial
+          </button>
+        </div>
       </SettingsGroup>
     </div>
   )
