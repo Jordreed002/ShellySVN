@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { ChevronRight, ChevronDown, Folder, FolderOpen, File, RefreshCw, ChevronsDown, ChevronsUp } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { FileInfo, SvnStatusChar } from '@shared/types'
@@ -28,6 +28,10 @@ interface FileTreeViewProps {
   onExpandChange?: (path: string, isExpanded: boolean) => void
   onRefresh?: () => void
   maxHeight?: number
+  /** Accessibility label for the tree */
+  ariaLabel?: string
+  /** ID of element that labels this tree */
+  ariaLabelledby?: string
 }
 
 export function FileTreeView({
@@ -40,11 +44,14 @@ export function FileTreeView({
   expandAll = false,
   onExpandChange,
   onRefresh,
-  maxHeight = 600
+  maxHeight = 600,
+  ariaLabel = 'File tree',
+  ariaLabelledby
 }: FileTreeViewProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
   const parentRef = useRef<HTMLDivElement>(null)
+  const focusedItemRef = useRef<HTMLDivElement>(null)
 
   // Build tree structure from flat file list
   const tree = useMemo(() => {
@@ -235,21 +242,25 @@ export function FileTreeView({
   }, [focusedPath, visibleItems, expandedPaths, toggleExpand, handleClick])
 
   // Render tree item
-  const renderTreeItem = (node: TreeNode, _index: number) => {
+  const renderTreeItem = (node: TreeNode, index: number) => {
     const isExpanded = expandedPaths.has(node.path)
     const isSelected = selectedPaths.has(node.path)
     const isFocused = focusedPath === node.path
+    const statusLabel = node.svnStatus && node.svnStatus !== ' '
+      ? getStatusLabel(node.svnStatus)
+      : undefined
 
     return (
       <div
         key={node.path}
+        ref={isFocused ? focusedItemRef : null}
         className={`
           flex items-center gap-1 py-1 px-2 cursor-pointer select-none
           transition-colors duration-75
           ${isSelected ? 'bg-accent/20' : 'hover:bg-bg-elevated'}
           ${isFocused ? 'bg-accent/10 ring-1 ring-accent/50' : ''}
         `}
-        style={{ 
+        style={{
           paddingLeft: `${node.depth * 16 + 8}px`,
           height: '28px'
         }}
@@ -258,6 +269,11 @@ export function FileTreeView({
         role="treeitem"
         aria-selected={isSelected}
         aria-expanded={node.isDirectory ? isExpanded : undefined}
+        aria-level={node.depth + 1}
+        aria-setsize={visibleItems.length}
+        aria-posinset={index + 1}
+        tabIndex={isFocused ? 0 : -1}
+        aria-label={statusLabel ? `${node.name}, ${statusLabel}` : node.name}
       >
         {/* Expand/collapse toggle */}
         {node.isDirectory ? (
@@ -267,26 +283,28 @@ export function FileTreeView({
               toggleExpand(node.path)
             }}
             className="w-4 h-4 flex items-center justify-center flex-shrink-0 hover:bg-bg-elevated rounded"
+            aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
+            tabIndex={-1}
           >
             {isExpanded ? (
-              <ChevronDown className="w-3 h-3 text-text-muted" />
+              <ChevronDown className="w-3 h-3 text-text-muted" aria-hidden="true" />
             ) : (
-              <ChevronRight className="w-3 h-3 text-text-muted" />
+              <ChevronRight className="w-3 h-3 text-text-muted" aria-hidden="true" />
             )}
           </button>
         ) : (
-          <span className="w-4" />
+          <span className="w-4" aria-hidden="true" />
         )}
 
         {/* Icon */}
         {node.isDirectory ? (
           isExpanded ? (
-            <FolderOpen className="w-4 h-4 text-accent flex-shrink-0" />
+            <FolderOpen className="w-4 h-4 text-accent flex-shrink-0" aria-hidden="true" />
           ) : (
-            <Folder className="w-4 h-4 text-accent flex-shrink-0" />
+            <Folder className="w-4 h-4 text-accent flex-shrink-0" aria-hidden="true" />
           )
         ) : (
-          <File className="w-4 h-4 text-text-muted flex-shrink-0" />
+          <File className="w-4 h-4 text-text-muted flex-shrink-0" aria-hidden="true" />
         )}
 
         {/* Name */}
@@ -296,41 +314,81 @@ export function FileTreeView({
 
         {/* Status */}
         {showStatus && node.svnStatus && node.svnStatus !== ' ' && (
-          <StatusDot status={node.svnStatus} />
+          <StatusDot status={node.svnStatus} aria-label={statusLabel} />
         )}
       </div>
     )
   }
 
+  // Get status label for screen readers
+  function getStatusLabel(status: SvnStatusChar): string | undefined {
+    const labels: Record<SvnStatusChar, string> = {
+      ' ': 'Normal',
+      'A': 'Added',
+      'C': 'Conflicted',
+      'D': 'Deleted',
+      'I': 'Ignored',
+      'M': 'Modified',
+      'R': 'Replaced',
+      'X': 'External',
+      '?': 'Unversioned',
+      '!': 'Missing',
+      '~': 'Obstructed'
+    }
+    return labels[status]
+  }
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (focusedItemRef.current) {
+      focusedItemRef.current.scrollIntoView({ block: 'nearest' })
+    }
+  }, [focusedPath])
+
+  // Focus the tree container when focusedPath changes
+  useEffect(() => {
+    if (focusedPath && parentRef.current && document.activeElement !== parentRef.current) {
+      // If a focused item exists but tree doesn't have focus, don't steal focus
+      // Focus will be managed when user interacts with the tree
+    }
+  }, [focusedPath])
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-2 py-1 border-b border-border bg-bg-secondary">
+      <div
+        className="flex items-center gap-2 px-2 py-1 border-b border-border bg-bg-secondary"
+        role="toolbar"
+        aria-label="File tree controls"
+      >
         <button
           onClick={handleExpandAll}
           className="btn-icon-sm"
           title="Expand All"
+          aria-label="Expand all folders"
         >
-          <ChevronsDown className="w-4 h-4" />
+          <ChevronsDown className="w-4 h-4" aria-hidden="true" />
         </button>
         <button
           onClick={handleCollapseAll}
           className="btn-icon-sm"
           title="Collapse All"
+          aria-label="Collapse all folders"
         >
-          <ChevronsUp className="w-4 h-4" />
+          <ChevronsUp className="w-4 h-4" aria-hidden="true" />
         </button>
         {onRefresh && (
           <button
             onClick={onRefresh}
             className="btn-icon-sm"
             title="Refresh"
+            aria-label="Refresh file tree"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
-        <div className="flex-1" />
-        <span className="text-xs text-text-muted">
+        <div className="flex-1" role="presentation" />
+        <span className="text-xs text-text-muted" aria-live="polite" aria-atomic="true">
           {visibleItems.length} items
         </span>
       </div>
@@ -343,9 +401,16 @@ export function FileTreeView({
         role="tree"
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledby}
+        aria-multiselectable={selectedPaths.size > 1}
       >
         {visibleItems.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-text-muted text-sm">
+          <div
+            className="flex items-center justify-center h-full text-text-muted text-sm"
+            role="status"
+            aria-live="polite"
+          >
             No files to display
           </div>
         ) : (
@@ -355,6 +420,7 @@ export function FileTreeView({
               width: '100%',
               position: 'relative'
             }}
+            role="presentation"
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const node = visibleItems[virtualItem.index]
@@ -369,6 +435,7 @@ export function FileTreeView({
                     height: `${virtualItem.size}px`,
                     transform: `translateY(${virtualItem.start}px)`
                   }}
+                  role="presentation"
                 >
                   {renderTreeItem(node, virtualItem.index)}
                 </div>

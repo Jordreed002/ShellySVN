@@ -101,23 +101,26 @@ interface StatusIconProps {
   size?: 'sm' | 'md' | 'lg'
   showLabel?: boolean
   className?: string
+  /** Accessible label (falls back to status label) */
+  ariaLabel?: string
 }
 
-export function StatusIcon({ 
-  status, 
-  size = 'md', 
+export function StatusIcon({
+  status,
+  size = 'md',
   showLabel = false,
-  className = '' 
+  className = '',
+  ariaLabel
 }: StatusIconProps) {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG[' ']
   const Icon = config.icon
-  
+
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-5 h-5',
     lg: 'w-6 h-6'
   }
-  
+
   const containerSizes = {
     sm: 'w-5 h-5',
     md: 'w-6 h-6',
@@ -125,17 +128,22 @@ export function StatusIcon({
   }
 
   return (
-    <div className={`inline-flex items-center gap-1.5 ${className}`}>
-      <div 
+    <div
+      className={`inline-flex items-center gap-1.5 ${className}`}
+      role="img"
+      aria-label={ariaLabel || config.label}
+    >
+      <div
         className={`
-          ${containerSizes[size]} 
-          ${config.bgColor} 
-          rounded 
+          ${containerSizes[size]}
+          ${config.bgColor}
+          rounded
           flex items-center justify-center
           flex-shrink-0
           ${status === 'C' ? 'animate-pulse-subtle' : ''}
         `}
         title={config.label}
+        aria-hidden="true"
       >
         <Icon className={`${sizeClasses[size]} ${config.color}`} />
       </div>
@@ -149,15 +157,18 @@ export function StatusIcon({
 }
 
 // Compact status dot for table columns
-export function StatusDot({ 
-  status, 
-  className = '' 
-}: { 
+export function StatusDot({
+  status,
+  className = '',
+  /** Accessible label (falls back to status label) */
+  ariaLabel
+}: {
   status: SvnStatusChar
-  className?: string 
+  className?: string
+  ariaLabel?: string
 }) {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG[' ']
-  
+
   const dotColors: Record<SvnStatusChar, string> = {
     ' ': 'bg-svn-normal',
     'A': 'bg-svn-added',
@@ -172,40 +183,47 @@ export function StatusDot({
     '~': 'bg-svn-obstructed',
     'O': 'bg-info'
   }
-  
+
   return (
-    <div 
+    <div
       className={`
         w-2.5 h-2.5 rounded-full flex-shrink-0
         ${dotColors[status]}
         ${className}
       `}
+      role="img"
+      aria-label={ariaLabel || config.label}
       title={config.label}
     />
   )
 }
 
 // Status badge for compact display
-export function StatusBadge({ 
+export function StatusBadge({
   status,
-  className = '' 
-}: { 
+  className = '',
+  /** Accessible label (falls back to status label) */
+  ariaLabel
+}: {
   status: SvnStatusChar
-  className?: string 
+  className?: string
+  ariaLabel?: string
 }) {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG[' ']
   const Icon = config.icon
-  
+
   return (
-    <span 
+    <span
       className={`
         inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-medium
         ${config.bgColor} ${config.color}
         ${className}
       `}
+      role="status"
+      aria-label={ariaLabel || config.label}
       title={config.label}
     >
-      <Icon className="w-3 h-3" />
+      <Icon className="w-3 h-3" aria-hidden="true" />
       <span>{config.label}</span>
     </span>
   )

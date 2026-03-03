@@ -14,6 +14,17 @@ export { useReviewMode } from './useReviewMode'
 export type { ReviewItem, ReviewComment, ReviewBundle } from './useReviewMode'
 export { useAccessibility, createAnnouncer, accessibilityStyles } from './useAccessibility'
 export type { AccessibilitySettings } from './useAccessibility'
+export { useFocusTrap, useFocusManagement } from './useFocusTrap'
+export type { FocusTrapOptions } from './useFocusTrap'
+export {
+  useKeyboardNavigation,
+  useTypeAheadNavigation,
+  useRovingTabIndex
+} from './useKeyboardNavigation'
+export type {
+  NavigationDirection,
+  KeyboardNavigationOptions
+} from './useKeyboardNavigation'
 export { useWorkspaceLayouts } from './useWorkspaceLayouts'
 export type { WorkspaceLayout, PanelConfig } from './useWorkspaceLayouts'
 export { useShortcutBindings } from './useShortcutBindings'
