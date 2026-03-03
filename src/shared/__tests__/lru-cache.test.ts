@@ -300,6 +300,33 @@ describe('LRUCache', () => {
 
       arrCache.destroy()
     })
+
+    it('should handle circular references without crashing', () => {
+      const circularObj: { self?: typeof circularObj; data: string } = { data: 'test' }
+      circularObj.self = circularObj
+
+      // Should not throw or cause infinite loop
+      expect(() => cache.set('circular', circularObj)).not.toThrow()
+      expect(cache.has('circular')).toBe(true)
+
+      // Also test array with circular reference
+      const circularArr: unknown[] = [1, 2, 3]
+      circularArr.push(circularArr)
+
+      expect(() => cache.set('circularArr', circularArr)).not.toThrow()
+    })
+
+    it('should handle deeply nested objects', () => {
+      // Create a deeply nested object
+      let deep: Record<string, unknown> = { value: 'bottom' }
+      for (let i = 0; i < 15; i++) {
+        deep = { nested: deep }
+      }
+
+      // Should not throw due to depth limit
+      expect(() => cache.set('deep', deep)).not.toThrow()
+      expect(cache.has('deep')).toBe(true)
+    })
   })
 })
 
