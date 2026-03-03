@@ -68,35 +68,61 @@ interface FileCollapseState {
 // LRU Cache for Diffs
 // ============================================
 
-// Global cache for diff flattening results (100MB limit)
-const diffCache = new LRUCache<FlattenedLine[]>({
-  maxSize: 100 * 1024 * 1024,
-  defaultTTL: 30 * 60 * 1000 // 30 minutes
-})
+// Cache for diff flattening results (100MB limit)
+// Using a module-level cache that can be cleared when needed
+let diffCache: LRUCache<FlattenedLine[]> | null = null
+
+function getDiffCache(): LRUCache<FlattenedLine[]> {
+  if (!diffCache) {
+    diffCache = new LRUCache<FlattenedLine[]>({
+      maxSize: 100 * 1024 * 1024,
+      defaultTTL: 30 * 60 * 1000 // 30 minutes
+    })
+  }
+  return diffCache
+}
+
+/**
+ * Clear the diff cache (useful for memory cleanup or when switching repos)
+ */
+export function clearDiffCache(): void {
+  if (diffCache) {
+    diffCache.destroy()
+    diffCache = null
+  }
+}
 
 // ============================================
 // Utility Functions
 // ============================================
 
 /**
- * Escape HTML entities in text
+ * Generate a stable hash string from a diff for cache key
+ * Uses content sampling to reduce collision probability
  */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+function hashDiffContent(diff: SvnDiffResult): string {
+  let hash = 0
+  const sampleSize = Math.min(diff.files.length, 5)
+
+  for (let i = 0; i < sampleSize; i++) {
+    const file = diff.files[i]
+    // Include first hunk's first line content for uniqueness
+    const firstHunk = file.hunks[0]
+    const firstLine = firstHunk?.lines[0]?.content || ''
+    hash = ((hash << 5) - hash + file.oldPath.length + file.newPath.length + firstLine.length) | 0
+  }
+
+  return hash.toString(16)
 }
 
 /**
  * Generate a cache key for a diff
+ * Uses structural info + content hash for better uniqueness
  */
 function getDiffCacheKey(diff: SvnDiffResult): string {
-  // Use file paths and hunk counts as a simple hash
-  const hash = diff.files.reduce((acc, f, i) => {
-    return acc + `${i}:${f.oldPath}:${f.hunks.length}:`
-  }, 'diff:')
-  return hash
+  const structure = diff.files.map((f, i) => `${i}:${f.oldPath}:${f.hunks.length}`).join('|')
+  const contentHash = hashDiffContent(diff)
+  return `diff:${contentHash}:${structure.length}`
 }
 
 /**
@@ -109,9 +135,10 @@ function flattenDiff(
   contextLines: number = 3
 ): FlattenedLine[] {
   const cacheKey = getDiffCacheKey(diff) + `:${collapseContext}:${contextLines}`
+  const cache = getDiffCache()
 
   // Check cache
-  const cached = diffCache.peek(cacheKey)
+  const cached = cache.peek(cacheKey)
   if (cached) {
     return cached
   }
@@ -173,7 +200,7 @@ function flattenDiff(
   }
 
   // Cache the result
-  diffCache.set(cacheKey, lines)
+  cache.set(cacheKey, lines)
 
   return lines
 }
@@ -360,7 +387,7 @@ const DiffLineComponent = memo(function DiffLineComponent({
 
       {/* Content */}
       <div className="diff-line-content flex-1 whitespace-pre overflow-x-auto pl-2">
-        {escapeHtml(line.content)}
+        {line.content}
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, memo, useRef, useCallback } from 'react'
-import { X, FileText, FileImage, FileCode, File, Copy, Check, ChevronRight, ZoomIn, ZoomOut, RotateCw, GitCompare, Maximize2 } from 'lucide-react'
+import { X, FileText, FileImage, FileCode, File, Copy, Check, ChevronRight, RotateCw, GitCompare, Maximize2, FileX } from 'lucide-react'
 import { CodeHighlighter, detectLanguage } from './CodeHighlighter'
 
 interface FilePreviewProps {
@@ -12,6 +12,24 @@ interface FilePreviewProps {
 }
 
 type ImageZoomLevel = 'fit' | '100' | '200'
+
+// Binary file extensions that should not be displayed as text
+const BINARY_EXTENSIONS = new Set([
+  // Executables
+  'exe', 'dll', 'so', 'dylib', 'app', 'dmg', 'msi',
+  // Archives
+  'zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz',
+  // Documents
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+  // Media (non-previewable)
+  'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv', 'flac', 'ogg', 'wma', 'wmv',
+  // Database
+  'db', 'sqlite', 'sqlite3',
+  // Fonts
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  // Other binary
+  'bin', 'iso', 'img', 'class', 'jar', 'war', 'ear', 'pyc', 'pyo'
+])
 
 export const FilePreview = memo(function FilePreview({
   filePath,
@@ -34,8 +52,10 @@ export const FilePreview = memo(function FilePreview({
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [isDiffLoading, setIsDiffLoading] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
+  const [diffError, setDiffError] = useState<string | null>(null)
 
   const imageContainerRef = useRef<HTMLDivElement>(null)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fileType = useMemo(() => {
     if (!filePath) return null
@@ -43,6 +63,9 @@ export const FilePreview = memo(function FilePreview({
 
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp'].includes(ext)) {
       return 'image'
+    }
+    if (BINARY_EXTENSIONS.has(ext)) {
+      return 'binary'
     }
     if (['ts', 'tsx', 'js', 'jsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'cs', 'swift', 'kt', 'php', 'vue', 'svelte'].includes(ext)) {
       return 'code'
@@ -68,32 +91,53 @@ export const FilePreview = memo(function FilePreview({
     setImageRotation(0)
     setShowDiff(false)
     setDiffContent(null)
+    setDiffError(null)
+    setError(null)
   }, [filePath])
 
+  // Cleanup timeout on unmount
   useEffect(() => {
-    if (!filePath || !isOpen || fileType === 'image') {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!filePath || !isOpen || fileType === 'image' || fileType === 'binary') {
       setContent(null)
       return
     }
+
+    let cancelled = false
 
     const loadContent = async () => {
       setIsLoading(true)
       setError(null)
       try {
         const result = await window.api.fs.readFile(filePath)
+        if (cancelled) return
         if (result.success && result.content) {
           setContent(result.content)
         } else {
           setError(result.error || 'Failed to read file')
         }
       } catch (err) {
+        if (cancelled) return
         setError((err as Error).message)
       } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
     loadContent()
+
+    return () => {
+      cancelled = true
+    }
   }, [filePath, isOpen, fileType])
 
   // Load diff when requested
@@ -101,6 +145,7 @@ export const FilePreview = memo(function FilePreview({
     if (!filePath || isDiffLoading) return
 
     setIsDiffLoading(true)
+    setDiffError(null)
     try {
       const result = await window.api.svn.diff(filePath)
       if (result && result.files && result.files.length > 0) {
@@ -122,7 +167,7 @@ export const FilePreview = memo(function FilePreview({
         setShowDiff(true)
       }
     } catch (err) {
-      setError((err as Error).message)
+      setDiffError((err as Error).message)
     } finally {
       setIsDiffLoading(false)
     }
@@ -133,7 +178,10 @@ export const FilePreview = memo(function FilePreview({
     if (textToCopy) {
       await navigator.clipboard.writeText(textToCopy)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current)
+      }
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
     }
   }
 
@@ -227,12 +275,13 @@ export const FilePreview = memo(function FilePreview({
           {fileType === 'code' && <FileCode className="w-4 h-4 text-accent flex-shrink-0" />}
           {fileType === 'config' && <FileText className="w-4 h-4 text-warning flex-shrink-0" />}
           {fileType === 'text' && <FileText className="w-4 h-4 text-text-muted flex-shrink-0" />}
+          {fileType === 'binary' && <FileX className="w-4 h-4 text-text-muted flex-shrink-0" />}
           {fileType === 'unknown' && <File className="w-4 h-4 text-text-muted flex-shrink-0" />}
           <span className="text-sm font-medium text-text truncate">{filename}</span>
         </div>
         <div className="flex items-center gap-1">
-          {/* Diff button for non-image files */}
-          {fileType !== 'image' && content && onDiff && (
+          {/* Diff button for text-based files */}
+          {fileType !== 'image' && fileType !== 'binary' && content && onDiff && (
             <button
               onClick={handleToggleDiff}
               className={`btn-icon-sm ${showDiff ? 'bg-accent/20 text-accent' : ''}`}
@@ -321,6 +370,17 @@ export const FilePreview = memo(function FilePreview({
           <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <File className="w-12 h-12 text-error mb-3" />
             <p className="text-sm text-error">{error}</p>
+          </div>
+        ) : diffError ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
+            <GitCompare className="w-12 h-12 text-error mb-3" />
+            <p className="text-sm text-error">{diffError}</p>
+          </div>
+        ) : fileType === 'binary' ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
+            <FileX className="w-12 h-12 text-text-muted mb-3" />
+            <p className="text-sm text-text-muted mb-1">Binary file</p>
+            <p className="text-xs text-text-muted">Cannot preview binary content</p>
           </div>
         ) : fileType === 'image' ? (
           <div

@@ -74,7 +74,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
   })
 
   // Generate unique IDs for accessibility
-  const dialogId = useMemo(() => `commit-dialog-${Math.random().toString(36).substr(2, 9)}`, [])
+  const dialogId = useMemo(() => `commit-dialog-${Math.random().toString(36).slice(2, 11)}`, [])
   const titleId = `${dialogId}-title`
   const descriptionId = `${dialogId}-description`
   
