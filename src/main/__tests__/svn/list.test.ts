@@ -5,62 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-
-// Re-implement parseSvnListXml for testing
-function parseSvnListXml(xml: string, baseUrl: string): {
-  path: string
-  entries: Array<{
-    name: string
-    path: string
-    url: string
-    kind: 'file' | 'dir'
-    size?: number
-    revision: number
-    author: string
-    date: string
-  }>
-} {
-  const entries: Array<{
-    name: string
-    path: string
-    url: string
-    kind: 'file' | 'dir'
-    size?: number
-    revision: number
-    author: string
-    date: string
-  }> = []
-
-  // Parse entries using regex (matches implementation in svn.ts)
-  const entryMatches = xml.matchAll(/<entry[^>]*kind="([^"]*)"[^>]*>([\s\S]*?)<\/entry>/g)
-
-  for (const match of entryMatches) {
-    const kind = match[1]
-    const content = match[2]
-
-    const nameMatch = content.match(/<name>([^<]+)<\/name>/)
-    const sizeMatch = content.match(/<size>(\d+)<\/size>/)
-    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/)
-    const authorMatch = content.match(/<author>([^<]+)<\/author>/)
-    const dateMatch = content.match(/<date>([^<]+)<\/date>/)
-
-    const name = nameMatch?.[1] || ''
-    const cleanName = name.replace(/\/$/, '')
-
-    entries.push({
-      name,
-      path: baseUrl + '/' + cleanName,
-      url: baseUrl + '/' + cleanName,
-      kind: kind as 'file' | 'dir',
-      size: sizeMatch ? parseInt(sizeMatch[1], 10) : undefined,
-      revision: revMatch ? parseInt(revMatch[1], 10) : 0,
-      author: authorMatch?.[1] || '',
-      date: dateMatch?.[1] || ''
-    })
-  }
-
-  return { path: baseUrl, entries }
-}
+import { parseSvnListXml } from '@main/ipc/svn'
 
 describe('SVN List Parser', () => {
   describe('parseSvnListXml', () => {
