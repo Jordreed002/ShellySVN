@@ -327,7 +327,6 @@ export function Toolbar({
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search files..."
             className="input pl-8 w-48 h-8 text-sm"
-            aria-label="Search files"
           />
         </div>
       )}
