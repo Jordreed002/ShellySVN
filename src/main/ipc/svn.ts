@@ -224,7 +224,7 @@ async function executeSvn(
 /**
  * Parse SVN status XML output using proper XML parser
  */
-function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
+export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
   const entries: SvnStatusResult['entries'] = []
   
   try {
@@ -316,7 +316,7 @@ function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
 /**
  * Parse SVN info XML output using proper XML parser
  */
-function parseSvnInfoXml(xml: string): SvnInfoResult {
+export function parseSvnInfoXml(xml: string): SvnInfoResult {
   try {
     const parsed = xmlParser.parse(xml) as {
       info?: {
@@ -388,7 +388,7 @@ function parseSvnInfoXml(xml: string): SvnInfoResult {
 /**
  * Parse SVN log XML output using proper XML parser
  */
-function parseSvnLogXml(xml: string): SvnLogResult {
+export function parseSvnLogXml(xml: string): SvnLogResult {
   const entries: SvnLogResult['entries'] = []
   
   try {
@@ -481,7 +481,7 @@ function parseSvnLogXml(xml: string): SvnLogResult {
 /**
  * Parse unified diff output into structured format
  */
-function parseSvnDiff(diffOutput: string): SvnDiffResult {
+export function parseSvnDiff(diffOutput: string): SvnDiffResult {
   if (!diffOutput || diffOutput.trim() === '') {
     return { files: [], hasChanges: false }
   }
@@ -819,26 +819,47 @@ export function registerSvnHandlers(): void {
       debug.log('[updateToRevision] depth:', depth)
       debug.log('[updateToRevision] setDepthSticky:', setDepthSticky)
       
-      const pathParts = relativePath.split(/[/\\]/)
+      const pathParts = relativePath.split(/[/\\]/).filter(p => p.length > 0)
       
+      // Step 1: Ensure all parent directories exist and are "opened" to see children
+      // In sparse checkouts, a directory can exist on disk but be at depth-empty,
+      // meaning it doesn't know about its children. We need to update parent dirs
+      // to at least 'immediates' depth so SVN can see and add their children.
       for (let i = 0; i < pathParts.length - 1; i++) {
         const partialPath = pathParts.slice(0, i + 1).join('/')
         const fullPath = join(workingCopyRoot, partialPath)
         
         if (!existsSync(fullPath)) {
-          debug.log('[updateToRevision] Creating parent with --depth empty:', partialPath)
-          await executeSvn(['update', '--depth', 'empty', partialPath], workingCopyRoot)
+          // Parent doesn't exist - create it with --depth immediates so it can have children
+          debug.log('[updateToRevision] Creating parent with --set-depth immediates:', partialPath)
+          await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot)
+        } else {
+          // Parent exists - but might be at depth-empty. Update to immediates to "open" it.
+          // This is safe to run even if already at higher depth (it's a no-op in that case)
+          debug.log('[updateToRevision] Opening parent to see children with --set-depth immediates:', partialPath)
+          try {
+            await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot)
+          } catch (e) {
+            // If this fails, the parent might already be at a sufficient depth - continue anyway
+            debug.log('[updateToRevision] Parent depth update failed (may already be sufficient):', (e as Error)?.message)
+          }
         }
       }
       
-      // ALSO create the target directory itself if it doesn't exist
-      // This is needed when adding NEW folders to a sparse checkout
+      // Step 2: Ensure the target directory exists (for adding NEW folders)
+      // This is needed when the target doesn't exist locally at all
       const targetFullPath = join(workingCopyRoot, relativePath)
       if (!existsSync(targetFullPath)) {
-        debug.log('[updateToRevision] Creating target with --depth empty:', relativePath)
-        await executeSvn(['update', '--depth', 'empty', relativePath], workingCopyRoot)
+        debug.log('[updateToRevision] Target does not exist, fetching with --depth empty first:', relativePath)
+        try {
+          await executeSvn(['update', '--depth', 'empty', relativePath], workingCopyRoot)
+        } catch (e) {
+          // If this fails, we'll try the main update anyway
+          debug.log('[updateToRevision] Initial target fetch failed:', (e as Error)?.message)
+        }
       }
       
+      // Step 3: Run the final update with the requested depth
       // --depth and --set-depth are mutually exclusive in SVN
       // Use --set-depth when sticky (it also applies depth for this update)
       // Use --depth when not sticky (one-time depth)
@@ -1450,7 +1471,7 @@ export function registerSvnHandlers(): void {
 // Parsing Functions
 // ============================================
 
-function parseSvnBlameXml(xml: string, path: string): SvnBlameResult {
+export function parseSvnBlameXml(xml: string, path: string): SvnBlameResult {
   const lines: SvnBlameResult['lines'] = []
   
   // SVN blame XML format:
