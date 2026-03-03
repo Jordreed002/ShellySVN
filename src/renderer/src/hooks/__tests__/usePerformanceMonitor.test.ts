@@ -84,7 +84,7 @@ describe('usePerformanceMonitor', () => {
         metricId = result.current.startMetric('test-operation', 'scan')
       })
 
-      // Advance time
+      // Advance time by 100ms
       vi.advanceTimersByTime(100)
 
       act(() => {
@@ -93,7 +93,8 @@ describe('usePerformanceMonitor', () => {
 
       expect(result.current.isOperationRunning).toBe(false)
       expect(result.current.metrics[0].isRunning).toBe(false)
-      expect(result.current.metrics[0].duration).toBeGreaterThanOrEqual(0)
+      // Duration should be at least 100ms (with tolerance for timing variations)
+      expect(result.current.metrics[0].duration).toBeGreaterThanOrEqual(100)
     })
 
     it('should store metadata with metrics', () => {

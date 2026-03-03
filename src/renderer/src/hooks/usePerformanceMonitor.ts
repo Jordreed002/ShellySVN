@@ -277,6 +277,7 @@ export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
     if (!enabled || !id) return null
 
     const endTime = performance.now()
+    let resultMetric: PerformanceMetric | null = null
 
     setMetrics(prev => {
       const metricIndex = prev.findIndex(m => m.id === id)
@@ -292,6 +293,9 @@ export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
         isRunning: false,
         metadata: { ...metric.metadata, ...metadata }
       }
+
+      // Store for return value
+      resultMetric = updatedMetric
 
       // Check thresholds and create alerts
       if (metric.category === 'scan' && duration > mergedThresholds.maxScanTime) {
@@ -324,18 +328,8 @@ export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
       return newMetrics
     })
 
-    // Return the updated metric
-    const metric = metrics.find(m => m.id === id)
-    if (!metric) return null
-
-    return {
-      ...metric,
-      endTime,
-      duration: endTime - metric.startTime,
-      isRunning: false,
-      metadata: { ...metric.metadata, ...metadata }
-    }
-  }, [enabled, metrics, mergedThresholds, createAlert])
+    return resultMetric
+  }, [enabled, mergedThresholds, createAlert])
 
   /**
    * Measure a synchronous function's execution time
@@ -383,8 +377,9 @@ export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
 
   /**
    * Get current memory usage
+   * @param detailed - If true, includes expensive DOM metrics (domNodes, eventListeners)
    */
-  const getMemorySnapshot = useCallback((): MemorySnapshot | null => {
+  const getMemorySnapshot = useCallback((detailed = false): MemorySnapshot | null => {
     // @ts-expect-error - memory API not in standard types
     const memoryInfo = performance.memory
     if (!memoryInfo) return null
@@ -394,8 +389,11 @@ export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
       usedJSHeapSize: memoryInfo.usedJSHeapSize,
       totalJSHeapSize: memoryInfo.totalJSHeapSize,
       jsHeapSizeLimit: memoryInfo.jsHeapSizeLimit,
-      domNodes: document.querySelectorAll('*').length,
-      eventListeners: getEventListenerCount()
+      // Only compute expensive DOM metrics when detailed mode is enabled
+      ...(detailed && {
+        domNodes: document.querySelectorAll('*').length,
+        eventListeners: getEventListenerCount()
+      })
     }
   }, [])
 

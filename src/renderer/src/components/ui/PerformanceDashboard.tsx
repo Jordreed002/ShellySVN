@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import {
   Activity,
-  Cpu,
   HardDrive,
   Clock,
   AlertTriangle,
@@ -16,7 +15,6 @@ import {
   XCircle,
   CheckCircle2,
   Gauge,
-  Layers,
   Timer
 } from 'lucide-react'
 import {
@@ -174,6 +172,7 @@ export function PerformanceDashboard({
             onClick={clearMetrics}
             className="p-1.5 hover:bg-slate-700 rounded transition-colors"
             title="Clear all metrics"
+            aria-label="Clear all metrics"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -182,6 +181,7 @@ export function PerformanceDashboard({
               onClick={onClose}
               className="p-1.5 hover:bg-slate-700 rounded transition-colors"
               title="Close dashboard"
+              aria-label="Close dashboard"
             >
               <XCircle className="w-4 h-4" />
             </button>
