@@ -2,10 +2,20 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   X, Upload, AlertCircle, CheckCircle, Eye,
-  ChevronDown, Clock, FilePlus, RotateCcw, RefreshCw, Loader2
+  ChevronDown, Clock, FilePlus, RotateCcw, RefreshCw, Loader2,
+  Sparkles, Wand2, AlertTriangle
 } from 'lucide-react'
 import { useCommitMessageHistory, useCommitTemplates } from '@renderer/hooks/useCommitMessageHistory'
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap'
+import { AutoCompleteInput, type AutocompleteOption } from './AutoCompleteInput'
+import { EnhancedDiffViewer, type DiffViewMode } from './EnhancedDiffViewer'
+import {
+  analyzeFiles,
+  getAutocompleteSuggestions,
+  getTemplatesWithRecommendations,
+  validateCommitMessage,
+  type TemplateRecommendation
+} from '@renderer/utils/suggestionEngine'
 import type { SvnStatusChar } from '@shared/types'
 
 interface CommitFile {
@@ -45,6 +55,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
   const [showTemplates, setShowTemplates] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [fileFilter, setFileFilter] = useState<'all' | 'modified' | 'added' | 'deleted'>('all')
+  const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { history, addMessage } = useCommitMessageHistory()
@@ -74,7 +87,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
   
   // Process files into commitable list
   const [files, setFiles] = useState<CommitFile[]>([])
-  
+
   useEffect(() => {
     if (statusData?.entries) {
       const commitableStatuses: SvnStatusChar[] = ['M', 'A', 'D', 'R', 'C', '?']
@@ -89,6 +102,55 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
       setFiles(commitFiles)
     }
   }, [statusData])
+
+  // AI-powered suggestions based on files
+  const aiSuggestions = useMemo(() => {
+    const selectedFilesList = files.filter(f => f.selected)
+    if (selectedFilesList.length === 0) return []
+
+    const { suggestions } = analyzeFiles(
+      selectedFilesList.map(f => ({ path: f.path, status: f.status }))
+    )
+    return suggestions
+  }, [files])
+
+  // Template recommendations based on files
+  const templateRecommendations = useMemo(() => {
+    const selectedFilesList = files.filter(f => f.selected)
+    if (selectedFilesList.length === 0) return []
+
+    return getTemplatesWithRecommendations(
+      selectedFilesList.map(f => ({ path: f.path, status: f.status }))
+    )
+  }, [files])
+
+  // Autocomplete options
+  const autocompleteOptions = useMemo((): AutocompleteOption[] => {
+    const options: AutocompleteOption[] = []
+
+    // Add AI suggestions
+    for (const suggestion of aiSuggestions.slice(0, 3)) {
+      const fullMessage = `${suggestion.prefix}: ${suggestion.description}`
+      options.push({
+        value: fullMessage,
+        label: `${suggestion.prefix}: ${suggestion.description}`,
+        description: `${Math.round(suggestion.confidence * 100)}% confidence`,
+        category: 'AI Suggestions'
+      })
+    }
+
+    // Add history
+    for (const h of history.slice(0, 5)) {
+      options.push({
+        value: h.message,
+        label: h.message.slice(0, 50) + (h.message.length > 50 ? '...' : ''),
+        description: new Date(h.timestamp).toLocaleDateString(),
+        category: 'Recent'
+      })
+    }
+
+    return options
+  }, [aiSuggestions, history])
   
   // Fetch diff for selected file
   const { data: diffData } = useQuery({
@@ -122,9 +184,22 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
       setShowTemplates(false)
       setShowHistory(false)
       setFileFilter('all')
+      setDiffViewMode('unified')
+      setShowSuggestions(false)
+      setValidationWarnings([])
       setTimeout(() => textareaRef.current?.focus(), 100)
     }
   }, [isOpen])
+
+  // Validate message on change
+  useEffect(() => {
+    if (message.trim()) {
+      const validation = validateCommitMessage(message)
+      setValidationWarnings(validation.warnings)
+    } else {
+      setValidationWarnings([])
+    }
+  }, [message])
   
   const handleToggleFile = (path: string) => {
     setFiles(prev => prev.map(f => 
@@ -154,10 +229,24 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     setShowTemplates(false)
     textareaRef.current?.focus()
   }
-  
+
   const handleHistorySelect = (msg: string) => {
     setMessage(msg)
     setShowHistory(false)
+    textareaRef.current?.focus()
+  }
+
+  // Apply AI suggestion
+  const handleApplySuggestion = (suggestion: typeof aiSuggestions[0]) => {
+    setMessage(`${suggestion.prefix}: ${suggestion.description}`)
+    setShowSuggestions(false)
+    textareaRef.current?.focus()
+  }
+
+  // Apply recommended template
+  const handleApplyRecommendation = (rec: TemplateRecommendation) => {
+    setMessage(rec.template)
+    setShowTemplates(false)
     textareaRef.current?.focus()
   }
   
@@ -408,6 +497,59 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       Message <span className="text-error" aria-label="required">*</span>
                     </label>
                     <div className="flex items-center gap-2">
+                      {/* AI Suggestions */}
+                      {aiSuggestions.length > 0 && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSuggestions(!showSuggestions)
+                              setShowTemplates(false)
+                              setShowHistory(false)
+                            }}
+                            className="btn btn-sm text-xs bg-accent/10 text-accent hover:bg-accent/20 border-accent/30"
+                            aria-expanded={showSuggestions}
+                            aria-haspopup="menu"
+                            aria-label="AI-powered suggestions"
+                          >
+                            <Sparkles className="w-3 h-3" aria-hidden="true" />
+                            Suggest
+                            <ChevronDown className="w-3 h-3" aria-hidden="true" />
+                          </button>
+                          {showSuggestions && (
+                            <ul
+                              className="absolute right-0 top-full mt-1 w-64 bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
+                              role="menu"
+                              aria-label="AI suggestions"
+                            >
+                              <li className="px-3 py-1.5 text-xs text-text-muted bg-bg-tertiary border-b border-border rounded-t-lg flex items-center gap-1">
+                                <Wand2 className="w-3 h-3" />
+                                Based on your changes
+                              </li>
+                              {aiSuggestions.map((suggestion, i) => (
+                                <li key={i}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApplySuggestion(suggestion)}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
+                                    role="menuitem"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium text-text">
+                                        {suggestion.prefix}: {suggestion.description}
+                                      </span>
+                                      <span className="text-accent text-[10px]">
+                                        {Math.round(suggestion.confidence * 100)}%
+                                      </span>
+                                    </div>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+
                       {/* Templates dropdown */}
                       <div className="relative">
                         <button
@@ -415,6 +557,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           onClick={() => {
                             setShowTemplates(!showTemplates)
                             setShowHistory(false)
+                            setShowSuggestions(false)
                           }}
                           className="btn btn-secondary btn-sm text-xs"
                           aria-expanded={showTemplates}
@@ -427,10 +570,29 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                         </button>
                         {showTemplates && (
                           <ul
-                            className="absolute right-0 top-full mt-1 w-48 bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
+                            className="absolute right-0 top-full mt-1 w-56 bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
                             role="menu"
                             aria-label="Commit templates"
                           >
+                            {/* Recommended template */}
+                            {templateRecommendations.length > 0 && templateRecommendations[0].confidence > 0 && (
+                              <li>
+                                <div className="px-3 py-1.5 text-xs text-accent bg-accent/10 border-b border-border flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3" />
+                                  Recommended for your changes
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplyRecommendation(templateRecommendations[0])}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary bg-accent/5"
+                                  role="menuitem"
+                                >
+                                  <div className="font-medium text-text">{templateRecommendations[0].name}</div>
+                                  <div className="text-text-muted text-[10px]">{templateRecommendations[0].reason}</div>
+                                </button>
+                                <div className="border-b border-border" />
+                              </li>
+                            )}
                             {templates.map(t => (
                               <li key={t.id}>
                                 <button
@@ -454,6 +616,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           onClick={() => {
                             setShowHistory(!showHistory)
                             setShowTemplates(false)
+                            setShowSuggestions(false)
                           }}
                           className="btn btn-secondary btn-sm text-xs"
                           disabled={history.length === 0}
@@ -492,79 +655,65 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       </div>
                     </div>
                   </div>
-                  <textarea
-                    id="commit-message"
-                    ref={textareaRef}
+
+                  {/* Autocomplete textarea */}
+                  <AutoCompleteInput
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Enter commit message...&#10;&#10;You can use templates for structured messages."
-                    className="input h-28 resize-none text-sm"
+                    onChange={setMessage}
+                    suggestions={autocompleteOptions}
+                    placeholder="Enter commit message...&#10;&#10;Start typing for suggestions or use the buttons above."
                     disabled={isSubmitting}
-                    aria-required="true"
-                    aria-invalid={!message.trim() && isSubmitting}
-                    aria-describedby={!message.trim() ? 'message-error' : undefined}
+                    inputClassName="h-28 text-sm"
+                    showCategories={true}
+                    minChars={0}
+                    aria-label="Commit message"
+                    id="commit-message"
                   />
+
+                  {/* Validation warnings */}
+                  {validationWarnings.length > 0 && (
+                    <div className="mt-2 flex items-start gap-2 text-xs text-warning">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <ul className="list-disc list-inside">
+                        {validationWarnings.map((warning, i) => (
+                          <li key={i}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
-                {/* Diff preview */}
+                {/* Diff preview with enhanced viewer */}
                 <div className="flex-1 overflow-hidden flex flex-col" role="region" aria-label="File diff preview">
-                  <div className="px-4 py-2 border-b border-border bg-bg-tertiary flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-text-muted" aria-hidden="true" />
-                    <span className="text-sm text-text-secondary" aria-live="polite">
-                      {selectedDiffFile ? (
-                        <>
-                          Diff: <span className="font-mono text-text">
-                            {selectedDiffFile.split(/[/\\]/).pop()}
-                          </span>
-                        </>
-                      ) : (
-                        'Select a file to see diff'
-                      )}
-                    </span>
-                  </div>
-                  
-                  <div className="flex-1 overflow-auto bg-bg-primary p-2 font-mono text-xs">
-                    {!selectedDiffFile ? (
-                      <div className="flex items-center justify-center h-full text-text-muted">
-                        Select a file from the list to view changes
-                      </div>
-                    ) : diffData?.files && diffData.files.length > 0 ? (
-                      <pre className="whitespace-pre" role="region" aria-label="File differences">
-                        {diffData.files.map((file, i) => (
-                          <div key={i}>
-                            <div className="text-info">Index: {file.newPath}</div>
-                            {file.hunks.map((hunk, j) => (
-                              <div key={j}>
-                                <div className="text-accent">{`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`}</div>
-                                {hunk.lines.map((line, k) => (
-                                  <div
-                                    key={k}
-                                    className={
-                                      line.type === 'added' ? 'bg-success/20 text-success' :
-                                      line.type === 'removed' ? 'bg-error/20 text-error' :
-                                      'text-text-faint'
-                                    }
-                                    role="text"
-                                    aria-label={
-                                      line.type === 'added' ? `Added: ${line.content}` :
-                                      line.type === 'removed' ? `Removed: ${line.content}` :
-                                      line.content
-                                    }
-                                  >
-                                    {line.content}
-                                  </div>
-                                ))}
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </pre>
+                  {selectedDiffFile ? (
+                    diffData?.files && diffData.files.length > 0 ? (
+                      <EnhancedDiffViewer
+                        diff={diffData}
+                        filePath={selectedDiffFile}
+                        mode={diffViewMode}
+                        onModeChange={setDiffViewMode}
+                        className="h-full"
+                      />
                     ) : (
-                      <div className="flex items-center justify-center h-full text-text-muted" role="status">
-                        No diff available (binary file or unversioned)
+                      <div className="flex-1 flex items-center justify-center text-text-muted bg-bg-primary">
+                        <div className="text-center">
+                          <Eye className="w-8 h-8 mx-auto mb-2 text-text-faint" />
+                          <p>No diff available</p>
+                          <p className="text-xs text-text-faint mt-1">Binary file or unversioned</p>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    )
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center bg-bg-primary">
+                      <div className="text-center text-text-muted">
+                        <Eye className="w-8 h-8 mx-auto mb-2 text-text-faint" />
+                        <p>Select a file to view changes</p>
+                        <p className="text-xs text-text-faint mt-1">
+                          Click on any file in the list to see its diff
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
