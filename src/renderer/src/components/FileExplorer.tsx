@@ -1027,6 +1027,7 @@ export function FileExplorer() {
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
         onOpen={() => setShowPreview(true)}
+        onDiff={(filePath) => setDiffViewerPath(filePath)}
       />
       
       {/* Commit Dialog */}

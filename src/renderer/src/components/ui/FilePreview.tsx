@@ -1,30 +1,46 @@
-import { useState, useEffect, useMemo, memo } from 'react'
-import { X, FileText, FileImage, FileCode, File, Copy, Check, ChevronRight } from 'lucide-react'
+import { useState, useEffect, useMemo, memo, useRef, useCallback } from 'react'
+import { X, FileText, FileImage, FileCode, File, Copy, Check, ChevronRight, ZoomIn, ZoomOut, RotateCw, GitCompare, Maximize2 } from 'lucide-react'
+import { CodeHighlighter, detectLanguage } from './CodeHighlighter'
 
 interface FilePreviewProps {
   filePath: string | null
   isOpen: boolean
   onClose: () => void
   onOpen?: () => void
+  onDiff?: (filePath: string) => void
   className?: string
 }
 
-export const FilePreview = memo(function FilePreview({ 
-  filePath, 
-  isOpen, 
-  onClose, 
+type ImageZoomLevel = 'fit' | '100' | '200'
+
+export const FilePreview = memo(function FilePreview({
+  filePath,
+  isOpen,
+  onClose,
   onOpen,
-  className = '' 
+  onDiff,
+  className = ''
 }: FilePreviewProps) {
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
+  // Image state
+  const [imageZoom, setImageZoom] = useState<ImageZoomLevel>('fit')
+  const [imageRotation, setImageRotation] = useState(0)
+
+  // Diff state
+  const [diffContent, setDiffContent] = useState<string | null>(null)
+  const [isDiffLoading, setIsDiffLoading] = useState(false)
+  const [showDiff, setShowDiff] = useState(false)
+
+  const imageContainerRef = useRef<HTMLDivElement>(null)
+
   const fileType = useMemo(() => {
     if (!filePath) return null
     const ext = filePath.split('.').pop()?.toLowerCase() || ''
-    
+
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp'].includes(ext)) {
       return 'image'
     }
@@ -38,6 +54,20 @@ export const FilePreview = memo(function FilePreview({
       return 'text'
     }
     return 'unknown'
+  }, [filePath])
+
+  // Get syntax highlighting language
+  const language = useMemo(() => {
+    if (!filePath || (fileType !== 'code' && fileType !== 'config')) return 'text'
+    return detectLanguage(filePath)
+  }, [filePath, fileType])
+
+  // Reset state when file changes
+  useEffect(() => {
+    setImageZoom('fit')
+    setImageRotation(0)
+    setShowDiff(false)
+    setDiffContent(null)
   }, [filePath])
 
   useEffect(() => {
@@ -66,11 +96,67 @@ export const FilePreview = memo(function FilePreview({
     loadContent()
   }, [filePath, isOpen, fileType])
 
+  // Load diff when requested
+  const loadDiff = useCallback(async () => {
+    if (!filePath || isDiffLoading) return
+
+    setIsDiffLoading(true)
+    try {
+      const result = await window.api.svn.diff(filePath)
+      if (result && result.files && result.files.length > 0) {
+        // Format diff content for display
+        const diffText = result.files.map(file => {
+          const hunks = file.hunks.map(hunk => {
+            const lines = hunk.lines.map(line => {
+              const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '
+              return `${prefix}${line.content}`
+            }).join('\n')
+            return `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@\n${lines}`
+          }).join('\n')
+          return `--- ${file.oldPath}\n+++ ${file.newPath}\n${hunks}`
+        }).join('\n')
+        setDiffContent(diffText)
+        setShowDiff(true)
+      } else {
+        setDiffContent('No changes detected')
+        setShowDiff(true)
+      }
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setIsDiffLoading(false)
+    }
+  }, [filePath, isDiffLoading])
+
   const handleCopy = async () => {
-    if (content) {
-      await navigator.clipboard.writeText(content)
+    const textToCopy = showDiff && diffContent ? diffContent : content
+    if (textToCopy) {
+      await navigator.clipboard.writeText(textToCopy)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleImageZoom = (level: ImageZoomLevel) => {
+    setImageZoom(level)
+  }
+
+  const handleImageRotate = () => {
+    setImageRotation(prev => (prev + 90) % 360)
+  }
+
+  const handleToggleDiff = () => {
+    if (showDiff) {
+      setShowDiff(false)
+      setDiffContent(null)
+    } else {
+      loadDiff()
+    }
+  }
+
+  const handleOpenFullDiff = () => {
+    if (filePath && onDiff) {
+      onDiff(filePath)
     }
   }
 
@@ -78,16 +164,40 @@ export const FilePreview = memo(function FilePreview({
 
   // Memoize truncated content for performance
   const displayContent = useMemo(() => {
-    if (!content) return null
+    const textContent = showDiff && diffContent ? diffContent : content
+    if (!textContent) return null
     // Limit to 30KB for better performance
-    if (content.length > 30000) {
-      return content.slice(0, 30000) + '\n\n... (content truncated)'
+    if (textContent.length > 30000) {
+      return textContent.slice(0, 30000) + '\n\n... (content truncated)'
     }
-    return content
-  }, [content])
+    return textContent
+  }, [content, diffContent, showDiff])
+
+  // Image zoom style
+  const imageStyle = useMemo(() => {
+    const baseStyle: React.CSSProperties = {
+      transform: `rotate(${imageRotation}deg)`
+    }
+
+    if (imageZoom === 'fit') {
+      return {
+        ...baseStyle,
+        maxWidth: '100%',
+        maxHeight: '100%',
+        objectFit: 'contain' as const
+      }
+    }
+
+    const scale = imageZoom === '100' ? 1 : 2
+    return {
+      ...baseStyle,
+      transform: `rotate(${imageRotation}deg) scale(${scale})`,
+      transformOrigin: 'center center'
+    }
+  }, [imageZoom, imageRotation])
 
   return (
-    <div 
+    <div
       className={`
         flex flex-col bg-bg-secondary border-l border-border
         transition-[width] duration-150 ease-out overflow-hidden
@@ -106,7 +216,7 @@ export const FilePreview = memo(function FilePreview({
           <ChevronRight className="w-4 h-4" />
         </button>
       )}
-      
+
       {/* Header */}
       <div className={`
         flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border
@@ -121,7 +231,28 @@ export const FilePreview = memo(function FilePreview({
           <span className="text-sm font-medium text-text truncate">{filename}</span>
         </div>
         <div className="flex items-center gap-1">
-          {content && (
+          {/* Diff button for non-image files */}
+          {fileType !== 'image' && content && onDiff && (
+            <button
+              onClick={handleToggleDiff}
+              className={`btn-icon-sm ${showDiff ? 'bg-accent/20 text-accent' : ''}`}
+              title={showDiff ? 'Show file content' : 'Quick diff against BASE'}
+              disabled={isDiffLoading}
+            >
+              <GitCompare className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {/* Open in full diff viewer */}
+          {showDiff && onDiff && (
+            <button
+              onClick={handleOpenFullDiff}
+              className="btn-icon-sm"
+              title="Open in full diff viewer"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {(content || diffContent) && (
             <button
               onClick={handleCopy}
               className="btn-icon-sm"
@@ -140,40 +271,92 @@ export const FilePreview = memo(function FilePreview({
         </div>
       </div>
 
+      {/* Image Controls */}
+      {fileType === 'image' && isOpen && (
+        <div className="flex items-center gap-1 px-4 py-2 bg-bg-tertiary border-b border-border">
+          <button
+            onClick={() => handleImageZoom('fit')}
+            className={`btn-icon-sm text-xs px-2 ${imageZoom === 'fit' ? 'bg-accent/20 text-accent' : ''}`}
+            title="Fit to panel"
+          >
+            Fit
+          </button>
+          <button
+            onClick={() => handleImageZoom('100')}
+            className={`btn-icon-sm text-xs px-2 ${imageZoom === '100' ? 'bg-accent/20 text-accent' : ''}`}
+            title="100% zoom"
+          >
+            100%
+          </button>
+          <button
+            onClick={() => handleImageZoom('200')}
+            className={`btn-icon-sm text-xs px-2 ${imageZoom === '200' ? 'bg-accent/20 text-accent' : ''}`}
+            title="200% zoom"
+          >
+            200%
+          </button>
+          <div className="w-px h-4 bg-border mx-1" />
+          <button
+            onClick={handleImageRotate}
+            className="btn-icon-sm"
+            title="Rotate 90°"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto">
         {!filePath ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <File className="w-12 h-12 text-text-muted mb-3" />
             <p className="text-sm text-text-muted">Select a file to preview</p>
           </div>
-        ) : isLoading ? (
+        ) : isLoading || isDiffLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="spinner" />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <File className="w-12 h-12 text-error mb-3" />
             <p className="text-sm text-error">{error}</p>
           </div>
         ) : fileType === 'image' ? (
-          <div className="flex items-center justify-center h-full">
+          <div
+            ref={imageContainerRef}
+            className="flex items-center justify-center h-full p-4 overflow-auto"
+          >
             <img
               src={`file://${filePath}`}
               alt={filename}
-              className="max-w-full max-h-full object-contain rounded"
+              style={imageStyle}
+              className="rounded transition-transform duration-200"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none'
                 setError('Failed to load image')
               }}
             />
           </div>
+        ) : showDiff && diffContent ? (
+          <div className="h-full overflow-auto font-mono text-xs">
+            <pre className="p-4 text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
+              {displayContent}
+            </pre>
+          </div>
+        ) : displayContent && (fileType === 'code' || fileType === 'config') ? (
+          <CodeHighlighter
+            code={displayContent}
+            language={language}
+            showLineNumbers={true}
+            maxHeight="100%"
+          />
         ) : displayContent ? (
-          <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
+          <pre className="p-4 text-xs font-mono text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
             {displayContent}
           </pre>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <File className="w-12 h-12 text-text-muted mb-3" />
             <p className="text-sm text-text-muted">No content available</p>
           </div>
@@ -182,7 +365,7 @@ export const FilePreview = memo(function FilePreview({
 
       {/* Footer */}
       <div className="px-4 py-2 bg-bg-tertiary border-t border-border text-xs text-text-muted truncate">
-        {filePath || 'No file selected'}
+        {showDiff ? `Diff: ${filePath || 'No file selected'}` : filePath || 'No file selected'}
       </div>
     </div>
   )
