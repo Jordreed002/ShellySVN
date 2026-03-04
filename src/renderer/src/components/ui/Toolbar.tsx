@@ -18,7 +18,8 @@ import {
   StarOff,
   HardDrive,
   Globe,
-  Cloud
+  Cloud,
+  Stethoscope
 } from 'lucide-react'
 import { useState, useCallback, useRef, useEffect } from 'react'
 
@@ -30,6 +31,7 @@ interface ToolbarProps {
   onAdd?: () => void
   onDelete?: () => void
   onSettings?: () => void
+  onDiagnostics?: () => void
   isUpdating?: boolean
   hasChanges?: boolean
   hasSelection?: boolean
@@ -64,6 +66,7 @@ export function Toolbar({
   onAdd,
   onDelete,
   onSettings,
+  onDiagnostics,
   isUpdating = false,
   hasChanges = false,
   hasSelection = false,
@@ -403,6 +406,18 @@ export function Toolbar({
           aria-label="Open settings"
         >
           <Settings className="w-4 h-4" aria-hidden="true" />
+        </button>
+      )}
+
+      {/* Diagnostics - only show for versioned paths */}
+      {isVersioned && onDiagnostics && (
+        <button
+          onClick={onDiagnostics}
+          className="btn-icon-sm"
+          title="Repository Diagnostics"
+          aria-label="Open repository diagnostics"
+        >
+          <Stethoscope className="w-4 h-4" aria-hidden="true" />
         </button>
       )}
     </div>

@@ -101,6 +101,54 @@ class AuthCache {
     return this.credentials.has(realm)
   }
 
+  /**
+   * Find credentials for a URL by matching against stored realms.
+   * This handles the case where credentials are stored for the repository root
+   * but we're looking up a subdirectory URL.
+   *
+   * @param url - The full URL to find credentials for
+   * @returns Credentials if found, null otherwise
+   */
+  findForUrl(url: string): { username: string; password: string; realm: string } | null {
+    // First try exact match
+    const exact = this.get(url)
+    if (exact) {
+      return { ...exact, realm: url }
+    }
+
+    // Then try prefix matching - find the longest matching realm
+    let bestMatch: { realm: string; credential: CachedCredential } | null = null
+
+    for (const [realm, credential] of this.credentials) {
+      // Check if the url starts with the realm (realm is a prefix)
+      if (url.startsWith(realm)) {
+        // Prefer longer (more specific) matches
+        if (!bestMatch || realm.length > bestMatch.realm.length) {
+          bestMatch = { realm, credential }
+        }
+      }
+    }
+
+    if (bestMatch) {
+      try {
+        const decryptedPassword = this.encryptionAvailable
+          ? this.decrypt(bestMatch.credential.password)
+          : bestMatch.credential.password
+        return {
+          username: bestMatch.credential.username,
+          password: decryptedPassword,
+          realm: bestMatch.realm
+        }
+      } catch {
+        console.error('[AUTH] Failed to decrypt credential for realm:', bestMatch.realm)
+        this.delete(bestMatch.realm)
+        return null
+      }
+    }
+
+    return null
+  }
+
   private encrypt(plaintext: string): string {
     const encrypted = safeStorage.encryptString(plaintext)
     return encrypted.toString('base64')

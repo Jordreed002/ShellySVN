@@ -20,6 +20,7 @@ const DiffViewer = lazy(() => import('./ui/DiffViewer').then(m => ({ default: m.
 const LogViewer = lazy(() => import('./ui/LogViewer').then(m => ({ default: m.LogViewer })))
 const SettingsDialog = lazy(() => import('./ui/SettingsDialog').then(m => ({ default: m.SettingsDialog })))
 const UpdateToRevisionDialog = lazy(() => import('./ui/UpdateToRevisionDialog').then(m => ({ default: m.UpdateToRevisionDialog })))
+const RepoDiagnosticsPanel = lazy(() => import('./RepoDiagnostics').then(m => ({ default: m.RepoDiagnosticsPanel })))
 
 // Loading fallback for lazy components
 function DialogLoader() {
@@ -139,6 +140,7 @@ export function FileExplorer() {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [pendingUpdateEntry, setPendingUpdateEntry] = useState<SvnStatusEntry | null>(null)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   
   const [showAuthPrompt, setShowAuthPrompt] = useState(false)
   const [authRealm, setAuthRealm] = useState('')
@@ -896,6 +898,7 @@ export function FileExplorer() {
         isBookmarked={isBookmarked}
         onToggleBookmark={handleToggleBookmark}
         onSettings={() => setSettingsDialogOpen(true)}
+        onDiagnostics={() => setDiagnosticsOpen(true)}
         browseMode={browseMode}
         onBrowseModeChange={handleSetBrowseMode}
         canBrowseOnline={!!effectiveUrl}
@@ -1152,6 +1155,22 @@ export function FileExplorer() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Repository Diagnostics */}
+      {diagnosticsOpen && (
+        <Suspense fallback={<DialogLoader />}>
+          <RepoDiagnosticsPanel
+            workingCopyPath={path || ''}
+            onClose={() => setDiagnosticsOpen(false)}
+            onAuthenticate={() => {
+              if (effectiveRepoRoot) {
+                setAuthRealm(effectiveRepoRoot)
+                setShowAuthPrompt(true)
+              }
+            }}
+          />
+        </Suspense>
       )}
     </div>
   )

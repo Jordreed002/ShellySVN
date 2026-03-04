@@ -557,6 +557,7 @@ export interface ElectronAPI {
       add: (workingCopyPath: string, external: Omit<SvnExternal, 'name'> & { name?: string }) => Promise<{ success: boolean }>;
       remove: (workingCopyPath: string, externalPath: string) => Promise<{ success: boolean }>;
     };
+    diagnostics: (workingCopyPath: string) => Promise<RepoDiagnostics>;
   };
   external: {
     openDiffTool: (tool: string, left: string, right: string) => Promise<{ success: boolean; error?: string }>;
@@ -632,6 +633,30 @@ export interface ElectronAPI {
   deepLink: {
     onAction: (callback: (link: { action: string; params: Record<string, string>; path?: string; url?: string }) => void) => () => void;
   };
+}
+
+// ============================================
+// Repository Diagnostics Types
+// ============================================
+
+export interface RepoDiagnostics {
+  // Working copy info
+  isValidWorkingCopy: boolean
+  workingCopyRoot: string | null
+
+  // Repository info
+  repositoryRoot: string | null
+  repositoryUrl: string | null
+  repositoryUuid: string | null
+
+  // Auth status
+  hasCredentials: boolean
+  credentialRealm: string | null
+  credentialUsername: string | null
+
+  // Connection test
+  connectionStatus: 'ok' | 'auth-required' | 'ssl-error' | 'network-error' | 'unknown'
+  connectionError?: string
 }
 
 // ============================================

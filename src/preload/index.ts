@@ -4,7 +4,7 @@ import type {
   ElectronAPI, FileFilter, FileInfo, FsStatusResult, SvnDiffResult, SvnInfoResult,
   AuthCredential, AuthListEntry, SvnChangelistResult, SvnShelveListResult,
   WorkingCopyInfo, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
-  SvnLockInfo, SvnLockResult, SvnUnlockResult
+  SvnLockInfo, SvnLockResult, SvnUnlockResult, RepoDiagnostics
 } from '@shared/types'
 
 const api: ElectronAPI = {
@@ -73,11 +73,13 @@ const api: ElectronAPI = {
     // Externals Management
     externals: {
       list: (path) => ipcRenderer.invoke('svn:externals:list', path) as Promise<SvnExternal[]>,
-      add: (workingCopyPath, external) => 
+      add: (workingCopyPath, external) =>
         ipcRenderer.invoke('svn:externals:add', workingCopyPath, external) as Promise<{ success: boolean }>,
-      remove: (workingCopyPath, externalPath) => 
+      remove: (workingCopyPath, externalPath) =>
         ipcRenderer.invoke('svn:externals:remove', workingCopyPath, externalPath) as Promise<{ success: boolean }>
-    }
+    },
+    // Repository Diagnostics
+    diagnostics: (workingCopyPath) => ipcRenderer.invoke('svn:diagnostics', workingCopyPath) as Promise<RepoDiagnostics>
   },
   external: {
     openDiffTool: (tool, left, right) => ipcRenderer.invoke('external:openDiffTool', tool, left, right),

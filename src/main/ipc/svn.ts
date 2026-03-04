@@ -9,10 +9,11 @@ import type {
   SvnStatusResult, SvnLogResult, SvnInfoResult, SvnDiffResult,
   SvnDiffFile, SvnDiffHunk, SvnChangelistResult, SvnShelveListResult,
   CheckoutOptions, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
-  SvnExecutionContext, SvnLockInfo
+  SvnExecutionContext, SvnLockInfo, RepoDiagnostics
 } from '@shared/types'
 import { getSettingsManager } from '../settings-manager'
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor'
+import { getAuthCache } from '../auth-cache'
 import debug from '../utils/debug'
 
 /**
@@ -49,8 +50,9 @@ const xmlParser = new XMLParser({
 /**
  * SSL failure types that can be bypassed
  * SECURITY: 'other' is excluded as it's too broad and may bypass security checks
+ * Valid values per SVN: unknown-ca, cn-mismatch, expired, not-yet-valid, other
  */
-const ALLOWED_SSL_FAILURES = ['unknown-ca', 'hostname-mismatch', 'expired', 'not-yet-valid'] as const
+const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const
 
 /**
  * Create a temporary SVN config directory with proxy settings
@@ -106,19 +108,27 @@ async function cleanupTempSvnConfig(configDir: string): Promise<void> {
 
 /**
  * Execute SVN command with settings-aware context
- * 
+ *
  * This function now automatically applies global settings (proxy, SSL, timeout)
  * from the settings manager, while still allowing per-operation overrides.
+ *
+ * @param args - SVN command arguments
+ * @param cwd - Working directory for the command
+ * @param operationContext - Optional context overrides (proxy, SSL, timeout)
+ * @param trustSslFailures - If true, bypass SSL verification for this operation (for working copy ops)
+ * @param credentials - Optional username/password for authentication
  */
 async function executeSvn(
-  args: string[], 
-  cwd?: string, 
-  operationContext?: Partial<SvnExecutionContext>
+  args: string[],
+  cwd?: string,
+  operationContext?: Partial<SvnExecutionContext>,
+  trustSslFailures: boolean = false,
+  credentials?: { username: string; password: string }
 ): Promise<string> {
   // Get global settings context and merge with operation-specific overrides
   const settingsManager = getSettingsManager()
   const globalContext = settingsManager.getSvnExecutionContext()
-  
+
   // Merge contexts: operation-specific settings override global settings
   const context: SvnExecutionContext = {
     proxySettings: operationContext?.proxySettings ?? globalContext.proxySettings,
@@ -126,44 +136,54 @@ async function executeSvn(
     sslVerify: operationContext?.sslVerify ?? globalContext.sslVerify,
     clientCertificatePath: operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath
   }
-  
+
   // Create temp config if proxy settings are provided
   let tempConfigDir: string | null = null
-  
+
   if (context.proxySettings?.enabled) {
     tempConfigDir = await createTempSvnConfig(context.proxySettings)
   }
-  
+
   return new Promise((resolve, reject) => {
     // Use custom SVN path from settings, or fall back to system SVN
     const svnCommand = settingsManager.getSvnClientPath()
-    
+
     // Build environment - no credentials in environment variables
     const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' }
-    
+
     // Build final args
     const finalArgs: string[] = []
-    
+
     // Add config directory if using proxy
     if (tempConfigDir) {
       finalArgs.push('--config-dir', tempConfigDir)
     }
-    
+
     finalArgs.push(...args)
-    
-    // Build SSL options if needed (sslVerify false means skip verification)
-    if (context.sslVerify === false) {
+
+    // Build SSL options if needed
+    // Apply if: global setting disables SSL verify, OR this operation explicitly trusts SSL failures
+    const shouldBypassSsl = context.sslVerify === false || trustSslFailures
+    if (shouldBypassSsl) {
       // Add SSL trust options for non-interactive mode
       if (!finalArgs.includes('--non-interactive')) {
         finalArgs.push('--non-interactive')
       }
-      
+
       // SECURITY: Only allow specific failure types, exclude 'other'
       const failures = ALLOWED_SSL_FAILURES.join(',')
       finalArgs.push('--trust-server-cert-failures', failures)
-      
+
       // Log SSL bypass for security audit
       debug.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`)
+    }
+
+    // Add credentials if provided
+    if (credentials?.username) {
+      finalArgs.push('--username', credentials.username)
+    }
+    if (credentials?.password) {
+      finalArgs.push('--password', credentials.password)
     }
     
     // Add client certificate if configured
@@ -793,8 +813,21 @@ export function registerSvnHandlers(): void {
 
   // SVN Update
   ipcMain.handle('svn:update', async (_, path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => {
+    // Validate that the path is a working copy before attempting update
+    try {
+      await executeSvn(['info', '--xml', path], path, undefined, true)
+    } catch (error) {
+      const errorMsg = (error as Error).message || ''
+      debug.error('[SVN] Working copy validation failed for update:', path, errorMsg)
+      return {
+        success: false,
+        error: 'Not a valid working copy. The selected path is not under SVN version control. ' +
+               'Make sure you have checked out the repository and the .svn directory exists.'
+      }
+    }
+
     const hooks = await getHooksForWorkingCopy(path)
-    
+
     // Pre-update hooks
     const preResult = await executeHooksForType(hooks, 'pre-update', {
       workingCopyPath: path
@@ -802,28 +835,53 @@ export function registerSvnHandlers(): void {
     if (!preResult.allSucceeded) {
       return { success: false, error: preResult.error || 'Pre-update hook blocked' }
     }
-    
+
     // Execute SVN update
-    const args = ['update']
-    if (depth) args.push('--depth', depth)
-    args.push(path)
-    
-    const output = await executeSvn(args)
-    const match = output.match(/Updated to revision (\d+)\./)
-    const result = { 
-      success: true, 
-      revision: match ? parseInt(match[1], 10) : 0 
-    }
-    
-    // Post-update hooks (async)
-    if (result.success) {
-      executeHooksForType(hooks, 'post-update', { 
-        workingCopyPath: path, 
-        revision: result.revision 
+    try {
+      const args = ['update']
+      if (depth) args.push('--depth', depth)
+      args.push(path)
+
+      const output = await executeSvn(args, undefined, undefined, true)
+      const match = output.match(/Updated to revision (\d+)\./)
+      const result = {
+        success: true,
+        revision: match ? parseInt(match[1], 10) : 0
+      }
+
+      // Post-update hooks (async)
+      executeHooksForType(hooks, 'post-update', {
+        workingCopyPath: path,
+        revision: result.revision
       }).catch(err => debug.error('[SVN] Post-update hook error:', err))
+
+      return result
+    } catch (error) {
+      const errorMsg = (error as Error).message || ''
+      debug.error('[SVN] Update failed:', path, errorMsg)
+
+      // Provide helpful error messages for common SVN errors
+      if (errorMsg.includes('E155007')) {
+        return {
+          success: false,
+          error: 'Not a working copy. The selected path is not under SVN version control.'
+        }
+      }
+      if (errorMsg.includes('E155004')) {
+        return {
+          success: false,
+          error: 'Working copy is locked. Try running "Cleanup" from the toolbar to resolve this issue.'
+        }
+      }
+      if (errorMsg.includes('E155036')) {
+        return {
+          success: false,
+          error: 'Working copy format is too old. Please upgrade the working copy using "svn upgrade" in the terminal.'
+        }
+      }
+
+      return { success: false, error: `SVN update failed: ${errorMsg}` }
     }
-    
-    return result
   })
 
   ipcMain.handle('svn:updateItem', async (_, localPath: string): Promise<{ success: boolean; revision: number; error?: string }> => {
@@ -879,21 +937,32 @@ export function registerSvnHandlers(): void {
     }
   })
 
-  ipcMain.handle('svn:updateToRevision', async (_, workingCopyRoot: string, _url: string, localPath: string, depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity', setDepthSticky: boolean = false): Promise<{ success: boolean; revision: number; error?: string }> => {
+  ipcMain.handle('svn:updateToRevision', async (_, workingCopyRoot: string, repoUrl: string, localPath: string, depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity', setDepthSticky: boolean = false): Promise<{ success: boolean; revision: number; error?: string }> => {
     const { relative, join } = require('path')
     const { existsSync } = require('fs')
-    
+
     try {
       const relativePath = relative(workingCopyRoot, localPath)
-      
+
       debug.log('[updateToRevision] workingCopyRoot:', workingCopyRoot)
+      debug.log('[updateToRevision] repoUrl:', repoUrl)
       debug.log('[updateToRevision] localPath:', localPath)
       debug.log('[updateToRevision] relativePath:', relativePath)
       debug.log('[updateToRevision] depth:', depth)
       debug.log('[updateToRevision] setDepthSticky:', setDepthSticky)
-      
+
+      // Get credentials from auth cache for this repository
+      // Use findForUrl to match credentials stored for the repository root
+      // even when we're accessing a subdirectory URL
+      const authCache = getAuthCache()
+      const credentialMatch = repoUrl ? authCache.findForUrl(repoUrl) : null
+      const credentials = credentialMatch ? { username: credentialMatch.username, password: credentialMatch.password } : null
+      if (credentials) {
+        debug.log('[updateToRevision] Using cached credentials for realm:', credentialMatch?.realm)
+      }
+
       const pathParts = relativePath.split(/[/\\]/).filter(p => p.length > 0)
-      
+
       // Step 1: Ensure all parent directories exist and are "opened" to see children
       // In sparse checkouts, a directory can exist on disk but be at depth-empty,
       // meaning it doesn't know about its children. We need to update parent dirs
@@ -901,37 +970,37 @@ export function registerSvnHandlers(): void {
       for (let i = 0; i < pathParts.length - 1; i++) {
         const partialPath = pathParts.slice(0, i + 1).join('/')
         const fullPath = join(workingCopyRoot, partialPath)
-        
+
         if (!existsSync(fullPath)) {
           // Parent doesn't exist - create it with --depth immediates so it can have children
           debug.log('[updateToRevision] Creating parent with --set-depth immediates:', partialPath)
-          await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot)
+          await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot, undefined, true, credentials || undefined)
         } else {
           // Parent exists - but might be at depth-empty. Update to immediates to "open" it.
           // This is safe to run even if already at higher depth (it's a no-op in that case)
           debug.log('[updateToRevision] Opening parent to see children with --set-depth immediates:', partialPath)
           try {
-            await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot)
+            await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot, undefined, true, credentials || undefined)
           } catch (e) {
             // If this fails, the parent might already be at a sufficient depth - continue anyway
             debug.log('[updateToRevision] Parent depth update failed (may already be sufficient):', (e as Error)?.message)
           }
         }
       }
-      
+
       // Step 2: Ensure the target directory exists (for adding NEW folders)
       // This is needed when the target doesn't exist locally at all
       const targetFullPath = join(workingCopyRoot, relativePath)
       if (!existsSync(targetFullPath)) {
         debug.log('[updateToRevision] Target does not exist, fetching with --depth empty first:', relativePath)
         try {
-          await executeSvn(['update', '--depth', 'empty', relativePath], workingCopyRoot)
+          await executeSvn(['update', '--depth', 'empty', relativePath], workingCopyRoot, undefined, true, credentials || undefined)
         } catch (e) {
           // If this fails, we'll try the main update anyway
           debug.log('[updateToRevision] Initial target fetch failed:', (e as Error)?.message)
         }
       }
-      
+
       // Step 3: Run the final update with the requested depth
       // --depth and --set-depth are mutually exclusive in SVN
       // Use --set-depth when sticky (it also applies depth for this update)
@@ -943,20 +1012,20 @@ export function registerSvnHandlers(): void {
         args.push('--depth', depth)
       }
       args.push(relativePath)
-      
+
       debug.log('[updateToRevision] Running svn with args:', args)
-      const output = await executeSvn(args, workingCopyRoot)
+      const output = await executeSvn(args, workingCopyRoot, undefined, true, credentials || undefined)
       const match = output.match(/Updated to revision (\d+)\./)
-      
-      return { 
-        success: true, 
-        revision: match ? parseInt(match[1], 10) : 0 
+
+      return {
+        success: true,
+        revision: match ? parseInt(match[1], 10) : 0
       }
     } catch (error) {
-      return { 
-        success: false, 
-        revision: 0, 
-        error: (error as Error)?.message || 'Update failed' 
+      return {
+        success: false,
+        revision: 0,
+        error: (error as Error)?.message || 'Update failed'
       }
     }
   })
@@ -1669,7 +1738,7 @@ export function registerSvnHandlers(): void {
         const name = parts[parts.length - 1]
         return name !== externalPath && !l.includes(externalPath)
       })
-      
+
       if (lines.length > 0 && lines.some(l => l.trim())) {
         await executeSvn(['propset', 'svn:externals', lines.join('\n'), workingCopyPath])
       } else {
@@ -1680,6 +1749,112 @@ export function registerSvnHandlers(): void {
       debug.error('[SVN] Externals remove error:', error)
       return { success: false }
     }
+  })
+
+  // ============================================
+  // Repository Diagnostics
+  // ============================================
+
+  ipcMain.handle('svn:diagnostics', async (_, workingCopyPath: string): Promise<RepoDiagnostics> => {
+    const authCache = getAuthCache()
+
+    // Default result structure
+    const result: RepoDiagnostics = {
+      isValidWorkingCopy: false,
+      workingCopyRoot: null,
+      repositoryRoot: null,
+      repositoryUrl: null,
+      repositoryUuid: null,
+      hasCredentials: false,
+      credentialRealm: null,
+      credentialUsername: null,
+      connectionStatus: 'unknown',
+      connectionError: undefined
+    }
+
+    try {
+      // Step 1: Check if this is a valid working copy and get info
+      const infoOutput = await executeSvn(['info', '--xml'], workingCopyPath)
+      const info = parseSvnInfoXml(infoOutput, workingCopyPath)
+
+      result.isValidWorkingCopy = true
+      result.workingCopyRoot = info.workingCopyRoot || workingCopyPath
+      result.repositoryRoot = info.repositoryRoot
+      result.repositoryUrl = info.url
+      result.repositoryUuid = info.repositoryUuid
+
+      debug.log('[diagnostics] Working copy info:', {
+        root: result.workingCopyRoot,
+        repoRoot: result.repositoryRoot,
+        url: result.repositoryUrl
+      })
+
+      // Step 2: Check credentials using the repository root URL
+      if (result.repositoryRoot) {
+        const credentialMatch = authCache.findForUrl(result.repositoryRoot)
+        if (credentialMatch) {
+          result.hasCredentials = true
+          result.credentialRealm = credentialMatch.realm
+          result.credentialUsername = credentialMatch.username
+          debug.log('[diagnostics] Found credentials for realm:', credentialMatch.realm)
+        } else {
+          debug.log('[diagnostics] No credentials found for repository root:', result.repositoryRoot)
+        }
+      }
+
+      // Step 3: Test connection by listing the repository root
+      if (result.repositoryRoot) {
+        try {
+          const credentials = credentialMatch
+            ? { username: credentialMatch.username, password: credentialMatch.password }
+            : undefined
+
+          await executeSvn(
+            ['list', '--xml', result.repositoryRoot],
+            undefined,
+            undefined,
+            false,
+            credentials
+          )
+
+          result.connectionStatus = 'ok'
+          debug.log('[diagnostics] Connection test successful')
+        } catch (connError) {
+          const errorMsg = (connError as Error)?.message || ''
+          debug.error('[diagnostics] Connection test failed:', errorMsg)
+
+          if (errorMsg.includes('authentication') || errorMsg.includes('Authorization') || errorMsg.includes('403')) {
+            result.connectionStatus = 'auth-required'
+            result.connectionError = 'Authentication required'
+          } else if (errorMsg.includes('SSL') || errorMsg.includes('certificate')) {
+            result.connectionStatus = 'ssl-error'
+            result.connectionError = errorMsg
+          } else if (errorMsg.includes('ECONNREFUSED') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('network')) {
+            result.connectionStatus = 'network-error'
+            result.connectionError = 'Unable to connect to server'
+          } else {
+            result.connectionStatus = 'unknown'
+            result.connectionError = errorMsg
+          }
+        }
+      }
+
+    } catch (error) {
+      const errorMsg = (error as Error)?.message || ''
+      debug.error('[diagnostics] Failed to get working copy info:', errorMsg)
+
+      // Check if it's because the path isn't a working copy
+      if (errorMsg.includes('not a working copy') || errorMsg.includes('E155007')) {
+        result.isValidWorkingCopy = false
+        result.connectionStatus = 'unknown'
+        result.connectionError = 'Not a valid SVN working copy'
+      } else {
+        result.connectionStatus = 'unknown'
+        result.connectionError = errorMsg
+      }
+    }
+
+    return result
   })
 }
 
