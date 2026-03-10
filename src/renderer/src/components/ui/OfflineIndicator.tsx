@@ -1,26 +1,26 @@
-import { Wifi, WifiOff, CloudOff, Clock, RefreshCw, Database } from 'lucide-react'
-import { useOfflineDetector, useOfflineCache } from '../../hooks/useOfflineCache'
+import { Wifi, WifiOff, CloudOff, Clock, RefreshCw, Database } from 'lucide-react';
+import { useOfflineDetector, useOfflineCache } from '../../hooks/useOfflineCache';
 
 interface OfflineIndicatorProps {
-  showDetails?: boolean
-  className?: string
+  showDetails?: boolean;
+  className?: string;
 }
 
 /**
  * Visual indicator for offline status
  */
 export function OfflineIndicator({ showDetails = false, className = '' }: OfflineIndicatorProps) {
-  const { isOffline, lastOnlineTime, formattedOfflineDuration } = useOfflineDetector()
-  
-  if (!isOffline) return null
-  
+  const { isOffline, lastOnlineTime, formattedOfflineDuration } = useOfflineDetector();
+
+  if (!isOffline) return null;
+
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg ${className}`}>
+    <div
+      className={`flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg ${className}`}
+    >
       <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400" />
       <div className="flex flex-col">
-        <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-          Offline Mode
-        </span>
+        <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Offline Mode</span>
         {showDetails && (
           <span className="text-xs text-amber-600 dark:text-amber-400">
             Last online: {lastOnlineTime?.toLocaleTimeString() || 'Unknown'}
@@ -29,23 +29,25 @@ export function OfflineIndicator({ showDetails = false, className = '' }: Offlin
         )}
       </div>
     </div>
-  )
+  );
 }
 
 interface OfflineStatusBarProps {
-  className?: string
+  className?: string;
 }
 
 /**
  * Full offline status bar with cache information
  */
 export function OfflineStatusBar({ className = '' }: OfflineStatusBarProps) {
-  const { isOnline } = useOfflineDetector()
-  const cache = useOfflineCache()
-  const stats = cache.getStats()
-  
+  const { isOnline } = useOfflineDetector();
+  const cache = useOfflineCache();
+  const stats = cache.getStats();
+
   return (
-    <div className={`flex items-center justify-between px-4 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 ${className}`}>
+    <div
+      className={`flex items-center justify-between px-4 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 ${className}`}
+    >
       <div className="flex items-center gap-3">
         {isOnline ? (
           <>
@@ -55,11 +57,13 @@ export function OfflineStatusBar({ className = '' }: OfflineStatusBarProps) {
         ) : (
           <>
             <WifiOff className="w-4 h-4 text-amber-500" />
-            <span className="text-sm text-amber-600 dark:text-amber-400">Offline - Limited functionality</span>
+            <span className="text-sm text-amber-600 dark:text-amber-400">
+              Offline - Limited functionality
+            </span>
           </>
         )}
       </div>
-      
+
       <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-1">
           <Database className="w-3.5 h-3.5" />
@@ -71,41 +75,41 @@ export function OfflineStatusBar({ className = '' }: OfflineStatusBarProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 interface OfflineAwareContainerProps {
-  children: React.ReactNode
-  path: string
-  onRefresh?: () => void
-  showCacheAge?: boolean
+  children: React.ReactNode;
+  path: string;
+  onRefresh?: () => void;
+  showCacheAge?: boolean;
 }
 
 /**
  * Container that shows offline state and cache information for a specific path
  */
-export function OfflineAwareContainer({ 
-  children, 
-  path, 
+export function OfflineAwareContainer({
+  children,
+  path,
   onRefresh,
-  showCacheAge = true 
+  showCacheAge = true,
 }: OfflineAwareContainerProps) {
-  const { isOffline } = useOfflineDetector()
-  const cache = useOfflineCache()
-  
-  const infoAge = cache.getCacheAge('info', path)
-  const statusAge = cache.getCacheAge('status', path)
-  
+  const { isOffline } = useOfflineDetector();
+  const cache = useOfflineCache();
+
+  const infoAge = cache.getCacheAge('info', path);
+  const statusAge = cache.getCacheAge('status', path);
+
   const formatAge = (ms: number | null) => {
-    if (!ms) return null
-    const minutes = Math.floor(ms / 60000)
-    if (minutes < 1) return 'Just now'
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    return `${Math.floor(hours / 24)}d ago`
-  }
-  
+    if (!ms) return null;
+    const minutes = Math.floor(ms / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
   return (
     <div className="relative">
       {isOffline && (
@@ -114,7 +118,7 @@ export function OfflineAwareContainer({
           <span className="text-xs text-amber-700 dark:text-amber-300">Showing cached data</span>
         </div>
       )}
-      
+
       {showCacheAge && !isOffline && (infoAge || statusAge) && (
         <div className="absolute top-0 right-0 z-10 flex items-center gap-2 px-2 py-1">
           {statusAge && (
@@ -124,7 +128,7 @@ export function OfflineAwareContainer({
             </div>
           )}
           {onRefresh && (
-            <button 
+            <button
               onClick={onRefresh}
               className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
               title="Refresh"
@@ -134,36 +138,38 @@ export function OfflineAwareContainer({
           )}
         </div>
       )}
-      
+
       {children}
     </div>
-  )
+  );
 }
 
 interface OfflineCacheManagerProps {
-  className?: string
+  className?: string;
 }
 
 /**
  * Cache management panel for offline data
  */
 export function OfflineCacheManager({ className = '' }: OfflineCacheManagerProps) {
-  const cache = useOfflineCache()
-  const stats = cache.getStats()
-  
+  const cache = useOfflineCache();
+  const stats = cache.getStats();
+
   const handleClearAll = async () => {
     if (confirm('Clear all cached data? This cannot be undone.')) {
-      await cache.clearAll()
+      await cache.clearAll();
     }
-  }
-  
+  };
+
   return (
-    <div className={`bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 ${className}`}>
+    <div
+      className={`bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 ${className}`}
+    >
       <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
         <Database className="w-5 h-5" />
         Offline Cache
       </h3>
-      
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <div className="bg-slate-50 dark:bg-slate-900 rounded p-3 text-center">
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -171,21 +177,21 @@ export function OfflineCacheManager({ className = '' }: OfflineCacheManagerProps
           </div>
           <div className="text-xs text-slate-500 dark:text-slate-400">Info Cache</div>
         </div>
-        
+
         <div className="bg-slate-50 dark:bg-slate-900 rounded p-3 text-center">
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
             {stats.statusCount}
           </div>
           <div className="text-xs text-slate-500 dark:text-slate-400">Status Cache</div>
         </div>
-        
+
         <div className="bg-slate-50 dark:bg-slate-900 rounded p-3 text-center">
           <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
             {stats.logCount}
           </div>
           <div className="text-xs text-slate-500 dark:text-slate-400">Log Cache</div>
         </div>
-        
+
         <div className="bg-slate-50 dark:bg-slate-900 rounded p-3 text-center">
           <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
             {stats.formattedSize}
@@ -193,7 +199,7 @@ export function OfflineCacheManager({ className = '' }: OfflineCacheManagerProps
           <div className="text-xs text-slate-500 dark:text-slate-400">Total Size</div>
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-4">
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Cached data enables limited offline functionality
@@ -206,7 +212,7 @@ export function OfflineCacheManager({ className = '' }: OfflineCacheManagerProps
         </button>
       </div>
     </div>
-  )
+  );
 }
 
-export default OfflineIndicator
+export default OfflineIndicator;

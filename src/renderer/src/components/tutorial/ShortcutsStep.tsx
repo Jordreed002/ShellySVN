@@ -1,7 +1,13 @@
-import { Keyboard, Command, Settings, Search, HelpCircle } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { Keyboard, HelpCircle } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function ShortcutsStep({ onNext, onPrevious, onSkip, currentStep, totalSteps }: TutorialStepProps) {
+export function ShortcutsStep({
+  onNext,
+  onPrevious,
+  onSkip,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
@@ -46,7 +52,11 @@ export function ShortcutsStep({ onNext, onPrevious, onSkip, currentStep, totalSt
           <HelpCircle className="w-5 h-5 text-accent" />
           <div>
             <p className="text-sm text-text">
-              Press <kbd className="px-1.5 py-0.5 bg-bg-secondary border border-border rounded text-xs font-mono mx-1">?</kbd> at any time to see the full keyboard shortcuts reference.
+              Press{' '}
+              <kbd className="px-1.5 py-0.5 bg-bg-secondary border border-border rounded text-xs font-mono mx-1">
+                ?
+              </kbd>{' '}
+              at any time to see the full keyboard shortcuts reference.
             </p>
           </div>
         </div>
@@ -76,22 +86,18 @@ export function ShortcutsStep({ onNext, onPrevious, onSkip, currentStep, totalSt
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-function ShortcutGroup({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
+function ShortcutGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="p-3 bg-bg-secondary rounded-lg border border-border">
-      <h4 className="text-xs font-medium text-text-secondary mb-2 uppercase tracking-wide">{title}</h4>
+      <h4 className="text-xs font-medium text-text-secondary mb-2 uppercase tracking-wide">
+        {title}
+      </h4>
       <div className="space-y-1.5">{children}</div>
     </div>
-  )
+  );
 }
 
 function Shortcut({ keys, description }: { keys: string[]; description: string }) {
@@ -109,5 +115,5 @@ function Shortcut({ keys, description }: { keys: string[]; description: string }
         ))}
       </div>
     </div>
-  )
+  );
 }

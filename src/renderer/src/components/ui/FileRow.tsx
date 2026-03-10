@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react'
+import { memo, useRef } from 'react';
 import {
   Folder,
   File,
@@ -9,150 +9,153 @@ import {
   FileSpreadsheet,
   FileJson,
   ChevronRight,
-  Lock
-} from 'lucide-react'
-import type { SvnStatusEntry } from '@shared/types'
-import { StatusIcon, StatusDot } from './StatusIcon'
-import { useContextMenu, getSvnContextMenuItems, ContextMenu } from './ContextMenu'
-import { FileThumbnail } from './FileThumbnail'
+  Lock,
+} from 'lucide-react';
+import type { SvnStatusEntry } from '@shared/types';
+import { StatusIcon, StatusDot } from './StatusIcon';
+import { useContextMenu, getSvnContextMenuItems, ContextMenu } from './ContextMenu';
+import { FileThumbnail } from './FileThumbnail';
 
 // Module-level constants for default props to avoid new instances on every render
-const EMPTY_FOLDER_SIZES: Record<string, number> = {}
-const EMPTY_ACTIONS: FileRowActions = {}
+const EMPTY_FOLDER_SIZES: Record<string, number> = {};
+const EMPTY_ACTIONS: FileRowActions = {};
 const DEFAULT_COLUMN_WIDTHS: FileRowProps['columnWidths'] = {
   name: 300,
   status: 80,
   revision: 70,
   author: 100,
   date: 100,
-  size: 80
-}
+  size: 80,
+};
 
 // Context menu actions interface
 export interface FileRowActions {
-  onUpdate?: (entry: SvnStatusEntry) => void
-  onDownload?: (entry: SvnStatusEntry) => void
-  onCommit?: (entry: SvnStatusEntry) => void
-  onRevert?: (entry: SvnStatusEntry) => void
-  onAdd?: (entry: SvnStatusEntry) => void
-  onDelete?: (entry: SvnStatusEntry) => void
-  onShowLog?: (entry: SvnStatusEntry) => void
-  onDiff?: (entry: SvnStatusEntry) => void
-  onOpenInExplorer?: (entry: SvnStatusEntry) => void
-  onCopyPath?: (entry: SvnStatusEntry) => void
-  onPreview?: (entry: SvnStatusEntry) => void
-  onManageLocks?: (entry: SvnStatusEntry) => void
+  onUpdate?: (entry: SvnStatusEntry) => void;
+  onDownload?: (entry: SvnStatusEntry) => void;
+  onCommit?: (entry: SvnStatusEntry) => void;
+  onRevert?: (entry: SvnStatusEntry) => void;
+  onAdd?: (entry: SvnStatusEntry) => void;
+  onDelete?: (entry: SvnStatusEntry) => void;
+  onShowLog?: (entry: SvnStatusEntry) => void;
+  onDiff?: (entry: SvnStatusEntry) => void;
+  onOpenInExplorer?: (entry: SvnStatusEntry) => void;
+  onCopyPath?: (entry: SvnStatusEntry) => void;
+  onPreview?: (entry: SvnStatusEntry) => void;
+  onManageLocks?: (entry: SvnStatusEntry) => void;
 }
 
 // File type to icon mapping
 function getFileIcon(filename: string, isDirectory: boolean) {
-  if (isDirectory) return Folder
-  
-  const ext = filename.split('.').pop()?.toLowerCase() || ''
-  
+  if (isDirectory) return Folder;
+
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     // Images
-    'png': FileImage,
-    'jpg': FileImage,
-    'jpeg': FileImage,
-    'gif': FileImage,
-    'webp': FileImage,
-    'ico': FileImage,
-    'svg': FileImage,
+    png: FileImage,
+    jpg: FileImage,
+    jpeg: FileImage,
+    gif: FileImage,
+    webp: FileImage,
+    ico: FileImage,
+    svg: FileImage,
     // Code
-    'js': FileCode,
-    'jsx': FileCode,
-    'ts': FileCode,
-    'tsx': FileCode,
-    'py': FileCode,
-    'rb': FileCode,
-    'go': FileCode,
-    'rs': FileCode,
-    'java': FileCode,
-    'c': FileCode,
-    'cpp': FileCode,
-    'h': FileCode,
-    'cs': FileCode,
-    'swift': FileCode,
-    'kt': FileCode,
-    'php': FileCode,
+    js: FileCode,
+    jsx: FileCode,
+    ts: FileCode,
+    tsx: FileCode,
+    py: FileCode,
+    rb: FileCode,
+    go: FileCode,
+    rs: FileCode,
+    java: FileCode,
+    c: FileCode,
+    cpp: FileCode,
+    h: FileCode,
+    cs: FileCode,
+    swift: FileCode,
+    kt: FileCode,
+    php: FileCode,
     // Data
-    'json': FileJson,
-    'xml': FileJson,
-    'yaml': FileJson,
-    'yml': FileJson,
-    'toml': FileJson,
+    json: FileJson,
+    xml: FileJson,
+    yaml: FileJson,
+    yml: FileJson,
+    toml: FileJson,
     // Documents
-    'md': FileText,
-    'txt': FileText,
-    'pdf': FileText,
-    'doc': FileText,
-    'docx': FileText,
+    md: FileText,
+    txt: FileText,
+    pdf: FileText,
+    doc: FileText,
+    docx: FileText,
     // Spreadsheets
-    'csv': FileSpreadsheet,
-    'xls': FileSpreadsheet,
-    'xlsx': FileSpreadsheet,
+    csv: FileSpreadsheet,
+    xls: FileSpreadsheet,
+    xlsx: FileSpreadsheet,
     // Archives
-    'zip': FileArchive,
-    'tar': FileArchive,
-    'gz': FileArchive,
-    'rar': FileArchive,
+    zip: FileArchive,
+    tar: FileArchive,
+    gz: FileArchive,
+    rar: FileArchive,
     '7z': FileArchive,
-  }
-  
-  return iconMap[ext] || File
+  };
+
+  return iconMap[ext] || File;
 }
 
 // Format file size
 function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
 // Format date
 function formatDate(dateStr?: string): string {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
-  
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
   if (diffDays === 0) {
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   } else if (diffDays < 7) {
-    return date.toLocaleDateString('en-US', { weekday: 'short' })
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
   } else if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   } else {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
   }
 }
 
 export interface FileRowProps {
-  entry: SvnStatusEntry
-  isSelected: boolean
-  isExpanded?: boolean
-  hasChildren?: boolean
-  depth?: number
-  compact?: boolean
-  showThumbnails?: boolean
-  showFolderSizes?: boolean
-  folderSizes?: Record<string, number>
-  onSelect: (entry: SvnStatusEntry, event?: { ctrlKey?: boolean; shiftKey?: boolean; metaKey?: boolean }) => void
-  onToggle?: (entry: SvnStatusEntry) => void
-  onNavigate?: (entry: SvnStatusEntry) => void
-  style?: React.CSSProperties
-  showColumns?: boolean
+  entry: SvnStatusEntry;
+  isSelected: boolean;
+  isExpanded?: boolean;
+  hasChildren?: boolean;
+  depth?: number;
+  compact?: boolean;
+  showThumbnails?: boolean;
+  showFolderSizes?: boolean;
+  folderSizes?: Record<string, number>;
+  onSelect: (
+    entry: SvnStatusEntry,
+    event?: { ctrlKey?: boolean; shiftKey?: boolean; metaKey?: boolean }
+  ) => void;
+  onToggle?: (entry: SvnStatusEntry) => void;
+  onNavigate?: (entry: SvnStatusEntry) => void;
+  style?: React.CSSProperties;
+  showColumns?: boolean;
   columnWidths?: {
-    name: number
-    status: number
-    revision: number
-    author: number
-    date: number
-    size: number
-  }
-  actions?: FileRowActions
+    name: number;
+    status: number;
+    revision: number;
+    author: number;
+    date: number;
+    size: number;
+  };
+  actions?: FileRowActions;
 }
 
 export const FileRow = memo(function FileRow({
@@ -171,47 +174,47 @@ export const FileRow = memo(function FileRow({
   style,
   showColumns = true,
   columnWidths = DEFAULT_COLUMN_WIDTHS,
-  actions = EMPTY_ACTIONS
+  actions = EMPTY_ACTIONS,
 }: FileRowProps) {
-  const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu()
-  
-  const filename = entry.path.split(/[/\\]/).pop() || entry.path
-  const Icon = getFileIcon(filename, entry.isDirectory)
-  
+  const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
+
+  const filename = entry.path.split(/[/\\]/).pop() || entry.path;
+  const Icon = getFileIcon(filename, entry.isDirectory);
+
   const handleClick = (e: React.MouseEvent) => {
     // Prevent text selection on shift+click
     if (e.shiftKey) {
-      e.preventDefault()
+      e.preventDefault();
       // Clear any existing text selection
-      window.getSelection()?.removeAllRanges()
+      window.getSelection()?.removeAllRanges();
     }
-    onSelect(entry, { ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, metaKey: e.metaKey })
-  }
-  
+    onSelect(entry, { ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, metaKey: e.metaKey });
+  };
+
   const handleMouseDown = (e: React.MouseEvent) => {
     // Prevent text selection on shift+click at the mousedown stage
     if (e.shiftKey) {
-      e.preventDefault()
+      e.preventDefault();
     }
-  }
-  
+  };
+
   const handleDoubleClick = () => {
     if (entry.isDirectory && onNavigate) {
-      onNavigate(entry)
+      onNavigate(entry);
     }
-  }
-  
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
-    showContextMenu(e, entry)
-  }
-  
+    showContextMenu(e, entry);
+  };
+
   const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     if (onToggle) {
-      onToggle(entry)
+      onToggle(entry);
     }
-  }
-  
+  };
+
   // Context menu items with action callbacks
   const contextMenuItems = getSvnContextMenuItems(entry.status, entry.isDirectory, {
     onUpdate: actions.onUpdate ? () => actions.onUpdate!(entry) : undefined,
@@ -223,10 +226,12 @@ export const FileRow = memo(function FileRow({
     onShowLog: actions.onShowLog ? () => actions.onShowLog!(entry) : undefined,
     onDiff: actions.onDiff ? () => actions.onDiff!(entry) : undefined,
     onOpenInExplorer: actions.onOpenInExplorer ? () => actions.onOpenInExplorer!(entry) : undefined,
-    onCopyPath: actions.onCopyPath ? () => actions.onCopyPath!(entry) : () => navigator.clipboard.writeText(entry.path),
+    onCopyPath: actions.onCopyPath
+      ? () => actions.onCopyPath!(entry)
+      : () => navigator.clipboard.writeText(entry.path),
     onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
     onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
-  })
+  });
 
   return (
     <>
@@ -246,7 +251,7 @@ export const FileRow = memo(function FileRow({
         data-path={entry.path}
       >
         {/* Expand/Collapse Toggle */}
-        <div 
+        <div
           className="flex items-center justify-center w-5 flex-shrink-0"
           style={{ marginLeft: depth * 16 }}
         >
@@ -255,24 +260,24 @@ export const FileRow = memo(function FileRow({
               onClick={handleToggle}
               className="p-0.5 hover:bg-bg-elevated rounded transition-fast"
             >
-              <ChevronRight 
-                className={`w-3.5 h-3.5 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
+              <ChevronRight
+                className={`w-3.5 h-3.5 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
               />
             </button>
           )}
         </div>
-        
+
         {/* File Icon */}
         <div className="flex items-center justify-center w-6 flex-shrink-0">
           {showThumbnails ? (
-            <FileThumbnail 
+            <FileThumbnail
               filePath={entry.path}
               isDirectory={entry.isDirectory}
               size={16}
               className="w-4 h-4"
             />
           ) : (
-            <Icon 
+            <Icon
               className={`
                 w-4 h-4
                 ${entry.isDirectory ? 'text-accent' : 'text-text-muted'}
@@ -280,20 +285,18 @@ export const FileRow = memo(function FileRow({
             />
           )}
         </div>
-        
+
         {/* Status Icon */}
         <div className="flex items-center justify-center w-6 flex-shrink-0">
           <StatusDot status={entry.status} />
         </div>
-        
+
         {/* Name Column */}
         <div
           className="flex-1 truncate pr-4 flex items-center gap-1.5"
           style={{ minWidth: columnWidths.name - 80 }}
         >
-          <span className={entry.isDirectory ? 'font-medium' : ''}>
-            {filename}
-          </span>
+          <span className={entry.isDirectory ? 'font-medium' : ''}>{filename}</span>
           {entry.lock && (
             <Lock
               className="w-3 h-3 text-warning flex-shrink-0"
@@ -302,57 +305,57 @@ export const FileRow = memo(function FileRow({
             />
           )}
         </div>
-        
+
         {/* Additional Columns */}
         {showColumns && (
           <>
             {/* Status */}
-            <div 
+            <div
               className="flex items-center justify-center flex-shrink-0"
               style={{ width: columnWidths.status }}
             >
               <StatusIcon status={entry.status} size="sm" />
             </div>
-            
+
             {/* Revision */}
-            <div 
+            <div
               className="text-right text-sm text-text-secondary font-mono flex-shrink-0"
               style={{ width: columnWidths.revision }}
             >
               {entry.revision || '-'}
             </div>
-            
+
             {/* Author */}
-            <div 
+            <div
               className="truncate text-sm text-text-secondary flex-shrink-0"
               style={{ width: columnWidths.author }}
             >
               {entry.author || '-'}
             </div>
-            
+
             {/* Date */}
-            <div 
+            <div
               className="text-sm text-text-secondary flex-shrink-0"
               style={{ width: columnWidths.date }}
             >
               {formatDate(entry.date)}
             </div>
-            
+
             {/* Size (files only) */}
-            <div 
+            <div
               className="text-right text-sm text-text-secondary font-mono flex-shrink-0"
               style={{ width: columnWidths.size }}
             >
-              {entry.isDirectory 
-                ? (showFolderSizes && folderSizes[entry.path] 
-                  ? formatSize(folderSizes[entry.path]) 
-                  : '-')
+              {entry.isDirectory
+                ? showFolderSizes && folderSizes[entry.path]
+                  ? formatSize(folderSizes[entry.path])
+                  : '-'
                 : '-'}
             </div>
           </>
         )}
       </div>
-      
+
       {/* Context Menu */}
       {contextMenu && (
         <ContextMenu
@@ -362,8 +365,8 @@ export const FileRow = memo(function FileRow({
         />
       )}
     </>
-  )
-})
+  );
+});
 
 // Header row for the file list
 export function FileListHeader({
@@ -371,13 +374,13 @@ export function FileListHeader({
   onColumnWidthChange,
   onSort,
   sortColumn,
-  sortDirection
+  sortDirection,
 }: {
-  columnWidths?: FileRowProps['columnWidths']
-  onColumnWidthChange?: (column: string, width: number) => void
-  onSort?: (column: string) => void
-  sortColumn?: string
-  sortDirection?: 'asc' | 'desc'
+  columnWidths?: FileRowProps['columnWidths'];
+  onColumnWidthChange?: (column: string, width: number) => void;
+  onSort?: (column: string) => void;
+  sortColumn?: string;
+  sortDirection?: 'asc' | 'desc';
 }) {
   return (
     <div className="flex items-center px-4 py-2 bg-bg-tertiary border-b border-border text-xs font-medium text-text-secondary uppercase tracking-wider select-none">
@@ -385,9 +388,9 @@ export function FileListHeader({
       <div className="w-5 flex-shrink-0" />
       <div className="w-6 flex-shrink-0" />
       <div className="w-6 flex-shrink-0" />
-      
+
       {/* Name */}
-      <div 
+      <div
         className="flex-1 cursor-pointer hover:text-text transition-fast relative group"
         onClick={() => onSort?.('name')}
       >
@@ -396,7 +399,7 @@ export function FileListHeader({
           <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
         )}
       </div>
-      
+
       {/* Status */}
       <HeaderColumn
         width={columnWidths.status}
@@ -408,7 +411,7 @@ export function FileListHeader({
       >
         Status
       </HeaderColumn>
-      
+
       {/* Revision */}
       <HeaderColumn
         width={columnWidths.revision}
@@ -421,7 +424,7 @@ export function FileListHeader({
       >
         Rev
       </HeaderColumn>
-      
+
       {/* Author */}
       <HeaderColumn
         width={columnWidths.author}
@@ -433,7 +436,7 @@ export function FileListHeader({
       >
         Author
       </HeaderColumn>
-      
+
       {/* Date */}
       <HeaderColumn
         width={columnWidths.date}
@@ -445,7 +448,7 @@ export function FileListHeader({
       >
         Modified
       </HeaderColumn>
-      
+
       {/* Size */}
       <HeaderColumn
         width={columnWidths.size}
@@ -458,7 +461,7 @@ export function FileListHeader({
         Size
       </HeaderColumn>
     </div>
-  )
+  );
 }
 
 // Resizable header column
@@ -470,54 +473,52 @@ function HeaderColumn({
   sortDirection,
   resizable = false,
   align = 'left',
-  children
+  children,
 }: {
-  width: number
-  onWidthChange?: (width: number) => void
-  onSort?: () => void
-  isSorted?: boolean
-  sortDirection?: 'asc' | 'desc'
-  resizable?: boolean
-  align?: 'left' | 'right' | 'center'
-  children: React.ReactNode
+  width: number;
+  onWidthChange?: (width: number) => void;
+  onSort?: () => void;
+  isSorted?: boolean;
+  sortDirection?: 'asc' | 'desc';
+  resizable?: boolean;
+  align?: 'left' | 'right' | 'center';
+  children: React.ReactNode;
 }) {
-  const startXRef = useRef(0)
-  const startWidthRef = useRef(0)
-  
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    startXRef.current = e.clientX
-    startWidthRef.current = width
-    
+    e.preventDefault();
+    e.stopPropagation();
+
+    startXRef.current = e.clientX;
+    startWidthRef.current = width;
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const diff = moveEvent.clientX - startXRef.current
-      const newWidth = Math.max(40, startWidthRef.current + diff)
-      onWidthChange?.(newWidth)
-    }
-    
+      const diff = moveEvent.clientX - startXRef.current;
+      const newWidth = Math.max(40, startWidthRef.current + diff);
+      onWidthChange?.(newWidth);
+    };
+
     const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-    }
-    
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    document.body.style.cursor = 'col-resize'
-  }
-  
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+  };
+
   return (
-    <div 
+    <div
       className={`relative cursor-pointer hover:text-text transition-fast ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : ''}`}
       style={{ width }}
       onClick={onSort}
     >
       {children}
-      {isSorted && (
-        <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-      )}
+      {isSorted && <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
       {resizable && (
         <div
           className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/50 active:bg-accent transition-fast group-hover:bg-border"
@@ -525,5 +526,5 @@ function HeaderColumn({
         />
       )}
     </div>
-  )
+  );
 }

@@ -1,21 +1,28 @@
-import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, AlertTriangle, CheckCircle, FileText, Loader2, Wrench, ArrowRight } from 'lucide-react'
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { X, AlertTriangle, CheckCircle, FileText, Loader2, Wrench, ArrowRight } from 'lucide-react';
+
+type ConflictResolution =
+  | 'mine-full'
+  | 'theirs-full'
+  | 'base'
+  | 'mine-conflict'
+  | 'theirs-conflict';
 
 interface ConflictResolutionDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  conflictPath: string
-  workingCopyPath: string
-  onResolved?: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  conflictPath: string;
+  workingCopyPath: string;
+  onResolved?: () => void;
 }
 
 interface ConflictInfo {
-  minePath: string
-  theirsPath: string
-  basePath: string
-  mergedPath: string
-  conflictType: 'text' | 'property' | 'tree'
+  minePath: string;
+  theirsPath: string;
+  basePath: string;
+  mergedPath: string;
+  conflictType: 'text' | 'property' | 'tree';
 }
 
 export function ConflictResolutionDialog({
@@ -23,24 +30,24 @@ export function ConflictResolutionDialog({
   onClose,
   conflictPath,
   workingCopyPath,
-  onResolved
+  onResolved,
 }: ConflictResolutionDialogProps) {
-  const queryClient = useQueryClient()
-  const [selectedResolution, setSelectedResolution] = useState<string | null>(null)
-  const [isResolving, setIsResolving] = useState(false)
-  const [isLaunchingTool, setIsLaunchingTool] = useState(false)
-  const [mergeToolError, setMergeToolError] = useState<string | null>(null)
-  
+  const queryClient = useQueryClient();
+  const [selectedResolution, setSelectedResolution] = useState<ConflictResolution | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+  const [isLaunchingTool, setIsLaunchingTool] = useState(false);
+  const [mergeToolError, setMergeToolError] = useState<string | null>(null);
+
   // Fetch settings to get external merge tool
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
-      const stored = await window.api.store.get<{ externalMergeTool?: string }>('settings')
-      return stored || {}
+      const stored = await window.api.store.get<{ externalMergeTool?: string }>('settings');
+      return stored || {};
     },
-    enabled: isOpen
-  })
-  
+    enabled: isOpen,
+  });
+
   // Get conflict info
   const { data: conflictData, isLoading } = useQuery({
     queryKey: ['conflict:info', conflictPath],
@@ -52,69 +59,71 @@ export function ConflictResolutionDialog({
         theirsPath: conflictPath + '.r123',
         basePath: conflictPath + '.r122',
         mergedPath: conflictPath,
-        conflictType: 'text'
-      }
+        conflictType: 'text',
+      };
     },
-    enabled: isOpen && !!conflictPath
-  })
-  
+    enabled: isOpen && !!conflictPath,
+  });
+
   const resolutions = [
-    { 
-      value: 'mine-full', 
+    {
+      value: 'mine-full',
       label: 'Resolve using mine',
-      description: 'Keep your local changes, discard incoming changes'
+      description: 'Keep your local changes, discard incoming changes',
     },
-    { 
-      value: 'theirs-full', 
+    {
+      value: 'theirs-full',
       label: 'Resolve using theirs',
-      description: 'Use incoming changes, discard your local changes'
+      description: 'Use incoming changes, discard your local changes',
     },
-    { 
-      value: 'base', 
+    {
+      value: 'base',
       label: 'Resolve using base',
-      description: 'Use the common ancestor version'
+      description: 'Use the common ancestor version',
     },
-    { 
-      value: 'mine-conflict', 
+    {
+      value: 'mine-conflict',
       label: 'Resolve conflicts using mine',
-      description: 'Keep mine for conflicts, accept non-conflicting changes'
+      description: 'Keep mine for conflicts, accept non-conflicting changes',
     },
-    { 
-      value: 'theirs-conflict', 
+    {
+      value: 'theirs-conflict',
       label: 'Resolve conflicts using theirs',
-      description: 'Use theirs for conflicts, accept non-conflicting changes'
-    }
-  ]
-  
+      description: 'Use theirs for conflicts, accept non-conflicting changes',
+    },
+  ];
+
   const handleResolve = async () => {
-    if (!selectedResolution) return
-    
-    setIsResolving(true)
-    
+    if (!selectedResolution) return;
+
+    setIsResolving(true);
+
     try {
-      await window.api.svn.resolve(conflictPath, selectedResolution as any)
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] })
-      onResolved?.()
-      onClose()
+      await window.api.svn.resolve(conflictPath, selectedResolution);
+      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      onResolved?.();
+      onClose();
     } catch (err) {
-      console.error('Failed to resolve conflict:', err)
+      console.error('Failed to resolve conflict:', err);
     } finally {
-      setIsResolving(false)
+      setIsResolving(false);
     }
-  }
-  
+  };
+
   const handleLaunchMergeTool = async () => {
-    if (!conflictData) return
-    
-    const mergeTool = settings?.externalMergeTool
+    if (!conflictData) return;
+
+    const mergeTool = settings?.externalMergeTool;
     if (!mergeTool) {
-      setMergeToolError('No external merge tool configured. Please set one in Settings > Diff & Merge.')
-      return
+      setMergeToolError(
+        'No external merge tool configured. Please set one in Settings > Diff & Merge.'
+      );
+      return;
     }
-    
-    setIsLaunchingTool(true)
-    setMergeToolError(null)
-    
+
+    setIsLaunchingTool(true);
+    setMergeToolError(null);
+
     try {
       await window.api.external.openMergeTool(
         mergeTool,
@@ -122,40 +131,37 @@ export function ConflictResolutionDialog({
         conflictData.minePath,
         conflictData.theirsPath,
         conflictData.mergedPath
-      )
+      );
     } catch (err) {
-      console.error('Failed to launch merge tool:', err)
-      setMergeToolError(`Failed to launch merge tool: ${(err as Error).message}`)
+      console.error('Failed to launch merge tool:', err);
+      setMergeToolError(`Failed to launch merge tool: ${(err as Error).message}`);
     } finally {
-      setIsLaunchingTool(false)
+      setIsLaunchingTool(false);
     }
-  }
-  
+  };
+
   const handleMarkResolved = async () => {
-    setIsResolving(true)
-    
+    setIsResolving(true);
+
     try {
-      await window.api.svn.resolve(conflictPath, 'mine-full')
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] })
-      onResolved?.()
-      onClose()
+      await window.api.svn.resolve(conflictPath, 'mine-full');
+      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      onResolved?.();
+      onClose();
     } catch (err) {
-      console.error('Failed to mark resolved:', err)
+      console.error('Failed to mark resolved:', err);
     } finally {
-      setIsResolving(false)
+      setIsResolving(false);
     }
-  }
-  
-  if (!isOpen) return null
-  
-  const filename = conflictPath.split(/[/\\]/).pop() || conflictPath
-  
+  };
+
+  if (!isOpen) return null;
+
+  const filename = conflictPath.split(/[/\\]/).pop() || conflictPath;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[600px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[600px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -166,7 +172,7 @@ export function ConflictResolutionDialog({
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {isLoading ? (
@@ -188,7 +194,7 @@ export function ConflictResolutionDialog({
                   This file has conflicting changes between your local copy and the repository.
                 </p>
               </div>
-              
+
               {/* Merge tool error */}
               {mergeToolError && (
                 <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
@@ -196,7 +202,7 @@ export function ConflictResolutionDialog({
                   <span>{mergeToolError}</span>
                 </div>
               )}
-              
+
               {/* External merge tool option */}
               {settings?.externalMergeTool && (
                 <div className="bg-bg-tertiary rounded-lg p-3">
@@ -231,7 +237,7 @@ export function ConflictResolutionDialog({
                   </p>
                 </div>
               )}
-              
+
               {/* Quick resolution options */}
               <div>
                 <h4 className="text-sm font-medium text-text mb-2">Quick Resolution</h4>
@@ -250,7 +256,9 @@ export function ConflictResolutionDialog({
                         name="resolution"
                         value={resolution.value}
                         checked={selectedResolution === resolution.value}
-                        onChange={() => setSelectedResolution(resolution.value)}
+                        onChange={() =>
+                          setSelectedResolution(resolution.value as ConflictResolution)
+                        }
                         className="mt-1"
                       />
                       <div className="flex-1">
@@ -264,7 +272,7 @@ export function ConflictResolutionDialog({
             </>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <button onClick={onClose} className="btn btn-secondary">
@@ -285,5 +293,5 @@ export function ConflictResolutionDialog({
         </div>
       </div>
     </div>
-  )
+  );
 }

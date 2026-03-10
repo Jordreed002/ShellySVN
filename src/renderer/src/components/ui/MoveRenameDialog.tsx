@@ -1,72 +1,81 @@
-import { useState } from 'react'
-import { X, Move, FileText, FolderOpen, AlertCircle, Loader2 } from 'lucide-react'
+import { useState } from 'react';
+import { X, Move, FileText, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
 
 interface MoveRenameDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  sourcePath: string
-  mode: 'move' | 'rename'
-  onSuccess?: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  sourcePath: string;
+  mode: 'move' | 'rename';
+  onSuccess?: () => void;
 }
 
-export function MoveRenameDialog({ isOpen, onClose, sourcePath, mode, onSuccess }: MoveRenameDialogProps) {
-  const [destination, setDestination] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
-  if (!isOpen) return null
-  
-  const sourceName = sourcePath.split(/[/\\]/).pop() || sourcePath
-  const isDirectory = !sourceName.includes('.') || sourcePath.endsWith('/') || sourcePath.endsWith('\\')
-  
+export function MoveRenameDialog({
+  isOpen,
+  onClose,
+  sourcePath,
+  mode,
+  onSuccess,
+}: MoveRenameDialogProps) {
+  const [destination, setDestination] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const sourceName = sourcePath.split(/[/\\]/).pop() || sourcePath;
+  const isDirectory =
+    !sourceName.includes('.') || sourcePath.endsWith('/') || sourcePath.endsWith('\\');
+
   const handleBrowse = async () => {
     if (isDirectory) {
-      const result = await window.api.dialog.openDirectory()
+      const result = await window.api.dialog.openDirectory();
       if (result) {
-        setDestination(result)
+        setDestination(result);
       }
     } else {
-      const result = await window.api.dialog.saveFile(sourceName)
+      const result = await window.api.dialog.saveFile(sourceName);
       if (result) {
-        setDestination(result)
+        setDestination(result);
       }
     }
-  }
-  
+  };
+
   const handleSubmit = async () => {
     if (!destination.trim()) {
-      setError('Destination path is required')
-      return
+      setError('Destination path is required');
+      return;
     }
-    
-    setIsLoading(true)
-    setError(null)
-    
+
+    setIsLoading(true);
+    setError(null);
+
     try {
-      const result = await window.api.svn.move(sourcePath, destination)
-      
+      const result = await window.api.svn.move(sourcePath, destination);
+
       if (result.success) {
-        onSuccess?.()
-        onClose()
+        onSuccess?.();
+        onClose();
       } else {
-        setError(result.output || 'Failed to move/rename')
+        setError(result.output || 'Failed to move/rename');
       }
     } catch (err) {
-      setError((err as Error).message || 'An error occurred')
+      setError((err as Error).message || 'An error occurred');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-  
-  const title = mode === 'rename' ? 'Rename' : 'Move'
-  const icon = mode === 'rename' ? <FileText className="w-5 h-5 text-accent" /> : <Move className="w-5 h-5 text-accent" />
-  
+  };
+
+  const title = mode === 'rename' ? 'Rename' : 'Move';
+  const icon =
+    mode === 'rename' ? (
+      <FileText className="w-5 h-5 text-accent" />
+    ) : (
+      <Move className="w-5 h-5 text-accent" />
+    );
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[500px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[500px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -77,7 +86,7 @@ export function MoveRenameDialog({ isOpen, onClose, sourcePath, mode, onSuccess 
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {/* Source info */}
@@ -85,7 +94,7 @@ export function MoveRenameDialog({ isOpen, onClose, sourcePath, mode, onSuccess 
             <p className="text-xs text-text-faint mb-1">Source:</p>
             <p className="text-sm font-mono text-text-secondary truncate">{sourcePath}</p>
           </div>
-          
+
           {/* Destination input */}
           <div>
             <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -100,11 +109,7 @@ export function MoveRenameDialog({ isOpen, onClose, sourcePath, mode, onSuccess 
                 className="input flex-1"
                 autoFocus
               />
-              <button
-                onClick={handleBrowse}
-                className="btn btn-secondary"
-                title="Browse"
-              >
+              <button onClick={handleBrowse} className="btn btn-secondary" title="Browse">
                 {isDirectory ? (
                   <FolderOpen className="w-4 h-4" />
                 ) : (
@@ -113,13 +118,13 @@ export function MoveRenameDialog({ isOpen, onClose, sourcePath, mode, onSuccess 
               </button>
             </div>
           </div>
-          
+
           {/* Info */}
           <div className="text-xs text-text-faint space-y-1">
             <p>This operation preserves the file's history in the repository.</p>
             <p>The change will be committed to the repository when you commit.</p>
           </div>
-          
+
           {error && (
             <div className="text-sm text-error flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
@@ -127,7 +132,7 @@ export function MoveRenameDialog({ isOpen, onClose, sourcePath, mode, onSuccess 
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <button onClick={onClose} className="btn btn-secondary">
@@ -148,5 +153,5 @@ export function MoveRenameDialog({ isOpen, onClose, sourcePath, mode, onSuccess 
         </div>
       </div>
     </div>
-  )
+  );
 }

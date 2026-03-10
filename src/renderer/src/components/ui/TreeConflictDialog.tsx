@@ -1,83 +1,90 @@
-import { useState } from 'react'
-import { X, AlertTriangle, FileText, Folder, ArrowRight, Loader2 } from 'lucide-react'
+import { useState } from 'react';
+import { X, AlertTriangle, FileText, Folder, ArrowRight, Loader2 } from 'lucide-react';
+
+type TreeConflictResolution =
+  | 'mine-conflict'
+  | 'theirs-conflict'
+  | 'mine-full'
+  | 'theirs-full'
+  | 'postpone';
 
 interface TreeConflictDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  conflictPath: string
-  conflictDescription?: string
-  onResolve?: (resolution: 'mine-conflict' | 'theirs-conflict' | 'mine-full' | 'theirs-full' | 'postpone') => void
+  isOpen: boolean;
+  onClose: () => void;
+  conflictPath: string;
+  conflictDescription?: string;
+  onResolve?: (resolution: TreeConflictResolution) => void;
 }
 
-export function TreeConflictDialog({ 
-  isOpen, 
-  onClose, 
-  conflictPath, 
+export function TreeConflictDialog({
+  isOpen,
+  onClose,
+  conflictPath,
   conflictDescription,
-  onResolve 
+  onResolve,
 }: TreeConflictDialogProps) {
-  const [selectedResolution, setSelectedResolution] = useState<string | null>(null)
-  const [isResolving, setIsResolving] = useState(false)
-  
-  if (!isOpen) return null
-  
-  const filename = conflictPath.split(/[/\\]/).pop() || conflictPath
-  const isDirectory = !filename.includes('.')
-  
+  const [selectedResolution, setSelectedResolution] = useState<TreeConflictResolution | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+
+  if (!isOpen) return null;
+
+  const filename = conflictPath.split(/[/\\]/).pop() || conflictPath;
+  const isDirectory = !filename.includes('.');
+
   const resolutions = [
-    { 
-      value: 'mine-conflict', 
+    {
+      value: 'mine-conflict',
       label: 'Resolve conflict using mine',
-      description: 'Keep your local changes, discard incoming changes'
+      description: 'Keep your local changes, discard incoming changes',
     },
-    { 
-      value: 'theirs-conflict', 
+    {
+      value: 'theirs-conflict',
       label: 'Resolve conflict using theirs',
-      description: 'Use incoming changes, discard your local changes'
+      description: 'Use incoming changes, discard your local changes',
     },
-    { 
-      value: 'mine-full', 
+    {
+      value: 'mine-full',
       label: 'Resolve using mine (full)',
-      description: 'Prefer your version for all conflicts in this file'
+      description: 'Prefer your version for all conflicts in this file',
     },
-    { 
-      value: 'theirs-full', 
+    {
+      value: 'theirs-full',
       label: 'Resolve using theirs (full)',
-      description: 'Prefer their version for all conflicts in this file'
+      description: 'Prefer their version for all conflicts in this file',
     },
-    { 
-      value: 'postpone', 
+    {
+      value: 'postpone',
       label: 'Postpone resolution',
-      description: 'Leave the conflict unresolved for now'
-    }
-  ]
-  
+      description: 'Leave the conflict unresolved for now',
+    },
+  ];
+
   const handleResolve = async () => {
-    if (!selectedResolution) return
-    
-    setIsResolving(true)
-    
+    if (!selectedResolution) return;
+
+    setIsResolving(true);
+
     try {
       if (onResolve) {
-        onResolve(selectedResolution as any)
+        onResolve(selectedResolution);
       } else {
         // Default behavior: resolve via SVN
-        await window.api.svn.resolve(conflictPath, selectedResolution as any)
+        await window.api.svn.resolve(
+          conflictPath,
+          selectedResolution as 'mine-conflict' | 'theirs-conflict' | 'mine-full' | 'theirs-full'
+        );
       }
-      onClose()
+      onClose();
     } catch (err) {
-      console.error('Failed to resolve conflict:', err)
+      console.error('Failed to resolve conflict:', err);
     } finally {
-      setIsResolving(false)
+      setIsResolving(false);
     }
-  }
-  
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[550px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[550px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -88,7 +95,7 @@ export function TreeConflictDialog({
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {/* Conflict info */}
@@ -108,22 +115,20 @@ export function TreeConflictDialog({
               <p className="text-sm text-text-secondary">{conflictDescription}</p>
             )}
           </div>
-          
+
           {/* Conflict type explanation */}
           <div className="bg-bg-tertiary rounded-lg p-3 text-sm text-text-secondary">
             <p className="font-medium mb-1">What is a tree conflict?</p>
             <p>
-              A tree conflict occurs when there's a conflict at the directory level, 
-              such as a file being deleted locally but modified in the repository, 
-              or both sides renaming a file differently.
+              A tree conflict occurs when there's a conflict at the directory level, such as a file
+              being deleted locally but modified in the repository, or both sides renaming a file
+              differently.
             </p>
           </div>
-          
+
           {/* Resolution options */}
           <div>
-            <label className="text-sm font-medium text-text-secondary mb-2 block">
-              Resolution
-            </label>
+            <label className="text-sm font-medium text-text-secondary mb-2 block">Resolution</label>
             <div className="space-y-2">
               {resolutions.map((resolution) => (
                 <label
@@ -139,7 +144,9 @@ export function TreeConflictDialog({
                     name="resolution"
                     value={resolution.value}
                     checked={selectedResolution === resolution.value}
-                    onChange={() => setSelectedResolution(resolution.value)}
+                    onChange={() =>
+                      setSelectedResolution(resolution.value as TreeConflictResolution)
+                    }
                     className="mt-1"
                   />
                   <div className="flex-1">
@@ -150,14 +157,14 @@ export function TreeConflictDialog({
               ))}
             </div>
           </div>
-          
+
           {/* Warning */}
           <div className="text-xs text-text-faint flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
             Tree conflicts may require manual intervention after resolution.
           </div>
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <button onClick={onClose} className="btn btn-secondary">
@@ -178,5 +185,5 @@ export function TreeConflictDialog({
         </div>
       </div>
     </div>
-  )
+  );
 }

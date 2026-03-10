@@ -1,211 +1,225 @@
-import { useState, useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { 
-  X, AlertTriangle, CheckCircle, ChevronRight, ChevronLeft, FileText, 
-  RefreshCw, List, Layers, Eye,
-  Check, Info, AlertCircle
-} from 'lucide-react'
-import { ThreeWayMergeEditor } from './ThreeWayMergeEditor'
+import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  X,
+  AlertTriangle,
+  CheckCircle,
+  ChevronRight,
+  ChevronLeft,
+  FileText,
+  RefreshCw,
+  List,
+  Layers,
+  Eye,
+  Check,
+  Info,
+  AlertCircle,
+} from 'lucide-react';
+import { ThreeWayMergeEditor } from './ThreeWayMergeEditor';
 
 interface ConflictWizardProps {
-  isOpen: boolean
-  onClose: () => void
-  conflictPaths: string[]
-  workingCopyPath: string
-  onAllResolved?: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  conflictPaths: string[];
+  workingCopyPath: string;
+  onAllResolved?: () => void;
 }
 
 interface ConflictFile {
-  path: string
-  status: 'pending' | 'in-progress' | 'resolved' | 'skipped'
-  conflictType: 'text' | 'property' | 'tree'
-  resolution?: 'mine-full' | 'theirs-full' | 'base' | 'merged' | 'custom'
-  error?: string
+  path: string;
+  status: 'pending' | 'in-progress' | 'resolved' | 'skipped';
+  conflictType: 'text' | 'property' | 'tree';
+  resolution?: 'mine-full' | 'theirs-full' | 'base' | 'merged' | 'custom';
+  error?: string;
 }
 
-type WizardStep = 'overview' | 'select' | 'resolve' | 'review' | 'complete'
+type WizardStep = 'overview' | 'select' | 'resolve' | 'review' | 'complete';
 
 export function ConflictResolutionWizard({
   isOpen,
   onClose,
   conflictPaths,
   workingCopyPath,
-  onAllResolved
+  onAllResolved,
 }: ConflictWizardProps) {
-  const queryClient = useQueryClient()
-  const [currentStep, setCurrentStep] = useState<WizardStep>('overview')
-  const [conflictFiles, setConflictFiles] = useState<ConflictFile[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [showMergeEditor, setShowMergeEditor] = useState(false)
-  const [autoAdvance, setAutoAdvance] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
-  
+  const queryClient = useQueryClient();
+  const [currentStep, setCurrentStep] = useState<WizardStep>('overview');
+  const [conflictFiles, setConflictFiles] = useState<ConflictFile[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [showMergeEditor, setShowMergeEditor] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // Initialize conflict files
   useEffect(() => {
     if (isOpen && conflictPaths.length > 0) {
-      setConflictFiles(conflictPaths.map(path => ({
-        path,
-        status: 'pending',
-        conflictType: 'text' as const
-      })))
-      setCurrentIndex(0)
-      setCurrentStep('overview')
+      setConflictFiles(
+        conflictPaths.map((path) => ({
+          path,
+          status: 'pending',
+          conflictType: 'text' as const,
+        }))
+      );
+      setCurrentIndex(0);
+      setCurrentStep('overview');
     }
-  }, [isOpen, conflictPaths])
-  
+  }, [isOpen, conflictPaths]);
+
   // Get current conflict file
-  const currentFile = conflictFiles[currentIndex]
-  
+  const currentFile = conflictFiles[currentIndex];
+
   // Statistics
   const stats = {
     total: conflictFiles.length,
-    pending: conflictFiles.filter(f => f.status === 'pending').length,
-    inProgress: conflictFiles.filter(f => f.status === 'in-progress').length,
-    resolved: conflictFiles.filter(f => f.status === 'resolved').length,
-    skipped: conflictFiles.filter(f => f.status === 'skipped').length
-  }
-  
+    pending: conflictFiles.filter((f) => f.status === 'pending').length,
+    inProgress: conflictFiles.filter((f) => f.status === 'in-progress').length,
+    resolved: conflictFiles.filter((f) => f.status === 'resolved').length,
+    skipped: conflictFiles.filter((f) => f.status === 'skipped').length,
+  };
+
   // Navigation
   const goToNextStep = () => {
-    const steps: WizardStep[] = ['overview', 'select', 'resolve', 'review', 'complete']
-    const nextIndex = steps.indexOf(currentStep) + 1
+    const steps: WizardStep[] = ['overview', 'select', 'resolve', 'review', 'complete'];
+    const nextIndex = steps.indexOf(currentStep) + 1;
     if (nextIndex < steps.length) {
-      setCurrentStep(steps[nextIndex])
+      setCurrentStep(steps[nextIndex]);
     }
-  }
-  
+  };
+
   const goToPrevStep = () => {
-    const steps: WizardStep[] = ['overview', 'select', 'resolve', 'review', 'complete']
-    const prevIndex = steps.indexOf(currentStep) - 1
+    const steps: WizardStep[] = ['overview', 'select', 'resolve', 'review', 'complete'];
+    const prevIndex = steps.indexOf(currentStep) - 1;
     if (prevIndex >= 0) {
-      setCurrentStep(steps[prevIndex])
+      setCurrentStep(steps[prevIndex]);
     }
-  }
-  
+  };
+
   // Handle resolution
   const handleResolve = async (resolution: ConflictFile['resolution']) => {
-    if (!currentFile) return
-    
-    setIsProcessing(true)
-    
+    if (!currentFile) return;
+
+    setIsProcessing(true);
+
     try {
       // Update status
-      setConflictFiles(prev => prev.map((f, i) => 
-        i === currentIndex 
-          ? { ...f, status: 'resolved', resolution }
-          : f
-      ))
-      
+      setConflictFiles((prev) =>
+        prev.map((f, i) => (i === currentIndex ? { ...f, status: 'resolved', resolution } : f))
+      );
+
       // Apply SVN resolution
-      const resolutionMap: Record<string, string> = {
+      const resolutionMap: Record<string, 'mine-full' | 'theirs-full' | 'base'> = {
         'mine-full': 'mine-full',
         'theirs-full': 'theirs-full',
-        'base': 'base',
-        'merged': 'mine-full', // After merge, mark as resolved with mine
-        'custom': 'mine-full'
-      }
-      
-      await window.api.svn.resolve(currentFile.path, resolutionMap[resolution || 'mine-full'] as any)
-      
+        base: 'base',
+        merged: 'mine-full', // After merge, mark as resolved with mine
+        custom: 'mine-full',
+      };
+
+      await window.api.svn.resolve(currentFile.path, resolutionMap[resolution || 'mine-full']);
+
       // Invalidate status cache
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] })
-      
+      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+
       // Auto-advance to next conflict
       if (autoAdvance && currentIndex < conflictFiles.length - 1) {
-        setCurrentIndex(prev => prev + 1)
+        setCurrentIndex((prev) => prev + 1);
       } else if (stats.pending === 1) {
         // This was the last one
-        setCurrentStep('complete')
+        setCurrentStep('complete');
       }
     } catch (err) {
-      console.error('Failed to resolve conflict:', err)
-      setConflictFiles(prev => prev.map((f, i) =>
-        i === currentIndex
-          ? { ...f, error: (err as Error).message }
-          : f
-      ))
+      console.error('Failed to resolve conflict:', err);
+      setConflictFiles((prev) =>
+        prev.map((f, i) => (i === currentIndex ? { ...f, error: (err as Error).message } : f))
+      );
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false);
     }
-  }
-  
+  };
+
   // Skip current conflict
   const handleSkip = () => {
-    setConflictFiles(prev => prev.map((f, i) =>
-      i === currentIndex
-        ? { ...f, status: 'skipped' }
-        : f
-    ))
-    
+    setConflictFiles((prev) =>
+      prev.map((f, i) => (i === currentIndex ? { ...f, status: 'skipped' } : f))
+    );
+
     if (currentIndex < conflictFiles.length - 1) {
-      setCurrentIndex(prev => prev + 1)
+      setCurrentIndex((prev) => prev + 1);
     }
-  }
-  
+  };
+
   // Open merge editor
   const handleOpenMergeEditor = () => {
-    setShowMergeEditor(true)
-  }
-  
+    setShowMergeEditor(true);
+  };
+
   // Handle merge editor save
   const handleMergeEditorSave = async (content: string) => {
     // Write the merged content back to the file
     // This would need a file write API
-    console.log('Merged content saved:', content.length, 'bytes')
-    
+    console.log('Merged content saved:', content.length, 'bytes');
+
     // Mark as resolved
-    await handleResolve('merged')
-    setShowMergeEditor(false)
-  }
-  
+    await handleResolve('merged');
+    setShowMergeEditor(false);
+  };
+
   // Batch resolve all
   const handleResolveAllMine = async () => {
-    setIsProcessing(true)
+    setIsProcessing(true);
     try {
-      for (const file of conflictFiles.filter(f => f.status === 'pending')) {
-        await window.api.svn.resolve(file.path, 'mine-full')
+      for (const file of conflictFiles.filter((f) => f.status === 'pending')) {
+        await window.api.svn.resolve(file.path, 'mine-full');
       }
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] })
-      setConflictFiles(prev => prev.map(f => 
-        f.status === 'pending' ? { ...f, status: 'resolved', resolution: 'mine-full' as const } : f
-      ))
-      setCurrentStep('complete')
+      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      setConflictFiles((prev) =>
+        prev.map((f) =>
+          f.status === 'pending'
+            ? { ...f, status: 'resolved', resolution: 'mine-full' as const }
+            : f
+        )
+      );
+      setCurrentStep('complete');
     } catch (err) {
-      console.error('Failed to resolve all:', err)
+      console.error('Failed to resolve all:', err);
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false);
     }
-  }
-  
+  };
+
   const handleResolveAllTheirs = async () => {
-    setIsProcessing(true)
+    setIsProcessing(true);
     try {
-      for (const file of conflictFiles.filter(f => f.status === 'pending')) {
-        await window.api.svn.resolve(file.path, 'theirs-full')
+      for (const file of conflictFiles.filter((f) => f.status === 'pending')) {
+        await window.api.svn.resolve(file.path, 'theirs-full');
       }
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] })
-      setConflictFiles(prev => prev.map(f => 
-        f.status === 'pending' ? { ...f, status: 'resolved', resolution: 'theirs-full' as const } : f
-      ))
-      setCurrentStep('complete')
+      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      setConflictFiles((prev) =>
+        prev.map((f) =>
+          f.status === 'pending'
+            ? { ...f, status: 'resolved', resolution: 'theirs-full' as const }
+            : f
+        )
+      );
+      setCurrentStep('complete');
     } catch (err) {
-      console.error('Failed to resolve all:', err)
+      console.error('Failed to resolve all:', err);
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false);
     }
-  }
-  
+  };
+
   // Finish
   const handleFinish = () => {
-    onAllResolved?.()
-    onClose()
-  }
-  
-  if (!isOpen) return null
-  
+    onAllResolved?.();
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
+      <div
         className="modal w-[900px] max-w-[95vw] h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -235,30 +249,32 @@ export function ConflictResolutionWizard({
                   onClick={() => setCurrentStep(step)}
                   className={`
                     flex items-center gap-2 px-3 py-2 rounded-lg transition-fast
-                    ${currentStep === step 
-                      ? 'bg-accent/20 text-accent' 
-                      : index < ['overview', 'select', 'resolve', 'review'].indexOf(currentStep)
-                        ? 'text-svn-added hover:bg-bg-elevated'
-                        : 'text-text-muted hover:bg-bg-elevated'
+                    ${
+                      currentStep === step
+                        ? 'bg-accent/20 text-accent'
+                        : index < ['overview', 'select', 'resolve', 'review'].indexOf(currentStep)
+                          ? 'text-svn-added hover:bg-bg-elevated'
+                          : 'text-text-muted hover:bg-bg-elevated'
                     }
                   `}
                 >
-                  <span className={`
+                  <span
+                    className={`
                     w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium
-                    ${currentStep === step 
-                      ? 'bg-accent text-white' 
-                      : index < ['overview', 'select', 'resolve', 'review'].indexOf(currentStep)
-                        ? 'bg-svn-added text-white'
-                        : 'bg-bg-tertiary text-text-muted'
+                    ${
+                      currentStep === step
+                        ? 'bg-accent text-white'
+                        : index < ['overview', 'select', 'resolve', 'review'].indexOf(currentStep)
+                          ? 'bg-svn-added text-white'
+                          : 'bg-bg-tertiary text-text-muted'
                     }
-                  `}>
+                  `}
+                  >
                     {index + 1}
                   </span>
                   <span className="capitalize hidden sm:inline">{step}</span>
                 </button>
-                {index < 3 && (
-                  <ChevronRight className="w-4 h-4 text-text-faint mx-2" />
-                )}
+                {index < 3 && <ChevronRight className="w-4 h-4 text-text-faint mx-2" />}
               </div>
             ))}
           </div>
@@ -291,7 +307,9 @@ export function ConflictResolutionWizard({
                 </div>
                 <div className="bg-bg-tertiary rounded-lg p-4 text-center">
                   <List className="w-6 h-6 text-accent mx-auto mb-2" />
-                  <p className="text-2xl font-bold text-text">{conflictPaths.filter(p => !p.includes('.')).length}</p>
+                  <p className="text-2xl font-bold text-text">
+                    {conflictPaths.filter((p) => !p.includes('.')).length}
+                  </p>
                   <p className="text-xs text-text-muted">Directories</p>
                 </div>
               </div>
@@ -326,7 +344,10 @@ export function ConflictResolutionWizard({
                 <Info className="w-5 h-5 text-info flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-text-secondary">
                   <p className="font-medium text-text mb-1">Tip</p>
-                  <p>You can also resolve conflicts individually by choosing "Resolve" from the context menu.</p>
+                  <p>
+                    You can also resolve conflicts individually by choosing "Resolve" from the
+                    context menu.
+                  </p>
                 </div>
               </div>
             </div>
@@ -339,13 +360,21 @@ export function ConflictResolutionWizard({
                 <h3 className="text-lg font-medium text-text">Select Conflicts to Resolve</h3>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setConflictFiles(prev => prev.map(f => ({ ...f, status: 'pending' as const })))}
+                    onClick={() =>
+                      setConflictFiles((prev) =>
+                        prev.map((f) => ({ ...f, status: 'pending' as const }))
+                      )
+                    }
                     className="btn btn-secondary btn-sm"
                   >
                     Select All
                   </button>
                   <button
-                    onClick={() => setConflictFiles(prev => prev.map(f => ({ ...f, status: 'skipped' as const })))}
+                    onClick={() =>
+                      setConflictFiles((prev) =>
+                        prev.map((f) => ({ ...f, status: 'skipped' as const }))
+                      )
+                    }
                     className="btn btn-secondary btn-sm"
                   >
                     Deselect All
@@ -359,11 +388,12 @@ export function ConflictResolutionWizard({
                     key={file.path}
                     className={`
                       flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-fast
-                      ${file.status === 'pending' 
-                        ? 'border-border hover:border-accent/50' 
-                        : file.status === 'resolved'
-                          ? 'border-svn-added/50 bg-svn-added/10'
-                          : 'border-border opacity-50'
+                      ${
+                        file.status === 'pending'
+                          ? 'border-border hover:border-accent/50'
+                          : file.status === 'resolved'
+                            ? 'border-svn-added/50 bg-svn-added/10'
+                            : 'border-border opacity-50'
                       }
                     `}
                   >
@@ -371,11 +401,13 @@ export function ConflictResolutionWizard({
                       type="checkbox"
                       checked={file.status === 'pending'}
                       onChange={() => {
-                        setConflictFiles(prev => prev.map((f, i) =>
-                          i === index
-                            ? { ...f, status: f.status === 'pending' ? 'skipped' : 'pending' }
-                            : f
-                        ))
+                        setConflictFiles((prev) =>
+                          prev.map((f, i) =>
+                            i === index
+                              ? { ...f, status: f.status === 'pending' ? 'skipped' : 'pending' }
+                              : f
+                          )
+                        );
                       }}
                       className="checkbox"
                     />
@@ -407,14 +439,16 @@ export function ConflictResolutionWizard({
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+                      onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
                       disabled={currentIndex === 0}
                       className="btn-icon-sm"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => setCurrentIndex(prev => Math.min(conflictFiles.length - 1, prev + 1))}
+                      onClick={() =>
+                        setCurrentIndex((prev) => Math.min(conflictFiles.length - 1, prev + 1))
+                      }
                       disabled={currentIndex >= conflictFiles.length - 1}
                       className="btn-icon-sm"
                     >
@@ -450,7 +484,7 @@ export function ConflictResolutionWizard({
               {/* Resolution options */}
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-text">Choose Resolution</h4>
-                
+
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => handleResolve('mine-full')}
@@ -471,19 +505,13 @@ export function ConflictResolutionWizard({
                 </div>
 
                 {/* Merge option */}
-                <button
-                  onClick={handleOpenMergeEditor}
-                  className="btn btn-primary w-full"
-                >
+                <button onClick={handleOpenMergeEditor} className="btn btn-primary w-full">
                   <Eye className="w-4 h-4" />
                   Open Visual Merge Editor
                 </button>
 
                 {/* Skip */}
-                <button
-                  onClick={handleSkip}
-                  className="btn btn-ghost w-full text-text-muted"
-                >
+                <button onClick={handleSkip} className="btn btn-ghost w-full text-text-muted">
                   Skip for now
                 </button>
               </div>
@@ -509,11 +537,12 @@ export function ConflictResolutionWizard({
                     key={file.path}
                     className={`
                       flex items-center gap-3 p-3 border rounded-lg
-                      ${file.status === 'resolved' 
-                        ? 'border-svn-added/50 bg-svn-added/10' 
-                        : file.status === 'skipped'
-                          ? 'border-border bg-bg-tertiary opacity-60'
-                          : 'border-warning/50 bg-warning/10'
+                      ${
+                        file.status === 'resolved'
+                          ? 'border-svn-added/50 bg-svn-added/10'
+                          : file.status === 'skipped'
+                            ? 'border-border bg-bg-tertiary opacity-60'
+                            : 'border-warning/50 bg-warning/10'
                       }
                     `}
                   >
@@ -588,7 +617,7 @@ export function ConflictResolutionWizard({
             <ChevronLeft className="w-4 h-4" />
             Back
           </button>
-          
+
           <div className="flex items-center gap-2">
             {currentStep !== 'complete' && (
               <button
@@ -617,7 +646,7 @@ export function ConflictResolutionWizard({
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default ConflictResolutionWizard
+export default ConflictResolutionWizard;

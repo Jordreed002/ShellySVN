@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": true,
+  "jsxSingleQuote": false,
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParens": "always",
+  "trailingComma": "es5",
+  "experimentalSortPackageJson": false,
+  "ignorePatterns": ["out/", "node_modules/", "release/", "dist/", "coverage/", "CHANGELOG.md"]
+}

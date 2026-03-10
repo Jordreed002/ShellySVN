@@ -5,15 +5,15 @@
  * actual coverage of the production code.
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vitest';
 import {
   parseSvnStatusXml,
   parseSvnInfoXml,
   parseSvnLogXml,
   parseSvnDiff,
   parseSvnListXml,
-  parseSvnBlameXml
-} from '@main/ipc/svn'
+  parseSvnBlameXml,
+} from '@main/ipc/svn';
 
 describe('SVN Parsing Functions Integration', () => {
   describe('parseSvnStatusXml', () => {
@@ -22,13 +22,13 @@ describe('SVN Parsing Functions Integration', () => {
 <status>
   <target path=".">
   </target>
-</status>`
+</status>`;
 
-      const result = parseSvnStatusXml(xml, '/test')
+      const result = parseSvnStatusXml(xml, '/test');
 
-      expect(result.path).toBe('/test')
-      expect(result.entries).toHaveLength(0)
-    })
+      expect(result.path).toBe('/test');
+      expect(result.entries).toHaveLength(0);
+    });
 
     it('should parse modified files', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -43,23 +43,23 @@ describe('SVN Parsing Functions Integration', () => {
       </wc-status>
     </entry>
   </target>
-</status>`
+</status>`;
 
-      const result = parseSvnStatusXml(xml, '/test')
+      const result = parseSvnStatusXml(xml, '/test');
 
-      expect(result.entries).toHaveLength(1)
-      expect(result.entries[0].path).toBe('src/file.ts')
-      expect(result.entries[0].status).toBe('modified')
-      expect(result.entries[0].revision).toBe(1234)
-      expect(result.entries[0].author).toBe('developer')
-    })
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].path).toBe('src/file.ts');
+      expect(result.entries[0].status).toBe('modified');
+      expect(result.entries[0].revision).toBe(1234);
+      expect(result.entries[0].author).toBe('developer');
+    });
 
     it('should handle malformed XML', () => {
-      const result = parseSvnStatusXml('not xml', '/test')
+      const result = parseSvnStatusXml('not xml', '/test');
 
-      expect(result.entries).toHaveLength(0)
-      expect(result.path).toBe('/test')
-    })
+      expect(result.entries).toHaveLength(0);
+      expect(result.path).toBe('/test');
+    });
 
     it('should parse multiple entries', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -78,16 +78,16 @@ describe('SVN Parsing Functions Integration', () => {
       </wc-status>
     </entry>
   </target>
-</status>`
+</status>`;
 
-      const result = parseSvnStatusXml(xml, '/test')
+      const result = parseSvnStatusXml(xml, '/test');
 
-      expect(result.entries).toHaveLength(3)
-      expect(result.entries[0].status).toBe('added')
-      expect(result.entries[1].status).toBe('deleted')
-      expect(result.entries[2].status).toBe('modified')
-    })
-  })
+      expect(result.entries).toHaveLength(3);
+      expect(result.entries[0].status).toBe('added');
+      expect(result.entries[1].status).toBe('deleted');
+      expect(result.entries[2].status).toBe('modified');
+    });
+  });
 
   describe('parseSvnInfoXml', () => {
     it('should parse basic info', () => {
@@ -105,19 +105,19 @@ describe('SVN Parsing Functions Integration', () => {
       <date>2024-01-15T10:30:00.000000Z</date>
     </commit>
   </entry>
-</info>`
+</info>`;
 
-      const result = parseSvnInfoXml(xml)
+      const result = parseSvnInfoXml(xml);
 
-      expect(result.path).toBe('.')
-      expect(result.revision).toBe(1234)
-      expect(result.url).toBe('https://example.com/svn/repo/trunk')
-      expect(result.repositoryRoot).toBe('https://example.com/svn/repo')
-      expect(result.repositoryUuid).toBe('test-uuid-1234')
-      expect(result.workingCopyRoot).toBe('/path/to/wc')
-      expect(result.lastChangedRevision).toBe(1233)
-      expect(result.lastChangedAuthor).toBe('developer')
-    })
+      expect(result.path).toBe('.');
+      expect(result.revision).toBe(1234);
+      expect(result.url).toBe('https://example.com/svn/repo/trunk');
+      expect(result.repositoryRoot).toBe('https://example.com/svn/repo');
+      expect(result.repositoryUuid).toBe('test-uuid-1234');
+      expect(result.workingCopyRoot).toBe('/path/to/wc');
+      expect(result.lastChangedRevision).toBe(1233);
+      expect(result.lastChangedAuthor).toBe('developer');
+    });
 
     it('should handle missing working copy root', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -133,20 +133,20 @@ describe('SVN Parsing Functions Integration', () => {
       <date>2024-01-15T10:30:00.000000Z</date>
     </commit>
   </entry>
-</info>`
+</info>`;
 
-      const result = parseSvnInfoXml(xml)
+      const result = parseSvnInfoXml(xml);
 
-      expect(result.workingCopyRoot).toBeUndefined()
-    })
+      expect(result.workingCopyRoot).toBeUndefined();
+    });
 
     it('should handle malformed XML', () => {
-      const result = parseSvnInfoXml('not xml')
+      const result = parseSvnInfoXml('not xml');
 
-      expect(result.path).toBe('')
-      expect(result.revision).toBe(0)
-    })
-  })
+      expect(result.path).toBe('');
+      expect(result.revision).toBe(0);
+    });
+  });
 
   describe('parseSvnLogXml', () => {
     it('should parse log entries', () => {
@@ -157,17 +157,17 @@ describe('SVN Parsing Functions Integration', () => {
     <date>2024-01-15T10:30:00.000000Z</date>
     <msg>Test commit</msg>
   </logentry>
-</log>`
+</log>`;
 
-      const result = parseSvnLogXml(xml)
+      const result = parseSvnLogXml(xml);
 
-      expect(result.entries).toHaveLength(1)
-      expect(result.entries[0].revision).toBe(1234)
-      expect(result.entries[0].author).toBe('developer')
-      expect(result.entries[0].message).toBe('Test commit')
-      expect(result.startRevision).toBe(1234)
-      expect(result.endRevision).toBe(1234)
-    })
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].revision).toBe(1234);
+      expect(result.entries[0].author).toBe('developer');
+      expect(result.entries[0].message).toBe('Test commit');
+      expect(result.startRevision).toBe(1234);
+      expect(result.endRevision).toBe(1234);
+    });
 
     it('should parse entries with paths', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -181,40 +181,40 @@ describe('SVN Parsing Functions Integration', () => {
       <path action="M" kind="file">/trunk/src/existing.ts</path>
     </paths>
   </logentry>
-</log>`
+</log>`;
 
-      const result = parseSvnLogXml(xml)
+      const result = parseSvnLogXml(xml);
 
-      expect(result.entries[0].paths).toHaveLength(2)
-      expect(result.entries[0].paths[0].action).toBe('A')
-      expect(result.entries[0].paths[1].action).toBe('M')
-    })
+      expect(result.entries[0].paths).toHaveLength(2);
+      expect(result.entries[0].paths[0].action).toBe('A');
+      expect(result.entries[0].paths[1].action).toBe('M');
+    });
 
     it('should handle empty log', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <log>
-</log>`
+</log>`;
 
-      const result = parseSvnLogXml(xml)
+      const result = parseSvnLogXml(xml);
 
-      expect(result.entries).toHaveLength(0)
-    })
-  })
+      expect(result.entries).toHaveLength(0);
+    });
+  });
 
   describe('parseSvnDiff', () => {
     it('should parse empty diff', () => {
-      const result = parseSvnDiff('')
+      const result = parseSvnDiff('');
 
-      expect(result.files).toHaveLength(0)
-      expect(result.hasChanges).toBe(false)
-    })
+      expect(result.files).toHaveLength(0);
+      expect(result.hasChanges).toBe(false);
+    });
 
     it('should parse binary diff', () => {
-      const result = parseSvnDiff('Cannot display: file marked as a binary type.')
+      const result = parseSvnDiff('Cannot display: file marked as a binary type.');
 
-      expect(result.isBinary).toBe(true)
-      expect(result.hasChanges).toBe(true)
-    })
+      expect(result.isBinary).toBe(true);
+      expect(result.hasChanges).toBe(true);
+    });
 
     it('should parse file diff', () => {
       const diff = `Index: file.ts
@@ -224,16 +224,16 @@ describe('SVN Parsing Functions Integration', () => {
 @@ -1,3 +1,4 @@
  line1
 +new line
- line2`
+ line2`;
 
-      const result = parseSvnDiff(diff)
+      const result = parseSvnDiff(diff);
 
-      expect(result.files).toHaveLength(1)
-      expect(result.files[0].oldPath).toBe('file.ts\t(revision 1234)')
-      expect(result.files[0].newPath).toBe('file.ts\t(working copy)')
-      expect(result.files[0].hunks).toHaveLength(1)
-      expect(result.hasChanges).toBe(true)
-    })
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].oldPath).toBe('file.ts\t(revision 1234)');
+      expect(result.files[0].newPath).toBe('file.ts\t(working copy)');
+      expect(result.files[0].hunks).toHaveLength(1);
+      expect(result.hasChanges).toBe(true);
+    });
 
     it('should track line types', () => {
       const diff = `Index: file.ts
@@ -243,20 +243,20 @@ describe('SVN Parsing Functions Integration', () => {
 @@ -1,2 +1,3 @@
  context
 -removed
-+added`
++added`;
 
-      const result = parseSvnDiff(diff)
+      const result = parseSvnDiff(diff);
 
-      const lines = result.files[0].hunks[0].lines
-      const added = lines.filter(l => l.type === 'added')
-      const removed = lines.filter(l => l.type === 'removed')
-      const context = lines.filter(l => l.type === 'context')
+      const lines = result.files[0].hunks[0].lines;
+      const added = lines.filter((l) => l.type === 'added');
+      const removed = lines.filter((l) => l.type === 'removed');
+      const context = lines.filter((l) => l.type === 'context');
 
-      expect(added).toHaveLength(1)
-      expect(removed).toHaveLength(1)
-      expect(context.length).toBeGreaterThan(0)
-    })
-  })
+      expect(added).toHaveLength(1);
+      expect(removed).toHaveLength(1);
+      expect(context.length).toBeGreaterThan(0);
+    });
+  });
 
   describe('parseSvnListXml', () => {
     it('should parse list entries', () => {
@@ -279,17 +279,17 @@ describe('SVN Parsing Functions Integration', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://repo/path')
+      const result = parseSvnListXml(xml, 'https://repo/path');
 
-      expect(result.entries).toHaveLength(2)
-      expect(result.entries[0].kind).toBe('dir')
-      expect(result.entries[0].name).toBe('src')
-      expect(result.entries[1].kind).toBe('file')
-      expect(result.entries[1].size).toBe(1024)
-    })
-  })
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].kind).toBe('dir');
+      expect(result.entries[0].name).toBe('src');
+      expect(result.entries[1].kind).toBe('file');
+      expect(result.entries[1].size).toBe(1024);
+    });
+  });
 
   describe('parseSvnBlameXml', () => {
     it('should parse blame output', () => {
@@ -311,17 +311,17 @@ describe('SVN Parsing Functions Integration', () => {
       <text>Second line</text>
     </entry>
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'test.txt')
+      const result = parseSvnBlameXml(xml, 'test.txt');
 
-      expect(result.lines).toHaveLength(2)
-      expect(result.lines[0].lineNumber).toBe(1)
-      expect(result.lines[0].revision).toBe(1234)
-      expect(result.lines[0].author).toBe('dev')
-      expect(result.lines[0].content).toBe('First line')
-      expect(result.startRevision).toBe(1234)
-      expect(result.endRevision).toBe(1235)
-    })
-  })
-})
+      expect(result.lines).toHaveLength(2);
+      expect(result.lines[0].lineNumber).toBe(1);
+      expect(result.lines[0].revision).toBe(1234);
+      expect(result.lines[0].author).toBe('dev');
+      expect(result.lines[0].content).toBe('First line');
+      expect(result.startRevision).toBe(1234);
+      expect(result.endRevision).toBe(1235);
+    });
+  });
+});

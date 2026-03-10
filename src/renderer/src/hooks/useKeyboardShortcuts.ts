@@ -1,54 +1,59 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback } from 'react';
 
 export interface KeyboardShortcut {
-  key: string
-  ctrl?: boolean
-  shift?: boolean
-  alt?: boolean
-  meta?: boolean
-  action: () => void
-  description?: string
+  key: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  meta?: boolean;
+  action: () => void;
+  description?: string;
 }
 
 interface UseKeyboardShortcutsOptions {
-  enabled?: boolean
-  shortcuts: KeyboardShortcut[]
+  enabled?: boolean;
+  shortcuts: KeyboardShortcut[];
 }
 
 /**
  * Hook for registering global keyboard shortcuts
  */
 export function useKeyboardShortcuts({ enabled = true, shortcuts }: UseKeyboardShortcutsOptions) {
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    // Don't trigger shortcuts when typing in inputs
-    const target = event.target as HTMLElement
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-      // Allow specific shortcuts even in inputs (like Escape)
-      if (event.key !== 'Escape') {
-        return
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        // Allow specific shortcuts even in inputs (like Escape)
+        if (event.key !== 'Escape') {
+          return;
+        }
       }
-    }
-    
-    for (const shortcut of shortcuts) {
-      const ctrlMatch = shortcut.ctrl ? (event.ctrlKey || event.metaKey) : !event.ctrlKey && !event.metaKey
-      const shiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey
-      const altMatch = shortcut.alt ? event.altKey : !event.altKey
-      const keyMatch = event.key.toLowerCase() === shortcut.key.toLowerCase()
-      
-      if (ctrlMatch && shiftMatch && altMatch && keyMatch) {
-        event.preventDefault()
-        shortcut.action()
-        return
+
+      for (const shortcut of shortcuts) {
+        const ctrlMatch = shortcut.ctrl
+          ? event.ctrlKey || event.metaKey
+          : !event.ctrlKey && !event.metaKey;
+        const shiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey;
+        const altMatch = shortcut.alt ? event.altKey : !event.altKey;
+        const keyMatch = event.key.toLowerCase() === shortcut.key.toLowerCase();
+
+        if (ctrlMatch && shiftMatch && altMatch && keyMatch) {
+          event.preventDefault();
+          shortcut.action();
+          return;
+        }
       }
-    }
-  }, [shortcuts])
-  
+    },
+    [shortcuts]
+  );
+
   useEffect(() => {
-    if (!enabled) return
-    
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [enabled, handleKeyDown])
+    if (!enabled) return;
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [enabled, handleKeyDown]);
 }
 
 // Common keyboard shortcuts for SVN operations
@@ -65,38 +70,38 @@ export const COMMON_SVN_SHORTCUTS = {
   ESCAPE: { key: 'Escape', description: 'Close dialog / Cancel' },
   SEARCH: { key: 'f', ctrl: true, description: 'Search files' },
   SETTINGS: { key: ',', ctrl: true, description: 'Open settings' },
-} as const
+} as const;
 
 /**
  * Format keyboard shortcut for display
  */
 export function formatShortcut(shortcut: Partial<KeyboardShortcut>): string {
-  const parts: string[] = []
-  
+  const parts: string[] = [];
+
   if (shortcut.ctrl) {
-    parts.push(navigator.platform.includes('Mac') ? '⌘' : 'Ctrl')
+    parts.push(navigator.platform.includes('Mac') ? '⌘' : 'Ctrl');
   }
   if (shortcut.shift) {
-    parts.push(navigator.platform.includes('Mac') ? '⇧' : 'Shift')
+    parts.push(navigator.platform.includes('Mac') ? '⇧' : 'Shift');
   }
   if (shortcut.alt) {
-    parts.push(navigator.platform.includes('Mac') ? '⌥' : 'Alt')
+    parts.push(navigator.platform.includes('Mac') ? '⌥' : 'Alt');
   }
   if (shortcut.key) {
     // Format special keys
-    const key = shortcut.key.toLowerCase()
+    const key = shortcut.key.toLowerCase();
     const keyMap: Record<string, string> = {
-      'escape': 'Esc',
-      'arrowup': '↑',
-      'arrowdown': '↓',
-      'arrowleft': '←',
-      'arrowright': '→',
-      'enter': '↵',
-      'backspace': '⌫',
-      'delete': 'Del',
-    }
-    parts.push(keyMap[key] || key.toUpperCase())
+      escape: 'Esc',
+      arrowup: '↑',
+      arrowdown: '↓',
+      arrowleft: '←',
+      arrowright: '→',
+      enter: '↵',
+      backspace: '⌫',
+      delete: 'Del',
+    };
+    parts.push(keyMap[key] || key.toUpperCase());
   }
-  
-  return parts.join(navigator.platform.includes('Mac') ? '' : '+')
+
+  return parts.join(navigator.platform.includes('Mac') ? '' : '+');
 }

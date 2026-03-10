@@ -3,7 +3,7 @@
  * Provides comprehensive error handling, classification, and user-friendly messages
  */
 
-import { type AppError } from '@shared/errors'
+import { type AppError } from '@shared/errors';
 
 export const SparseErrorType = {
   NETWORK_FAILURE: 'NETWORK_FAILURE',
@@ -18,31 +18,31 @@ export const SparseErrorType = {
   CONFLICT: 'CONFLICT',
   OUT_OF_DATE: 'OUT_OF_DATE',
   LOCKED: 'LOCKED',
-  UNKNOWN: 'UNKNOWN'
-} as const
+  UNKNOWN: 'UNKNOWN',
+} as const;
 
-export type SparseErrorTypeValue = typeof SparseErrorType[keyof typeof SparseErrorType]
+export type SparseErrorTypeValue = (typeof SparseErrorType)[keyof typeof SparseErrorType];
 
 /**
  * Structured error for sparse checkout operations
  */
 export interface SparseCheckoutError {
-  type: SparseErrorTypeValue
-  title: string
-  message: string
-  details?: string
-  suggestions: string[]
-  retryable: boolean
-  requiresAuth: boolean
-  originalError?: Error | string
+  type: SparseErrorTypeValue;
+  title: string;
+  message: string;
+  details?: string;
+  suggestions: string[];
+  retryable: boolean;
+  requiresAuth: boolean;
+  originalError?: Error | string;
 }
 
 /**
  * Classify an error from SVN operations
  */
 export function classifySparseError(error: Error | string | unknown): SparseCheckoutError {
-  const errorMsg = error instanceof Error ? error.message : String(error)
-  const lowerMsg = errorMsg.toLowerCase()
+  const errorMsg = error instanceof Error ? error.message : String(error);
+  const lowerMsg = errorMsg.toLowerCase();
 
   // Network errors
   if (
@@ -62,12 +62,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
         'Check your internet connection',
         'Verify the repository URL is correct',
         'The server may be temporarily unavailable',
-        'Try again in a few moments'
+        'Try again in a few moments',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Authentication required
@@ -85,12 +85,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Enter your username and password',
         'Check that you have access to this repository',
-        'Contact the repository administrator if needed'
+        'Contact the repository administrator if needed',
       ],
       retryable: true,
       requiresAuth: true,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Authentication failed
@@ -108,12 +108,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Check your username and password',
         'Ensure your account has not been locked',
-        'Contact the repository administrator'
+        'Contact the repository administrator',
       ],
       retryable: true,
       requiresAuth: true,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Permission denied
@@ -130,12 +130,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Contact the repository administrator',
         'Verify your account has the necessary permissions',
-        'You may need to be added to an access control list'
+        'You may need to be added to an access control list',
       ],
       retryable: false,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Repository not found
@@ -153,12 +153,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Verify the repository URL is correct',
         'The repository may have been moved or deleted',
-        'Check for typos in the URL'
+        'Check for typos in the URL',
       ],
       retryable: false,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Path not found
@@ -175,12 +175,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'The path may have been moved or deleted',
         'Refresh the directory listing',
-        'Check the path for typos'
+        'Check the path for typos',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // SSL/Certificate errors
@@ -193,17 +193,17 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
     return {
       type: SparseErrorType.SSL_ERROR,
       title: 'Certificate Error',
-      message: 'There was a problem with the server\'s security certificate.',
+      message: "There was a problem with the server's security certificate.",
       details: errorMsg,
       suggestions: [
         'The certificate may be self-signed or expired',
         'You can choose to trust the certificate temporarily',
-        'Contact your administrator about the certificate issue'
+        'Contact your administrator about the certificate issue',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Timeout
@@ -220,12 +220,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'The server may be slow or overloaded',
         'Try again with a smaller selection',
-        'Check your network connection speed'
+        'Check your network connection speed',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Conflict
@@ -238,12 +238,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Resolve conflicts before continuing',
         'Update your working copy first',
-        'Check for local modifications that may conflict'
+        'Check for local modifications that may conflict',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Out of date
@@ -256,12 +256,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Update your working copy first',
         'Pull the latest changes from the repository',
-        'Your local changes may need to be merged'
+        'Your local changes may need to be merged',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Locked
@@ -274,20 +274,16 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Wait for the lock to be released',
         'Contact the lock owner',
-        'Use cleanup to remove stale locks'
+        'Use cleanup to remove stale locks',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Working copy error
-  if (
-    lowerMsg.includes('working copy') ||
-    lowerMsg.includes('wc') ||
-    lowerMsg.includes('.svn')
-  ) {
+  if (lowerMsg.includes('working copy') || lowerMsg.includes('wc') || lowerMsg.includes('.svn')) {
     return {
       type: SparseErrorType.WORKING_COPY_ERROR,
       title: 'Working Copy Error',
@@ -296,12 +292,12 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
       suggestions: [
         'Run cleanup on the working copy',
         'The working copy may be corrupted',
-        'Consider checking out a fresh copy'
+        'Consider checking out a fresh copy',
       ],
       retryable: true,
       requiresAuth: false,
-      originalError: error
-    }
+      originalError: error,
+    };
   }
 
   // Default unknown error
@@ -313,109 +309,109 @@ export function classifySparseError(error: Error | string | unknown): SparseChec
     suggestions: [
       'Try the operation again',
       'Check the error details for more information',
-      'Contact support if the problem persists'
+      'Contact support if the problem persists',
     ],
     retryable: true,
     requiresAuth: false,
-    originalError: error
-  }
+    originalError: error,
+  };
 }
 
 /**
  * Check if an error requires authentication
  */
 export function requiresAuthentication(error: Error | string | unknown): boolean {
-  return classifySparseError(error).requiresAuth
+  return classifySparseError(error).requiresAuth;
 }
 
 /**
  * Check if an error is retryable
  */
 export function isRetryable(error: Error | string | unknown): boolean {
-  return classifySparseError(error).retryable
+  return classifySparseError(error).retryable;
 }
 
 /**
  * Check if error is network related
  */
 export function isNetworkError(error: Error | string | unknown): boolean {
-  const classified = classifySparseError(error)
+  const classified = classifySparseError(error);
   return (
     classified.type === SparseErrorType.NETWORK_FAILURE ||
     classified.type === SparseErrorType.TIMEOUT
-  )
+  );
 }
 
 /**
  * Get user-friendly error message
  */
 export function getUserFriendlyMessage(error: Error | string | unknown): string {
-  const classified = classifySparseError(error)
-  return classified.message
+  const classified = classifySparseError(error);
+  return classified.message;
 }
 
 /**
  * Convert AppError to SparseCheckoutError
  */
 export function appErrorToSparseError(appError: AppError): SparseCheckoutError {
-  const error = new Error(appError.message)
-  error.cause = appError.cause
+  const error = new Error(appError.message);
+  error.cause = appError.cause;
 
-  const classified = classifySparseError(error)
-  
+  const classified = classifySparseError(error);
+
   // Override with AppError details if available
   return {
     ...classified,
-    details: appError.details ? JSON.stringify(appError.details, null, 2) : classified.details
-  }
+    details: appError.details ? JSON.stringify(appError.details, null, 2) : classified.details,
+  };
 }
 
 /**
  * Session credentials cache (memory only, not persisted)
  */
 class CredentialCache {
-  private cache = new Map<string, { username: string; password: string }>()
+  private cache = new Map<string, { username: string; password: string }>();
 
   getKey(url: string): string {
     try {
-      const parsed = new URL(url)
-      return `${parsed.protocol}//${parsed.host}`
+      const parsed = new URL(url);
+      return `${parsed.protocol}//${parsed.host}`;
     } catch {
-      return url
+      return url;
     }
   }
 
   set(url: string, credentials: { username: string; password: string }): void {
-    this.cache.set(this.getKey(url), credentials)
+    this.cache.set(this.getKey(url), credentials);
   }
 
   get(url: string): { username: string; password: string } | undefined {
-    return this.cache.get(this.getKey(url))
+    return this.cache.get(this.getKey(url));
   }
 
   clear(url?: string): void {
     if (url) {
-      this.cache.delete(this.getKey(url))
+      this.cache.delete(this.getKey(url));
     } else {
-      this.cache.clear()
+      this.cache.clear();
     }
   }
 
   has(url: string): boolean {
-    return this.cache.has(this.getKey(url))
+    return this.cache.has(this.getKey(url));
   }
 }
 
-export const credentialCache = new CredentialCache()
+export const credentialCache = new CredentialCache();
 
 /**
  * Retry configuration
  */
 export interface RetryConfig {
-  maxAttempts: number
-  delayMs: number
-  backoffMultiplier: number
-  onRetry?: (attempt: number, error: Error) => void
+  maxAttempts: number;
+  delayMs: number;
+  backoffMultiplier: number;
+  onRetry?: (attempt: number, error: Error) => void;
 }
 
 /**
@@ -425,46 +421,41 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   config: Partial<RetryConfig> = {}
 ): Promise<T> {
-  const {
-    maxAttempts = 3,
-    delayMs = 1000,
-    backoffMultiplier = 2,
-    onRetry
-  } = config
+  const { maxAttempts = 3, delayMs = 1000, backoffMultiplier = 2, onRetry } = config;
 
-  let lastError: Error | undefined
-  let delay = delayMs
+  let lastError: Error | undefined;
+  let delay = delayMs;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await fn()
+      return await fn();
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
-      
-      const classified = classifySparseError(lastError)
-      
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      const classified = classifySparseError(lastError);
+
       // Don't retry non-retryable errors
       if (!classified.retryable) {
-        throw lastError
+        throw lastError;
       }
 
       // Don't retry auth errors - let the user handle them
       if (classified.requiresAuth) {
-        throw lastError
+        throw lastError;
       }
 
       // Last attempt, throw
       if (attempt === maxAttempts) {
-        throw lastError
+        throw lastError;
       }
 
-      onRetry?.(attempt, lastError)
+      onRetry?.(attempt, lastError);
 
       // Wait before next attempt
-      await new Promise(resolve => setTimeout(resolve, delay))
-      delay *= backoffMultiplier
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= backoffMultiplier;
     }
   }
 
-  throw lastError
+  throw lastError;
 }

@@ -2,17 +2,17 @@
 // In production, they would be imported from @shellysvn/shared
 
 export type SvnStatusChar =
-  | ' '  // No modifications
-  | 'A'  // Added
-  | 'C'  // Conflicted
-  | 'D'  // Deleted
-  | 'I'  // Ignored
-  | 'M'  // Modified
-  | 'R'  // Replaced
-  | 'X'  // Unversioned directory (externals)
-  | '?'  // Unversioned
-  | '!'  // Missing
-  | '~'  // Obstructed
+  | ' ' // No modifications
+  | 'A' // Added
+  | 'C' // Conflicted
+  | 'D' // Deleted
+  | 'I' // Ignored
+  | 'M' // Modified
+  | 'R' // Replaced
+  | 'X' // Unversioned directory (externals)
+  | '?' // Unversioned
+  | '!' // Missing
+  | '~'; // Obstructed
 
 export interface SvnStatusEntry {
   path: string;

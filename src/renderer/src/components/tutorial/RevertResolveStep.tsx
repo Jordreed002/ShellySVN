@@ -1,7 +1,13 @@
-import { Undo2, AlertTriangle, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { Undo2, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function RevertResolveStep({ onNext, onPrevious, onSkip, currentStep, totalSteps }: TutorialStepProps) {
+export function RevertResolveStep({
+  onNext,
+  onPrevious,
+  onSkip,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
@@ -63,8 +69,8 @@ export function RevertResolveStep({ onNext, onPrevious, onSkip, currentStep, tot
 
       <div className="p-4 bg-warning/10 rounded-lg border border-warning/30">
         <p className="text-sm text-text">
-          <strong>Warning:</strong> Reverting changes is permanent. Make sure you have backups of any
-          uncommitted work you want to keep.
+          <strong>Warning:</strong> Reverting changes is permanent. Make sure you have backups of
+          any uncommitted work you want to keep.
         </p>
       </div>
 
@@ -92,7 +98,7 @@ export function RevertResolveStep({ onNext, onPrevious, onSkip, currentStep, tot
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function ActionCard({
@@ -103,12 +109,12 @@ function ActionCard({
   color,
   bgColor,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
-  shortcut?: string[]
-  color: string
-  bgColor: string
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  shortcut?: string[];
+  color: string;
+  bgColor: string;
 }) {
   return (
     <div className={`p-4 ${bgColor} rounded-lg border border-border`}>
@@ -132,7 +138,7 @@ function ActionCard({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function ConflictOption({
@@ -141,10 +147,10 @@ function ConflictOption({
   description,
   color,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
-  color: string
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  color: string;
 }) {
   return (
     <div className="flex items-center gap-3 p-2 bg-bg-secondary rounded border border-border">
@@ -154,5 +160,5 @@ function ConflictOption({
         <span className="text-xs text-text-secondary ml-2">- {description}</span>
       </div>
     </div>
-  )
+  );
 }

@@ -1,117 +1,133 @@
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { 
-  X, Shield, CheckCircle, AlertCircle, Loader2, RefreshCw, 
-  Info, Terminal, FolderSync, Image
-} from 'lucide-react'
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  X,
+  Shield,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
+  Info,
+  Terminal,
+  FolderSync,
+  Image,
+} from 'lucide-react';
 
 interface ShellIntegrationDialogProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 interface ShellStatus {
-  registered: boolean
-  platform: 'windows' | 'macos' | 'linux'
-  iconOverlaysEnabled: boolean
-  contextMenuEnabled: boolean
-  needsAdmin: boolean
+  registered: boolean;
+  platform: 'windows' | 'macos' | 'linux';
+  iconOverlaysEnabled: boolean;
+  contextMenuEnabled: boolean;
+  needsAdmin: boolean;
 }
 
 export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDialogProps) {
-  const queryClient = useQueryClient()
-  const [isRegistering, setIsRegistering] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
+  const queryClient = useQueryClient();
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // Get current shell integration status
-  const { data: status, isLoading, refetch } = useQuery({
+  const {
+    data: status,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['shell:status'],
     queryFn: async (): Promise<ShellStatus> => {
-      const result = await window.api.store.get<ShellStatus>('shell:status')
-      return result || {
-        registered: false,
-        platform: process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : 'linux',
-        iconOverlaysEnabled: false,
-        contextMenuEnabled: false,
-        needsAdmin: process.platform === 'win32'
-      }
+      const result = await window.api.store.get<ShellStatus>('shell:status');
+      return (
+        result || {
+          registered: false,
+          platform:
+            process.platform === 'win32'
+              ? 'windows'
+              : process.platform === 'darwin'
+                ? 'macos'
+                : 'linux',
+          iconOverlaysEnabled: false,
+          contextMenuEnabled: false,
+          needsAdmin: process.platform === 'win32',
+        }
+      );
     },
-    enabled: isOpen
-  })
-  
+    enabled: isOpen,
+  });
+
   // Register mutation
   const registerMutation = useMutation({
     mutationFn: async () => {
-      setIsRegistering(true)
-      setError(null)
-      
-      const result = await window.api.shell.register()
+      setIsRegistering(true);
+      setError(null);
+
+      const result = await window.api.shell.register();
       if (!result.success) {
-        throw new Error('Failed to register shell integration')
+        throw new Error('Failed to register shell integration');
       }
-      
+
       const newStatus: ShellStatus = {
         ...status!,
         registered: true,
         iconOverlaysEnabled: true,
-        contextMenuEnabled: true
-      }
-      
-      await window.api.store.set('shell:status', newStatus)
-      return result
+        contextMenuEnabled: true,
+      };
+
+      await window.api.store.set('shell:status', newStatus);
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shell:status'] })
-      setIsRegistering(false)
+      queryClient.invalidateQueries({ queryKey: ['shell:status'] });
+      setIsRegistering(false);
     },
     onError: (err) => {
-      setError((err as Error).message || 'Failed to register shell integration')
-      setIsRegistering(false)
-    }
-  })
-  
+      setError((err as Error).message || 'Failed to register shell integration');
+      setIsRegistering(false);
+    },
+  });
+
   // Unregister mutation
   const unregisterMutation = useMutation({
     mutationFn: async () => {
-      setIsRegistering(true)
-      setError(null)
-      
-      const result = await window.api.shell.unregister()
+      setIsRegistering(true);
+      setError(null);
+
+      const result = await window.api.shell.unregister();
       if (!result.success) {
-        throw new Error('Failed to unregister shell integration')
+        throw new Error('Failed to unregister shell integration');
       }
-      
+
       const newStatus: ShellStatus = {
         ...status!,
         registered: false,
         iconOverlaysEnabled: false,
-        contextMenuEnabled: false
-      }
-      
-      await window.api.store.set('shell:status', newStatus)
-      return result
+        contextMenuEnabled: false,
+      };
+
+      await window.api.store.set('shell:status', newStatus);
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shell:status'] })
-      setIsRegistering(false)
+      queryClient.invalidateQueries({ queryKey: ['shell:status'] });
+      setIsRegistering(false);
     },
     onError: (err) => {
-      setError((err as Error).message || 'Failed to unregister shell integration')
-      setIsRegistering(false)
-    }
-  })
-  
-  if (!isOpen) return null
-  
-  const isWindows = status?.platform === 'windows'
-  const isMac = status?.platform === 'macos'
-  
+      setError((err as Error).message || 'Failed to unregister shell integration');
+      setIsRegistering(false);
+    },
+  });
+
+  if (!isOpen) return null;
+
+  const isWindows = status?.platform === 'windows';
+  const isMac = status?.platform === 'macos';
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[550px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[550px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -122,7 +138,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {isLoading ? (
@@ -132,7 +148,9 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
           ) : (
             <>
               {/* Status */}
-              <div className={`rounded-lg p-4 ${status?.registered ? 'bg-success/10 border border-success/30' : 'bg-bg-tertiary border border-border'}`}>
+              <div
+                className={`rounded-lg p-4 ${status?.registered ? 'bg-success/10 border border-success/30' : 'bg-bg-tertiary border border-border'}`}
+              >
                 <div className="flex items-center gap-3">
                   {status?.registered ? (
                     <CheckCircle className="w-6 h-6 text-success" />
@@ -141,18 +159,19 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
                   )}
                   <div>
                     <p className="font-medium text-text">
-                      {status?.registered ? 'Shell Integration Active' : 'Shell Integration Not Active'}
+                      {status?.registered
+                        ? 'Shell Integration Active'
+                        : 'Shell Integration Not Active'}
                     </p>
                     <p className="text-sm text-text-secondary">
-                      {status?.registered 
+                      {status?.registered
                         ? 'Icon overlays and context menus are enabled'
-                        : 'Register to enable icon overlays and context menus'
-                      }
+                        : 'Register to enable icon overlays and context menus'}
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               {/* Platform info */}
               {isWindows && (
                 <div className="bg-info/10 border border-info/20 rounded-lg p-3">
@@ -169,7 +188,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
                   </div>
                 </div>
               )}
-              
+
               {isMac && (
                 <div className="bg-info/10 border border-info/20 rounded-lg p-3">
                   <div className="flex items-start gap-2">
@@ -185,11 +204,11 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
                   </div>
                 </div>
               )}
-              
+
               {/* Features */}
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-text">Available Features</h4>
-                
+
                 <div className="bg-bg-tertiary rounded-lg p-3 space-y-2">
                   <div className="flex items-center gap-3">
                     <Image className="w-5 h-5 text-accent" />
@@ -201,20 +220,18 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
                       <CheckCircle className="w-4 h-4 text-success" />
                     )}
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
                     <Terminal className="w-5 h-5 text-accent" />
                     <div className="flex-1">
                       <p className="text-sm text-text">Context Menu</p>
                       <p className="text-xs text-text-faint">SVN commands in right-click menu</p>
                     </div>
-                    {status?.contextMenuEnabled && (
-                      <CheckCircle className="w-4 h-4 text-success" />
-                    )}
+                    {status?.contextMenuEnabled && <CheckCircle className="w-4 h-4 text-success" />}
                   </div>
                 </div>
               </div>
-              
+
               {/* Requirements */}
               {status?.needsAdmin && !status?.registered && (
                 <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
@@ -223,19 +240,20 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
                     <div className="text-sm text-warning">
                       <p className="font-medium">Administrator Rights Required</p>
                       <p className="mt-1 text-warning/80">
-                        Windows shell integration requires administrator rights to register the shell extension DLL.
+                        Windows shell integration requires administrator rights to register the
+                        shell extension DLL.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
-              
+
               {error && (
                 <div className="bg-error/10 border border-error/30 rounded-lg p-3 text-sm text-error">
                   {error}
                 </div>
               )}
-              
+
               {/* Build instructions */}
               <div className="text-xs text-text-faint bg-bg-secondary rounded-lg p-3">
                 <p className="font-medium mb-1">Building Shell Extensions:</p>
@@ -245,14 +263,14 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
             </>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <button onClick={() => refetch()} className="btn btn-secondary">
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
-          
+
           {status?.registered ? (
             <button
               onClick={() => unregisterMutation.mutate()}
@@ -280,12 +298,12 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
               Register
             </button>
           )}
-          
+
           <button onClick={onClose} className="btn btn-primary">
             Done
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

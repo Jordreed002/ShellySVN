@@ -1,7 +1,7 @@
-import { useEffect, useRef, useCallback, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
-import { useFocusTrap } from '@renderer/hooks/useFocusTrap'
+import { useEffect, useRef, useCallback, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
+import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 
 /**
  * AccessibleDialog - A WCAG 2.1 AA compliant dialog component
@@ -16,33 +16,33 @@ import { useFocusTrap } from '@renderer/hooks/useFocusTrap'
  */
 export interface AccessibleDialogProps {
   /** Whether the dialog is open */
-  isOpen: boolean
+  isOpen: boolean;
   /** Called when dialog requests to close */
-  onClose: () => void
+  onClose: () => void;
   /** Dialog title (required for accessibility) */
-  title: ReactNode
+  title: ReactNode;
   /** Optional description for screen readers */
-  description?: string
+  description?: string;
   /** Whether clicking outside should close the dialog */
-  closeOnOverlayClick?: boolean
+  closeOnOverlayClick?: boolean;
   /** Whether pressing Escape should close the dialog */
-  closeOnEscape?: boolean
+  closeOnEscape?: boolean;
   /** Size of the dialog */
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   /** Additional CSS classes */
-  className?: string
+  className?: string;
   /** Dialog content */
-  children: ReactNode
+  children: ReactNode;
   /** Whether to show the close button */
-  showCloseButton?: boolean
+  showCloseButton?: boolean;
   /** Accessible label for close button */
-  closeButtonLabel?: string
+  closeButtonLabel?: string;
   /** Whether the dialog is modal (blocks interaction with background) */
-  modal?: boolean
+  modal?: boolean;
   /** Called when dialog opens */
-  onOpen?: () => void
+  onOpen?: () => void;
   /** Called when dialog closes */
-  onCloseComplete?: () => void
+  onCloseComplete?: () => void;
 }
 
 const sizeClasses: Record<string, string> = {
@@ -50,8 +50,8 @@ const sizeClasses: Record<string, string> = {
   md: 'w-[600px] max-w-[90vw]',
   lg: 'w-[800px] max-w-[90vw]',
   xl: 'w-[1000px] max-w-[90vw]',
-  full: 'w-[95vw] max-w-[95vw]'
-}
+  full: 'w-[95vw] max-w-[95vw]',
+};
 
 export function AccessibleDialog({
   isOpen,
@@ -67,86 +67,89 @@ export function AccessibleDialog({
   closeButtonLabel = 'Close dialog',
   modal = true,
   onOpen,
-  onCloseComplete
+  onCloseComplete,
 }: AccessibleDialogProps) {
-  const [dialogId] = useState(() => `dialog-${Math.random().toString(36).slice(2, 11)}`)
-  const titleId = `${dialogId}-title`
-  const descriptionId = description ? `${dialogId}-description` : undefined
-  const previousActiveElement = useRef<HTMLElement | null>(null)
+  const [dialogId] = useState(() => `dialog-${Math.random().toString(36).slice(2, 11)}`);
+  const titleId = `${dialogId}-title`;
+  const descriptionId = description ? `${dialogId}-description` : undefined;
+  const previousActiveElement = useRef<HTMLElement | null>(null);
 
   // Focus trap
   const containerRef = useFocusTrap({
     active: isOpen,
     onEscape: closeOnEscape ? onClose : undefined,
-    returnFocus: true
-  })
+    returnFocus: true,
+  });
 
   // Handle overlay click
-  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
-    if (closeOnOverlayClick && e.target === e.currentTarget) {
-      onClose()
-    }
-  }, [closeOnOverlayClick, onClose])
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (closeOnOverlayClick && e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [closeOnOverlayClick, onClose]
+  );
 
   // Manage aria-hidden on background content
   useEffect(() => {
     if (isOpen && modal) {
       // Store current focus
-      previousActiveElement.current = document.activeElement as HTMLElement
+      previousActiveElement.current = document.activeElement as HTMLElement;
 
       // Hide background content from screen readers
       const rootElements = document.querySelectorAll(
         'body > *:not([role="dialog"]):not([data-portal])'
-      )
-      rootElements.forEach(el => {
+      );
+      rootElements.forEach((el) => {
         if (!el.contains(containerRef.current)) {
-          el.setAttribute('aria-hidden', 'true')
-          el.setAttribute('data-hidden-by-dialog', 'true')
+          el.setAttribute('aria-hidden', 'true');
+          el.setAttribute('data-hidden-by-dialog', 'true');
         }
-      })
+      });
 
       // Prevent body scroll
-      document.body.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden';
 
       // Call onOpen callback
-      onOpen?.()
+      onOpen?.();
 
       return () => {
         // Restore background content visibility
-        const hiddenElements = document.querySelectorAll('[data-hidden-by-dialog="true"]')
-        hiddenElements.forEach(el => {
-          el.removeAttribute('aria-hidden')
-          el.removeAttribute('data-hidden-by-dialog')
-        })
+        const hiddenElements = document.querySelectorAll('[data-hidden-by-dialog="true"]');
+        hiddenElements.forEach((el) => {
+          el.removeAttribute('aria-hidden');
+          el.removeAttribute('data-hidden-by-dialog');
+        });
 
         // Restore body scroll
-        document.body.style.overflow = ''
+        document.body.style.overflow = '';
 
         // Call onCloseComplete callback
-        onCloseComplete?.()
-      }
+        onCloseComplete?.();
+      };
     }
-  }, [isOpen, modal, onOpen, onCloseComplete])
+  }, [isOpen, modal, onOpen, onCloseComplete]);
 
   // Announce dialog to screen readers
   useEffect(() => {
     if (isOpen && title) {
-      const titleText = typeof title === 'string' ? title : 'Dialog opened'
+      const titleText = typeof title === 'string' ? title : 'Dialog opened';
       // Small delay to ensure focus trap has run
       setTimeout(() => {
-        const announcer = document.getElementById('sr-announcer')
+        const announcer = document.getElementById('sr-announcer');
         if (announcer) {
-          announcer.setAttribute('aria-live', 'assertive')
-          announcer.textContent = `${titleText} dialog opened`
+          announcer.setAttribute('aria-live', 'assertive');
+          announcer.textContent = `${titleText} dialog opened`;
           setTimeout(() => {
-            announcer.textContent = ''
-          }, 1000)
+            announcer.textContent = '';
+          }, 1000);
         }
-      }, 100)
+      }, 100);
     }
-  }, [isOpen, title])
+  }, [isOpen, title]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   const dialog = (
     <div
@@ -167,10 +170,7 @@ export function AccessibleDialog({
       >
         {/* Header */}
         <div className="modal-header">
-          <h2
-            id={titleId}
-            className="modal-title"
-          >
+          <h2 id={titleId} className="modal-title">
             {title}
           </h2>
           {showCloseButton && (
@@ -196,9 +196,9 @@ export function AccessibleDialog({
         {children}
       </div>
     </div>
-  )
+  );
 
-  return createPortal(dialog, document.body)
+  return createPortal(dialog, document.body);
 }
 
 /**
@@ -206,16 +206,12 @@ export function AccessibleDialog({
  */
 export function AccessibleDialogBody({
   children,
-  className = ''
+  className = '',
 }: {
-  children: ReactNode
-  className?: string
+  children: ReactNode;
+  className?: string;
 }) {
-  return (
-    <div className={`modal-body ${className}`}>
-      {children}
-    </div>
-  )
+  return <div className={`modal-body ${className}`}>{children}</div>;
 }
 
 /**
@@ -223,31 +219,27 @@ export function AccessibleDialogBody({
  */
 export function AccessibleDialogFooter({
   children,
-  className = ''
+  className = '',
 }: {
-  children: ReactNode
-  className?: string
+  children: ReactNode;
+  className?: string;
 }) {
-  return (
-    <div className={`modal-footer ${className}`}>
-      {children}
-    </div>
-  )
+  return <div className={`modal-footer ${className}`}>{children}</div>;
 }
 
 /**
  * AccessibleConfirmationDialog - A simple confirmation dialog
  */
 export interface ConfirmationDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
-  title: string
-  message: string
-  confirmLabel?: string
-  cancelLabel?: string
-  variant?: 'default' | 'danger'
-  isLoading?: boolean
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'default' | 'danger';
+  isLoading?: boolean;
 }
 
 export function AccessibleConfirmationDialog({
@@ -259,7 +251,7 @@ export function AccessibleConfirmationDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   variant = 'default',
-  isLoading = false
+  isLoading = false,
 }: ConfirmationDialogProps) {
   return (
     <AccessibleDialog
@@ -274,12 +266,7 @@ export function AccessibleConfirmationDialog({
         <p className="text-text-secondary">{message}</p>
       </AccessibleDialogBody>
       <AccessibleDialogFooter>
-        <button
-          type="button"
-          onClick={onClose}
-          className="btn btn-secondary"
-          disabled={isLoading}
-        >
+        <button type="button" onClick={onClose} className="btn btn-secondary" disabled={isLoading}>
           {cancelLabel}
         </button>
         <button
@@ -293,7 +280,7 @@ export function AccessibleConfirmationDialog({
         </button>
       </AccessibleDialogFooter>
     </AccessibleDialog>
-  )
+  );
 }
 
-export default AccessibleDialog
+export default AccessibleDialog;

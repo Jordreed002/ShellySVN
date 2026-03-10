@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react';
 import {
   X,
   Settings,
@@ -23,19 +23,34 @@ import {
   Clock,
   Shield,
   Volume2,
-  Sparkles,
-  Play
-} from 'lucide-react'
-import type { AppSettings, LogLevel, FontSize, StartupAction, WorkingCopyFormat, AuthListEntry } from '@shared/types'
-import { useSettings } from '../../hooks/useSettings'
-import { useSettingsPreview } from '../../contexts/SettingsPreviewContext'
+  Play,
+} from 'lucide-react';
+import type {
+  AppSettings,
+  LogLevel,
+  FontSize,
+  StartupAction,
+  WorkingCopyFormat,
+  AuthListEntry,
+} from '@shared/types';
+import { useSettings } from '../../hooks/useSettings';
+import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
 
-type SettingsTab = 'general' | 'svn' | 'diffmerge' | 'dialogs' | 'notifications' | 'integration' | 'appearance' | 'auth' | 'advanced'
+type SettingsTab =
+  | 'general'
+  | 'svn'
+  | 'diffmerge'
+  | 'dialogs'
+  | 'notifications'
+  | 'integration'
+  | 'appearance'
+  | 'auth'
+  | 'advanced';
 
 interface SettingsDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  initialTab?: SettingsTab
+  isOpen: boolean;
+  onClose: () => void;
+  initialTab?: SettingsTab;
 }
 
 const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
@@ -48,7 +63,7 @@ const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'appearance', label: 'Appearance', icon: <Palette className="w-4 h-4" /> },
   { id: 'auth', label: 'Authentication', icon: <Key className="w-4 h-4" /> },
   { id: 'advanced', label: 'Advanced', icon: <Wrench className="w-4 h-4" /> },
-]
+];
 
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
@@ -73,7 +88,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     port: 8080,
     username: '',
     password: '',
-    bypassForLocal: true
+    bypassForLocal: true,
   },
   connectionTimeout: 30,
   sslVerify: true,
@@ -84,25 +99,25 @@ const DEFAULT_SETTINGS: AppSettings = {
     diffOnDoubleClick: true,
     ignoreWhitespace: false,
     ignoreEol: false,
-    contextLines: 3
+    contextLines: 3,
   },
   dialogs: {
     rememberPositions: true,
     rememberSizes: true,
     commitDialogColumns: ['status', 'path', 'extension'],
     logMessagesPerPage: 100,
-    maxCachedMessages: 1000
+    maxCachedMessages: 1000,
   },
   notifications: {
     enableSounds: true,
     enableSystemNotifications: true,
     showHookOutput: true,
-    monitorPollInterval: 60
+    monitorPollInterval: 60,
   },
   integration: {
     shellExtensionEnabled: false,
     contextMenuItems: ['update', 'commit', 'revert', 'log', 'diff', 'checkout', 'export'],
-    iconOverlaysEnabled: true
+    iconOverlaysEnabled: true,
   },
   fontSize: 'medium',
   showStatusBar: true,
@@ -118,92 +133,89 @@ const DEFAULT_SETTINGS: AppSettings = {
   logLevel: 'info',
   svnConfigPath: '',
   logCachePath: '',
-  maxLogCacheSize: 100
-}
+  maxLogCacheSize: 100,
+};
 
 export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: SettingsDialogProps) {
-  const { settings: savedSettings, updateSettings, isUpdating } = useSettings()
-  const { 
-    startPreview, 
-    updatePreviewSetting, 
-    updateNestedPreviewSetting, 
-    commitPreview, 
+  const { settings: savedSettings, updateSettings, isUpdating } = useSettings();
+  const {
+    startPreview,
+    updatePreviewSetting,
+    updateNestedPreviewSetting,
+    commitPreview,
     cancelPreview,
-    hasPreviewChanges 
-  } = useSettingsPreview()
-  
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab)
-  const [localSettings, setLocalSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
+    hasPreviewChanges,
+  } = useSettingsPreview();
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [localSettings, setLocalSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Load settings and start preview when dialog opens
   useEffect(() => {
     if (isOpen && savedSettings) {
-      const settings = { ...DEFAULT_SETTINGS, ...savedSettings }
-      setLocalSettings(settings)
-      startPreview(settings) // Start live preview
-      setShowResetConfirm(false)
+      const settings = { ...DEFAULT_SETTINGS, ...savedSettings };
+      setLocalSettings(settings);
+      startPreview(settings); // Start live preview
+      setShowResetConfirm(false);
       // Set initial tab when dialog opens
       if (initialTab) {
-        setActiveTab(initialTab)
+        setActiveTab(initialTab);
       }
     }
-  }, [isOpen, savedSettings, initialTab, startPreview])
+  }, [isOpen, savedSettings, initialTab, startPreview]);
 
   const updateLocalSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-    setLocalSettings(prev => ({ ...prev, [key]: value }))
+    setLocalSettings((prev) => ({ ...prev, [key]: value }));
     // Apply to preview immediately for visual settings
-    updatePreviewSetting(key, value)
-  }
+    updatePreviewSetting(key, value);
+  };
 
   const updateNestedSetting = <K extends keyof AppSettings, SK extends keyof AppSettings[K]>(
     key: K,
     subKey: SK,
     value: AppSettings[K][SK]
   ) => {
-    setLocalSettings(prev => {
-      const nestedValue = prev[key] as unknown as Record<string, unknown>
+    setLocalSettings((prev) => {
+      const nestedValue = prev[key] as unknown as Record<string, unknown>;
       const updated = {
         ...prev,
         [key]: {
           ...nestedValue,
-          [subKey]: value
-        }
-      }
-      return updated
-    })
+          [subKey]: value,
+        },
+      };
+      return updated;
+    });
     // Apply to preview immediately for visual settings
-    updateNestedPreviewSetting(key, subKey, value)
-  }
+    updateNestedPreviewSetting(key, subKey, value);
+  };
 
   const handleSave = async () => {
-    await updateSettings(localSettings)
-    commitPreview() // Commit the preview changes
-    onClose()
-  }
+    await updateSettings(localSettings);
+    commitPreview(); // Commit the preview changes
+    onClose();
+  };
 
   const handleReset = async () => {
-    setLocalSettings(DEFAULT_SETTINGS)
-    startPreview(DEFAULT_SETTINGS)
-    setShowResetConfirm(false)
-  }
+    setLocalSettings(DEFAULT_SETTINGS);
+    startPreview(DEFAULT_SETTINGS);
+    setShowResetConfirm(false);
+  };
 
   const handleClose = () => {
     // Cancel preview and revert any unsaved visual changes
     if (savedSettings) {
-      cancelPreview(savedSettings)
+      cancelPreview(savedSettings);
     }
-    onClose()
-  }
+    onClose();
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div
-        className="modal w-[820px] h-[680px] flex"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[820px] h-[680px] flex" onClick={(e) => e.stopPropagation()}>
         {/* Sidebar Navigation */}
         <div className="w-[180px] flex-shrink-0 bg-bg-tertiary border-r border-border flex flex-col">
           <div className="px-4 py-4 border-b border-border">
@@ -212,7 +224,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
               Settings
             </h2>
           </div>
-          
+
           <nav className="flex-1 py-2 overflow-y-auto scrollbar-overlay">
             {TABS.map((tab) => (
               <button
@@ -221,9 +233,10 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
                 className={`
                   w-full flex items-center gap-3 px-4 py-2 text-sm font-medium
                   transition-all duration-150 text-left
-                  ${activeTab === tab.id
-                    ? 'bg-accent/10 text-accent border-r-2 border-accent'
-                    : 'text-text-secondary hover:text-text hover:bg-bg-elevated/50'
+                  ${
+                    activeTab === tab.id
+                      ? 'bg-accent/10 text-accent border-r-2 border-accent'
+                      : 'text-text-secondary hover:text-text hover:bg-bg-elevated/50'
                   }
                 `}
               >
@@ -232,7 +245,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
               </button>
             ))}
           </nav>
-          
+
           {/* Version info */}
           <div className="px-4 py-3 border-t border-border">
             <p className="text-xs text-text-faint">ShellySVN v0.1.0</p>
@@ -244,7 +257,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <h3 className="text-base font-medium text-text">
-              {TABS.find(t => t.id === activeTab)?.label}
+              {TABS.find((t) => t.id === activeTab)?.label}
             </h3>
             <button onClick={handleClose} className="btn-icon-sm" data-testid="modal-close-button">
               <X className="w-4 h-4" />
@@ -254,10 +267,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-overlay">
             {activeTab === 'general' && (
-              <GeneralSettings
-                settings={localSettings}
-                onChange={updateLocalSetting}
-              />
+              <GeneralSettings settings={localSettings} onChange={updateLocalSetting} />
             )}
             {activeTab === 'svn' && (
               <SvnSettings
@@ -267,16 +277,10 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
               />
             )}
             {activeTab === 'diffmerge' && (
-              <DiffMergeSettingsTab
-                settings={localSettings}
-                onChangeNested={updateNestedSetting}
-              />
+              <DiffMergeSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
             )}
             {activeTab === 'dialogs' && (
-              <DialogsSettingsTab
-                settings={localSettings}
-                onChangeNested={updateNestedSetting}
-              />
+              <DialogsSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
             )}
             {activeTab === 'notifications' && (
               <NotificationsSettingsTab
@@ -291,14 +295,9 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
               />
             )}
             {activeTab === 'appearance' && (
-              <AppearanceSettings
-                settings={localSettings}
-                onChange={updateLocalSetting}
-              />
+              <AppearanceSettings settings={localSettings} onChange={updateLocalSetting} />
             )}
-            {activeTab === 'auth' && (
-              <AuthSettings isOpen={isOpen} />
-            )}
+            {activeTab === 'auth' && <AuthSettings isOpen={isOpen} />}
             {activeTab === 'advanced' && (
               <AdvancedSettings
                 settings={localSettings}
@@ -346,7 +345,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -354,26 +353,26 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
 // ============================================
 
 interface SettingsSectionProps {
-  settings: AppSettings
-  onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void
+  settings: AppSettings;
+  onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
 
 interface NestedSettingsProps {
-  settings: AppSettings
+  settings: AppSettings;
   onChangeNested: <K extends keyof AppSettings, SK extends keyof AppSettings[K]>(
     key: K,
     subKey: SK,
     value: AppSettings[K][SK]
-  ) => void
+  ) => void;
 }
 
 function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
   const handleBrowseCheckoutDir = async () => {
-    const path = await window.api.dialog.openDirectory()
+    const path = await window.api.dialog.openDirectory();
     if (path) {
-      onChange('defaultCheckoutDirectory', path)
+      onChange('defaultCheckoutDirectory', path);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -391,9 +390,10 @@ function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
               className={`
                 flex-1 flex flex-col items-center gap-2 px-4 py-3 rounded-lg border
                 transition-all duration-150
-                ${settings.theme === option.value
-                  ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-border bg-bg-tertiary text-text-secondary hover:border-border-focus hover:text-text'
+                ${
+                  settings.theme === option.value
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border bg-bg-tertiary text-text-secondary hover:border-border-focus hover:text-text'
                 }
               `}
             >
@@ -440,7 +440,10 @@ function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       </SettingsGroup>
 
       {/* Default Checkout Directory */}
-      <SettingsGroup title="Default Checkout Directory" description="Where new checkouts are saved by default">
+      <SettingsGroup
+        title="Default Checkout Directory"
+        description="Where new checkouts are saved by default"
+      >
         <div className="flex gap-2">
           <input
             type="text"
@@ -510,7 +513,7 @@ function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
           <button
             onClick={() => {
               // This will be handled by parent component
-              window.dispatchEvent(new CustomEvent('tutorial:restart'))
+              window.dispatchEvent(new CustomEvent('tutorial:restart'));
             }}
             className="btn btn-secondary gap-2"
           >
@@ -520,7 +523,7 @@ function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
         </div>
       </SettingsGroup>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -532,7 +535,7 @@ interface SvnSettingsProps extends SettingsSectionProps {
     key: K,
     subKey: SK,
     value: AppSettings[K][SK]
-  ) => void
+  ) => void;
 }
 
 function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
@@ -540,33 +543,33 @@ function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
     const path = await window.api.dialog.openFile([
       { name: 'Executables', extensions: ['exe', 'app', 'sh'] },
       { name: 'All Files', extensions: ['*'] },
-    ])
+    ]);
     if (path) {
-      onChange('svnClientPath', path)
+      onChange('svnClientPath', path);
     }
-  }
+  };
 
   const handleBrowseCertPath = async () => {
     const path = await window.api.dialog.openFile([
       { name: 'Certificates', extensions: ['p12', 'pem', 'crt', 'cer'] },
       { name: 'All Files', extensions: ['*'] },
-    ])
+    ]);
     if (path) {
-      onChange('clientCertificatePath', path)
+      onChange('clientCertificatePath', path);
     }
-  }
+  };
 
   const handleAddIgnorePattern = () => {
-    const pattern = prompt('Enter ignore pattern (e.g., *.log, node_modules/):')
+    const pattern = prompt('Enter ignore pattern (e.g., *.log, node_modules/):');
     if (pattern && pattern.trim()) {
-      onChange('globalIgnorePatterns', [...settings.globalIgnorePatterns, pattern.trim()])
+      onChange('globalIgnorePatterns', [...settings.globalIgnorePatterns, pattern.trim()]);
     }
-  }
+  };
 
   const handleRemoveIgnorePattern = (index: number) => {
-    const newPatterns = settings.globalIgnorePatterns.filter((_, i) => i !== index)
-    onChange('globalIgnorePatterns', newPatterns)
-  }
+    const newPatterns = settings.globalIgnorePatterns.filter((_, i) => i !== index);
+    onChange('globalIgnorePatterns', newPatterns);
+  };
 
   return (
     <div className="space-y-6">
@@ -709,7 +712,7 @@ function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
               Enable proxy
             </span>
           </label>
-          
+
           {settings.proxySettings.enabled && (
             <div className="grid grid-cols-2 gap-3 pl-6">
               <div>
@@ -727,7 +730,9 @@ function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
                 <input
                   type="number"
                   value={settings.proxySettings.port}
-                  onChange={(e) => onChangeNested('proxySettings', 'port', parseInt(e.target.value) || 8080)}
+                  onChange={(e) =>
+                    onChangeNested('proxySettings', 'port', parseInt(e.target.value) || 8080)
+                  }
                   className="input"
                 />
               </div>
@@ -754,7 +759,9 @@ function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
                   <input
                     type="checkbox"
                     checked={settings.proxySettings.bypassForLocal}
-                    onChange={(e) => onChangeNested('proxySettings', 'bypassForLocal', e.target.checked)}
+                    onChange={(e) =>
+                      onChangeNested('proxySettings', 'bypassForLocal', e.target.checked)
+                    }
                     className="checkbox"
                   />
                   <span className="text-sm text-text-secondary">Bypass for local addresses</span>
@@ -799,7 +806,7 @@ function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
               </span>
             </div>
           </label>
-          
+
           <div>
             <label className="text-xs text-text-muted">Client Certificate (optional)</label>
             <div className="flex gap-2 mt-1">
@@ -818,7 +825,7 @@ function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
         </div>
       </SettingsGroup>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -830,21 +837,21 @@ function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSettingsProps)
     const path = await window.api.dialog.openFile([
       { name: 'Executables', extensions: ['exe', 'app', 'sh'] },
       { name: 'All Files', extensions: ['*'] },
-    ])
+    ]);
     if (path) {
-      onChangeNested('diffMerge', 'externalDiffTool', path)
+      onChangeNested('diffMerge', 'externalDiffTool', path);
     }
-  }
+  };
 
   const handleBrowseMergeTool = async () => {
     const path = await window.api.dialog.openFile([
       { name: 'Executables', extensions: ['exe', 'app', 'sh'] },
       { name: 'All Files', extensions: ['*'] },
-    ])
+    ]);
     if (path) {
-      onChangeNested('diffMerge', 'externalMergeTool', path)
+      onChangeNested('diffMerge', 'externalMergeTool', path);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -940,14 +947,16 @@ function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSettingsProps)
             min="0"
             max="20"
             value={settings.diffMerge.contextLines}
-            onChange={(e) => onChangeNested('diffMerge', 'contextLines', parseInt(e.target.value) || 3)}
+            onChange={(e) =>
+              onChangeNested('diffMerge', 'contextLines', parseInt(e.target.value) || 3)
+            }
             className="input w-20 text-center"
           />
           <span className="text-xs text-text-muted">lines of context around changes</span>
         </div>
       </SettingsGroup>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -997,11 +1006,15 @@ function DialogsSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
                     type="checkbox"
                     checked={settings.dialogs.commitDialogColumns.includes(col)}
                     onChange={(e) => {
-                      const cols = settings.dialogs.commitDialogColumns
+                      const cols = settings.dialogs.commitDialogColumns;
                       if (e.target.checked) {
-                        onChangeNested('dialogs', 'commitDialogColumns', [...cols, col])
+                        onChangeNested('dialogs', 'commitDialogColumns', [...cols, col]);
                       } else {
-                        onChangeNested('dialogs', 'commitDialogColumns', cols.filter(c => c !== col))
+                        onChangeNested(
+                          'dialogs',
+                          'commitDialogColumns',
+                          cols.filter((c) => c !== col)
+                        );
                       }
                     }}
                     className="checkbox"
@@ -1024,7 +1037,9 @@ function DialogsSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
               min="10"
               max="500"
               value={settings.dialogs.logMessagesPerPage}
-              onChange={(e) => onChangeNested('dialogs', 'logMessagesPerPage', parseInt(e.target.value) || 100)}
+              onChange={(e) =>
+                onChangeNested('dialogs', 'logMessagesPerPage', parseInt(e.target.value) || 100)
+              }
               className="input w-24 text-center"
             />
           </div>
@@ -1036,7 +1051,9 @@ function DialogsSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
               max="10000"
               step="100"
               value={settings.dialogs.maxCachedMessages}
-              onChange={(e) => onChangeNested('dialogs', 'maxCachedMessages', parseInt(e.target.value) || 1000)}
+              onChange={(e) =>
+                onChangeNested('dialogs', 'maxCachedMessages', parseInt(e.target.value) || 1000)
+              }
               className="input w-24 text-center"
             />
           </div>
@@ -1046,7 +1063,7 @@ function DialogsSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
         </div>
       </SettingsGroup>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1080,7 +1097,9 @@ function NotificationsSettingsTab({ settings, onChangeNested }: NestedSettingsPr
           <input
             type="checkbox"
             checked={settings.notifications.enableSystemNotifications}
-            onChange={(e) => onChangeNested('notifications', 'enableSystemNotifications', e.target.checked)}
+            onChange={(e) =>
+              onChangeNested('notifications', 'enableSystemNotifications', e.target.checked)
+            }
             className="checkbox"
           />
           <div className="flex items-center gap-2">
@@ -1116,7 +1135,9 @@ function NotificationsSettingsTab({ settings, onChangeNested }: NestedSettingsPr
             min="10"
             max="600"
             value={settings.notifications.monitorPollInterval}
-            onChange={(e) => onChangeNested('notifications', 'monitorPollInterval', parseInt(e.target.value) || 60)}
+            onChange={(e) =>
+              onChangeNested('notifications', 'monitorPollInterval', parseInt(e.target.value) || 60)
+            }
             className="input w-24 text-center"
           />
           <span className="text-sm text-text-muted">seconds</span>
@@ -1126,7 +1147,7 @@ function NotificationsSettingsTab({ settings, onChangeNested }: NestedSettingsPr
         </p>
       </SettingsGroup>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1153,7 +1174,7 @@ function IntegrationSettingsTab({ settings, onChangeNested }: NestedSettingsProp
     { id: 'resolve', label: 'Resolve' },
     { id: 'blame', label: 'Blame' },
     { id: 'properties', label: 'Properties' },
-  ]
+  ];
 
   return (
     <div className="space-y-6">
@@ -1164,22 +1185,24 @@ function IntegrationSettingsTab({ settings, onChangeNested }: NestedSettingsProp
             <input
               type="checkbox"
               checked={settings.integration.shellExtensionEnabled}
-              onChange={(e) => onChangeNested('integration', 'shellExtensionEnabled', e.target.checked)}
+              onChange={(e) =>
+                onChangeNested('integration', 'shellExtensionEnabled', e.target.checked)
+              }
               className="checkbox"
             />
             <span className="text-sm text-text-secondary group-hover:text-text transition-fast">
               Enable shell extension (Explorer context menu)
             </span>
           </label>
-          
+
           <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-warning mt-0.5" />
               <div className="text-sm text-warning">
                 <p className="font-medium mb-1">Shell extension requires native build</p>
                 <p className="text-xs text-warning/80">
-                  Windows: Build shell extension DLL and register with administrator rights.
-                  macOS: Build Finder Sync extension.
+                  Windows: Build shell extension DLL and register with administrator rights. macOS:
+                  Build Finder Sync extension.
                 </p>
               </div>
             </div>
@@ -1211,11 +1234,15 @@ function IntegrationSettingsTab({ settings, onChangeNested }: NestedSettingsProp
                 type="checkbox"
                 checked={settings.integration.contextMenuItems.includes(opt.id)}
                 onChange={(e) => {
-                  const items = settings.integration.contextMenuItems
+                  const items = settings.integration.contextMenuItems;
                   if (e.target.checked) {
-                    onChangeNested('integration', 'contextMenuItems', [...items, opt.id])
+                    onChangeNested('integration', 'contextMenuItems', [...items, opt.id]);
                   } else {
-                    onChangeNested('integration', 'contextMenuItems', items.filter(i => i !== opt.id))
+                    onChangeNested(
+                      'integration',
+                      'contextMenuItems',
+                      items.filter((i) => i !== opt.id)
+                    );
                   }
                 }}
                 className="checkbox"
@@ -1226,7 +1253,7 @@ function IntegrationSettingsTab({ settings, onChangeNested }: NestedSettingsProp
         </div>
       </SettingsGroup>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1238,7 +1265,7 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
     { value: 'small', label: 'Small' },
     { value: 'medium', label: 'Medium' },
     { value: 'large', label: 'Large' },
-  ]
+  ];
 
   const accentColors = [
     { value: '#6366f1', label: 'Indigo' },
@@ -1251,7 +1278,7 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
     { value: '#14b8a6', label: 'Teal' },
     { value: '#0ea5e9', label: 'Sky' },
     { value: '#64748b', label: 'Slate' },
-  ]
+  ];
 
   return (
     <div className="space-y-6">
@@ -1287,9 +1314,10 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
               onClick={() => onChange('accentColor', color.value)}
               className={`
                 w-8 h-8 rounded-full border-2 transition-all
-                ${settings.accentColor === color.value
-                  ? 'border-white scale-110'
-                  : 'border-transparent hover:scale-105'
+                ${
+                  settings.accentColor === color.value
+                    ? 'border-white scale-110'
+                    : 'border-transparent hover:scale-105'
                 }
               `}
               style={{ backgroundColor: color.value }}
@@ -1330,9 +1358,10 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
               onClick={() => onChange('animationSpeed', opt.value as AppSettings['animationSpeed'])}
               className={`
                 flex-1 px-3 py-2 text-sm rounded-md border transition-fast
-                ${settings.animationSpeed === opt.value
-                  ? 'bg-accent/10 border-accent text-accent'
-                  : 'bg-bg-tertiary border-border text-text-secondary hover:border-border-focus'
+                ${
+                  settings.animationSpeed === opt.value
+                    ? 'bg-accent/10 border-accent text-accent'
+                    : 'bg-bg-tertiary border-border text-text-secondary hover:border-border-focus'
                 }
               `}
             >
@@ -1382,7 +1411,7 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
           </button>
         </div>
         <p className="text-xs text-text-muted mt-2">
-          {settings.fileListHeight === 'fill' 
+          {settings.fileListHeight === 'fill'
             ? 'File list fills all available vertical space'
             : 'File list only takes space needed for content'}
         </p>
@@ -1442,7 +1471,7 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
       {/* Preview */}
       <div className="mt-6 p-4 rounded-lg border border-border bg-bg-tertiary">
         <p className="text-xs text-text-muted mb-3">Preview</p>
-        <div 
+        <div
           className={`
             ${settings.fontSize === 'small' ? 'text-xs' : ''}
             ${settings.fontSize === 'medium' ? 'text-sm' : ''}
@@ -1451,7 +1480,7 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
         >
           <p className="text-text mb-1">Sample text at {settings.fontSize} size</p>
           <p className="text-text-secondary">Secondary text color</p>
-          <button 
+          <button
             className="mt-2 px-3 py-1 rounded text-white text-sm"
             style={{ backgroundColor: settings.accentColor }}
           >
@@ -1460,7 +1489,7 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1468,48 +1497,48 @@ function AppearanceSettings({ settings, onChange }: SettingsSectionProps) {
 // ============================================
 
 interface AuthSettingsProps {
-  isOpen: boolean
+  isOpen: boolean;
 }
 
 function AuthSettings({ isOpen }: AuthSettingsProps) {
-  const [credentials, setCredentials] = useState<AuthListEntry[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [credentials, setCredentials] = useState<AuthListEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!isOpen) return
-    
+    if (!isOpen) return;
+
     const loadCredentials = async () => {
-      setIsLoading(true)
+      setIsLoading(true);
       try {
-        const list = await window.api.auth.list()
-        setCredentials(list)
+        const list = await window.api.auth.list();
+        setCredentials(list);
       } catch {
-        setCredentials([])
+        setCredentials([]);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
-    loadCredentials()
-  }, [isOpen])
+    };
+    loadCredentials();
+  }, [isOpen]);
 
   const handleRemove = async (realm: string) => {
     try {
-      await window.api.auth.delete(realm)
-      const list = await window.api.auth.list()
-      setCredentials(list)
+      await window.api.auth.delete(realm);
+      const list = await window.api.auth.list();
+      setCredentials(list);
     } catch {
-      setCredentials([])
+      setCredentials([]);
     }
-  }
+  };
 
   const handleClearAll = async () => {
     try {
-      await window.api.auth.clear()
-      setCredentials([])
+      await window.api.auth.clear();
+      setCredentials([]);
     } catch {
-      setCredentials([])
+      setCredentials([]);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -1519,7 +1548,10 @@ function AuthSettings({ isOpen }: AuthSettingsProps) {
         </p>
       </div>
 
-      <SettingsGroup title="Saved Credentials" description="Authentication data stored for SVN repositories">
+      <SettingsGroup
+        title="Saved Credentials"
+        description="Authentication data stored for SVN repositories"
+      >
         {isLoading ? (
           <div className="py-8 text-center">
             <Loader2 className="w-8 h-8 text-text-muted mx-auto mb-3 animate-spin" />
@@ -1570,7 +1602,7 @@ function AuthSettings({ isOpen }: AuthSettingsProps) {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1578,87 +1610,90 @@ function AuthSettings({ isOpen }: AuthSettingsProps) {
 // ============================================
 
 interface AdvancedSettingsProps {
-  settings: AppSettings
-  onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void
-  onReset: () => void
-  showResetConfirm: boolean
-  setShowResetConfirm: (show: boolean) => void
+  settings: AppSettings;
+  onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+  onReset: () => void;
+  showResetConfirm: boolean;
+  setShowResetConfirm: (show: boolean) => void;
 }
 
-function AdvancedSettings({ 
-  settings, 
-  onChange, 
-  onReset, 
-  showResetConfirm, 
-  setShowResetConfirm 
+function AdvancedSettings({
+  settings,
+  onChange,
+  onReset,
+  showResetConfirm,
+  setShowResetConfirm,
 }: AdvancedSettingsProps) {
-  const [cacheSize, setCacheSize] = useState<{ size: number; files: number }>({ size: 0, files: 0 })
-  const [isClearingCache, setIsClearingCache] = useState(false)
-  const [cacheCleared, setCacheCleared] = useState(false)
-  const [cacheError, setCacheError] = useState<string | null>(null)
-  
+  const [cacheSize, setCacheSize] = useState<{ size: number; files: number }>({
+    size: 0,
+    files: 0,
+  });
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [cacheCleared, setCacheCleared] = useState(false);
+  const [cacheError, setCacheError] = useState<string | null>(null);
+
   const logLevels: { value: LogLevel; label: string; description: string }[] = [
     { value: 'error', label: 'Error', description: 'Only errors' },
     { value: 'warn', label: 'Warning', description: 'Errors and warnings' },
     { value: 'info', label: 'Info', description: 'General information' },
     { value: 'debug', label: 'Debug', description: 'Verbose debugging' },
-  ]
+  ];
 
   // Load cache size on mount
   useEffect(() => {
-    loadCacheSize()
-  }, [])
+    loadCacheSize();
+  }, []);
 
   const loadCacheSize = async () => {
     try {
-      const result = await window.api.app.getCacheSize()
-      setCacheSize(result)
+      const result = await window.api.app.getCacheSize();
+      setCacheSize(result);
     } catch {
-      setCacheSize({ size: 0, files: 0 })
+      setCacheSize({ size: 0, files: 0 });
     }
-  }
+  };
 
   const handleBrowseSvnConfig = async () => {
-    const path = await window.api.dialog.openDirectory()
+    const path = await window.api.dialog.openDirectory();
     if (path) {
-      onChange('svnConfigPath', path)
+      onChange('svnConfigPath', path);
     }
-  }
+  };
 
   const handleBrowseLogCache = async () => {
-    const path = await window.api.dialog.openDirectory()
+    const path = await window.api.dialog.openDirectory();
     if (path) {
-      onChange('logCachePath', path)
+      onChange('logCachePath', path);
     }
-  }
+  };
 
   const handleClearCache = async () => {
-    setIsClearingCache(true)
-    setCacheCleared(false)
-    setCacheError(null)
-    
+    setIsClearingCache(true);
+    setCacheCleared(false);
+    setCacheError(null);
+
     try {
-      const result = await window.api.app.clearCache()
+      const result = await window.api.app.clearCache();
       if (result.success) {
-        setCacheCleared(true)
-        setCacheSize({ size: 0, files: 0 })
-        setTimeout(() => setCacheCleared(false), 3000)
+        setCacheCleared(true);
+        setCacheSize({ size: 0, files: 0 });
+        setTimeout(() => setCacheCleared(false), 3000);
       } else {
-        setCacheError(result.error || 'Unknown error')
+        setCacheError(result.error || 'Unknown error');
       }
     } catch (err) {
-      setCacheError((err as Error).message)
+      setCacheError((err as Error).message);
     } finally {
-      setIsClearingCache(false)
+      setIsClearingCache(false);
     }
-  }
+  };
 
   const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
-    const units = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
-  }
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+  };
 
   return (
     <div className="space-y-6">
@@ -1726,15 +1761,11 @@ function AdvancedSettings({
                 {formatBytes(cacheSize.size)} ({cacheSize.files} files)
               </span>
             </div>
-            <button 
-              onClick={loadCacheSize}
-              className="btn-icon-sm"
-              title="Refresh"
-            >
+            <button onClick={loadCacheSize} className="btn-icon-sm" title="Refresh">
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <span className="text-sm text-text-secondary">Max cache size:</span>
             <input
@@ -1748,23 +1779,23 @@ function AdvancedSettings({
             />
             <span className="text-sm text-text-muted">MB</span>
           </div>
-          
+
           {cacheCleared && (
             <div className="flex items-center gap-2 text-sm text-success">
               <Check className="w-4 h-4" />
               Cache cleared successfully
             </div>
           )}
-          
+
           {cacheError && (
             <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>Failed to clear cache: {cacheError}</span>
             </div>
           )}
-          
-          <button 
-            onClick={handleClearCache} 
+
+          <button
+            onClick={handleClearCache}
             disabled={isClearingCache}
             className="btn btn-secondary"
           >
@@ -1794,26 +1825,17 @@ function AdvancedSettings({
               Are you sure you want to reset all settings to defaults?
             </p>
             <div className="flex gap-3">
-              <button
-                onClick={onReset}
-                className="btn btn-danger"
-              >
+              <button onClick={onReset} className="btn btn-danger">
                 Yes, Reset
               </button>
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="btn btn-secondary"
-              >
+              <button onClick={() => setShowResetConfirm(false)} className="btn btn-secondary">
                 Cancel
               </button>
             </div>
           </div>
         ) : (
           <div>
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              className="btn btn-secondary"
-            >
+            <button onClick={() => setShowResetConfirm(true)} className="btn btn-secondary">
               <RotateCcw className="w-4 h-4" />
               Reset to Defaults
             </button>
@@ -1831,17 +1853,14 @@ function AdvancedSettings({
           <p className="text-xs text-text-muted mb-3">
             These actions cannot be undone. Be careful.
           </p>
-          <button
-            onClick={() => setShowResetConfirm(true)}
-            className="btn btn-danger"
-          >
+          <button onClick={() => setShowResetConfirm(true)} className="btn btn-danger">
             <AlertTriangle className="w-4 h-4" />
             Factory Reset
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1849,9 +1868,9 @@ function AdvancedSettings({
 // ============================================
 
 interface SettingsGroupProps {
-  title: string
-  description?: string
-  children: React.ReactNode
+  title: string;
+  description?: string;
+  children: React.ReactNode;
 }
 
 function SettingsGroup({ title, description, children }: SettingsGroupProps) {
@@ -1859,13 +1878,11 @@ function SettingsGroup({ title, description, children }: SettingsGroupProps) {
     <div>
       <div className="mb-3">
         <h4 className="text-sm font-medium text-text">{title}</h4>
-        {description && (
-          <p className="text-xs text-text-muted mt-0.5">{description}</p>
-        )}
+        {description && <p className="text-xs text-text-muted mt-0.5">{description}</p>}
       </div>
       {children}
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1874,14 +1891,10 @@ function SettingsGroup({ title, description, children }: SettingsGroupProps) {
 
 export function SettingsButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className="btn-icon"
-      title="Settings"
-    >
+    <button onClick={onClick} className="btn-icon" title="Settings">
       <Settings className="w-5 h-5" />
     </button>
-  )
+  );
 }
 
 export function SettingsMenuItem({ onClick }: { onClick: () => void }) {
@@ -1893,5 +1906,5 @@ export function SettingsMenuItem({ onClick }: { onClick: () => void }) {
       <Settings className="w-4 h-4" />
       Settings
     </button>
-  )
+  );
 }

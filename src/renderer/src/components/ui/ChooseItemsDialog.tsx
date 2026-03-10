@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   X,
   Search,
@@ -12,52 +12,52 @@ import {
   User,
   Key,
   RefreshCw,
-  Wifi
-} from 'lucide-react'
-import { VirtualizedTree, type TreeNode } from './VirtualizedList'
-import { useLazyTreeLoader } from '@renderer/hooks/useLazyTreeLoader'
-import type { AuthCredential, LazyTreeNode } from '@shared/types'
+  Wifi,
+} from 'lucide-react';
+import { VirtualizedTree, type TreeNode } from './VirtualizedList';
+import { useLazyTreeLoader } from '@renderer/hooks/useLazyTreeLoader';
+import type { AuthCredential, LazyTreeNode } from '@shared/types';
 import {
   classifySparseError,
   isNetworkError,
   credentialCache,
-  type SparseCheckoutError
-} from '@renderer/utils/sparseErrorHandling'
+  type SparseCheckoutError,
+} from '@renderer/utils/sparseErrorHandling';
 
 interface ChooseItemsDialogProps {
   /** Whether the dialog is open */
-  isOpen: boolean
+  isOpen: boolean;
   /** Repository URL to browse */
-  repoUrl: string
+  repoUrl: string;
   /** Optional credentials for authenticated access */
-  credentials?: AuthCredential
+  credentials?: AuthCredential;
   /** Callback when user confirms selection */
-  onSelect: (paths: string[]) => void
+  onSelect: (paths: string[]) => void;
   /** Callback when user cancels */
-  onCancel: () => void
+  onCancel: () => void;
   /** Dialog title (optional) */
-  title?: string
+  title?: string;
   /** Whether to show size estimates (optional) */
-  showSizeEstimate?: boolean
+  showSizeEstimate?: boolean;
 }
 
 interface FileSizeInfo {
-  totalSize: number
-  fileCount: number
+  totalSize: number;
+  fileCount: number;
 }
 
 /**
  * Convert LazyTreeNode array to TreeNode array for VirtualizedTree
  */
 function lazyTreeToTreeNodes(nodes: LazyTreeNode[]): TreeNode[] {
-  return nodes.map(node => ({
+  return nodes.map((node) => ({
     id: node.path,
     name: node.name,
     path: node.path,
     isDirectory: node.kind === 'dir',
     hasChildren: node.hasChildren,
-    children: node.children.length > 0 ? lazyTreeToTreeNodes(node.children) : undefined
-  }))
+    children: node.children.length > 0 ? lazyTreeToTreeNodes(node.children) : undefined,
+  }));
 }
 
 /**
@@ -68,44 +68,43 @@ function filterTreeNodes(
   query: string
 ): { filteredNodes: TreeNode[]; matchedPaths: Set<string> } {
   if (!query.trim()) {
-    return { filteredNodes: nodes, matchedPaths: new Set() }
+    return { filteredNodes: nodes, matchedPaths: new Set() };
   }
 
-  const lowerQuery = query.toLowerCase()
-  const matchedPaths = new Set<string>()
+  const lowerQuery = query.toLowerCase();
+  const matchedPaths = new Set<string>();
 
   const filterNode = (node: TreeNode): TreeNode | null => {
-    const nameMatches = node.name.toLowerCase().includes(lowerQuery)
-    const pathMatches = node.path.toLowerCase().includes(lowerQuery)
-    const matches = nameMatches || pathMatches
+    const nameMatches = node.name.toLowerCase().includes(lowerQuery);
+    const pathMatches = node.path.toLowerCase().includes(lowerQuery);
+    const matches = nameMatches || pathMatches;
 
-    let filteredChildren: TreeNode[] = []
+    let filteredChildren: TreeNode[] = [];
     if (node.children) {
       filteredChildren = node.children
-        .map(child => filterNode(child))
-        .filter((child): child is TreeNode => child !== null)
+        .map((child) => filterNode(child))
+        .filter((child): child is TreeNode => child !== null);
     }
 
     if (matches || filteredChildren.length > 0) {
       if (matches) {
-        matchedPaths.add(node.path)
+        matchedPaths.add(node.path);
       }
       return {
         ...node,
-        children: filteredChildren.length > 0 ? filteredChildren : node.children
-      }
+        children: filteredChildren.length > 0 ? filteredChildren : node.children,
+      };
     }
 
-    return null
-  }
+    return null;
+  };
 
   const filteredNodes = nodes
-    .map(node => filterNode(node))
-    .filter((node): node is TreeNode => node !== null)
+    .map((node) => filterNode(node))
+    .filter((node): node is TreeNode => node !== null);
 
-  return { filteredNodes, matchedPaths }
+  return { filteredNodes, matchedPaths };
 }
-
 
 export function ChooseItemsDialog({
   isOpen,
@@ -114,259 +113,247 @@ export function ChooseItemsDialog({
   onSelect,
   onCancel,
   title = 'Choose Items to Checkout',
-  showSizeEstimate = true
+  showSizeEstimate = true,
 }: ChooseItemsDialogProps) {
-  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false)
-  const [authUsername, setAuthUsername] = useState('')
-  const [authPassword, setAuthPassword] = useState('')
-  const [pendingPath, setPendingPath] = useState<string | null>(null)
-  const [authLoading, setAuthLoading] = useState(false)
-  const [authError, setAuthError] = useState<string | null>(null)
-  const [classifiedError, setClassifiedError] = useState<SparseCheckoutError | null>(null)
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [classifiedError, setClassifiedError] = useState<SparseCheckoutError | null>(null);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [activeCredentials, setActiveCredentials] = useState<AuthCredential | undefined>(() => {
-    if (credentials) return credentials
-    return credentialCache.get(repoUrl)
-  })
+    if (credentials) return credentials;
+    return credentialCache.get(repoUrl);
+  });
 
-  const {
-    loadNode,
-    refreshTree,
-    isLoading,
-    error,
-    nodes,
-    roots,
-    isNodeLoading,
-    clearNodeError
-  } = useLazyTreeLoader(repoUrl, activeCredentials)
-  
+  const { loadNode, refreshTree, isLoading, error, nodes, roots, isNodeLoading, clearNodeError } =
+    useLazyTreeLoader(repoUrl, activeCredentials);
+
   useEffect(() => {
     if (error) {
-      setClassifiedError(classifySparseError(error))
+      setClassifiedError(classifySparseError(error));
     } else {
-      setClassifiedError(null)
+      setClassifiedError(null);
     }
-  }, [error])
+  }, [error]);
 
   // Convert LazyTreeNode to TreeNode for VirtualizedTree
-  const treeNodes = useMemo(() => lazyTreeToTreeNodes(roots), [roots])
+  const treeNodes = useMemo(() => lazyTreeToTreeNodes(roots), [roots]);
 
   // Filter tree based on search
   const { filteredNodes, matchedPaths } = useMemo(
     () => filterTreeNodes(treeNodes, searchQuery),
     [treeNodes, searchQuery]
-  )
+  );
 
   // Auto-expand matching paths when searching
   useEffect(() => {
     if (searchQuery.trim() && matchedPaths.size > 0) {
-      const parentPaths = new Set<string>()
-      matchedPaths.forEach(path => {
-        const parts = path.split('/')
+      const parentPaths = new Set<string>();
+      matchedPaths.forEach((path) => {
+        const parts = path.split('/');
         for (let i = 1; i < parts.length; i++) {
-          parentPaths.add(parts.slice(0, i).join('/'))
+          parentPaths.add(parts.slice(0, i).join('/'));
         }
-      })
-      setExpandedPaths(prev => {
-        const hasNewPaths = [...parentPaths].some(p => !prev.has(p))
-        if (!hasNewPaths) return prev
-        return new Set([...prev, ...parentPaths])
-      })
+      });
+      setExpandedPaths((prev) => {
+        const hasNewPaths = [...parentPaths].some((p) => !prev.has(p));
+        if (!hasNewPaths) return prev;
+        return new Set([...prev, ...parentPaths]);
+      });
     }
-  }, [searchQuery, matchedPaths])
+  }, [searchQuery, matchedPaths]);
 
   // Calculate selection stats
   const selectionStats = useMemo(() => {
-    const stats: FileSizeInfo = { totalSize: 0, fileCount: 0 }
+    const stats: FileSizeInfo = { totalSize: 0, fileCount: 0 };
 
     // Count files in selection
     const countFiles = (nodeList: LazyTreeNode[], parentSelected: boolean): number => {
-      let count = 0
+      let count = 0;
       for (const node of nodeList) {
-        const isSelected = selectedPaths.has(node.path) || parentSelected
+        const isSelected = selectedPaths.has(node.path) || parentSelected;
         if (node.kind === 'file' && isSelected) {
-          count++
+          count++;
         }
         if (node.children && node.children.length > 0) {
-          count += countFiles(node.children, isSelected)
+          count += countFiles(node.children, isSelected);
         }
       }
-      return count
-    }
+      return count;
+    };
 
-    stats.fileCount = countFiles(Array.from(nodes.values()), false)
+    stats.fileCount = countFiles(Array.from(nodes.values()), false);
     // Size estimation is approximate - actual size depends on file sizes from SVN info
     // For now, we'll show item count only as size would require additional API calls
 
-    return stats
-  }, [selectedPaths, nodes])
+    return stats;
+  }, [selectedPaths, nodes]);
 
   // Handle node expand toggle
   const handleToggleExpand = useCallback(
     async (node: TreeNode) => {
-      const path = node.path
+      const path = node.path;
 
       if (expandedPaths.has(path)) {
-        setExpandedPaths(prev => {
-          const next = new Set(prev)
-          next.delete(path)
-          return next
-        })
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+          next.delete(path);
+          return next;
+        });
       } else {
-        setExpandedPaths(prev => new Set(prev).add(path))
+        setExpandedPaths((prev) => new Set(prev).add(path));
 
-        const lazyNode = nodes.get(path)
+        const lazyNode = nodes.get(path);
         if (lazyNode && !lazyNode.isLoaded && !lazyNode.isLoading) {
           try {
-            await loadNode(path, activeCredentials)
-            clearNodeError?.(path)
+            await loadNode(path, activeCredentials);
+            clearNodeError?.(path);
           } catch (err) {
-            const classified = classifySparseError(err)
+            const classified = classifySparseError(err);
             if (classified.requiresAuth) {
-              setPendingPath(path)
-              setShowAuthPrompt(true)
+              setPendingPath(path);
+              setShowAuthPrompt(true);
             }
           }
         }
       }
     },
     [expandedPaths, nodes, loadNode, activeCredentials, clearNodeError]
-  )
+  );
 
   // Handle auth prompt submit with loading state
   const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setAuthLoading(true)
-    setAuthError(null)
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError(null);
 
     const newCredentials: AuthCredential = {
       username: authUsername.trim(),
-      password: authPassword
-    }
+      password: authPassword,
+    };
 
     try {
-      credentialCache.set(repoUrl, newCredentials)
-      setActiveCredentials(newCredentials)
-      setShowAuthPrompt(false)
+      credentialCache.set(repoUrl, newCredentials);
+      setActiveCredentials(newCredentials);
+      setShowAuthPrompt(false);
 
       if (pendingPath) {
-        await loadNode(pendingPath, newCredentials)
-        clearNodeError?.(pendingPath)
+        await loadNode(pendingPath, newCredentials);
+        clearNodeError?.(pendingPath);
       }
     } catch (err) {
-      const classified = classifySparseError(err)
-      setAuthError(classified.message)
-      credentialCache.clear(repoUrl)
+      const classified = classifySparseError(err);
+      setAuthError(classified.message);
+      credentialCache.clear(repoUrl);
     } finally {
-      setAuthLoading(false)
-      setPendingPath(null)
+      setAuthLoading(false);
+      setPendingPath(null);
     }
-  }
+  };
 
   const handleRetry = useCallback(() => {
     if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current)
+      clearTimeout(retryTimeoutRef.current);
     }
-    retryTimeoutRef.current = setTimeout(() => {
-      refreshTree()
-    }, isNetworkError(error) ? 1000 : 0)
-  }, [error, refreshTree])
+    retryTimeoutRef.current = setTimeout(
+      () => {
+        refreshTree();
+      },
+      isNetworkError(error) ? 1000 : 0
+    );
+  }, [error, refreshTree]);
 
   const handleSelectAll = useCallback(() => {
-    const allPaths = new Set<string>()
+    const allPaths = new Set<string>();
 
     const collectPaths = (nodeList: TreeNode[]) => {
       for (const node of nodeList) {
-        allPaths.add(node.path)
+        allPaths.add(node.path);
         if (node.children) {
-          collectPaths(node.children)
+          collectPaths(node.children);
         }
       }
-    }
+    };
 
-    collectPaths(treeNodes)
-    setSelectedPaths(allPaths)
-  }, [treeNodes])
+    collectPaths(treeNodes);
+    setSelectedPaths(allPaths);
+  }, [treeNodes]);
 
   const handleDeselectAll = useCallback(() => {
-    setSelectedPaths(new Set())
-  }, [])
+    setSelectedPaths(new Set());
+  }, []);
 
   const handleConfirm = useCallback(() => {
-    const pathsArray = Array.from(selectedPaths)
-    onSelect(pathsArray)
-  }, [selectedPaths, onSelect])
+    const pathsArray = Array.from(selectedPaths);
+    onSelect(pathsArray);
+  }, [selectedPaths, onSelect]);
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedPaths(new Set())
-      setExpandedPaths(new Set())
-      setSearchQuery('')
-      setShowAuthPrompt(false)
-      setAuthUsername('')
-      setAuthPassword('')
-      setPendingPath(null)
-      setAuthLoading(false)
-      setAuthError(null)
-      setClassifiedError(null)
-      const cached = credentialCache.get(repoUrl)
-      setActiveCredentials(credentials || cached)
+      setSelectedPaths(new Set());
+      setExpandedPaths(new Set());
+      setSearchQuery('');
+      setShowAuthPrompt(false);
+      setAuthUsername('');
+      setAuthPassword('');
+      setPendingPath(null);
+      setAuthLoading(false);
+      setAuthError(null);
+      setClassifiedError(null);
+      const cached = credentialCache.get(repoUrl);
+      setActiveCredentials(credentials || cached);
     }
     return () => {
       if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current)
+        clearTimeout(retryTimeoutRef.current);
       }
-    }
-  }, [isOpen, credentials, repoUrl])
+    };
+  }, [isOpen, credentials, repoUrl]);
 
   // Handle escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen && !isLoading) {
-        onCancel()
+        onCancel();
       }
-    }
+    };
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, isLoading, onCancel])
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isLoading, onCancel]);
 
   // Loading paths set for VirtualizedTree
   const loadingPaths = useMemo(() => {
-    const paths = new Set<string>()
+    const paths = new Set<string>();
     nodes.forEach((_, path) => {
       if (isNodeLoading(path)) {
-        paths.add(path)
+        paths.add(path);
       }
-    })
-    return paths
-  }, [nodes, isNodeLoading])
+    });
+    return paths;
+  }, [nodes, isNodeLoading]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <>
       {/* Main Dialog */}
       <div className="modal-overlay" onClick={onCancel}>
-        <div
-          className="modal w-[700px] max-h-[80vh]"
-          onClick={e => e.stopPropagation()}
-        >
+        <div className="modal w-[700px] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="modal-header">
             <h2 className="modal-title">
               <FolderOpen className="w-5 h-5 text-accent" />
               {title}
             </h2>
-            <button
-              onClick={onCancel}
-              className="btn-icon-sm"
-              disabled={isLoading}
-            >
+            <button onClick={onCancel} className="btn-icon-sm" disabled={isLoading}>
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -380,7 +367,7 @@ export function ChooseItemsDialog({
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search files and folders..."
                   className="input pl-10 w-full"
                   disabled={isLoading}
@@ -420,12 +407,10 @@ export function ChooseItemsDialog({
                     </div>
                   )}
                   {classifiedError.retryable && (
-                    <button
-                      type="button"
-                      onClick={handleRetry}
-                      className="btn btn-secondary"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${isNetworkError(error) ? 'animate-spin' : ''}`} />
+                    <button type="button" onClick={handleRetry} className="btn btn-secondary">
+                      <RefreshCw
+                        className={`w-4 h-4 ${isNetworkError(error) ? 'animate-spin' : ''}`}
+                      />
                       Try Again
                     </button>
                   )}
@@ -442,7 +427,7 @@ export function ChooseItemsDialog({
                   onToggleExpand={handleToggleExpand}
                   checkboxSelection={{
                     selectedKeys: selectedPaths,
-                    onSelectionChange: setSelectedPaths
+                    onSelectionChange: setSelectedPaths,
                   }}
                   estimatedRowHeight={28}
                   className="h-full"
@@ -481,7 +466,8 @@ export function ChooseItemsDialog({
                     {selectedPaths.size} item{selectedPaths.size !== 1 ? 's' : ''} selected
                     {showSizeEstimate && selectionStats.fileCount > 0 && (
                       <span className="text-text-muted ml-2">
-                        (~{selectionStats.fileCount} file{selectionStats.fileCount !== 1 ? 's' : ''})
+                        (~{selectionStats.fileCount} file{selectionStats.fileCount !== 1 ? 's' : ''}
+                        )
                       </span>
                     )}
                   </span>
@@ -533,10 +519,7 @@ export function ChooseItemsDialog({
       {/* Authentication Prompt */}
       {showAuthPrompt && (
         <div className="modal-overlay" style={{ zIndex: 100 }}>
-          <div
-            className="modal w-[400px]"
-            onClick={e => e.stopPropagation()}
-          >
+          <div className="modal w-[400px]" onClick={(e) => e.stopPropagation()}>
             <form onSubmit={handleAuthSubmit}>
               <div className="modal-header">
                 <h2 className="modal-title">
@@ -558,7 +541,7 @@ export function ChooseItemsDialog({
                   <input
                     type="text"
                     value={authUsername}
-                    onChange={e => setAuthUsername(e.target.value)}
+                    onChange={(e) => setAuthUsername(e.target.value)}
                     placeholder="Enter username"
                     className="input"
                     disabled={authLoading}
@@ -573,7 +556,7 @@ export function ChooseItemsDialog({
                   <input
                     type="password"
                     value={authPassword}
-                    onChange={e => setAuthPassword(e.target.value)}
+                    onChange={(e) => setAuthPassword(e.target.value)}
                     placeholder="Enter password"
                     className="input"
                     disabled={authLoading}
@@ -592,9 +575,9 @@ export function ChooseItemsDialog({
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAuthPrompt(false)
-                    setPendingPath(null)
-                    setAuthError(null)
+                    setShowAuthPrompt(false);
+                    setPendingPath(null);
+                    setAuthError(null);
                   }}
                   className="btn btn-secondary"
                   disabled={authLoading}
@@ -624,7 +607,7 @@ export function ChooseItemsDialog({
         </div>
       )}
     </>
-  )
+  );
 }
 
-export default ChooseItemsDialog
+export default ChooseItemsDialog;

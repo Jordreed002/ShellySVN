@@ -1,10 +1,9 @@
-const mockSvnInfo = {}
-(global as any).window = {
+const mockSvnInfo = ({}(global as any).window = {
   api: {
     svn: {
-      info: mockSvnInfo
-    }
-  }
-}
+      info: mockSvnInfo,
+    },
+  },
+});
 
-console.log('useWorkingCopyContext test setup complete')
+console.log('useWorkingCopyContext test setup complete');

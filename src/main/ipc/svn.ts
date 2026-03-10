@@ -1,36 +1,47 @@
-import { ipcMain } from 'electron'
-import { spawn } from 'child_process'
-import { existsSync } from 'fs'
-import { writeFile, mkdtemp, rm } from 'fs/promises'
-import { tmpdir } from 'os'
-import { join } from 'path'
-import { XMLParser } from 'fast-xml-parser'
+import { ipcMain } from 'electron';
+import { spawn } from 'child_process';
+import { writeFile, mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { XMLParser } from 'fast-xml-parser';
 import type {
-  SvnStatusResult, SvnLogResult, SvnInfoResult, SvnDiffResult,
-  SvnDiffFile, SvnDiffHunk, SvnChangelistResult, SvnShelveListResult,
-  CheckoutOptions, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
-  SvnExecutionContext, SvnLockInfo, RepoDiagnostics
-} from '@shared/types'
-import { getSettingsManager } from '../settings-manager'
-import { executeHooksForType, HookScript } from '../hooks/HookExecutor'
-import { getAuthCache } from '../auth-cache'
-import debug from '../utils/debug'
+  SvnStatusResult,
+  SvnLogResult,
+  SvnInfoResult,
+  SvnDiffResult,
+  SvnDiffFile,
+  SvnDiffHunk,
+  SvnChangelistResult,
+  SvnShelveListResult,
+  CheckoutOptions,
+  SvnBlameResult,
+  SvnListResult,
+  SvnPatchResult,
+  SvnExternal,
+  SvnExecutionContext,
+  SvnLockInfo,
+  RepoDiagnostics,
+} from '@shared/types';
+import { getSettingsManager } from '../settings-manager';
+import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
+import { getAuthCache } from '../auth-cache';
+import debug from '../utils/debug';
 
 /**
  * Helper to get hooks for a working copy from store
  */
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
   try {
-    const { getStore } = await import('./store')
-    const store = await getStore()
-    const stored = await store.get<Record<string, HookScript[]>>('shellysvn:hook-scripts')
+    const { getStore } = await import('./store');
+    const store = await getStore();
+    const stored = await store.get<Record<string, HookScript[]>>('shellysvn:hook-scripts');
     if (stored && stored[workingCopyPath]) {
-      return stored[workingCopyPath]
+      return stored[workingCopyPath];
     }
   } catch (error) {
-    debug.error('[SVN] Failed to get hooks:', error)
+    debug.error('[SVN] Failed to get hooks:', error);
   }
-  return []
+  return [];
 }
 
 /**
@@ -44,15 +55,15 @@ const xmlParser = new XMLParser({
   parseAttributeValue: true,
   trimValues: true,
   parseTagValue: false,
-  allowBooleanAttributes: true
-})
+  allowBooleanAttributes: true,
+});
 
 /**
  * SSL failure types that can be bypassed
  * SECURITY: 'other' is excluded as it's too broad and may bypass security checks
  * Valid values per SVN: unknown-ca, cn-mismatch, expired, not-yet-valid, other
  */
-const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const
+const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 
 /**
  * Create a temporary SVN config directory with proxy settings
@@ -62,37 +73,37 @@ async function createTempSvnConfig(
   proxySettings: SvnExecutionContext['proxySettings']
 ): Promise<string | null> {
   if (!proxySettings?.enabled || !proxySettings.host || !proxySettings.port) {
-    return null
+    return null;
   }
-  
+
   // mkdtemp creates the directory for us
-  const configDir = await mkdtemp(join(tmpdir(), 'svn-config-'))
-  const serversPath = join(configDir, 'servers')
-  
+  const configDir = await mkdtemp(join(tmpdir(), 'svn-config-'));
+  const serversPath = join(configDir, 'servers');
+
   // Build servers config file
   const configLines = [
     '[global]',
     `http-proxy-host = ${proxySettings.host}`,
     `http-proxy-port = ${proxySettings.port}`,
-  ]
-  
+  ];
+
   if (proxySettings.username) {
-    configLines.push(`http-proxy-username = ${proxySettings.username}`)
+    configLines.push(`http-proxy-username = ${proxySettings.username}`);
   }
-  
+
   if (proxySettings.password) {
     // SECURITY: Password stored in temp file with restricted permissions
     // File is deleted after SVN operation completes
-    configLines.push(`http-proxy-password = ${proxySettings.password}`)
+    configLines.push(`http-proxy-password = ${proxySettings.password}`);
   }
-  
+
   if (proxySettings.bypassForLocal) {
-    configLines.push('http-proxy-exceptions = localhost, 127.0.0.1')
+    configLines.push('http-proxy-exceptions = localhost, 127.0.0.1');
   }
-  
-  await writeFile(serversPath, configLines.join('\n'), { mode: 0o600 })
-  
-  return configDir
+
+  await writeFile(serversPath, configLines.join('\n'), { mode: 0o600 });
+
+  return configDir;
 }
 
 /**
@@ -100,9 +111,9 @@ async function createTempSvnConfig(
  */
 async function cleanupTempSvnConfig(configDir: string): Promise<void> {
   try {
-    await rm(configDir, { recursive: true, force: true })
+    await rm(configDir, { recursive: true, force: true });
   } catch (error) {
-    debug.warn('[SVN] Failed to cleanup temp config dir:', error)
+    debug.warn('[SVN] Failed to cleanup temp config dir:', error);
   }
 }
 
@@ -126,212 +137,217 @@ async function executeSvn(
   credentials?: { username: string; password: string }
 ): Promise<string> {
   // Get global settings context and merge with operation-specific overrides
-  const settingsManager = getSettingsManager()
-  const globalContext = settingsManager.getSvnExecutionContext()
+  const settingsManager = getSettingsManager();
+  const globalContext = settingsManager.getSvnExecutionContext();
 
   // Merge contexts: operation-specific settings override global settings
   const context: SvnExecutionContext = {
     proxySettings: operationContext?.proxySettings ?? globalContext.proxySettings,
     connectionTimeout: operationContext?.connectionTimeout ?? globalContext.connectionTimeout,
     sslVerify: operationContext?.sslVerify ?? globalContext.sslVerify,
-    clientCertificatePath: operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath
-  }
+    clientCertificatePath:
+      operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath,
+  };
 
   // Create temp config if proxy settings are provided
-  let tempConfigDir: string | null = null
+  let tempConfigDir: string | null = null;
 
   if (context.proxySettings?.enabled) {
-    tempConfigDir = await createTempSvnConfig(context.proxySettings)
+    tempConfigDir = await createTempSvnConfig(context.proxySettings);
   }
 
   return new Promise((resolve, reject) => {
     // Use custom SVN path from settings, or fall back to system SVN
-    const svnCommand = settingsManager.getSvnClientPath()
+    const svnCommand = settingsManager.getSvnClientPath();
 
     // Build environment - no credentials in environment variables
-    const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' }
+    const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
 
     // Build final args
-    const finalArgs: string[] = []
+    const finalArgs: string[] = [];
 
     // Add config directory if using proxy
     if (tempConfigDir) {
-      finalArgs.push('--config-dir', tempConfigDir)
+      finalArgs.push('--config-dir', tempConfigDir);
     }
 
-    finalArgs.push(...args)
+    finalArgs.push(...args);
 
     // Build SSL options if needed
     // Apply if: global setting disables SSL verify, OR this operation explicitly trusts SSL failures
-    const shouldBypassSsl = context.sslVerify === false || trustSslFailures
+    const shouldBypassSsl = context.sslVerify === false || trustSslFailures;
     if (shouldBypassSsl) {
       // Add SSL trust options for non-interactive mode
       if (!finalArgs.includes('--non-interactive')) {
-        finalArgs.push('--non-interactive')
+        finalArgs.push('--non-interactive');
       }
 
       // SECURITY: Only allow specific failure types, exclude 'other'
-      const failures = ALLOWED_SSL_FAILURES.join(',')
-      finalArgs.push('--trust-server-cert-failures', failures)
+      const failures = ALLOWED_SSL_FAILURES.join(',');
+      finalArgs.push('--trust-server-cert-failures', failures);
 
       // Log SSL bypass for security audit
-      debug.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`)
+      debug.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`);
     }
 
     // Add credentials if provided
     if (credentials?.username) {
-      finalArgs.push('--username', credentials.username)
+      finalArgs.push('--username', credentials.username);
     }
     if (credentials?.password) {
-      finalArgs.push('--password', credentials.password)
+      finalArgs.push('--password', credentials.password);
     }
-    
+
     // Add client certificate if configured
     if (context.clientCertificatePath && context.clientCertificatePath.trim()) {
-      finalArgs.push('--certificate', context.clientCertificatePath.trim())
+      finalArgs.push('--certificate', context.clientCertificatePath.trim());
     }
-    
-    debug.log(`[SVN] Running: svn ${finalArgs.join(' ')} in ${cwd || process.cwd()}`)
-    
+
+    debug.log(`[SVN] Running: svn ${finalArgs.join(' ')} in ${cwd || process.cwd()}`);
+
     const proc = spawn(svnCommand, finalArgs, {
       cwd: cwd || process.cwd(),
       env,
-      windowsHide: true  // Hide from process listing on Windows
-    })
-    
-    let stdout = ''
-    let stderr = ''
-    
+      windowsHide: true, // Hide from process listing on Windows
+    });
+
+    let stdout = '';
+    let stderr = '';
+
     proc.stdout.on('data', (data) => {
-      stdout += data.toString()
-    })
-    
+      stdout += data.toString();
+    });
+
     proc.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-    
+      stderr += data.toString();
+    });
+
     // Set up timeout if specified
-    let timeoutId: NodeJS.Timeout | null = null
+    let timeoutId: NodeJS.Timeout | null = null;
     if (context.connectionTimeout && context.connectionTimeout > 0) {
       timeoutId = setTimeout(() => {
-        proc.kill()
-        if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
-        reject(new Error(`SVN operation timed out after ${context.connectionTimeout} seconds`))
-      }, context.connectionTimeout * 1000)
+        proc.kill();
+        if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
+        reject(new Error(`SVN operation timed out after ${context.connectionTimeout} seconds`));
+      }, context.connectionTimeout * 1000);
     }
-    
+
     proc.on('close', (code) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
-      
-      debug.log(`[SVN] Exit code: ${code}`)
+      if (timeoutId) clearTimeout(timeoutId);
+      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
+
+      debug.log(`[SVN] Exit code: ${code}`);
       if (code === 0) {
-        resolve(stdout)
+        resolve(stdout);
       } else {
-        reject(new Error(stderr || `SVN exited with code ${code}`))
+        reject(new Error(stderr || `SVN exited with code ${code}`));
       }
-    })
-    
+    });
+
     proc.on('error', (err) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir)
-      debug.error(`[SVN] Error:`, err)
-      reject(err)
-    })
-  })
+      if (timeoutId) clearTimeout(timeoutId);
+      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
+      debug.error(`[SVN] Error:`, err);
+      reject(err);
+    });
+  });
 }
 
 /**
  * Parse SVN status XML output using proper XML parser
  */
 export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
-  const entries: SvnStatusResult['entries'] = []
+  const entries: SvnStatusResult['entries'] = [];
 
   try {
     const parsed = xmlParser.parse(xml) as {
       status?: {
         target?: {
-          '@_path'?: string
-          entry?: Array<{
-            '@_path': string
-            'wc-status'?: {
-              '@_item': string
-              '@_revision'?: string
-              commit?: {
-                '@_revision': string
-                author?: string
-                date?: string
-              }
-              lock?: {
-                owner?: string
-                comment?: string
-                'creationdate'?: string
-                token?: string
-              }
-            }
-          }> | {
-            '@_path': string
-            'wc-status'?: {
-              '@_item': string
-              '@_revision'?: string
-              commit?: {
-                '@_revision': string
-                author?: string
-                date?: string
-              }
-              lock?: {
-                owner?: string
-                comment?: string
-                'creationdate'?: string
-                token?: string
-              }
-            }
-          }
-        }
-      }
-    }
+          '@_path'?: string;
+          entry?:
+            | Array<{
+                '@_path': string;
+                'wc-status'?: {
+                  '@_item': string;
+                  '@_revision'?: string;
+                  commit?: {
+                    '@_revision': string;
+                    author?: string;
+                    date?: string;
+                  };
+                  lock?: {
+                    owner?: string;
+                    comment?: string;
+                    creationdate?: string;
+                    token?: string;
+                  };
+                };
+              }>
+            | {
+                '@_path': string;
+                'wc-status'?: {
+                  '@_item': string;
+                  '@_revision'?: string;
+                  commit?: {
+                    '@_revision': string;
+                    author?: string;
+                    date?: string;
+                  };
+                  lock?: {
+                    owner?: string;
+                    comment?: string;
+                    creationdate?: string;
+                    token?: string;
+                  };
+                };
+              };
+        };
+      };
+    };
 
-    const target = parsed.status?.target
+    const target = parsed.status?.target;
     if (!target) {
-      return { path: basePath, entries: [], revision: 0 }
+      return { path: basePath, entries: [], revision: 0 };
     }
 
-    const entryList = target.entry
+    const entryList = target.entry;
     if (!entryList) {
-      return { path: basePath, entries: [], revision: 0 }
+      return { path: basePath, entries: [], revision: 0 };
     }
 
     // Handle single entry (not array) or array of entries
-    const entriesArray = Array.isArray(entryList) ? entryList : [entryList]
+    const entriesArray = Array.isArray(entryList) ? entryList : [entryList];
 
     for (const entry of entriesArray) {
-      if (!entry || typeof entry !== 'object') continue
+      if (!entry || typeof entry !== 'object') continue;
 
-      const wcStatus = entry['wc-status']
-      if (!wcStatus) continue
+      const wcStatus = entry['wc-status'];
+      if (!wcStatus) continue;
 
-      const path = entry['@_path'] || ''
-      const status = wcStatus['@_item'] || 'normal'
+      const path = entry['@_path'] || '';
+      const status = wcStatus['@_item'] || 'normal';
 
       // Extract commit info if present
-      let revision: number | undefined
-      let author: string | undefined
-      let date: string | undefined
+      let revision: number | undefined;
+      let author: string | undefined;
+      let date: string | undefined;
 
       if (wcStatus.commit) {
-        revision = wcStatus.commit['@_revision'] ? parseInt(wcStatus.commit['@_revision'], 10) : undefined
-        author = wcStatus.commit.author
-        date = wcStatus.commit.date
+        revision = wcStatus.commit['@_revision']
+          ? parseInt(wcStatus.commit['@_revision'], 10)
+          : undefined;
+        author = wcStatus.commit.author;
+        date = wcStatus.commit.date;
       }
 
       // Extract lock info if present
-      let lock: { owner: string; comment: string; date: string } | undefined
+      let lock: { owner: string; comment: string; date: string } | undefined;
       if (wcStatus.lock) {
         lock = {
           owner: wcStatus.lock.owner || '',
           comment: wcStatus.lock.comment || '',
-          date: wcStatus.lock['creationdate'] || ''
-        }
+          date: wcStatus.lock['creationdate'] || '',
+        };
       }
 
       entries.push({
@@ -341,19 +357,19 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
         author,
         date,
         isDirectory: false, // Will be determined by file system check if needed
-        lock
-      })
+        lock,
+      });
     }
   } catch (error) {
-    debug.error('[SVN] Failed to parse status XML:', error)
+    debug.error('[SVN] Failed to parse status XML:', error);
     // Return empty result on parse error
   }
 
   return {
     path: basePath,
     entries,
-    revision: 0
-  }
+    revision: 0,
+  };
 }
 
 /**
@@ -364,30 +380,30 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
     const parsed = xmlParser.parse(xml) as {
       info?: {
         entry?: {
-          '@_path'?: string
-          '@_revision'?: string
-          url?: string
+          '@_path'?: string;
+          '@_revision'?: string;
+          url?: string;
           repository?: {
-            root?: string
-            uuid?: string
-          }
+            root?: string;
+            uuid?: string;
+          };
           commit?: {
-            '@_revision'?: string
-            author?: string
-            date?: string
-          }
+            '@_revision'?: string;
+            author?: string;
+            date?: string;
+          };
           lock?: {
-            owner?: string
-            comment?: string
-            'creationdate'?: string
-            token?: string
-          }
-          'wcroot-abspath'?: string
-        }
-      }
-    }
+            owner?: string;
+            comment?: string;
+            creationdate?: string;
+            token?: string;
+          };
+          'wcroot-abspath'?: string;
+        };
+      };
+    };
 
-    const entry = parsed.info?.entry
+    const entry = parsed.info?.entry;
     if (!entry) {
       return {
         path: '',
@@ -399,23 +415,25 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
         lastChangedAuthor: '',
         lastChangedRevision: 0,
         lastChangedDate: '',
-        workingCopyRoot: undefined
-      }
+        workingCopyRoot: undefined,
+      };
     }
 
-    const revision = entry['@_revision'] ? parseInt(entry['@_revision'], 10) : 0
-    const commitRevision = entry.commit?.['@_revision'] ? parseInt(entry.commit['@_revision'], 10) : 0
+    const revision = entry['@_revision'] ? parseInt(entry['@_revision'], 10) : 0;
+    const commitRevision = entry.commit?.['@_revision']
+      ? parseInt(entry.commit['@_revision'], 10)
+      : 0;
 
     // Parse lock info if present
-    let lockInfo: SvnLockInfo | undefined
+    let lockInfo: SvnLockInfo | undefined;
     if (entry.lock) {
       lockInfo = {
         path: entry['@_path'] || '',
         owner: entry.lock.owner || '',
         comment: entry.lock.comment || '',
         date: entry.lock['creationdate'] || '',
-        token: entry.lock.token
-      }
+        token: entry.lock.token,
+      };
     }
 
     return {
@@ -429,10 +447,10 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
       lastChangedRevision: commitRevision,
       lastChangedDate: entry.commit?.date || '',
       workingCopyRoot: entry['wcroot-abspath'] || undefined,
-      lock: lockInfo
-    }
+      lock: lockInfo,
+    };
   } catch (error) {
-    debug.error('[SVN] Failed to parse info XML:', error)
+    debug.error('[SVN] Failed to parse info XML:', error);
     return {
       path: '',
       url: '',
@@ -442,8 +460,8 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
       nodeKind: 'dir',
       lastChangedAuthor: '',
       lastChangedRevision: 0,
-      lastChangedDate: ''
-    }
+      lastChangedDate: '',
+    };
   }
 }
 
@@ -451,93 +469,99 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
  * Parse SVN log XML output using proper XML parser
  */
 export function parseSvnLogXml(xml: string): SvnLogResult {
-  const entries: SvnLogResult['entries'] = []
-  
+  const entries: SvnLogResult['entries'] = [];
+
   try {
     const parsed = xmlParser.parse(xml) as {
       log?: {
-        logentry?: Array<{
-          '@_revision': string
-          author?: string
-          date?: string
-          msg?: string
-          paths?: {
-            path?: Array<{
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }> | {
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }
-          }
-        }> | {
-          '@_revision': string
-          author?: string
-          date?: string
-          msg?: string
-          paths?: {
-            path?: Array<{
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }> | {
-              '#text': string
-              '@_action'?: string
-              '@_kind'?: string
-            }
-          }
-        }
-      }
-    }
-    
-    const logEntries = parsed.log?.logentry
+        logentry?:
+          | Array<{
+              '@_revision': string;
+              author?: string;
+              date?: string;
+              msg?: string;
+              paths?: {
+                path?:
+                  | Array<{
+                      '#text': string;
+                      '@_action'?: string;
+                      '@_kind'?: string;
+                    }>
+                  | {
+                      '#text': string;
+                      '@_action'?: string;
+                      '@_kind'?: string;
+                    };
+              };
+            }>
+          | {
+              '@_revision': string;
+              author?: string;
+              date?: string;
+              msg?: string;
+              paths?: {
+                path?:
+                  | Array<{
+                      '#text': string;
+                      '@_action'?: string;
+                      '@_kind'?: string;
+                    }>
+                  | {
+                      '#text': string;
+                      '@_action'?: string;
+                      '@_kind'?: string;
+                    };
+              };
+            };
+      };
+    };
+
+    const logEntries = parsed.log?.logentry;
     if (!logEntries) {
-      return { entries: [], startRevision: 0, endRevision: 0 }
+      return { entries: [], startRevision: 0, endRevision: 0 };
     }
-    
+
     // Handle single entry (not array) or array of entries
-    const entriesArray = Array.isArray(logEntries) ? logEntries : [logEntries]
-    
+    const entriesArray = Array.isArray(logEntries) ? logEntries : [logEntries];
+
     for (const entry of entriesArray) {
-      if (!entry || typeof entry !== 'object') continue
-      
+      if (!entry || typeof entry !== 'object') continue;
+
       // Parse paths if present
-      const paths: Array<{ path: string; action: 'A' | 'D' | 'M' | 'R'; kind: string }> = []
+      const paths: Array<{ path: string; action: 'A' | 'D' | 'M' | 'R'; kind: string }> = [];
       if (entry.paths?.path) {
-        const pathList = Array.isArray(entry.paths.path) ? entry.paths.path : [entry.paths.path]
+        const pathList = Array.isArray(entry.paths.path) ? entry.paths.path : [entry.paths.path];
         for (const p of pathList) {
           if (p && typeof p === 'object') {
             paths.push({
               path: p['#text'] || '',
               action: (p['@_action'] || '') as 'A' | 'D' | 'M' | 'R',
-              kind: p['@_kind'] || ''
-            })
+              kind: p['@_kind'] || '',
+            });
           }
         }
       }
-      
+
       entries.push({
         revision: parseInt(entry['@_revision'], 10) || 0,
         author: entry.author || 'unknown',
         date: entry.date || '',
         message: entry.msg || '',
-        paths
-      })
+        paths,
+      });
     }
   } catch (error) {
-    debug.error('[SVN] Failed to parse log XML:', error)
+    debug.error('[SVN] Failed to parse log XML:', error);
     // Return empty result on parse error
   }
-  
-  const revisions = entries.map(e => e.revision)
-  
+
+  const revisions = entries.map((e) => e.revision);
+
   return {
     entries,
     startRevision: revisions.length > 0 ? Math.min(...revisions) : 0,
-    endRevision: revisions.length > 0 ? Math.max(...revisions) : 0
-  }
+    endRevision: revisions.length > 0 ? Math.max(...revisions) : 0,
+  };
 }
 
 /**
@@ -545,1317 +569,1503 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
  */
 export function parseSvnDiff(diffOutput: string): SvnDiffResult {
   if (!diffOutput || diffOutput.trim() === '') {
-    return { files: [], hasChanges: false }
+    return { files: [], hasChanges: false };
   }
-  
+
   // Check for binary file indicator
   if (diffOutput.includes('Cannot display: file marked as a binary type')) {
     return {
       files: [],
       hasChanges: true,
       isBinary: true,
-      rawDiff: diffOutput
-    }
+      rawDiff: diffOutput,
+    };
   }
-  
-  const files: SvnDiffFile[] = []
-  const lines = diffOutput.split('\n')
-  
-  let currentFile: SvnDiffFile | null = null
-  let currentHunk: SvnDiffHunk | null = null
-  let oldLineNum = 0
-  let newLineNum = 0
-  
+
+  const files: SvnDiffFile[] = [];
+  const lines = diffOutput.split('\n');
+
+  let currentFile: SvnDiffFile | null = null;
+  let currentHunk: SvnDiffHunk | null = null;
+  let oldLineNum = 0;
+  let newLineNum = 0;
+
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    
+    const line = lines[i];
+
     // Index line indicates start of file diff
     if (line.startsWith('Index: ')) {
       if (currentFile && currentHunk) {
-        currentFile.hunks.push(currentHunk)
+        currentFile.hunks.push(currentHunk);
       }
       if (currentFile) {
-        files.push(currentFile)
+        files.push(currentFile);
       }
       currentFile = {
         oldPath: '',
         newPath: '',
-        hunks: []
-      }
-      currentHunk = null
-      continue
+        hunks: [],
+      };
+      currentHunk = null;
+      continue;
     }
-    
+
     // === separator
     if (line.startsWith('=======')) {
-      continue
+      continue;
     }
-    
+
     // --- indicates old file path
     if (line.startsWith('--- ')) {
       if (currentFile) {
-        currentFile.oldPath = line.substring(4).trim()
+        currentFile.oldPath = line.substring(4).trim();
       }
-      continue
+      continue;
     }
-    
+
     // +++ indicates new file path
     if (line.startsWith('+++ ')) {
       if (currentFile) {
-        currentFile.newPath = line.substring(4).trim()
+        currentFile.newPath = line.substring(4).trim();
       }
-      continue
+      continue;
     }
-    
+
     // Hunk header @@ -start,count +start,count @@
-    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
+    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
     if (hunkMatch) {
       if (currentHunk && currentFile) {
-        currentFile.hunks.push(currentHunk)
+        currentFile.hunks.push(currentHunk);
       }
       currentHunk = {
         oldStart: parseInt(hunkMatch[1], 10),
         oldLines: hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1,
         newStart: parseInt(hunkMatch[3], 10),
         newLines: hunkMatch[4] ? parseInt(hunkMatch[4], 10) : 1,
-        lines: []
-      }
-      oldLineNum = currentHunk.oldStart
-      newLineNum = currentHunk.newStart
-      
+        lines: [],
+      };
+      oldLineNum = currentHunk.oldStart;
+      newLineNum = currentHunk.newStart;
+
       // Add the hunk header line
       currentHunk.lines.push({
         type: 'hunk',
-        content: line
-      })
-      continue
+        content: line,
+      });
+      continue;
     }
-    
+
     // Diff content lines (only if we're in a hunk)
     if (currentHunk) {
       if (line.startsWith('+')) {
         currentHunk.lines.push({
           type: 'added',
           content: line,
-          newLineNumber: newLineNum++
-        })
+          newLineNumber: newLineNum++,
+        });
       } else if (line.startsWith('-')) {
         currentHunk.lines.push({
           type: 'removed',
           content: line,
-          oldLineNumber: oldLineNum++
-        })
+          oldLineNumber: oldLineNum++,
+        });
       } else if (line.startsWith(' ')) {
         currentHunk.lines.push({
           type: 'context',
           content: line,
           oldLineNumber: oldLineNum++,
-          newLineNumber: newLineNum++
-        })
+          newLineNumber: newLineNum++,
+        });
       } else if (line === '') {
         // Empty line is context
         currentHunk.lines.push({
           type: 'context',
           content: '',
           oldLineNumber: oldLineNum++,
-          newLineNumber: newLineNum++
-        })
+          newLineNumber: newLineNum++,
+        });
       }
     }
   }
-  
+
   // Don't forget last hunk and file
   if (currentHunk && currentFile) {
-    currentFile.hunks.push(currentHunk)
+    currentFile.hunks.push(currentHunk);
   }
   if (currentFile) {
-    files.push(currentFile)
+    files.push(currentFile);
   }
-  
+
   return {
     files,
-    hasChanges: files.length > 0
-  }
+    hasChanges: files.length > 0,
+  };
 }
 
 export function registerSvnHandlers(): void {
   // SVN Status
   ipcMain.handle('svn:status', async (_, path: string): Promise<SvnStatusResult> => {
     try {
-      const xml = await executeSvn(['status', '--xml', path])
-      return parseSvnStatusXml(xml, path)
+      const xml = await executeSvn(['status', '--xml', path]);
+      return parseSvnStatusXml(xml, path);
     } catch (error) {
-      debug.error('[SVN] Status error:', error)
+      debug.error('[SVN] Status error:', error);
       // Return empty result instead of throwing
-      return { path, entries: [], revision: 0 }
+      return { path, entries: [], revision: 0 };
     }
-  })
+  });
 
   // SVN Log
   ipcMain.handle('svn:log', async (_, path: string, limit = 100): Promise<SvnLogResult> => {
     try {
-      const xml = await executeSvn(['log', '--xml', '-l', String(limit), path])
-      return parseSvnLogXml(xml)
+      const xml = await executeSvn(['log', '--xml', '-l', String(limit), path]);
+      return parseSvnLogXml(xml);
     } catch (error) {
-      debug.error('[SVN] Log error:', error)
-      return { entries: [], startRevision: 0, endRevision: 0 }
+      debug.error('[SVN] Log error:', error);
+      return { entries: [], startRevision: 0, endRevision: 0 };
     }
-  })
+  });
 
   // SVN Info
   ipcMain.handle('svn:info', async (_, path: string): Promise<SvnInfoResult> => {
     try {
-      const xml = await executeSvn(['info', '--xml', path])
-      return parseSvnInfoXml(xml)
+      const xml = await executeSvn(['info', '--xml', path]);
+      return parseSvnInfoXml(xml);
     } catch (error) {
-      debug.error('[SVN] Info error:', error)
-      throw error
+      debug.error('[SVN] Info error:', error);
+      throw error;
     }
-  })
+  });
 
   ipcMain.handle('svn:infoUrl', async (_, url: string): Promise<SvnInfoResult> => {
     try {
-      const args = ['info', '--xml', '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other', url]
-      const xml = await executeSvn(args)
-      return parseSvnInfoXml(xml)
+      const args = [
+        'info',
+        '--xml',
+        '--non-interactive',
+        '--trust-server-cert-failures',
+        'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+        url,
+      ];
+      const xml = await executeSvn(args);
+      return parseSvnInfoXml(xml);
     } catch (error) {
-      debug.error('[SVN] Info URL error:', error)
-      throw error
+      debug.error('[SVN] Info URL error:', error);
+      throw error;
     }
-  })
+  });
 
-  ipcMain.handle('svn:getWorkingCopyContext', async (_, localPath: string): Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null> => {
-    const { existsSync } = require('fs')
-    const { dirname, join } = require('path')
-    
-    let currentPath = localPath
-    let attempts = 0
-    const maxAttempts = 50
-    
-    while (attempts < maxAttempts) {
-      attempts++
-      
-      const svnDir = join(currentPath, '.svn')
-      if (existsSync(svnDir)) {
-        try {
-          const xml = await executeSvn(['info', '--xml', currentPath])
-          const info = parseSvnInfoXml(xml)
-          
-          if (info.workingCopyRoot && info.repositoryRoot && info.url) {
-            const relativePath = localPath.slice(currentPath.length)
-            const constructedUrl = info.url + relativePath.split(/[/\\]/).join('/')
-            
-            return {
-              workingCopyRoot: info.workingCopyRoot,
-              repositoryRoot: info.repositoryRoot,
-              url: constructedUrl
+  ipcMain.handle(
+    'svn:getWorkingCopyContext',
+    async (
+      _,
+      localPath: string
+    ): Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null> => {
+      const { existsSync } = require('fs');
+      const { dirname, join } = require('path');
+
+      let currentPath = localPath;
+      let attempts = 0;
+      const maxAttempts = 50;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+
+        const svnDir = join(currentPath, '.svn');
+        if (existsSync(svnDir)) {
+          try {
+            const xml = await executeSvn(['info', '--xml', currentPath]);
+            const info = parseSvnInfoXml(xml);
+
+            if (info.workingCopyRoot && info.repositoryRoot && info.url) {
+              const relativePath = localPath.slice(currentPath.length);
+              const constructedUrl = info.url + relativePath.split(/[/\\]/).join('/');
+
+              return {
+                workingCopyRoot: info.workingCopyRoot,
+                repositoryRoot: info.repositoryRoot,
+                url: constructedUrl,
+              };
             }
-          }
-        } catch {
+          } catch {}
         }
+
+        const parent = dirname(currentPath);
+        if (parent === currentPath) break;
+        currentPath = parent;
       }
-      
-      const parent = dirname(currentPath)
-      if (parent === currentPath) break
-      currentPath = parent
+
+      return null;
     }
-    
-    return null
-  })
-  
+  );
+
   // SVN Diff
   ipcMain.handle('svn:diff', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
     try {
-      const args = ['diff']
+      const args = ['diff'];
       if (revision) {
-        args.push('-c', revision)
+        args.push('-c', revision);
       }
-      args.push(path)
+      args.push(path);
 
-      const output = await executeSvn(args)
-      return parseSvnDiff(output)
+      const output = await executeSvn(args);
+      return parseSvnDiff(output);
     } catch (error) {
-      debug.error('[SVN] Diff error:', error)
-      return { files: [], hasChanges: false, rawDiff: (error as Error).message }
+      debug.error('[SVN] Diff error:', error);
+      return { files: [], hasChanges: false, rawDiff: (error as Error).message };
     }
-  })
+  });
 
   // SVN Streaming Diff - Memory-efficient diff parsing for large files
-  ipcMain.handle('svn:diffStreaming', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
-    try {
-      const { parseDiffStreaming } = await import('../utils/diff-parser')
+  ipcMain.handle(
+    'svn:diffStreaming',
+    async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
+      try {
+        const { parseDiffStreaming } = await import('../utils/diff-parser');
 
-      const args = ['diff']
-      if (revision) {
-        args.push('-c', revision)
-      }
-      args.push(path)
-
-      const output = await executeSvn(args)
-
-      // Check for binary file indicator
-      if (output.includes('Cannot display: file marked as a binary type')) {
-        return {
-          files: [],
-          hasChanges: true,
-          isBinary: true,
-          rawDiff: output
+        const args = ['diff'];
+        if (revision) {
+          args.push('-c', revision);
         }
-      }
+        args.push(path);
 
-      // Use streaming parser for memory efficiency
-      return await parseDiffStreaming(output)
-    } catch (error) {
-      debug.error('[SVN] Streaming diff error:', error)
-      return { files: [], hasChanges: false, rawDiff: (error as Error).message }
+        const output = await executeSvn(args);
+
+        // Check for binary file indicator
+        if (output.includes('Cannot display: file marked as a binary type')) {
+          return {
+            files: [],
+            hasChanges: true,
+            isBinary: true,
+            rawDiff: output,
+          };
+        }
+
+        // Use streaming parser for memory efficiency
+        return await parseDiffStreaming(output);
+      } catch (error) {
+        debug.error('[SVN] Streaming diff error:', error);
+        return { files: [], hasChanges: false, rawDiff: (error as Error).message };
+      }
     }
-  })
+  );
 
   // SVN Update
-  ipcMain.handle('svn:update', async (_, path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => {
-    // Validate that the path is a working copy before attempting update
-    try {
-      await executeSvn(['info', '--xml', path], path, undefined, true)
-    } catch (error) {
-      const errorMsg = (error as Error).message || ''
-      debug.error('[SVN] Working copy validation failed for update:', path, errorMsg)
-      return {
-        success: false,
-        error: 'Not a valid working copy. The selected path is not under SVN version control. ' +
-               'Make sure you have checked out the repository and the .svn directory exists.'
-      }
-    }
-
-    const hooks = await getHooksForWorkingCopy(path)
-
-    // Pre-update hooks
-    const preResult = await executeHooksForType(hooks, 'pre-update', {
-      workingCopyPath: path
-    })
-    if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-update hook blocked' }
-    }
-
-    // Execute SVN update
-    try {
-      const args = ['update']
-      if (depth) args.push('--depth', depth)
-      args.push(path)
-
-      const output = await executeSvn(args, undefined, undefined, true)
-      const match = output.match(/Updated to revision (\d+)\./)
-      const result = {
-        success: true,
-        revision: match ? parseInt(match[1], 10) : 0
+  ipcMain.handle(
+    'svn:update',
+    async (_, path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => {
+      // Validate that the path is a working copy before attempting update
+      try {
+        await executeSvn(['info', '--xml', path], path, undefined, true);
+      } catch (error) {
+        const errorMsg = (error as Error).message || '';
+        debug.error('[SVN] Working copy validation failed for update:', path, errorMsg);
+        return {
+          success: false,
+          error:
+            'Not a valid working copy. The selected path is not under SVN version control. ' +
+            'Make sure you have checked out the repository and the .svn directory exists.',
+        };
       }
 
-      // Post-update hooks (async)
-      executeHooksForType(hooks, 'post-update', {
+      const hooks = await getHooksForWorkingCopy(path);
+
+      // Pre-update hooks
+      const preResult = await executeHooksForType(hooks, 'pre-update', {
         workingCopyPath: path,
-        revision: result.revision
-      }).catch(err => debug.error('[SVN] Post-update hook error:', err))
-
-      return result
-    } catch (error) {
-      const errorMsg = (error as Error).message || ''
-      debug.error('[SVN] Update failed:', path, errorMsg)
-
-      // Provide helpful error messages for common SVN errors
-      if (errorMsg.includes('E155007')) {
-        return {
-          success: false,
-          error: 'Not a working copy. The selected path is not under SVN version control.'
-        }
-      }
-      if (errorMsg.includes('E155004')) {
-        return {
-          success: false,
-          error: 'Working copy is locked. Try running "Cleanup" from the toolbar to resolve this issue.'
-        }
-      }
-      if (errorMsg.includes('E155036')) {
-        return {
-          success: false,
-          error: 'Working copy format is too old. Please upgrade the working copy using "svn upgrade" in the terminal.'
-        }
+      });
+      if (!preResult.allSucceeded) {
+        return { success: false, error: preResult.error || 'Pre-update hook blocked' };
       }
 
-      return { success: false, error: `SVN update failed: ${errorMsg}` }
+      // Execute SVN update
+      try {
+        const args = ['update'];
+        if (depth) args.push('--depth', depth);
+        args.push(path);
+
+        const output = await executeSvn(args, undefined, undefined, true);
+        const match = output.match(/Updated to revision (\d+)\./);
+        const result = {
+          success: true,
+          revision: match ? parseInt(match[1], 10) : 0,
+        };
+
+        // Post-update hooks (async)
+        executeHooksForType(hooks, 'post-update', {
+          workingCopyPath: path,
+          revision: result.revision,
+        }).catch((err) => debug.error('[SVN] Post-update hook error:', err));
+
+        return result;
+      } catch (error) {
+        const errorMsg = (error as Error).message || '';
+        debug.error('[SVN] Update failed:', path, errorMsg);
+
+        // Provide helpful error messages for common SVN errors
+        if (errorMsg.includes('E155007')) {
+          return {
+            success: false,
+            error: 'Not a working copy. The selected path is not under SVN version control.',
+          };
+        }
+        if (errorMsg.includes('E155004')) {
+          return {
+            success: false,
+            error:
+              'Working copy is locked. Try running "Cleanup" from the toolbar to resolve this issue.',
+          };
+        }
+        if (errorMsg.includes('E155036')) {
+          return {
+            success: false,
+            error:
+              'Working copy format is too old. Please upgrade the working copy using "svn upgrade" in the terminal.',
+          };
+        }
+
+        return { success: false, error: `SVN update failed: ${errorMsg}` };
+      }
     }
-  })
+  );
 
-  ipcMain.handle('svn:updateItem', async (_, localPath: string): Promise<{ success: boolean; revision: number; error?: string }> => {
-    const { existsSync, mkdirSync } = require('fs')
-    const { dirname } = require('path')
-    
-    try {
-      const context = await (async () => {
-        let currentPath = localPath
-        for (let i = 0; i < 50; i++) {
-          const svnDir = join(currentPath, '.svn')
-          if (existsSync(svnDir)) {
-            try {
-              const xml = await executeSvn(['info', '--xml', currentPath])
-              const info = parseSvnInfoXml(xml)
-              if (info.workingCopyRoot && info.url) {
-                const relativePath = localPath.slice(currentPath.length)
-                return {
-                  workingCopyRoot: info.workingCopyRoot,
-                  url: info.url + relativePath.split(/[/\\]/).join('/')
+  ipcMain.handle(
+    'svn:updateItem',
+    async (
+      _,
+      localPath: string
+    ): Promise<{ success: boolean; revision: number; error?: string }> => {
+      const { existsSync, mkdirSync } = require('fs');
+      const { dirname } = require('path');
+
+      try {
+        const context = await (async () => {
+          let currentPath = localPath;
+          for (let i = 0; i < 50; i++) {
+            const svnDir = join(currentPath, '.svn');
+            if (existsSync(svnDir)) {
+              try {
+                const xml = await executeSvn(['info', '--xml', currentPath]);
+                const info = parseSvnInfoXml(xml);
+                if (info.workingCopyRoot && info.url) {
+                  const relativePath = localPath.slice(currentPath.length);
+                  return {
+                    workingCopyRoot: info.workingCopyRoot,
+                    url: info.url + relativePath.split(/[/\\]/).join('/'),
+                  };
                 }
-              }
-            } catch {}
+              } catch {}
+            }
+            const parent = dirname(currentPath);
+            if (parent === currentPath) break;
+            currentPath = parent;
           }
-          const parent = dirname(currentPath)
-          if (parent === currentPath) break
-          currentPath = parent
+          return null;
+        })();
+
+        if (!context) {
+          return { success: false, revision: 0, error: 'Not inside a working copy' };
         }
-        return null
-      })()
-      
-      if (!context) {
-        return { success: false, revision: 0, error: 'Not inside a working copy' }
-      }
-      
-      if (!existsSync(localPath)) {
-        mkdirSync(localPath, { recursive: true })
-      }
-      
-      const output = await executeSvn(['update', '--depth', 'infinity', localPath])
-      const match = output.match(/Updated to revision (\d+)\./)
-      
-      return { 
-        success: true, 
-        revision: match ? parseInt(match[1], 10) : 0 
-      }
-    } catch (error) {
-      return { 
-        success: false, 
-        revision: 0, 
-        error: (error as Error)?.message || 'Update failed' 
+
+        if (!existsSync(localPath)) {
+          mkdirSync(localPath, { recursive: true });
+        }
+
+        const output = await executeSvn(['update', '--depth', 'infinity', localPath]);
+        const match = output.match(/Updated to revision (\d+)\./);
+
+        return {
+          success: true,
+          revision: match ? parseInt(match[1], 10) : 0,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          revision: 0,
+          error: (error as Error)?.message || 'Update failed',
+        };
       }
     }
-  })
+  );
 
-  ipcMain.handle('svn:updateToRevision', async (_, workingCopyRoot: string, repoUrl: string, localPath: string, depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity', setDepthSticky: boolean = false): Promise<{ success: boolean; revision: number; error?: string }> => {
-    const { relative, join } = require('path')
-    const { existsSync } = require('fs')
+  ipcMain.handle(
+    'svn:updateToRevision',
+    async (
+      _,
+      workingCopyRoot: string,
+      repoUrl: string,
+      localPath: string,
+      depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity',
+      setDepthSticky: boolean = false
+    ): Promise<{ success: boolean; revision: number; error?: string }> => {
+      const { relative, join } = require('path');
+      const { existsSync } = require('fs');
 
-    try {
-      const relativePath = relative(workingCopyRoot, localPath)
+      try {
+        const relativePath = relative(workingCopyRoot, localPath);
 
-      debug.log('[updateToRevision] workingCopyRoot:', workingCopyRoot)
-      debug.log('[updateToRevision] repoUrl:', repoUrl)
-      debug.log('[updateToRevision] localPath:', localPath)
-      debug.log('[updateToRevision] relativePath:', relativePath)
-      debug.log('[updateToRevision] depth:', depth)
-      debug.log('[updateToRevision] setDepthSticky:', setDepthSticky)
+        debug.log('[updateToRevision] workingCopyRoot:', workingCopyRoot);
+        debug.log('[updateToRevision] repoUrl:', repoUrl);
+        debug.log('[updateToRevision] localPath:', localPath);
+        debug.log('[updateToRevision] relativePath:', relativePath);
+        debug.log('[updateToRevision] depth:', depth);
+        debug.log('[updateToRevision] setDepthSticky:', setDepthSticky);
 
-      // Get credentials from auth cache for this repository
-      // Use findForUrl to match credentials stored for the repository root
-      // even when we're accessing a subdirectory URL
-      const authCache = getAuthCache()
-      const credentialMatch = repoUrl ? authCache.findForUrl(repoUrl) : null
-      const credentials = credentialMatch ? { username: credentialMatch.username, password: credentialMatch.password } : null
-      if (credentials) {
-        debug.log('[updateToRevision] Using cached credentials for realm:', credentialMatch?.realm)
-      }
+        // Get credentials from auth cache for this repository
+        // Use findForUrl to match credentials stored for the repository root
+        // even when we're accessing a subdirectory URL
+        const authCache = getAuthCache();
+        const credentialMatch = repoUrl ? authCache.findForUrl(repoUrl) : null;
+        const credentials = credentialMatch
+          ? { username: credentialMatch.username, password: credentialMatch.password }
+          : null;
+        if (credentials) {
+          debug.log(
+            '[updateToRevision] Using cached credentials for realm:',
+            credentialMatch?.realm
+          );
+        }
 
-      const pathParts = relativePath.split(/[/\\]/).filter(p => p.length > 0)
+        const pathParts = relativePath.split(/[/\\]/).filter((p) => p.length > 0);
 
-      // Step 1: Ensure all parent directories exist and are "opened" to see children
-      // In sparse checkouts, a directory can exist on disk but be at depth-empty,
-      // meaning it doesn't know about its children. We need to update parent dirs
-      // to at least 'immediates' depth so SVN can see and add their children.
-      for (let i = 0; i < pathParts.length - 1; i++) {
-        const partialPath = pathParts.slice(0, i + 1).join('/')
-        const fullPath = join(workingCopyRoot, partialPath)
+        // Step 1: Ensure all parent directories exist and are "opened" to see children
+        // In sparse checkouts, a directory can exist on disk but be at depth-empty,
+        // meaning it doesn't know about its children. We need to update parent dirs
+        // to at least 'immediates' depth so SVN can see and add their children.
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          const partialPath = pathParts.slice(0, i + 1).join('/');
+          const fullPath = join(workingCopyRoot, partialPath);
 
-        if (!existsSync(fullPath)) {
-          // Parent doesn't exist - create it with --depth immediates so it can have children
-          debug.log('[updateToRevision] Creating parent with --set-depth immediates:', partialPath)
-          await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot, undefined, true, credentials || undefined)
-        } else {
-          // Parent exists - but might be at depth-empty. Update to immediates to "open" it.
-          // This is safe to run even if already at higher depth (it's a no-op in that case)
-          debug.log('[updateToRevision] Opening parent to see children with --set-depth immediates:', partialPath)
+          if (!existsSync(fullPath)) {
+            // Parent doesn't exist - create it with --depth immediates so it can have children
+            debug.log(
+              '[updateToRevision] Creating parent with --set-depth immediates:',
+              partialPath
+            );
+            await executeSvn(
+              ['update', '--set-depth', 'immediates', partialPath],
+              workingCopyRoot,
+              undefined,
+              true,
+              credentials || undefined
+            );
+          } else {
+            // Parent exists - but might be at depth-empty. Update to immediates to "open" it.
+            // This is safe to run even if already at higher depth (it's a no-op in that case)
+            debug.log(
+              '[updateToRevision] Opening parent to see children with --set-depth immediates:',
+              partialPath
+            );
+            try {
+              await executeSvn(
+                ['update', '--set-depth', 'immediates', partialPath],
+                workingCopyRoot,
+                undefined,
+                true,
+                credentials || undefined
+              );
+            } catch (e) {
+              // If this fails, the parent might already be at a sufficient depth - continue anyway
+              debug.log(
+                '[updateToRevision] Parent depth update failed (may already be sufficient):',
+                (e as Error)?.message
+              );
+            }
+          }
+        }
+
+        // Step 2: Ensure the target directory exists (for adding NEW folders)
+        // This is needed when the target doesn't exist locally at all
+        const targetFullPath = join(workingCopyRoot, relativePath);
+        if (!existsSync(targetFullPath)) {
+          debug.log(
+            '[updateToRevision] Target does not exist, fetching with --depth empty first:',
+            relativePath
+          );
           try {
-            await executeSvn(['update', '--set-depth', 'immediates', partialPath], workingCopyRoot, undefined, true, credentials || undefined)
+            await executeSvn(
+              ['update', '--depth', 'empty', relativePath],
+              workingCopyRoot,
+              undefined,
+              true,
+              credentials || undefined
+            );
           } catch (e) {
-            // If this fails, the parent might already be at a sufficient depth - continue anyway
-            debug.log('[updateToRevision] Parent depth update failed (may already be sufficient):', (e as Error)?.message)
+            // If this fails, we'll try the main update anyway
+            debug.log('[updateToRevision] Initial target fetch failed:', (e as Error)?.message);
           }
         }
-      }
 
-      // Step 2: Ensure the target directory exists (for adding NEW folders)
-      // This is needed when the target doesn't exist locally at all
-      const targetFullPath = join(workingCopyRoot, relativePath)
-      if (!existsSync(targetFullPath)) {
-        debug.log('[updateToRevision] Target does not exist, fetching with --depth empty first:', relativePath)
-        try {
-          await executeSvn(['update', '--depth', 'empty', relativePath], workingCopyRoot, undefined, true, credentials || undefined)
-        } catch (e) {
-          // If this fails, we'll try the main update anyway
-          debug.log('[updateToRevision] Initial target fetch failed:', (e as Error)?.message)
+        // Step 3: Run the final update with the requested depth
+        // --depth and --set-depth are mutually exclusive in SVN
+        // Use --set-depth when sticky (it also applies depth for this update)
+        // Use --depth when not sticky (one-time depth)
+        const args = ['update'];
+        if (setDepthSticky) {
+          args.push('--set-depth', depth);
+        } else {
+          args.push('--depth', depth);
         }
-      }
+        args.push(relativePath);
 
-      // Step 3: Run the final update with the requested depth
-      // --depth and --set-depth are mutually exclusive in SVN
-      // Use --set-depth when sticky (it also applies depth for this update)
-      // Use --depth when not sticky (one-time depth)
-      const args = ['update']
-      if (setDepthSticky) {
-        args.push('--set-depth', depth)
-      } else {
-        args.push('--depth', depth)
-      }
-      args.push(relativePath)
+        debug.log('[updateToRevision] Running svn with args:', args);
+        const output = await executeSvn(
+          args,
+          workingCopyRoot,
+          undefined,
+          true,
+          credentials || undefined
+        );
+        const match = output.match(/Updated to revision (\d+)\./);
 
-      debug.log('[updateToRevision] Running svn with args:', args)
-      const output = await executeSvn(args, workingCopyRoot, undefined, true, credentials || undefined)
-      const match = output.match(/Updated to revision (\d+)\./)
-
-      return {
-        success: true,
-        revision: match ? parseInt(match[1], 10) : 0
-      }
-    } catch (error) {
-      return {
-        success: false,
-        revision: 0,
-        error: (error as Error)?.message || 'Update failed'
+        return {
+          success: true,
+          revision: match ? parseInt(match[1], 10) : 0,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          revision: 0,
+          error: (error as Error)?.message || 'Update failed',
+        };
       }
     }
-  })
+  );
 
   // SVN Commit
   ipcMain.handle('svn:commit', async (_, paths: string[], message: string) => {
-    const workingCopyPath = paths[0]
-    
+    const workingCopyPath = paths[0];
+
     // Fetch hooks for this working copy
-    const hooks = await getHooksForWorkingCopy(workingCopyPath)
-    
+    const hooks = await getHooksForWorkingCopy(workingCopyPath);
+
     // Execute start-commit hooks
     const startResult = await executeHooksForType(hooks, 'start-commit', {
       workingCopyPath,
       files: paths,
-      message
-    })
+      message,
+    });
     if (!startResult.allSucceeded) {
       return {
         success: false,
-        error: startResult.error || 'Start-commit hook blocked the operation'
-      }
+        error: startResult.error || 'Start-commit hook blocked the operation',
+      };
     }
-    
+
     // Execute pre-commit hooks
     const preResult = await executeHooksForType(hooks, 'pre-commit', {
       workingCopyPath,
       files: paths,
-      message
-    })
+      message,
+    });
     if (!preResult.allSucceeded) {
       return {
         success: false,
-        error: preResult.error || 'Pre-commit hook blocked the operation'
-      }
+        error: preResult.error || 'Pre-commit hook blocked the operation',
+      };
     }
-    
+
     // Execute SVN commit
-    const output = await executeSvn(['commit', '-m', message, ...paths])
-    const match = output.match(/Committed revision (\d+)\./)
-    const result = { 
-      success: true, 
-      revision: match ? parseInt(match[1], 10) : 0 
-    }
-    
+    const output = await executeSvn(['commit', '-m', message, ...paths]);
+    const match = output.match(/Committed revision (\d+)\./);
+    const result = {
+      success: true,
+      revision: match ? parseInt(match[1], 10) : 0,
+    };
+
     // After successful commit, execute post-commit hooks (async, don't wait)
     if (result.success) {
       executeHooksForType(hooks, 'post-commit', {
         workingCopyPath,
         files: paths,
         message,
-        revision: result.revision
-      }).catch(err => debug.error('[SVN] Post-commit hook error:', err))
+        revision: result.revision,
+      }).catch((err) => debug.error('[SVN] Post-commit hook error:', err));
     }
-    
-    return result
-  })
+
+    return result;
+  });
 
   // SVN Revert
   ipcMain.handle('svn:revert', async (_, paths: string[]) => {
-    await executeSvn(['revert', ...paths])
-    return { success: true }
-  })
+    await executeSvn(['revert', ...paths]);
+    return { success: true };
+  });
 
   // SVN Add
   ipcMain.handle('svn:add', async (_, paths: string[]) => {
-    await executeSvn(['add', ...paths])
-    return { success: true }
-  })
+    await executeSvn(['add', ...paths]);
+    return { success: true };
+  });
 
   // SVN Delete
   ipcMain.handle('svn:delete', async (_, paths: string[]) => {
-    await executeSvn(['delete', ...paths])
-    return { success: true }
-  })
+    await executeSvn(['delete', ...paths]);
+    return { success: true };
+  });
 
   // SVN Cleanup
   ipcMain.handle('svn:cleanup', async (_, path: string) => {
-    await executeSvn(['cleanup', path])
-    return { success: true }
-  })
+    await executeSvn(['cleanup', path]);
+    return { success: true };
+  });
 
   // SVN Checkout
-  ipcMain.handle('svn:checkout', async (_, url: string, path: string, revision?: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', options?: CheckoutOptions) => {
-    const args = ['checkout', '--non-interactive']
+  ipcMain.handle(
+    'svn:checkout',
+    async (
+      _,
+      url: string,
+      path: string,
+      revision?: string,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: CheckoutOptions
+    ) => {
+      const args = ['checkout', '--non-interactive'];
 
-    // Add revision if specified
-    if (revision) args.push('-r', revision)
-    
-    // Add depth if specified
-    if (depth) args.push('--depth', depth)
-    
-    // Add sparse paths if specified (this enables sparse checkout)
-    if (options?.sparsePaths && options.sparsePaths.length > 0) {
-      // Set depth to empty first, then add specific paths
-      args.push('--depth', 'empty')
-      // Add each specific path
-      options.sparsePaths.forEach(p => args.push(p))
-    }
-    
-    // Build execution context - merge per-operation options with global settings
-    const operationContext: Partial<SvnExecutionContext> = {}
-    
-    if (options?.trustSsl) {
-      const failures = options.sslFailures || ['unknown-ca']
-      const failureStr = failures.map(f => {
-        switch (f) {
-          case 'untrusted-issuer':
-          case 'unknown-ca':
-            return 'unknown-ca'
-          case 'hostname-mismatch':
-          case 'cn-mismatch':
-            return 'cn-mismatch'
-          case 'expired':
-            return 'expired'
-          case 'not-yet-valid':
-            return 'not-yet-valid'
-          default:
-            return 'other'
+      // Add revision if specified
+      if (revision) args.push('-r', revision);
+
+      // Add depth if specified
+      if (depth) args.push('--depth', depth);
+
+      // Add sparse paths if specified (this enables sparse checkout)
+      if (options?.sparsePaths && options.sparsePaths.length > 0) {
+        // Set depth to empty first, then add specific paths
+        args.push('--depth', 'empty');
+        // Add each specific path
+        options.sparsePaths.forEach((p) => args.push(p));
+      }
+
+      // Build execution context - merge per-operation options with global settings
+      const operationContext: Partial<SvnExecutionContext> = {};
+
+      if (options?.trustSsl) {
+        const failures = options.sslFailures || ['unknown-ca'];
+        const failureStr = failures
+          .map((f) => {
+            switch (f) {
+              case 'untrusted-issuer':
+              case 'unknown-ca':
+                return 'unknown-ca';
+              case 'hostname-mismatch':
+              case 'cn-mismatch':
+                return 'cn-mismatch';
+              case 'expired':
+                return 'expired';
+              case 'not-yet-valid':
+                return 'not-yet-valid';
+              default:
+                return 'other';
+            }
+          })
+          .join(',');
+
+        args.push('--trust-server-cert-failures', failureStr);
+      }
+
+      // Add credentials if provided
+      if (options?.credentials) {
+        args.push('--username', options.credentials.username);
+        if (options.credentials.password) {
+          args.push('--password', options.credentials.password);
         }
-      }).join(',')
+      }
 
-      args.push('--trust-server-cert-failures', failureStr)
-    }
-    
-    // Add credentials if provided
-    if (options?.credentials) {
-      args.push('--username', options.credentials.username)
-      if (options.credentials.password) {
-        args.push('--password', options.credentials.password)
+      // Add URL and path
+      args.push(url, path);
+
+      try {
+        const output = await executeSvn(args, undefined, operationContext);
+        const match = output.match(/Checked out revision (\d+)\./);
+        return {
+          success: true,
+          revision: match ? parseInt(match[1], 10) : 0,
+          output,
+        };
+      } catch (error) {
+        // Return error with output for parsing
+        const errorMsg = (error as Error).message || 'Checkout failed';
+        return {
+          success: false,
+          revision: 0,
+          output: errorMsg,
+        };
       }
     }
-    
-    // Add URL and path
-    args.push(url, path)
-    
-    try {
-      const output = await executeSvn(args, undefined, operationContext)
-      const match = output.match(/Checked out revision (\d+)\./)
-      return { 
-        success: true, 
-        revision: match ? parseInt(match[1], 10) : 0,
-        output
-      }
-    } catch (error) {
-      // Return error with output for parsing
-      const errorMsg = (error as Error).message || 'Checkout failed'
-      return {
-        success: false,
-        revision: 0,
-        output: errorMsg
-      }
-    }
-  })
+  );
 
   // SVN Export
   ipcMain.handle('svn:export', async (_, url: string, path: string, revision?: string) => {
-    const args = ['export', '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other', url, path]
-    if (revision) args.push('-r', revision)
-    const output = await executeSvn(args)
-    const match = output.match(/Exported revision (\d+)\./)
+    const args = [
+      'export',
+      '--non-interactive',
+      '--trust-server-cert-failures',
+      'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+      url,
+      path,
+    ];
+    if (revision) args.push('-r', revision);
+    const output = await executeSvn(args);
+    const match = output.match(/Exported revision (\d+)\./);
     return {
       success: true,
       revision: match ? parseInt(match[1], 10) : 0,
-      output
-    }
-  })
+      output,
+    };
+  });
 
   // SVN Import
   ipcMain.handle('svn:import', async (_, path: string, url: string, message: string) => {
-    const output = await executeSvn(['import', '-m', message, '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other', path, url])
-    const match = output.match(/Committed revision (\d+)\./)
+    const output = await executeSvn([
+      'import',
+      '-m',
+      message,
+      '--non-interactive',
+      '--trust-server-cert-failures',
+      'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+      path,
+      url,
+    ]);
+    const match = output.match(/Committed revision (\d+)\./);
     return {
       success: true,
       revision: match ? parseInt(match[1], 10) : 0,
-      output
-    }
-  })
+      output,
+    };
+  });
 
   // SVN Lock
   ipcMain.handle('svn:lock', async (_, path: string, message?: string) => {
     // Get parent directory as working copy path
-    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
-    const hooks = await getHooksForWorkingCopy(workingCopyPath)
-    
-    // Pre-lock hooks
-    const preResult = await executeHooksForType(hooks, 'pre-lock', {
-      workingCopyPath,
-      files: [path],
-      message
-    })
-    if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-lock hook blocked' }
-    }
-    
-    const args = ['lock']
-    if (message) args.push('-m', message)
-    args.push(path)
-    const output = await executeSvn(args)
-    return { success: true, output }
-  })
-
-  // SVN Unlock
-  ipcMain.handle('svn:unlock', async (_, path: string, force?: boolean) => {
-    // Get parent directory as working copy path
-    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path
-    const hooks = await getHooksForWorkingCopy(workingCopyPath)
-
-    // Pre-unlock hooks
-    const preResult = await executeHooksForType(hooks, 'pre-unlock', {
-      workingCopyPath,
-      files: [path]
-    })
-    if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' }
-    }
-
-    const args = ['unlock']
-    if (force) args.push('--force')
-    args.push(path)
-    const output = await executeSvn(args)
-    return { success: true, output }
-  })
-
-  // SVN Lock Info - Get detailed lock information for a file
-  ipcMain.handle('svn:lockInfo', async (_, path: string): Promise<SvnLockInfo | null> => {
-    try {
-      const xml = await executeSvn(['info', '--xml', path])
-      const info = parseSvnInfoXml(xml)
-      return info.lock || null
-    } catch (error) {
-      debug.error('[SVN] Lock info error:', error)
-      return null
-    }
-  })
-
-  // SVN Force Lock (Steal Lock) - Lock a file even if locked by another user
-  ipcMain.handle('svn:lockForce', async (_, path: string, message?: string) => {
-    // Get parent directory as working copy path (handle both Unix and Windows path separators)
-    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path
-    const hooks = await getHooksForWorkingCopy(workingCopyPath)
+    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path;
+    const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
     // Pre-lock hooks
     const preResult = await executeHooksForType(hooks, 'pre-lock', {
       workingCopyPath,
       files: [path],
       message,
-      force: true
-    })
+    });
     if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-lock hook blocked' }
+      return { success: false, error: preResult.error || 'Pre-lock hook blocked' };
     }
 
-    try {
-      const args = ['lock', '--force']
-      if (message) args.push('-m', message)
-      args.push(path)
-      await executeSvn(args)
+    const args = ['lock'];
+    if (message) args.push('-m', message);
+    args.push(path);
+    const output = await executeSvn(args);
+    return { success: true, output };
+  });
 
-      // Get lock info after successful lock
-      const xml = await executeSvn(['info', '--xml', path])
-      const info = parseSvnInfoXml(xml)
-
-      return { success: true, lock: info.lock }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      debug.error('[SVN] Force lock error:', errorMessage)
-      return { success: false, error: errorMessage }
-    }
-  })
-
-  // SVN Force Unlock (Break Lock) - Unlock a file locked by another user
-  ipcMain.handle('svn:unlockForce', async (_, path: string) => {
-    // Get parent directory as working copy path (handle both Unix and Windows path separators)
-    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path
-    const hooks = await getHooksForWorkingCopy(workingCopyPath)
+  // SVN Unlock
+  ipcMain.handle('svn:unlock', async (_, path: string, force?: boolean) => {
+    // Get parent directory as working copy path
+    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path;
+    const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
     // Pre-unlock hooks
     const preResult = await executeHooksForType(hooks, 'pre-unlock', {
       workingCopyPath,
       files: [path],
-      force: true
-    })
+    });
     if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' }
+      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' };
+    }
+
+    const args = ['unlock'];
+    if (force) args.push('--force');
+    args.push(path);
+    const output = await executeSvn(args);
+    return { success: true, output };
+  });
+
+  // SVN Lock Info - Get detailed lock information for a file
+  ipcMain.handle('svn:lockInfo', async (_, path: string): Promise<SvnLockInfo | null> => {
+    try {
+      const xml = await executeSvn(['info', '--xml', path]);
+      const info = parseSvnInfoXml(xml);
+      return info.lock || null;
+    } catch (error) {
+      debug.error('[SVN] Lock info error:', error);
+      return null;
+    }
+  });
+
+  // SVN Force Lock (Steal Lock) - Lock a file even if locked by another user
+  ipcMain.handle('svn:lockForce', async (_, path: string, message?: string) => {
+    // Get parent directory as working copy path (handle both Unix and Windows path separators)
+    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path;
+    const hooks = await getHooksForWorkingCopy(workingCopyPath);
+
+    // Pre-lock hooks
+    const preResult = await executeHooksForType(hooks, 'pre-lock', {
+      workingCopyPath,
+      files: [path],
+      message,
+      force: true,
+    });
+    if (!preResult.allSucceeded) {
+      return { success: false, error: preResult.error || 'Pre-lock hook blocked' };
     }
 
     try {
-      const args = ['unlock', '--force', path]
-      await executeSvn(args)
-      return { success: true }
+      const args = ['lock', '--force'];
+      if (message) args.push('-m', message);
+      args.push(path);
+      await executeSvn(args);
+
+      // Get lock info after successful lock
+      const xml = await executeSvn(['info', '--xml', path]);
+      const info = parseSvnInfoXml(xml);
+
+      return { success: true, lock: info.lock };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      debug.error('[SVN] Force unlock error:', errorMessage)
-      return { success: false, error: errorMessage }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      debug.error('[SVN] Force lock error:', errorMessage);
+      return { success: false, error: errorMessage };
     }
-  })
+  });
+
+  // SVN Force Unlock (Break Lock) - Unlock a file locked by another user
+  ipcMain.handle('svn:unlockForce', async (_, path: string) => {
+    // Get parent directory as working copy path (handle both Unix and Windows path separators)
+    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path;
+    const hooks = await getHooksForWorkingCopy(workingCopyPath);
+
+    // Pre-unlock hooks
+    const preResult = await executeHooksForType(hooks, 'pre-unlock', {
+      workingCopyPath,
+      files: [path],
+      force: true,
+    });
+    if (!preResult.allSucceeded) {
+      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' };
+    }
+
+    try {
+      const args = ['unlock', '--force', path];
+      await executeSvn(args);
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      debug.error('[SVN] Force unlock error:', errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  });
 
   // SVN Lock List - List all locks in a working copy
   ipcMain.handle('svn:lockList', async (_, path: string): Promise<SvnLockInfo[]> => {
     try {
       // Use svn status --xml to find locked files
-      const xml = await executeSvn(['status', '--xml', path])
-      const locks: SvnLockInfo[] = []
+      const xml = await executeSvn(['status', '--xml', path]);
+      const locks: SvnLockInfo[] = [];
 
       const parsed = xmlParser.parse(xml) as {
         status?: {
           target?: {
-            entry?: Array<{
-              '@_path': string
-              'wc-status'?: {
-                '@_item': string
-                lock?: {
-                  owner?: string
-                  comment?: string
-                  'creationdate'?: string
-                  token?: string
-                }
-              }
-            }> | {
-              '@_path': string
-              'wc-status'?: {
-                '@_item': string
-                lock?: {
-                  owner?: string
-                  comment?: string
-                  'creationdate'?: string
-                  token?: string
-                }
-              }
-            }
-          }
-        }
-      }
+            entry?:
+              | Array<{
+                  '@_path': string;
+                  'wc-status'?: {
+                    '@_item': string;
+                    lock?: {
+                      owner?: string;
+                      comment?: string;
+                      creationdate?: string;
+                      token?: string;
+                    };
+                  };
+                }>
+              | {
+                  '@_path': string;
+                  'wc-status'?: {
+                    '@_item': string;
+                    lock?: {
+                      owner?: string;
+                      comment?: string;
+                      creationdate?: string;
+                      token?: string;
+                    };
+                  };
+                };
+          };
+        };
+      };
 
-      const target = parsed.status?.target
-      if (!target) return []
+      const target = parsed.status?.target;
+      if (!target) return [];
 
-      const entries = target.entry
-      if (!entries) return []
+      const entries = target.entry;
+      if (!entries) return [];
 
-      const entriesArray = Array.isArray(entries) ? entries : [entries]
+      const entriesArray = Array.isArray(entries) ? entries : [entries];
 
       for (const entry of entriesArray) {
-        if (!entry || typeof entry !== 'object') continue
+        if (!entry || typeof entry !== 'object') continue;
 
-        const wcStatus = entry['wc-status']
+        const wcStatus = entry['wc-status'];
         if (wcStatus?.lock) {
           locks.push({
             path: entry['@_path'] || '',
             owner: wcStatus.lock.owner || '',
             comment: wcStatus.lock.comment || '',
             date: wcStatus.lock['creationdate'] || '',
-            token: wcStatus.lock.token
-          })
+            token: wcStatus.lock.token,
+          });
         }
       }
 
-      return locks
+      return locks;
     } catch (error) {
-      debug.error('[SVN] Lock list error:', error)
-      return []
+      debug.error('[SVN] Lock list error:', error);
+      return [];
     }
-  })
+  });
 
   // SVN Resolve
-  ipcMain.handle('svn:resolve', async (_, path: string, resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict') => {
-    await executeSvn(['resolve', '--accept', resolution, path])
-    return { success: true }
-  })
+  ipcMain.handle(
+    'svn:resolve',
+    async (
+      _,
+      path: string,
+      resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict'
+    ) => {
+      await executeSvn(['resolve', '--accept', resolution, path]);
+      return { success: true };
+    }
+  );
 
   // SVN Switch
   ipcMain.handle('svn:switch', async (_, path: string, url: string, revision?: string) => {
-    const args = ['switch', url, path]
-    if (revision) args.push('-r', revision)
-    const output = await executeSvn(args)
-    const match = output.match(/Updated to revision (\d+)\./)
-    return { 
-      success: true, 
+    const args = ['switch', url, path];
+    if (revision) args.push('-r', revision);
+    const output = await executeSvn(args);
+    const match = output.match(/Updated to revision (\d+)\./);
+    return {
+      success: true,
       revision: match ? parseInt(match[1], 10) : 0,
-      output
-    }
-  })
+      output,
+    };
+  });
 
   // SVN Copy (Branch/Tag)
   ipcMain.handle('svn:copy', async (_, src: string, dst: string, message: string) => {
-    const output = await executeSvn(['copy', '-m', message, src, dst])
-    const match = output.match(/Committed revision (\d+)\./)
-    return { 
-      success: true, 
+    const output = await executeSvn(['copy', '-m', message, src, dst]);
+    const match = output.match(/Committed revision (\d+)\./);
+    return {
+      success: true,
       revision: match ? parseInt(match[1], 10) : 0,
-      output
-    }
-  })
+      output,
+    };
+  });
 
   // SVN Merge
-  ipcMain.handle('svn:merge', async (_, source: string, target: string, revisions?: string[], ranges?: Array<{ start: number; end: number }>) => {
-    const args = ['merge', source, target]
-    if (revisions && revisions.length > 0) {
-      args.push('-c', revisions.join(','))
-    }
-    if (ranges && ranges.length > 0) {
-      for (const range of ranges) {
-        args.push('-r', `${range.start}:${range.end}`)
+  ipcMain.handle(
+    'svn:merge',
+    async (
+      _,
+      source: string,
+      target: string,
+      revisions?: string[],
+      ranges?: Array<{ start: number; end: number }>
+    ) => {
+      const args = ['merge', source, target];
+      if (revisions && revisions.length > 0) {
+        args.push('-c', revisions.join(','));
       }
+      if (ranges && ranges.length > 0) {
+        for (const range of ranges) {
+          args.push('-r', `${range.start}:${range.end}`);
+        }
+      }
+      const output = await executeSvn(args);
+      return { success: true, output };
     }
-    const output = await executeSvn(args)
-    return { success: true, output }
-  })
+  );
 
   // SVN Relocate
   ipcMain.handle('svn:relocate', async (_, from: string, to: string, path: string) => {
-    const output = await executeSvn(['relocate', from, to, path])
-    return { success: true, output }
-  })
+    const output = await executeSvn(['relocate', from, to, path]);
+    return { success: true, output };
+  });
 
   // SVN Changelist - Add to changelist
   ipcMain.handle('svn:changelist:add', async (_, paths: string[], changelist: string) => {
-    await executeSvn(['changelist', changelist, ...paths])
-    return { success: true }
-  })
+    await executeSvn(['changelist', changelist, ...paths]);
+    return { success: true };
+  });
 
   // SVN Changelist - Remove from changelist
   ipcMain.handle('svn:changelist:remove', async (_, paths: string[]) => {
-    await executeSvn(['changelist', '--remove', ...paths])
-    return { success: true }
-  })
+    await executeSvn(['changelist', '--remove', ...paths]);
+    return { success: true };
+  });
 
   // SVN Changelist - List changelists
   ipcMain.handle('svn:changelist:list', async (_, path: string): Promise<SvnChangelistResult> => {
     try {
-      const xml = await executeSvn(['status', '--xml', path])
-      const changelists: Map<string, string[]> = new Map()
-      const defaultFiles: string[] = []
-      
+      const xml = await executeSvn(['status', '--xml', path]);
+      const changelists: Map<string, string[]> = new Map();
+      const defaultFiles: string[] = [];
+
       // Parse changelist info from status XML
-      const entryMatches = xml.matchAll(/<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?(<changelist[^>]*>([^<]*)<\/changelist>)?/g)
-      
+      const entryMatches = xml.matchAll(
+        /<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?(<changelist[^>]*>([^<]*)<\/changelist>)?/g
+      );
+
       for (const match of entryMatches) {
-        const filePath = match[1]
-        const changelistName = match[3]
-        
+        const filePath = match[1];
+        const changelistName = match[3];
+
         if (changelistName) {
           if (!changelists.has(changelistName)) {
-            changelists.set(changelistName, [])
+            changelists.set(changelistName, []);
           }
-          changelists.get(changelistName)!.push(filePath)
+          changelists.get(changelistName)!.push(filePath);
         } else {
-          defaultFiles.push(filePath)
+          defaultFiles.push(filePath);
         }
       }
-      
+
       return {
         changelists: Array.from(changelists.entries()).map(([name, files]) => ({ name, files })),
-        defaultFiles
-      }
+        defaultFiles,
+      };
     } catch {
-      return { changelists: [], defaultFiles: [] }
+      return { changelists: [], defaultFiles: [] };
     }
-  })
+  });
 
   // SVN Changelist - Create new changelist
   ipcMain.handle('svn:changelist:create', async (_, _name: string, _comment?: string) => {
     // Changelists are created implicitly when files are added to them
     // This handler exists for consistency but doesn't need to do anything
     // The UI should use changelist.add to add files, which creates the changelist automatically
-    return { success: true }
-  })
+    return { success: true };
+  });
 
   // SVN Changelist - Delete changelist (remove all files from it)
   ipcMain.handle('svn:changelist:delete', async (_, name: string, path: string) => {
     try {
       // Get all files in this changelist
-      const xml = await executeSvn(['status', '--xml', path])
-      
+      const xml = await executeSvn(['status', '--xml', path]);
+
       // Parse to find files in this changelist
-      const filesToRemove: string[] = []
-      const entryMatches = xml.matchAll(/<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?(<changelist[^>]*>([^<]*)<\/changelist>)?/g)
-      
+      const filesToRemove: string[] = [];
+      const entryMatches = xml.matchAll(
+        /<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?(<changelist[^>]*>([^<]*)<\/changelist>)?/g
+      );
+
       for (const match of entryMatches) {
-        const filePath = match[1]
-        const changelistName = match[3]
-        
+        const filePath = match[1];
+        const changelistName = match[3];
+
         if (changelistName === name) {
-          filesToRemove.push(filePath)
+          filesToRemove.push(filePath);
         }
       }
-      
+
       // Remove all files from the changelist
       if (filesToRemove.length > 0) {
-        await executeSvn(['changelist', '--remove', ...filesToRemove])
+        await executeSvn(['changelist', '--remove', ...filesToRemove]);
       }
-      
-      return { success: true }
+
+      return { success: true };
     } catch (error) {
-      debug.error('[SVN] Changelist delete error:', error)
-      return { success: false }
+      debug.error('[SVN] Changelist delete error:', error);
+      return { success: false };
     }
-  })
+  });
 
   // SVN Move
   ipcMain.handle('svn:move', async (_, src: string, dst: string) => {
-    const output = await executeSvn(['move', src, dst])
-    return { success: true, output }
-  })
+    const output = await executeSvn(['move', src, dst]);
+    return { success: true, output };
+  });
 
   // SVN Rename
   ipcMain.handle('svn:rename', async (_, src: string, dst: string) => {
-    const output = await executeSvn(['move', src, dst]) // svn rename is an alias for move
-    return { success: true, output }
-  })
+    const output = await executeSvn(['move', src, dst]); // svn rename is an alias for move
+    return { success: true, output };
+  });
 
   // SVN Shelve - List shelves
   ipcMain.handle('svn:shelve:list', async (_, path: string): Promise<SvnShelveListResult> => {
     try {
-      const output = await executeSvn(['shelve', '--list', '--xml', path])
+      const output = await executeSvn(['shelve', '--list', '--xml', path]);
       // Parse shelves from XML
-      const shelves: SvnShelveListResult['shelves'] = []
-      const shelfMatches = output.matchAll(/<shelf[^>]*name="([^"]+)"[^>]*>[\s\S]*?<path>([^<]+)<\/path>[\s\S]*?<date>([^<]+)<\/date>/g)
+      const shelves: SvnShelveListResult['shelves'] = [];
+      const shelfMatches = output.matchAll(
+        /<shelf[^>]*name="([^"]+)"[^>]*>[\s\S]*?<path>([^<]+)<\/path>[\s\S]*?<date>([^<]+)<\/date>/g
+      );
       for (const match of shelfMatches) {
         shelves.push({
           name: match[1],
           path: match[2],
-          date: match[3]
-        })
+          date: match[3],
+        });
       }
-      return { shelves }
+      return { shelves };
     } catch {
-      return { shelves: [] }
+      return { shelves: [] };
     }
-  })
+  });
 
   // SVN Shelve - Save
   ipcMain.handle('svn:shelve:save', async (_, name: string, path: string, message?: string) => {
-    const args = ['shelve', name]
-    if (message) args.push('-m', message)
-    args.push(path)
-    await executeSvn(args)
-    return { success: true }
-  })
+    const args = ['shelve', name];
+    if (message) args.push('-m', message);
+    args.push(path);
+    await executeSvn(args);
+    return { success: true };
+  });
 
   // SVN Shelve - Apply
   ipcMain.handle('svn:shelve:apply', async (_, name: string, path: string) => {
-    await executeSvn(['unshelve', name, path])
-    return { success: true }
-  })
+    await executeSvn(['unshelve', name, path]);
+    return { success: true };
+  });
 
   // SVN Shelve - Delete
   ipcMain.handle('svn:shelve:delete', async (_, name: string, path: string) => {
-    await executeSvn(['shelve', '--delete', name, path])
-    return { success: true }
-  })
+    await executeSvn(['shelve', '--delete', name, path]);
+    return { success: true };
+  });
 
   // SVN Proplist
   ipcMain.handle('svn:proplist', async (_, path: string) => {
-    const output = await executeSvn(['proplist', '--xml', '-v', path])
-    const props: { name: string; value: string }[] = []
-    const propMatches = output.matchAll(/<property[^>]*name="([^"]+)"[^>]*>([^<]*)<\/property>/g)
+    const output = await executeSvn(['proplist', '--xml', '-v', path]);
+    const props: { name: string; value: string }[] = [];
+    const propMatches = output.matchAll(/<property[^>]*name="([^"]+)"[^>]*>([^<]*)<\/property>/g);
     for (const match of propMatches) {
-      props.push({ name: match[1], value: match[2] })
+      props.push({ name: match[1], value: match[2] });
     }
-    return props
-  })
+    return props;
+  });
 
   // SVN Propset
   ipcMain.handle('svn:propset', async (_, path: string, name: string, value: string) => {
-    await executeSvn(['propset', name, value, path])
-    return { success: true }
-  })
+    await executeSvn(['propset', name, value, path]);
+    return { success: true };
+  });
 
   // SVN Propdel
   ipcMain.handle('svn:propdel', async (_, path: string, name: string) => {
-    await executeSvn(['propdel', name, path])
-    return { success: true }
-  })
-  
+    await executeSvn(['propdel', name, path]);
+    return { success: true };
+  });
+
   // ============================================
   // SVN Blame (Annotate)
   // ============================================
-  
-  ipcMain.handle('svn:blame', async (_, path: string, startRevision?: number, endRevision?: number): Promise<SvnBlameResult> => {
-    try {
-      const args = ['blame', '--xml', '-v']
-      if (startRevision !== undefined && endRevision !== undefined) {
-        args.push('-r', `${startRevision}:${endRevision}`)
+
+  ipcMain.handle(
+    'svn:blame',
+    async (
+      _,
+      path: string,
+      startRevision?: number,
+      endRevision?: number
+    ): Promise<SvnBlameResult> => {
+      try {
+        const args = ['blame', '--xml', '-v'];
+        if (startRevision !== undefined && endRevision !== undefined) {
+          args.push('-r', `${startRevision}:${endRevision}`);
+        }
+        args.push(path);
+
+        const xml = await executeSvn(args);
+        return parseSvnBlameXml(xml, path);
+      } catch (error) {
+        debug.error('[SVN] Blame error:', error);
+        return { path, lines: [], startRevision: 0, endRevision: 0 };
       }
-      args.push(path)
-      
-      const xml = await executeSvn(args)
-      return parseSvnBlameXml(xml, path)
-    } catch (error) {
-      debug.error('[SVN] Blame error:', error)
-      return { path, lines: [], startRevision: 0, endRevision: 0 }
     }
-  })
-  
+  );
+
   // ============================================
   // SVN List (Repository Browser)
   // ============================================
-  
-  ipcMain.handle('svn:list', async (_, url: string, revision?: string, depth?: 'empty' | 'immediates' | 'infinity', credentials?: { username: string; password: string }): Promise<SvnListResult> => {
-    const args = ['list', '--xml', '--non-interactive', '--trust-server-cert-failures', 'unknown-ca,cn-mismatch,expired,not-yet-valid,other']
-    if (revision) args.push('-r', revision)
-    if (depth) args.push('--depth', depth)
-    if (credentials?.username) args.push('--username', credentials.username)
-    if (credentials?.password) args.push('--password', credentials.password)
-    args.push(url)
 
-    const xml = await executeSvn(args)
-    return parseSvnListXml(xml, url)
-  })
-  
+  ipcMain.handle(
+    'svn:list',
+    async (
+      _,
+      url: string,
+      revision?: string,
+      depth?: 'empty' | 'immediates' | 'infinity',
+      credentials?: { username: string; password: string }
+    ): Promise<SvnListResult> => {
+      const args = [
+        'list',
+        '--xml',
+        '--non-interactive',
+        '--trust-server-cert-failures',
+        'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+      ];
+      if (revision) args.push('-r', revision);
+      if (depth) args.push('--depth', depth);
+      if (credentials?.username) args.push('--username', credentials.username);
+      if (credentials?.password) args.push('--password', credentials.password);
+      args.push(url);
+
+      const xml = await executeSvn(args);
+      return parseSvnListXml(xml, url);
+    }
+  );
+
   // ============================================
   // SVN Patch Operations
   // ============================================
-  
-  ipcMain.handle('svn:patch:create', async (_, paths: string[], outputPath: string): Promise<{ success: boolean; output: string }> => {
-    try {
-      const args = ['diff', ...paths]
-      const output = await executeSvn(args)
-      
-      // Write patch to file
-      await writeFile(outputPath, output, 'utf-8')
-      return { success: true, output }
-    } catch (error) {
-      debug.error('[SVN] Patch create error:', error)
-      return { success: false, output: (error as Error).message }
-    }
-  })
-  
-  ipcMain.handle('svn:patch:apply', async (_, patchPath: string, targetPath: string, dryRun?: boolean): Promise<SvnPatchResult> => {
-    try {
-      const args = ['patch', patchPath, targetPath]
-      if (dryRun) args.push('--dry-run')
-      
-      const output = await executeSvn(args)
-      
-      // Parse output for stats
-      const filesPatchedMatch = output.match(/Patched\s+(\d+)\s+files?/i)
-      const rejectsMatch = output.match(/(\d+)\s+rejects?/i)
-      
-      return {
-        success: !output.includes('FAILED') && !output.includes('rejected'),
-        filesPatched: filesPatchedMatch ? parseInt(filesPatchedMatch[1], 10) : 0,
-        rejects: rejectsMatch ? parseInt(rejectsMatch[1], 10) : 0,
-        output
-      }
-    } catch (error) {
-      debug.error('[SVN] Patch apply error:', error)
-      return {
-        success: false,
-        filesPatched: 0,
-        rejects: 0,
-        output: (error as Error).message
+
+  ipcMain.handle(
+    'svn:patch:create',
+    async (
+      _,
+      paths: string[],
+      outputPath: string
+    ): Promise<{ success: boolean; output: string }> => {
+      try {
+        const args = ['diff', ...paths];
+        const output = await executeSvn(args);
+
+        // Write patch to file
+        await writeFile(outputPath, output, 'utf-8');
+        return { success: true, output };
+      } catch (error) {
+        debug.error('[SVN] Patch create error:', error);
+        return { success: false, output: (error as Error).message };
       }
     }
-  })
-  
+  );
+
+  ipcMain.handle(
+    'svn:patch:apply',
+    async (_, patchPath: string, targetPath: string, dryRun?: boolean): Promise<SvnPatchResult> => {
+      try {
+        const args = ['patch', patchPath, targetPath];
+        if (dryRun) args.push('--dry-run');
+
+        const output = await executeSvn(args);
+
+        // Parse output for stats
+        const filesPatchedMatch = output.match(/Patched\s+(\d+)\s+files?/i);
+        const rejectsMatch = output.match(/(\d+)\s+rejects?/i);
+
+        return {
+          success: !output.includes('FAILED') && !output.includes('rejected'),
+          filesPatched: filesPatchedMatch ? parseInt(filesPatchedMatch[1], 10) : 0,
+          rejects: rejectsMatch ? parseInt(rejectsMatch[1], 10) : 0,
+          output,
+        };
+      } catch (error) {
+        debug.error('[SVN] Patch apply error:', error);
+        return {
+          success: false,
+          filesPatched: 0,
+          rejects: 0,
+          output: (error as Error).message,
+        };
+      }
+    }
+  );
+
   // ============================================
   // SVN Externals Management
   // ============================================
-  
+
   ipcMain.handle('svn:externals:list', async (_, path: string): Promise<SvnExternal[]> => {
     try {
-      const output = await executeSvn(['propget', 'svn:externals', '-R', path])
-      return parseSvnExternals(output, path)
+      const output = await executeSvn(['propget', 'svn:externals', '-R', path]);
+      return parseSvnExternals(output, path);
     } catch (error) {
-      debug.error('[SVN] Externals list error:', error)
-      return []
+      debug.error('[SVN] Externals list error:', error);
+      return [];
     }
-  })
-  
-  ipcMain.handle('svn:externals:add', async (_, workingCopyPath: string, external: Omit<SvnExternal, 'name'> & { name?: string }): Promise<{ success: boolean }> => {
-    try {
-      // Get current externals
-      let current = ''
-      try {
-        current = await executeSvn(['propget', 'svn:externals', workingCopyPath])
-      } catch {
-        // No existing externals
-      }
-      
-      // Build external definition string
-      const extName = external.name || external.path.split('/').pop() || 'external'
-      let extDef = ''
-      if (external.revision) {
-        extDef = `-r${external.revision} `
-      }
-      extDef += `${external.url} ${extName}`
-      
-      // Append new external
-      const newValue = current.trim() ? `${current.trim()}\n${extDef}` : extDef
-      
-      await executeSvn(['propset', 'svn:externals', newValue, workingCopyPath])
-      return { success: true }
-    } catch (error) {
-      debug.error('[SVN] Externals add error:', error)
-      return { success: false }
-    }
-  })
-  
-  ipcMain.handle('svn:externals:remove', async (_, workingCopyPath: string, externalPath: string): Promise<{ success: boolean }> => {
-    try {
-      const current = await executeSvn(['propget', 'svn:externals', workingCopyPath])
-      const lines = current.split('\n').filter(l => {
-        // Check if this line contains the external path or name
-        const parts = l.trim().split(/\s+/)
-        const name = parts[parts.length - 1]
-        return name !== externalPath && !l.includes(externalPath)
-      })
+  });
 
-      if (lines.length > 0 && lines.some(l => l.trim())) {
-        await executeSvn(['propset', 'svn:externals', lines.join('\n'), workingCopyPath])
-      } else {
-        await executeSvn(['propdel', 'svn:externals', workingCopyPath])
+  ipcMain.handle(
+    'svn:externals:add',
+    async (
+      _,
+      workingCopyPath: string,
+      external: Omit<SvnExternal, 'name'> & { name?: string }
+    ): Promise<{ success: boolean }> => {
+      try {
+        // Get current externals
+        let current = '';
+        try {
+          current = await executeSvn(['propget', 'svn:externals', workingCopyPath]);
+        } catch {
+          // No existing externals
+        }
+
+        // Build external definition string
+        const extName = external.name || external.path.split('/').pop() || 'external';
+        let extDef = '';
+        if (external.revision) {
+          extDef = `-r${external.revision} `;
+        }
+        extDef += `${external.url} ${extName}`;
+
+        // Append new external
+        const newValue = current.trim() ? `${current.trim()}\n${extDef}` : extDef;
+
+        await executeSvn(['propset', 'svn:externals', newValue, workingCopyPath]);
+        return { success: true };
+      } catch (error) {
+        debug.error('[SVN] Externals add error:', error);
+        return { success: false };
       }
-      return { success: true }
-    } catch (error) {
-      debug.error('[SVN] Externals remove error:', error)
-      return { success: false }
     }
-  })
+  );
+
+  ipcMain.handle(
+    'svn:externals:remove',
+    async (_, workingCopyPath: string, externalPath: string): Promise<{ success: boolean }> => {
+      try {
+        const current = await executeSvn(['propget', 'svn:externals', workingCopyPath]);
+        const lines = current.split('\n').filter((l) => {
+          // Check if this line contains the external path or name
+          const parts = l.trim().split(/\s+/);
+          const name = parts[parts.length - 1];
+          return name !== externalPath && !l.includes(externalPath);
+        });
+
+        if (lines.length > 0 && lines.some((l) => l.trim())) {
+          await executeSvn(['propset', 'svn:externals', lines.join('\n'), workingCopyPath]);
+        } else {
+          await executeSvn(['propdel', 'svn:externals', workingCopyPath]);
+        }
+        return { success: true };
+      } catch (error) {
+        debug.error('[SVN] Externals remove error:', error);
+        return { success: false };
+      }
+    }
+  );
 
   // ============================================
   // Repository Diagnostics
   // ============================================
 
-  ipcMain.handle('svn:diagnostics', async (_, workingCopyPath: string): Promise<RepoDiagnostics> => {
-    const authCache = getAuthCache()
+  ipcMain.handle(
+    'svn:diagnostics',
+    async (_, workingCopyPath: string): Promise<RepoDiagnostics> => {
+      const authCache = getAuthCache();
 
-    // Default result structure
-    const result: RepoDiagnostics = {
-      isValidWorkingCopy: false,
-      workingCopyRoot: null,
-      repositoryRoot: null,
-      repositoryUrl: null,
-      repositoryUuid: null,
-      hasCredentials: false,
-      credentialRealm: null,
-      credentialUsername: null,
-      connectionStatus: 'unknown',
-      connectionError: undefined
-    }
+      // Default result structure
+      const result: RepoDiagnostics = {
+        isValidWorkingCopy: false,
+        workingCopyRoot: null,
+        repositoryRoot: null,
+        repositoryUrl: null,
+        repositoryUuid: null,
+        hasCredentials: false,
+        credentialRealm: null,
+        credentialUsername: null,
+        connectionStatus: 'unknown',
+        connectionError: undefined,
+      };
 
-    try {
-      // Step 1: Check if this is a valid working copy and get info
-      const infoOutput = await executeSvn(['info', '--xml'], workingCopyPath)
-      const info = parseSvnInfoXml(infoOutput, workingCopyPath)
+      try {
+        // Step 1: Check if this is a valid working copy and get info
+        const infoOutput = await executeSvn(['info', '--xml'], workingCopyPath);
+        const info = parseSvnInfoXml(infoOutput, workingCopyPath);
 
-      result.isValidWorkingCopy = true
-      result.workingCopyRoot = info.workingCopyRoot || workingCopyPath
-      result.repositoryRoot = info.repositoryRoot
-      result.repositoryUrl = info.url
-      result.repositoryUuid = info.repositoryUuid
+        result.isValidWorkingCopy = true;
+        result.workingCopyRoot = info.workingCopyRoot || workingCopyPath;
+        result.repositoryRoot = info.repositoryRoot;
+        result.repositoryUrl = info.url;
+        result.repositoryUuid = info.repositoryUuid;
 
-      debug.log('[diagnostics] Working copy info:', {
-        root: result.workingCopyRoot,
-        repoRoot: result.repositoryRoot,
-        url: result.repositoryUrl
-      })
+        debug.log('[diagnostics] Working copy info:', {
+          root: result.workingCopyRoot,
+          repoRoot: result.repositoryRoot,
+          url: result.repositoryUrl,
+        });
 
-      // Step 2: Check credentials using the repository root URL
-      if (result.repositoryRoot) {
-        const credentialMatch = authCache.findForUrl(result.repositoryRoot)
-        if (credentialMatch) {
-          result.hasCredentials = true
-          result.credentialRealm = credentialMatch.realm
-          result.credentialUsername = credentialMatch.username
-          debug.log('[diagnostics] Found credentials for realm:', credentialMatch.realm)
-        } else {
-          debug.log('[diagnostics] No credentials found for repository root:', result.repositoryRoot)
-        }
-      }
-
-      // Step 3: Test connection by listing the repository root
-      if (result.repositoryRoot) {
-        try {
-          const credentials = credentialMatch
-            ? { username: credentialMatch.username, password: credentialMatch.password }
-            : undefined
-
-          await executeSvn(
-            ['list', '--xml', result.repositoryRoot],
-            undefined,
-            undefined,
-            false,
-            credentials
-          )
-
-          result.connectionStatus = 'ok'
-          debug.log('[diagnostics] Connection test successful')
-        } catch (connError) {
-          const errorMsg = (connError as Error)?.message || ''
-          debug.error('[diagnostics] Connection test failed:', errorMsg)
-
-          if (errorMsg.includes('authentication') || errorMsg.includes('Authorization') || errorMsg.includes('403')) {
-            result.connectionStatus = 'auth-required'
-            result.connectionError = 'Authentication required'
-          } else if (errorMsg.includes('SSL') || errorMsg.includes('certificate')) {
-            result.connectionStatus = 'ssl-error'
-            result.connectionError = errorMsg
-          } else if (errorMsg.includes('ECONNREFUSED') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('network')) {
-            result.connectionStatus = 'network-error'
-            result.connectionError = 'Unable to connect to server'
+        // Step 2: Check credentials using the repository root URL
+        if (result.repositoryRoot) {
+          const credentialMatch = authCache.findForUrl(result.repositoryRoot);
+          if (credentialMatch) {
+            result.hasCredentials = true;
+            result.credentialRealm = credentialMatch.realm;
+            result.credentialUsername = credentialMatch.username;
+            debug.log('[diagnostics] Found credentials for realm:', credentialMatch.realm);
           } else {
-            result.connectionStatus = 'unknown'
-            result.connectionError = errorMsg
+            debug.log(
+              '[diagnostics] No credentials found for repository root:',
+              result.repositoryRoot
+            );
           }
         }
+
+        // Step 3: Test connection by listing the repository root
+        if (result.repositoryRoot) {
+          try {
+            const credentials = credentialMatch
+              ? { username: credentialMatch.username, password: credentialMatch.password }
+              : undefined;
+
+            await executeSvn(
+              ['list', '--xml', result.repositoryRoot],
+              undefined,
+              undefined,
+              false,
+              credentials
+            );
+
+            result.connectionStatus = 'ok';
+            debug.log('[diagnostics] Connection test successful');
+          } catch (connError) {
+            const errorMsg = (connError as Error)?.message || '';
+            debug.error('[diagnostics] Connection test failed:', errorMsg);
+
+            if (
+              errorMsg.includes('authentication') ||
+              errorMsg.includes('Authorization') ||
+              errorMsg.includes('403')
+            ) {
+              result.connectionStatus = 'auth-required';
+              result.connectionError = 'Authentication required';
+            } else if (errorMsg.includes('SSL') || errorMsg.includes('certificate')) {
+              result.connectionStatus = 'ssl-error';
+              result.connectionError = errorMsg;
+            } else if (
+              errorMsg.includes('ECONNREFUSED') ||
+              errorMsg.includes('ENOTFOUND') ||
+              errorMsg.includes('network')
+            ) {
+              result.connectionStatus = 'network-error';
+              result.connectionError = 'Unable to connect to server';
+            } else {
+              result.connectionStatus = 'unknown';
+              result.connectionError = errorMsg;
+            }
+          }
+        }
+      } catch (error) {
+        const errorMsg = (error as Error)?.message || '';
+        debug.error('[diagnostics] Failed to get working copy info:', errorMsg);
+
+        // Check if it's because the path isn't a working copy
+        if (errorMsg.includes('not a working copy') || errorMsg.includes('E155007')) {
+          result.isValidWorkingCopy = false;
+          result.connectionStatus = 'unknown';
+          result.connectionError = 'Not a valid SVN working copy';
+        } else {
+          result.connectionStatus = 'unknown';
+          result.connectionError = errorMsg;
+        }
       }
 
-    } catch (error) {
-      const errorMsg = (error as Error)?.message || ''
-      debug.error('[diagnostics] Failed to get working copy info:', errorMsg)
-
-      // Check if it's because the path isn't a working copy
-      if (errorMsg.includes('not a working copy') || errorMsg.includes('E155007')) {
-        result.isValidWorkingCopy = false
-        result.connectionStatus = 'unknown'
-        result.connectionError = 'Not a valid SVN working copy'
-      } else {
-        result.connectionStatus = 'unknown'
-        result.connectionError = errorMsg
-      }
+      return result;
     }
-
-    return result
-  })
+  );
 }
 
 // ============================================
@@ -1863,61 +2073,61 @@ export function registerSvnHandlers(): void {
 // ============================================
 
 export function parseSvnBlameXml(xml: string, path: string): SvnBlameResult {
-  const lines: SvnBlameResult['lines'] = []
-  
+  const lines: SvnBlameResult['lines'] = [];
+
   // SVN blame XML format:
   // <blame><target path="..."><entry line-number="1">...
-  const entryMatches = xml.matchAll(/<entry[^>]*line-number="(\d+)"[^>]*>([\s\S]*?)<\/entry>/g)
-  
+  const entryMatches = xml.matchAll(/<entry[^>]*line-number="(\d+)"[^>]*>([\s\S]*?)<\/entry>/g);
+
   for (const match of entryMatches) {
-    const lineNumber = parseInt(match[1], 10)
-    const content = match[2]
-    
-    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/)
-    const authorMatch = content.match(/<author>([^<]+)<\/author>/)
-    const dateMatch = content.match(/<date>([^<]+)<\/date>/)
-    const textMatch = content.match(/<text>([^<]*)<\/text>/)
-    
+    const lineNumber = parseInt(match[1], 10);
+    const content = match[2];
+
+    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/);
+    const authorMatch = content.match(/<author>([^<]+)<\/author>/);
+    const dateMatch = content.match(/<date>([^<]+)<\/date>/);
+    const textMatch = content.match(/<text>([^<]*)<\/text>/);
+
     lines.push({
       lineNumber,
       revision: revMatch ? parseInt(revMatch[1], 10) : 0,
       author: authorMatch?.[1] || 'unknown',
       date: dateMatch?.[1] || '',
-      content: textMatch?.[1] || ''
-    })
+      content: textMatch?.[1] || '',
+    });
   }
-  
-  const revisions = lines.map(l => l.revision).filter(r => r > 0)
-  
+
+  const revisions = lines.map((l) => l.revision).filter((r) => r > 0);
+
   return {
     path,
     lines,
     startRevision: revisions.length > 0 ? Math.min(...revisions) : 0,
-    endRevision: revisions.length > 0 ? Math.max(...revisions) : 0
-  }
+    endRevision: revisions.length > 0 ? Math.max(...revisions) : 0,
+  };
 }
 
 export function parseSvnListXml(xml: string, baseUrl: string): SvnListResult {
-  const entries: SvnListResult['entries'] = []
-  
+  const entries: SvnListResult['entries'] = [];
+
   // SVN list XML format:
   // <lists><list path="..."><entry kind="file">...
-  const entryMatches = xml.matchAll(/<entry[^>]*kind="([^"]*)"[^>]*>([\s\S]*?)<\/entry>/g)
-  
+  const entryMatches = xml.matchAll(/<entry[^>]*kind="([^"]*)"[^>]*>([\s\S]*?)<\/entry>/g);
+
   for (const match of entryMatches) {
-    const kind = match[1]
-    const content = match[2]
-    
-    const nameMatch = content.match(/<name>([^<]+)<\/name>/)
-    const sizeMatch = content.match(/<size>(\d+)<\/size>/)
-    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/)
-    const authorMatch = content.match(/<author>([^<]+)<\/author>/)
-    const dateMatch = content.match(/<date>([^<]+)<\/date>/)
-    
-    const name = nameMatch?.[1] || ''
+    const kind = match[1];
+    const content = match[2];
+
+    const nameMatch = content.match(/<name>([^<]+)<\/name>/);
+    const sizeMatch = content.match(/<size>(\d+)<\/size>/);
+    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/);
+    const authorMatch = content.match(/<author>([^<]+)<\/author>/);
+    const dateMatch = content.match(/<date>([^<]+)<\/date>/);
+
+    const name = nameMatch?.[1] || '';
     // Remove trailing slash from directory names for URL building
-    const cleanName = name.replace(/\/$/, '')
-    
+    const cleanName = name.replace(/\/$/, '');
+
     entries.push({
       name,
       path: baseUrl + '/' + cleanName,
@@ -1926,39 +2136,39 @@ export function parseSvnListXml(xml: string, baseUrl: string): SvnListResult {
       size: sizeMatch ? parseInt(sizeMatch[1], 10) : undefined,
       revision: revMatch ? parseInt(revMatch[1], 10) : 0,
       author: authorMatch?.[1] || '',
-      date: dateMatch?.[1] || ''
-    })
+      date: dateMatch?.[1] || '',
+    });
   }
-  
-  return { path: baseUrl, entries }
+
+  return { path: baseUrl, entries };
 }
 
 function parseSvnExternals(output: string, basePath: string): SvnExternal[] {
-  const externals: SvnExternal[] = []
-  
+  const externals: SvnExternal[] = [];
+
   // SVN externals format per line:
   // [path] - [external definition]
   // External definition: [-rREV] URL [PATH]
-  
-  const lines = output.split('\n').filter(l => l.trim())
-  let currentPath = basePath
-  
+
+  const lines = output.split('\n').filter((l) => l.trim());
+  let currentPath = basePath;
+
   for (const line of lines) {
     // Check if line starts with a path (properties on path:)
-    const pathMatch = line.match(/^(.+?)\s*-\s*(.+)$/)
+    const pathMatch = line.match(/^(.+?)\s*-\s*(.+)$/);
     if (pathMatch) {
-      currentPath = pathMatch[1].trim()
-      const def = pathMatch[2].trim()
-      const parsed = parseExternalDef(def, currentPath)
-      if (parsed) externals.push(parsed)
+      currentPath = pathMatch[1].trim();
+      const def = pathMatch[2].trim();
+      const parsed = parseExternalDef(def, currentPath);
+      if (parsed) externals.push(parsed);
     } else if (line.trim()) {
       // Just an external definition
-      const parsed = parseExternalDef(line.trim(), currentPath)
-      if (parsed) externals.push(parsed)
+      const parsed = parseExternalDef(line.trim(), currentPath);
+      if (parsed) externals.push(parsed);
     }
   }
-  
-  return externals
+
+  return externals;
 }
 
 function parseExternalDef(def: string, basePath: string): SvnExternal | null {
@@ -1967,28 +2177,28 @@ function parseExternalDef(def: string, basePath: string): SvnExternal | null {
   //   -r123 http://example.com/repo local/path
   //   http://example.com/repo local/path
   //   ^/trunk/subdir local/path
-  
-  let revision: number | undefined
-  let remaining = def
-  
+
+  let revision: number | undefined;
+  let remaining = def;
+
   // Check for revision
-  const revMatch = remaining.match(/^-r(\d+)\s*/)
+  const revMatch = remaining.match(/^-r(\d+)\s*/);
   if (revMatch) {
-    revision = parseInt(revMatch[1], 10)
-    remaining = remaining.substring(revMatch[0].length)
+    revision = parseInt(revMatch[1], 10);
+    remaining = remaining.substring(revMatch[0].length);
   }
-  
+
   // Split remaining into URL and local path
-  const parts = remaining.trim().split(/\s+/)
-  if (parts.length < 1) return null
-  
-  const url = parts[0]
-  const localPath = parts.length > 1 ? parts[parts.length - 1] : url.split('/').pop() || 'external'
-  
+  const parts = remaining.trim().split(/\s+/);
+  if (parts.length < 1) return null;
+
+  const url = parts[0];
+  const localPath = parts.length > 1 ? parts[parts.length - 1] : url.split('/').pop() || 'external';
+
   return {
     name: localPath,
     url,
     path: basePath + '/' + localPath,
-    revision
-  }
+    revision,
+  };
 }

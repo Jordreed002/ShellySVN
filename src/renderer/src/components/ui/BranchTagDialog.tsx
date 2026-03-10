@@ -1,76 +1,76 @@
-import { useState, useEffect } from 'react'
-import { X, GitBranch, Tag, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
-import { RepoBrowser } from './RepoBrowser'
+import { useState, useEffect } from 'react';
+import { X, GitBranch, Tag, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { RepoBrowser } from './RepoBrowser';
 
 interface BranchTagDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  sourcePath: string
-  sourceUrl?: string
-  onComplete?: (url: string) => void
-  mode?: 'branch' | 'tag'
+  isOpen: boolean;
+  onClose: () => void;
+  sourcePath: string;
+  sourceUrl?: string;
+  onComplete?: (url: string) => void;
+  mode?: 'branch' | 'tag';
 }
 
-export function BranchTagDialog({ 
-  isOpen, 
-  onClose, 
-  sourcePath, 
+export function BranchTagDialog({
+  isOpen,
+  onClose,
+  sourcePath,
   sourceUrl,
   onComplete,
-  mode = 'branch'
+  mode = 'branch',
 }: BranchTagDialogProps) {
-  const [destUrl, setDestUrl] = useState('')
-  const [message, setMessage] = useState('')
-  const [sourceRevision, setSourceRevision] = useState<'HEAD' | 'WORKING' | 'number'>('HEAD')
-  const [specificRevision, setSpecificRevision] = useState('')
-  const [switchToNew, setSwitchToNew] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ revision: number; url: string } | null>(null)
-  const [showRepoBrowser, setShowRepoBrowser] = useState(false)
-  const [repoBaseUrl, setRepoBaseUrl] = useState('')
-  
+  const [destUrl, setDestUrl] = useState('');
+  const [message, setMessage] = useState('');
+  const [sourceRevision, setSourceRevision] = useState<'HEAD' | 'WORKING' | 'number'>('HEAD');
+  const [specificRevision, setSpecificRevision] = useState('');
+  const [switchToNew, setSwitchToNew] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ revision: number; url: string } | null>(null);
+  const [showRepoBrowser, setShowRepoBrowser] = useState(false);
+  const [repoBaseUrl, setRepoBaseUrl] = useState('');
+
   useEffect(() => {
     if (isOpen) {
       // Initialize destination URL based on source
       if (sourceUrl) {
         // Try to suggest a destination (e.g., trunk -> branches/feature)
-        const baseUrl = sourceUrl.replace(/\/(trunk|branches\/[^/]+|tags\/[^/]+)$/, '')
-        const newFolder = mode === 'branch' ? 'branches' : 'tags'
-        setDestUrl(`${baseUrl}/${newFolder}/`)
-        setRepoBaseUrl(baseUrl)
+        const baseUrl = sourceUrl.replace(/\/(trunk|branches\/[^/]+|tags\/[^/]+)$/, '');
+        const newFolder = mode === 'branch' ? 'branches' : 'tags';
+        setDestUrl(`${baseUrl}/${newFolder}/`);
+        setRepoBaseUrl(baseUrl);
       }
-      setMessage(`Created ${mode} from ${sourcePath}`)
-      setSourceRevision('HEAD')
-      setSpecificRevision('')
-      setSwitchToNew(false)
-      setError(null)
-      setSuccess(null)
-      setIsCreating(false)
-      setShowRepoBrowser(false)
+      setMessage(`Created ${mode} from ${sourcePath}`);
+      setSourceRevision('HEAD');
+      setSpecificRevision('');
+      setSwitchToNew(false);
+      setError(null);
+      setSuccess(null);
+      setIsCreating(false);
+      setShowRepoBrowser(false);
     }
-  }, [isOpen, sourcePath, sourceUrl, mode])
-  
+  }, [isOpen, sourcePath, sourceUrl, mode]);
+
   const handleBrowse = () => {
-    setShowRepoBrowser(true)
-  }
-  
+    setShowRepoBrowser(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!destUrl.trim()) {
-      setError('Please enter a destination URL')
-      return
+      setError('Please enter a destination URL');
+      return;
     }
-    
+
     if (!message.trim()) {
-      setError('Please enter a log message')
-      return
+      setError('Please enter a log message');
+      return;
     }
-    
-    setIsCreating(true)
-    setError(null)
-    
+
+    setIsCreating(true);
+    setError(null);
+
     try {
       // For now, use the source path directly
       // In a full implementation, we'd construct the proper source URL with revision
@@ -78,58 +78,51 @@ export function BranchTagDialog({
         sourceUrl || sourcePath,
         destUrl.trim(),
         message.trim()
-      )
-      
+      );
+
       if (result.success) {
-        setSuccess({ revision: result.revision, url: destUrl.trim() })
+        setSuccess({ revision: result.revision, url: destUrl.trim() });
         if (switchToNew) {
-          await window.api.svn.switch(sourcePath, destUrl.trim())
+          await window.api.svn.switch(sourcePath, destUrl.trim());
         }
       } else {
-        setError('Failed to create ' + mode)
+        setError('Failed to create ' + mode);
       }
     } catch (err) {
-      setError((err as Error).message || `Failed to create ${mode}`)
+      setError((err as Error).message || `Failed to create ${mode}`);
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
-  
+  };
+
   const handleClose = () => {
     if (!isCreating) {
       if (success && onComplete) {
-        onComplete(success.url)
+        onComplete(success.url);
       }
-      onClose()
+      onClose();
     }
-  }
-  
-  if (!isOpen) return null
-  
-  const Icon = mode === 'branch' ? GitBranch : Tag
-  const title = mode === 'branch' ? 'Create Branch' : 'Create Tag'
-  
+  };
+
+  if (!isOpen) return null;
+
+  const Icon = mode === 'branch' ? GitBranch : Tag;
+  const title = mode === 'branch' ? 'Create Branch' : 'Create Tag';
+
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div 
-        className="modal w-[550px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[550px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
             <Icon className={`w-5 h-5 ${mode === 'branch' ? 'text-accent' : 'text-success'}`} />
             {title}
           </h2>
-          <button 
-            onClick={handleClose}
-            className="btn-icon-sm"
-            disabled={isCreating}
-          >
+          <button onClick={handleClose} className="btn-icon-sm" disabled={isCreating}>
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         {success ? (
           <div className="modal-body">
@@ -137,17 +130,12 @@ export function BranchTagDialog({
               <div className="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center mb-4">
                 <CheckCircle className="w-6 h-6 text-success" />
               </div>
-              <h3 className="text-lg font-medium text-text mb-2">{mode.charAt(0).toUpperCase() + mode.slice(1)} Created</h3>
-              <p className="text-text-secondary mb-2">
-                Revision {success.revision}
-              </p>
-              <p className="text-text-faint text-sm mb-6 break-all">
-                {success.url}
-              </p>
-              <button
-                onClick={handleClose}
-                className="btn btn-primary"
-              >
+              <h3 className="text-lg font-medium text-text mb-2">
+                {mode.charAt(0).toUpperCase() + mode.slice(1)} Created
+              </h3>
+              <p className="text-text-secondary mb-2">Revision {success.revision}</p>
+              <p className="text-text-faint text-sm mb-6 break-all">{success.url}</p>
+              <button onClick={handleClose} className="btn btn-primary">
                 Done
               </button>
             </div>
@@ -157,14 +145,12 @@ export function BranchTagDialog({
             <div className="modal-body space-y-4">
               {/* Source */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
-                  From
-                </label>
+                <label className="text-sm font-medium text-text-secondary mb-1.5 block">From</label>
                 <div className="bg-bg-tertiary rounded px-3 py-2 text-sm text-text-secondary truncate">
                   {sourceUrl || sourcePath}
                 </div>
               </div>
-              
+
               {/* Source Revision */}
               <div>
                 <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -211,7 +197,7 @@ export function BranchTagDialog({
                   </label>
                 </div>
               </div>
-              
+
               {/* Destination URL */}
               <div>
                 <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -236,12 +222,12 @@ export function BranchTagDialog({
                   </button>
                 </div>
                 <p className="text-xs text-text-faint mt-1">
-                  {mode === 'branch' 
-                    ? 'Usually: .../branches/feature-name' 
+                  {mode === 'branch'
+                    ? 'Usually: .../branches/feature-name'
                     : 'Usually: .../tags/release-x.y.z'}
                 </p>
               </div>
-              
+
               {/* Log Message */}
               <div>
                 <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -254,7 +240,7 @@ export function BranchTagDialog({
                   disabled={isCreating}
                 />
               </div>
-              
+
               {/* Switch option */}
               {mode === 'branch' && (
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -269,7 +255,7 @@ export function BranchTagDialog({
                   </span>
                 </label>
               )}
-              
+
               {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
@@ -278,7 +264,7 @@ export function BranchTagDialog({
                 </div>
               )}
             </div>
-            
+
             {/* Footer */}
             <div className="modal-footer">
               <button
@@ -310,11 +296,15 @@ export function BranchTagDialog({
           </form>
         )}
       </div>
-      
+
       {/* Repository Browser Modal */}
       {showRepoBrowser && (
-        <div className="modal-overlay" onClick={() => setShowRepoBrowser(false)} style={{ zIndex: 100 }}>
-          <div 
+        <div
+          className="modal-overlay"
+          onClick={() => setShowRepoBrowser(false)}
+          style={{ zIndex: 100 }}
+        >
+          <div
             className="modal w-[700px] h-[500px] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -323,28 +313,22 @@ export function BranchTagDialog({
                 <FolderOpen className="w-5 h-5 text-accent" />
                 Browse Repository
               </h2>
-              <button 
-                onClick={() => setShowRepoBrowser(false)}
-                className="btn-icon-sm"
-              >
+              <button onClick={() => setShowRepoBrowser(false)} className="btn-icon-sm">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
-              <RepoBrowser 
+              <RepoBrowser
                 isOpen={true}
                 repoUrl={repoBaseUrl}
                 onNavigate={(url) => {
-                  setDestUrl(url)
+                  setDestUrl(url);
                 }}
                 onClose={() => setShowRepoBrowser(false)}
               />
             </div>
             <div className="modal-footer">
-              <button
-                onClick={() => setShowRepoBrowser(false)}
-                className="btn btn-primary"
-              >
+              <button onClick={() => setShowRepoBrowser(false)} className="btn btn-primary">
                 Select
               </button>
             </div>
@@ -352,5 +336,5 @@ export function BranchTagDialog({
         </div>
       )}
     </div>
-  )
+  );
 }

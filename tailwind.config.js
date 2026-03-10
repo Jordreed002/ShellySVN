@@ -1,11 +1,8 @@
 /** @type {import('tailwindcss').Config} */
-const colors = require('tailwindcss/colors')
+const colors = require('tailwindcss/colors');
 
 module.exports = {
-  content: [
-    './src/renderer/index.html',
-    './src/renderer/src/**/*.{ts,tsx}'
-  ],
+  content: ['./src/renderer/index.html', './src/renderer/src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -53,7 +50,15 @@ module.exports = {
         info: 'rgb(var(--color-info-rgb, 88 166 255) / <alpha-value>)',
       },
       fontFamily: {
-        sans: ['IBM Plex Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Helvetica', 'Arial', 'sans-serif'],
+        sans: [
+          'IBM Plex Sans',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Helvetica',
+          'Arial',
+          'sans-serif',
+        ],
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'monospace'],
       },
       fontSize: {
@@ -64,8 +69,8 @@ module.exports = {
         'glow-success': '0 0 12px var(--color-success-glow, rgba(63, 185, 80, 0.4))',
         'glow-warning': '0 0 12px var(--color-warning-glow, rgba(210, 153, 34, 0.4))',
         'glow-error': '0 0 12px var(--color-error-glow, rgba(248, 81, 73, 0.4))',
-        'dropdown': '0 8px 24px rgba(1, 4, 9, 0.85), 0 0 1px rgba(48, 54, 61, 1)',
-        'card': '0 1px 3px rgba(1, 4, 9, 0.5), 0 0 1px rgba(48, 54, 61, 1)',
+        dropdown: '0 8px 24px rgba(1, 4, 9, 0.85), 0 0 1px rgba(48, 54, 61, 1)',
+        card: '0 1px 3px rgba(1, 4, 9, 0.5), 0 0 1px rgba(48, 54, 61, 1)',
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-out',
@@ -107,5 +112,5 @@ module.exports = {
       },
     },
   },
-  plugins: []
-}
+  plugins: [],
+};

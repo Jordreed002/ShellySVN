@@ -1,61 +1,64 @@
-import { useState, useCallback, useMemo } from 'react'
-import { GitBranch, Tag, Clock, User, MessageSquare } from 'lucide-react'
-import type { SvnLogEntry } from '@shared/types'
+import { useState, useCallback, useMemo } from 'react';
+import { GitBranch, Tag, Clock, User, MessageSquare } from 'lucide-react';
+import type { SvnLogEntry } from '@shared/types';
 
 /**
  * Branch node in the visualization tree
  */
 export interface BranchNode {
-  id: string
-  name: string
-  path: string
-  revision: number
-  author: string
-  date: string
-  message: string
-  isTag: boolean
-  isActive: boolean
-  children: BranchNode[]
-  parent?: BranchNode
+  id: string;
+  name: string;
+  path: string;
+  revision: number;
+  author: string;
+  date: string;
+  message: string;
+  isTag: boolean;
+  isActive: boolean;
+  children: BranchNode[];
+  parent?: BranchNode;
   copyFrom?: {
-    path: string
-    revision: number
-  }
+    path: string;
+    revision: number;
+  };
 }
 
 /**
  * Branch visualization configuration
  */
 export interface BranchVisualizationConfig {
-  showTags: boolean
-  showInactive: boolean
-  maxDepth: number
-  nodeSpacing: number
-  orientation: 'horizontal' | 'vertical'
+  showTags: boolean;
+  showInactive: boolean;
+  maxDepth: number;
+  nodeSpacing: number;
+  orientation: 'horizontal' | 'vertical';
 }
 
 /**
  * Hook for building branch tree from SVN log
  */
-export function useBranchVisualization(logEntries: SvnLogEntry[], config: Partial<BranchVisualizationConfig> = {}) {
+export function useBranchVisualization(
+  logEntries: SvnLogEntry[],
+  config: Partial<BranchVisualizationConfig> = {}
+) {
   const cfg: BranchVisualizationConfig = {
     showTags: true,
     showInactive: true,
     maxDepth: 10,
     nodeSpacing: 60,
     orientation: 'vertical',
-    ...config
-  }
-  
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['trunk']))
-  const [selectedNode, setSelectedNode] = useState<BranchNode | null>(null)
-  
+    ...config,
+  };
+
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['trunk']));
+  const [selectedNode, setSelectedNode] = useState<BranchNode | null>(null);
+
   /**
    * Build branch tree from log entries
    */
   const branchTree = useMemo(() => {
-    const branches: Map<string, BranchNode> = new Map()
-    
+    const branches: Map<string, BranchNode> = new Map();
+
     // Common branch patterns
     const branchPatterns = [
       /^\/trunk$/i,
@@ -63,34 +66,34 @@ export function useBranchVisualization(logEntries: SvnLogEntry[], config: Partia
       /^\/tags\/(.+)$/i,
       /^\/(trunk)$/i,
       /\/branches\/([^/]+)/i,
-      /\/tags\/([^/]+)/i
-    ]
-    
+      /\/tags\/([^/]+)/i,
+    ];
+
     // Extract branches from log entries
     for (const entry of logEntries) {
       for (const path of entry.paths) {
         // Check if this is a branch/tag operation
         if (path.action === 'A' && path.copyFromPath) {
           // This is likely a branch or tag creation
-          let branchName = ''
-          let isTag = false
-          
+          let branchName = '';
+          let isTag = false;
+
           // Extract branch name from path
           for (const pattern of branchPatterns) {
-            const match = path.path.match(pattern)
+            const match = path.path.match(pattern);
             if (match) {
               if (path.path.includes('/tags/')) {
-                isTag = true
-                branchName = match[1] || 'unknown'
+                isTag = true;
+                branchName = match[1] || 'unknown';
               } else if (path.path.includes('/branches/')) {
-                branchName = match[1] || 'unknown'
+                branchName = match[1] || 'unknown';
               } else {
-                branchName = 'trunk'
+                branchName = 'trunk';
               }
-              break
+              break;
             }
           }
-          
+
           if (branchName) {
             const node: BranchNode = {
               id: path.path,
@@ -105,16 +108,16 @@ export function useBranchVisualization(logEntries: SvnLogEntry[], config: Partia
               children: [],
               copyFrom: {
                 path: path.copyFromPath,
-                revision: path.copyFromRev || 0
-              }
-            }
-            
-            branches.set(path.path, node)
+                revision: path.copyFromRev || 0,
+              },
+            };
+
+            branches.set(path.path, node);
           }
         }
       }
     }
-    
+
     // Add trunk if not present
     if (!branches.has('/trunk')) {
       branches.set('/trunk', {
@@ -127,118 +130,118 @@ export function useBranchVisualization(logEntries: SvnLogEntry[], config: Partia
         message: 'Main development line',
         isTag: false,
         isActive: true,
-        children: []
-      })
+        children: [],
+      });
     }
-    
+
     // Build parent-child relationships
     for (const node of branches.values()) {
       if (node.copyFrom) {
-        const parent = branches.get(node.copyFrom.path)
+        const parent = branches.get(node.copyFrom.path);
         if (parent && parent !== node) {
-          node.parent = parent
+          node.parent = parent;
           if (!parent.children.includes(node)) {
-            parent.children.push(node)
+            parent.children.push(node);
           }
         }
       }
     }
-    
+
     // Return root nodes (nodes without parents)
-    const roots: BranchNode[] = []
+    const roots: BranchNode[] = [];
     for (const node of branches.values()) {
       if (!node.parent) {
-        roots.push(node)
+        roots.push(node);
       }
     }
-    
-    return roots
-  }, [logEntries])
-  
+
+    return roots;
+  }, [logEntries]);
+
   /**
    * Flatten tree for rendering
    */
   const flatNodes = useMemo(() => {
-    const result: { node: BranchNode; depth: number }[] = []
-    
+    const result: { node: BranchNode; depth: number }[] = [];
+
     const flatten = (nodes: BranchNode[], depth: number) => {
       for (const node of nodes) {
         if (depth <= cfg.maxDepth) {
-          result.push({ node, depth })
-          
+          result.push({ node, depth });
+
           if (expandedNodes.has(node.id) && node.children.length > 0) {
-            flatten(node.children, depth + 1)
+            flatten(node.children, depth + 1);
           }
         }
       }
-    }
-    
-    flatten(branchTree, 0)
-    return result
-  }, [branchTree, expandedNodes, cfg.maxDepth])
-  
+    };
+
+    flatten(branchTree, 0);
+    return result;
+  }, [branchTree, expandedNodes, cfg.maxDepth]);
+
   /**
    * Toggle node expansion
    */
   const toggleNode = useCallback((nodeId: string) => {
-    setExpandedNodes(prev => {
-      const next = new Set(prev)
+    setExpandedNodes((prev) => {
+      const next = new Set(prev);
       if (next.has(nodeId)) {
-        next.delete(nodeId)
+        next.delete(nodeId);
       } else {
-        next.add(nodeId)
+        next.add(nodeId);
       }
-      return next
-    })
-  }, [])
-  
+      return next;
+    });
+  }, []);
+
   /**
    * Expand all nodes
    */
   const expandAll = useCallback(() => {
-    const allIds = new Set<string>()
+    const allIds = new Set<string>();
     const collect = (nodes: BranchNode[]) => {
       for (const node of nodes) {
-        allIds.add(node.id)
-        collect(node.children)
+        allIds.add(node.id);
+        collect(node.children);
       }
-    }
-    collect(branchTree)
-    setExpandedNodes(allIds)
-  }, [branchTree])
-  
+    };
+    collect(branchTree);
+    setExpandedNodes(allIds);
+  }, [branchTree]);
+
   /**
    * Collapse all nodes
    */
   const collapseAll = useCallback(() => {
-    setExpandedNodes(new Set())
-  }, [])
-  
+    setExpandedNodes(new Set());
+  }, []);
+
   /**
    * Get node statistics
    */
   const stats = useMemo(() => {
-    let totalBranches = 0
-    let totalTags = 0
-    let activeBranches = 0
-    
+    let totalBranches = 0;
+    let totalTags = 0;
+    let activeBranches = 0;
+
     const count = (nodes: BranchNode[]) => {
       for (const node of nodes) {
         if (node.isTag) {
-          totalTags++
+          totalTags++;
         } else {
-          totalBranches++
-          if (node.isActive) activeBranches++
+          totalBranches++;
+          if (node.isActive) activeBranches++;
         }
-        count(node.children)
+        count(node.children);
       }
-    }
-    
-    count(branchTree)
-    
-    return { totalBranches, totalTags, activeBranches }
-  }, [branchTree])
-  
+    };
+
+    count(branchTree);
+
+    return { totalBranches, totalTags, activeBranches };
+  }, [branchTree]);
+
   return {
     branchTree,
     flatNodes,
@@ -249,22 +252,22 @@ export function useBranchVisualization(logEntries: SvnLogEntry[], config: Partia
     expandAll,
     collapseAll,
     stats,
-    config: cfg
-  }
+    config: cfg,
+  };
 }
 
 /**
  * Branch tree node component props
  */
 export interface BranchNodeProps {
-  node: BranchNode
-  depth: number
-  isExpanded: boolean
-  isSelected: boolean
-  onToggle: () => void
-  onSelect: () => void
-  orientation: 'horizontal' | 'vertical'
-  nodeSpacing: number
+  node: BranchNode;
+  depth: number;
+  isExpanded: boolean;
+  isSelected: boolean;
+  onToggle: () => void;
+  onSelect: () => void;
+  orientation: 'horizontal' | 'vertical';
+  nodeSpacing: number;
 }
 
 /**
@@ -278,22 +281,24 @@ export function BranchTreeNode({
   onToggle,
   onSelect,
   orientation,
-  nodeSpacing
+  nodeSpacing,
 }: BranchNodeProps) {
-  const hasChildren = node.children.length > 0
-  
-  const nodeStyle = orientation === 'vertical'
-    ? { marginLeft: depth * nodeSpacing }
-    : { marginTop: depth * nodeSpacing }
-  
+  const hasChildren = node.children.length > 0;
+
+  const nodeStyle =
+    orientation === 'vertical'
+      ? { marginLeft: depth * nodeSpacing }
+      : { marginTop: depth * nodeSpacing };
+
   return (
     <div
       className={`
         flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer
         transition-colors duration-150
-        ${isSelected 
-          ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-500 border' 
-          : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+        ${
+          isSelected
+            ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-500 border'
+            : 'hover:bg-slate-100 dark:hover:bg-slate-800'
         }
       `}
       style={nodeStyle}
@@ -303,39 +308,37 @@ export function BranchTreeNode({
       {hasChildren && (
         <button
           onClick={(e) => {
-            e.stopPropagation()
-            onToggle()
+            e.stopPropagation();
+            onToggle();
           }}
           className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
         >
           {isExpanded ? '▼' : '▶'}
         </button>
       )}
-      
+
       {/* Icon */}
       {node.isTag ? (
         <Tag className="w-4 h-4 text-amber-500" />
       ) : (
-        <GitBranch className={`w-4 h-4 ${node.name === 'trunk' ? 'text-green-500' : 'text-blue-500'}`} />
+        <GitBranch
+          className={`w-4 h-4 ${node.name === 'trunk' ? 'text-green-500' : 'text-blue-500'}`}
+        />
       )}
-      
+
       {/* Name */}
-      <span className="font-medium text-slate-800 dark:text-slate-200">
-        {node.name}
-      </span>
-      
+      <span className="font-medium text-slate-800 dark:text-slate-200">{node.name}</span>
+
       {/* Revision */}
-      <span className="text-xs text-slate-500 dark:text-slate-400">
-        r{node.revision}
-      </span>
-      
+      <span className="text-xs text-slate-500 dark:text-slate-400">r{node.revision}</span>
+
       {/* Info icons */}
       <div className="flex items-center gap-1 ml-auto text-slate-400">
         <User className="w-3 h-3" />
         <span className="text-xs">{node.author}</span>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -351,9 +354,9 @@ export function BranchVisualization({ logEntries }: { logEntries: SvnLogEntry[] 
     expandAll,
     collapseAll,
     stats,
-    config
-  } = useBranchVisualization(logEntries)
-  
+    config,
+  } = useBranchVisualization(logEntries);
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
       {/* Header */}
@@ -364,7 +367,7 @@ export function BranchVisualization({ logEntries }: { logEntries: SvnLogEntry[] 
             Branch Visualization
           </h3>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500 dark:text-slate-400">
             {stats.totalBranches} branches, {stats.totalTags} tags
@@ -383,7 +386,7 @@ export function BranchVisualization({ logEntries }: { logEntries: SvnLogEntry[] 
           </button>
         </div>
       </div>
-      
+
       {/* Tree */}
       <div className="p-4 max-h-96 overflow-auto">
         {flatNodes.length === 0 ? (
@@ -408,14 +411,14 @@ export function BranchVisualization({ logEntries }: { logEntries: SvnLogEntry[] 
           </div>
         )}
       </div>
-      
+
       {/* Selected node details */}
       {selectedNode && (
         <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <h4 className="font-medium text-slate-800 dark:text-slate-200 mb-2">
             {selectedNode.isTag ? 'Tag' : 'Branch'}: {selectedNode.name}
           </h4>
-          
+
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
               <Clock className="w-3 h-3" />
@@ -426,14 +429,14 @@ export function BranchVisualization({ logEntries }: { logEntries: SvnLogEntry[] 
               <span>{selectedNode.author}</span>
             </div>
           </div>
-          
+
           {selectedNode.message && (
             <div className="mt-2 flex items-start gap-1 text-sm text-slate-600 dark:text-slate-400">
               <MessageSquare className="w-3 h-3 mt-0.5" />
               <span className="line-clamp-2">{selectedNode.message}</span>
             </div>
           )}
-          
+
           {selectedNode.copyFrom && (
             <div className="mt-2 text-xs text-slate-500 dark:text-slate-500">
               Copied from {selectedNode.copyFrom.path} @ r{selectedNode.copyFrom.revision}
@@ -442,7 +445,7 @@ export function BranchVisualization({ logEntries }: { logEntries: SvnLogEntry[] 
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default BranchVisualization
+export default BranchVisualization;

@@ -1,61 +1,73 @@
 // UI Components
-export { StatusIcon, StatusDot, StatusBadge, STATUS_CONFIG } from './StatusIcon'
-export { Breadcrumb, BreadcrumbCompact } from './Breadcrumb'
-export { Toolbar, ToolbarCompact } from './Toolbar'
-export { ContextMenu, useContextMenu, getSvnContextMenuItems } from './ContextMenu'
-export type { ContextMenuItem } from './ContextMenu'
-export { FileRow, FileListHeader } from './FileRow'
-export type { FileRowProps } from './FileRow'
-export { FileTreeView, useFileTreeView } from './FileTreeView'
-export { AddRepoModal, AddRepoButton } from './AddRepoModal'
-export { ProgressDialog } from './ProgressDialog'
-export type { ProgressDialogProps } from './ProgressDialog'
-export { CommitDialog } from './CommitDialog'
-export { DiffViewer } from './DiffViewer'
-export { VirtualizedDiffViewer, useProgressiveImageLoad } from './VirtualizedDiffViewer'
-export { ImageDiffViewer, isImageFile } from './ImageDiffViewer'
-export { ThreeWayMergeEditor } from './ThreeWayMergeEditor'
-export { LogViewer } from './LogViewer'
-export { CheckoutDialog } from './CheckoutDialog'
-export { ExportDialog } from './ExportDialog'
-export { ImportDialog } from './ImportDialog'
-export { UpdateDialog } from './UpdateDialog'
-export { UpdateToRevisionDialog } from './UpdateToRevisionDialog'
-export { SettingsDialog, SettingsButton } from './SettingsDialog'
-export { ModificationsView } from './ModificationsView'
-export { ResolveDialog } from './ResolveDialog'
-export { ConflictResolutionDialog } from './ConflictResolutionDialog'
-export { ConflictResolutionWizard } from './ConflictResolutionWizard'
-export { BranchTagDialog } from './BranchTagDialog'
-export { SwitchDialog } from './SwitchDialog'
-export { MergeWizard } from './MergeWizard'
-export { PropertiesDialog } from './PropertiesDialog'
-export { IgnoreDialog } from './IgnoreDialog'
-export { RepoBrowser } from './RepoBrowser'
-export { BlameViewer } from './BlameViewer'
-export { RevisionGraph } from './RevisionGraph'
-export { CreatePatchDialog } from './CreatePatchDialog'
-export { ApplyPatchDialog } from './ApplyPatchDialog'
-export { ChangelistDialog } from './ChangelistDialog'
-export { MoveRenameDialog } from './MoveRenameDialog'
-export { TreeConflictDialog } from './TreeConflictDialog'
-export { EnhancedErrorDialog, parseSvnError } from './EnhancedErrorDialog'
-export type { ErrorSeverity } from './EnhancedErrorDialog'
-export { CleanupSuggestionsDialog, checkWorkingCopyHealth } from './CleanupSuggestionsDialog'
-export { ProjectMonitorPanel } from './ProjectMonitorPanel'
-export { ShelveDialog } from './ShelveDialog'
-export { HookScriptsDialog } from './HookScriptsDialog'
-export { RelocateDialog } from './RelocateDialog'
-export { ShellIntegrationDialog } from './ShellIntegrationDialog'
-export { StatusProgressBar, IncrementalStatusWidget } from './IncrementalStatusProgress'
-export { OfflineIndicator, OfflineStatusBar, OfflineAwareContainer, OfflineCacheManager } from './OfflineIndicator'
-export { VirtualizedFileList, VirtualizedTree, LargeRepoIndicator } from './VirtualizedList'
-export type { TreeNode } from './VirtualizedList'
-export { CommitTemplateManager } from './CommitTemplateManager'
-export { BranchVisualization, BranchTreeNode, useBranchVisualization } from './BranchVisualization'
-export type { BranchNode, BranchVisualizationConfig, BranchNodeProps } from './BranchVisualization'
-export { RepoBrowserEnhanced, useRepoBrowser } from './RepoBrowserEnhanced'
-export type { RepoBrowserNode, BrowserState, RepoBrowserEnhancedProps } from './RepoBrowserEnhanced'
-export { StatusBar } from './StatusBar'
-export { ChooseItemsDialog } from './ChooseItemsDialog'
-export { SparseCheckoutErrorBoundary, SparseErrorStateWrapper } from './SparseCheckoutErrorBoundary'
+export { StatusIcon, StatusDot, StatusBadge, STATUS_CONFIG } from './StatusIcon';
+export { Breadcrumb, BreadcrumbCompact } from './Breadcrumb';
+export { Toolbar, ToolbarCompact } from './Toolbar';
+export { ContextMenu, useContextMenu, getSvnContextMenuItems } from './ContextMenu';
+export type { ContextMenuItem } from './ContextMenu';
+export { FileRow, FileListHeader } from './FileRow';
+export type { FileRowProps } from './FileRow';
+export { FileTreeView, useFileTreeView } from './FileTreeView';
+export { AddRepoModal, AddRepoButton } from './AddRepoModal';
+export { ProgressDialog } from './ProgressDialog';
+export type { ProgressDialogProps } from './ProgressDialog';
+export { CommitDialog } from './CommitDialog';
+export { DiffViewer } from './DiffViewer';
+export { VirtualizedDiffViewer, useProgressiveImageLoad } from './VirtualizedDiffViewer';
+export { ImageDiffViewer, isImageFile } from './ImageDiffViewer';
+export { ThreeWayMergeEditor } from './ThreeWayMergeEditor';
+export { LogViewer } from './LogViewer';
+export { CheckoutDialog } from './CheckoutDialog';
+export { ExportDialog } from './ExportDialog';
+export { ImportDialog } from './ImportDialog';
+export { UpdateDialog } from './UpdateDialog';
+export { UpdateToRevisionDialog } from './UpdateToRevisionDialog';
+export { SettingsDialog, SettingsButton } from './SettingsDialog';
+export { ModificationsView } from './ModificationsView';
+export { ResolveDialog } from './ResolveDialog';
+export { ConflictResolutionDialog } from './ConflictResolutionDialog';
+export { ConflictResolutionWizard } from './ConflictResolutionWizard';
+export { BranchTagDialog } from './BranchTagDialog';
+export { SwitchDialog } from './SwitchDialog';
+export { MergeWizard } from './MergeWizard';
+export { PropertiesDialog } from './PropertiesDialog';
+export { IgnoreDialog } from './IgnoreDialog';
+export { RepoBrowser } from './RepoBrowser';
+export { BlameViewer } from './BlameViewer';
+export { RevisionGraph } from './RevisionGraph';
+export { CreatePatchDialog } from './CreatePatchDialog';
+export { ApplyPatchDialog } from './ApplyPatchDialog';
+export { ChangelistDialog } from './ChangelistDialog';
+export { MoveRenameDialog } from './MoveRenameDialog';
+export { TreeConflictDialog } from './TreeConflictDialog';
+export { EnhancedErrorDialog, parseSvnError } from './EnhancedErrorDialog';
+export type { ErrorSeverity } from './EnhancedErrorDialog';
+export { CleanupSuggestionsDialog, checkWorkingCopyHealth } from './CleanupSuggestionsDialog';
+export { ProjectMonitorPanel } from './ProjectMonitorPanel';
+export { ShelveDialog } from './ShelveDialog';
+export { HookScriptsDialog } from './HookScriptsDialog';
+export { RelocateDialog } from './RelocateDialog';
+export { ShellIntegrationDialog } from './ShellIntegrationDialog';
+export { StatusProgressBar, IncrementalStatusWidget } from './IncrementalStatusProgress';
+export {
+  OfflineIndicator,
+  OfflineStatusBar,
+  OfflineAwareContainer,
+  OfflineCacheManager,
+} from './OfflineIndicator';
+export { VirtualizedFileList, VirtualizedTree, LargeRepoIndicator } from './VirtualizedList';
+export type { TreeNode } from './VirtualizedList';
+export { CommitTemplateManager } from './CommitTemplateManager';
+export { BranchVisualization, BranchTreeNode, useBranchVisualization } from './BranchVisualization';
+export type { BranchNode, BranchVisualizationConfig, BranchNodeProps } from './BranchVisualization';
+export { RepoBrowserEnhanced, useRepoBrowser } from './RepoBrowserEnhanced';
+export type {
+  RepoBrowserNode,
+  BrowserState,
+  RepoBrowserEnhancedProps,
+} from './RepoBrowserEnhanced';
+export { StatusBar } from './StatusBar';
+export { ChooseItemsDialog } from './ChooseItemsDialog';
+export {
+  SparseCheckoutErrorBoundary,
+  SparseErrorStateWrapper,
+} from './SparseCheckoutErrorBoundary';

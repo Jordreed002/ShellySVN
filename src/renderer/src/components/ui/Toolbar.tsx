@@ -19,43 +19,43 @@ import {
   HardDrive,
   Globe,
   Cloud,
-  Stethoscope
-} from 'lucide-react'
-import { useState, useCallback, useRef, useEffect } from 'react'
+  Stethoscope,
+} from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface ToolbarProps {
-  onRefresh?: () => void
-  onUpdate?: () => void
-  onCommit?: () => void
-  onRevert?: () => void
-  onAdd?: () => void
-  onDelete?: () => void
-  onSettings?: () => void
-  onDiagnostics?: () => void
-  isUpdating?: boolean
-  hasChanges?: boolean
-  hasSelection?: boolean
-  isVersioned?: boolean
-  viewMode?: 'list' | 'grid'
-  onViewModeChange?: (mode: 'list' | 'grid') => void
-  searchQuery?: string
-  onSearchChange?: (query: string) => void
-  showFilters?: boolean
-  onToggleFilters?: () => void
-  hasActiveFilters?: boolean
-  isDualPane?: boolean
-  onToggleDualPane?: () => void
-  showPreview?: boolean
-  onTogglePreview?: () => void
-  hasSelectionForPreview?: boolean
-  isBookmarked?: boolean
-  onToggleBookmark?: () => void
-  browseMode?: 'local' | 'online'
-  onBrowseModeChange?: (mode: 'local' | 'online') => void
-  canBrowseOnline?: boolean
-  showRemoteItems?: boolean
-  onToggleRemoteItems?: () => void
-  className?: string
+  onRefresh?: () => void;
+  onUpdate?: () => void;
+  onCommit?: () => void;
+  onRevert?: () => void;
+  onAdd?: () => void;
+  onDelete?: () => void;
+  onSettings?: () => void;
+  onDiagnostics?: () => void;
+  isUpdating?: boolean;
+  hasChanges?: boolean;
+  hasSelection?: boolean;
+  isVersioned?: boolean;
+  viewMode?: 'list' | 'grid';
+  onViewModeChange?: (mode: 'list' | 'grid') => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  showFilters?: boolean;
+  onToggleFilters?: () => void;
+  hasActiveFilters?: boolean;
+  isDualPane?: boolean;
+  onToggleDualPane?: () => void;
+  showPreview?: boolean;
+  onTogglePreview?: () => void;
+  hasSelectionForPreview?: boolean;
+  isBookmarked?: boolean;
+  onToggleBookmark?: () => void;
+  browseMode?: 'local' | 'online';
+  onBrowseModeChange?: (mode: 'local' | 'online') => void;
+  canBrowseOnline?: boolean;
+  showRemoteItems?: boolean;
+  onToggleRemoteItems?: () => void;
+  className?: string;
 }
 
 export function Toolbar({
@@ -90,33 +90,29 @@ export function Toolbar({
   canBrowseOnline = false,
   showRemoteItems = false,
   onToggleRemoteItems,
-  className = ''
+  className = '',
 }: ToolbarProps) {
-  const [showViewMenu, setShowViewMenu] = useState(false)
-  const viewMenuRef = useRef<HTMLDivElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [showViewMenu, setShowViewMenu] = useState(false);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Close view menu on escape
   const handleViewMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setShowViewMenu(false)
+      setShowViewMenu(false);
     }
-  }, [])
+  }, []);
 
   // Focus management for view menu
   useEffect(() => {
     if (showViewMenu && viewMenuRef.current) {
-      const firstButton = viewMenuRef.current.querySelector('button')
-      firstButton?.focus()
+      const firstButton = viewMenuRef.current.querySelector('button');
+      firstButton?.focus();
     }
-  }, [showViewMenu])
+  }, [showViewMenu]);
 
   return (
-    <div
-      className={`toolbar ${className}`}
-      role="toolbar"
-      aria-label="Main toolbar"
-    >
+    <div className={`toolbar ${className}`} role="toolbar" aria-label="Main toolbar">
       {/* Primary Actions */}
       <div className="toolbar-group" role="group" aria-label="Primary actions">
         <button
@@ -155,9 +151,7 @@ export function Toolbar({
             type="button"
             onClick={() => onBrowseModeChange('local')}
             className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-fast ${
-              browseMode === 'local'
-                ? 'bg-accent text-white'
-                : 'text-text-muted hover:text-text'
+              browseMode === 'local' ? 'bg-accent text-white' : 'text-text-muted hover:text-text'
             }`}
             title="View local files"
             role="radio"
@@ -171,9 +165,7 @@ export function Toolbar({
             type="button"
             onClick={() => onBrowseModeChange('online')}
             className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-fast ${
-              browseMode === 'online'
-                ? 'bg-accent text-white'
-                : 'text-text-muted hover:text-text'
+              browseMode === 'online' ? 'bg-accent text-white' : 'text-text-muted hover:text-text'
             }`}
             title="View online repository"
             role="radio"
@@ -192,7 +184,9 @@ export function Toolbar({
           onClick={onToggleRemoteItems}
           className={`btn-icon-sm ml-2 ${showRemoteItems ? 'text-info bg-info/10' : ''}`}
           title={showRemoteItems ? 'Hide remote items' : 'Show remote items (sparse checkout)'}
-          aria-label={showRemoteItems ? 'Hide remote items' : 'Show remote items for sparse checkout'}
+          aria-label={
+            showRemoteItems ? 'Hide remote items' : 'Show remote items for sparse checkout'
+          }
           aria-pressed={showRemoteItems}
         >
           <Cloud className="w-4 h-4" aria-hidden="true" />
@@ -284,7 +278,10 @@ export function Toolbar({
         >
           <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
           {hasActiveFilters && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full" aria-label="Filters active" />
+            <span
+              className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full"
+              aria-label="Filters active"
+            />
           )}
         </button>
       )}
@@ -313,15 +310,24 @@ export function Toolbar({
           aria-pressed={showPreview}
           aria-disabled={!hasSelectionForPreview}
         >
-          {showPreview ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+          {showPreview ? (
+            <EyeOff className="w-4 h-4" aria-hidden="true" />
+          ) : (
+            <Eye className="w-4 h-4" aria-hidden="true" />
+          )}
         </button>
       )}
 
       {/* Search */}
       {onSearchChange && (
         <div className="relative" role="search">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" aria-hidden="true" />
-          <label htmlFor="toolbar-search" className="sr-only">Search files</label>
+          <Search
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted"
+            aria-hidden="true"
+          />
+          <label htmlFor="toolbar-search" className="sr-only">
+            Search files
+          </label>
           <input
             id="toolbar-search"
             ref={searchInputRef}
@@ -369,8 +375,8 @@ export function Toolbar({
               >
                 <button
                   onClick={() => {
-                    onViewModeChange('list')
-                    setShowViewMenu(false)
+                    onViewModeChange('list');
+                    setShowViewMenu(false);
                   }}
                   className={`dropdown-item w-full ${viewMode === 'list' ? 'dropdown-item-active' : ''}`}
                   role="menuitemradio"
@@ -381,8 +387,8 @@ export function Toolbar({
                 </button>
                 <button
                   onClick={() => {
-                    onViewModeChange('grid')
-                    setShowViewMenu(false)
+                    onViewModeChange('grid');
+                    setShowViewMenu(false);
                   }}
                   className={`dropdown-item w-full ${viewMode === 'grid' ? 'dropdown-item-active' : ''}`}
                   role="menuitemradio"
@@ -421,7 +427,7 @@ export function Toolbar({
         </button>
       )}
     </div>
-  )
+  );
 }
 
 // Compact toolbar for minimal space
@@ -431,8 +437,11 @@ export function ToolbarCompact({
   onCommit,
   isUpdating = false,
   hasChanges = false,
-  className = ''
-}: Pick<ToolbarProps, 'onRefresh' | 'onUpdate' | 'onCommit' | 'isUpdating' | 'hasChanges' | 'className'>) {
+  className = '',
+}: Pick<
+  ToolbarProps,
+  'onRefresh' | 'onUpdate' | 'onCommit' | 'isUpdating' | 'hasChanges' | 'className'
+>) {
   return (
     <div
       className={`flex items-center gap-2 h-9 px-3 bg-bg-secondary border-b border-border ${className}`}
@@ -447,7 +456,10 @@ export function ToolbarCompact({
         aria-label={isUpdating ? 'Refreshing...' : 'Refresh files'}
         aria-busy={isUpdating}
       >
-        <RefreshCw className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`} aria-hidden="true" />
+        <RefreshCw
+          className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`}
+          aria-hidden="true"
+        />
       </button>
 
       <div className="toolbar-divider" role="separator" aria-orientation="vertical" />
@@ -474,5 +486,5 @@ export function ToolbarCompact({
         <Upload className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
     </div>
-  )
+  );
 }

@@ -1,94 +1,96 @@
-import { useState, useEffect } from 'react'
-import { X, FileDiff, Save, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { X, FileDiff, Save, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 interface CreatePatchDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  path: string
-  selectedPaths?: string[]
+  isOpen: boolean;
+  onClose: () => void;
+  path: string;
+  selectedPaths?: string[];
 }
 
-export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }: CreatePatchDialogProps) {
-  const [patchContent, setPatchContent] = useState('')
-  const [filename, setFilename] = useState('changes.patch')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  
+export function CreatePatchDialog({
+  isOpen,
+  onClose,
+  path,
+  selectedPaths = [],
+}: CreatePatchDialogProps) {
+  const [patchContent, setPatchContent] = useState('');
+  const [filename, setFilename] = useState('changes.patch');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
-      setPatchContent('')
-      setFilename('changes.patch')
-      setError(null)
-      setSuccess(false)
-      setIsGenerating(false)
+      setPatchContent('');
+      setFilename('changes.patch');
+      setError(null);
+      setSuccess(false);
+      setIsGenerating(false);
     }
-  }, [isOpen])
-  
+  }, [isOpen]);
+
   const handleGenerate = async () => {
-    setIsGenerating(true)
-    setError(null)
-    
+    setIsGenerating(true);
+    setError(null);
+
     try {
       // Get diff for the path(s)
-      const paths = selectedPaths.length > 0 ? selectedPaths : [path]
-      let fullDiff = ''
-      
+      const paths = selectedPaths.length > 0 ? selectedPaths : [path];
+      let fullDiff = '';
+
       for (const p of paths) {
-        const result = await window.api.svn.diff(p)
+        const result = await window.api.svn.diff(p);
         if (result.rawDiff) {
-          fullDiff += result.rawDiff + '\n'
+          fullDiff += result.rawDiff + '\n';
         }
       }
-      
+
       if (!fullDiff.trim()) {
-        setError('No changes to create patch from')
+        setError('No changes to create patch from');
       } else {
-        setPatchContent(fullDiff)
+        setPatchContent(fullDiff);
       }
     } catch (err) {
-      setError((err as Error).message || 'Failed to generate patch')
+      setError((err as Error).message || 'Failed to generate patch');
     } finally {
-      setIsGenerating(false)
+      setIsGenerating(false);
     }
-  }
-  
+  };
+
   const handleSave = async () => {
     if (!patchContent.trim()) {
-      setError('No patch content to save')
-      return
+      setError('No patch content to save');
+      return;
     }
-    
+
     try {
-      const result = await window.api.dialog.saveFile(filename)
+      const result = await window.api.dialog.saveFile(filename);
       if (result) {
         // Use the patch create API to save the file
-        const paths = selectedPaths.length > 0 ? selectedPaths : [path]
-        const saveResult = await window.api.svn.patch.create(paths, result)
-        
+        const paths = selectedPaths.length > 0 ? selectedPaths : [path];
+        const saveResult = await window.api.svn.patch.create(paths, result);
+
         if (saveResult.success) {
-          setSuccess(true)
+          setSuccess(true);
         } else {
-          setError(saveResult.output || 'Failed to save patch')
+          setError(saveResult.output || 'Failed to save patch');
         }
       }
     } catch (err) {
-      setError((err as Error).message || 'Failed to save patch')
+      setError((err as Error).message || 'Failed to save patch');
     }
-  }
-  
+  };
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(patchContent)
-  }
-  
-  if (!isOpen) return null
-  
+    navigator.clipboard.writeText(patchContent);
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[700px] max-h-[90vh]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[700px] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -99,7 +101,7 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {success ? (
@@ -108,13 +110,8 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
                 <CheckCircle className="w-6 h-6 text-success" />
               </div>
               <h3 className="text-lg font-medium text-text mb-2">Patch Saved</h3>
-              <p className="text-text-secondary mb-6">
-                {filename}
-              </p>
-              <button
-                onClick={onClose}
-                className="btn btn-primary"
-              >
+              <p className="text-text-secondary mb-6">{filename}</p>
+              <button onClick={onClose} className="btn btn-primary">
                 Done
               </button>
             </div>
@@ -123,7 +120,7 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
               <p className="text-sm text-text-secondary">
                 Create a unified diff patch file from your local changes.
               </p>
-              
+
               {/* Generate button */}
               {!patchContent && (
                 <button
@@ -144,7 +141,7 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
                   )}
                 </button>
               )}
-              
+
               {/* Filename */}
               {patchContent && (
                 <div>
@@ -159,7 +156,7 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
                   />
                 </div>
               )}
-              
+
               {/* Patch content */}
               {patchContent && (
                 <div>
@@ -172,24 +169,25 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
                     className="input h-64 resize-none font-mono text-xs"
                   />
                   <div className="flex justify-end mt-2 gap-2">
-                    <button
-                      onClick={handleCopy}
-                      className="btn btn-secondary btn-sm"
-                    >
+                    <button onClick={handleCopy} className="btn btn-secondary btn-sm">
                       Copy to Clipboard
                     </button>
                   </div>
                 </div>
               )}
-              
+
               {/* Stats */}
               {patchContent && (
                 <div className="flex gap-4 text-sm text-text-faint">
-                  <span>+{patchContent.split('\n').filter(l => l.startsWith('+')).length} additions</span>
-                  <span>-{patchContent.split('\n').filter(l => l.startsWith('-')).length} deletions</span>
+                  <span>
+                    +{patchContent.split('\n').filter((l) => l.startsWith('+')).length} additions
+                  </span>
+                  <span>
+                    -{patchContent.split('\n').filter((l) => l.startsWith('-')).length} deletions
+                  </span>
                 </div>
               )}
-              
+
               {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
@@ -200,7 +198,7 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
             </>
           )}
         </div>
-        
+
         {/* Footer */}
         {!success && (
           <div className="modal-footer">
@@ -219,5 +217,5 @@ export function CreatePatchDialog({ isOpen, onClose, path, selectedPaths = [] }:
         )}
       </div>
     </div>
-  )
+  );
 }

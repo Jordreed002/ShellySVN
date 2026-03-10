@@ -1,21 +1,21 @@
-import { useEffect, useCallback, useRef, type RefObject } from 'react'
+import { useEffect, useCallback, useRef, type RefObject } from 'react';
 
 /**
  * Options for the useFocusTrap hook
  */
 export interface FocusTrapOptions {
   /** Whether the focus trap is active */
-  active?: boolean
+  active?: boolean;
   /** Initial element to focus when trap activates */
-  initialFocus?: string | RefObject<HTMLElement | null>
+  initialFocus?: string | RefObject<HTMLElement | null>;
   /** Element to return focus to when trap deactivates */
-  returnFocus?: boolean | string | RefObject<HTMLElement | null>
+  returnFocus?: boolean | string | RefObject<HTMLElement | null>;
   /** Whether to allow focus to escape with Tab/Shift+Tab */
-  allowOutsideClick?: boolean
+  allowOutsideClick?: boolean;
   /** Called when focus attempts to escape */
-  onEscape?: () => void
+  onEscape?: () => void;
   /** Whether to prevent scroll on focus */
-  preventScroll?: boolean
+  preventScroll?: boolean;
 }
 
 /**
@@ -29,32 +29,30 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
     'select:not([disabled])',
     'textarea:not([disabled])',
     '[tabindex]:not([tabindex="-1"])',
-    '[contenteditable="true"]'
-  ].join(', ')
+    '[contenteditable="true"]',
+  ].join(', ');
 
-  const elements = Array.from(container.querySelectorAll<HTMLElement>(selector))
+  const elements = Array.from(container.querySelectorAll<HTMLElement>(selector));
 
   // Filter out elements that are not visible
-  return elements.filter(el => {
-    const style = window.getComputedStyle(el)
-    return style.display !== 'none' &&
-           style.visibility !== 'hidden' &&
-           el.offsetParent !== null
-  })
+  return elements.filter((el) => {
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+  });
 }
 
 /**
  * Get the first and last focusable elements
  */
 function getFocusEdges(container: HTMLElement): {
-  first: HTMLElement | null
-  last: HTMLElement | null
+  first: HTMLElement | null;
+  last: HTMLElement | null;
 } {
-  const focusable = getFocusableElements(container)
+  const focusable = getFocusableElements(container);
   return {
     first: focusable[0] || null,
-    last: focusable[focusable.length - 1] || null
-  }
+    last: focusable[focusable.length - 1] || null,
+  };
 }
 
 /**
@@ -88,129 +86,141 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
     returnFocus = true,
     allowOutsideClick = false,
     onEscape,
-    preventScroll = false
-  } = options
+    preventScroll = false,
+  } = options;
 
-  const containerRef = useRef<T>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
-  const isInitializedRef = useRef(false)
+  const containerRef = useRef<T>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const isInitializedRef = useRef(false);
 
   // Handle keyboard navigation within trap
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (!containerRef.current || !active) return
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (!containerRef.current || !active) return;
 
-    // Handle Escape key
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onEscape?.()
-      return
-    }
-
-    // Handle Tab key for focus trapping
-    if (event.key === 'Tab') {
-      const { first, last } = getFocusEdges(containerRef.current)
-
-      if (!first || !last) {
-        event.preventDefault()
-        return
+      // Handle Escape key
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onEscape?.();
+        return;
       }
 
-      // If there's only one focusable element, keep focus there
-      if (first === last) {
-        event.preventDefault()
-        first.focus()
-        return
-      }
+      // Handle Tab key for focus trapping
+      if (event.key === 'Tab') {
+        const { first, last } = getFocusEdges(containerRef.current);
 
-      // Handle Tab (forward) and Shift+Tab (backward)
-      if (event.shiftKey) {
-        // Shift+Tab: if on first element, go to last
-        if (document.activeElement === first || !containerRef.current.contains(document.activeElement)) {
-          event.preventDefault()
-          last.focus()
+        if (!first || !last) {
+          event.preventDefault();
+          return;
         }
-      } else {
-        // Tab: if on last element, go to first
-        if (document.activeElement === last || !containerRef.current.contains(document.activeElement)) {
-          event.preventDefault()
-          first.focus()
+
+        // If there's only one focusable element, keep focus there
+        if (first === last) {
+          event.preventDefault();
+          first.focus();
+          return;
+        }
+
+        // Handle Tab (forward) and Shift+Tab (backward)
+        if (event.shiftKey) {
+          // Shift+Tab: if on first element, go to last
+          if (
+            document.activeElement === first ||
+            !containerRef.current.contains(document.activeElement)
+          ) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else {
+          // Tab: if on last element, go to first
+          if (
+            document.activeElement === last ||
+            !containerRef.current.contains(document.activeElement)
+          ) {
+            event.preventDefault();
+            first.focus();
+          }
         }
       }
-    }
-  }, [active, onEscape])
+    },
+    [active, onEscape]
+  );
 
   // Handle clicks outside the trap
-  const handleOutsideClick = useCallback((event: MouseEvent) => {
-    if (!containerRef.current || !active || allowOutsideClick) return
+  const handleOutsideClick = useCallback(
+    (event: MouseEvent) => {
+      if (!containerRef.current || !active || allowOutsideClick) return;
 
-    const target = event.target as Node
-    if (!containerRef.current.contains(target)) {
-      event.preventDefault()
-      event.stopPropagation()
+      const target = event.target as Node;
+      if (!containerRef.current.contains(target)) {
+        event.preventDefault();
+        event.stopPropagation();
 
-      // Refocus the container
-      const { first } = getFocusEdges(containerRef.current)
-      first?.focus()
-    }
-  }, [active, allowOutsideClick])
+        // Refocus the container
+        const { first } = getFocusEdges(containerRef.current);
+        first?.focus();
+      }
+    },
+    [active, allowOutsideClick]
+  );
 
   // Initialize focus trap
   useEffect(() => {
     if (!active || !containerRef.current) {
       // When deactivating, return focus
       if (!active && returnFocus && previousFocusRef.current && isInitializedRef.current) {
-        previousFocusRef.current.focus({ preventScroll })
+        previousFocusRef.current.focus({ preventScroll });
       }
-      isInitializedRef.current = false
-      return
+      isInitializedRef.current = false;
+      return;
     }
 
     // Store the previously focused element
     if (!isInitializedRef.current) {
-      previousFocusRef.current = document.activeElement as HTMLElement
+      previousFocusRef.current = document.activeElement as HTMLElement;
     }
-    isInitializedRef.current = true
+    isInitializedRef.current = true;
 
     // Set initial focus
     const setInitialFocus = () => {
-      if (!containerRef.current) return
+      if (!containerRef.current) return;
 
-      let elementToFocus: HTMLElement | null = null
+      let elementToFocus: HTMLElement | null = null;
 
       if (initialFocus) {
         if (typeof initialFocus === 'string') {
-          elementToFocus = containerRef.current.querySelector(initialFocus)
+          elementToFocus = containerRef.current.querySelector(initialFocus);
         } else if ('current' in initialFocus) {
-          elementToFocus = initialFocus.current
+          elementToFocus = initialFocus.current;
         }
       }
 
       // Fall back to first focusable element
       if (!elementToFocus) {
-        const { first } = getFocusEdges(containerRef.current)
-        elementToFocus = first
+        const { first } = getFocusEdges(containerRef.current);
+        elementToFocus = first;
       }
 
       if (elementToFocus) {
-        elementToFocus.focus({ preventScroll })
+        elementToFocus.focus({ preventScroll });
       }
-    }
+    };
 
     // Small delay to ensure DOM is ready
-    const timeoutId = setTimeout(setInitialFocus, 0)
+    const timeoutId = setTimeout(setInitialFocus, 0);
 
     // Add event listeners
-    document.addEventListener('keydown', handleKeyDown, true)
-    document.addEventListener('click', handleOutsideClick, true)
+    document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('click', handleOutsideClick, true);
 
     return () => {
-      clearTimeout(timeoutId)
-      document.removeEventListener('keydown', handleKeyDown, true)
-      document.removeEventListener('click', handleOutsideClick, true)
-    }
-  }, [active, initialFocus, returnFocus, preventScroll, handleKeyDown, handleOutsideClick])
+      clearTimeout(timeoutId);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('click', handleOutsideClick, true);
+    };
+  }, [active, initialFocus, returnFocus, preventScroll, handleKeyDown, handleOutsideClick]);
 
-  return containerRef
+  return containerRef;
 }
 
 /**
@@ -219,47 +229,46 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
  */
 export function useFocusManagement<T extends HTMLElement = HTMLDivElement>(
   options: {
-    active?: boolean
-    initialFocus?: string | RefObject<HTMLElement | null>
-    restoreFocus?: boolean
+    active?: boolean;
+    initialFocus?: string | RefObject<HTMLElement | null>;
+    restoreFocus?: boolean;
   } = {}
 ): RefObject<T | null> {
-  const { active = true, initialFocus, restoreFocus = true } = options
-  const containerRef = useRef<T>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const { active = true, initialFocus, restoreFocus = true } = options;
+  const containerRef = useRef<T>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!active || !containerRef.current) {
       if (!active && restoreFocus && previousFocusRef.current) {
-        previousFocusRef.current.focus()
+        previousFocusRef.current.focus();
       }
-      return
+      return;
     }
 
     // Store previous focus
-    previousFocusRef.current = document.activeElement as HTMLElement
+    previousFocusRef.current = document.activeElement as HTMLElement;
 
     // Set initial focus
-    let elementToFocus: HTMLElement | null = null
+    let elementToFocus: HTMLElement | null = null;
 
     if (initialFocus) {
       if (typeof initialFocus === 'string') {
-        elementToFocus = containerRef.current.querySelector(initialFocus)
+        elementToFocus = containerRef.current.querySelector(initialFocus);
       } else if ('current' in initialFocus) {
-        elementToFocus = initialFocus.current
+        elementToFocus = initialFocus.current;
       }
     }
 
     if (!elementToFocus) {
-      const { first } = getFocusEdges(containerRef.current)
-      elementToFocus = first
+      const { first } = getFocusEdges(containerRef.current);
+      elementToFocus = first;
     }
 
-    elementToFocus?.focus()
+    elementToFocus?.focus();
+  }, [active, initialFocus, restoreFocus]);
 
-  }, [active, initialFocus, restoreFocus])
-
-  return containerRef
+  return containerRef;
 }
 
-export default useFocusTrap
+export default useFocusTrap;

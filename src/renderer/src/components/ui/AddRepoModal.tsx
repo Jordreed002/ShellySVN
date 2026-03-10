@@ -1,23 +1,23 @@
-import { useState } from 'react'
-import { createPortal } from 'react-dom'
-import { 
-  X, 
-  FolderOpen, 
-  GitBranch, 
-  Clock, 
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  X,
+  FolderOpen,
+  GitBranch,
+  Clock,
   ChevronRight,
   AlertCircle,
   CheckCircle,
-  Loader2
-} from 'lucide-react'
-import type { AppSettings } from '@shared/types'
+  Loader2,
+} from 'lucide-react';
+import type { AppSettings } from '@shared/types';
 
 interface AddRepoModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onOpenRepo: (path: string) => void
-  onCheckout?: (url: string, path: string) => void
-  recentRepos?: AppSettings['recentRepositories']
+  isOpen: boolean;
+  onClose: () => void;
+  onOpenRepo: (path: string) => void;
+  onCheckout?: (url: string, path: string) => void;
+  recentRepos?: AppSettings['recentRepositories'];
 }
 
 export function AddRepoModal({
@@ -25,89 +25,89 @@ export function AddRepoModal({
   onClose,
   onOpenRepo,
   onCheckout,
-  recentRepos = []
+  recentRepos = [],
 }: AddRepoModalProps) {
-  const [mode, setMode] = useState<'open' | 'checkout'>('open')
-  const [selectedPath, setSelectedPath] = useState<string>('')
-  const [checkoutUrl, setCheckoutUrl] = useState<string>('')
-  const [checkoutPath, setCheckoutPath] = useState<string>('')
-  const [isChecking, setIsChecking] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
+  const [mode, setMode] = useState<'open' | 'checkout'>('open');
+  const [selectedPath, setSelectedPath] = useState<string>('');
+  const [checkoutUrl, setCheckoutUrl] = useState<string>('');
+  const [checkoutPath, setCheckoutPath] = useState<string>('');
+  const [isChecking, setIsChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const handleBrowse = async () => {
-    const path = await window.api.dialog.openDirectory()
+    const path = await window.api.dialog.openDirectory();
     if (path) {
-      setSelectedPath(path)
-      setError(null)
+      setSelectedPath(path);
+      setError(null);
     }
-  }
-  
+  };
+
   const handleBrowseCheckout = async () => {
-    const path = await window.api.dialog.openDirectory()
+    const path = await window.api.dialog.openDirectory();
     if (path) {
-      setCheckoutPath(path)
-      setError(null)
+      setCheckoutPath(path);
+      setError(null);
     }
-  }
-  
+  };
+
   const handleOpen = async () => {
     if (!selectedPath) {
-      setError('Please select a folder')
-      return
+      setError('Please select a folder');
+      return;
     }
-    
-    setIsChecking(true)
-    setError(null)
-    
+
+    setIsChecking(true);
+    setError(null);
+
     try {
       // Verify it's a working copy
-      const info = await window.api.svn.info(selectedPath)
+      const info = await window.api.svn.info(selectedPath);
       if (info) {
-        onOpenRepo(selectedPath)
-        onClose()
+        onOpenRepo(selectedPath);
+        onClose();
       }
-    } catch (err) {
-      setError('Selected folder is not a valid SVN working copy')
+    } catch (_err) {
+      setError('Selected folder is not a valid SVN working copy');
     } finally {
-      setIsChecking(false)
+      setIsChecking(false);
     }
-  }
-  
+  };
+
   const handleCheckout = async () => {
     if (!checkoutUrl) {
-      setError('Please enter a repository URL')
-      return
+      setError('Please enter a repository URL');
+      return;
     }
     if (!checkoutPath) {
-      setError('Please select a destination folder')
-      return
+      setError('Please select a destination folder');
+      return;
     }
-    
-    setIsChecking(true)
-    setError(null)
-    
+
+    setIsChecking(true);
+    setError(null);
+
     try {
-      onCheckout?.(checkoutUrl, checkoutPath)
-      onClose()
+      onCheckout?.(checkoutUrl, checkoutPath);
+      onClose();
     } catch (err) {
-      setError((err as Error).message)
+      setError((err as Error).message);
     } finally {
-      setIsChecking(false)
+      setIsChecking(false);
     }
-  }
-  
+  };
+
   const handleRecentClick = (path: string) => {
-    onOpenRepo(path)
-    onClose()
-  }
-  
-  if (!isOpen) return null
-  
+    onOpenRepo(path);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
   const modalContent = (
     <div className="modal-overlay" onClick={onClose}>
       {/* Modal */}
-      <div 
-        className="modal w-[560px] max-h-[85vh] flex flex-col" 
+      <div
+        className="modal w-[560px] max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -123,43 +123,47 @@ export function AddRepoModal({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="btn-icon-sm"
-            data-testid="modal-close-button"
-          >
+          <button onClick={onClose} className="btn-icon-sm" data-testid="modal-close-button">
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Tabs */}
         <div className="flex border-b border-border flex-shrink-0">
           <button
-            onClick={() => { setMode('open'); setError(null) }}
+            onClick={() => {
+              setMode('open');
+              setError(null);
+            }}
             className={`
               flex-1 px-4 py-3 text-sm font-medium transition-fast
-              ${mode === 'open' 
-                ? 'text-accent border-b-2 border-accent' 
-                : 'text-text-secondary hover:text-text'
+              ${
+                mode === 'open'
+                  ? 'text-accent border-b-2 border-accent'
+                  : 'text-text-secondary hover:text-text'
               }
             `}
           >
             Open Working Copy
           </button>
           <button
-            onClick={() => { setMode('checkout'); setError(null) }}
+            onClick={() => {
+              setMode('checkout');
+              setError(null);
+            }}
             className={`
               flex-1 px-4 py-3 text-sm font-medium transition-fast
-              ${mode === 'checkout' 
-                ? 'text-accent border-b-2 border-accent' 
-                : 'text-text-secondary hover:text-text'
+              ${
+                mode === 'checkout'
+                  ? 'text-accent border-b-2 border-accent'
+                  : 'text-text-secondary hover:text-text'
               }
             `}
           >
             Checkout from URL
           </button>
         </div>
-        
+
         {/* Body */}
         <div className="modal-body flex-1 overflow-auto min-h-0">
           {mode === 'open' ? (
@@ -178,16 +182,13 @@ export function AddRepoModal({
                     className="input flex-1"
                     readOnly
                   />
-                  <button
-                    onClick={handleBrowse}
-                    className="btn btn-secondary"
-                  >
+                  <button onClick={handleBrowse} className="btn btn-secondary">
                     <FolderOpen className="w-4 h-4" />
                     Browse
                   </button>
                 </div>
               </div>
-              
+
               {/* Recent Repositories */}
               {recentRepos.length > 0 && (
                 <div>
@@ -217,9 +218,7 @@ export function AddRepoModal({
             <div className="space-y-4">
               {/* Repository URL */}
               <div>
-                <label className="block text-sm font-medium text-text mb-2">
-                  Repository URL
-                </label>
+                <label className="block text-sm font-medium text-text mb-2">Repository URL</label>
                 <input
                   type="text"
                   value={checkoutUrl}
@@ -228,7 +227,7 @@ export function AddRepoModal({
                   className="input"
                 />
               </div>
-              
+
               {/* Destination Path */}
               <div>
                 <label className="block text-sm font-medium text-text mb-2">
@@ -243,26 +242,23 @@ export function AddRepoModal({
                     className="input flex-1"
                     readOnly
                   />
-                  <button
-                    onClick={handleBrowseCheckout}
-                    className="btn btn-secondary"
-                  >
+                  <button onClick={handleBrowseCheckout} className="btn btn-secondary">
                     <FolderOpen className="w-4 h-4" />
                     Browse
                   </button>
                 </div>
               </div>
-              
+
               {/* Checkout Options */}
               <div className="pt-2">
                 <p className="text-xs text-text-muted">
-                  The repository will be checked out to the specified directory.
-                  Make sure the destination folder is empty.
+                  The repository will be checked out to the specified directory. Make sure the
+                  destination folder is empty.
                 </p>
               </div>
             </div>
           )}
-          
+
           {/* Error Message */}
           {error && (
             <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-error/10 border border-error/20 rounded-md text-sm text-error">
@@ -271,13 +267,10 @@ export function AddRepoModal({
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer flex-shrink-0">
-          <button
-            onClick={onClose}
-            className="btn btn-ghost"
-          >
+          <button onClick={onClose} className="btn btn-ghost">
             Cancel
           </button>
           {mode === 'open' ? (
@@ -320,10 +313,10 @@ export function AddRepoModal({
         </div>
       </div>
     </div>
-  )
-  
+  );
+
   // Render at document body level using portal
-  return createPortal(modalContent, document.body)
+  return createPortal(modalContent, document.body);
 }
 
 // Compact "Add Repository" button/trigger
@@ -340,10 +333,8 @@ export function AddRepoButton({ onClick }: { onClick: () => void }) {
         <span className="text-sm font-medium text-text-secondary group-hover:text-text">
           Add Repository
         </span>
-        <p className="text-xs text-text-muted">
-          Open or checkout a working copy
-        </p>
+        <p className="text-xs text-text-muted">Open or checkout a working copy</p>
       </div>
     </button>
-  )
+  );
 }

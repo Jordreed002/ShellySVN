@@ -12,27 +12,27 @@
  * - Support diffs with 100k+ lines
  */
 
-import { Transform, TransformCallback, PassThrough } from 'stream'
-import type { SvnDiffFile, SvnDiffHunk, SvnDiffLine, SvnDiffResult } from '@shared/types'
+import { Transform, TransformCallback, PassThrough } from 'stream';
+import type { SvnDiffFile, SvnDiffHunk, SvnDiffLine, SvnDiffResult } from '@shared/types';
 
 /**
  * Represents a parsed diff chunk that can be rendered independently
  */
 export interface DiffChunk {
   /** Index in the flattened list of chunks */
-  index: number
+  index: number;
   /** File this chunk belongs to */
-  fileIndex: number
+  fileIndex: number;
   /** Hunk index within the file */
-  hunkIndex: number
+  hunkIndex: number;
   /** The hunk data */
-  hunk: SvnDiffHunk
+  hunk: SvnDiffHunk;
   /** File metadata */
   fileMeta: {
-    oldPath: string
-    newPath: string
-    isBinary: boolean
-  }
+    oldPath: string;
+    newPath: string;
+    isBinary: boolean;
+  };
 }
 
 /**
@@ -40,13 +40,13 @@ export interface DiffChunk {
  */
 export interface ProgressiveDiffResult {
   /** Complete files parsed so far */
-  files: SvnDiffFile[]
+  files: SvnDiffFile[];
   /** Total number of chunks */
-  totalChunks: number
+  totalChunks: number;
   /** Whether parsing is complete */
-  isComplete: boolean
+  isComplete: boolean;
   /** Error if parsing failed */
-  error?: string
+  error?: string;
 }
 
 /**
@@ -54,24 +54,24 @@ export interface ProgressiveDiffResult {
  */
 export interface StreamingDiffParserOptions {
   /** Maximum chunk size before yielding (default: 1000 lines) */
-  chunkSize?: number
+  chunkSize?: number;
   /** Whether to include context lines (default: true) */
-  includeContext?: boolean
+  includeContext?: boolean;
   /** Callback for each chunk parsed */
-  onChunk?: (chunk: DiffChunk) => void
+  onChunk?: (chunk: DiffChunk) => void;
   /** Callback when parsing is complete */
-  onComplete?: (result: SvnDiffResult) => void
+  onComplete?: (result: SvnDiffResult) => void;
   /** Callback on error */
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void;
 }
 
 /**
  * Line metadata for efficient line-based parsing
  */
 interface LineMeta {
-  type: 'added' | 'removed' | 'context' | 'header' | 'hunk' | 'separator'
-  content: string
-  rawLine: string
+  type: 'added' | 'removed' | 'context' | 'header' | 'hunk' | 'separator';
+  content: string;
+  rawLine: string;
 }
 
 /**
@@ -79,50 +79,52 @@ interface LineMeta {
  */
 function parseLine(rawLine: string): LineMeta {
   if (rawLine.startsWith('Index: ')) {
-    return { type: 'header', content: rawLine.substring(7), rawLine }
+    return { type: 'header', content: rawLine.substring(7), rawLine };
   }
   if (rawLine.startsWith('=======')) {
-    return { type: 'separator', content: '', rawLine }
+    return { type: 'separator', content: '', rawLine };
   }
   if (rawLine.startsWith('--- ')) {
-    return { type: 'header', content: rawLine.substring(4), rawLine }
+    return { type: 'header', content: rawLine.substring(4), rawLine };
   }
   if (rawLine.startsWith('+++ ')) {
-    return { type: 'header', content: rawLine.substring(4), rawLine }
+    return { type: 'header', content: rawLine.substring(4), rawLine };
   }
   if (rawLine.startsWith('@@')) {
-    return { type: 'hunk', content: rawLine, rawLine }
+    return { type: 'hunk', content: rawLine, rawLine };
   }
   if (rawLine.startsWith('+')) {
-    return { type: 'added', content: rawLine.substring(1), rawLine }
+    return { type: 'added', content: rawLine.substring(1), rawLine };
   }
   if (rawLine.startsWith('-')) {
-    return { type: 'removed', content: rawLine.substring(1), rawLine }
+    return { type: 'removed', content: rawLine.substring(1), rawLine };
   }
   if (rawLine.startsWith(' ')) {
-    return { type: 'context', content: rawLine.substring(1), rawLine }
+    return { type: 'context', content: rawLine.substring(1), rawLine };
   }
   // Empty line or other context
-  return { type: 'context', content: rawLine, rawLine }
+  return { type: 'context', content: rawLine, rawLine };
 }
 
 /**
  * Parse hunk header line @@ -start,count +start,count @@
  */
-function parseHunkHeader(line: string): { oldStart: number; oldLines: number; newStart: number; newLines: number } | null {
-  const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
-  if (!match) return null
+function parseHunkHeader(
+  line: string
+): { oldStart: number; oldLines: number; newStart: number; newLines: number } | null {
+  const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+  if (!match) return null;
 
   return {
     oldStart: parseInt(match[1], 10),
     oldLines: match[2] ? parseInt(match[2], 10) : 1,
     newStart: parseInt(match[3], 10),
-    newLines: match[4] ? parseInt(match[4], 10) : 1
-  }
+    newLines: match[4] ? parseInt(match[4], 10) : 1,
+  };
 }
 
 /** Maximum line length to buffer (1MB) - prevents memory exhaustion from extremely long lines */
-const MAX_LINE_LENGTH = 1024 * 1024
+const MAX_LINE_LENGTH = 1024 * 1024;
 
 /**
  * Streaming Diff Parser
@@ -144,31 +146,31 @@ const MAX_LINE_LENGTH = 1024 * 1024
  * ```
  */
 export class StreamingDiffParser extends Transform {
-  private buffer: string = ''
-  private files: SvnDiffFile[] = []
-  private currentFile: SvnDiffFile | null = null
-  private currentHunk: SvnDiffHunk | null = null
-  private oldLineNum: number = 0
-  private newLineNum: number = 0
-  private chunkCount: number = 0
-  private lineCount: number = 0
-  private isComplete: boolean = false
-  private isDestroyed: boolean = false
-  private error_: string | undefined
+  private buffer: string = '';
+  private files: SvnDiffFile[] = [];
+  private currentFile: SvnDiffFile | null = null;
+  private currentHunk: SvnDiffHunk | null = null;
+  private oldLineNum: number = 0;
+  private newLineNum: number = 0;
+  private chunkCount: number = 0;
+  private lineCount: number = 0;
+  private isComplete: boolean = false;
+  private isDestroyed: boolean = false;
+  private error_: string | undefined;
 
-  private readonly chunkSize: number
-  private readonly includeContext: boolean
-  private readonly onChunk?: (chunk: DiffChunk) => void
-  private readonly onComplete?: (result: SvnDiffResult) => void
-  private readonly onError?: (error: Error) => void
+  private readonly chunkSize: number;
+  private readonly includeContext: boolean;
+  private readonly onChunk?: (chunk: DiffChunk) => void;
+  private readonly onComplete?: (result: SvnDiffResult) => void;
+  private readonly onError?: (error: Error) => void;
 
   constructor(options: StreamingDiffParserOptions = {}) {
-    super({ decodeStrings: true, encoding: 'utf8' })
-    this.chunkSize = options.chunkSize ?? 1000
-    this.includeContext = options.includeContext ?? true
-    this.onChunk = options.onChunk
-    this.onComplete = options.onComplete
-    this.onError = options.onError
+    super({ decodeStrings: true, encoding: 'utf8' });
+    this.chunkSize = options.chunkSize ?? 1000;
+    this.includeContext = options.includeContext ?? true;
+    this.onChunk = options.onChunk;
+    this.onComplete = options.onComplete;
+    this.onError = options.onError;
   }
 
   /**
@@ -177,31 +179,31 @@ export class StreamingDiffParser extends Transform {
   _transform(chunk: Buffer | string, _encoding: BufferEncoding, callback: TransformCallback): void {
     try {
       if (this.isDestroyed) {
-        callback()
-        return
+        callback();
+        return;
       }
 
-      this.buffer += chunk.toString('utf8')
+      this.buffer += chunk.toString('utf8');
 
       // Protect against extremely long lines
       if (this.buffer.length > MAX_LINE_LENGTH) {
         // Find the last newline and truncate to it
-        const lastNewline = this.buffer.lastIndexOf('\n')
+        const lastNewline = this.buffer.lastIndexOf('\n');
         if (lastNewline > 0) {
-          this.buffer = this.buffer.substring(lastNewline + 1)
+          this.buffer = this.buffer.substring(lastNewline + 1);
         } else {
           // No newline found, truncate the buffer
-          this.buffer = ''
+          this.buffer = '';
         }
-        console.warn('[StreamingDiffParser] Line exceeded maximum length, truncated')
+        console.warn('[StreamingDiffParser] Line exceeded maximum length, truncated');
       }
 
-      this.processBuffer()
-      callback()
+      this.processBuffer();
+      callback();
     } catch (error) {
-      this.error_ = (error as Error).message
-      this.onError?.(error as Error)
-      callback(error as Error)
+      this.error_ = (error as Error).message;
+      this.onError?.(error as Error);
+      callback(error as Error);
     }
   }
 
@@ -212,29 +214,29 @@ export class StreamingDiffParser extends Transform {
     try {
       // Process any remaining buffer
       if (this.buffer.trim()) {
-        this.buffer += '\n' // Ensure last line is processed
-        this.processBuffer()
+        this.buffer += '\n'; // Ensure last line is processed
+        this.processBuffer();
       }
 
       // Finalize last hunk and file
-      this.finalizeCurrentHunk()
-      this.finalizeCurrentFile()
+      this.finalizeCurrentHunk();
+      this.finalizeCurrentFile();
 
-      this.isComplete = true
+      this.isComplete = true;
 
       const result: SvnDiffResult = {
         files: this.files,
         hasChanges: this.files.length > 0,
-        isBinary: false
-      }
+        isBinary: false,
+      };
 
-      this.onComplete?.(result)
-      this.push(JSON.stringify(result))
-      callback()
+      this.onComplete?.(result);
+      this.push(JSON.stringify(result));
+      callback();
     } catch (error) {
-      this.error_ = (error as Error).message
-      this.onError?.(error as Error)
-      callback(error as Error)
+      this.error_ = (error as Error).message;
+      this.onError?.(error as Error);
+      callback(error as Error);
     }
   }
 
@@ -242,16 +244,16 @@ export class StreamingDiffParser extends Transform {
    * Process buffered data line by line
    */
   private processBuffer(): void {
-    if (this.isDestroyed) return
+    if (this.isDestroyed) return;
 
-    const lines = this.buffer.split('\n')
+    const lines = this.buffer.split('\n');
     // Keep the last incomplete line in the buffer
-    this.buffer = lines.pop() || ''
+    this.buffer = lines.pop() || '';
 
     for (const line of lines) {
-      if (this.isDestroyed) return
-      this.processLine(line)
-      this.lineCount++
+      if (this.isDestroyed) return;
+      this.processLine(line);
+      this.lineCount++;
     }
   }
 
@@ -259,23 +261,23 @@ export class StreamingDiffParser extends Transform {
    * Process a single line
    */
   private processLine(line: string): void {
-    const parsed = parseLine(line)
+    const parsed = parseLine(line);
 
     switch (parsed.type) {
       case 'header':
-        this.handleHeader(parsed.rawLine)
-        break
+        this.handleHeader(parsed.rawLine);
+        break;
       case 'separator':
         // Skip === separators
-        break
+        break;
       case 'hunk':
-        this.handleHunkHeader(parsed.rawLine)
-        break
+        this.handleHunkHeader(parsed.rawLine);
+        break;
       case 'added':
       case 'removed':
       case 'context':
-        this.handleContentLine(parsed)
-        break
+        this.handleContentLine(parsed);
+        break;
     }
   }
 
@@ -285,18 +287,18 @@ export class StreamingDiffParser extends Transform {
   private handleHeader(line: string): void {
     if (line.startsWith('Index: ')) {
       // New file starts
-      this.finalizeCurrentHunk()
-      this.finalizeCurrentFile()
+      this.finalizeCurrentHunk();
+      this.finalizeCurrentFile();
 
       this.currentFile = {
         oldPath: '',
         newPath: '',
-        hunks: []
-      }
+        hunks: [],
+      };
     } else if (line.startsWith('--- ') && this.currentFile) {
-      this.currentFile.oldPath = line.substring(4).trim()
+      this.currentFile.oldPath = line.substring(4).trim();
     } else if (line.startsWith('+++ ') && this.currentFile) {
-      this.currentFile.newPath = line.substring(4).trim()
+      this.currentFile.newPath = line.substring(4).trim();
     }
   }
 
@@ -304,11 +306,11 @@ export class StreamingDiffParser extends Transform {
    * Handle hunk header @@ -start,count +start,count @@
    */
   private handleHunkHeader(line: string): void {
-    const parsed = parseHunkHeader(line)
-    if (!parsed) return
+    const parsed = parseHunkHeader(line);
+    if (!parsed) return;
 
     // Finalize previous hunk
-    this.finalizeCurrentHunk()
+    this.finalizeCurrentHunk();
 
     // Start new hunk
     this.currentHunk = {
@@ -319,43 +321,43 @@ export class StreamingDiffParser extends Transform {
       lines: [
         {
           type: 'hunk',
-          content: line
-        }
-      ]
-    }
+          content: line,
+        },
+      ],
+    };
 
-    this.oldLineNum = parsed.oldStart
-    this.newLineNum = parsed.newStart
+    this.oldLineNum = parsed.oldStart;
+    this.newLineNum = parsed.newStart;
   }
 
   /**
    * Handle content lines (added, removed, context)
    */
   private handleContentLine(parsed: LineMeta): void {
-    if (!this.currentHunk) return
+    if (!this.currentHunk) return;
 
     // Skip context if not included
-    if (!this.includeContext && parsed.type === 'context') return
+    if (!this.includeContext && parsed.type === 'context') return;
 
     const diffLine: SvnDiffLine = {
       type: parsed.type,
-      content: parsed.content
-    }
+      content: parsed.content,
+    };
 
     if (parsed.type === 'added') {
-      diffLine.newLineNumber = this.newLineNum++
+      diffLine.newLineNumber = this.newLineNum++;
     } else if (parsed.type === 'removed') {
-      diffLine.oldLineNumber = this.oldLineNum++
+      diffLine.oldLineNumber = this.oldLineNum++;
     } else if (parsed.type === 'context') {
-      diffLine.oldLineNumber = this.oldLineNum++
-      diffLine.newLineNumber = this.newLineNum++
+      diffLine.oldLineNumber = this.oldLineNum++;
+      diffLine.newLineNumber = this.newLineNum++;
     }
 
-    this.currentHunk.lines.push(diffLine)
+    this.currentHunk.lines.push(diffLine);
 
     // Yield chunk if chunk size reached
     if (this.currentHunk.lines.length >= this.chunkSize) {
-      this.yieldChunk()
+      this.yieldChunk();
     }
   }
 
@@ -366,10 +368,10 @@ export class StreamingDiffParser extends Transform {
     if (this.currentHunk && this.currentFile) {
       // Yield remaining lines in hunk
       if (this.currentHunk.lines.length > 0) {
-        this.yieldChunk()
+        this.yieldChunk();
       }
-      this.currentFile.hunks.push(this.currentHunk)
-      this.currentHunk = null
+      this.currentFile.hunks.push(this.currentHunk);
+      this.currentHunk = null;
     }
   }
 
@@ -378,8 +380,8 @@ export class StreamingDiffParser extends Transform {
    */
   private finalizeCurrentFile(): void {
     if (this.currentFile) {
-      this.files.push(this.currentFile)
-      this.currentFile = null
+      this.files.push(this.currentFile);
+      this.currentFile = null;
     }
   }
 
@@ -387,7 +389,7 @@ export class StreamingDiffParser extends Transform {
    * Yield a chunk to the callback
    */
   private yieldChunk(): void {
-    if (!this.currentHunk || !this.currentFile) return
+    if (!this.currentHunk || !this.currentFile) return;
 
     const chunk: DiffChunk = {
       index: this.chunkCount++,
@@ -397,14 +399,14 @@ export class StreamingDiffParser extends Transform {
       fileMeta: {
         oldPath: this.currentFile.oldPath,
         newPath: this.currentFile.newPath,
-        isBinary: false
-      }
-    }
+        isBinary: false,
+      },
+    };
 
-    this.onChunk?.(chunk)
+    this.onChunk?.(chunk);
 
     // Clear processed lines to free memory
-    this.currentHunk.lines = []
+    this.currentHunk.lines = [];
   }
 
   /**
@@ -415,15 +417,15 @@ export class StreamingDiffParser extends Transform {
       files: this.files.length,
       chunks: this.chunkCount,
       lines: this.lineCount,
-      isComplete: this.isComplete
-    }
+      isComplete: this.isComplete,
+    };
   }
 
   /**
    * Get parsing error if any
    */
   getError(): string | undefined {
-    return this.error_
+    return this.error_;
   }
 
   /**
@@ -431,12 +433,12 @@ export class StreamingDiffParser extends Transform {
    * Call this to abort parsing mid-stream
    */
   destroy(error?: Error | null): this {
-    this.isDestroyed = true
-    this.buffer = ''
-    this.files = []
-    this.currentFile = null
-    this.currentHunk = null
-    return super.destroy(error)
+    this.isDestroyed = true;
+    this.buffer = '';
+    this.files = [];
+    this.currentFile = null;
+    this.currentHunk = null;
+    return super.destroy(error);
   }
 }
 
@@ -444,52 +446,55 @@ export class StreamingDiffParser extends Transform {
  * Parse a diff string in a single call (non-streaming)
  * Uses chunked processing internally for memory efficiency
  */
-export function parseDiffStreaming(diffOutput: string, options: StreamingDiffParserOptions = {}): Promise<SvnDiffResult> {
+export function parseDiffStreaming(
+  diffOutput: string,
+  options: StreamingDiffParserOptions = {}
+): Promise<SvnDiffResult> {
   return new Promise((resolve, reject) => {
-    const chunks: DiffChunk[] = []
-    const files: SvnDiffFile[] = []
-    let currentFile: SvnDiffFile | null = null
+    const chunks: DiffChunk[] = [];
+    const files: SvnDiffFile[] = [];
+    let currentFile: SvnDiffFile | null = null;
 
     const parser = new StreamingDiffParser({
       ...options,
       onChunk: (chunk) => {
-        chunks.push(chunk)
+        chunks.push(chunk);
 
         // Track files
         if (!currentFile || currentFile.oldPath !== chunk.fileMeta.oldPath) {
           if (currentFile) {
-            files.push(currentFile)
+            files.push(currentFile);
           }
           currentFile = {
             oldPath: chunk.fileMeta.oldPath,
             newPath: chunk.fileMeta.newPath,
-            hunks: []
-          }
+            hunks: [],
+          };
         }
 
         // Add hunk to current file
-        currentFile.hunks.push(chunk.hunk)
+        currentFile.hunks.push(chunk.hunk);
 
-        options.onChunk?.(chunk)
+        options.onChunk?.(chunk);
       },
       onComplete: (result) => {
         if (currentFile) {
-          files.push(currentFile)
+          files.push(currentFile);
         }
         resolve({
           ...result,
-          files: files.length > 0 ? files : result.files
-        })
+          files: files.length > 0 ? files : result.files,
+        });
       },
       onError: (error) => {
-        reject(error)
-        options.onError?.(error)
-      }
-    })
+        reject(error);
+        options.onError?.(error);
+      },
+    });
 
-    parser.write(diffOutput)
-    parser.end()
-  })
+    parser.write(diffOutput);
+    parser.end();
+  });
 }
 
 /**
@@ -497,14 +502,14 @@ export function parseDiffStreaming(diffOutput: string, options: StreamingDiffPar
  * Useful for virtualized rendering
  */
 export function flattenDiffHunks(result: SvnDiffResult): DiffChunk[] {
-  const chunks: DiffChunk[] = []
-  let index = 0
+  const chunks: DiffChunk[] = [];
+  let index = 0;
 
   for (let fileIndex = 0; fileIndex < result.files.length; fileIndex++) {
-    const file = result.files[fileIndex]
+    const file = result.files[fileIndex];
 
     for (let hunkIndex = 0; hunkIndex < file.hunks.length; hunkIndex++) {
-      const hunk = file.hunks[hunkIndex]
+      const hunk = file.hunks[hunkIndex];
 
       chunks.push({
         index: index++,
@@ -514,34 +519,34 @@ export function flattenDiffHunks(result: SvnDiffResult): DiffChunk[] {
         fileMeta: {
           oldPath: file.oldPath,
           newPath: file.newPath,
-          isBinary: file.isBinary ?? false
-        }
-      })
+          isBinary: file.isBinary ?? false,
+        },
+      });
     }
   }
 
-  return chunks
+  return chunks;
 }
 
 /**
  * Estimate memory size of a diff result
  */
 export function estimateDiffSize(result: SvnDiffResult): number {
-  let size = 64 // Base object overhead
+  let size = 64; // Base object overhead
 
   for (const file of result.files) {
-    size += file.oldPath.length * 2 + file.newPath.length * 2 + 64
+    size += file.oldPath.length * 2 + file.newPath.length * 2 + 64;
 
     for (const hunk of file.hunks) {
-      size += 32 // Hunk metadata
+      size += 32; // Hunk metadata
 
       for (const line of hunk.lines) {
-        size += line.content.length * 2 + 32 // Line object
+        size += line.content.length * 2 + 32; // Line object
       }
     }
   }
 
-  return size
+  return size;
 }
 
 /**
@@ -549,7 +554,7 @@ export function estimateDiffSize(result: SvnDiffResult): number {
  * Useful for piping diff output to multiple consumers
  */
 export function createDiffStream(): PassThrough {
-  return new PassThrough({ encoding: 'utf8' })
+  return new PassThrough({ encoding: 'utf8' });
 }
 
-export default StreamingDiffParser
+export default StreamingDiffParser;

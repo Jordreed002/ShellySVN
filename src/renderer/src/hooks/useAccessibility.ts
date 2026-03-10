@@ -1,28 +1,28 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react';
 
 /**
  * Accessibility settings structure
  */
 export interface AccessibilitySettings {
   /** Enable high contrast mode */
-  highContrast: boolean
+  highContrast: boolean;
   /** Enable reduced motion */
-  reducedMotion: boolean
+  reducedMotion: boolean;
   /** Font size multiplier (1.0 = normal) */
-  fontSizeMultiplier: number
+  fontSizeMultiplier: number;
   /** Enable screen reader announcements */
-  screenReaderAnnouncements: boolean
+  screenReaderAnnouncements: boolean;
   /** Focus indicator style */
-  focusIndicatorStyle: 'default' | 'thick' | 'high-contrast'
+  focusIndicatorStyle: 'default' | 'thick' | 'high-contrast';
   /** Enable keyboard navigation enhancements */
-  enhancedKeyboardNav: boolean
+  enhancedKeyboardNav: boolean;
   /** Enable color blind mode */
-  colorBlindMode: 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia'
+  colorBlindMode: 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia';
   /** Reduce animations */
-  reduceAnimations: boolean
+  reduceAnimations: boolean;
 }
 
-const STORAGE_KEY = 'shellysvn-accessibility-settings'
+const STORAGE_KEY = 'shellysvn-accessibility-settings';
 
 const DEFAULT_SETTINGS: AccessibilitySettings = {
   highContrast: false,
@@ -32,185 +32,190 @@ const DEFAULT_SETTINGS: AccessibilitySettings = {
   focusIndicatorStyle: 'default',
   enhancedKeyboardNav: true,
   colorBlindMode: 'none',
-  reduceAnimations: false
-}
+  reduceAnimations: false,
+};
 
 /**
  * Hook for managing accessibility settings
  */
 export function useAccessibility() {
-  const [settings, setSettings] = useState<AccessibilitySettings>(DEFAULT_SETTINGS)
-  const [isLoading, setIsLoading] = useState(true)
-  
+  const [settings, setSettings] = useState<AccessibilitySettings>(DEFAULT_SETTINGS);
+  const [isLoading, setIsLoading] = useState(true);
+
   /**
    * Load settings from storage and system preferences
    */
   const loadSettings = useCallback(async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       // Load stored settings
-      const stored = await window.api.store.get<AccessibilitySettings>(STORAGE_KEY)
-      
+      const stored = await window.api.store.get<AccessibilitySettings>(STORAGE_KEY);
+
       // Check system preferences
-      const systemPrefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      const systemPrefersHighContrast = window.matchMedia('(prefers-contrast: more)').matches
-      
+      const systemPrefersReducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)'
+      ).matches;
+      const systemPrefersHighContrast = window.matchMedia('(prefers-contrast: more)').matches;
+
       const merged: AccessibilitySettings = {
         ...DEFAULT_SETTINGS,
         ...stored,
         // Use system preference as fallback
         reducedMotion: stored?.reducedMotion ?? systemPrefersReducedMotion,
-        highContrast: stored?.highContrast ?? systemPrefersHighContrast
-      }
-      
-      setSettings(merged)
-      applySettings(merged)
+        highContrast: stored?.highContrast ?? systemPrefersHighContrast,
+      };
+
+      setSettings(merged);
+      applySettings(merged);
     } catch (error) {
-      console.error('Failed to load accessibility settings:', error)
+      console.error('Failed to load accessibility settings:', error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [])
-  
+  }, []);
+
   /**
    * Save settings to storage
    */
   const saveSettings = useCallback(async (newSettings: AccessibilitySettings) => {
     try {
-      await window.api.store.set(STORAGE_KEY, newSettings)
+      await window.api.store.set(STORAGE_KEY, newSettings);
     } catch (error) {
-      console.error('Failed to save accessibility settings:', error)
+      console.error('Failed to save accessibility settings:', error);
     }
-  }, [])
-  
+  }, []);
+
   /**
    * Update a single setting
    */
-  const updateSetting = useCallback(async <K extends keyof AccessibilitySettings>(
-    key: K,
-    value: AccessibilitySettings[K]
-  ) => {
-    const newSettings = { ...settings, [key]: value }
-    setSettings(newSettings)
-    applySettings(newSettings)
-    await saveSettings(newSettings)
-  }, [settings, saveSettings])
-  
+  const updateSetting = useCallback(
+    async <K extends keyof AccessibilitySettings>(key: K, value: AccessibilitySettings[K]) => {
+      const newSettings = { ...settings, [key]: value };
+      setSettings(newSettings);
+      applySettings(newSettings);
+      await saveSettings(newSettings);
+    },
+    [settings, saveSettings]
+  );
+
   /**
    * Toggle high contrast mode
    */
   const toggleHighContrast = useCallback(() => {
-    updateSetting('highContrast', !settings.highContrast)
-  }, [settings.highContrast, updateSetting])
-  
+    updateSetting('highContrast', !settings.highContrast);
+  }, [settings.highContrast, updateSetting]);
+
   /**
    * Toggle reduced motion
    */
   const toggleReducedMotion = useCallback(() => {
-    updateSetting('reducedMotion', !settings.reducedMotion)
-  }, [settings.reducedMotion, updateSetting])
-  
+    updateSetting('reducedMotion', !settings.reducedMotion);
+  }, [settings.reducedMotion, updateSetting]);
+
   /**
    * Increase font size
    */
   const increaseFontSize = useCallback(() => {
-    const newSize = Math.min(settings.fontSizeMultiplier + 0.1, 2.0)
-    updateSetting('fontSizeMultiplier', newSize)
-  }, [settings.fontSizeMultiplier, updateSetting])
-  
+    const newSize = Math.min(settings.fontSizeMultiplier + 0.1, 2.0);
+    updateSetting('fontSizeMultiplier', newSize);
+  }, [settings.fontSizeMultiplier, updateSetting]);
+
   /**
    * Decrease font size
    */
   const decreaseFontSize = useCallback(() => {
-    const newSize = Math.max(settings.fontSizeMultiplier - 0.1, 0.8)
-    updateSetting('fontSizeMultiplier', newSize)
-  }, [settings.fontSizeMultiplier, updateSetting])
-  
+    const newSize = Math.max(settings.fontSizeMultiplier - 0.1, 0.8);
+    updateSetting('fontSizeMultiplier', newSize);
+  }, [settings.fontSizeMultiplier, updateSetting]);
+
   /**
    * Reset to defaults
    */
   const resetToDefaults = useCallback(async () => {
-    setSettings(DEFAULT_SETTINGS)
-    applySettings(DEFAULT_SETTINGS)
-    await saveSettings(DEFAULT_SETTINGS)
-  }, [saveSettings])
-  
+    setSettings(DEFAULT_SETTINGS);
+    applySettings(DEFAULT_SETTINGS);
+    await saveSettings(DEFAULT_SETTINGS);
+  }, [saveSettings]);
+
   /**
    * Announce message for screen readers
    */
-  const announce = useCallback((message: string, priority: 'polite' | 'assertive' = 'polite') => {
-    if (!settings.screenReaderAnnouncements) return
-    
-    const announcer = document.getElementById('sr-announcer')
-    if (announcer) {
-      announcer.setAttribute('aria-live', priority)
-      announcer.textContent = message
-      
-      // Clear after announcement
-      setTimeout(() => {
-        announcer.textContent = ''
-      }, 1000)
-    }
-  }, [settings.screenReaderAnnouncements])
-  
+  const announce = useCallback(
+    (message: string, priority: 'polite' | 'assertive' = 'polite') => {
+      if (!settings.screenReaderAnnouncements) return;
+
+      const announcer = document.getElementById('sr-announcer');
+      if (announcer) {
+        announcer.setAttribute('aria-live', priority);
+        announcer.textContent = message;
+
+        // Clear after announcement
+        setTimeout(() => {
+          announcer.textContent = '';
+        }, 1000);
+      }
+    },
+    [settings.screenReaderAnnouncements]
+  );
+
   // Apply settings to document
   const applySettings = (s: AccessibilitySettings) => {
-    const root = document.documentElement
-    
+    const root = document.documentElement;
+
     // High contrast
-    root.classList.toggle('high-contrast', s.highContrast)
-    
+    root.classList.toggle('high-contrast', s.highContrast);
+
     // Reduced motion
-    root.classList.toggle('reduced-motion', s.reducedMotion || s.reduceAnimations)
-    
+    root.classList.toggle('reduced-motion', s.reducedMotion || s.reduceAnimations);
+
     // Font size
-    root.style.fontSize = `${s.fontSizeMultiplier * 16}px`
-    
+    root.style.fontSize = `${s.fontSizeMultiplier * 16}px`;
+
     // Focus indicator style
-    root.dataset.focusStyle = s.focusIndicatorStyle
-    
+    root.dataset.focusStyle = s.focusIndicatorStyle;
+
     // Color blind mode
-    root.dataset.colorBlindMode = s.colorBlindMode
-  }
-  
+    root.dataset.colorBlindMode = s.colorBlindMode;
+  };
+
   // Listen for system preference changes
   useEffect(() => {
-    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const highContrastQuery = window.matchMedia('(prefers-contrast: more)')
-    
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const highContrastQuery = window.matchMedia('(prefers-contrast: more)');
+
     const handleReducedMotionChange = (e: MediaQueryListEvent) => {
       if (!settings.reducedMotion) {
         // Only auto-update if user hasn't explicitly set a preference
-        const stored = localStorage.getItem(STORAGE_KEY)
+        const stored = localStorage.getItem(STORAGE_KEY);
         if (!stored) {
-          updateSetting('reducedMotion', e.matches)
+          updateSetting('reducedMotion', e.matches);
         }
       }
-    }
-    
+    };
+
     const handleHighContrastChange = (e: MediaQueryListEvent) => {
       if (!settings.highContrast) {
-        const stored = localStorage.getItem(STORAGE_KEY)
+        const stored = localStorage.getItem(STORAGE_KEY);
         if (!stored) {
-          updateSetting('highContrast', e.matches)
+          updateSetting('highContrast', e.matches);
         }
       }
-    }
-    
-    reducedMotionQuery.addEventListener('change', handleReducedMotionChange)
-    highContrastQuery.addEventListener('change', handleHighContrastChange)
-    
+    };
+
+    reducedMotionQuery.addEventListener('change', handleReducedMotionChange);
+    highContrastQuery.addEventListener('change', handleHighContrastChange);
+
     return () => {
-      reducedMotionQuery.removeEventListener('change', handleReducedMotionChange)
-      highContrastQuery.removeEventListener('change', handleHighContrastChange)
-    }
-  }, [settings, updateSetting])
-  
+      reducedMotionQuery.removeEventListener('change', handleReducedMotionChange);
+      highContrastQuery.removeEventListener('change', handleHighContrastChange);
+    };
+  }, [settings, updateSetting]);
+
   // Load on mount
   useEffect(() => {
-    loadSettings()
-  }, [loadSettings])
-  
+    loadSettings();
+  }, [loadSettings]);
+
   return {
     settings,
     isLoading,
@@ -220,20 +225,20 @@ export function useAccessibility() {
     increaseFontSize,
     decreaseFontSize,
     resetToDefaults,
-    announce
-  }
+    announce,
+  };
 }
 
 /**
  * Create screen reader announcer element
  */
 export function createAnnouncer(): HTMLElement {
-  const announcer = document.createElement('div')
-  announcer.id = 'sr-announcer'
-  announcer.setAttribute('role', 'status')
-  announcer.setAttribute('aria-live', 'polite')
-  announcer.setAttribute('aria-atomic', 'true')
-  announcer.className = 'sr-only'
+  const announcer = document.createElement('div');
+  announcer.id = 'sr-announcer';
+  announcer.setAttribute('role', 'status');
+  announcer.setAttribute('aria-live', 'polite');
+  announcer.setAttribute('aria-atomic', 'true');
+  announcer.className = 'sr-only';
   announcer.style.cssText = `
     position: absolute;
     width: 1px;
@@ -244,8 +249,8 @@ export function createAnnouncer(): HTMLElement {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
-  `
-  return announcer
+  `;
+  return announcer;
 }
 
 /**
@@ -312,6 +317,6 @@ export const accessibilityStyles = `
   white-space: nowrap;
   border: 0;
 }
-`
+`;
 
-export default useAccessibility
+export default useAccessibility;

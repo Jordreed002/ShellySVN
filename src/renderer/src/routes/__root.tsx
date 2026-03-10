@@ -1,7 +1,7 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router'
-import { Suspense } from 'react'
-import { Layout } from '@renderer/components/Layout'
-import { RouteErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { createRootRoute, Outlet } from '@tanstack/react-router';
+import { Suspense } from 'react';
+import { Layout } from '@renderer/components/Layout';
+import { RouteErrorBoundary } from '@renderer/components/ErrorBoundary';
 
 export const Route = createRootRoute({
   component: () => (
@@ -12,5 +12,5 @@ export const Route = createRootRoute({
         </Suspense>
       </RouteErrorBoundary>
     </Layout>
-  )
-})
+  ),
+});

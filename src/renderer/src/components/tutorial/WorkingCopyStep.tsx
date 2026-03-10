@@ -1,7 +1,13 @@
-import { FolderOpen, FolderPlus, Clock, ChevronRight } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { FolderOpen, FolderPlus, Clock, ChevronRight } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function WorkingCopyStep({ onNext, onPrevious, onSkip, currentStep, totalSteps }: TutorialStepProps) {
+export function WorkingCopyStep({
+  onNext,
+  onPrevious,
+  onSkip,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
@@ -11,7 +17,8 @@ export function WorkingCopyStep({ onNext, onPrevious, onSkip, currentStep, total
         <div>
           <h2 className="text-xl font-semibold text-text">Working with Copies</h2>
           <p className="text-text-secondary mt-1">
-            A working copy is your local checkout of a Subversion repository. Let's learn how to open and manage them.
+            A working copy is your local checkout of a Subversion repository. Let's learn how to
+            open and manage them.
           </p>
         </div>
       </div>
@@ -38,7 +45,8 @@ export function WorkingCopyStep({ onNext, onPrevious, onSkip, currentStep, total
 
       <div className="p-4 bg-accent/10 rounded-lg border border-accent/30">
         <p className="text-sm text-text">
-          <strong>Tip:</strong> You can drag and drop folders onto the welcome screen to open them directly.
+          <strong>Tip:</strong> You can drag and drop folders onto the welcome screen to open them
+          directly.
         </p>
       </div>
 
@@ -66,7 +74,7 @@ export function WorkingCopyStep({ onNext, onPrevious, onSkip, currentStep, total
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function ActionCard({
@@ -75,10 +83,10 @@ function ActionCard({
   description,
   shortcut,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
-  shortcut?: string[]
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  shortcut?: string[];
 }) {
   return (
     <div className="flex items-center gap-4 p-4 bg-bg-secondary rounded-lg border border-border hover:border-accent/50 transition-colors">
@@ -103,5 +111,5 @@ function ActionCard({
       )}
       <ChevronRight className="w-4 h-4 text-text-muted" />
     </div>
-  )
+  );
 }

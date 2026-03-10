@@ -1,7 +1,13 @@
-import { Upload, Download, RefreshCw, ArrowRight } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { Upload, Download, RefreshCw, ArrowRight } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function CommitUpdateStep({ onNext, onPrevious, onSkip, currentStep, totalSteps }: TutorialStepProps) {
+export function CommitUpdateStep({
+  onNext,
+  onPrevious,
+  onSkip,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
@@ -42,8 +48,8 @@ export function CommitUpdateStep({ onNext, onPrevious, onSkip, currentStep, tota
           Best Practice
         </h4>
         <p className="text-xs text-text-secondary">
-          Always <strong>update before you commit</strong>. This helps you catch and resolve conflicts early,
-          and ensures you're working with the latest code.
+          Always <strong>update before you commit</strong>. This helps you catch and resolve
+          conflicts early, and ensures you're working with the latest code.
         </p>
       </div>
 
@@ -71,7 +77,7 @@ export function CommitUpdateStep({ onNext, onPrevious, onSkip, currentStep, tota
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function WorkflowCard({
@@ -81,15 +87,17 @@ function WorkflowCard({
   shortcut,
   color,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
-  shortcut?: string[]
-  color: string
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  shortcut?: string[];
+  color: string;
 }) {
   return (
     <div className="flex items-start gap-4 p-4 bg-bg-secondary rounded-lg border border-border">
-      <div className={`w-10 h-10 rounded-lg ${color}/20 flex items-center justify-center flex-shrink-0`}>
+      <div
+        className={`w-10 h-10 rounded-lg ${color}/20 flex items-center justify-center flex-shrink-0`}
+      >
         <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
       </div>
       <div className="flex-1">
@@ -111,5 +119,5 @@ function WorkflowCard({
         <p className="text-xs text-text-secondary">{description}</p>
       </div>
     </div>
-  )
+  );
 }

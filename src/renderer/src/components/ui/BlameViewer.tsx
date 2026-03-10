@@ -1,80 +1,88 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { X, User, Search, Loader2 } from 'lucide-react'
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { X, User, Search, Loader2 } from 'lucide-react';
 
 interface BlameViewerProps {
-  isOpen: boolean
-  filePath: string
-  onClose: () => void
-  startRevision?: string
-  endRevision?: string
+  isOpen: boolean;
+  filePath: string;
+  onClose: () => void;
+  startRevision?: string;
+  endRevision?: string;
 }
 
 interface BlameLine {
-  lineNumber: number
-  revision: number
-  author: string
-  date: string
-  content: string
-  isMerged?: boolean
-  mergedFrom?: string
+  lineNumber: number;
+  revision: number;
+  author: string;
+  date: string;
+  content: string;
+  isMerged?: boolean;
+  mergedFrom?: string;
 }
 
-export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevision }: BlameViewerProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [highlightRevision, setHighlightRevision] = useState<number | null>(null)
-  
+export function BlameViewer({
+  isOpen,
+  onClose,
+  filePath,
+  startRevision,
+  endRevision,
+}: BlameViewerProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightRevision, setHighlightRevision] = useState<number | null>(null);
+
   // Fetch blame data
-  const { data: blameData, isLoading, error } = useQuery({
+  const {
+    data: blameData,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['svn:blame', filePath, startRevision, endRevision],
     queryFn: async (): Promise<BlameLine[]> => {
-      const startRev = startRevision ? parseInt(startRevision, 10) : undefined
-      const endRev = endRevision ? parseInt(endRevision, 10) : undefined
-      
-      const result = await window.api.svn.blame(filePath, startRev, endRev)
-      
-      return result.lines.map(line => ({
+      const startRev = startRevision ? parseInt(startRevision, 10) : undefined;
+      const endRev = endRevision ? parseInt(endRevision, 10) : undefined;
+
+      const result = await window.api.svn.blame(filePath, startRev, endRev);
+
+      return result.lines.map((line) => ({
         lineNumber: line.lineNumber,
         revision: line.revision,
         author: line.author,
         date: line.date,
-        content: line.content
-      }))
+        content: line.content,
+      }));
     },
     enabled: isOpen && !!filePath,
-  })
-  
+  });
+
   // Filter lines by search
-  const filteredLines = blameData?.filter(line => 
-    searchQuery === '' || 
-    line.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    line.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    line.revision.toString().includes(searchQuery)
-  )
-  
+  const filteredLines = blameData?.filter(
+    (line) =>
+      searchQuery === '' ||
+      line.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      line.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      line.revision.toString().includes(searchQuery)
+  );
+
   // Get unique authors for legend
-  const authors = blameData 
-    ? [...new Set(blameData.map(l => l.author))].map(author => ({
+  const authors = blameData
+    ? [...new Set(blameData.map((l) => l.author))].map((author) => ({
         author,
-        color: getAuthorColor(author)
+        color: getAuthorColor(author),
       }))
-    : []
-  
+    : [];
+
   // Get unique revisions
-  const revisions = blameData 
-    ? [...new Set(blameData.map(l => l.revision))].sort((a, b) => b - a)
-    : []
-  
-  if (!isOpen) return null
-  
-  const filename = filePath.split(/[/\\]/).pop() || filePath
-  
+  const revisions = blameData
+    ? [...new Set(blameData.map((l) => l.revision))].toSorted((a, b) => b - a)
+    : [];
+
+  if (!isOpen) return null;
+
+  const filename = filePath.split(/[/\\]/).pop() || filePath;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[900px] max-h-[90vh]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[900px] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -85,7 +93,7 @@ export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevis
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Toolbar */}
         <div className="flex items-center gap-4 px-4 py-2 bg-bg-tertiary border-b border-border">
           <div className="relative flex-1">
@@ -98,17 +106,14 @@ export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevis
               className="input pl-8"
             />
           </div>
-          
+
           {highlightRevision && (
-            <button
-              onClick={() => setHighlightRevision(null)}
-              className="text-sm text-accent"
-            >
+            <button onClick={() => setHighlightRevision(null)} className="text-sm text-accent">
               Clear highlight (r{highlightRevision})
             </button>
           )}
         </div>
-        
+
         {/* Legend */}
         <div className="flex items-center gap-4 px-4 py-2 bg-bg-secondary border-b border-border overflow-x-auto">
           <span className="text-xs text-text-muted">Authors:</span>
@@ -119,7 +124,7 @@ export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevis
             </div>
           ))}
         </div>
-        
+
         {/* Content */}
         <div className="modal-body overflow-auto max-h-[60vh] font-mono text-sm">
           {isLoading ? (
@@ -127,13 +132,9 @@ export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevis
               <Loader2 className="w-6 h-6 text-text-muted animate-spin" />
             </div>
           ) : error ? (
-            <div className="text-center py-8 text-error">
-              Failed to load blame data
-            </div>
+            <div className="text-center py-8 text-error">Failed to load blame data</div>
           ) : !filteredLines?.length ? (
-            <div className="text-center py-8 text-text-muted">
-              No results found
-            </div>
+            <div className="text-center py-8 text-text-muted">No results found</div>
           ) : (
             <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-bg-primary">
@@ -152,9 +153,11 @@ export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevis
                     className={`hover:bg-bg-tertiary cursor-pointer ${
                       highlightRevision === line.revision ? 'bg-accent/20' : ''
                     }`}
-                    onClick={() => setHighlightRevision(
-                      highlightRevision === line.revision ? null : line.revision
-                    )}
+                    onClick={() =>
+                      setHighlightRevision(
+                        highlightRevision === line.revision ? null : line.revision
+                      )
+                    }
                   >
                     <td className="px-2 py-0.5 text-text-faint border-r border-border">
                       {line.lineNumber}
@@ -162,22 +165,22 @@ export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevis
                     <td className="px-2 py-0.5 text-accent border-r border-border">
                       r{line.revision}
                     </td>
-                    <td className={`px-2 py-0.5 border-r border-border ${getAuthorColor(line.author).replace('bg-', 'text-')}`}>
+                    <td
+                      className={`px-2 py-0.5 border-r border-border ${getAuthorColor(line.author).replace('bg-', 'text-')}`}
+                    >
                       {line.author}
                     </td>
                     <td className="px-2 py-0.5 text-text-faint border-r border-border">
                       {new Date(line.date).toLocaleDateString()}
                     </td>
-                    <td className="px-2 py-0.5 whitespace-pre">
-                      {line.content}
-                    </td>
+                    <td className="px-2 py-0.5 whitespace-pre">{line.content}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <div className="flex-1 text-sm text-text-faint">
@@ -190,7 +193,7 @@ export function BlameViewer({ isOpen, onClose, filePath, startRevision, endRevis
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // Generate consistent colors for authors
@@ -204,12 +207,12 @@ function getAuthorColor(author: string): string {
     'bg-pink-500/30',
     'bg-indigo-500/30',
     'bg-teal-500/30',
-  ]
-  
-  let hash = 0
+  ];
+
+  let hash = 0;
   for (let i = 0; i < author.length; i++) {
-    hash = author.charCodeAt(i) + ((hash << 5) - hash)
+    hash = author.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
-  return colors[Math.abs(hash) % colors.length]
+
+  return colors[Math.abs(hash) % colors.length];
 }

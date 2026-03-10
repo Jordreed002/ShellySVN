@@ -1,77 +1,104 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, X, Check, AlertCircle, AlertTriangle, Wifi, WifiOff, Key, Folder, Server, Loader } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import type { RepoDiagnostics } from '@shared/types'
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  RefreshCw,
+  X,
+  Check,
+  AlertCircle,
+  AlertTriangle,
+  Wifi,
+  WifiOff,
+  Key,
+  Folder,
+  Server,
+  Loader,
+} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import type { RepoDiagnostics } from '@shared/types';
 
 interface RepoDiagnosticsProps {
-  workingCopyPath: string
-  onClose: () => void
-  onAuthenticate?: () => void
+  workingCopyPath: string;
+  onClose: () => void;
+  onAuthenticate?: () => void;
 }
 
-export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate }: RepoDiagnosticsProps) {
-  const queryClient = useQueryClient()
-  const [isRefreshing, setIsRefreshing] = useState(false)
+export function RepoDiagnosticsPanel({
+  workingCopyPath,
+  onClose,
+  onAuthenticate,
+}: RepoDiagnosticsProps) {
+  const _queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: diagnostics, isLoading, error, refetch } = useQuery({
+  const {
+    data: diagnostics,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['diagnostics', workingCopyPath],
     queryFn: () => window.api.svn.diagnostics(workingCopyPath),
     staleTime: 30000, // 30 seconds
-  })
+  });
 
   const handleRefresh = async () => {
-    setIsRefreshing(true)
-    await refetch()
-    setIsRefreshing(false)
-  }
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
 
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        onClose();
       }
       if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        handleRefresh()
+        e.preventDefault();
+        handleRefresh();
       }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const getStatusIcon = (status: RepoDiagnostics['connectionStatus']) => {
     switch (status) {
       case 'ok':
-        return <Check className="w-5 h-5 text-green-500" />
+        return <Check className="w-5 h-5 text-green-500" />;
       case 'auth-required':
-        return <Key className="w-5 h-5 text-yellow-500" />
+        return <Key className="w-5 h-5 text-yellow-500" />;
       case 'ssl-error':
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />
+        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
       case 'network-error':
-        return <WifiOff className="w-5 h-5 text-red-500" />
+        return <WifiOff className="w-5 h-5 text-red-500" />;
       default:
-        return <AlertCircle className="w-5 h-5 text-gray-400" />
+        return <AlertCircle className="w-5 h-5 text-gray-400" />;
     }
-  }
+  };
 
   const getStatusText = (status: RepoDiagnostics['connectionStatus']) => {
     switch (status) {
       case 'ok':
-        return { text: 'Connected', className: 'text-green-600 dark:text-green-400' }
+        return { text: 'Connected', className: 'text-green-600 dark:text-green-400' };
       case 'auth-required':
-        return { text: 'Authentication Required', className: 'text-yellow-600 dark:text-yellow-400' }
+        return {
+          text: 'Authentication Required',
+          className: 'text-yellow-600 dark:text-yellow-400',
+        };
       case 'ssl-error':
-        return { text: 'SSL Certificate Error', className: 'text-yellow-600 dark:text-yellow-400' }
+        return { text: 'SSL Certificate Error', className: 'text-yellow-600 dark:text-yellow-400' };
       case 'network-error':
-        return { text: 'Network Error', className: 'text-red-600 dark:text-red-400' }
+        return { text: 'Network Error', className: 'text-red-600 dark:text-red-400' };
       default:
-        return { text: 'Unknown', className: 'text-gray-500' }
+        return { text: 'Unknown', className: 'text-gray-500' };
     }
-  }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
       <div
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -88,7 +115,9 @@ export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate 
               className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
               title="Refresh (Ctrl+R)"
             >
-              <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-gray-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 text-gray-600 dark:text-gray-400 ${isRefreshing ? 'animate-spin' : ''}`}
+              />
             </button>
             <button
               onClick={onClose}
@@ -110,7 +139,9 @@ export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate 
           ) : error ? (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
               <p className="text-red-700 dark:text-red-400">Failed to run diagnostics</p>
-              <p className="text-sm text-red-600 dark:text-red-500 mt-1">{(error as Error).message}</p>
+              <p className="text-sm text-red-600 dark:text-red-500 mt-1">
+                {(error as Error).message}
+              </p>
             </div>
           ) : diagnostics ? (
             <>
@@ -127,7 +158,10 @@ export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate 
                       <span className="text-green-600 dark:text-green-400">Valid working copy</span>
                     </div>
                     {diagnostics.workingCopyRoot && (
-                      <p className="text-gray-600 dark:text-gray-400 pl-6 font-mono text-xs truncate" title={diagnostics.workingCopyRoot}>
+                      <p
+                        className="text-gray-600 dark:text-gray-400 pl-6 font-mono text-xs truncate"
+                        title={diagnostics.workingCopyRoot}
+                      >
                         {diagnostics.workingCopyRoot}
                       </p>
                     )}
@@ -188,11 +222,15 @@ export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate 
                     </div>
                     {diagnostics.credentialUsername && (
                       <p className="text-gray-600 dark:text-gray-400 pl-6">
-                        Username: <span className="font-mono">{diagnostics.credentialUsername}</span>
+                        Username:{' '}
+                        <span className="font-mono">{diagnostics.credentialUsername}</span>
                       </p>
                     )}
                     {diagnostics.credentialRealm && (
-                      <p className="text-gray-500 dark:text-gray-500 pl-6 font-mono text-xs truncate" title={diagnostics.credentialRealm}>
+                      <p
+                        className="text-gray-500 dark:text-gray-500 pl-6 font-mono text-xs truncate"
+                        title={diagnostics.credentialRealm}
+                      >
                         Realm: {diagnostics.credentialRealm}
                       </p>
                     )}
@@ -200,7 +238,9 @@ export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate 
                 ) : (
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                    <span className="text-yellow-600 dark:text-yellow-400">No credentials stored</span>
+                    <span className="text-yellow-600 dark:text-yellow-400">
+                      No credentials stored
+                    </span>
                   </div>
                 )}
               </div>
@@ -236,8 +276,8 @@ export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate 
           {diagnostics && !diagnostics.hasCredentials && onAuthenticate && (
             <button
               onClick={() => {
-                onAuthenticate()
-                onClose()
+                onAuthenticate();
+                onClose();
               }}
               className="px-4 py-2 bg-accent text-white rounded hover:bg-accent/90 text-sm font-medium"
             >
@@ -254,5 +294,5 @@ export function RepoDiagnosticsPanel({ workingCopyPath, onClose, onAuthenticate 
         </div>
       </div>
     </div>
-  )
+  );
 }

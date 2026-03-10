@@ -10,25 +10,25 @@
   --header-height: 40px;
   --titlebar-height: 32px;
   --toolbar-height: 44px;
-  
+
   /* Background colors - RGB format for opacity support */
   --color-bg-rgb: 13 17 23;
   --color-bg-secondary-rgb: 22 27 34;
   --color-bg-tertiary-rgb: 33 38 45;
   --color-bg-elevated-rgb: 48 54 61;
-  
+
   /* Background colors - Direct format for CSS usage */
   --color-bg: rgb(13 17 23);
   --color-bg-secondary: rgb(22 27 34);
   --color-bg-tertiary: rgb(33 38 45);
   --color-bg-elevated: rgb(48 54 61);
-  
+
   /* Border colors */
   --color-border-rgb: 48 54 61;
   --color-border-muted-rgb: 33 38 45;
   --color-border: rgb(48 54 61);
   --color-border-muted: rgb(33 38 45);
-  
+
   /* Text colors */
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 139 148 158;
@@ -38,7 +38,7 @@
   --color-text-secondary: rgb(139 148 158);
   --color-text-muted: rgb(110 118 129);
   --color-text-faint: rgb(72 79 88);
-  
+
   /* Accent/Primary colors (user customizable) */
   --color-accent-rgb: 88 166 255;
   --color-accent-hover-rgb: 121 184 255;
@@ -47,7 +47,7 @@
   --color-accent: rgb(88 166 255);
   --color-accent-hover: rgb(121 184 255);
   --color-accent-muted: rgb(56 139 253);
-  
+
   /* SVN Status Colors */
   --color-svn-normal-rgb: 63 185 80;
   --color-svn-added-rgb: 88 166 255;
@@ -71,7 +71,7 @@
   --color-svn-external: rgb(57 197 207);
   --color-svn-ignored: rgb(72 79 88);
   --color-svn-obstructed: rgb(240 136 62);
-  
+
   /* UI State Colors */
   --color-success-rgb: 63 185 80;
   --color-success-glow: rgba(63, 185, 80, 0.4);
@@ -97,13 +97,13 @@
   --color-bg-secondary: rgb(246 248 250);
   --color-bg-tertiary: rgb(234 238 242);
   --color-bg-elevated: rgb(255 255 255);
-  
+
   /* Border colors */
   --color-border-rgb: 208 215 222;
   --color-border-muted-rgb: 234 238 242;
   --color-border: rgb(208 215 222);
   --color-border-muted: rgb(234 238 242);
-  
+
   /* Text colors */
   --color-text-rgb: 31 35 40;
   --color-text-secondary-rgb: 87 96 106;
@@ -113,13 +113,13 @@
   --color-text-secondary: rgb(87 96 106);
   --color-text-muted: rgb(140 149 159);
   --color-text-faint: rgb(140 149 159);
-  
+
   /* Accent colors stay the same but glow is adjusted */
   --color-accent-glow: rgba(88, 166, 255, 0.25);
   --color-accent: rgb(88 166 255);
   --color-accent-hover: rgb(121 184 255);
   --color-accent-muted: rgb(56 139 253);
-  
+
   /* SVN Status Colors - slightly adjusted for light theme */
   --color-svn-normal-rgb: 26 127 55;
   --color-svn-added-rgb: 9 105 218;
@@ -133,7 +133,7 @@
   --color-svn-deleted: rgb(207 34 46);
   --color-svn-conflict: rgb(207 34 46);
   --color-svn-unversioned: rgb(87 96 106);
-  
+
   /* UI State Colors */
   --color-success-rgb: 26 127 55;
   --color-success-glow: rgba(26, 127, 55, 0.25);
@@ -157,13 +157,13 @@
   --color-bg-secondary: rgb(22 27 34);
   --color-bg-tertiary: rgb(33 38 45);
   --color-bg-elevated: rgb(48 54 61);
-  
+
   /* Border colors */
   --color-border-rgb: 48 54 61;
   --color-border-muted-rgb: 33 38 45;
   --color-border: rgb(48 54 61);
   --color-border-muted: rgb(33 38 45);
-  
+
   /* Text colors */
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 139 148 158;
@@ -173,13 +173,13 @@
   --color-text-secondary: rgb(139 148 158);
   --color-text-muted: rgb(110 118 129);
   --color-text-faint: rgb(72 79 88);
-  
+
   /* Accent colors */
   --color-accent-glow: rgba(88, 166, 255, 0.4);
   --color-accent: rgb(88 166 255);
   --color-accent-hover: rgb(121 184 255);
   --color-accent-muted: rgb(56 139 253);
-  
+
   /* SVN Status Colors */
   --color-svn-normal-rgb: 63 185 80;
   --color-svn-added-rgb: 88 166 255;
@@ -193,7 +193,7 @@
   --color-svn-deleted: rgb(248 81 73);
   --color-svn-conflict: rgb(248 81 73);
   --color-svn-unversioned: rgb(110 118 129);
-  
+
   /* UI State Colors */
   --color-success-rgb: 63 185 80;
   --color-success-glow: rgba(63, 185, 80, 0.4);
@@ -207,19 +207,30 @@
 }
 
 /* Reset */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   overflow: hidden;
 }
 
 body {
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family:
+    'IBM Plex Sans',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Helvetica,
+    Arial,
+    sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
@@ -302,31 +313,31 @@ body {
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-150 cursor-pointer select-none;
   }
-  
+
   .btn-primary {
     @apply bg-accent text-white hover:bg-accent-hover active:scale-[0.98] shadow-sm hover:shadow-glow-accent;
   }
-  
+
   .btn-secondary {
     @apply bg-bg-tertiary text-text border border-border hover:bg-bg-elevated hover:border-border-focus active:scale-[0.98];
   }
-  
+
   .btn-ghost {
     @apply bg-transparent text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated;
   }
-  
+
   .btn-danger {
     @apply bg-error text-white hover:brightness-110 active:scale-[0.98] shadow-sm hover:shadow-glow-error;
   }
-  
+
   .btn-success {
     @apply bg-success text-white hover:brightness-110 active:scale-[0.98] shadow-sm hover:shadow-glow-success;
   }
-  
+
   .btn-icon {
     @apply p-2 rounded-md text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated transition-fast;
   }
-  
+
   .btn-icon-sm {
     @apply p-1.5 rounded text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated transition-fast;
   }
@@ -340,7 +351,7 @@ body {
   .card {
     @apply bg-bg-secondary border border-border rounded-lg shadow-card;
   }
-  
+
   .card-elevated {
     @apply bg-bg-tertiary border border-border rounded-lg shadow-dropdown;
   }
@@ -349,23 +360,23 @@ body {
   .badge {
     @apply inline-flex items-center px-2 py-0.5 text-2xs font-medium rounded-full;
   }
-  
+
   .badge-normal {
     @apply bg-svn-normal/20 text-svn-normal;
   }
-  
+
   .badge-added {
     @apply bg-svn-added/20 text-svn-added;
   }
-  
+
   .badge-modified {
     @apply bg-svn-modified/20 text-svn-modified;
   }
-  
+
   .badge-conflict {
     @apply bg-svn-conflict/20 text-svn-conflict;
   }
-  
+
   .badge-unversioned {
     @apply bg-svn-unversioned/20 text-svn-unversioned;
   }
@@ -379,7 +390,7 @@ body {
   .divider {
     @apply w-full h-px bg-border;
   }
-  
+
   .divider-vertical {
     @apply w-px h-full bg-border;
   }
@@ -388,15 +399,15 @@ body {
   .context-menu {
     @apply fixed z-50 min-w-[180px] py-1 bg-bg-tertiary border border-border rounded-lg shadow-dropdown animate-scale-in;
   }
-  
+
   .context-menu-item {
     @apply flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-elevated cursor-pointer transition-fast;
   }
-  
+
   .context-menu-item-danger {
     @apply hover:text-error;
   }
-  
+
   .context-menu-divider {
     @apply my-1 h-px bg-border;
   }
@@ -405,11 +416,11 @@ body {
   .dropdown {
     @apply absolute z-50 mt-1 min-w-full bg-bg-tertiary border border-border rounded-lg shadow-dropdown animate-slide-down overflow-hidden;
   }
-  
+
   .dropdown-item {
     @apply flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-elevated cursor-pointer transition-fast;
   }
-  
+
   .dropdown-item-active {
     @apply bg-accent text-white hover:bg-accent-hover;
   }
@@ -418,11 +429,11 @@ body {
   .file-row {
     @apply flex items-center gap-3 px-4 py-2 border-b border-border-muted cursor-pointer transition-fast;
   }
-  
+
   .file-row:hover {
     @apply bg-bg-tertiary;
   }
-  
+
   .file-row-selected {
     @apply bg-accent/10 hover:bg-accent/15;
   }
@@ -431,19 +442,19 @@ body {
   .modal-overlay {
     @apply fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in;
   }
-  
+
   .modal {
     @apply relative z-50 bg-bg-secondary border border-border rounded-xl shadow-dropdown animate-scale-in overflow-hidden max-h-[90vh];
   }
-  
+
   .modal-header {
     @apply flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0;
   }
-  
+
   .modal-body {
     @apply px-6 py-4 overflow-auto;
   }
-  
+
   .modal-footer {
     @apply flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-bg-tertiary/50 flex-shrink-0;
   }
@@ -452,15 +463,15 @@ body {
   .breadcrumb {
     @apply flex items-center gap-1 text-sm;
   }
-  
+
   .breadcrumb-item {
     @apply flex items-center gap-1 text-text-secondary hover:text-text cursor-pointer transition-fast;
   }
-  
+
   .breadcrumb-separator {
     @apply text-text-faint mx-0.5;
   }
-  
+
   .breadcrumb-current {
     @apply text-text font-medium;
   }
@@ -469,11 +480,11 @@ body {
   .tree-item {
     @apply flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer transition-fast rounded-md mx-1;
   }
-  
+
   .tree-item:hover {
     @apply bg-bg-tertiary;
   }
-  
+
   .tree-item-active {
     @apply bg-accent/10 text-accent;
   }
@@ -482,11 +493,11 @@ body {
   .toolbar {
     @apply flex items-center gap-2 h-[--toolbar-height] px-4 bg-bg-secondary border-b border-border;
   }
-  
+
   .toolbar-group {
     @apply flex items-center gap-1;
   }
-  
+
   .toolbar-divider {
     @apply w-px h-5 bg-border mx-1;
   }
@@ -573,8 +584,7 @@ body {
 
 /* Grid Lines for File Explorer */
 .grid-lines {
-  background-image: 
-    linear-gradient(to right, rgba(48, 54, 61, 0.5) 1px, transparent 1px);
+  background-image: linear-gradient(to right, rgba(48, 54, 61, 0.5) 1px, transparent 1px);
   background-size: 100% 100%;
 }
 

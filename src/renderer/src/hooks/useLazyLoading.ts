@@ -1,21 +1,21 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import type { SvnStatusEntry } from '@shared/types'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import type { SvnStatusEntry } from '@shared/types';
 
 /**
  * Configuration for large repo handling
  */
 interface LargeRepoConfig {
   /** Number of items to load per chunk (default: 500) */
-  chunkSize: number
+  chunkSize: number;
   /** Threshold to consider repo as "large" (default: 10000) */
-  largeRepoThreshold: number
+  largeRepoThreshold: number;
   /** Prefetch margin in pixels (default: 500) */
-  prefetchMargin: number
+  prefetchMargin: number;
   /** Enable progressive loading indicator */
-  showProgressIndicator: boolean
+  showProgressIndicator: boolean;
   /** Debounce scroll events (ms) */
-  scrollDebounce: number
+  scrollDebounce: number;
 }
 
 const DEFAULT_CONFIG: LargeRepoConfig = {
@@ -23,21 +23,21 @@ const DEFAULT_CONFIG: LargeRepoConfig = {
   largeRepoThreshold: 10000,
   prefetchMargin: 500,
   showProgressIndicator: true,
-  scrollDebounce: 16 // ~60fps
-}
+  scrollDebounce: 16, // ~60fps
+};
 
 // Module-level constant for default config to avoid new instances on every render
-const EMPTY_PARTIAL_CONFIG: Partial<LargeRepoConfig> = {}
+const EMPTY_PARTIAL_CONFIG: Partial<LargeRepoConfig> = {};
 
 /**
  * Chunked data structure
  */
 interface DataChunk<T> {
-  id: string
-  items: T[]
-  startIndex: number
-  endIndex: number
-  loadedAt: number
+  id: string;
+  items: T[];
+  startIndex: number;
+  endIndex: number;
+  loadedAt: number;
 }
 
 /**
@@ -45,19 +45,19 @@ interface DataChunk<T> {
  */
 interface LazyDataState<T> {
   /** All known items (may be partially loaded) */
-  items: T[]
+  items: T[];
   /** Loaded chunks */
-  chunks: Map<string, DataChunk<T>>
+  chunks: Map<string, DataChunk<T>>;
   /** Total count (may differ from items.length for remote data) */
-  totalCount: number
+  totalCount: number;
   /** Loading state */
-  isLoading: boolean
+  isLoading: boolean;
   /** Error state */
-  error: string | null
+  error: string | null;
   /** Has more data to load */
-  hasMore: boolean
+  hasMore: boolean;
   /** Currently loading chunk index */
-  loadingChunkIndex: number
+  loadingChunkIndex: number;
 }
 
 /**
@@ -67,8 +67,8 @@ export function useLazyDataLoader<T>(
   fetchFn: (offset: number, limit: number) => Promise<{ items: T[]; total: number }>,
   config: Partial<LargeRepoConfig> = EMPTY_PARTIAL_CONFIG
 ) {
-  const cfg = { ...DEFAULT_CONFIG, ...config }
-  
+  const cfg = { ...DEFAULT_CONFIG, ...config };
+
   const [state, setState] = useState<LazyDataState<T>>({
     items: [],
     chunks: new Map(),
@@ -76,117 +76,123 @@ export function useLazyDataLoader<T>(
     isLoading: false,
     error: null,
     hasMore: true,
-    loadingChunkIndex: -1
-  })
-  
-  const abortControllerRef = useRef<AbortController | null>(null)
-  
+    loadingChunkIndex: -1,
+  });
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   /**
    * Load a specific chunk
    */
-  const loadChunk = useCallback(async (chunkIndex: number) => {
-    // Check if already loading or loaded
-    if (state.isLoading || state.chunks.has(`chunk-${chunkIndex}`)) {
-      return
-    }
-    
-    // Abort any existing load
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-    abortControllerRef.current = new AbortController()
-    
-    const offset = chunkIndex * cfg.chunkSize
-    
-    setState(prev => ({
-      ...prev,
-      isLoading: true,
-      loadingChunkIndex: chunkIndex,
-      error: null
-    }))
-    
-    try {
-      const result = await fetchFn(offset, cfg.chunkSize)
-      
-      const chunk: DataChunk<T> = {
-        id: `chunk-${chunkIndex}`,
-        items: result.items,
-        startIndex: offset,
-        endIndex: offset + result.items.length - 1,
-        loadedAt: Date.now()
+  const loadChunk = useCallback(
+    async (chunkIndex: number) => {
+      // Check if already loading or loaded
+      if (state.isLoading || state.chunks.has(`chunk-${chunkIndex}`)) {
+        return;
       }
-      
-      setState(prev => {
-        // Merge items
-        const newItems = [...prev.items]
-        for (let i = 0; i < result.items.length; i++) {
-          newItems[offset + i] = result.items[i]
+
+      // Abort any existing load
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      const offset = chunkIndex * cfg.chunkSize;
+
+      setState((prev) => ({
+        ...prev,
+        isLoading: true,
+        loadingChunkIndex: chunkIndex,
+        error: null,
+      }));
+
+      try {
+        const result = await fetchFn(offset, cfg.chunkSize);
+
+        const chunk: DataChunk<T> = {
+          id: `chunk-${chunkIndex}`,
+          items: result.items,
+          startIndex: offset,
+          endIndex: offset + result.items.length - 1,
+          loadedAt: Date.now(),
+        };
+
+        setState((prev) => {
+          // Merge items
+          const newItems = [...prev.items];
+          for (let i = 0; i < result.items.length; i++) {
+            newItems[offset + i] = result.items[i];
+          }
+
+          const newChunks = new Map(prev.chunks);
+          newChunks.set(chunk.id, chunk);
+
+          return {
+            ...prev,
+            items: newItems,
+            chunks: newChunks,
+            totalCount: result.total,
+            isLoading: false,
+            loadingChunkIndex: -1,
+            hasMore: offset + result.items.length < result.total,
+          };
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
         }
-        
-        const newChunks = new Map(prev.chunks)
-        newChunks.set(chunk.id, chunk)
-        
-        return {
+
+        setState((prev) => ({
           ...prev,
-          items: newItems,
-          chunks: newChunks,
-          totalCount: result.total,
           isLoading: false,
           loadingChunkIndex: -1,
-          hasMore: offset + result.items.length < result.total
-        }
-      })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
+          error: error instanceof Error ? error.message : 'Failed to load data',
+        }));
       }
-      
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        loadingChunkIndex: -1,
-        error: error instanceof Error ? error.message : 'Failed to load data'
-      }))
-    }
-  }, [fetchFn, cfg.chunkSize, state.isLoading, state.chunks])
-  
+    },
+    [fetchFn, cfg.chunkSize, state.isLoading, state.chunks]
+  );
+
   /**
    * Load initial data
    */
   const loadInitial = useCallback(async () => {
-    await loadChunk(0)
-  }, [loadChunk])
-  
+    await loadChunk(0);
+  }, [loadChunk]);
+
   /**
    * Load more data (next chunk)
    */
   const loadMore = useCallback(async () => {
-    if (!state.hasMore || state.isLoading) return
-    
-    const nextChunkIndex = Math.floor(state.items.filter(Boolean).length / cfg.chunkSize)
-    await loadChunk(nextChunkIndex)
-  }, [state.hasMore, state.isLoading, state.items, cfg.chunkSize, loadChunk])
-  
+    if (!state.hasMore || state.isLoading) return;
+
+    const nextChunkIndex = Math.floor(state.items.filter(Boolean).length / cfg.chunkSize);
+    await loadChunk(nextChunkIndex);
+  }, [state.hasMore, state.isLoading, state.items, cfg.chunkSize, loadChunk]);
+
   /**
    * Ensure data is loaded for a specific index range
    */
-  const ensureRangeLoaded = useCallback(async (startIndex: number, endIndex: number) => {
-    const startChunk = Math.floor(startIndex / cfg.chunkSize)
-    const endChunk = Math.floor(endIndex / cfg.chunkSize)
-    
-    const chunksToLoad: number[] = []
-    for (let i = startChunk; i <= endChunk; i++) {
-      if (!state.chunks.has(`chunk-${i}`)) {
-        chunksToLoad.push(i)
+  const ensureRangeLoaded = useCallback(
+    async (startIndex: number, endIndex: number) => {
+      const startChunk = Math.floor(startIndex / cfg.chunkSize);
+      const endChunk = Math.floor(endIndex / cfg.chunkSize);
+
+      const chunksToLoad: number[] = [];
+      for (let i = startChunk; i <= endChunk; i++) {
+        if (!state.chunks.has(`chunk-${i}`)) {
+          chunksToLoad.push(i);
+        }
       }
-    }
-    
-    // Load chunks sequentially
-    for (const chunkIndex of chunksToLoad) {
-      await loadChunk(chunkIndex)
-    }
-  }, [cfg.chunkSize, state.chunks, loadChunk])
-  
+
+      // Load chunks sequentially
+      for (const chunkIndex of chunksToLoad) {
+        await loadChunk(chunkIndex);
+      }
+    },
+    [cfg.chunkSize, state.chunks, loadChunk]
+  );
+
   /**
    * Reset and reload
    */
@@ -198,17 +204,17 @@ export function useLazyDataLoader<T>(
       isLoading: false,
       error: null,
       hasMore: true,
-      loadingChunkIndex: -1
-    })
-  }, [])
-  
+      loadingChunkIndex: -1,
+    });
+  }, []);
+
   /**
    * Check if repo is considered "large"
    */
   const isLarge = useMemo(() => {
-    return state.totalCount >= cfg.largeRepoThreshold
-  }, [state.totalCount, cfg.largeRepoThreshold])
-  
+    return state.totalCount >= cfg.largeRepoThreshold;
+  }, [state.totalCount, cfg.largeRepoThreshold]);
+
   return {
     ...state,
     isLarge,
@@ -216,8 +222,8 @@ export function useLazyDataLoader<T>(
     loadMore,
     loadChunk,
     ensureRangeLoaded,
-    reset
-  }
+    reset,
+  };
 }
 
 /**
@@ -227,12 +233,12 @@ export function useLazyVirtualList<T>(
   containerRef: React.RefObject<HTMLElement>,
   items: T[],
   options: {
-    estimateSize?: (index: number) => number
-    overscan?: number
-    onLoadMore?: () => void
-    hasMore?: boolean
-    isLoading?: boolean
-    loadThreshold?: number
+    estimateSize?: (index: number) => number;
+    overscan?: number;
+    onLoadMore?: () => void;
+    hasMore?: boolean;
+    isLoading?: boolean;
+    loadThreshold?: number;
   } = {}
 ) {
   const {
@@ -241,18 +247,18 @@ export function useLazyVirtualList<T>(
     onLoadMore,
     hasMore = false,
     isLoading = false,
-    loadThreshold = 10
-  } = options
-  
+    loadThreshold = 10,
+  } = options;
+
   const virtualizer = useVirtualizer({
     count: hasMore ? items.length + 1 : items.length,
     getScrollElement: () => containerRef.current,
     estimateSize,
-    overscan
-  })
-  
-  const lastItem = virtualizer.getVirtualItems().at(-1)
-  
+    overscan,
+  });
+
+  const lastItem = virtualizer.getVirtualItems().at(-1);
+
   // Trigger load more when approaching end
   useEffect(() => {
     if (
@@ -262,17 +268,17 @@ export function useLazyVirtualList<T>(
       lastItem.index >= items.length - loadThreshold &&
       onLoadMore
     ) {
-      onLoadMore()
+      onLoadMore();
     }
-  }, [hasMore, isLoading, lastItem, items.length, loadThreshold, onLoadMore])
-  
+  }, [hasMore, isLoading, lastItem, items.length, loadThreshold, onLoadMore]);
+
   return {
     virtualizer,
     virtualItems: virtualizer.getVirtualItems(),
     totalSize: virtualizer.getTotalSize(),
     scrollToIndex: virtualizer.scrollToIndex,
-    scrollToOffset: virtualizer.scrollToOffset
-  }
+    scrollToOffset: virtualizer.scrollToOffset,
+  };
 }
 
 /**
@@ -282,111 +288,112 @@ export function useLargeFileList(
   path: string,
   fetchFiles: (path: string) => Promise<SvnStatusEntry[]>
 ) {
-  const [files, setFiles] = useState<SvnStatusEntry[]>([])
-  const [filteredFiles, setFilteredFiles] = useState<SvnStatusEntry[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<string>('')
-  const [sortBy, setSortBy] = useState<'name' | 'status' | 'date'>('name')
-  const [sortAsc, setSortAsc] = useState(true)
-  
+  const [files, setFiles] = useState<SvnStatusEntry[]>([]);
+  const [filteredFiles, setFilteredFiles] = useState<SvnStatusEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'name' | 'status' | 'date'>('name');
+  const [sortAsc, setSortAsc] = useState(true);
+
   // Load files
   const loadFiles = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    
+    setIsLoading(true);
+    setError(null);
+
     try {
-      const result = await fetchFiles(path)
-      setFiles(result)
+      const result = await fetchFiles(path);
+      setFiles(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load files')
+      setError(err instanceof Error ? err.message : 'Failed to load files');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [path, fetchFiles])
-  
+  }, [path, fetchFiles]);
+
   // Filter and sort files
   useEffect(() => {
-    let result = [...files]
-    
+    let result = [...files];
+
     // Apply filter
     if (filter) {
-      const lowerFilter = filter.toLowerCase()
-      result = result.filter(file => 
-        file.path.toLowerCase().includes(lowerFilter) ||
-        file.status.toLowerCase().includes(lowerFilter)
-      )
+      const lowerFilter = filter.toLowerCase();
+      result = result.filter(
+        (file) =>
+          file.path.toLowerCase().includes(lowerFilter) ||
+          file.status.toLowerCase().includes(lowerFilter)
+      );
     }
-    
+
     // Apply sort
     result.sort((a, b) => {
-      let comparison = 0
+      let comparison = 0;
       switch (sortBy) {
         case 'name':
-          comparison = a.path.localeCompare(b.path)
-          break
+          comparison = a.path.localeCompare(b.path);
+          break;
         case 'status':
-          comparison = a.status.localeCompare(b.status)
-          break
+          comparison = a.status.localeCompare(b.status);
+          break;
         case 'date':
-          comparison = (a.date || '').localeCompare(b.date || '')
-          break
+          comparison = (a.date || '').localeCompare(b.date || '');
+          break;
       }
-      return sortAsc ? comparison : -comparison
-    })
-    
-    setFilteredFiles(result)
-  }, [files, filter, sortBy, sortAsc])
-  
+      return sortAsc ? comparison : -comparison;
+    });
+
+    setFilteredFiles(result);
+  }, [files, filter, sortBy, sortAsc]);
+
   // Group files by directory for faster display
   const groupedFiles = useMemo(() => {
-    const groups: Map<string, SvnStatusEntry[]> = new Map()
-    
+    const groups: Map<string, SvnStatusEntry[]> = new Map();
+
     for (const file of filteredFiles) {
-      const parts = file.path.split(/[/\\]/)
-      const dir = parts.length > 1 ? parts.slice(0, -1).join('/') : ''
-      
+      const parts = file.path.split(/[/\\]/);
+      const dir = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+
       if (!groups.has(dir)) {
-        groups.set(dir, [])
+        groups.set(dir, []);
       }
-      groups.get(dir)!.push(file)
+      groups.get(dir)!.push(file);
     }
-    
-    return groups
-  }, [filteredFiles])
-  
+
+    return groups;
+  }, [filteredFiles]);
+
   // Get stats
   const stats = useMemo(() => {
-    let modified = 0
-    let added = 0
-    let deleted = 0
-    let conflicted = 0
-    let unversioned = 0
-    
+    let modified = 0;
+    let added = 0;
+    let deleted = 0;
+    let conflicted = 0;
+    let unversioned = 0;
+
     for (const file of files) {
       switch (file.status) {
         case 'M':
         case 'R':
-          modified++
-          break
+          modified++;
+          break;
         case 'A':
-          added++
-          break
+          added++;
+          break;
         case 'D':
-          deleted++
-          break
+          deleted++;
+          break;
         case 'C':
-          conflicted++
-          break
+          conflicted++;
+          break;
         case '?':
-          unversioned++
-          break
+          unversioned++;
+          break;
       }
     }
-    
-    return { modified, added, deleted, conflicted, unversioned, total: files.length }
-  }, [files])
-  
+
+    return { modified, added, deleted, conflicted, unversioned, total: files.length };
+  }, [files]);
+
   return {
     files,
     filteredFiles,
@@ -401,8 +408,8 @@ export function useLargeFileList(
     setSortAsc,
     stats,
     loadFiles,
-    isLarge: files.length >= 10000
-  }
+    isLarge: files.length >= 10000,
+  };
 }
 
 /**
@@ -412,64 +419,81 @@ export function useLazyDirectoryTree(
   _rootPath: string,
   fetchDirectory: (path: string) => Promise<{ name: string; path: string; isDirectory: boolean }[]>
 ) {
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
-  const [loadedDirectories, setLoadedDirectories] = useState<Map<string, { name: string; path: string; isDirectory: boolean }[]>>(new Map())
-  const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set())
-  
-  const toggleExpand = useCallback(async (path: string) => {
-    if (expandedPaths.has(path)) {
-      setExpandedPaths(prev => {
-        const next = new Set(prev)
-        next.delete(path)
-        return next
-      })
-      return
-    }
-    
-    // Load children if not loaded
-    if (!loadedDirectories.has(path)) {
-      setLoadingPaths(prev => new Set(prev).add(path))
-      
-      try {
-        const children = await fetchDirectory(path)
-        setLoadedDirectories(prev => new Map(prev).set(path, children))
-      } catch (error) {
-        console.error(`Failed to load directory ${path}:`, error)
-        return
-      } finally {
-        setLoadingPaths(prev => {
-          const next = new Set(prev)
-          next.delete(path)
-          return next
-        })
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const [loadedDirectories, setLoadedDirectories] = useState<
+    Map<string, { name: string; path: string; isDirectory: boolean }[]>
+  >(new Map());
+  const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
+
+  const toggleExpand = useCallback(
+    async (path: string) => {
+      if (expandedPaths.has(path)) {
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+          next.delete(path);
+          return next;
+        });
+        return;
       }
-    }
-    
-    setExpandedPaths(prev => new Set(prev).add(path))
-  }, [expandedPaths, loadedDirectories, fetchDirectory])
-  
-  const getChildren = useCallback((path: string) => {
-    return loadedDirectories.get(path) || []
-  }, [loadedDirectories])
-  
-  const isLoading = useCallback((path: string) => {
-    return loadingPaths.has(path)
-  }, [loadingPaths])
-  
-  const isExpanded = useCallback((path: string) => {
-    return expandedPaths.has(path)
-  }, [expandedPaths])
-  
-  const expandAll = useCallback(async (paths: string[]) => {
-    for (const path of paths) {
-      await toggleExpand(path)
-    }
-  }, [toggleExpand])
-  
+
+      // Load children if not loaded
+      if (!loadedDirectories.has(path)) {
+        setLoadingPaths((prev) => new Set(prev).add(path));
+
+        try {
+          const children = await fetchDirectory(path);
+          setLoadedDirectories((prev) => new Map(prev).set(path, children));
+        } catch (error) {
+          console.error(`Failed to load directory ${path}:`, error);
+          return;
+        } finally {
+          setLoadingPaths((prev) => {
+            const next = new Set(prev);
+            next.delete(path);
+            return next;
+          });
+        }
+      }
+
+      setExpandedPaths((prev) => new Set(prev).add(path));
+    },
+    [expandedPaths, loadedDirectories, fetchDirectory]
+  );
+
+  const getChildren = useCallback(
+    (path: string) => {
+      return loadedDirectories.get(path) || [];
+    },
+    [loadedDirectories]
+  );
+
+  const isLoading = useCallback(
+    (path: string) => {
+      return loadingPaths.has(path);
+    },
+    [loadingPaths]
+  );
+
+  const isExpanded = useCallback(
+    (path: string) => {
+      return expandedPaths.has(path);
+    },
+    [expandedPaths]
+  );
+
+  const expandAll = useCallback(
+    async (paths: string[]) => {
+      for (const path of paths) {
+        await toggleExpand(path);
+      }
+    },
+    [toggleExpand]
+  );
+
   const collapseAll = useCallback(() => {
-    setExpandedPaths(new Set())
-  }, [])
-  
+    setExpandedPaths(new Set());
+  }, []);
+
   return {
     expandedPaths,
     toggleExpand,
@@ -477,8 +501,8 @@ export function useLazyDirectoryTree(
     isLoading,
     isExpanded,
     expandAll,
-    collapseAll
-  }
+    collapseAll,
+  };
 }
 
-export default useLazyDataLoader
+export default useLazyDataLoader;

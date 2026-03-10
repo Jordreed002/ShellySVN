@@ -1,25 +1,25 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { Loader2, ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react'
-import type { SvnStatusEntry, SvnStatusChar } from '@shared/types'
-import { getStatusDisplay } from '../../hooks/useIncrementalStatus'
+import { useRef, useCallback, useMemo, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Loader2, ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react';
+import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
+import { getStatusDisplay } from '../../hooks/useIncrementalStatus';
 
 // Module-level constant for default Set props to avoid new instances on every render
-const EMPTY_SET = new Set<string>()
+const EMPTY_SET = new Set<string>();
 
 interface VirtualizedFileListProps {
-  files: SvnStatusEntry[]
-  onLoadMore?: () => void
-  hasMore?: boolean
-  isLoading?: boolean
-  selectedPaths?: Set<string>
-  onSelectionChange?: (paths: Set<string>) => void
-  onFileClick?: (file: SvnStatusEntry) => void
-  onFileDoubleClick?: (file: SvnStatusEntry) => void
-  estimatedRowHeight?: number
-  overscan?: number
-  loadThreshold?: number
-  className?: string
+  files: SvnStatusEntry[];
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoading?: boolean;
+  selectedPaths?: Set<string>;
+  onSelectionChange?: (paths: Set<string>) => void;
+  onFileClick?: (file: SvnStatusEntry) => void;
+  onFileDoubleClick?: (file: SvnStatusEntry) => void;
+  estimatedRowHeight?: number;
+  overscan?: number;
+  loadThreshold?: number;
+  className?: string;
 }
 
 /**
@@ -37,51 +37,49 @@ export function VirtualizedFileList({
   estimatedRowHeight = 32,
   overscan = 10,
   loadThreshold = 20,
-  className = ''
+  className = '',
 }: VirtualizedFileListProps) {
-  const parentRef = useRef<HTMLDivElement>(null)
-  
+  const parentRef = useRef<HTMLDivElement>(null);
+
   // Create virtualizer
   const rowVirtualizer = useVirtualizer({
     count: hasMore ? files.length + 1 : files.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedRowHeight,
-    overscan
-  })
-  
-  const virtualItems = rowVirtualizer.getVirtualItems()
-  const lastItem = virtualItems.at(-1)
-  
+    overscan,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const lastItem = virtualItems.at(-1);
+
   // Trigger load more when approaching end
   const shouldLoadMore = useMemo(() => {
-    return (
-      hasMore &&
-      !isLoading &&
-      lastItem &&
-      lastItem.index >= files.length - loadThreshold
-    )
-  }, [hasMore, isLoading, lastItem, files.length, loadThreshold])
+    return hasMore && !isLoading && lastItem && lastItem.index >= files.length - loadThreshold;
+  }, [hasMore, isLoading, lastItem, files.length, loadThreshold]);
 
   // Handle load more in useEffect to avoid side effects during render
   useEffect(() => {
     if (shouldLoadMore && onLoadMore) {
-      onLoadMore()
+      onLoadMore();
     }
-  }, [shouldLoadMore, onLoadMore])
-  
+  }, [shouldLoadMore, onLoadMore]);
+
   // Toggle selection
-  const toggleSelection = useCallback((file: SvnStatusEntry) => {
-    if (!onSelectionChange) return
-    
-    const newSelection = new Set(selectedPaths)
-    if (newSelection.has(file.path)) {
-      newSelection.delete(file.path)
-    } else {
-      newSelection.add(file.path)
-    }
-    onSelectionChange(newSelection)
-  }, [selectedPaths, onSelectionChange])
-  
+  const toggleSelection = useCallback(
+    (file: SvnStatusEntry) => {
+      if (!onSelectionChange) return;
+
+      const newSelection = new Set(selectedPaths);
+      if (newSelection.has(file.path)) {
+        newSelection.delete(file.path);
+      } else {
+        newSelection.add(file.path);
+      }
+      onSelectionChange(newSelection);
+    },
+    [selectedPaths, onSelectionChange]
+  );
+
   return (
     <div
       ref={parentRef}
@@ -92,7 +90,7 @@ export function VirtualizedFileList({
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
           width: '100%',
-          position: 'relative'
+          position: 'relative',
         }}
       >
         {virtualItems.map((virtualRow) => {
@@ -107,20 +105,20 @@ export function VirtualizedFileList({
                   left: 0,
                   width: '100%',
                   height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`
+                  transform: `translateY(${virtualRow.start}px)`,
                 }}
                 className="flex items-center justify-center"
               >
                 <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                 <span className="ml-2 text-sm text-slate-400">Loading more...</span>
               </div>
-            )
+            );
           }
-          
-          const file = files[virtualRow.index]
-          const isSelected = selectedPaths.has(file.path)
-          const { icon, color, label } = getStatusDisplay(file.status)
-          
+
+          const file = files[virtualRow.index];
+          const isSelected = selectedPaths.has(file.path);
+          const { icon, color, label } = getStatusDisplay(file.status);
+
           return (
             <div
               key={file.path}
@@ -130,7 +128,7 @@ export function VirtualizedFileList({
                 left: 0,
                 width: '100%',
                 height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`
+                transform: `translateY(${virtualRow.start}px)`,
               }}
               className={`
                 flex items-center px-2 border-b border-slate-100 dark:border-slate-800
@@ -148,7 +146,7 @@ export function VirtualizedFileList({
                 onClick={(e) => e.stopPropagation()}
                 className="mr-2 w-4 h-4"
               />
-              
+
               {/* Icon */}
               <span className="mr-2">
                 {file.isDirectory ? (
@@ -157,94 +155,88 @@ export function VirtualizedFileList({
                   <File className="w-4 h-4 text-slate-400" />
                 )}
               </span>
-              
+
               {/* Filename */}
               <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
                 {file.path.split(/[/\\]/).pop()}
               </span>
-              
+
               {/* Status */}
-              <span 
-                className={`ml-2 text-xs px-1.5 py-0.5 rounded ${color}`}
-                title={label}
-              >
+              <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${color}`} title={label}>
                 {icon} {file.status}
               </span>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 export interface CheckboxSelectionProps {
   /** Set of currently selected node paths */
-  selectedKeys: Set<string>
+  selectedKeys: Set<string>;
   /** Callback when selection changes */
-  onSelectionChange: (keys: Set<string>) => void
+  onSelectionChange: (keys: Set<string>) => void;
   /** Optional custom checkbox renderer */
   renderCheckbox?: (props: {
-    checked: boolean | 'indeterminate'
-    onChange: () => void
-    node: TreeNode
-  }) => React.ReactNode
+    checked: boolean | 'indeterminate';
+    onChange: () => void;
+    node: TreeNode;
+  }) => React.ReactNode;
 }
 
 interface VirtualizedTreeProps {
-  nodes: TreeNode[]
-  onToggleExpand?: (node: TreeNode) => void
-  expandedPaths?: Set<string>
-  loadingPaths?: Set<string>
-  selectedPath?: string
-  onSelect?: (node: TreeNode) => void
-  estimatedRowHeight?: number
-  className?: string
+  nodes: TreeNode[];
+  onToggleExpand?: (node: TreeNode) => void;
+  expandedPaths?: Set<string>;
+  loadingPaths?: Set<string>;
+  selectedPath?: string;
+  onSelect?: (node: TreeNode) => void;
+  estimatedRowHeight?: number;
+  className?: string;
   /** Enable checkbox selection with tri-state support */
-  checkboxSelection?: CheckboxSelectionProps
+  checkboxSelection?: CheckboxSelectionProps;
 }
 
 export interface TreeNode {
-  id: string
-  name: string
-  path: string
-  isDirectory: boolean
-  hasChildren?: boolean
-  status?: SvnStatusChar
-  children?: TreeNode[]
+  id: string;
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  hasChildren?: boolean;
+  status?: SvnStatusChar;
+  children?: TreeNode[];
 }
 
-type TriState = boolean | 'indeterminate'
+type TriState = boolean | 'indeterminate';
 
 function getAllDescendantPaths(node: TreeNode): string[] {
-  const paths: string[] = []
+  const paths: string[] = [];
   if (node.children) {
     for (const child of node.children) {
-      paths.push(child.path)
-      paths.push(...getAllDescendantPaths(child))
+      paths.push(child.path);
+      paths.push(...getAllDescendantPaths(child));
     }
   }
-  return paths
+  return paths;
 }
 
-function getTriState(
-  node: TreeNode,
-  selectedKeys: Set<string>
-): TriState {
+function getTriState(node: TreeNode, selectedKeys: Set<string>): TriState {
   if (!node.children || node.children.length === 0) {
-    return selectedKeys.has(node.path)
+    return selectedKeys.has(node.path);
   }
-  
-  const descendantPaths = getAllDescendantPaths(node)
-  const selectedCount = descendantPaths.filter(p => selectedKeys.has(p)).length
-  
+
+  const descendantPaths = getAllDescendantPaths(node);
+  const selectedCount = descendantPaths.filter((p) => selectedKeys.has(p)).length;
+
   if (selectedCount === 0) {
-    return false
+    return false;
   }
   if (selectedCount === descendantPaths.length) {
-    return true
+    return true;
   }
-  return 'indeterminate'
+  return 'indeterminate';
 }
 
 /**
@@ -259,58 +251,61 @@ export function VirtualizedTree({
   onSelect,
   estimatedRowHeight = 28,
   className = '',
-  checkboxSelection
+  checkboxSelection,
 }: VirtualizedTreeProps) {
-  const parentRef = useRef<HTMLDivElement>(null)
-  
+  const parentRef = useRef<HTMLDivElement>(null);
+
   const flattenedNodes = useMemo(() => {
-    const result: { node: TreeNode; depth: number }[] = []
-    
+    const result: { node: TreeNode; depth: number }[] = [];
+
     const flatten = (items: TreeNode[], depth: number) => {
       for (const item of items) {
-        result.push({ node: item, depth })
-        
+        result.push({ node: item, depth });
+
         if (expandedPaths.has(item.path) && item.children) {
-          flatten(item.children, depth + 1)
+          flatten(item.children, depth + 1);
         }
       }
-    }
-    
-    flatten(nodes, 0)
-    return result
-  }, [nodes, expandedPaths])
-  
+    };
+
+    flatten(nodes, 0);
+    return result;
+  }, [nodes, expandedPaths]);
+
   const rowVirtualizer = useVirtualizer({
     count: flattenedNodes.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedRowHeight,
-    overscan: 15
-  })
-  
-  const virtualItems = rowVirtualizer.getVirtualItems()
-  
-  const toggleNodeSelection = useCallback((node: TreeNode) => {
-    if (!checkboxSelection) return
-    
-    const { selectedKeys, onSelectionChange } = checkboxSelection
-    const newSelection = new Set(selectedKeys)
-    const triState = getTriState(node, selectedKeys)
-    
-    if (triState === true || triState === 'indeterminate') {
-      newSelection.delete(node.path)
-      for (const p of getAllDescendantPaths(node)) {
-        newSelection.delete(p)
+    overscan: 15,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const toggleNodeSelection = useCallback(
+    (node: TreeNode) => {
+      if (!checkboxSelection) return;
+
+      const { selectedKeys, onSelectionChange } = checkboxSelection;
+      const newSelection = new Set(selectedKeys);
+      const triState = getTriState(node, selectedKeys);
+
+      if (triState === true || triState === 'indeterminate') {
+        newSelection.delete(node.path);
+        for (const p of getAllDescendantPaths(node)) {
+          newSelection.delete(p);
+        }
+      } else {
+        newSelection.add(node.path);
+        for (const p of getAllDescendantPaths(node)) {
+          newSelection.add(p);
+        }
       }
-    } else {
-      newSelection.add(node.path)
-      for (const p of getAllDescendantPaths(node)) {
-        newSelection.add(p)
-      }
-    }
-    
-    onSelectionChange(newSelection)
-  }, [checkboxSelection])
-  
+
+      onSelectionChange(newSelection);
+    },
+    [checkboxSelection]
+  );
+
   return (
     <div
       ref={parentRef}
@@ -321,18 +316,18 @@ export function VirtualizedTree({
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
           width: '100%',
-          position: 'relative'
+          position: 'relative',
         }}
       >
         {virtualItems.map((virtualRow) => {
-          const { node, depth } = flattenedNodes[virtualRow.index]
-          const isExpanded = expandedPaths.has(node.path)
-          const isLoading = loadingPaths.has(node.path)
-          const isSelected = selectedPath === node.path
-          const checkboxState = checkboxSelection 
+          const { node, depth } = flattenedNodes[virtualRow.index];
+          const isExpanded = expandedPaths.has(node.path);
+          const isLoading = loadingPaths.has(node.path);
+          const isSelected = selectedPath === node.path;
+          const checkboxState = checkboxSelection
             ? getTriState(node, checkboxSelection.selectedKeys)
-            : undefined
-          
+            : undefined;
+
           return (
             <div
               key={node.id}
@@ -343,7 +338,7 @@ export function VirtualizedTree({
                 width: '100%',
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
-                paddingLeft: `${depth * 16}px`
+                paddingLeft: `${depth * 16}px`,
               }}
               className={`
                 flex items-center px-2 border-b border-slate-100 dark:border-slate-800
@@ -352,38 +347,37 @@ export function VirtualizedTree({
               `}
               onClick={() => onSelect?.(node)}
             >
-              {checkboxSelection && (
-                checkboxSelection.renderCheckbox ? (
+              {checkboxSelection &&
+                (checkboxSelection.renderCheckbox ? (
                   checkboxSelection.renderCheckbox({
                     checked: checkboxState ?? false,
                     onChange: () => toggleNodeSelection(node),
-                    node
+                    node,
                   })
                 ) : (
                   <input
                     type="checkbox"
                     checked={checkboxState === true}
-                    ref={el => {
-                      if (el) el.indeterminate = checkboxState === 'indeterminate'
+                    ref={(el) => {
+                      if (el) el.indeterminate = checkboxState === 'indeterminate';
                     }}
                     onChange={() => toggleNodeSelection(node)}
                     onClick={(e) => e.stopPropagation()}
                     className="mr-2 w-4 h-4 flex-shrink-0"
                   />
-                )
-              )}
-              
+                ))}
+
               {node.isDirectory && (
-                <span 
+                <span
                   className="mr-1 p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
                   onClick={(e) => {
-                    e.stopPropagation()
-                    onToggleExpand?.(node)
+                    e.stopPropagation();
+                    onToggleExpand?.(node);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onToggleExpand?.(node)
+                      e.preventDefault();
+                      onToggleExpand?.(node);
                     }
                   }}
                   role="button"
@@ -399,7 +393,7 @@ export function VirtualizedTree({
                   )}
                 </span>
               )}
-              
+
               <span className="mr-2">
                 {node.isDirectory ? (
                   isExpanded ? (
@@ -411,29 +405,25 @@ export function VirtualizedTree({
                   <File className="w-4 h-4 text-slate-400" />
                 )}
               </span>
-              
+
               <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
                 {node.name}
               </span>
-              
-              {node.status && (
-                <span className="text-xs text-slate-400">
-                  {node.status}
-                </span>
-              )}
+
+              {node.status && <span className="text-xs text-slate-400">{node.status}</span>}
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 interface LargeRepoIndicatorProps {
-  fileCount: number
-  loadedCount: number
-  isLoading: boolean
-  className?: string
+  fileCount: number;
+  loadedCount: number;
+  isLoading: boolean;
+  className?: string;
 }
 
 /**
@@ -443,20 +433,20 @@ export function LargeRepoIndicator({
   fileCount,
   loadedCount,
   isLoading,
-  className = ''
+  className = '',
 }: LargeRepoIndicatorProps) {
-  const percentage = fileCount > 0 ? Math.round((loadedCount / fileCount) * 100) : 0
-  const formattedTotal = fileCount.toLocaleString()
-  const formattedLoaded = loadedCount.toLocaleString()
-  
+  const percentage = fileCount > 0 ? Math.round((loadedCount / fileCount) * 100) : 0;
+  const formattedTotal = fileCount.toLocaleString();
+  const formattedLoaded = loadedCount.toLocaleString();
+
   if (!isLoading && loadedCount >= fileCount) {
     return (
       <div className={`text-sm text-slate-500 dark:text-slate-400 ${className}`}>
         {formattedTotal} files
       </div>
-    )
+    );
   }
-  
+
   return (
     <div className={`space-y-1 ${className}`}>
       <div className="flex items-center justify-between text-sm">
@@ -467,20 +457,22 @@ export function LargeRepoIndicator({
               Loading {formattedLoaded} of {formattedTotal} files...
             </span>
           ) : (
-            <span>{formattedLoaded} of {formattedTotal} files loaded</span>
+            <span>
+              {formattedLoaded} of {formattedTotal} files loaded
+            </span>
           )}
         </span>
         <span className="text-slate-400">{percentage}%</span>
       </div>
-      
+
       <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-        <div 
+        <div
           className="h-full bg-blue-500 transition-all duration-300"
           style={{ width: `${percentage}%` }}
         />
       </div>
     </div>
-  )
+  );
 }
 
-export default VirtualizedFileList
+export default VirtualizedFileList;

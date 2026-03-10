@@ -1,91 +1,113 @@
-import { useState, useEffect } from 'react'
-import { X, Download, FolderOpen, AlertCircle, CheckCircle, Loader2, Lock, Shield, User, Key, ChevronDown } from 'lucide-react'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { ChooseItemsDialog } from './ChooseItemsDialog'
+import { useState, useEffect } from 'react';
+import {
+  X,
+  Download,
+  FolderOpen,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+  Lock,
+  Shield,
+  User,
+  Key,
+  ChevronDown,
+} from 'lucide-react';
+import { useSettings } from '@renderer/hooks/useSettings';
+import { ChooseItemsDialog } from './ChooseItemsDialog';
 
 interface SslCertificate {
-  fingerprint: string
-  subject?: string
-  issuer?: string
-  validFrom?: string
-  validUntil?: string
+  fingerprint: string;
+  subject?: string;
+  issuer?: string;
+  validFrom?: string;
+  validUntil?: string;
 }
 
 interface CheckoutDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  onComplete?: (path: string) => void
-  initialUrl?: string
+  isOpen: boolean;
+  onClose: () => void;
+  onComplete?: (path: string) => void;
+  initialUrl?: string;
 }
 
-export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }: CheckoutDialogProps) {
-  const { settings } = useSettings()
-  const [url, setUrl] = useState(initialUrl)
-  const [path, setPath] = useState('')
-  const [revision, setRevision] = useState('HEAD')
-  const [depth, setDepth] = useState<'empty' | 'files' | 'immediates' | 'infinity'>('infinity')
-  const [isCheckingOut, setIsCheckingOut] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ revision: number; path: string } | null>(null)
-  
+export function CheckoutDialog({
+  isOpen,
+  onClose,
+  onComplete,
+  initialUrl = '',
+}: CheckoutDialogProps) {
+  const { settings } = useSettings();
+  const [url, setUrl] = useState(initialUrl);
+  const [path, setPath] = useState('');
+  const [revision, setRevision] = useState('HEAD');
+  const [depth, setDepth] = useState<'empty' | 'files' | 'immediates' | 'infinity'>('infinity');
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ revision: number; path: string } | null>(null);
+
   // Auth state
-  const [showAuth, setShowAuth] = useState(false)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [authRealm, setAuthRealm] = useState<string | null>(null)
-  const [provideCredentials, setProvideCredentials] = useState(false)
-  const [saveCredentials, setSaveCredentials] = useState(false)
-  
+  const [showAuth, setShowAuth] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [authRealm, setAuthRealm] = useState<string | null>(null);
+  const [provideCredentials, setProvideCredentials] = useState(false);
+  const [saveCredentials, setSaveCredentials] = useState(false);
+
   // SSL state
-  const [showSslPrompt, setShowSslPrompt] = useState(false)
-  const [sslCertificate, setSslCertificate] = useState<SslCertificate | null>(null)
-  const [trustPermanently, setTrustPermanently] = useState(false)
-  const [sslFailures, setSslFailures] = useState<string[]>([])
-  
+  const [showSslPrompt, setShowSslPrompt] = useState(false);
+  const [sslCertificate, setSslCertificate] = useState<SslCertificate | null>(null);
+  const [trustPermanently, setTrustPermanently] = useState(false);
+  const [sslFailures, setSslFailures] = useState<string[]>([]);
+
   // ChooseItemsDialog state
-  const [showChooseItemsDialog, setShowChooseItemsDialog] = useState(false)
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([])
-  
+  const [showChooseItemsDialog, setShowChooseItemsDialog] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+
   useEffect(() => {
     if (isOpen) {
-      setUrl(initialUrl)
+      setUrl(initialUrl);
       // Pre-fill with default checkout directory from settings
-      setPath(settings?.defaultCheckoutDirectory || '')
-      setRevision('HEAD')
-      setDepth('infinity')
-      setError(null)
-      setSuccess(null)
-      setIsCheckingOut(false)
+      setPath(settings?.defaultCheckoutDirectory || '');
+      setRevision('HEAD');
+      setDepth('infinity');
+      setError(null);
+      setSuccess(null);
+      setIsCheckingOut(false);
       // Reset auth/ssl state
-      setShowAuth(false)
-      setUsername('')
-      setPassword('')
-      setAuthRealm(null)
-      setShowSslPrompt(false)
-      setSslCertificate(null)
-      setTrustPermanently(false)
-      setSslFailures([])
-      setProvideCredentials(false)
-      setSaveCredentials(false)
+      setShowAuth(false);
+      setUsername('');
+      setPassword('');
+      setAuthRealm(null);
+      setShowSslPrompt(false);
+      setSslCertificate(null);
+      setTrustPermanently(false);
+      setSslFailures([]);
+      setProvideCredentials(false);
+      setSaveCredentials(false);
     }
-  }, [isOpen, initialUrl, settings?.defaultCheckoutDirectory])
-  
+  }, [isOpen, initialUrl, settings?.defaultCheckoutDirectory]);
+
   // Auto-fill saved credentials when auth dialog appears
   useEffect(() => {
     if (showAuth && authRealm) {
-      window.api.auth.get(authRealm).then(savedCreds => {
-        if (savedCreds) {
-          setUsername(savedCreds.username)
-          setPassword(savedCreds.password)
-        }
-      }).catch(() => {
-        // Ignore errors - user can type manually
-      })
+      window.api.auth
+        .get(authRealm)
+        .then((savedCreds) => {
+          if (savedCreds) {
+            setUsername(savedCreds.username);
+            setPassword(savedCreds.password);
+          }
+        })
+        .catch(() => {
+          // Ignore errors - user can type manually
+        });
     }
-  }, [showAuth, authRealm])
-  
+  }, [showAuth, authRealm]);
+
   // Parse SVN SSL error to extract certificate info
-  const parseSslError = (errorMsg: string): { certificate: SslCertificate; failures: string[] } | null => {
+  const parseSslError = (
+    errorMsg: string
+  ): { certificate: SslCertificate; failures: string[] } | null => {
     // SVN SSL error format:
     // Error validating server certificate for 'https://...':
     //  - The certificate is not issued by a trusted authority...
@@ -95,29 +117,29 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
     //  - Valid: from ... until ...
     //  - Issuer: ...
     //  - Fingerprint: ...
-    
+
     if (!errorMsg.includes('certificate') && !errorMsg.includes('SSL')) {
-      return null
+      return null;
     }
-    
-    const fingerprintMatch = errorMsg.match(/Fingerprint:\s*([a-fA-F0-9:]+)/i)
-    const subjectMatch = errorMsg.match(/Hostname:\s*(.+)/i)
-    const issuerMatch = errorMsg.match(/Issuer:\s*(.+?)(?:\n|$)/i)
-    const validFromMatch = errorMsg.match(/Valid:\s*from\s+(.+?)\s+until/i)
-    const validUntilMatch = errorMsg.match(/until\s+(.+?)(?:\n|$)/i)
-    
-    const failures: string[] = []
+
+    const fingerprintMatch = errorMsg.match(/Fingerprint:\s*([a-fA-F0-9:]+)/i);
+    const subjectMatch = errorMsg.match(/Hostname:\s*(.+)/i);
+    const issuerMatch = errorMsg.match(/Issuer:\s*(.+?)(?:\n|$)/i);
+    const validFromMatch = errorMsg.match(/Valid:\s*from\s+(.+?)\s+until/i);
+    const validUntilMatch = errorMsg.match(/until\s+(.+?)(?:\n|$)/i);
+
+    const failures: string[] = [];
     if (errorMsg.match(/not issued by a trusted authority|issuer is not trusted/i)) {
-      failures.push('untrusted-issuer')
+      failures.push('untrusted-issuer');
     }
     if (errorMsg.match(/hostname does not match|certificate issued for a different hostname/i)) {
-      failures.push('hostname-mismatch')
+      failures.push('hostname-mismatch');
     }
     if (errorMsg.includes('has expired')) {
-      failures.push('expired')
+      failures.push('expired');
     }
     if (errorMsg.includes('not yet valid')) {
-      failures.push('not-yet-valid')
+      failures.push('not-yet-valid');
     }
 
     if (failures.length > 0 || fingerprintMatch) {
@@ -127,254 +149,253 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
           subject: subjectMatch?.[1]?.trim(),
           issuer: issuerMatch?.[1]?.trim(),
           validFrom: validFromMatch?.[1]?.trim(),
-          validUntil: validUntilMatch?.[1]?.trim()
+          validUntil: validUntilMatch?.[1]?.trim(),
         },
-        failures: failures.length > 0 ? failures : ['unknown-ca']
-      }
+        failures: failures.length > 0 ? failures : ['unknown-ca'],
+      };
     }
 
-    return null
-  }
-  
+    return null;
+  };
+
   // Parse SVN auth error to extract realm
   const parseAuthError = (errorMsg: string): string | null => {
     // SVN auth error format:
     // svn: E170013: Unable to connect to a repository at URL '...'
     // svn: E215004: No more credentials or we tried too many times.
     // Authentication realm: <https://example.com:443> Example Repo
-    
-    if (errorMsg.includes('credentials') || errorMsg.includes('Authentication') || errorMsg.includes('authorization')) {
-      const realmMatch = errorMsg.match(/Authentication realm:\s*<[^>]+>\s*(.+)/i)
+
+    if (
+      errorMsg.includes('credentials') ||
+      errorMsg.includes('Authentication') ||
+      errorMsg.includes('authorization')
+    ) {
+      const realmMatch = errorMsg.match(/Authentication realm:\s*<[^>]+>\s*(.+)/i);
       if (realmMatch) {
-        return realmMatch[1].trim()
+        return realmMatch[1].trim();
       }
       // Fallback to URL domain
-      const urlMatch = errorMsg.match(/https?:\/\/([^/]+)/)
+      const urlMatch = errorMsg.match(/https?:\/\/([^/]+)/);
       if (urlMatch) {
-        return urlMatch[1]
+        return urlMatch[1];
       }
-      return 'SVN Repository'
+      return 'SVN Repository';
     }
-    return null
-  }
-  
+    return null;
+  };
+
   // Handle SSL trust decision
   const handleSslTrust = async () => {
-    if (!sslCertificate) return
-    
-    setShowSslPrompt(false)
-    setIsCheckingOut(true)
-    setError(null)
-    
+    if (!sslCertificate) return;
+
+    setShowSslPrompt(false);
+    setIsCheckingOut(true);
+    setError(null);
+
     try {
       // Use selected paths if available, otherwise use depth
-      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined
-      
+      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined;
+
       // If we have selected paths, override depth to empty since we're doing sparse checkout
-      const checkoutDepth = sparsePaths ? 'empty' : depth
-      
+      const checkoutDepth = sparsePaths ? 'empty' : depth;
+
       const result = await window.api.svn.checkout(
         url.trim(),
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
         checkoutDepth,
         { trustSsl: true, trustPermanently, sslFailures, sparsePaths }
-      )
-      
+      );
+
       if (result.success) {
-        setSuccess({ revision: result.revision, path: path.trim() })
+        setSuccess({ revision: result.revision, path: path.trim() });
       } else {
         // Check for auth error after SSL trust
-        const authRealm = parseAuthError(result.output || '')
+        const authRealm = parseAuthError(result.output || '');
         if (authRealm) {
-          setAuthRealm(authRealm)
-          setShowAuth(true)
+          setAuthRealm(authRealm);
+          setShowAuth(true);
         } else {
-          setError(result.output || 'Checkout failed')
+          setError(result.output || 'Checkout failed');
         }
       }
     } catch (err) {
-      const errorMsg = (err as Error).message || 'Checkout failed'
+      const errorMsg = (err as Error).message || 'Checkout failed';
       // Check for auth error
-      const realm = parseAuthError(errorMsg)
+      const realm = parseAuthError(errorMsg);
       if (realm) {
-        setAuthRealm(realm)
-        setShowAuth(true)
+        setAuthRealm(realm);
+        setShowAuth(true);
       } else {
-        setError(errorMsg)
+        setError(errorMsg);
       }
     } finally {
-      setIsCheckingOut(false)
+      setIsCheckingOut(false);
     }
-  }
-  
+  };
+
   // Handle auth submission
   const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!username.trim()) {
-      setError('Please enter a username')
-      return
+      setError('Please enter a username');
+      return;
     }
-    
-    setShowAuth(false)
-    setIsCheckingOut(true)
-    setError(null)
-    
+
+    setShowAuth(false);
+    setIsCheckingOut(true);
+    setError(null);
+
     try {
       // Use selected paths if available, otherwise use depth
-      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined
-      
+      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined;
+
       // If we have selected paths, override depth to empty since we're doing sparse checkout
-      const checkoutDepth = sparsePaths ? 'empty' : depth
-      
+      const checkoutDepth = sparsePaths ? 'empty' : depth;
+
       const result = await window.api.svn.checkout(
         url.trim(),
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
         checkoutDepth,
-        { 
+        {
           credentials: { username: username.trim(), password },
           trustSsl: sslCertificate !== null,
           trustPermanently,
           sslFailures,
-          sparsePaths
+          sparsePaths,
         }
-      )
-      
+      );
+
       if (result.success) {
-        setSuccess({ revision: result.revision, path: path.trim() })
+        setSuccess({ revision: result.revision, path: path.trim() });
       } else {
-        setError(result.output || 'Checkout failed')
+        setError(result.output || 'Checkout failed');
       }
     } catch (err) {
-      setError((err as Error).message || 'Checkout failed')
+      setError((err as Error).message || 'Checkout failed');
     } finally {
-      setIsCheckingOut(false)
+      setIsCheckingOut(false);
     }
-  }
-  
+  };
+
   // Handle checkout error - check for SSL/Auth requirements
   const handleCheckoutError = (errorMsg: string) => {
     // Check for SSL certificate error first
-    const sslInfo = parseSslError(errorMsg)
+    const sslInfo = parseSslError(errorMsg);
     if (sslInfo) {
-      setSslCertificate(sslInfo.certificate)
-      setSslFailures(sslInfo.failures)
-      setShowSslPrompt(true)
-      return
+      setSslCertificate(sslInfo.certificate);
+      setSslFailures(sslInfo.failures);
+      setShowSslPrompt(true);
+      return;
     }
-    
+
     // Check for auth error
-    const realm = parseAuthError(errorMsg)
+    const realm = parseAuthError(errorMsg);
     if (realm) {
-      setAuthRealm(realm)
-      setShowAuth(true)
-      return
+      setAuthRealm(realm);
+      setShowAuth(true);
+      return;
     }
-    
+
     // Generic error
-    setError(errorMsg)
-  }
-  
+    setError(errorMsg);
+  };
+
   const handleBrowsePath = async () => {
-    const result = await window.api.dialog.openDirectory()
+    const result = await window.api.dialog.openDirectory();
     if (result) {
-      setPath(result)
+      setPath(result);
     }
-  }
-  
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!url.trim()) {
-      setError('Please enter a repository URL')
-      return
+      setError('Please enter a repository URL');
+      return;
     }
-    
+
     if (!path.trim()) {
-      setError('Please select a destination folder')
-      return
+      setError('Please select a destination folder');
+      return;
     }
-    
-    setIsCheckingOut(true)
-    setError(null)
-    
+
+    setIsCheckingOut(true);
+    setError(null);
+
     try {
       // If user proactively provided credentials, use them
-      const options = provideCredentials ? {
-        credentials: { username: username.trim(), password }
-      } : undefined
-      
+      const options = provideCredentials
+        ? {
+            credentials: { username: username.trim(), password },
+          }
+        : undefined;
+
       // Use selected paths if available, otherwise use depth
-      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined
-      
+      const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined;
+
       // If we have selected paths, override depth to empty since we're doing sparse checkout
-      const checkoutDepth = sparsePaths ? 'empty' : depth
-      
+      const checkoutDepth = sparsePaths ? 'empty' : depth;
+
       const result = await window.api.svn.checkout(
         url.trim(),
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
         checkoutDepth,
         { ...options, sparsePaths }
-      )
-      
+      );
+
       if (result.success) {
         // Save credentials if requested
         if (provideCredentials && saveCredentials && username.trim()) {
           try {
-            const realm = url.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || url.trim()
-            await window.api.auth.set(realm, username.trim(), password)
+            const realm = url.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || url.trim();
+            await window.api.auth.set(realm, username.trim(), password);
           } catch {
             // Ignore credential save errors
           }
         }
-        setSuccess({ revision: result.revision, path: path.trim() })
+        setSuccess({ revision: result.revision, path: path.trim() });
       } else {
-        handleCheckoutError(result.output || 'Checkout failed')
+        handleCheckoutError(result.output || 'Checkout failed');
       }
     } catch (err) {
-      handleCheckoutError((err as Error).message || 'Checkout failed')
+      handleCheckoutError((err as Error).message || 'Checkout failed');
     } finally {
-      setIsCheckingOut(false)
+      setIsCheckingOut(false);
     }
-  }
-  
+  };
+
   const handleClose = () => {
     if (!isCheckingOut) {
       if (success && onComplete) {
-        onComplete(success.path)
+        onComplete(success.path);
       }
-      onClose()
+      onClose();
     }
-  }
-  
-    if (!isOpen) return null
-  
+  };
+
+  if (!isOpen) return null;
+
   return (
     <>
       {/* Main Checkout Dialog */}
       <div className="modal-overlay" onClick={handleClose}>
-        <div 
-          className="modal w-[560px]" 
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="modal w-[560px]" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="modal-header">
             <h2 className="modal-title">
               <Download className="w-5 h-5 text-accent" />
               Checkout from Repository
             </h2>
-            <button 
-              onClick={handleClose}
-              className="btn-icon-sm"
-              disabled={isCheckingOut}
-            >
+            <button onClick={handleClose} className="btn-icon-sm" disabled={isCheckingOut}>
               <X className="w-4 h-4" />
             </button>
           </div>
-          
+
           {/* Content */}
           {success ? (
             <div className="modal-body">
@@ -383,16 +404,9 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                   <CheckCircle className="w-6 h-6 text-success" />
                 </div>
                 <h3 className="text-lg font-medium text-text mb-2">Checkout Complete</h3>
-                <p className="text-text-secondary mb-2">
-                  Checked out revision {success.revision}
-                </p>
-                <p className="text-text-faint text-sm mb-6 break-all">
-                  {success.path}
-                </p>
-                <button
-                  onClick={handleClose}
-                  className="btn btn-primary"
-                >
+                <p className="text-text-secondary mb-2">Checked out revision {success.revision}</p>
+                <p className="text-text-faint text-sm mb-6 break-all">{success.path}</p>
+                <button onClick={handleClose} className="btn btn-primary">
                   Done
                 </button>
               </div>
@@ -414,7 +428,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                     disabled={isCheckingOut}
                   />
                 </div>
-                
+
                 {/* Destination Path */}
                 <div>
                   <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -440,7 +454,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Revision */}
                 <div>
                   <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -456,7 +470,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                   />
                   <span className="text-xs text-text-faint ml-2">HEAD = latest</span>
                 </div>
-                
+
                 {/* Depth */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -480,8 +494,8 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                     <option value="files">Files only</option>
                     <option value="empty">Only this item</option>
                   </select>
-                 </div>
-                 
+                </div>
+
                 {url.trim() && (
                   <div className="flex items-center gap-2">
                     <button
@@ -496,8 +510,8 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedPaths([])
-                          setDepth('infinity')
+                          setSelectedPaths([]);
+                          setDepth('infinity');
                         }}
                         className="btn btn-ghost text-xs"
                       >
@@ -506,7 +520,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                     )}
                   </div>
                 )}
-                
+
                 {/* Credentials Section */}
                 <div className="border border-border rounded-lg">
                   <button
@@ -523,14 +537,17 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                       {provideCredentials && username.trim() && (
                         <span className="text-xs text-accent">{username}</span>
                       )}
-                      <ChevronDown className={`w-4 h-4 text-text-muted transition-transform ${provideCredentials ? 'rotate-180' : ''}`} />
+                      <ChevronDown
+                        className={`w-4 h-4 text-text-muted transition-transform ${provideCredentials ? 'rotate-180' : ''}`}
+                      />
                     </div>
                   </button>
-                  
+
                   {provideCredentials && (
                     <div className="px-3 pb-3 pt-2 border-t border-border space-y-3">
                       <p className="text-xs text-text-muted">
-                        Provide credentials if your repository requires authentication. Leave empty for anonymous access.
+                        Provide credentials if your repository requires authentication. Leave empty
+                        for anonymous access.
                       </p>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -570,12 +587,14 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                           className="checkbox"
                           disabled={isCheckingOut}
                         />
-                        <span className="text-text-secondary">Save credentials for this repository</span>
+                        <span className="text-text-secondary">
+                          Save credentials for this repository
+                        </span>
                       </label>
                     </div>
                   )}
                 </div>
-                
+
                 {/* Error */}
                 {error && (
                   <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
@@ -584,7 +603,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                   </div>
                 )}
               </div>
-              
+
               {/* Footer */}
               <div className="modal-footer">
                 <button
@@ -617,26 +636,24 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
           )}
         </div>
       </div>
-      
+
       {/* SSL Certificate Trust Prompt */}
       {showSslPrompt && sslCertificate && (
         <div className="modal-overlay" style={{ zIndex: 100 }}>
-          <div 
-            className="modal w-[480px]" 
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="modal w-[480px]" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">
                 <Shield className="w-5 h-5 text-warning" />
                 Certificate Verification Failed
               </h2>
             </div>
-            
+
             <div className="modal-body space-y-4">
               <p className="text-text-secondary text-sm">
-                The server's SSL certificate could not be verified. Review the certificate details below:
+                The server's SSL certificate could not be verified. Review the certificate details
+                below:
               </p>
-              
+
               <div className="bg-surface-elevated rounded-lg p-4 space-y-2 font-mono text-xs">
                 {sslCertificate.subject && (
                   <div className="flex">
@@ -667,7 +684,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                   <span className="text-text break-all">{sslCertificate.fingerprint}</span>
                 </div>
               </div>
-              
+
               {sslFailures.length > 0 && (
                 <div className="text-warning text-sm space-y-1">
                   <p className="font-medium">Issues:</p>
@@ -678,16 +695,12 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                     {sslFailures.includes('hostname-mismatch') && (
                       <li>Certificate hostname does not match</li>
                     )}
-                    {sslFailures.includes('expired') && (
-                      <li>Certificate has expired</li>
-                    )}
-                    {sslFailures.includes('not-yet-valid') && (
-                      <li>Certificate is not yet valid</li>
-                    )}
+                    {sslFailures.includes('expired') && <li>Certificate has expired</li>}
+                    {sslFailures.includes('not-yet-valid') && <li>Certificate is not yet valid</li>}
                   </ul>
                 </div>
               )}
-              
+
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
                   type="checkbox"
@@ -698,24 +711,20 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                 <span>Trust this certificate permanently</span>
               </label>
             </div>
-            
+
             <div className="modal-footer">
               <button
                 type="button"
                 onClick={() => {
-                  setShowSslPrompt(false)
-                  setSslCertificate(null)
-                  setError('Certificate rejected by user')
+                  setShowSslPrompt(false);
+                  setSslCertificate(null);
+                  setError('Certificate rejected by user');
                 }}
                 className="btn btn-secondary"
               >
                 Reject
               </button>
-              <button
-                type="button"
-                onClick={handleSslTrust}
-                className="btn btn-warning"
-              >
+              <button type="button" onClick={handleSslTrust} className="btn btn-warning">
                 <Shield className="w-4 h-4" />
                 Trust Certificate
               </button>
@@ -723,14 +732,11 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
           </div>
         </div>
       )}
-      
+
       {/* Authentication Prompt */}
       {showAuth && (
         <div className="modal-overlay" style={{ zIndex: 100 }}>
-          <div 
-            className="modal w-[400px]" 
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="modal w-[400px]" onClick={(e) => e.stopPropagation()}>
             <form onSubmit={handleAuthSubmit}>
               <div className="modal-header">
                 <h2 className="modal-title">
@@ -738,18 +744,16 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                   Authentication Required
                 </h2>
               </div>
-              
+
               <div className="modal-body space-y-4">
-                <p className="text-text-secondary text-sm">
-                  Please enter your credentials for:
-                </p>
-                
+                <p className="text-text-secondary text-sm">Please enter your credentials for:</p>
+
                 {authRealm && (
                   <div className="bg-surface-elevated rounded px-3 py-2 text-sm text-text-secondary font-mono">
                     {authRealm}
                   </div>
                 )}
-                
+
                 <div>
                   <label className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
                     <User className="w-4 h-4" />
@@ -764,7 +768,7 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                     autoFocus
                   />
                 </div>
-                
+
                 <div>
                   <label className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
                     <Key className="w-4 h-4" />
@@ -779,24 +783,20 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
                   />
                 </div>
               </div>
-              
+
               <div className="modal-footer">
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAuth(false)
-                    setAuthRealm(null)
-                    setError('Authentication cancelled')
+                    setShowAuth(false);
+                    setAuthRealm(null);
+                    setError('Authentication cancelled');
                   }}
                   className="btn btn-secondary"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={!username.trim()}
-                >
+                <button type="submit" className="btn btn-primary" disabled={!username.trim()}>
                   <Lock className="w-4 h-4" />
                   Authenticate
                 </button>
@@ -805,24 +805,28 @@ export function CheckoutDialog({ isOpen, onClose, onComplete, initialUrl = '' }:
           </div>
         </div>
       )}
-      
+
       {/* Choose Items Dialog */}
       {showChooseItemsDialog && (
         <ChooseItemsDialog
           isOpen={showChooseItemsDialog}
           repoUrl={url}
-          credentials={provideCredentials && username.trim() ? {
-            username: username.trim(),
-            password
-          } : undefined}
+          credentials={
+            provideCredentials && username.trim()
+              ? {
+                  username: username.trim(),
+                  password,
+                }
+              : undefined
+          }
           onSelect={(paths) => {
-            setSelectedPaths(paths)
-            setShowChooseItemsDialog(false)
+            setSelectedPaths(paths);
+            setShowChooseItemsDialog(false);
           }}
           onCancel={() => setShowChooseItemsDialog(false)}
           title="Choose Items to Checkout"
         />
       )}
     </>
-  )
+  );
 }

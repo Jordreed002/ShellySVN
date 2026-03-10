@@ -1,92 +1,93 @@
-import { useState, useRef, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { 
-  RefreshCw, 
-  Folder, 
-  FileText, 
-  AlertCircle,
-  Loader2
-} from 'lucide-react'
+import { useState, useRef, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { RefreshCw, Folder, FileText, AlertCircle, Loader2 } from 'lucide-react';
 
 interface RepoBrowserProps {
-  isOpen?: boolean
-  repoUrl?: string
-  onNavigate?: (path: string) => void
-  onClose?: () => void
+  isOpen?: boolean;
+  repoUrl?: string;
+  onNavigate?: (path: string) => void;
+  onClose?: () => void;
 }
 
 interface RepoEntry {
-  name: string
-  path: string
-  isDirectory: boolean
-  size?: number
-  revision?: number
-  author?: string
-  date?: string
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size?: number;
+  revision?: number;
+  author?: string;
+  date?: string;
 }
 
 export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: RepoBrowserProps) {
-  const [currentUrl, setCurrentUrl] = useState(repoUrl || '')
-  const [pathHistory, setPathHistory] = useState<string[]>([])
-  const parentRef = useRef<HTMLDivElement>(null)
-  
+  const [currentUrl, setCurrentUrl] = useState(repoUrl || '');
+  const [pathHistory, setPathHistory] = useState<string[]>([]);
+  const parentRef = useRef<HTMLDivElement>(null);
+
   // Get repository info
   const { data: repoInfo, isLoading: isLoadingInfo } = useQuery({
     queryKey: ['svn:info', currentUrl],
     queryFn: () => window.api.svn.info(currentUrl),
     enabled: !!currentUrl,
-  })
-  
+  });
+
   // List repository contents
-  const { data: entries, isLoading: isLoadingEntries, refetch } = useQuery({
+  const {
+    data: entries,
+    isLoading: isLoadingEntries,
+    refetch,
+  } = useQuery({
     queryKey: ['repo:list', currentUrl],
     queryFn: async (): Promise<RepoEntry[]> => {
-      const result = await window.api.svn.list(currentUrl, undefined, 'immediates')
-      return result.entries.map(entry => ({
+      const result = await window.api.svn.list(currentUrl, undefined, 'immediates');
+      return result.entries.map((entry) => ({
         name: entry.name,
         path: entry.url,
         isDirectory: entry.kind === 'dir',
         size: entry.size,
         revision: entry.revision,
         author: entry.author,
-        date: entry.date
-      }))
+        date: entry.date,
+      }));
     },
     enabled: !!currentUrl,
-  })
-  
+  });
+
   // Virtualizer
   const virtualizer = useVirtualizer({
     count: entries?.length || 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 32,
-    overscan: 10
-  })
-  
-  const handleNavigate = useCallback((entry: RepoEntry) => {
-    if (entry.isDirectory) {
-      setPathHistory([...pathHistory, currentUrl])
-      setCurrentUrl(entry.path)
-    } else if (onNavigate) {
-      onNavigate(entry.path)
-    }
-  }, [pathHistory, currentUrl, onNavigate])
+    overscan: 10,
+  });
+
+  const handleNavigate = useCallback(
+    (entry: RepoEntry) => {
+      if (entry.isDirectory) {
+        setPathHistory([...pathHistory, currentUrl]);
+        setCurrentUrl(entry.path);
+      } else if (onNavigate) {
+        onNavigate(entry.path);
+      }
+    },
+    [pathHistory, currentUrl, onNavigate]
+  );
 
   const handleBack = useCallback(() => {
     if (pathHistory.length > 0) {
-      const previousUrl = pathHistory[pathHistory.length - 1]
-      setPathHistory(pathHistory.slice(0, -1))
-      setCurrentUrl(previousUrl)
+      const previousUrl = pathHistory[pathHistory.length - 1];
+      setPathHistory(pathHistory.slice(0, -1));
+      setCurrentUrl(previousUrl);
     }
-  }, [pathHistory])
+  }, [pathHistory]);
 
   const handleRefresh = useCallback(() => {
-    refetch()
-  }, [refetch])
-  
-  if (!isOpen) return null
-  
+    refetch();
+  }, [refetch]);
+
+  if (!isOpen) return null;
+
   return (
     <div className="flex flex-col h-full bg-bg-primary">
       {/* Toolbar */}
@@ -98,23 +99,20 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
         >
           Back
         </button>
-        
-        <button
-          onClick={handleRefresh}
-          className="btn btn-secondary btn-sm"
-        >
+
+        <button onClick={handleRefresh} className="btn btn-secondary btn-sm">
           <RefreshCw className="w-4 h-4" />
         </button>
-        
+
         <div className="flex-1" />
-        
+
         {onClose ? (
           <button onClick={onClose} className="btn btn-secondary btn-sm">
             Close
           </button>
         ) : null}
       </div>
-      
+
       {/* URL Bar */}
       <div className="px-4 py-2 bg-bg-tertiary border-b border-border">
         <div className="flex items-center gap-2">
@@ -125,15 +123,12 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
             placeholder="Enter repository URL..."
             className="input flex-1 text-sm"
           />
-          <button
-            onClick={handleRefresh}
-            className="btn btn-primary btn-sm"
-          >
+          <button onClick={handleRefresh} className="btn btn-primary btn-sm">
             Go
           </button>
         </div>
       </div>
-      
+
       {/* Content */}
       <div ref={parentRef} className="flex-1 overflow-auto">
         {isLoadingInfo || isLoadingEntries ? (
@@ -153,7 +148,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
         ) : (
           <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
-              const entry = entries[virtualRow.index]
+              const entry = entries[virtualRow.index];
               return (
                 <div
                   key={entry.path}
@@ -164,7 +159,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
                     left: 0,
                     width: '100%',
                     height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`
+                    transform: `translateY(${virtualRow.start}px)`,
                   }}
                   onClick={() => handleNavigate(entry)}
                   onDoubleClick={() => handleNavigate(entry)}
@@ -174,23 +169,21 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
                   ) : (
                     <FileText className="w-4 h-4 text-text-muted" />
                   )}
-                  
+
                   <span className="flex-1 text-sm truncate">{entry.name}</span>
-                  
+
                   {entry.revision && (
                     <span className="text-xs text-text-faint">r{entry.revision}</span>
                   )}
-                  
-                  {entry.author && (
-                    <span className="text-xs text-text-faint">{entry.author}</span>
-                  )}
+
+                  {entry.author && <span className="text-xs text-text-faint">{entry.author}</span>}
                 </div>
-              )
+              );
             })}
           </div>
         )}
       </div>
-      
+
       {/* Status bar */}
       <div className="px-4 py-2 bg-bg-secondary border-t border-border text-xs text-text-faint">
         {repoInfo && (
@@ -200,5 +193,5 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
         )}
       </div>
     </div>
-  )
+  );
 }

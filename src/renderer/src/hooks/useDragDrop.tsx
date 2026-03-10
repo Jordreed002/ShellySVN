@@ -1,34 +1,34 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // Module-level constant for default options to avoid new instances on every render
-const EMPTY_OPTIONS: UseDragDropOptions = {}
+const EMPTY_OPTIONS: UseDragDropOptions = {};
 
-export type DragDropOperation = 'move' | 'copy' | 'link'
-export type DropEffect = 'none' | 'copy' | 'move' | 'link'
+export type DragDropOperation = 'move' | 'copy' | 'link';
+export type DropEffect = 'none' | 'copy' | 'move' | 'link';
 
 interface DragDropState {
-  isDragging: boolean
-  isOver: boolean
-  draggedPaths: string[]
-  dropTarget: string | null
-  operation: DragDropOperation
-  dropEffect: DropEffect
-  isValidDrop: boolean
-  dragType: 'internal' | 'external' | null
+  isDragging: boolean;
+  isOver: boolean;
+  draggedPaths: string[];
+  dropTarget: string | null;
+  operation: DragDropOperation;
+  dropEffect: DropEffect;
+  isValidDrop: boolean;
+  dragType: 'internal' | 'external' | null;
 }
 
 interface UseDragDropOptions {
-  onDrop?: (sources: string[], target: string, operation: DragDropOperation) => Promise<void>
-  onDragStart?: (paths: string[]) => void
-  onDragEnd?: () => void
-  validateDrop?: (sources: string[], target: string) => boolean | string
-  allowExternalFiles?: boolean
-  onExternalFilesDrop?: (files: File[], target: string) => Promise<void>
+  onDrop?: (sources: string[], target: string, operation: DragDropOperation) => Promise<void>;
+  onDragStart?: (paths: string[]) => void;
+  onDragEnd?: () => void;
+  validateDrop?: (sources: string[], target: string) => boolean | string;
+  allowExternalFiles?: boolean;
+  onExternalFilesDrop?: (files: File[], target: string) => Promise<void>;
 }
 
 interface DropZoneConfig {
-  acceptedTypes?: string[]
-  showDropIndicator?: boolean
+  acceptedTypes?: string[];
+  showDropIndicator?: boolean;
 }
 
 /**
@@ -40,7 +40,7 @@ export function useFileDragDrop({
   onDragEnd,
   validateDrop,
   allowExternalFiles = true,
-  onExternalFilesDrop
+  onExternalFilesDrop,
 }: UseDragDropOptions = EMPTY_OPTIONS) {
   const [state, setState] = useState<DragDropState>({
     isDragging: false,
@@ -50,237 +50,254 @@ export function useFileDragDrop({
     operation: 'move',
     dropEffect: 'move',
     isValidDrop: false,
-    dragType: null
-  })
-  
-  const dragImageRef = useRef<HTMLDivElement | null>(null)
-  
+    dragType: null,
+  });
+
+  const dragImageRef = useRef<HTMLDivElement | null>(null);
+
   // Create custom drag image
   useEffect(() => {
     return () => {
       if (dragImageRef.current && document.body.contains(dragImageRef.current)) {
-        document.body.removeChild(dragImageRef.current)
+        document.body.removeChild(dragImageRef.current);
       }
-    }
-  }, [])
-  
+    };
+  }, []);
+
   // Create drag preview element
   const createDragPreview = useCallback((paths: string[]): HTMLDivElement => {
     if (dragImageRef.current && document.body.contains(dragImageRef.current)) {
-      document.body.removeChild(dragImageRef.current)
+      document.body.removeChild(dragImageRef.current);
     }
-    
-    const preview = document.createElement('div')
-    preview.className = 'fixed -top-full left-0 bg-bg-elevated border border-accent rounded-lg px-3 py-2 shadow-lg z-[9999]'
-    preview.style.pointerEvents = 'none'
-    
-    const count = paths.length
+
+    const preview = document.createElement('div');
+    preview.className =
+      'fixed -top-full left-0 bg-bg-elevated border border-accent rounded-lg px-3 py-2 shadow-lg z-[9999]';
+    preview.style.pointerEvents = 'none';
+
+    const count = paths.length;
     if (count === 1) {
-      const name = paths[0].split(/[/\\]/).pop()
-      preview.textContent = name || paths[0]
+      const name = paths[0].split(/[/\\]/).pop();
+      preview.textContent = name || paths[0];
     } else {
-      preview.textContent = `${count} items`
+      preview.textContent = `${count} items`;
     }
-    
-    document.body.appendChild(preview)
-    dragImageRef.current = preview
-    
-    return preview
-  }, [])
-  
+
+    document.body.appendChild(preview);
+    dragImageRef.current = preview;
+
+    return preview;
+  }, []);
+
   // Start dragging files
-  const handleDragStart = useCallback((paths: string | string[], e?: React.DragEvent) => {
-    const pathArray = Array.isArray(paths) ? paths : [paths]
-    
-    if (e) {
-      e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/plain', pathArray.join('\n'))
-      e.dataTransfer.setData('application/x-shellysvn-paths', JSON.stringify(pathArray))
-      
-      // Set custom drag image
-      const preview = createDragPreview(pathArray)
-      e.dataTransfer.setDragImage(preview, 0, 0)
-    }
-    
-    setState(prev => ({
-      ...prev,
-      isDragging: true,
-      draggedPaths: pathArray,
-      dragType: 'internal'
-    }))
-    
-    onDragStart?.(pathArray)
-  }, [onDragStart, createDragPreview])
-  
-  // Handle drag over a potential drop target
-  const handleDragOver = useCallback((targetPath: string, e: React.DragEvent, _config?: DropZoneConfig) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    // Determine drag type
-    const internalPaths = e.dataTransfer.types.includes('application/x-shellysvn-paths')
-    const hasFiles = e.dataTransfer.types.includes('Files')
-    
-    if (!internalPaths && !hasFiles) {
-      e.dataTransfer.dropEffect = 'none'
-      return
-    }
-    
-    // Check for modifier keys
-    let dropEffect: DropEffect = 'move'
-    let operation: DragDropOperation = 'move'
-    
-    if (e.ctrlKey || e.metaKey) {
-      dropEffect = 'copy'
-      operation = 'copy'
-    } else if (e.altKey) {
-      dropEffect = 'link'
-      operation = 'link'
-    }
-    
-    e.dataTransfer.dropEffect = dropEffect
-    
-    // Validate drop
-    let isValidDrop = true
-    
-    if (internalPaths && validateDrop) {
-      try {
-        const pathsData = e.dataTransfer.getData('application/x-shellysvn-paths')
-        const paths = pathsData ? JSON.parse(pathsData) : []
-        const result = validateDrop(paths, targetPath)
-        isValidDrop = result === true
-      } catch {
-        isValidDrop = false
+  const handleDragStart = useCallback(
+    (paths: string | string[], e?: React.DragEvent) => {
+      const pathArray = Array.isArray(paths) ? paths : [paths];
+
+      if (e) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', pathArray.join('\n'));
+        e.dataTransfer.setData('application/x-shellysvn-paths', JSON.stringify(pathArray));
+
+        // Set custom drag image
+        const preview = createDragPreview(pathArray);
+        e.dataTransfer.setDragImage(preview, 0, 0);
       }
-    }
-    
-    setState(prev => ({
-      ...prev,
-      isOver: true,
-      dropTarget: targetPath,
-      dropEffect,
-      operation,
-      isValidDrop,
-      dragType: internalPaths ? 'internal' : 'external'
-    }))
-  }, [validateDrop])
-  
+
+      setState((prev) => ({
+        ...prev,
+        isDragging: true,
+        draggedPaths: pathArray,
+        dragType: 'internal',
+      }));
+
+      onDragStart?.(pathArray);
+    },
+    [onDragStart, createDragPreview]
+  );
+
+  // Handle drag over a potential drop target
+  const handleDragOver = useCallback(
+    (targetPath: string, e: React.DragEvent, _config?: DropZoneConfig) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Determine drag type
+      const internalPaths = e.dataTransfer.types.includes('application/x-shellysvn-paths');
+      const hasFiles = e.dataTransfer.types.includes('Files');
+
+      if (!internalPaths && !hasFiles) {
+        e.dataTransfer.dropEffect = 'none';
+        return;
+      }
+
+      // Check for modifier keys
+      let dropEffect: DropEffect = 'move';
+      let operation: DragDropOperation = 'move';
+
+      if (e.ctrlKey || e.metaKey) {
+        dropEffect = 'copy';
+        operation = 'copy';
+      } else if (e.altKey) {
+        dropEffect = 'link';
+        operation = 'link';
+      }
+
+      e.dataTransfer.dropEffect = dropEffect;
+
+      // Validate drop
+      let isValidDrop = true;
+
+      if (internalPaths && validateDrop) {
+        try {
+          const pathsData = e.dataTransfer.getData('application/x-shellysvn-paths');
+          const paths = pathsData ? JSON.parse(pathsData) : [];
+          const result = validateDrop(paths, targetPath);
+          isValidDrop = result === true;
+        } catch {
+          isValidDrop = false;
+        }
+      }
+
+      setState((prev) => ({
+        ...prev,
+        isOver: true,
+        dropTarget: targetPath,
+        dropEffect,
+        operation,
+        isValidDrop,
+        dragType: internalPaths ? 'internal' : 'external',
+      }));
+    },
+    [validateDrop]
+  );
+
   // Handle leaving a drop target
   const handleDragLeave = useCallback((e?: React.DragEvent) => {
     if (e) {
-      e.preventDefault()
-      e.stopPropagation()
+      e.preventDefault();
+      e.stopPropagation();
     }
-    
-    setState(prev => ({
+
+    setState((prev) => ({
       ...prev,
       isOver: false,
       dropTarget: null,
-      isValidDrop: false
-    }))
-  }, [])
-  
+      isValidDrop: false,
+    }));
+  }, []);
+
   // Handle drop
-  const handleDrop = useCallback(async (targetPath: string, e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    const internalPathsData = e.dataTransfer.getData('application/x-shellysvn-paths')
-    const isInternal = !!internalPathsData
-    
-    try {
-      if (isInternal) {
-        // Internal file drag-drop
-        const sourcePaths: string[] = JSON.parse(internalPathsData)
-        
-        // Filter out dropping onto self
-        const validPaths = sourcePaths.filter(p => {
-          const parent = p.split(/[/\\]/).slice(0, -1).join(p.includes('\\') ? '\\' : '/')
-          return p !== targetPath && parent !== targetPath && !targetPath.startsWith(p + (p.includes('\\') ? '\\' : '/'))
-        })
-        
-        if (validPaths.length === 0) {
-          setState(prev => ({
-            ...prev,
-            isOver: false,
-            dropTarget: null,
-            isDragging: false,
-            draggedPaths: [],
-            dragType: null
-          }))
-          return
-        }
-        
-        // Validate drop
-        if (validateDrop) {
-          const result = validateDrop(validPaths, targetPath)
-          if (result !== true) {
-            console.warn('Invalid drop:', result)
-            setState(prev => ({
+  const handleDrop = useCallback(
+    async (targetPath: string, e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const internalPathsData = e.dataTransfer.getData('application/x-shellysvn-paths');
+      const isInternal = !!internalPathsData;
+
+      try {
+        if (isInternal) {
+          // Internal file drag-drop
+          const sourcePaths: string[] = JSON.parse(internalPathsData);
+
+          // Filter out dropping onto self
+          const validPaths = sourcePaths.filter((p) => {
+            const parent = p
+              .split(/[/\\]/)
+              .slice(0, -1)
+              .join(p.includes('\\') ? '\\' : '/');
+            return (
+              p !== targetPath &&
+              parent !== targetPath &&
+              !targetPath.startsWith(p + (p.includes('\\') ? '\\' : '/'))
+            );
+          });
+
+          if (validPaths.length === 0) {
+            setState((prev) => ({
               ...prev,
               isOver: false,
               dropTarget: null,
               isDragging: false,
               draggedPaths: [],
-              dragType: null
-            }))
-            return
+              dragType: null,
+            }));
+            return;
           }
+
+          // Validate drop
+          if (validateDrop) {
+            const result = validateDrop(validPaths, targetPath);
+            if (result !== true) {
+              console.warn('Invalid drop:', result);
+              setState((prev) => ({
+                ...prev,
+                isOver: false,
+                dropTarget: null,
+                isDragging: false,
+                draggedPaths: [],
+                dragType: null,
+              }));
+              return;
+            }
+          }
+
+          await onDrop?.(validPaths, targetPath, state.operation);
+        } else if (allowExternalFiles && e.dataTransfer.files.length > 0 && onExternalFilesDrop) {
+          // External files dropped
+          const files = Array.from(e.dataTransfer.files);
+          await onExternalFilesDrop(files, targetPath);
         }
-        
-        await onDrop?.(validPaths, targetPath, state.operation)
-      } else if (allowExternalFiles && e.dataTransfer.files.length > 0 && onExternalFilesDrop) {
-        // External files dropped
-        const files = Array.from(e.dataTransfer.files)
-        await onExternalFilesDrop(files, targetPath)
+      } catch (err) {
+        console.error('Drop operation failed:', err);
+      } finally {
+        setState((prev) => ({
+          ...prev,
+          isOver: false,
+          dropTarget: null,
+          isDragging: false,
+          draggedPaths: [],
+          dragType: null,
+          isValidDrop: false,
+        }));
+
+        onDragEnd?.();
       }
-    } catch (err) {
-      console.error('Drop operation failed:', err)
-    } finally {
-      setState(prev => ({
-        ...prev,
-        isOver: false,
-        dropTarget: null,
-        isDragging: false,
-        draggedPaths: [],
-        dragType: null,
-        isValidDrop: false
-      }))
-      
-      onDragEnd?.()
-    }
-  }, [onDrop, validateDrop, state.operation, onDragEnd, allowExternalFiles, onExternalFilesDrop])
-  
+    },
+    [onDrop, validateDrop, state.operation, onDragEnd, allowExternalFiles, onExternalFilesDrop]
+  );
+
   // End dragging
   const handleDragEnd = useCallback(() => {
     // Clean up drag preview
     if (dragImageRef.current && document.body.contains(dragImageRef.current)) {
-      document.body.removeChild(dragImageRef.current)
-      dragImageRef.current = null
+      document.body.removeChild(dragImageRef.current);
+      dragImageRef.current = null;
     }
-    
-    setState(prev => ({
+
+    setState((prev) => ({
       ...prev,
       isDragging: false,
       draggedPaths: [],
       isOver: false,
       dropTarget: null,
       dragType: null,
-      isValidDrop: false
-    }))
-    
-    onDragEnd?.()
-  }, [onDragEnd])
-  
+      isValidDrop: false,
+    }));
+
+    onDragEnd?.();
+  }, [onDragEnd]);
+
   // Set operation type
   const setOperation = useCallback((operation: DragDropOperation) => {
-    setState(prev => ({ 
-      ...prev, 
+    setState((prev) => ({
+      ...prev,
       operation,
-      dropEffect: operation === 'copy' ? 'copy' : operation === 'link' ? 'link' : 'move'
-    }))
-  }, [])
-  
+      dropEffect: operation === 'copy' ? 'copy' : operation === 'link' ? 'link' : 'move',
+    }));
+  }, []);
+
   return {
     state,
     handlers: {
@@ -288,101 +305,101 @@ export function useFileDragDrop({
       onDragOver: handleDragOver,
       onDragLeave: handleDragLeave,
       onDrop: handleDrop,
-      onDragEnd: handleDragEnd
+      onDragEnd: handleDragEnd,
     },
-    setOperation
-  }
+    setOperation,
+  };
 }
 
 /**
  * Wrapper component to make a file row draggable
  */
 interface DraggableFileRowProps {
-  path: string
-  children: React.ReactNode
-  onDrop?: (sources: string[], target: string, operation: DragDropOperation) => void
-  isDirectory?: boolean
-  disabled?: boolean
-  selectedPaths?: Set<string>
-  className?: string
+  path: string;
+  children: React.ReactNode;
+  onDrop?: (sources: string[], target: string, operation: DragDropOperation) => void;
+  isDirectory?: boolean;
+  disabled?: boolean;
+  selectedPaths?: Set<string>;
+  className?: string;
 }
 
-export function DraggableFileRow({ 
-  path, 
-  children, 
-  onDrop, 
+export function DraggableFileRow({
+  path,
+  children,
+  onDrop,
   isDirectory = false,
   disabled = false,
   selectedPaths,
-  className = ''
+  className = '',
 }: DraggableFileRowProps) {
-  const [isOver, setIsOver] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
-  
+  const [isOver, setIsOver] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
   const handleDragStart = (e: React.DragEvent) => {
     if (disabled) {
-      e.preventDefault()
-      return
+      e.preventDefault();
+      return;
     }
-    
+
     // Include all selected paths if this is part of a selection
-    const pathsToDrag = selectedPaths?.has(path) ? Array.from(selectedPaths) : [path]
-    
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', pathsToDrag.join('\n'))
-    e.dataTransfer.setData('application/x-shellysvn-paths', JSON.stringify(pathsToDrag))
-    
-    setIsDragging(true)
-  }
-  
+    const pathsToDrag = selectedPaths?.has(path) ? Array.from(selectedPaths) : [path];
+
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', pathsToDrag.join('\n'));
+    e.dataTransfer.setData('application/x-shellysvn-paths', JSON.stringify(pathsToDrag));
+
+    setIsDragging(true);
+  };
+
   const handleDragEnd = () => {
-    setIsDragging(false)
-  }
-  
+    setIsDragging(false);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
-    if (!isDirectory || disabled) return
-    e.preventDefault()
-    e.stopPropagation()
-    
+    if (!isDirectory || disabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+
     // Check if dragging over self
     try {
-      const pathsData = e.dataTransfer.getData('application/x-shellysvn-paths')
+      const pathsData = e.dataTransfer.getData('application/x-shellysvn-paths');
       if (pathsData) {
-        const paths: string[] = JSON.parse(pathsData)
-        if (paths.includes(path)) return
+        const paths: string[] = JSON.parse(pathsData);
+        if (paths.includes(path)) return;
       }
     } catch {
       // Ignore parse errors
     }
-    
-    e.dataTransfer.dropEffect = e.ctrlKey || e.metaKey ? 'copy' : 'move'
-    setIsOver(true)
-  }
-  
+
+    e.dataTransfer.dropEffect = e.ctrlKey || e.metaKey ? 'copy' : 'move';
+    setIsOver(true);
+  };
+
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsOver(false)
-  }
-  
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOver(false);
+  };
+
   const handleDrop = async (e: React.DragEvent) => {
-    if (!isDirectory || disabled) return
-    e.preventDefault()
-    e.stopPropagation()
-    setIsOver(false)
-    
-    const pathsData = e.dataTransfer.getData('application/x-shellysvn-paths')
+    if (!isDirectory || disabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOver(false);
+
+    const pathsData = e.dataTransfer.getData('application/x-shellysvn-paths');
     if (pathsData) {
-      const sourcePaths: string[] = JSON.parse(pathsData)
+      const sourcePaths: string[] = JSON.parse(pathsData);
       // Filter out self
-      const validPaths = sourcePaths.filter(p => p !== path)
+      const validPaths = sourcePaths.filter((p) => p !== path);
       if (validPaths.length > 0 && onDrop) {
-        const operation = e.ctrlKey || e.metaKey ? 'copy' : 'move'
-        onDrop(validPaths, path, operation)
+        const operation = e.ctrlKey || e.metaKey ? 'copy' : 'move';
+        onDrop(validPaths, path, operation);
       }
     }
-  }
-  
+  };
+
   return (
     <div
       draggable={!disabled}
@@ -400,19 +417,19 @@ export function DraggableFileRow({
     >
       {children}
     </div>
-  )
+  );
 }
 
 /**
  * Drop zone component for receiving external files
  */
 interface DropZoneProps {
-  onDrop: (files: File[], targetPath: string) => Promise<void>
-  targetPath: string
-  children: React.ReactNode
-  acceptedTypes?: string[]
-  className?: string
-  disabled?: boolean
+  onDrop: (files: File[], targetPath: string) => Promise<void>;
+  targetPath: string;
+  children: React.ReactNode;
+  acceptedTypes?: string[];
+  className?: string;
+  disabled?: boolean;
 }
 
 export function DropZone({
@@ -421,58 +438,61 @@ export function DropZone({
   children,
   acceptedTypes = [],
   className = '',
-  disabled = false
+  disabled = false,
 }: DropZoneProps) {
-  const [isOver, setIsOver] = useState(false)
-  const [isValid, setIsValid] = useState(false)
-  
-  const checkFileType = useCallback((file: File): boolean => {
-    if (acceptedTypes.length === 0) return true
-    
-    const ext = file.name.split('.').pop()?.toLowerCase() || ''
-    return acceptedTypes.some(type => {
-      if (type.startsWith('.')) {
-        return ext === type.slice(1).toLowerCase()
-      }
-      if (type.includes('/')) {
-        return file.type.match(type.replace('*', '.*')) !== null
-      }
-      return ext === type.toLowerCase()
-    })
-  }, [acceptedTypes])
-  
+  const [isOver, setIsOver] = useState(false);
+  const [isValid, setIsValid] = useState(false);
+
+  const checkFileType = useCallback(
+    (file: File): boolean => {
+      if (acceptedTypes.length === 0) return true;
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      return acceptedTypes.some((type) => {
+        if (type.startsWith('.')) {
+          return ext === type.slice(1).toLowerCase();
+        }
+        if (type.includes('/')) {
+          return file.type.match(type.replace('*', '.*')) !== null;
+        }
+        return ext === type.toLowerCase();
+      });
+    },
+    [acceptedTypes]
+  );
+
   const handleDragOver = (e: React.DragEvent) => {
-    if (disabled) return
-    e.preventDefault()
-    e.stopPropagation()
-    
-    const hasValidFiles = Array.from(e.dataTransfer.files).some(checkFileType)
-    
-    e.dataTransfer.dropEffect = hasValidFiles ? 'copy' : 'none'
-    setIsOver(true)
-    setIsValid(hasValidFiles)
-  }
-  
+    if (disabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const hasValidFiles = Array.from(e.dataTransfer.files).some(checkFileType);
+
+    e.dataTransfer.dropEffect = hasValidFiles ? 'copy' : 'none';
+    setIsOver(true);
+    setIsValid(hasValidFiles);
+  };
+
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsOver(false)
-    setIsValid(false)
-  }
-  
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOver(false);
+    setIsValid(false);
+  };
+
   const handleDrop = async (e: React.DragEvent) => {
-    if (disabled) return
-    e.preventDefault()
-    e.stopPropagation()
-    setIsOver(false)
-    setIsValid(false)
-    
-    const files = Array.from(e.dataTransfer.files).filter(checkFileType)
+    if (disabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOver(false);
+    setIsValid(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(checkFileType);
     if (files.length > 0) {
-      await onDrop(files, targetPath)
+      await onDrop(files, targetPath);
     }
-  }
-  
+  };
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -489,16 +509,18 @@ export function DropZone({
       {children}
       {isOver && (
         <div className="absolute inset-0 flex items-center justify-center bg-bg/80 pointer-events-none z-10">
-          <div className={`
+          <div
+            className={`
             px-4 py-2 rounded-lg text-sm font-medium
             ${isValid ? 'bg-accent text-white' : 'bg-error text-white'}
-          `}>
+          `}
+          >
             {isValid ? 'Drop to add files' : 'Invalid file type'}
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
 
 /**
@@ -509,35 +531,36 @@ export async function performSvnOperation(
   target: string,
   operation: DragDropOperation
 ): Promise<boolean> {
-  const api = window.api
-  
+  const api = window.api;
+
   for (const source of sources) {
-    const fileName = source.split(/[/\\]/).pop() || source
-    const destination = target + (target.endsWith('/') || target.endsWith('\\') ? '' : '/') + fileName
-    
+    const fileName = source.split(/[/\\]/).pop() || source;
+    const destination =
+      target + (target.endsWith('/') || target.endsWith('\\') ? '' : '/') + fileName;
+
     try {
       if (operation === 'copy') {
-        await api.svn.copy(source, destination, `Copy from ${source}`)
+        await api.svn.copy(source, destination, `Copy from ${source}`);
       } else if (operation === 'move') {
-        await api.svn.move(source, destination)
+        await api.svn.move(source, destination);
       } else if (operation === 'link') {
         // Create SVN external
-        const externalName = fileName || source.split(/[/\\]/).pop() || 'external'
+        const externalName = fileName || source.split(/[/\\]/).pop() || 'external';
         const result = await api.svn.externals.add(target, {
           url: source,
           path: externalName,
-          name: externalName
-        })
+          name: externalName,
+        });
 
         if (!result.success) {
-          throw new Error(`Failed to create external link for ${source}`)
+          throw new Error(`Failed to create external link for ${source}`);
         }
       }
     } catch (err) {
-      console.error(`Failed to ${operation} ${source} to ${destination}:`, err)
-      return false
+      console.error(`Failed to ${operation} ${source} to ${destination}:`, err);
+      return false;
     }
   }
-  
-  return true
+
+  return true;
 }

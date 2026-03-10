@@ -1,6 +1,6 @@
 /**
  * Error handling utilities for ShellySVN
- * 
+ *
  * Provides consistent error handling across the application
  */
 
@@ -13,8 +13,8 @@ export class ShellySVNError extends Error {
     public readonly code: string,
     public readonly details?: Record<string, unknown>
   ) {
-    super(message)
-    this.name = 'ShellySVNError'
+    super(message);
+    this.name = 'ShellySVNError';
   }
 }
 
@@ -28,8 +28,8 @@ export class SvnExecutionError extends ShellySVNError {
     public readonly stdout?: string,
     public readonly stderr?: string
   ) {
-    super(message, 'SVN_EXECUTION_ERROR', { exitCode, stdout, stderr })
-    this.name = 'SvnExecutionError'
+    super(message, 'SVN_EXECUTION_ERROR', { exitCode, stdout, stderr });
+    this.name = 'SvnExecutionError';
   }
 }
 
@@ -37,9 +37,12 @@ export class SvnExecutionError extends ShellySVNError {
  * Working copy error
  */
 export class WorkingCopyError extends ShellySVNError {
-  constructor(message: string, public readonly path: string) {
-    super(message, 'WORKING_COPY_ERROR', { path })
-    this.name = 'WorkingCopyError'
+  constructor(
+    message: string,
+    public readonly path: string
+  ) {
+    super(message, 'WORKING_COPY_ERROR', { path });
+    this.name = 'WorkingCopyError';
   }
 }
 
@@ -47,9 +50,12 @@ export class WorkingCopyError extends ShellySVNError {
  * Conflict error
  */
 export class ConflictError extends ShellySVNError {
-  constructor(message: string, public readonly conflictedPaths: string[]) {
-    super(message, 'CONFLICT_ERROR', { conflictedPaths })
-    this.name = 'ConflictError'
+  constructor(
+    message: string,
+    public readonly conflictedPaths: string[]
+  ) {
+    super(message, 'CONFLICT_ERROR', { conflictedPaths });
+    this.name = 'ConflictError';
   }
 }
 
@@ -57,9 +63,12 @@ export class ConflictError extends ShellySVNError {
  * Authentication error
  */
 export class AuthenticationError extends ShellySVNError {
-  constructor(message: string, public readonly realm?: string) {
-    super(message, 'AUTHENTICATION_ERROR', { realm })
-    this.name = 'AuthenticationError'
+  constructor(
+    message: string,
+    public readonly realm?: string
+  ) {
+    super(message, 'AUTHENTICATION_ERROR', { realm });
+    this.name = 'AuthenticationError';
   }
 }
 
@@ -67,9 +76,12 @@ export class AuthenticationError extends ShellySVNError {
  * Network error
  */
 export class NetworkError extends ShellySVNError {
-  constructor(message: string, public readonly url?: string) {
-    super(message, 'NETWORK_ERROR', { url })
-    this.name = 'NetworkError'
+  constructor(
+    message: string,
+    public readonly url?: string
+  ) {
+    super(message, 'NETWORK_ERROR', { url });
+    this.name = 'NetworkError';
   }
 }
 
@@ -78,103 +90,101 @@ export class NetworkError extends ShellySVNError {
  */
 export function parseSvnError(stderr: string): ShellySVNError {
   if (!stderr) {
-    return new ShellySVNError('Unknown SVN error', 'UNKNOWN_ERROR')
+    return new ShellySVNError('Unknown SVN error', 'UNKNOWN_ERROR');
   }
 
-  const lower = stderr.toLowerCase()
+  const lower = stderr.toLowerCase();
 
   // Authentication errors
-  if (lower.includes('authentication') || lower.includes('authorization') || lower.includes('access forbidden')) {
-    const realmMatch = stderr.match(/realm:\s*(.+)/i)
+  if (
+    lower.includes('authentication') ||
+    lower.includes('authorization') ||
+    lower.includes('access forbidden')
+  ) {
+    const realmMatch = stderr.match(/realm:\s*(.+)/i);
     return new AuthenticationError(
       'Authentication failed',
       realmMatch ? realmMatch[1].trim() : undefined
-    )
+    );
   }
 
   // Conflict errors
   if (lower.includes('conflict') || lower.includes('conflicted')) {
-    const paths = extractPaths(stderr)
-    return new ConflictError(
-      'Conflicts detected',
-      paths
-    )
+    const paths = extractPaths(stderr);
+    return new ConflictError('Conflicts detected', paths);
   }
 
   // Network errors
-  if (lower.includes('connection') || lower.includes('network') || lower.includes('timeout') || lower.includes('host')) {
-    const urlMatch = stderr.match(/(https?:\/\/[^\s]+)/i)
-    return new NetworkError(
-      'Network error occurred',
-      urlMatch ? urlMatch[1] : undefined
-    )
+  if (
+    lower.includes('connection') ||
+    lower.includes('network') ||
+    lower.includes('timeout') ||
+    lower.includes('host')
+  ) {
+    const urlMatch = stderr.match(/(https?:\/\/[^\s]+)/i);
+    return new NetworkError('Network error occurred', urlMatch ? urlMatch[1] : undefined);
   }
 
   // Working copy errors
   if (lower.includes('working copy') || lower.includes('locked') || lower.includes('cleanup')) {
-    const pathMatch = stderr.match(/path:\s*(.+)/i)
-    return new WorkingCopyError(
-      'Working copy error',
-      pathMatch ? pathMatch[1].trim() : ''
-    )
+    const pathMatch = stderr.match(/path:\s*(.+)/i);
+    return new WorkingCopyError('Working copy error', pathMatch ? pathMatch[1].trim() : '');
   }
 
   // Generic error
-  return new ShellySVNError(
-    stderr.split('\n')[0] || 'SVN operation failed',
-    'SVN_ERROR',
-    { rawError: stderr }
-  )
+  return new ShellySVNError(stderr.split('\n')[0] || 'SVN operation failed', 'SVN_ERROR', {
+    rawError: stderr,
+  });
 }
 
 /**
  * Extract file paths from error message
  */
 function extractPaths(text: string): string[] {
-  const paths: string[] = []
-  const pathPattern = /["']?([A-Za-z]:\\[^\s"']+|\/[^\s"']+)["']?/g
-  let match
-  
+  const paths: string[] = [];
+  const pathPattern = /["']?([A-Za-z]:\\[^\s"']+|\/[^\s"']+)["']?/g;
+  let match;
+
   while ((match = pathPattern.exec(text)) !== null) {
-    paths.push(match[1])
+    paths.push(match[1]);
   }
-  
-  return [...new Set(paths)] // Remove duplicates
+
+  return [...new Set(paths)]; // Remove duplicates
 }
 
 /**
  * Error result type for operations
  */
 export interface ErrorResult {
-  success: false
-  error: ShellySVNError
+  success: false;
+  error: ShellySVNError;
 }
 
 /**
  * Success result type for operations
  */
 export interface SuccessResult<T = void> {
-  success: true
-  data?: T
+  success: true;
+  data?: T;
 }
 
 /**
  * Result type combining success and error
  */
-export type Result<T = void> = SuccessResult<T> | ErrorResult
+export type Result<T = void> = SuccessResult<T> | ErrorResult;
 
 /**
  * Type guard for error result
  */
 export function isErrorResult<T>(result: Result<T>): result is ErrorResult {
-  return result.success === false
+  return result.success === false;
 }
 
 /**
  * Type guard for success result
  */
 export function isSuccessResult<T>(result: Result<T>): result is SuccessResult<T> {
-  return result.success === true
+  return result.success === true;
 }
 
 /**
@@ -185,21 +195,21 @@ export async function withErrorHandling<T>(
   errorCode: string = 'OPERATION_ERROR'
 ): Promise<Result<T>> {
   try {
-    const data = await operation()
-    return { success: true, data }
+    const data = await operation();
+    return { success: true, data };
   } catch (error) {
     if (error instanceof ShellySVNError) {
-      return { success: false, error }
+      return { success: false, error };
     }
-    
+
     return {
       success: false,
       error: new ShellySVNError(
         error instanceof Error ? error.message : 'Unknown error',
         errorCode,
         { originalError: error }
-      )
-    }
+      ),
+    };
   }
 }
 
@@ -209,38 +219,33 @@ export async function withErrorHandling<T>(
 export async function withRetry<T>(
   operation: () => Promise<T>,
   options: {
-    maxRetries?: number
-    initialDelay?: number
-    maxDelay?: number
-    backoffFactor?: number
+    maxRetries?: number;
+    initialDelay?: number;
+    maxDelay?: number;
+    backoffFactor?: number;
   } = {}
 ): Promise<T> {
-  const {
-    maxRetries = 3,
-    initialDelay = 1000,
-    maxDelay = 10000,
-    backoffFactor = 2
-  } = options
+  const { maxRetries = 3, initialDelay = 1000, maxDelay = 10000, backoffFactor = 2 } = options;
 
-  let lastError: Error | null = null
-  let delay = initialDelay
+  let lastError: Error | null = null;
+  let delay = initialDelay;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await operation()
+      return await operation();
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
-      
+      lastError = error instanceof Error ? error : new Error(String(error));
+
       if (attempt === maxRetries) {
-        break
+        break;
       }
 
-      await new Promise(resolve => setTimeout(resolve, delay))
-      delay = Math.min(delay * backoffFactor, maxDelay)
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay = Math.min(delay * backoffFactor, maxDelay);
     }
   }
 
-  throw lastError
+  throw lastError;
 }
 
 export default {
@@ -254,5 +259,5 @@ export default {
   isErrorResult,
   isSuccessResult,
   withErrorHandling,
-  withRetry
-}
+  withRetry,
+};

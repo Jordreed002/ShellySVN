@@ -1,7 +1,13 @@
-import { FileDiff, Eye, Plus, Minus, ArrowLeft, ArrowRight } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { FileDiff, Eye, Plus, Minus, ArrowLeft, ArrowRight } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function DiffViewerStep({ onNext, onPrevious, onSkip, currentStep, totalSteps }: TutorialStepProps) {
+export function DiffViewerStep({
+  onNext,
+  onPrevious,
+  onSkip,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
@@ -88,5 +94,5 @@ export function DiffViewerStep({ onNext, onPrevious, onSkip, currentStep, totalS
         </div>
       </div>
     </div>
-  )
+  );
 }

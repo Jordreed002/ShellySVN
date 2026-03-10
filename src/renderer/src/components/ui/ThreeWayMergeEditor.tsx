@@ -1,26 +1,48 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { X, AlertTriangle, Check, ChevronLeft, ChevronRight, Save, RotateCcw, Columns, Rows, Eye, EyeOff, Copy, CheckCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  X,
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  RotateCcw,
+  Columns,
+  Rows,
+  Eye,
+  EyeOff,
+  Copy,
+  CheckCircle,
+  Loader2,
+} from 'lucide-react';
 
 interface ThreeWayMergeEditorProps {
-  isOpen: boolean
-  filePath: string
-  mineContent: string
-  theirsContent: string
-  baseContent: string
-  onClose: () => void
-  onSave: (mergedContent: string) => Promise<void>
+  isOpen: boolean;
+  filePath: string;
+  mineContent: string;
+  theirsContent: string;
+  baseContent: string;
+  onClose: () => void;
+  onSave: (mergedContent: string) => Promise<void>;
 }
 
 interface ConflictRegion {
-  id: string
-  startLine: number
-  endLine: number
-  mineContent: string[]
-  theirsContent: string[]
-  baseContent: string[]
-  resolved: boolean
-  resolution: 'mine' | 'theirs' | 'base' | 'both-mine-first' | 'both-theirs-first' | 'custom' | null
-  customContent?: string
+  id: string;
+  startLine: number;
+  endLine: number;
+  mineContent: string[];
+  theirsContent: string[];
+  baseContent: string[];
+  resolved: boolean;
+  resolution:
+    | 'mine'
+    | 'theirs'
+    | 'base'
+    | 'both-mine-first'
+    | 'both-theirs-first'
+    | 'custom'
+    | null;
+  customContent?: string;
 }
 
 export function ThreeWayMergeEditor({
@@ -30,60 +52,60 @@ export function ThreeWayMergeEditor({
   theirsContent,
   baseContent,
   onClose,
-  onSave
+  onSave,
 }: ThreeWayMergeEditorProps) {
-  const [viewMode, setViewMode] = useState<'3way' | 'unified'>('3way')
-  const [conflicts, setConflicts] = useState<ConflictRegion[]>([])
-  const [currentConflictIndex, setCurrentConflictIndex] = useState(0)
-  const [mergedContent, setMergedContent] = useState<string>('')
-  const [isSaving, setIsSaving] = useState(false)
-  const [showLineNumbers, setShowLineNumbers] = useState(true)
-  const [editingConflictId, setEditingConflictId] = useState<string | null>(null)
-  const [customEditContent, setCustomEditContent] = useState<string>('')
-  
-  const containerRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [viewMode, setViewMode] = useState<'3way' | 'unified'>('3way');
+  const [conflicts, setConflicts] = useState<ConflictRegion[]>([]);
+  const [currentConflictIndex, setCurrentConflictIndex] = useState(0);
+  const [mergedContent, setMergedContent] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [editingConflictId, setEditingConflictId] = useState<string | null>(null);
+  const [customEditContent, setCustomEditContent] = useState<string>('');
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Parse conflict markers from mine content (SVN conflict format)
   useEffect(() => {
-    if (!mineContent) return
-    
-    const lines = mineContent.split('\n')
-    const parsedConflicts: ConflictRegion[] = []
-    let currentConflict: Partial<ConflictRegion> | null = null
-    let inMineSection = false
-    let inTheirsSection = false
-    let mineLines: string[] = []
-    let theirsLines: string[] = []
-    let baseLines: string[] = []
-    let conflictStartLine = 0
-    let conflictId = 0
+    if (!mineContent) return;
+
+    const lines = mineContent.split('\n');
+    const parsedConflicts: ConflictRegion[] = [];
+    let currentConflict: Partial<ConflictRegion> | null = null;
+    let inMineSection = false;
+    let inTheirsSection = false;
+    let mineLines: string[] = [];
+    let theirsLines: string[] = [];
+    let baseLines: string[] = [];
+    let conflictStartLine = 0;
+    let conflictId = 0;
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      
+      const line = lines[i];
+
       // Detect conflict start: <<<<<<< .mine
       if (line.startsWith('<<<<<<<')) {
         currentConflict = {
           id: `conflict-${conflictId++}`,
-          startLine: i
-        }
-        inMineSection = true
-        inTheirsSection = false
-        mineLines = []
-        theirsLines = []
-        baseLines = []
-        conflictStartLine = i
-        continue
+          startLine: i,
+        };
+        inMineSection = true;
+        inTheirsSection = false;
+        mineLines = [];
+        theirsLines = [];
+        baseLines = [];
+        conflictStartLine = i;
+        continue;
       }
-      
+
       // Detect separator: ======= or ------- (with revision info)
       if (line.startsWith('=======') && inMineSection) {
-        inMineSection = false
-        inTheirsSection = true
-        continue
+        inMineSection = false;
+        inTheirsSection = true;
+        continue;
       }
-      
+
       // Detect conflict end: >>>>>>> .r123
       if (line.startsWith('>>>>>>>')) {
         if (currentConflict) {
@@ -95,221 +117,232 @@ export function ThreeWayMergeEditor({
             theirsContent: theirsLines,
             baseContent: baseLines,
             resolved: false,
-            resolution: null
-          })
+            resolution: null,
+          });
         }
-        currentConflict = null
-        inMineSection = false
-        inTheirsSection = false
-        continue
+        currentConflict = null;
+        inMineSection = false;
+        inTheirsSection = false;
+        continue;
       }
-      
+
       // Collect lines
       if (inMineSection) {
-        mineLines.push(line)
+        mineLines.push(line);
       } else if (inTheirsSection) {
-        theirsLines.push(line)
+        theirsLines.push(line);
       }
     }
-    
-    setConflicts(parsedConflicts)
-  }, [mineContent, theirsContent, baseContent])
+
+    setConflicts(parsedConflicts);
+  }, [mineContent, theirsContent, baseContent]);
 
   // Build merged content based on resolutions
   const buildMergedContent = useCallback(() => {
-    const lines = mineContent.split('\n')
-    const result: string[] = []
-    let skipUntil = -1
+    const lines = mineContent.split('\n');
+    const result: string[] = [];
+    let skipUntil = -1;
 
     for (let i = 0; i < lines.length; i++) {
       // Skip conflict regions
-      if (i < skipUntil) continue
-      
-      const conflict = conflicts.find(c => c.startLine === i)
+      if (i < skipUntil) continue;
+
+      const conflict = conflicts.find((c) => c.startLine === i);
       if (conflict) {
         // Find the resolution
         if (conflict.resolved && conflict.resolution) {
-          let resolvedLines: string[]
-          
+          let resolvedLines: string[];
+
           switch (conflict.resolution) {
             case 'mine':
-              resolvedLines = conflict.mineContent
-              break
+              resolvedLines = conflict.mineContent;
+              break;
             case 'theirs':
-              resolvedLines = conflict.theirsContent
-              break
+              resolvedLines = conflict.theirsContent;
+              break;
             case 'base':
-              resolvedLines = conflict.baseContent
-              break
+              resolvedLines = conflict.baseContent;
+              break;
             case 'both-mine-first':
-              resolvedLines = [...conflict.mineContent, ...conflict.theirsContent]
-              break
+              resolvedLines = [...conflict.mineContent, ...conflict.theirsContent];
+              break;
             case 'both-theirs-first':
-              resolvedLines = [...conflict.theirsContent, ...conflict.mineContent]
-              break
+              resolvedLines = [...conflict.theirsContent, ...conflict.mineContent];
+              break;
             case 'custom':
-              resolvedLines = conflict.customContent?.split('\n') || []
-              break
+              resolvedLines = conflict.customContent?.split('\n') || [];
+              break;
             default:
-              resolvedLines = conflict.mineContent
+              resolvedLines = conflict.mineContent;
           }
-          
-          result.push(...resolvedLines)
+
+          result.push(...resolvedLines);
         } else {
           // Unresolved - keep conflict markers
-          result.push('<<<<<<< .mine')
-          result.push(...conflict.mineContent)
-          result.push('=======')
-          result.push(...conflict.theirsContent)
-          result.push('>>>>>>> .r???')
+          result.push('<<<<<<< .mine');
+          result.push(...conflict.mineContent);
+          result.push('=======');
+          result.push(...conflict.theirsContent);
+          result.push('>>>>>>> .r???');
         }
-        
-        skipUntil = conflict.endLine + 1
-        continue
+
+        skipUntil = conflict.endLine + 1;
+        continue;
       }
-      
+
       // Regular line (not in conflict)
-      result.push(lines[i])
+      result.push(lines[i]);
     }
-    
-    return result.join('\n')
-  }, [mineContent, conflicts])
+
+    return result.join('\n');
+  }, [mineContent, conflicts]);
 
   // Update merged content when conflicts change
   useEffect(() => {
-    setMergedContent(buildMergedContent())
-  }, [buildMergedContent])
+    setMergedContent(buildMergedContent());
+  }, [buildMergedContent]);
 
   // Handle resolution
   const handleResolve = (conflictId: string, resolution: ConflictRegion['resolution']) => {
-    setConflicts(prev => prev.map(c => 
-      c.id === conflictId 
-        ? { ...c, resolved: true, resolution }
-        : c
-    ))
-  }
+    setConflicts((prev) =>
+      prev.map((c) => (c.id === conflictId ? { ...c, resolved: true, resolution } : c))
+    );
+  };
 
   // Handle custom edit
   const handleCustomEdit = (conflictId: string) => {
-    const conflict = conflicts.find(c => c.id === conflictId)
-    if (!conflict) return
-    
-    setEditingConflictId(conflictId)
-    setCustomEditContent(conflict.mineContent.join('\n'))
-  }
+    const conflict = conflicts.find((c) => c.id === conflictId);
+    if (!conflict) return;
+
+    setEditingConflictId(conflictId);
+    setCustomEditContent(conflict.mineContent.join('\n'));
+  };
 
   const handleSaveCustomEdit = () => {
-    if (!editingConflictId) return
-    
-    setConflicts(prev => prev.map(c =>
-      c.id === editingConflictId
-        ? { ...c, resolved: true, resolution: 'custom' as const, customContent: customEditContent }
-        : c
-    ))
-    setEditingConflictId(null)
-  }
+    if (!editingConflictId) return;
+
+    setConflicts((prev) =>
+      prev.map((c) =>
+        c.id === editingConflictId
+          ? {
+              ...c,
+              resolved: true,
+              resolution: 'custom' as const,
+              customContent: customEditContent,
+            }
+          : c
+      )
+    );
+    setEditingConflictId(null);
+  };
 
   // Navigation
   const handlePrevConflict = () => {
-    setCurrentConflictIndex(prev => Math.max(0, prev - 1))
-  }
+    setCurrentConflictIndex((prev) => Math.max(0, prev - 1));
+  };
 
   const handleNextConflict = () => {
-    setCurrentConflictIndex(prev => Math.min(conflicts.length - 1, prev + 1))
-  }
+    setCurrentConflictIndex((prev) => Math.min(conflicts.length - 1, prev + 1));
+  };
 
   // Auto-resolve all
   const handleAutoResolveMine = () => {
-    setConflicts(prev => prev.map(c => ({
-      ...c,
-      resolved: true,
-      resolution: 'mine' as const
-    })))
-  }
+    setConflicts((prev) =>
+      prev.map((c) => ({
+        ...c,
+        resolved: true,
+        resolution: 'mine' as const,
+      }))
+    );
+  };
 
   const handleAutoResolveTheirs = () => {
-    setConflicts(prev => prev.map(c => ({
-      ...c,
-      resolved: true,
-      resolution: 'theirs' as const
-    })))
-  }
+    setConflicts((prev) =>
+      prev.map((c) => ({
+        ...c,
+        resolved: true,
+        resolution: 'theirs' as const,
+      }))
+    );
+  };
 
   // Reset all
   const handleResetAll = () => {
-    setConflicts(prev => prev.map(c => ({
-      ...c,
-      resolved: false,
-      resolution: null,
-      customContent: undefined
-    })))
-  }
+    setConflicts((prev) =>
+      prev.map((c) => ({
+        ...c,
+        resolved: false,
+        resolution: null,
+        customContent: undefined,
+      }))
+    );
+  };
 
   // Save
   const handleSave = async () => {
-    const unresolvedCount = conflicts.filter(c => !c.resolved).length
+    const unresolvedCount = conflicts.filter((c) => !c.resolved).length;
     if (unresolvedCount > 0) {
-      const proceed = confirm(`There are ${unresolvedCount} unresolved conflicts. Save anyway?`)
-      if (!proceed) return
+      const proceed = confirm(`There are ${unresolvedCount} unresolved conflicts. Save anyway?`);
+      if (!proceed) return;
     }
-    
-    setIsSaving(true)
+
+    setIsSaving(true);
     try {
-      await onSave(mergedContent)
-      onClose()
+      await onSave(mergedContent);
+      onClose();
     } catch (err) {
-      console.error('Failed to save merged content:', err)
+      console.error('Failed to save merged content:', err);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return
-      
+      if (!isOpen) return;
+
       if (e.key === 'Escape') {
         if (editingConflictId) {
-          setEditingConflictId(null)
+          setEditingConflictId(null);
         } else {
-          onClose()
+          onClose();
         }
       }
-      
+
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 's') {
-          e.preventDefault()
-          handleSave()
+          e.preventDefault();
+          handleSave();
         }
       }
-      
+
       if (e.key === 'F3' || (e.ctrlKey && e.key === 'n')) {
-        e.preventDefault()
-        handleNextConflict()
+        e.preventDefault();
+        handleNextConflict();
       }
       if (e.shiftKey && e.key === 'F3') {
-        e.preventDefault()
-        handlePrevConflict()
+        e.preventDefault();
+        handlePrevConflict();
       }
-    }
-    
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, editingConflictId, onClose])
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, editingConflictId, onClose]);
 
   // Statistics
-  const resolvedCount = conflicts.filter(c => c.resolved).length
-  const unresolvedCount = conflicts.length - resolvedCount
-  const currentConflict = conflicts[currentConflictIndex]
+  const resolvedCount = conflicts.filter((c) => c.resolved).length;
+  const unresolvedCount = conflicts.length - resolvedCount;
+  const currentConflict = conflicts[currentConflictIndex];
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
-  const fileName = filePath.split(/[/\\]/).pop() || filePath
+  const fileName = filePath.split(/[/\\]/).pop() || filePath;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
+      <div
         ref={containerRef}
         className="modal w-[1400px] max-w-[98vw] h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -338,7 +371,7 @@ export function ThreeWayMergeEditor({
                 <Rows className="w-4 h-4" />
               </button>
             </div>
-            
+
             {/* Line numbers toggle */}
             <button
               onClick={() => setShowLineNumbers(!showLineNumbers)}
@@ -347,7 +380,7 @@ export function ThreeWayMergeEditor({
             >
               {showLineNumbers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
-            
+
             <button onClick={onClose} className="btn-icon-sm">
               <X className="w-4 h-4" />
             </button>
@@ -368,10 +401,9 @@ export function ThreeWayMergeEditor({
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="text-sm text-text-secondary min-w-[100px] text-center">
-                {conflicts.length > 0 
+                {conflicts.length > 0
                   ? `Conflict ${currentConflictIndex + 1} of ${conflicts.length}`
-                  : 'No conflicts'
-                }
+                  : 'No conflicts'}
               </span>
               <button
                 onClick={handleNextConflict}
@@ -382,7 +414,7 @@ export function ThreeWayMergeEditor({
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-            
+
             {/* Status */}
             <div className="flex items-center gap-3 text-sm">
               <span className="text-svn-added flex items-center gap-1">
@@ -397,7 +429,7 @@ export function ThreeWayMergeEditor({
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {/* Auto-resolve */}
             <button onClick={handleAutoResolveMine} className="btn btn-secondary btn-sm">
@@ -420,7 +452,9 @@ export function ThreeWayMergeEditor({
               <div className="text-center">
                 <CheckCircle className="w-12 h-12 text-svn-normal mx-auto mb-4" />
                 <p className="text-text font-medium mb-2">No Conflicts Found</p>
-                <p className="text-text-secondary text-sm">The file content appears to have no merge conflicts.</p>
+                <p className="text-text-secondary text-sm">
+                  The file content appears to have no merge conflicts.
+                </p>
               </div>
             </div>
           ) : viewMode === '3way' ? (
@@ -429,7 +463,9 @@ export function ThreeWayMergeEditor({
               {/* Base (left) */}
               <div className="flex-1 flex flex-col border-r border-border overflow-hidden">
                 <div className="flex-shrink-0 px-3 py-2 bg-bg-tertiary border-b border-border flex items-center justify-between">
-                  <span className="text-sm font-medium text-text-secondary">Base (Common Ancestor)</span>
+                  <span className="text-sm font-medium text-text-secondary">
+                    Base (Common Ancestor)
+                  </span>
                   <button
                     onClick={() => currentConflict && handleResolve(currentConflict.id, 'base')}
                     disabled={!currentConflict || currentConflict.resolved}
@@ -456,7 +492,9 @@ export function ThreeWayMergeEditor({
               {/* Mine (center-left) */}
               <div className="flex-1 flex flex-col border-r border-border overflow-hidden">
                 <div className="flex-shrink-0 px-3 py-2 bg-bg-tertiary border-b border-border flex items-center justify-between">
-                  <span className="text-sm font-medium text-text-secondary">Mine (Your Changes)</span>
+                  <span className="text-sm font-medium text-text-secondary">
+                    Mine (Your Changes)
+                  </span>
                   <button
                     onClick={() => currentConflict && handleResolve(currentConflict.id, 'mine')}
                     disabled={!currentConflict || currentConflict.resolved}
@@ -606,19 +644,15 @@ export function ThreeWayMergeEditor({
         <div className="flex-shrink-0 px-4 py-3 bg-bg-secondary border-t border-border flex items-center justify-between">
           <div className="text-sm text-text-muted">
             <span>Shortcuts: </span>
-            <span className="text-text-secondary">F3</span> next conflict, 
-            <span className="text-text-secondary"> Shift+F3</span> previous, 
+            <span className="text-text-secondary">F3</span> next conflict,
+            <span className="text-text-secondary"> Shift+F3</span> previous,
             <span className="text-text-secondary"> Ctrl+S</span> save
           </div>
           <div className="flex items-center gap-3">
             <button onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="btn btn-primary"
-            >
+            <button onClick={handleSave} disabled={isSaving} className="btn btn-primary">
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
@@ -630,34 +664,31 @@ export function ThreeWayMergeEditor({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // Helper functions
 function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function getResolvedContent(conflict: ConflictRegion): string[] {
   switch (conflict.resolution) {
     case 'mine':
-      return conflict.mineContent
+      return conflict.mineContent;
     case 'theirs':
-      return conflict.theirsContent
+      return conflict.theirsContent;
     case 'base':
-      return conflict.baseContent
+      return conflict.baseContent;
     case 'both-mine-first':
-      return [...conflict.mineContent, ...conflict.theirsContent]
+      return [...conflict.mineContent, ...conflict.theirsContent];
     case 'both-theirs-first':
-      return [...conflict.theirsContent, ...conflict.mineContent]
+      return [...conflict.theirsContent, ...conflict.mineContent];
     case 'custom':
-      return conflict.customContent?.split('\n') || []
+      return conflict.customContent?.split('\n') || [];
     default:
-      return []
+      return [];
   }
 }
 
-export default ThreeWayMergeEditor
+export default ThreeWayMergeEditor;

@@ -53,6 +53,7 @@ bun run engine:build                   # Compile logic engine binary
 ### IPC Communication
 
 IPC handlers are organized by domain in `src/main/ipc/`:
+
 - `svn.ts` - SVN operations (status, log, commit, update, etc.)
 - `dialog.ts` - Native file/directory dialogs
 - `store.ts` - Persistent settings storage

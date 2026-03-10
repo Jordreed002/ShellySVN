@@ -1,12 +1,12 @@
-import { useState } from 'react'
-import { X, Eye, Minus, Plus, AlertCircle } from 'lucide-react'
+import { useState } from 'react';
+import { X, Eye, Minus, Plus, AlertCircle } from 'lucide-react';
 
 interface IgnoreDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  path: string
-  fileName?: string
-  onApply?: (patterns: string[]) => void
+  isOpen: boolean;
+  onClose: () => void;
+  path: string;
+  fileName?: string;
+  onApply?: (patterns: string[]) => void;
 }
 
 const COMMON_IGNORE_PATTERNS = [
@@ -22,71 +22,68 @@ const COMMON_IGNORE_PATTERNS = [
   { pattern: 'dist', description: 'Build output' },
   { pattern: 'build', description: 'Build output' },
   { pattern: 'coverage', description: 'Test coverage' },
-]
+];
 
 export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: IgnoreDialogProps) {
-  const [patterns, setPatterns] = useState<string[]>([])
-  const [newPattern, setNewPattern] = useState('')
-  const [ignoreType, setIgnoreType] = useState<'file' | 'extension' | 'pattern'>('file')
-  const [error, setError] = useState<string | null>(null)
-  
-  if (!isOpen) return null
-  
+  const [patterns, setPatterns] = useState<string[]>([]);
+  const [newPattern, setNewPattern] = useState('');
+  const [ignoreType, setIgnoreType] = useState<'file' | 'extension' | 'pattern'>('file');
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
   const handleAddPattern = () => {
     if (!newPattern.trim()) {
-      setError('Pattern cannot be empty')
-      return
+      setError('Pattern cannot be empty');
+      return;
     }
-    
+
     if (patterns.includes(newPattern.trim())) {
-      setError('Pattern already added')
-      return
+      setError('Pattern already added');
+      return;
     }
-    
-    setPatterns([...patterns, newPattern.trim()])
-    setNewPattern('')
-    setError(null)
-  }
-  
+
+    setPatterns([...patterns, newPattern.trim()]);
+    setNewPattern('');
+    setError(null);
+  };
+
   const handleRemovePattern = (index: number) => {
-    setPatterns(patterns.filter((_, i) => i !== index))
-  }
-  
+    setPatterns(patterns.filter((_, i) => i !== index));
+  };
+
   const handleAddQuickPattern = (pattern: string) => {
     if (!patterns.includes(pattern)) {
-      setPatterns([...patterns, pattern])
+      setPatterns([...patterns, pattern]);
     }
-  }
-  
+  };
+
   const handleApply = () => {
     if (onApply) {
-      onApply(patterns)
+      onApply(patterns);
     }
-    onClose()
-  }
-  
+    onClose();
+  };
+
   const generatePatternFromFileName = () => {
-    if (!fileName) return ''
-    
+    if (!fileName) return '';
+
     switch (ignoreType) {
       case 'file':
-        return fileName
+        return fileName;
       case 'extension':
-        const ext = fileName.split('.').pop()
-        return ext ? `*.${ext}` : fileName
+        const ext = fileName.split('.').pop();
+        return ext ? `*.${ext}` : fileName;
       case 'pattern':
-        return newPattern
+        return newPattern;
       default:
-        return ''
+        return '';
     }
-  }
-  
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[500px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[500px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -97,7 +94,7 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {/* Quick options if a file is selected */}
@@ -126,7 +123,7 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
               </div>
             </div>
           )}
-          
+
           {/* Custom pattern input */}
           <div>
             <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -137,16 +134,13 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
                 type="text"
                 value={ignoreType !== 'pattern' ? generatePatternFromFileName() : newPattern}
                 onChange={(e) => {
-                  setIgnoreType('pattern')
-                  setNewPattern(e.target.value)
+                  setIgnoreType('pattern');
+                  setNewPattern(e.target.value);
                 }}
                 placeholder="*.log, node_modules, .env"
                 className="input flex-1"
               />
-              <button
-                onClick={handleAddPattern}
-                className="btn btn-primary"
-              >
+              <button onClick={handleAddPattern} className="btn btn-primary">
                 <Plus className="w-4 h-4" />
                 Add
               </button>
@@ -158,7 +152,7 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
               </p>
             )}
           </div>
-          
+
           {/* Patterns to add */}
           {patterns.length > 0 && (
             <div>
@@ -183,7 +177,7 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
               </div>
             </div>
           )}
-          
+
           {/* Quick patterns */}
           <div>
             <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -207,14 +201,17 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
               ))}
             </div>
           </div>
-          
+
           {/* Info */}
           <div className="text-xs text-text-faint">
-            <p>Patterns will be added to the <code className="text-text-secondary">svn:ignore</code> property of:</p>
+            <p>
+              Patterns will be added to the <code className="text-text-secondary">svn:ignore</code>{' '}
+              property of:
+            </p>
             <p className="font-mono mt-1 text-text-secondary truncate">{path}</p>
           </div>
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <button onClick={onClose} className="btn btn-secondary">
@@ -231,5 +228,5 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
         </div>
       </div>
     </div>
-  )
+  );
 }

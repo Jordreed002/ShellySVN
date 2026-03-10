@@ -1,36 +1,47 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  X, Lock, Unlock, AlertTriangle, CheckCircle, Loader2, FileText,
-  User, Calendar, MessageSquare, Shield, ShieldAlert, ShieldCheck
-} from 'lucide-react'
-import { useFocusTrap } from '@renderer/hooks/useFocusTrap'
-import type { SvnLockInfo } from '@shared/types'
+  X,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  CheckCircle,
+  Loader2,
+  FileText,
+  User,
+  Calendar,
+  MessageSquare,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+} from 'lucide-react';
+import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
+import type { SvnLockInfo } from '@shared/types';
 
 interface LockManagementDialogProps {
-  isOpen: boolean
-  workingCopyPath: string
-  selectedPath?: string
-  onClose: () => void
-  onRefresh?: () => void
+  isOpen: boolean;
+  workingCopyPath: string;
+  selectedPath?: string;
+  onClose: () => void;
+  onRefresh?: () => void;
 }
 
 /**
  * Formats an ISO date string to a human-readable format
  */
 function formatDate(dateStr: string): string {
-  if (!dateStr) return 'Unknown'
+  if (!dateStr) return 'Unknown';
   try {
-    const date = new Date(dateStr)
+    const date = new Date(dateStr);
     return date.toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    })
+      minute: '2-digit',
+    });
   } catch {
-    return dateStr
+    return dateStr;
   }
 }
 
@@ -38,13 +49,13 @@ function formatDate(dateStr: string): string {
  * Truncates a path for display, keeping the filename visible
  */
 function truncatePath(path: string, maxLength: number = 50): string {
-  if (path.length <= maxLength) return path
-  const filename = path.split(/[/\\]/).pop() || path
-  const dir = path.substring(0, path.length - filename.length)
-  if (filename.length >= maxLength - 3) return '...' + filename.slice(-(maxLength - 3))
+  if (path.length <= maxLength) return path;
+  const filename = path.split(/[/\\]/).pop() || path;
+  const dir = path.substring(0, path.length - filename.length);
+  if (filename.length >= maxLength - 3) return '...' + filename.slice(-(maxLength - 3));
 
-  const availableLength = maxLength - filename.length - 4
-  return dir.slice(0, availableLength) + '.../' + filename
+  const availableLength = maxLength - filename.length - 4;
+  return dir.slice(0, availableLength) + '.../' + filename;
 }
 
 export function LockManagementDialog({
@@ -52,139 +63,139 @@ export function LockManagementDialog({
   workingCopyPath,
   selectedPath,
   onClose,
-  onRefresh
+  onRefresh,
 }: LockManagementDialogProps) {
-  const [selectedLock, setSelectedLock] = useState<SvnLockInfo | null>(null)
-  const [actionInProgress, setActionInProgress] = useState<'steal' | 'break' | null>(null)
-  const [showConfirmSteal, setShowConfirmSteal] = useState(false)
-  const [showConfirmBreak, setShowConfirmBreak] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [selectedLock, setSelectedLock] = useState<SvnLockInfo | null>(null);
+  const [actionInProgress, setActionInProgress] = useState<'steal' | 'break' | null>(null);
+  const [showConfirmSteal, setShowConfirmSteal] = useState(false);
+  const [showConfirmBreak, setShowConfirmBreak] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   // Focus trap for accessibility
   const modalRef = useFocusTrap({
     active: isOpen,
     onEscape: () => {
-      if (!actionInProgress) onClose()
+      if (!actionInProgress) onClose();
     },
-    returnFocus: true
-  })
+    returnFocus: true,
+  });
 
   // Generate unique IDs for accessibility
-  const dialogId = useMemo(() => `lock-dialog-${Math.random().toString(36).substring(2, 11)}`, [])
-  const titleId = `${dialogId}-title`
+  const dialogId = useMemo(() => `lock-dialog-${Math.random().toString(36).substring(2, 11)}`, []);
+  const titleId = `${dialogId}-title`;
 
   // Fetch all locks in the working copy
-  const { data: locks = [], isLoading, refetch } = useQuery({
+  const {
+    data: locks = [],
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['svn:lockList', workingCopyPath],
     queryFn: () => window.api.svn.lockList(workingCopyPath),
-    enabled: isOpen && !!workingCopyPath
-  })
+    enabled: isOpen && !!workingCopyPath,
+  });
 
   // Fetch lock info for selected path if provided
   const { data: selectedLockInfo } = useQuery({
     queryKey: ['svn:lockInfo', selectedPath],
     queryFn: () => window.api.svn.lockInfo(selectedPath!),
-    enabled: isOpen && !!selectedPath
-  })
+    enabled: isOpen && !!selectedPath,
+  });
 
   // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedLock(null)
-      setActionInProgress(null)
-      setShowConfirmSteal(false)
-      setShowConfirmBreak(false)
-      setSuccessMessage(null)
-      setErrorMessage(null)
+      setSelectedLock(null);
+      setActionInProgress(null);
+      setShowConfirmSteal(false);
+      setShowConfirmBreak(false);
+      setSuccessMessage(null);
+      setErrorMessage(null);
     }
-  }, [isOpen])
+  }, [isOpen]);
 
   // Auto-select lock info for the selected path
   useEffect(() => {
     if (selectedLockInfo) {
-      setSelectedLock(selectedLockInfo)
+      setSelectedLock(selectedLockInfo);
     } else if (selectedPath && locks.length > 0) {
-      const lock = locks.find(l => l.path === selectedPath)
-      if (lock) setSelectedLock(lock)
+      const lock = locks.find((l) => l.path === selectedPath);
+      if (lock) setSelectedLock(lock);
     }
-  }, [selectedLockInfo, selectedPath, locks])
+  }, [selectedLockInfo, selectedPath, locks]);
 
   const handleStealLock = async (lock: SvnLockInfo) => {
-    setShowConfirmSteal(true)
-    setSelectedLock(lock)
-  }
+    setShowConfirmSteal(true);
+    setSelectedLock(lock);
+  };
 
   const handleBreakLock = async (lock: SvnLockInfo) => {
-    setShowConfirmBreak(true)
-    setSelectedLock(lock)
-  }
+    setShowConfirmBreak(true);
+    setSelectedLock(lock);
+  };
 
   const confirmStealLock = async () => {
-    if (!selectedLock) return
+    if (!selectedLock) return;
 
-    setActionInProgress('steal')
-    setErrorMessage(null)
-    setShowConfirmSteal(false)
+    setActionInProgress('steal');
+    setErrorMessage(null);
+    setShowConfirmSteal(false);
 
     try {
-      const result = await window.api.svn.lockForce(selectedLock.path, 'Lock stolen via ShellySVN')
+      const result = await window.api.svn.lockForce(selectedLock.path, 'Lock stolen via ShellySVN');
       if (result.success) {
-        setSuccessMessage(`Lock stolen from ${selectedLock.owner}`)
-        await refetch()
-        queryClient.invalidateQueries({ queryKey: ['svn:status'] })
-        onRefresh?.()
+        setSuccessMessage(`Lock stolen from ${selectedLock.owner}`);
+        await refetch();
+        queryClient.invalidateQueries({ queryKey: ['svn:status'] });
+        onRefresh?.();
       } else {
-        setErrorMessage(result.error || 'Failed to steal lock')
+        setErrorMessage(result.error || 'Failed to steal lock');
       }
     } catch (err) {
-      setErrorMessage((err as Error).message || 'Failed to steal lock')
+      setErrorMessage((err as Error).message || 'Failed to steal lock');
     } finally {
-      setActionInProgress(null)
+      setActionInProgress(null);
     }
-  }
+  };
 
   const confirmBreakLock = async () => {
-    if (!selectedLock) return
+    if (!selectedLock) return;
 
-    setActionInProgress('break')
-    setErrorMessage(null)
-    setShowConfirmBreak(false)
+    setActionInProgress('break');
+    setErrorMessage(null);
+    setShowConfirmBreak(false);
 
     try {
-      const result = await window.api.svn.unlockForce(selectedLock.path)
+      const result = await window.api.svn.unlockForce(selectedLock.path);
       if (result.success) {
-        setSuccessMessage(`Lock broken for ${selectedLock.owner}`)
-        setSelectedLock(null)
-        await refetch()
-        queryClient.invalidateQueries({ queryKey: ['svn:status'] })
-        onRefresh?.()
+        setSuccessMessage(`Lock broken for ${selectedLock.owner}`);
+        setSelectedLock(null);
+        await refetch();
+        queryClient.invalidateQueries({ queryKey: ['svn:status'] });
+        onRefresh?.();
       } else {
-        setErrorMessage(result.error || 'Failed to break lock')
+        setErrorMessage(result.error || 'Failed to break lock');
       }
     } catch (err) {
-      setErrorMessage((err as Error).message || 'Failed to break lock')
+      setErrorMessage((err as Error).message || 'Failed to break lock');
     } finally {
-      setActionInProgress(null)
+      setActionInProgress(null);
     }
-  }
+  };
 
   const handleClose = () => {
     if (!actionInProgress) {
-      onClose()
+      onClose();
     }
-  }
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
-    <div
-      className="modal-overlay"
-      onClick={handleClose}
-      role="presentation"
-    >
+    <div className="modal-overlay" onClick={handleClose} role="presentation">
       <div
         ref={modalRef}
         className="modal w-[700px] max-h-[85vh]"
@@ -231,17 +242,16 @@ export function LockManagementDialog({
                   aria-label="Refresh lock list"
                   disabled={isLoading}
                 >
-                  <Loader2 className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                  <Loader2
+                    className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
                 </button>
               </div>
             </div>
 
             {/* Lock list */}
-            <div
-              className="flex-1 overflow-auto"
-              role="listbox"
-              aria-label="Locked files"
-            >
+            <div className="flex-1 overflow-auto" role="listbox" aria-label="Locked files">
               {isLoading ? (
                 <div
                   className="flex items-center justify-center h-20"
@@ -261,8 +271,8 @@ export function LockManagementDialog({
                 </div>
               ) : (
                 locks.map((lock, index) => {
-                  const filename = lock.path.split(/[/\\]/).pop() || lock.path
-                  const isSelected = selectedLock?.path === lock.path
+                  const filename = lock.path.split(/[/\\]/).pop() || lock.path;
+                  const isSelected = selectedLock?.path === lock.path;
 
                   return (
                     <button
@@ -288,7 +298,7 @@ export function LockManagementDialog({
                         </div>
                       </div>
                     </button>
-                  )
+                  );
                 })
               )}
             </div>
@@ -369,7 +379,9 @@ export function LockManagementDialog({
                   <div className="flex items-start gap-3">
                     <Calendar className="w-4 h-4 text-text-muted mt-0.5" aria-hidden="true" />
                     <div>
-                      <div className="text-xs text-text-muted uppercase tracking-wider">Locked Since</div>
+                      <div className="text-xs text-text-muted uppercase tracking-wider">
+                        Locked Since
+                      </div>
                       <div className="text-sm text-text">{formatDate(selectedLock.date)}</div>
                     </div>
                   </div>
@@ -377,9 +389,14 @@ export function LockManagementDialog({
                   {/* Comment */}
                   {selectedLock.comment && (
                     <div className="flex items-start gap-3">
-                      <MessageSquare className="w-4 h-4 text-text-muted mt-0.5" aria-hidden="true" />
+                      <MessageSquare
+                        className="w-4 h-4 text-text-muted mt-0.5"
+                        aria-hidden="true"
+                      />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-text-muted uppercase tracking-wider">Comment</div>
+                        <div className="text-xs text-text-muted uppercase tracking-wider">
+                          Comment
+                        </div>
                         <div className="text-sm text-text break-words">{selectedLock.comment}</div>
                       </div>
                     </div>
@@ -390,8 +407,13 @@ export function LockManagementDialog({
                     <div className="flex items-start gap-3">
                       <Shield className="w-4 h-4 text-text-muted mt-0.5" aria-hidden="true" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-text-muted uppercase tracking-wider">Lock Token</div>
-                        <div className="text-xs text-text-muted font-mono truncate" title={selectedLock.token}>
+                        <div className="text-xs text-text-muted uppercase tracking-wider">
+                          Lock Token
+                        </div>
+                        <div
+                          className="text-xs text-text-muted font-mono truncate"
+                          title={selectedLock.token}
+                        >
                           {selectedLock.token}
                         </div>
                       </div>
@@ -481,17 +503,22 @@ export function LockManagementDialog({
             aria-labelledby="steal-confirm-title"
           >
             <div className="bg-bg-elevated rounded-lg shadow-xl w-[400px] p-4">
-              <h3 id="steal-confirm-title" className="text-lg font-medium text-text mb-2 flex items-center gap-2">
+              <h3
+                id="steal-confirm-title"
+                className="text-lg font-medium text-text mb-2 flex items-center gap-2"
+              >
                 <ShieldAlert className="w-5 h-5 text-warning" aria-hidden="true" />
                 Confirm Steal Lock
               </h3>
               <p className="text-sm text-text-secondary mb-4">
-                You are about to steal the lock from <strong className="text-text">{selectedLock.owner}</strong>.
-                They will lose their lock and any unsaved changes may be affected.
+                You are about to steal the lock from{' '}
+                <strong className="text-text">{selectedLock.owner}</strong>. They will lose their
+                lock and any unsaved changes may be affected.
               </p>
               <div className="bg-warning/10 border border-warning/20 rounded p-3 mb-4">
                 <p className="text-xs text-warning">
-                  This action should only be performed when the lock owner is unavailable and you need to make urgent changes.
+                  This action should only be performed when the lock owner is unavailable and you
+                  need to make urgent changes.
                 </p>
               </div>
               <div className="flex justify-end gap-2">
@@ -502,11 +529,7 @@ export function LockManagementDialog({
                 >
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  onClick={confirmStealLock}
-                  className="btn btn-warning"
-                >
+                <button type="button" onClick={confirmStealLock} className="btn btn-warning">
                   <ShieldAlert className="w-4 h-4" />
                   Steal Lock
                 </button>
@@ -523,13 +546,17 @@ export function LockManagementDialog({
             aria-labelledby="break-confirm-title"
           >
             <div className="bg-bg-elevated rounded-lg shadow-xl w-[400px] p-4">
-              <h3 id="break-confirm-title" className="text-lg font-medium text-text mb-2 flex items-center gap-2">
+              <h3
+                id="break-confirm-title"
+                className="text-lg font-medium text-text mb-2 flex items-center gap-2"
+              >
                 <ShieldCheck className="w-5 h-5 text-error" aria-hidden="true" />
                 Confirm Break Lock
               </h3>
               <p className="text-sm text-text-secondary mb-4">
-                You are about to break the lock held by <strong className="text-text">{selectedLock.owner}</strong>.
-                This will remove the lock without transferring it to anyone.
+                You are about to break the lock held by{' '}
+                <strong className="text-text">{selectedLock.owner}</strong>. This will remove the
+                lock without transferring it to anyone.
               </p>
               <div className="bg-error/10 border border-error/20 rounded p-3 mb-4">
                 <p className="text-xs text-error">
@@ -544,11 +571,7 @@ export function LockManagementDialog({
                 >
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  onClick={confirmBreakLock}
-                  className="btn btn-danger"
-                >
+                <button type="button" onClick={confirmBreakLock} className="btn btn-danger">
                   <ShieldCheck className="w-4 h-4" />
                   Break Lock
                 </button>
@@ -558,5 +581,5 @@ export function LockManagementDialog({
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,126 +1,130 @@
-import { useState, useEffect } from 'react'
-import { X, FileInput, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { X, FileInput, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 interface ApplyPatchDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  targetPath: string
-  onComplete?: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  targetPath: string;
+  onComplete?: () => void;
 }
 
-export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: ApplyPatchDialogProps) {
-  const [patchPath, setPatchPath] = useState('')
-  const [patchContent, setPatchContent] = useState('')
-  const [dryRun, setDryRun] = useState(true)
-  const [isApplying, setIsApplying] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ applied: number; skipped: number } | null>(null)
-  const [preview, setPreview] = useState<string[]>([])
-  
+export function ApplyPatchDialog({
+  isOpen,
+  onClose,
+  targetPath,
+  onComplete,
+}: ApplyPatchDialogProps) {
+  const [patchPath, setPatchPath] = useState('');
+  const [patchContent, setPatchContent] = useState('');
+  const [dryRun, setDryRun] = useState(true);
+  const [isApplying, setIsApplying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ applied: number; skipped: number } | null>(null);
+  const [preview, setPreview] = useState<string[]>([]);
+
   useEffect(() => {
     if (isOpen) {
-      setPatchPath('')
-      setPatchContent('')
-      setDryRun(true)
-      setError(null)
-      setSuccess(null)
-      setPreview([])
-      setIsApplying(false)
+      setPatchPath('');
+      setPatchContent('');
+      setDryRun(true);
+      setError(null);
+      setSuccess(null);
+      setPreview([]);
+      setIsApplying(false);
     }
-  }, [isOpen])
-  
+  }, [isOpen]);
+
   const handleBrowse = async () => {
     const result = await window.api.dialog.openFile([
       { name: 'Patch Files', extensions: ['patch', 'diff', 'txt'] },
-      { name: 'All Files', extensions: ['*'] }
-    ])
-    
+      { name: 'All Files', extensions: ['*'] },
+    ]);
+
     if (result) {
-      setPatchPath(result)
+      setPatchPath(result);
       // In a real implementation, we'd read the file here
-      setPatchContent('') // Would load from file
+      setPatchContent(''); // Would load from file
     }
-  }
-  
+  };
+
   const handlePreview = async () => {
     if (!patchPath && !patchContent) {
-      setError('Please select a patch file or paste patch content')
-      return
+      setError('Please select a patch file or paste patch content');
+      return;
     }
-    
-    setIsApplying(true)
-    setError(null)
-    
+
+    setIsApplying(true);
+    setError(null);
+
     try {
       // If patch content was pasted, we need to save it to a temp file first
       // For now, require a file path
       if (!patchPath) {
-        setError('Please select a patch file (pasted content not yet supported)')
-        setIsApplying(false)
-        return
+        setError('Please select a patch file (pasted content not yet supported)');
+        setIsApplying(false);
+        return;
       }
-      
+
       // Use dry run to preview
-      const result = await window.api.svn.patch.apply(patchPath, targetPath, true)
-      
+      const result = await window.api.svn.patch.apply(patchPath, targetPath, true);
+
       if (result.success) {
         // Parse output to get affected files
-        const lines = result.output.split('\n')
+        const lines = result.output.split('\n');
         const affectedFiles = lines
-          .filter(l => l.includes('Patched') || l.includes('patching'))
-          .map(l => l.trim())
-        
-        setPreview(affectedFiles.length > 0 ? affectedFiles : ['Files will be modified (see output)'])
+          .filter((l) => l.includes('Patched') || l.includes('patching'))
+          .map((l) => l.trim());
+
+        setPreview(
+          affectedFiles.length > 0 ? affectedFiles : ['Files will be modified (see output)']
+        );
       } else {
-        setError(result.output || 'Failed to preview patch')
+        setError(result.output || 'Failed to preview patch');
       }
     } catch (err) {
-      setError((err as Error).message || 'Failed to preview patch')
+      setError((err as Error).message || 'Failed to preview patch');
     } finally {
-      setIsApplying(false)
+      setIsApplying(false);
     }
-  }
-  
+  };
+
   const handleApply = async () => {
     if (!patchPath && !patchContent) {
-      setError('Please select a patch file or paste patch content')
-      return
+      setError('Please select a patch file or paste patch content');
+      return;
     }
-    
+
     if (!patchPath) {
-      setError('Please select a patch file (pasted content not yet supported)')
-      return
+      setError('Please select a patch file (pasted content not yet supported)');
+      return;
     }
-    
-    setIsApplying(true)
-    setError(null)
-    
+
+    setIsApplying(true);
+    setError(null);
+
     try {
-      const result = await window.api.svn.patch.apply(patchPath, targetPath, dryRun)
-      
+      const result = await window.api.svn.patch.apply(patchPath, targetPath, dryRun);
+
       if (result.success) {
-        setSuccess({ applied: result.filesPatched, skipped: result.rejects })
+        setSuccess({ applied: result.filesPatched, skipped: result.rejects });
         if (onComplete) {
-          onComplete()
+          onComplete();
         }
       } else {
-        setError(result.output || 'Failed to apply patch')
+        setError(result.output || 'Failed to apply patch');
       }
     } catch (err) {
-      setError((err as Error).message || 'Failed to apply patch')
+      setError((err as Error).message || 'Failed to apply patch');
     } finally {
-      setIsApplying(false)
+      setIsApplying(false);
     }
-  }
-  
-  if (!isOpen) return null
-  
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[600px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[600px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -131,7 +135,7 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {success ? (
@@ -144,10 +148,7 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
                 {success.applied} file{success.applied !== 1 ? 's' : ''} changed
                 {success.skipped > 0 && `, ${success.skipped} skipped`}
               </p>
-              <button
-                onClick={onClose}
-                className="btn btn-primary"
-              >
+              <button onClick={onClose} className="btn btn-primary">
                 Done
               </button>
             </div>
@@ -166,16 +167,13 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
                     placeholder="C:\path\to\changes.patch"
                     className="input flex-1"
                   />
-                  <button
-                    onClick={handleBrowse}
-                    className="btn btn-secondary"
-                  >
+                  <button onClick={handleBrowse} className="btn btn-secondary">
                     <FolderOpen className="w-4 h-4" />
                     Browse
                   </button>
                 </div>
               </div>
-              
+
               {/* Or paste content */}
               <div>
                 <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -194,7 +192,7 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
                   className="input h-32 resize-none font-mono text-xs"
                 />
               </div>
-              
+
               {/* Target path */}
               <div>
                 <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -204,7 +202,7 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
                   {targetPath}
                 </div>
               </div>
-              
+
               {/* Options */}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -214,21 +212,21 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
                 />
                 <span className="text-sm">Dry run (preview changes only)</span>
               </label>
-              
+
               {/* Preview */}
               {preview.length > 0 && (
                 <div className="bg-bg-tertiary rounded-lg p-3">
-                  <p className="text-sm font-medium text-text-secondary mb-2">
-                    Files affected:
-                  </p>
+                  <p className="text-sm font-medium text-text-secondary mb-2">Files affected:</p>
                   <ul className="text-sm space-y-1">
                     {preview.map((file, i) => (
-                      <li key={i} className="text-text-secondary">{file}</li>
+                      <li key={i} className="text-text-secondary">
+                        {file}
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
-              
+
               {/* Error */}
               {error && (
                 <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
@@ -239,7 +237,7 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
             </>
           )}
         </div>
-        
+
         {/* Footer */}
         {!success && (
           <div className="modal-footer">
@@ -255,11 +253,7 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
                 Preview
               </button>
             ) : (
-              <button
-                onClick={handleApply}
-                className="btn btn-primary"
-                disabled={isApplying}
-              >
+              <button onClick={handleApply} className="btn btn-primary" disabled={isApplying}>
                 {isApplying ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -277,5 +271,5 @@ export function ApplyPatchDialog({ isOpen, onClose, targetPath, onComplete }: Ap
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,21 +1,21 @@
-import { useState } from 'react'
-import { X, Wrench, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react'
+import { useState } from 'react';
+import { X, Wrench, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 
 interface CleanupIssue {
-  type: 'warning' | 'error' | 'info'
-  title: string
-  description: string
-  action?: () => Promise<void>
-  actionLabel?: string
-  autoFixable?: boolean
+  type: 'warning' | 'error' | 'info';
+  title: string;
+  description: string;
+  action?: () => Promise<void>;
+  actionLabel?: string;
+  autoFixable?: boolean;
 }
 
 interface CleanupSuggestionsDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  workingCopyPath: string
-  issues?: CleanupIssue[]
-  onRefresh?: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  workingCopyPath: string;
+  issues?: CleanupIssue[];
+  onRefresh?: () => void;
 }
 
 export function CleanupSuggestionsDialog({
@@ -23,11 +23,11 @@ export function CleanupSuggestionsDialog({
   onClose,
   workingCopyPath,
   issues: propIssues,
-  onRefresh
+  onRefresh,
 }: CleanupSuggestionsDialogProps) {
-  const [isRunning, setIsRunning] = useState(false)
-  const [runResults, setRunResults] = useState<Map<string, 'success' | 'error'>>(new Map())
-  
+  const [isRunning, setIsRunning] = useState(false);
+  const [runResults, setRunResults] = useState<Map<string, 'success' | 'error'>>(new Map());
+
   // Default issues if none provided
   const issues: CleanupIssue[] = propIssues || [
     {
@@ -35,54 +35,51 @@ export function CleanupSuggestionsDialog({
       title: 'Working copy locked',
       description: 'A previous operation may have left the working copy in an inconsistent state.',
       actionLabel: 'Run Cleanup',
-      autoFixable: true
+      autoFixable: true,
     },
     {
       type: 'info',
       title: 'Unversioned files detected',
       description: 'There are unversioned files that might need to be added or ignored.',
-      autoFixable: false
+      autoFixable: false,
     },
     {
       type: 'warning',
       title: 'Switched paths detected',
       description: 'Some paths may be switched to different repository URLs.',
-      autoFixable: false
-    }
-  ]
-  
-  if (!isOpen) return null
-  
+      autoFixable: false,
+    },
+  ];
+
+  if (!isOpen) return null;
+
   const handleFixAll = async () => {
-    setIsRunning(true)
-    setRunResults(new Map())
-    
-    const results = new Map<string, 'success' | 'error'>()
-    
+    setIsRunning(true);
+    setRunResults(new Map());
+
+    const results = new Map<string, 'success' | 'error'>();
+
     try {
       // Run cleanup first
       try {
-        await window.api.svn.cleanup(workingCopyPath)
-        results.set('cleanup', 'success')
+        await window.api.svn.cleanup(workingCopyPath);
+        results.set('cleanup', 'success');
       } catch {
-        results.set('cleanup', 'error')
+        results.set('cleanup', 'error');
       }
-      
-      onRefresh?.()
+
+      onRefresh?.();
     } finally {
-      setIsRunning(false)
-      setRunResults(results)
+      setIsRunning(false);
+      setRunResults(results);
     }
-  }
-  
-  const autoFixableCount = issues.filter(i => i.autoFixable).length
-  
+  };
+
+  const autoFixableCount = issues.filter((i) => i.autoFixable).length;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[550px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[550px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -93,7 +90,7 @@ export function CleanupSuggestionsDialog({
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body space-y-4">
           {/* Path info */}
@@ -101,11 +98,11 @@ export function CleanupSuggestionsDialog({
             <p className="text-xs text-text-faint mb-1">Working Copy:</p>
             <p className="text-sm font-mono text-text-secondary truncate">{workingCopyPath}</p>
           </div>
-          
+
           {/* Issues list */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-text">Detected Issues</h4>
-            
+
             {issues.length === 0 ? (
               <div className="py-6 text-center">
                 <CheckCircle className="w-10 h-10 text-success mx-auto mb-3" />
@@ -114,11 +111,11 @@ export function CleanupSuggestionsDialog({
               </div>
             ) : (
               issues.map((issue, index) => (
-                <div 
+                <div
                   key={index}
                   className={`p-3 rounded-lg border ${
-                    issue.type === 'error' 
-                      ? 'border-error/30 bg-error/5' 
+                    issue.type === 'error'
+                      ? 'border-error/30 bg-error/5'
                       : issue.type === 'warning'
                         ? 'border-warning/30 bg-warning/5'
                         : 'border-border bg-bg-tertiary'
@@ -148,7 +145,7 @@ export function CleanupSuggestionsDialog({
               ))
             )}
           </div>
-          
+
           {/* What cleanup does */}
           <div className="text-xs text-text-faint bg-bg-tertiary rounded-lg p-3">
             <p className="font-medium mb-1">SVN Cleanup will:</p>
@@ -158,7 +155,7 @@ export function CleanupSuggestionsDialog({
               <li>Repair working copy metadata</li>
             </ul>
           </div>
-          
+
           {/* Results */}
           {runResults.size > 0 && (
             <div className="rounded-lg border border-border p-3">
@@ -177,19 +174,15 @@ export function CleanupSuggestionsDialog({
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <button onClick={onClose} className="btn btn-secondary">
             Close
           </button>
-          
+
           {autoFixableCount > 0 && (
-            <button
-              onClick={handleFixAll}
-              disabled={isRunning}
-              className="btn btn-primary"
-            >
+            <button onClick={handleFixAll} disabled={isRunning} className="btn btn-primary">
               {isRunning ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
@@ -201,50 +194,49 @@ export function CleanupSuggestionsDialog({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Check for common working copy issues
  */
 export async function checkWorkingCopyHealth(path: string): Promise<CleanupIssue[]> {
-  const issues: CleanupIssue[] = []
-  
+  const issues: CleanupIssue[] = [];
+
   try {
     // Check if we can get status
-    const status = await window.api.svn.status(path)
-    
+    const status = await window.api.svn.status(path);
+
     // Check for conflicts
-    const conflicts = status.entries.filter(e => e.status === 'C')
+    const conflicts = status.entries.filter((e) => e.status === 'C');
     if (conflicts.length > 0) {
       issues.push({
         type: 'error',
         title: `${conflicts.length} conflicted file${conflicts.length !== 1 ? 's' : ''}`,
         description: 'Resolve conflicts before committing.',
-        autoFixable: false
-      })
+        autoFixable: false,
+      });
     }
-    
+
     // Check for missing files
-    const missing = status.entries.filter(e => e.status === '!')
+    const missing = status.entries.filter((e) => e.status === '!');
     if (missing.length > 0) {
       issues.push({
         type: 'warning',
         title: `${missing.length} missing file${missing.length !== 1 ? 's' : ''}`,
         description: 'Some files are missing from the working copy.',
-        autoFixable: false
-      })
+        autoFixable: false,
+      });
     }
-    
-  } catch (err) {
+  } catch (_err) {
     // If status fails, might need cleanup
     issues.push({
       type: 'warning',
       title: 'Working copy may need cleanup',
       description: 'Unable to read working copy status. A cleanup might help.',
-      autoFixable: true
-    })
+      autoFixable: true,
+    });
   }
-  
-  return issues
+
+  return issues;
 }

@@ -1,82 +1,93 @@
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { 
-  X, FolderOpen, Plus, Trash2, RefreshCw, AlertCircle, 
-  CheckCircle, Loader2
-} from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  X,
+  FolderOpen,
+  Plus,
+  Trash2,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+} from 'lucide-react';
 
 interface ProjectMonitorPanelProps {
-  isOpen: boolean
-  onClose: () => void
-  onSelectWorkingCopy?: (path: string) => void
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectWorkingCopy?: (path: string) => void;
 }
 
-export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: ProjectMonitorPanelProps) {
-  const queryClient = useQueryClient()
-  const [isAdding, setIsAdding] = useState(false)
-  const [newPath, setNewPath] = useState('')
-  
+export function ProjectMonitorPanel({
+  isOpen,
+  onClose,
+  onSelectWorkingCopy,
+}: ProjectMonitorPanelProps) {
+  const queryClient = useQueryClient();
+  const [isAdding, setIsAdding] = useState(false);
+  const [newPath, setNewPath] = useState('');
+
   // Fetch monitored working copies
-  const { data: workingCopies, isLoading, refetch } = useQuery({
+  const {
+    data: workingCopies,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['monitor:workingCopies'],
     queryFn: () => window.api.monitor.getWorkingCopies(),
-    enabled: isOpen
-  })
-  
+    enabled: isOpen,
+  });
+
   // Add working copy mutation
   const addMutation = useMutation({
     mutationFn: (path: string) => window.api.monitor.addWorkingCopy(path),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['monitor:workingCopies'] })
-      setNewPath('')
-      setIsAdding(false)
-    }
-  })
-  
+      queryClient.invalidateQueries({ queryKey: ['monitor:workingCopies'] });
+      setNewPath('');
+      setIsAdding(false);
+    },
+  });
+
   // Remove working copy mutation
   const removeMutation = useMutation({
     mutationFn: (path: string) => window.api.monitor.removeWorkingCopy(path),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['monitor:workingCopies'] })
-    }
-  })
-  
+      queryClient.invalidateQueries({ queryKey: ['monitor:workingCopies'] });
+    },
+  });
+
   // Refresh status mutation
   const refreshMutation = useMutation({
     mutationFn: (path: string) => window.api.monitor.refreshStatus(path),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['monitor:workingCopies'] })
-    }
-  })
-  
+      queryClient.invalidateQueries({ queryKey: ['monitor:workingCopies'] });
+    },
+  });
+
   // Start monitoring on mount
   useEffect(() => {
     if (isOpen) {
-      window.api.monitor.startMonitoring()
+      window.api.monitor.startMonitoring();
     }
-  }, [isOpen])
-  
+  }, [isOpen]);
+
   const handleBrowse = async () => {
-    const result = await window.api.dialog.openDirectory()
+    const result = await window.api.dialog.openDirectory();
     if (result) {
-      setNewPath(result)
+      setNewPath(result);
     }
-  }
-  
+  };
+
   const handleAdd = () => {
     if (newPath.trim()) {
-      addMutation.mutate(newPath.trim())
+      addMutation.mutate(newPath.trim());
     }
-  }
-  
-  if (!isOpen) return null
-  
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal w-[600px] max-h-[80vh]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[600px] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -87,7 +98,7 @@ export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: Pr
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="modal-body overflow-auto space-y-4">
           {/* Add new working copy */}
@@ -108,8 +119,8 @@ export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: Pr
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => {
-                    setIsAdding(false)
-                    setNewPath('')
+                    setIsAdding(false);
+                    setNewPath('');
                   }}
                   className="btn btn-secondary btn-sm"
                 >
@@ -138,7 +149,7 @@ export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: Pr
               Add Working Copy
             </button>
           )}
-          
+
           {/* Working copies list */}
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -169,42 +180,40 @@ export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: Pr
                         <CheckCircle className="w-5 h-5 text-success" />
                       )}
                     </div>
-                    
+
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-text truncate">
                           {wc.path.split(/[/\\]/).pop()}
                         </span>
-                        <span className="text-xs text-text-faint">
-                          r{wc.revision}
-                        </span>
+                        <span className="text-xs text-text-faint">r{wc.revision}</span>
                       </div>
                       <p className="text-xs text-text-faint truncate">{wc.path}</p>
-                      {wc.url && (
-                        <p className="text-xs text-text-muted truncate mt-1">{wc.url}</p>
-                      )}
+                      {wc.url && <p className="text-xs text-text-muted truncate mt-1">{wc.url}</p>}
                       <p className="text-xs text-text-faint mt-1">
                         Last checked: {new Date(wc.lastChecked).toLocaleString()}
                       </p>
                     </div>
-                    
+
                     {/* Actions */}
                     <div className="flex items-center gap-1">
                       <button
                         onClick={(e) => {
-                          e.stopPropagation()
-                          refreshMutation.mutate(wc.path)
+                          e.stopPropagation();
+                          refreshMutation.mutate(wc.path);
                         }}
                         className="btn-icon-sm"
                         title="Refresh"
                       >
-                        <RefreshCw className={`w-4 h-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                        <RefreshCw
+                          className={`w-4 h-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`}
+                        />
                       </button>
                       <button
                         onClick={(e) => {
-                          e.stopPropagation()
-                          window.api.external.openFolder(wc.path)
+                          e.stopPropagation();
+                          window.api.external.openFolder(wc.path);
                         }}
                         className="btn-icon-sm"
                         title="Open in Explorer"
@@ -213,8 +222,8 @@ export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: Pr
                       </button>
                       <button
                         onClick={(e) => {
-                          e.stopPropagation()
-                          removeMutation.mutate(wc.path)
+                          e.stopPropagation();
+                          removeMutation.mutate(wc.path);
                         }}
                         className="btn-icon-sm hover:text-error"
                         title="Remove from monitor"
@@ -228,11 +237,12 @@ export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: Pr
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="modal-footer">
           <div className="flex-1 text-xs text-text-faint">
-            {workingCopies?.length || 0} working copy{(workingCopies?.length || 0) !== 1 ? 'ies' : ''} monitored
+            {workingCopies?.length || 0} working copy
+            {(workingCopies?.length || 0) !== 1 ? 'ies' : ''} monitored
           </div>
           <button onClick={() => refetch()} className="btn btn-secondary">
             <RefreshCw className="w-4 h-4" />
@@ -244,5 +254,5 @@ export function ProjectMonitorPanel({ isOpen, onClose, onSelectWorkingCopy }: Pr
         </div>
       </div>
     </div>
-  )
+  );
 }

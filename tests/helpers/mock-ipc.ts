@@ -1,8 +1,8 @@
-import { ElectronApplication } from '@playwright/test'
+import { ElectronApplication } from '@playwright/test';
 
 /**
  * Mock IPC handlers for testing
- * 
+ *
  * These utilities allow mocking Electron IPC handlers to isolate
  * tests from actual SVN operations and file system access.
  */
@@ -12,17 +12,17 @@ import { ElectronApplication } from '@playwright/test'
  */
 export async function mockFileDialog(
   electronApp: ElectronApplication,
-  filePath: string,
+  filePath: string
 ): Promise<void> {
   await electronApp.evaluate(({ dialog }, path) => {
-    const originalShowOpenDialog = dialog.showOpenDialog
+    const originalShowOpenDialog = dialog.showOpenDialog;
     dialog.showOpenDialog = async () => ({
       canceled: false,
       filePaths: [path],
-    })
+    });
     // Store original for potential restoration
-    ;(dialog as any).__originalShowOpenDialog = originalShowOpenDialog
-  }, filePath)
+    (dialog as any).__originalShowOpenDialog = originalShowOpenDialog;
+  }, filePath);
 }
 
 /**
@@ -31,7 +31,7 @@ export async function mockFileDialog(
 export async function mockSvnInfo(
   electronApp: ElectronApplication,
   workingCopyPath: string,
-  repositoryUrl: string,
+  repositoryUrl: string
 ): Promise<void> {
   const mockResponse = {
     success: true,
@@ -44,12 +44,12 @@ export async function mockSvnInfo(
         uuid: 'test-uuid-1234',
       },
     },
-  }
+  };
 
   await electronApp.evaluate(({ ipcMain }, response) => {
-    ipcMain.removeHandler('svn:info')
-    ipcMain.handle('svn:info', () => Promise.resolve(response))
-  }, mockResponse)
+    ipcMain.removeHandler('svn:info');
+    ipcMain.handle('svn:info', () => Promise.resolve(response));
+  }, mockResponse);
 }
 
 /**
@@ -57,7 +57,7 @@ export async function mockSvnInfo(
  */
 export async function mockSvnStatus(
   electronApp: ElectronApplication,
-  entries: Array<{ path: string; status: string }>,
+  entries: Array<{ path: string; status: string }>
 ): Promise<void> {
   const mockResponse = {
     success: true,
@@ -68,12 +68,12 @@ export async function mockSvnStatus(
         revision: '1234',
       })),
     },
-  }
+  };
 
   await electronApp.evaluate(({ ipcMain }, response) => {
-    ipcMain.removeHandler('svn:status')
-    ipcMain.handle('svn:status', () => Promise.resolve(response))
-  }, mockResponse)
+    ipcMain.removeHandler('svn:status');
+    ipcMain.handle('svn:status', () => Promise.resolve(response));
+  }, mockResponse);
 }
 
 /**
@@ -81,12 +81,12 @@ export async function mockSvnStatus(
  */
 export async function mockDirectoryListing(
   electronApp: ElectronApplication,
-  files: Array<{ name: string; path: string; isDirectory: boolean }>,
+  files: Array<{ name: string; path: string; isDirectory: boolean }>
 ): Promise<void> {
   await electronApp.evaluate(({ ipcMain }, fileList) => {
-    ipcMain.removeHandler('fs:listDirectory')
-    ipcMain.handle('fs:listDirectory', () => Promise.resolve(fileList))
-  }, files)
+    ipcMain.removeHandler('fs:listDirectory');
+    ipcMain.handle('fs:listDirectory', () => Promise.resolve(fileList));
+  }, files);
 }
 
 /**
@@ -96,5 +96,5 @@ export async function resetIpcMocks(electronApp: ElectronApplication): Promise<v
   await electronApp.evaluate(() => {
     // This will cause the app to reload handlers from scratch
     // In a real implementation, you'd restore specific handlers
-  })
+  });
 }

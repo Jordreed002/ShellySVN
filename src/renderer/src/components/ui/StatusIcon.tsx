@@ -1,4 +1,4 @@
-import type { SvnStatusChar } from '@shared/types'
+import type { SvnStatusChar } from '@shared/types';
 import {
   Check,
   Plus,
@@ -11,98 +11,98 @@ import {
   HelpCircle,
   FileX,
   AlertCircle,
-  Cloud
-} from 'lucide-react'
+  Cloud,
+} from 'lucide-react';
 
 interface StatusIconConfig {
-  icon: React.ComponentType<{ className?: string }>
-  color: string
-  bgColor: string
-  label: string
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  bgColor: string;
+  label: string;
 }
 
 const STATUS_CONFIG: Record<SvnStatusChar, StatusIconConfig> = {
-  ' ': { 
-    icon: Check, 
-    color: 'text-svn-normal', 
+  ' ': {
+    icon: Check,
+    color: 'text-svn-normal',
     bgColor: 'bg-svn-normal/20',
-    label: 'Normal' 
+    label: 'Normal',
   },
-  'A': { 
-    icon: Plus, 
-    color: 'text-svn-added', 
+  A: {
+    icon: Plus,
+    color: 'text-svn-added',
     bgColor: 'bg-svn-added/20',
-    label: 'Added' 
+    label: 'Added',
   },
-  'C': { 
-    icon: AlertTriangle, 
-    color: 'text-svn-conflict', 
+  C: {
+    icon: AlertTriangle,
+    color: 'text-svn-conflict',
     bgColor: 'bg-svn-conflict/20',
-    label: 'Conflicted' 
+    label: 'Conflicted',
   },
-  'D': { 
-    icon: Trash2, 
-    color: 'text-svn-deleted', 
+  D: {
+    icon: Trash2,
+    color: 'text-svn-deleted',
     bgColor: 'bg-svn-deleted/20',
-    label: 'Deleted' 
+    label: 'Deleted',
   },
-  'I': { 
-    icon: EyeOff, 
-    color: 'text-svn-ignored', 
+  I: {
+    icon: EyeOff,
+    color: 'text-svn-ignored',
     bgColor: 'bg-svn-ignored/20',
-    label: 'Ignored' 
+    label: 'Ignored',
   },
-  'M': { 
-    icon: FileEdit, 
-    color: 'text-svn-modified', 
+  M: {
+    icon: FileEdit,
+    color: 'text-svn-modified',
     bgColor: 'bg-svn-modified/20',
-    label: 'Modified' 
+    label: 'Modified',
   },
-  'R': { 
-    icon: RefreshCw, 
-    color: 'text-svn-replaced', 
+  R: {
+    icon: RefreshCw,
+    color: 'text-svn-replaced',
     bgColor: 'bg-svn-replaced/20',
-    label: 'Replaced' 
+    label: 'Replaced',
   },
-  'X': { 
-    icon: Link, 
-    color: 'text-svn-external', 
+  X: {
+    icon: Link,
+    color: 'text-svn-external',
     bgColor: 'bg-svn-external/20',
-    label: 'External' 
+    label: 'External',
   },
-  '?': { 
-    icon: HelpCircle, 
-    color: 'text-svn-unversioned', 
+  '?': {
+    icon: HelpCircle,
+    color: 'text-svn-unversioned',
     bgColor: 'bg-svn-unversioned/20',
-    label: 'Unversioned' 
+    label: 'Unversioned',
   },
-  '!': { 
-    icon: FileX, 
-    color: 'text-svn-missing', 
+  '!': {
+    icon: FileX,
+    color: 'text-svn-missing',
     bgColor: 'bg-svn-missing/20',
-    label: 'Missing' 
+    label: 'Missing',
   },
   '~': {
     icon: AlertCircle,
     color: 'text-svn-obstructed',
     bgColor: 'bg-svn-obstructed/20',
-    label: 'Obstructed'
+    label: 'Obstructed',
   },
-  'O': {
+  O: {
     icon: Cloud,
     color: 'text-info',
     bgColor: 'bg-info/20',
-    label: 'Remote Only'
-  }
-}
+    label: 'Remote Only',
+  },
+};
 
 interface StatusIconProps {
-  status: SvnStatusChar
-  size?: 'sm' | 'md' | 'lg'
-  showLabel?: boolean
-  className?: string
+  status: SvnStatusChar;
+  size?: 'sm' | 'md' | 'lg';
+  showLabel?: boolean;
+  className?: string;
   /** Accessible label (falls back to status label) */
-  ariaLabel?: string
+  ariaLabel?: string;
 }
 
 export function StatusIcon({
@@ -110,22 +110,22 @@ export function StatusIcon({
   size = 'md',
   showLabel = false,
   className = '',
-  ariaLabel
+  ariaLabel,
 }: StatusIconProps) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG[' ']
-  const Icon = config.icon
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG[' '];
+  const Icon = config.icon;
 
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-5 h-5',
-    lg: 'w-6 h-6'
-  }
+    lg: 'w-6 h-6',
+  };
 
   const containerSizes = {
     sm: 'w-5 h-5',
     md: 'w-6 h-6',
-    lg: 'w-7 h-7'
-  }
+    lg: 'w-7 h-7',
+  };
 
   return (
     <div
@@ -147,13 +147,9 @@ export function StatusIcon({
       >
         <Icon className={`${sizeClasses[size]} ${config.color}`} />
       </div>
-      {showLabel && (
-        <span className={`text-xs font-medium ${config.color}`}>
-          {config.label}
-        </span>
-      )}
+      {showLabel && <span className={`text-xs font-medium ${config.color}`}>{config.label}</span>}
     </div>
-  )
+  );
 }
 
 // Compact status dot for table columns
@@ -161,28 +157,28 @@ export function StatusDot({
   status,
   className = '',
   /** Accessible label (falls back to status label) */
-  ariaLabel
+  ariaLabel,
 }: {
-  status: SvnStatusChar
-  className?: string
-  ariaLabel?: string
+  status: SvnStatusChar;
+  className?: string;
+  ariaLabel?: string;
 }) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG[' ']
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG[' '];
 
   const dotColors: Record<SvnStatusChar, string> = {
     ' ': 'bg-svn-normal',
-    'A': 'bg-svn-added',
-    'C': 'bg-svn-conflict animate-pulse-subtle',
-    'D': 'bg-svn-deleted',
-    'I': 'bg-svn-ignored',
-    'M': 'bg-svn-modified',
-    'R': 'bg-svn-replaced',
-    'X': 'bg-svn-external',
+    A: 'bg-svn-added',
+    C: 'bg-svn-conflict animate-pulse-subtle',
+    D: 'bg-svn-deleted',
+    I: 'bg-svn-ignored',
+    M: 'bg-svn-modified',
+    R: 'bg-svn-replaced',
+    X: 'bg-svn-external',
     '?': 'bg-svn-unversioned',
     '!': 'bg-svn-missing',
     '~': 'bg-svn-obstructed',
-    'O': 'bg-info'
-  }
+    O: 'bg-info',
+  };
 
   return (
     <div
@@ -195,7 +191,7 @@ export function StatusDot({
       aria-label={ariaLabel || config.label}
       title={config.label}
     />
-  )
+  );
 }
 
 // Status badge for compact display
@@ -203,14 +199,14 @@ export function StatusBadge({
   status,
   className = '',
   /** Accessible label (falls back to status label) */
-  ariaLabel
+  ariaLabel,
 }: {
-  status: SvnStatusChar
-  className?: string
-  ariaLabel?: string
+  status: SvnStatusChar;
+  className?: string;
+  ariaLabel?: string;
 }) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG[' ']
-  const Icon = config.icon
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG[' '];
+  const Icon = config.icon;
 
   return (
     <span
@@ -226,7 +222,7 @@ export function StatusBadge({
       <Icon className="w-3 h-3" aria-hidden="true" />
       <span>{config.label}</span>
     </span>
-  )
+  );
 }
 
-export { STATUS_CONFIG }
+export { STATUS_CONFIG };

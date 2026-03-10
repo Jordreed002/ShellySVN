@@ -1,104 +1,130 @@
-import { ipcMain } from 'electron'
-import { readdir, stat, copyFile as fsCopyFile, writeFile as fsWriteFile, mkdir, readFile, access } from 'fs/promises'
-import chokidar from 'chokidar'
-import { join, basename, normalize, dirname } from 'path'
-import { spawn, ChildProcess } from 'child_process'
-import { platform } from 'os'
-import type { FileInfo, SvnStatusChar } from '@shared/types'
-import { validatePath, InputValidationError } from '../utils/validation'
+import { ipcMain } from 'electron';
+import {
+  readdir,
+  stat,
+  copyFile as fsCopyFile,
+  writeFile as fsWriteFile,
+  mkdir,
+  readFile,
+  access,
+} from 'fs/promises';
+import chokidar from 'chokidar';
+import { join, basename, normalize, dirname } from 'path';
+import { spawn, ChildProcess } from 'child_process';
+import { platform } from 'os';
+import type { FileInfo, SvnStatusChar } from '@shared/types';
+import { validatePath, InputValidationError } from '../utils/validation';
 
 interface SvnStatusEntry {
-  status: SvnStatusChar
-  revision?: number
-  author?: string
-  fullPath: string
+  status: SvnStatusChar;
+  revision?: number;
+  author?: string;
+  fullPath: string;
 }
 
 export interface SvnStatusMap {
   [filename: string]: {
-    status: SvnStatusChar
-    revision?: number
-    author?: string
-  }
+    status: SvnStatusChar;
+    revision?: number;
+    author?: string;
+  };
 }
 
 // Map SVN XML item attribute values to single-char status codes
 const SVN_STATUS_MAP: Record<string, SvnStatusChar> = {
-  'normal': ' ',
-  'added': 'A',
-  'conflicted': 'C',
-  'deleted': 'D',
-  'ignored': 'I',
-  'modified': 'M',
-  'replaced': 'R',
-  'external': 'X',
-  'unversioned': '?',
-  'missing': '!',
-  'obstructed': '~',
-  'incomplete': '!'
-}
+  normal: ' ',
+  added: 'A',
+  conflicted: 'C',
+  deleted: 'D',
+  ignored: 'I',
+  modified: 'M',
+  replaced: 'R',
+  external: 'X',
+  unversioned: '?',
+  missing: '!',
+  obstructed: '~',
+  incomplete: '!',
+};
 
 // Status priority (higher = more important to show)
 const STATUS_PRIORITY: Record<SvnStatusChar, number> = {
-  'C': 100, '!': 90, '~': 85, 'M': 80, 'D': 70, 'R': 60, 'A': 50, 'X': 40, '?': 30, 'I': 20, 'O': 10, ' ': 0
-}
+  C: 100,
+  '!': 90,
+  '~': 85,
+  M: 80,
+  D: 70,
+  R: 60,
+  A: 50,
+  X: 40,
+  '?': 30,
+  I: 20,
+  O: 10,
+  ' ': 0,
+};
 
 function getWorstStatus(a: SvnStatusChar, b: SvnStatusChar): SvnStatusChar {
-  return STATUS_PRIORITY[a] >= STATUS_PRIORITY[b] ? a : b
+  return STATUS_PRIORITY[a] >= STATUS_PRIORITY[b] ? a : b;
 }
 
 /**
  * Parse SVN status XML output into status map and entries
  */
-function parseSvnStatusXml(xml: string, baseDir: string): {
-  directStatus: SvnStatusMap
-  allEntries: SvnStatusEntry[]
+function parseSvnStatusXml(
+  xml: string,
+  baseDir: string
+): {
+  directStatus: SvnStatusMap;
+  allEntries: SvnStatusEntry[];
 } {
-  const directStatus: SvnStatusMap = {}
-  const allEntries: SvnStatusEntry[] = []
-  
-  const entryMatches = xml.matchAll(/<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?<wc-status[^>]*item="([^"]*)"/g)
-  
+  const directStatus: SvnStatusMap = {};
+  const allEntries: SvnStatusEntry[] = [];
+
+  const entryMatches = xml.matchAll(
+    /<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?<wc-status[^>]*item="([^"]*)"/g
+  );
+
   for (const match of entryMatches) {
-    const entryPath = match[1]
-    const statusName = match[2]
-    const status = SVN_STATUS_MAP[statusName] || ' '
-    const fullPath = normalize(entryPath)
-    const fileName = basename(entryPath)
-    
-    allEntries.push({ status, fullPath })
-    
+    const entryPath = match[1];
+    const statusName = match[2];
+    const status = SVN_STATUS_MAP[statusName] || ' ';
+    const fullPath = normalize(entryPath);
+    const fileName = basename(entryPath);
+
+    allEntries.push({ status, fullPath });
+
     // Direct entries (immediate children)
-    const entryParent = normalize(join(entryPath, '..'))
+    const entryParent = normalize(join(entryPath, '..'));
     if (entryParent === normalize(baseDir)) {
-      directStatus[fileName] = { status }
+      directStatus[fileName] = { status };
     }
   }
-  
-  return { directStatus, allEntries }
+
+  return { directStatus, allEntries };
 }
 
 /**
  * Get SVN status with configurable depth
  */
 async function getSvnStatus(
-  dirPath: string, 
+  dirPath: string,
   depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'immediates'
 ): Promise<{ directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }> {
   return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn'
-    
+    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
+
     const proc = spawn(svnCommand, ['status', '--xml', `--depth=${depth}`, dirPath], {
       cwd: dirPath,
-      env: { ...process.env, LANG: 'en_US.UTF-8' }
-    })
-    
-    let stdout = ''
-    proc.stdout.on('data', (data) => { stdout += data.toString() })
-    
-    proc.on('close', () => resolve(parseSvnStatusXml(stdout, dirPath)))
-    proc.on('error', () => resolve({ directStatus: {}, allEntries: [] }))
-  })
+      env: { ...process.env, LANG: 'en_US.UTF-8' },
+    });
+
+    let stdout = '';
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    proc.on('close', () => resolve(parseSvnStatusXml(stdout, dirPath)));
+    proc.on('error', () => resolve({ directStatus: {}, allEntries: [] }));
+  });
 }
 
 /**
@@ -111,21 +137,23 @@ function calculateFolderStatus(
   directStatus: SvnStatusMap
 ): SvnStatusChar {
   if (directStatus[folderName]?.status && directStatus[folderName].status !== ' ') {
-    return directStatus[folderName].status
+    return directStatus[folderName].status;
   }
-  
-  const normalizedFolderPath = normalize(folderPath)
-  let worstStatus: SvnStatusChar = ' '
-  
+
+  const normalizedFolderPath = normalize(folderPath);
+  let worstStatus: SvnStatusChar = ' ';
+
   for (const entry of allEntries) {
-    const normalizedEntryPath = normalize(entry.fullPath)
-    if (normalizedEntryPath.startsWith(normalizedFolderPath + '\\') || 
-        normalizedEntryPath.startsWith(normalizedFolderPath + '/')) {
-      worstStatus = getWorstStatus(worstStatus, entry.status)
+    const normalizedEntryPath = normalize(entry.fullPath);
+    if (
+      normalizedEntryPath.startsWith(normalizedFolderPath + '\\') ||
+      normalizedEntryPath.startsWith(normalizedFolderPath + '/')
+    ) {
+      worstStatus = getWorstStatus(worstStatus, entry.status);
     }
   }
-  
-  return worstStatus
+
+  return worstStatus;
 }
 
 /**
@@ -133,11 +161,11 @@ function calculateFolderStatus(
  */
 async function isVersioned(dirPath: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn'
-    const proc = spawn(svnCommand, ['info', '--xml', dirPath], { cwd: dirPath })
-    proc.on('close', (code) => resolve(code === 0))
-    proc.on('error', () => resolve(false))
-  })
+    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
+    const proc = spawn(svnCommand, ['info', '--xml', dirPath], { cwd: dirPath });
+    proc.on('close', (code) => resolve(code === 0));
+    proc.on('error', () => resolve(false));
+  });
 }
 
 /**
@@ -145,36 +173,38 @@ async function isVersioned(dirPath: string): Promise<boolean> {
  */
 async function listDirectoryFiles(dirPath: string): Promise<FileInfo[]> {
   try {
-    const entries = await readdir(dirPath, { withFileTypes: true })
-    const files: FileInfo[] = []
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    const files: FileInfo[] = [];
 
     for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue
+      if (entry.name.startsWith('.')) continue;
 
-      const fullPath = join(dirPath, entry.name)
+      const fullPath = join(dirPath, entry.name);
 
       try {
-        const stats = await stat(fullPath)
+        const stats = await stat(fullPath);
         files.push({
           name: entry.name,
           path: fullPath,
           isDirectory: entry.isDirectory(),
           size: entry.isDirectory() ? 0 : stats.size,
           modifiedTime: stats.mtime.toISOString(),
-          svnStatus: undefined
-        })
-      } catch { continue }
+          svnStatus: undefined,
+        });
+      } catch {
+        continue;
+      }
     }
 
     files.sort((a, b) => {
-      if (a.isDirectory && !b.isDirectory) return -1
-      if (!a.isDirectory && b.isDirectory) return 1
-      return a.name.localeCompare(b.name)
-    })
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
-    return files
+    return files;
   } catch {
-    return []
+    return [];
   }
 }
 
@@ -182,46 +212,46 @@ async function listDirectoryFiles(dirPath: string): Promise<FileInfo[]> {
  * Apply SVN status to file list
  */
 export function applySvnStatusToFiles(
-  files: FileInfo[], 
-  directStatus: SvnStatusMap, 
+  files: FileInfo[],
+  directStatus: SvnStatusMap,
   allEntries: SvnStatusEntry[]
 ): FileInfo[] {
-  return files.map(file => {
-    let svnStatus: FileInfo['svnStatus']
-    
+  return files.map((file) => {
+    let svnStatus: FileInfo['svnStatus'];
+
     if (file.isDirectory) {
-      const folderStatus = calculateFolderStatus(file.path, file.name, allEntries, directStatus)
+      const folderStatus = calculateFolderStatus(file.path, file.name, allEntries, directStatus);
       if (folderStatus !== ' ') {
-        svnStatus = { path: file.path, status: folderStatus, isDirectory: true }
+        svnStatus = { path: file.path, status: folderStatus, isDirectory: true };
       }
     } else {
-      const direct = directStatus[file.name]
+      const direct = directStatus[file.name];
       if (direct) {
         svnStatus = {
           path: file.path,
           status: direct.status,
           revision: direct.revision,
           author: direct.author,
-          isDirectory: false
-        }
+          isDirectory: false,
+        };
       }
     }
-    
-    return { ...file, svnStatus }
-  })
+
+    return { ...file, svnStatus };
+  });
 }
 
 // Track active background scans
-const activeScans = new Map<string, ChildProcess>()
+const activeScans = new Map<string, ChildProcess>();
 
 // Track active file watchers
-const activeWatchers = new Map<string, chokidar.FSWatcher>()
+const activeWatchers = new Map<string, chokidar.FSWatcher>();
 
 function cancelDeepScan(dirPath: string) {
-  const proc = activeScans.get(dirPath)
+  const proc = activeScans.get(dirPath);
   if (proc) {
-    proc.kill()
-    activeScans.delete(dirPath)
+    proc.kill();
+    activeScans.delete(dirPath);
   }
 }
 
@@ -229,82 +259,86 @@ function cancelDeepScan(dirPath: string) {
  * Background deep scan for folder aggregation
  */
 async function startDeepScan(dirPath: string): Promise<{
-  directStatus: SvnStatusMap
-  allEntries: SvnStatusEntry[]
+  directStatus: SvnStatusMap;
+  allEntries: SvnStatusEntry[];
 }> {
-  cancelDeepScan(dirPath)
-  
+  cancelDeepScan(dirPath);
+
   return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn'
-    
+    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
+
     const proc = spawn(svnCommand, ['status', '--xml', '--depth=infinity', dirPath], {
       cwd: dirPath,
-      env: { ...process.env, LANG: 'en_US.UTF-8' }
-    })
-    
-    activeScans.set(dirPath, proc)
-    
-    let stdout = ''
-    proc.stdout.on('data', (data) => { stdout += data.toString() })
-    
+      env: { ...process.env, LANG: 'en_US.UTF-8' },
+    });
+
+    activeScans.set(dirPath, proc);
+
+    let stdout = '';
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
     proc.on('close', () => {
-      activeScans.delete(dirPath)
-      resolve(parseSvnStatusXml(stdout, dirPath))
-    })
-    
+      activeScans.delete(dirPath);
+      resolve(parseSvnStatusXml(stdout, dirPath));
+    });
+
     proc.on('error', () => {
-      activeScans.delete(dirPath)
-      resolve({ directStatus: {}, allEntries: [] })
-    })
-  })
+      activeScans.delete(dirPath);
+      resolve({ directStatus: {}, allEntries: [] });
+    });
+  });
 }
 
 /**
  * List available drives (Windows) or root mount points (Unix)
  */
 async function listDrives(): Promise<FileInfo[]> {
-  const files: FileInfo[] = []
-  
+  const files: FileInfo[] = [];
+
   if (platform() === 'win32') {
     // Windows: Use wmic to get drive letters
     return new Promise((resolve) => {
-      const proc = spawn('wmic', ['logicaldisk', 'get', 'caption,volumename'])
-      let stdout = ''
-      
-      proc.stdout.on('data', (data) => { stdout += data.toString() })
+      const proc = spawn('wmic', ['logicaldisk', 'get', 'caption,volumename']);
+      let stdout = '';
+
+      proc.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
       proc.on('close', () => {
-        const lines = stdout.split('\n').slice(1) // Skip header
+        const lines = stdout.split('\n').slice(1); // Skip header
         for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-          
-          const match = trimmed.match(/^([A-Z]:)\s*(.*)/)
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          const match = trimmed.match(/^([A-Z]:)\s*(.*)/);
           if (match) {
-            const driveLetter = match[1]
-            const volumeName = match[2].trim() || 'Local Disk'
-            
+            const driveLetter = match[1];
+            const volumeName = match[2].trim() || 'Local Disk';
+
             files.push({
               name: `${volumeName} (${driveLetter})`,
               path: driveLetter + '\\',
               isDirectory: true,
               size: 0,
               modifiedTime: new Date().toISOString(),
-              svnStatus: undefined
-            })
+              svnStatus: undefined,
+            });
           }
         }
-        resolve(files)
-      })
-      proc.on('error', () => resolve([]))
-    })
+        resolve(files);
+      });
+      proc.on('error', () => resolve([]));
+    });
   } else {
     // Unix: List /Volumes (macOS) or /mnt (Linux)
-    const mountPoints = ['/Volumes', '/mnt', '/media']
-    
+    const mountPoints = ['/Volumes', '/mnt', '/media'];
+
     for (const mountPoint of mountPoints) {
       try {
-        await access(mountPoint)
-        const entries = await readdir(mountPoint, { withFileTypes: true })
+        await access(mountPoint);
+        const entries = await readdir(mountPoint, { withFileTypes: true });
         for (const entry of entries) {
           if (entry.isDirectory() && !entry.name.startsWith('.')) {
             files.push({
@@ -313,13 +347,15 @@ async function listDrives(): Promise<FileInfo[]> {
               isDirectory: true,
               size: 0,
               modifiedTime: new Date().toISOString(),
-              svnStatus: undefined
-            })
+              svnStatus: undefined,
+            });
           }
         }
-      } catch { /* skip inaccessible mount points */ }
+      } catch {
+        /* skip inaccessible mount points */
+      }
     }
-    
+
     // Always add root
     files.unshift({
       name: 'Root',
@@ -327,80 +363,80 @@ async function listDrives(): Promise<FileInfo[]> {
       isDirectory: true,
       size: 0,
       modifiedTime: new Date().toISOString(),
-      svnStatus: undefined
-    })
+      svnStatus: undefined,
+    });
   }
-  
-  return files
+
+  return files;
 }
 
 /**
  * Get parent directory path
  */
 function getParentPath(path: string): string | null {
-  if (path === '/' || path === 'DRIVES://') return null
-  
-  const normalized = normalize(path)
-  const parent = dirname(normalized)
-  
+  if (path === '/' || path === 'DRIVES://') return null;
+
+  const normalized = normalize(path);
+  const parent = dirname(normalized);
+
   // On Windows, if we're at the root of a drive (e.g., C:\), return DRIVES://
   if (platform() === 'win32' && parent.length === 2 && parent[1] === ':') {
-    return 'DRIVES://'
+    return 'DRIVES://';
   }
-  
+
   // If same as input (we were at root), return null
-  if (parent === normalized) return null
-  
-  return parent
+  if (parent === normalized) return null;
+
+  return parent;
 }
 
 /**
  * Calculate folder size recursively
  */
 async function calculateFolderSize(folderPath: string): Promise<number> {
-  let totalSize = 0
-  
+  let totalSize = 0;
+
   try {
-    const entries = await readdir(folderPath, { withFileTypes: true })
-    
+    const entries = await readdir(folderPath, { withFileTypes: true });
+
     for (const entry of entries) {
       // Skip hidden files and common exclude patterns
-      if (entry.name.startsWith('.')) continue
-      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.svn') continue
-      
-      const fullPath = join(folderPath, entry.name)
-      
+      if (entry.name.startsWith('.')) continue;
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.svn') continue;
+
+      const fullPath = join(folderPath, entry.name);
+
       try {
         if (entry.isDirectory()) {
-          totalSize += await calculateFolderSize(fullPath)
+          totalSize += await calculateFolderSize(fullPath);
         } else if (entry.isFile()) {
-          const stats = await stat(fullPath)
-          totalSize += stats.size
+          const stats = await stat(fullPath);
+          totalSize += stats.size;
         }
       } catch {
         // Skip files/folders we can't access
-        continue
+        continue;
       }
     }
   } catch {
     // Can't read directory
-    return 0
+    return 0;
   }
-  
-  return totalSize
+
+  return totalSize;
 }
 
 /**
  * Calculate sizes for multiple folders
  */
 async function calculateFolderSizes(folderPaths: string[]): Promise<Record<string, number>> {
-  const results: Record<string, number> = {}
-  
+  const results: Record<string, number> = {};
+
   for (const folderPath of folderPaths) {
-    results[folderPath] = await calculateFolderSize(folderPath)
+    results[folderPath] = await calculateFolderSize(folderPath);
   }
-  
-  return results
+
+  return results;
 }
 
 export function registerFsHandlers(): void {
@@ -409,245 +445,283 @@ export function registerFsHandlers(): void {
     try {
       // Handle special DRIVES:// path for listing drives
       if (path === 'DRIVES://') {
-        return listDrives()
+        return listDrives();
       }
-      return listDirectoryFiles(path)
+      return listDirectoryFiles(path);
     } catch (error) {
-      console.error('[FS] List error:', error)
-      return []
+      console.error('[FS] List error:', error);
+      return [];
     }
-  })
-  
+  });
+
   // List available drives
   ipcMain.handle('fs:listDrives', async (): Promise<FileInfo[]> => {
     try {
-      return listDrives()
+      return listDrives();
     } catch (error) {
-      console.error('[FS] List drives error:', error)
-      return []
+      console.error('[FS] List drives error:', error);
+      return [];
     }
-  })
-  
+  });
+
   // Get parent directory
   ipcMain.handle('fs:getParent', async (_, path: string): Promise<string | null> => {
-    return getParentPath(path)
-  })
-  
+    return getParentPath(path);
+  });
+
   // Shallow SVN status (fast, --depth=immediates)
   ipcMain.handle('fs:getStatus', async (_, path: string) => {
     try {
       // Don't get SVN status for drives list
       if (path === 'DRIVES://') {
-        return { directStatus: {}, allEntries: [] }
+        return { directStatus: {}, allEntries: [] };
       }
-      return getSvnStatus(path, 'immediates')
+      return getSvnStatus(path, 'immediates');
     } catch (error) {
-      console.error('[FS] Status error:', error)
-      return { directStatus: {}, allEntries: [] }
+      console.error('[FS] Status error:', error);
+      return { directStatus: {}, allEntries: [] };
     }
-  })
-  
+  });
+
   // Deep SVN status (slower, --depth=infinity) for folder aggregation
   ipcMain.handle('fs:getDeepStatus', async (_, path: string) => {
     try {
       // Don't get SVN status for drives list
       if (path === 'DRIVES://') {
-        return { directStatus: {}, allEntries: [] }
+        return { directStatus: {}, allEntries: [] };
       }
-      return startDeepScan(path)
+      return startDeepScan(path);
     } catch (error) {
-      console.error('[FS] Deep status error:', error)
-      return { directStatus: {}, allEntries: [] }
+      console.error('[FS] Deep status error:', error);
+      return { directStatus: {}, allEntries: [] };
     }
-  })
-  
+  });
+
   // Apply status to files (helper for renderer)
-  ipcMain.handle('fs:applyStatus', async (_, files: FileInfo[], directStatus: SvnStatusMap, allEntries: SvnStatusEntry[]) => {
-    return applySvnStatusToFiles(files, directStatus, allEntries)
-  })
-  
+  ipcMain.handle(
+    'fs:applyStatus',
+    async (_, files: FileInfo[], directStatus: SvnStatusMap, allEntries: SvnStatusEntry[]) => {
+      return applySvnStatusToFiles(files, directStatus, allEntries);
+    }
+  );
+
   // Check if versioned
   ipcMain.handle('fs:isVersioned', async (_, path: string): Promise<boolean> => {
     // Drives list is never versioned
-    if (path === 'DRIVES://') return false
-    return isVersioned(path)
-  })
-  
+    if (path === 'DRIVES://') return false;
+    return isVersioned(path);
+  });
+
   // Read file content
-  ipcMain.handle('fs:readFile', async (_, path: string): Promise<{ success: boolean; content?: string; error?: string }> => {
-    try {
-      // SECURITY: Validate path input
-      const validatedPath = validatePath(path, { mustExist: true, mustBeFile: true, maxSize: 1024 * 1024 })
-      
-      // PERFORMANCE: Use async file operations to avoid blocking
-      const { stat, readFile } = await import('fs/promises')
-      const stats = await stat(validatedPath)
-      
-      // Limit file size to 1MB for preview
-      if (stats.size > 1024 * 1024) {
-        return { success: false, error: 'File too large for preview (>1MB)' }
+  ipcMain.handle(
+    'fs:readFile',
+    async (_, path: string): Promise<{ success: boolean; content?: string; error?: string }> => {
+      try {
+        // SECURITY: Validate path input
+        const validatedPath = validatePath(path, {
+          mustExist: true,
+          mustBeFile: true,
+          maxSize: 1024 * 1024,
+        });
+
+        // PERFORMANCE: Use async file operations to avoid blocking
+        const { stat, readFile } = await import('fs/promises');
+        const stats = await stat(validatedPath);
+
+        // Limit file size to 1MB for preview
+        if (stats.size > 1024 * 1024) {
+          return { success: false, error: 'File too large for preview (>1MB)' };
+        }
+
+        const content = await readFile(validatedPath, 'utf-8');
+        return { success: true, content };
+      } catch (err) {
+        if (err instanceof InputValidationError) {
+          return { success: false, error: `Validation error: ${err.message}` };
+        }
+        return { success: false, error: (err as Error).message };
       }
-      
-      const content = await readFile(validatedPath, 'utf-8')
-      return { success: true, content }
-    } catch (err) {
-      if (err instanceof InputValidationError) {
-        return { success: false, error: `Validation error: ${err.message}` }
-      }
-      return { success: false, error: (err as Error).message }
     }
-  })
-  
+  );
+
   // Read image file as base64 for thumbnails
-  ipcMain.handle('fs:readImageAsBase64', async (_, filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
-    try {
-      // SECURITY: Validate path and allowed extensions
-      const validatedPath = validatePath(filePath, {
-        mustExist: true,
-        mustBeFile: true,
-        allowedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp'],
-        maxSize: 10 * 1024 * 1024  // 10MB max for images
-      })
-      
-      const buffer = await readFile(validatedPath)
-      const base64 = buffer.toString('base64')
-      // Detect mime type from extension
-      const ext = validatedPath.split('.').pop()?.toLowerCase() || ''
-      const mimeTypes: Record<string, string> = {
-        'png': 'image/png',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'gif': 'image/gif',
-        'webp': 'image/webp',
-        'ico': 'image/x-icon',
-        'bmp': 'image/bmp'
+  ipcMain.handle(
+    'fs:readImageAsBase64',
+    async (_, filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
+      try {
+        // SECURITY: Validate path and allowed extensions
+        const validatedPath = validatePath(filePath, {
+          mustExist: true,
+          mustBeFile: true,
+          allowedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp'],
+          maxSize: 10 * 1024 * 1024, // 10MB max for images
+        });
+
+        const buffer = await readFile(validatedPath);
+        const base64 = buffer.toString('base64');
+        // Detect mime type from extension
+        const ext = validatedPath.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes: Record<string, string> = {
+          png: 'image/png',
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          gif: 'image/gif',
+          webp: 'image/webp',
+          ico: 'image/x-icon',
+          bmp: 'image/bmp',
+        };
+        const mimeType = mimeTypes[ext] || 'image/png';
+        return { success: true, data: `data:${mimeType};base64,${base64}` };
+      } catch (error) {
+        if (error instanceof InputValidationError) {
+          return { success: false, error: `Validation error: ${error.message}` };
+        }
+        return { success: false, error: (error as Error).message };
       }
-      const mimeType = mimeTypes[ext] || 'image/png'
-      return { success: true, data: `data:${mimeType};base64,${base64}` }
-    } catch (error) {
-      if (error instanceof InputValidationError) {
-        return { success: false, error: `Validation error: ${error.message}` }
-      }
-      return { success: false, error: (error as Error).message }
     }
-  })
-  
+  );
+
   // Cancel active scan
   ipcMain.handle('fs:cancelScan', async (_, path: string) => {
-    cancelDeepScan(path)
-  })
-  
+    cancelDeepScan(path);
+  });
+
   // Calculate folder sizes (can be slow for large directories)
-  ipcMain.handle('fs:getFolderSizes', async (_, folderPaths: string[]): Promise<Record<string, number>> => {
-    try {
-      return calculateFolderSizes(folderPaths)
-    } catch (error) {
-      console.error('[FS] Folder size error:', error)
-      return {}
+  ipcMain.handle(
+    'fs:getFolderSizes',
+    async (_, folderPaths: string[]): Promise<Record<string, number>> => {
+      try {
+        return calculateFolderSizes(folderPaths);
+      } catch (error) {
+        console.error('[FS] Folder size error:', error);
+        return {};
+      }
     }
-  })
-  
+  );
+
   // Copy file (for non-versioned files)
-  ipcMain.handle('fs:copyFile', async (_, source: string, target: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // SECURITY: Validate both paths
-      const validatedSource = validatePath(source, { mustExist: true, mustBeFile: true })
-      const validatedTarget = validatePath(target, { allowAbsolute: true })
-      
-      // Ensure target directory exists (mkdir with recursive won't throw if exists)
-      const targetDir = dirname(validatedTarget)
-      await mkdir(targetDir, { recursive: true })
-      
-      await fsCopyFile(validatedSource, validatedTarget)
-      return { success: true }
-    } catch (err) {
-      if (err instanceof InputValidationError) {
-        return { success: false, error: `Validation error: ${err.message}` }
-      }
-      console.error('[FS] Copy file error:', err)
-      return { success: false, error: (err as Error).message }
-    }
-  })
-  
-  // Write file (for plugins)
-  ipcMain.handle('fs:writeFile', async (_, path: string, content: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // SECURITY: Validate path (allow absolute for plugin files)
-      const validatedPath = validatePath(path, { allowAbsolute: true })
-      
-      // Validate content size (limit to 10MB for safety)
-      if (content.length > 10 * 1024 * 1024) {
-        return { success: false, error: 'Content too large (max 10MB)' }
-      }
-      
-      // Ensure directory exists
-      const dir = dirname(validatedPath)
-      await mkdir(dir, { recursive: true })
-      
-      await fsWriteFile(validatedPath, content, 'utf-8')
-      return { success: true }
-    } catch (err) {
-      if (err instanceof InputValidationError) {
-        return { success: false, error: `Validation error: ${err.message}` }
-      }
-      console.error('[FS] Write file error:', err)
-      return { success: false, error: (err as Error).message }
-    }
-  })
-  
-  // File System Watching
-  ipcMain.handle('fs:watch', async (event, path: string, options?: { 
-    watchSvnOnly?: boolean 
-  }): Promise<{ success: boolean; error?: string }> => {
-    try {
-      if (activeWatchers.has(path)) {
-        return { success: true }
-      }
-      
-      const watchSvnOnly = options?.watchSvnOnly ?? false
-      
-      const watcher = chokidar.watch(path, {
-        ignored: [
-          /(^|[\/\\])\../, // hidden files
-          /node_modules/
-        ],
-        ignoreInitial: true,
-        awaitWriteFinish: {
-          stabilityThreshold: 300,
-          pollInterval: 100
-        },
-        depth: watchSvnOnly ? 0 : undefined
-      })
-      
-      watcher.on('all', (eventType, changedPath) => {
-        if (watchSvnOnly && !changedPath.includes('.svn')) {
-          return
+  ipcMain.handle(
+    'fs:copyFile',
+    async (_, source: string, target: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        // SECURITY: Validate both paths
+        const validatedSource = validatePath(source, { mustExist: true, mustBeFile: true });
+        const validatedTarget = validatePath(target, { allowAbsolute: true });
+
+        // Ensure target directory exists (mkdir with recursive won't throw if exists)
+        const targetDir = dirname(validatedTarget);
+        await mkdir(targetDir, { recursive: true });
+
+        await fsCopyFile(validatedSource, validatedTarget);
+        return { success: true };
+      } catch (err) {
+        if (err instanceof InputValidationError) {
+          return { success: false, error: `Validation error: ${err.message}` };
         }
-        
-        event.sender.send('fs:watch:change', {
-          path,
-          eventType,
-          changedPath
-        })
-      })
-      
-      watcher.on('error', (error) => {
-        console.error('[FS] Watcher error:', error)
-      })
-      
-      activeWatchers.set(path, watcher)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: (error as Error).message }
+        console.error('[FS] Copy file error:', err);
+        return { success: false, error: (err as Error).message };
+      }
     }
-  })
-  
+  );
+
+  // Write file (for plugins)
+  ipcMain.handle(
+    'fs:writeFile',
+    async (_, path: string, content: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        // SECURITY: Validate path (allow absolute for plugin files)
+        const validatedPath = validatePath(path, { allowAbsolute: true });
+
+        // Validate content size (limit to 10MB for safety)
+        if (content.length > 10 * 1024 * 1024) {
+          return { success: false, error: 'Content too large (max 10MB)' };
+        }
+
+        // Ensure directory exists
+        const dir = dirname(validatedPath);
+        await mkdir(dir, { recursive: true });
+
+        await fsWriteFile(validatedPath, content, 'utf-8');
+        return { success: true };
+      } catch (err) {
+        if (err instanceof InputValidationError) {
+          return { success: false, error: `Validation error: ${err.message}` };
+        }
+        console.error('[FS] Write file error:', err);
+        return { success: false, error: (err as Error).message };
+      }
+    }
+  );
+
+  // File System Watching
+  ipcMain.handle(
+    'fs:watch',
+    async (
+      event,
+      path: string,
+      options?: {
+        watchSvnOnly?: boolean;
+      }
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        if (activeWatchers.has(path)) {
+          return { success: true };
+        }
+
+        const watchSvnOnly = options?.watchSvnOnly ?? false;
+
+        const watcher = chokidar.watch(path, {
+          ignored: [
+            /(^|[/\\])\../, // hidden files
+            /node_modules/,
+          ],
+          ignoreInitial: true,
+          awaitWriteFinish: {
+            stabilityThreshold: 300,
+            pollInterval: 100,
+          },
+          depth: watchSvnOnly ? 0 : undefined,
+        });
+
+        watcher.on('all', (eventType, changedPath) => {
+          if (watchSvnOnly && !changedPath.includes('.svn')) {
+            return;
+          }
+
+          event.sender.send('fs:watch:change', {
+            path,
+            eventType,
+            changedPath,
+          });
+        });
+
+        watcher.on('error', (error) => {
+          console.error('[FS] Watcher error:', error);
+        });
+
+        activeWatchers.set(path, watcher);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    }
+  );
+
   ipcMain.handle('fs:unwatch', async (_, path: string): Promise<{ success: boolean }> => {
-    const watcher = activeWatchers.get(path)
+    const watcher = activeWatchers.get(path);
     if (watcher) {
-      await watcher.close()
-      activeWatchers.delete(path)
+      await watcher.close();
+      activeWatchers.delete(path);
     }
-    return { success: true }
-  })
+    return { success: true };
+  });
+
+  ipcMain.handle('fs:exists', async (_, path: string): Promise<boolean> => {
+    try {
+      await access(path);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }

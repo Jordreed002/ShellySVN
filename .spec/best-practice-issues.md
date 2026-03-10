@@ -8,6 +8,7 @@ This report identifies performance optimization opportunities based on Vercel's 
 ---
 
 ## Status Legend
+
 ✅ = Fixed | ⚠️ = Accepted as-is | ❌ = Not fixed
 
 ---
@@ -23,6 +24,7 @@ This report identifies performance optimization opportunities based on Vercel's 
 ### 2. Non-Primitive Default Props (`rerender-memo-with-default-value`) ✅
 
 **Fixed:** Added module-level constants in multiple files:
+
 - `VirtualizedList.tsx`: `EMPTY_SET` for Set defaults
 - `FileRow.tsx`: `EMPTY_FOLDER_SIZES`, `EMPTY_ACTIONS`, `DEFAULT_COLUMN_WIDTHS`
 - `useDragDrop.tsx`: `EMPTY_OPTIONS`
@@ -57,6 +59,7 @@ This report identifies performance optimization opportunities based on Vercel's 
 ### 6. Inline Arrow Functions in Event Handlers (`rerender-inline-handlers`) ✅
 
 **Fixed:**
+
 - `RepoBrowser.tsx`: Added `useCallback` for `handleNavigate`, `handleBack`, `handleRefresh`
 - `RepoBrowserContent.tsx`: Added stable callbacks for selection and dialog handlers
 
@@ -79,6 +82,7 @@ This report identifies performance optimization opportunities based on Vercel's 
 ### 9. Missing Dynamic Imports for Heavy Components (`bundle-dynamic-imports`) ✅
 
 **Fixed:** Added lazy loading with `React.lazy()` and `Suspense` for:
+
 - `CommitDialog`
 - `DiffViewer`
 - `LogViewer`
@@ -96,10 +100,10 @@ This report identifies performance optimization opportunities based on Vercel's 
 
 ## Summary
 
-| Priority | Total | Fixed | Accepted |
-|----------|-------|-------|----------|
-| CRITICAL | 2 | 1 | 1 |
-| HIGH | 3 | 3 | 0 |
-| MEDIUM | 3 | 1 | 2 |
-| LOW | 2 | 2 | 0 |
-| **Total** | **10** | **7** | **3** |
+| Priority  | Total  | Fixed | Accepted |
+| --------- | ------ | ----- | -------- |
+| CRITICAL  | 2      | 1     | 1        |
+| HIGH      | 3      | 3     | 0        |
+| MEDIUM    | 3      | 1     | 2        |
+| LOW       | 2      | 2     | 0        |
+| **Total** | **10** | **7** | **3**    |

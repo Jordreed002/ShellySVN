@@ -1,14 +1,24 @@
-import { Sparkles, FolderOpen, FileText, RefreshCw, FileDiff, History, Undo2, Keyboard, CheckCircle } from 'lucide-react'
-import type { TutorialStep } from './types'
-import { WelcomeStep } from './WelcomeStep'
-import { WorkingCopyStep } from './WorkingCopyStep'
-import { StatusViewStep } from './StatusViewStep'
-import { CommitUpdateStep } from './CommitUpdateStep'
-import { DiffViewerStep } from './DiffViewerStep'
-import { LogHistoryStep } from './LogHistoryStep'
-import { RevertResolveStep } from './RevertResolveStep'
-import { ShortcutsStep } from './ShortcutsStep'
-import { CompleteStep } from './CompleteStep'
+import {
+  Sparkles,
+  FolderOpen,
+  FileText,
+  RefreshCw,
+  FileDiff,
+  History,
+  Undo2,
+  Keyboard,
+  CheckCircle,
+} from 'lucide-react';
+import type { TutorialStep } from './types';
+import { WelcomeStep } from './WelcomeStep';
+import { WorkingCopyStep } from './WorkingCopyStep';
+import { StatusViewStep } from './StatusViewStep';
+import { CommitUpdateStep } from './CommitUpdateStep';
+import { DiffViewerStep } from './DiffViewerStep';
+import { LogHistoryStep } from './LogHistoryStep';
+import { RevertResolveStep } from './RevertResolveStep';
+import { ShortcutsStep } from './ShortcutsStep';
+import { CompleteStep } from './CompleteStep';
 
 /**
  * Tutorial steps in order
@@ -77,18 +87,18 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     icon: CheckCircle,
     component: CompleteStep,
   },
-]
+];
 
 /**
  * Get a tutorial step by ID
  */
 export function getTutorialStep(id: string): TutorialStep | undefined {
-  return TUTORIAL_STEPS.find(step => step.id === id)
+  return TUTORIAL_STEPS.find((step) => step.id === id);
 }
 
 /**
  * Get the total number of tutorial steps
  */
 export function getTotalSteps(): number {
-  return TUTORIAL_STEPS.length
+  return TUTORIAL_STEPS.length;
 }

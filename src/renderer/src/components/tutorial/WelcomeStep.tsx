@@ -1,13 +1,24 @@
-import { FolderOpen, GitBranch, Zap, Shield } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { FolderOpen, GitBranch, Zap, Shield } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function WelcomeStep({ onNext, onSkip, isFirstStep, currentStep, totalSteps }: TutorialStepProps) {
+export function WelcomeStep({
+  onNext,
+  onSkip,
+  isFirstStep: _isFirstStep,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-4">
         <div className="flex justify-center">
           <div className="w-20 h-20 rounded-2xl bg-accent/20 flex items-center justify-center">
-            <svg className="w-12 h-12 text-accent" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg
+              className="w-12 h-12 text-accent"
+              viewBox="0 0 48 48"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
               <path
                 d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z"
                 fill="currentColor"
@@ -21,14 +32,28 @@ export function WelcomeStep({ onNext, onSkip, isFirstStep, currentStep, totalSte
                 fill="none"
                 opacity="0.6"
               />
-              <path d="M24 20V32" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
-              <path d="M18 24H30" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+              <path
+                d="M24 20V32"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.4"
+              />
+              <path
+                d="M18 24H30"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.4"
+              />
             </svg>
           </div>
         </div>
         <div>
           <h2 className="text-2xl font-semibold text-text">Welcome to ShellySVN</h2>
-          <p className="text-text-secondary mt-2">A modern Subversion client built for professionals</p>
+          <p className="text-text-secondary mt-2">
+            A modern Subversion client built for professionals
+          </p>
         </div>
       </div>
 
@@ -76,7 +101,7 @@ export function WelcomeStep({ onNext, onSkip, isFirstStep, currentStep, totalSte
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function FeatureCard({
@@ -84,9 +109,9 @@ function FeatureCard({
   title,
   description,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
 }) {
   return (
     <div className="p-4 bg-bg-tertiary rounded-lg border border-border">
@@ -94,5 +119,5 @@ function FeatureCard({
       <h3 className="text-sm font-medium text-text">{title}</h3>
       <p className="text-xs text-text-secondary mt-1">{description}</p>
     </div>
-  )
+  );
 }

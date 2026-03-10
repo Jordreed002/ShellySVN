@@ -1,11 +1,11 @@
-import { ipcMain, app, shell, BrowserWindow } from 'electron'
-import { readdir, stat, unlink, rmdir } from 'fs/promises'
-import { join } from 'path'
+import { ipcMain, app, shell, BrowserWindow } from 'electron';
+import { readdir, stat, unlink, rmdir } from 'fs/promises';
+import { join } from 'path';
 
 /**
  * Allowed URL schemes for external links
  */
-const ALLOWED_EXTERNAL_SCHEMES = ['http:', 'https:', 'mailto:']
+const ALLOWED_EXTERNAL_SCHEMES = ['http:', 'https:', 'mailto:'];
 
 /**
  * Validate a URL before opening externally
@@ -13,52 +13,52 @@ const ALLOWED_EXTERNAL_SCHEMES = ['http:', 'https:', 'mailto:']
  */
 function isValidExternalUrl(url: string): boolean {
   try {
-    const parsed = new URL(url)
-    return ALLOWED_EXTERNAL_SCHEMES.includes(parsed.protocol)
+    const parsed = new URL(url);
+    return ALLOWED_EXTERNAL_SCHEMES.includes(parsed.protocol);
   } catch {
-    return false
+    return false;
   }
 }
 
 async function getDirectorySize(dirPath: string): Promise<{ size: number; files: number }> {
-  let totalSize = 0
-  let fileCount = 0
-  
+  let totalSize = 0;
+  let fileCount = 0;
+
   try {
-    const entries = await readdir(dirPath, { withFileTypes: true })
-    
+    const entries = await readdir(dirPath, { withFileTypes: true });
+
     for (const entry of entries) {
-      const fullPath = join(dirPath, entry.name)
-      
+      const fullPath = join(dirPath, entry.name);
+
       if (entry.isDirectory()) {
-        const subDir = await getDirectorySize(fullPath)
-        totalSize += subDir.size
-        fileCount += subDir.files
+        const subDir = await getDirectorySize(fullPath);
+        totalSize += subDir.size;
+        fileCount += subDir.files;
       } else if (entry.isFile()) {
-        const stats = await stat(fullPath)
-        totalSize += stats.size
-        fileCount++
+        const stats = await stat(fullPath);
+        totalSize += stats.size;
+        fileCount++;
       }
     }
   } catch {
     // Directory doesn't exist or can't be read
   }
-  
-  return { size: totalSize, files: fileCount }
+
+  return { size: totalSize, files: fileCount };
 }
 
 async function clearDirectory(dirPath: string): Promise<void> {
   try {
-    const entries = await readdir(dirPath, { withFileTypes: true })
-    
+    const entries = await readdir(dirPath, { withFileTypes: true });
+
     for (const entry of entries) {
-      const fullPath = join(dirPath, entry.name)
-      
+      const fullPath = join(dirPath, entry.name);
+
       if (entry.isDirectory()) {
-        await clearDirectory(fullPath)
-        await rmdir(fullPath)
+        await clearDirectory(fullPath);
+        await rmdir(fullPath);
       } else {
-        await unlink(fullPath)
+        await unlink(fullPath);
       }
     }
   } catch {
@@ -68,31 +68,37 @@ async function clearDirectory(dirPath: string): Promise<void> {
 
 export function registerAppHandlers(): void {
   ipcMain.handle('app:getVersion', () => {
-    return app.getVersion()
-  })
+    return app.getVersion();
+  });
 
-  ipcMain.handle('app:getPath', (_, name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => {
-    if (name === 'temp') {
-      return app.getPath('temp')
+  ipcMain.handle(
+    'app:getPath',
+    (_, name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => {
+      if (name === 'temp') {
+        return app.getPath('temp');
+      }
+      return app.getPath(name);
     }
-    return app.getPath(name)
-  })
+  );
 
   ipcMain.handle('app:openExternal', async (_, url: string) => {
     // SECURITY: Validate URL before opening
     if (!isValidExternalUrl(url)) {
-      console.warn('[SECURITY] Blocked attempt to open invalid URL:', url.substring(0, 100))
-      return { success: false, error: 'Invalid URL scheme. Only http, https, and mailto are allowed.' }
+      console.warn('[SECURITY] Blocked attempt to open invalid URL:', url.substring(0, 100));
+      return {
+        success: false,
+        error: 'Invalid URL scheme. Only http, https, and mailto are allowed.',
+      };
     }
-    
-    await shell.openExternal(url)
-    return { success: true }
-  })
+
+    await shell.openExternal(url);
+    return { success: true };
+  });
 
   ipcMain.handle('app:clearCache', async () => {
     try {
-      const userDataPath = app.getPath('userData')
-      
+      const userDataPath = app.getPath('userData');
+
       // Clear specific cache directories
       const cacheDirs = [
         join(userDataPath, 'Cache'),
@@ -100,25 +106,25 @@ export function registerAppHandlers(): void {
         join(userDataPath, 'GPUCache'),
         join(userDataPath, 'DawnCache'),
         join(userDataPath, 'GrShaderCache'),
-      ]
-      
+      ];
+
       // Clear log cache (our custom cache)
-      const logCachePath = join(userDataPath, 'shelly-cache', 'logs')
-      cacheDirs.push(logCachePath)
-      
+      const logCachePath = join(userDataPath, 'shelly-cache', 'logs');
+      cacheDirs.push(logCachePath);
+
       for (const cacheDir of cacheDirs) {
-        await clearDirectory(cacheDir)
+        await clearDirectory(cacheDir);
       }
-      
-      return { success: true }
+
+      return { success: true };
     } catch (error) {
-      return { success: false, error: (error as Error).message }
+      return { success: false, error: (error as Error).message };
     }
-  })
+  });
 
   ipcMain.handle('app:getCacheSize', async () => {
     try {
-      const userDataPath = app.getPath('userData')
+      const userDataPath = app.getPath('userData');
 
       const cacheDirs = [
         join(userDataPath, 'Cache'),
@@ -127,47 +133,47 @@ export function registerAppHandlers(): void {
         join(userDataPath, 'DawnCache'),
         join(userDataPath, 'GrShaderCache'),
         join(userDataPath, 'shelly-cache', 'logs'),
-      ]
+      ];
 
-      let totalSize = 0
-      let totalFiles = 0
+      let totalSize = 0;
+      let totalFiles = 0;
 
       for (const cacheDir of cacheDirs) {
-        const result = await getDirectorySize(cacheDir)
-        totalSize += result.size
-        totalFiles += result.files
+        const result = await getDirectorySize(cacheDir);
+        totalSize += result.size;
+        totalFiles += result.files;
       }
 
-      return { size: totalSize, files: totalFiles }
+      return { size: totalSize, files: totalFiles };
     } catch {
-      return { size: 0, files: 0 }
+      return { size: 0, files: 0 };
     }
-  })
+  });
 
   // Window control handlers
   ipcMain.handle('app:window:minimize', () => {
-    const window = BrowserWindow.getFocusedWindow()
-    if (window) window.minimize()
-  })
+    const window = BrowserWindow.getFocusedWindow();
+    if (window) window.minimize();
+  });
 
   ipcMain.handle('app:window:maximize', () => {
-    const window = BrowserWindow.getFocusedWindow()
+    const window = BrowserWindow.getFocusedWindow();
     if (window) {
       if (window.isMaximized()) {
-        window.unmaximize()
+        window.unmaximize();
       } else {
-        window.maximize()
+        window.maximize();
       }
     }
-  })
+  });
 
   ipcMain.handle('app:window:close', () => {
-    const window = BrowserWindow.getFocusedWindow()
-    if (window) window.close()
-  })
+    const window = BrowserWindow.getFocusedWindow();
+    if (window) window.close();
+  });
 
   ipcMain.handle('app:window:isMaximized', () => {
-    const window = BrowserWindow.getFocusedWindow()
-    return window?.isMaximized() ?? false
-  })
+    const window = BrowserWindow.getFocusedWindow();
+    return window?.isMaximized() ?? false;
+  });
 }

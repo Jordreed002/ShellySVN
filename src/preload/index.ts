@@ -1,25 +1,65 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
+import { contextBridge, ipcRenderer } from 'electron';
+import { electronAPI } from '@electron-toolkit/preload';
 import type {
-  ElectronAPI, FileFilter, FileInfo, FsStatusResult, SvnDiffResult, SvnInfoResult,
-  AuthCredential, AuthListEntry, SvnChangelistResult, SvnShelveListResult,
-  WorkingCopyInfo, SvnBlameResult, SvnListResult, SvnPatchResult, SvnExternal,
-  SvnLockInfo, SvnLockResult, SvnUnlockResult, RepoDiagnostics
-} from '@shared/types'
+  ElectronAPI,
+  FileFilter,
+  FileInfo,
+  FsStatusResult,
+  SvnDiffResult,
+  SvnInfoResult,
+  AuthCredential,
+  AuthListEntry,
+  SvnChangelistResult,
+  SvnShelveListResult,
+  WorkingCopyInfo,
+  SvnBlameResult,
+  SvnListResult,
+  SvnPatchResult,
+  SvnExternal,
+  SvnLockInfo,
+  SvnLockResult,
+  SvnUnlockResult,
+  RepoDiagnostics,
+} from '@shared/types';
 
 const api: ElectronAPI = {
   svn: {
     status: (path) => ipcRenderer.invoke('svn:status', path),
-    log: (path, limit?, startRev?, endRev?) => 
+    log: (path, limit?, startRev?, endRev?) =>
       ipcRenderer.invoke('svn:log', path, limit, startRev, endRev),
     info: (path) => ipcRenderer.invoke('svn:info', path) as Promise<SvnInfoResult>,
     infoUrl: (url) => ipcRenderer.invoke('svn:infoUrl', url) as Promise<SvnInfoResult>,
-    getWorkingCopyContext: (path) => ipcRenderer.invoke('svn:getWorkingCopyContext', path) as Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>,
-    diff: (path, revision?) => ipcRenderer.invoke('svn:diff', path, revision) as Promise<SvnDiffResult>,
-    diffStreaming: (path, revision?) => ipcRenderer.invoke('svn:diffStreaming', path, revision) as Promise<SvnDiffResult>,
-    update: (path, depth?) => ipcRenderer.invoke('svn:update', path, depth) as Promise<{ success: boolean; revision: number; error?: string }>,
-    updateItem: (path) => ipcRenderer.invoke('svn:updateItem', path) as Promise<{ success: boolean; revision: number; error?: string }>,
-    updateToRevision: (workingCopyRoot, url, localPath, depth?, setDepthSticky?) => ipcRenderer.invoke('svn:updateToRevision', workingCopyRoot, url, localPath, depth, setDepthSticky) as Promise<{ success: boolean; revision: number; error?: string }>,
+    getWorkingCopyContext: (path) =>
+      ipcRenderer.invoke('svn:getWorkingCopyContext', path) as Promise<{
+        workingCopyRoot: string;
+        repositoryRoot: string;
+        url: string;
+      } | null>,
+    diff: (path, revision?) =>
+      ipcRenderer.invoke('svn:diff', path, revision) as Promise<SvnDiffResult>,
+    diffStreaming: (path, revision?) =>
+      ipcRenderer.invoke('svn:diffStreaming', path, revision) as Promise<SvnDiffResult>,
+    update: (path, depth?) =>
+      ipcRenderer.invoke('svn:update', path, depth) as Promise<{
+        success: boolean;
+        revision: number;
+        error?: string;
+      }>,
+    updateItem: (path) =>
+      ipcRenderer.invoke('svn:updateItem', path) as Promise<{
+        success: boolean;
+        revision: number;
+        error?: string;
+      }>,
+    updateToRevision: (workingCopyRoot, url, localPath, depth?, setDepthSticky?) =>
+      ipcRenderer.invoke(
+        'svn:updateToRevision',
+        workingCopyRoot,
+        url,
+        localPath,
+        depth,
+        setDepthSticky
+      ) as Promise<{ success: boolean; revision: number; error?: string }>,
     commit: (paths, message) => ipcRenderer.invoke('svn:commit', paths, message),
     revert: (paths) => ipcRenderer.invoke('svn:revert', paths),
     add: (paths) => ipcRenderer.invoke('svn:add', paths),
@@ -28,23 +68,27 @@ const api: ElectronAPI = {
     lock: (path, message?) => ipcRenderer.invoke('svn:lock', path, message),
     unlock: (path, force?) => ipcRenderer.invoke('svn:unlock', path, force),
     lockInfo: (path) => ipcRenderer.invoke('svn:lockInfo', path) as Promise<SvnLockInfo | null>,
-    lockForce: (path, message?) => ipcRenderer.invoke('svn:lockForce', path, message) as Promise<SvnLockResult>,
+    lockForce: (path, message?) =>
+      ipcRenderer.invoke('svn:lockForce', path, message) as Promise<SvnLockResult>,
     unlockForce: (path) => ipcRenderer.invoke('svn:unlockForce', path) as Promise<SvnUnlockResult>,
     lockList: (path) => ipcRenderer.invoke('svn:lockList', path) as Promise<SvnLockInfo[]>,
-    checkout: (url, path, revision?, depth?, options?) => ipcRenderer.invoke('svn:checkout', url, path, revision, depth, options),
+    checkout: (url, path, revision?, depth?, options?) =>
+      ipcRenderer.invoke('svn:checkout', url, path, revision, depth, options),
     export: (url, path, revision?) => ipcRenderer.invoke('svn:export', url, path, revision),
     import: (path, url, message) => ipcRenderer.invoke('svn:import', path, url, message),
     resolve: (path, resolution) => ipcRenderer.invoke('svn:resolve', path, resolution),
     switch: (path, url, revision?) => ipcRenderer.invoke('svn:switch', path, url, revision),
     copy: (src, dst, message) => ipcRenderer.invoke('svn:copy', src, dst, message),
-    merge: (source, target, revisions?, ranges?) => ipcRenderer.invoke('svn:merge', source, target, revisions, ranges),
+    merge: (source, target, revisions?, ranges?) =>
+      ipcRenderer.invoke('svn:merge', source, target, revisions, ranges),
     relocate: (from, to, path) => ipcRenderer.invoke('svn:relocate', from, to, path),
     changelist: {
       add: (paths, changelist) => ipcRenderer.invoke('svn:changelist:add', paths, changelist),
       remove: (paths) => ipcRenderer.invoke('svn:changelist:remove', paths),
-      list: (path) => ipcRenderer.invoke('svn:changelist:list', path) as Promise<SvnChangelistResult>,
+      list: (path) =>
+        ipcRenderer.invoke('svn:changelist:list', path) as Promise<SvnChangelistResult>,
       create: (name, comment?) => ipcRenderer.invoke('svn:changelist:create', name, comment),
-      delete: (name, path) => ipcRenderer.invoke('svn:changelist:delete', name, path)
+      delete: (name, path) => ipcRenderer.invoke('svn:changelist:delete', name, path),
     },
     move: (src, dst) => ipcRenderer.invoke('svn:move', src, dst),
     rename: (src, dst) => ipcRenderer.invoke('svn:rename', src, dst),
@@ -52,48 +96,65 @@ const api: ElectronAPI = {
       list: (path) => ipcRenderer.invoke('svn:shelve:list', path) as Promise<SvnShelveListResult>,
       save: (name, path, message?) => ipcRenderer.invoke('svn:shelve:save', name, path, message),
       apply: (name, path) => ipcRenderer.invoke('svn:shelve:apply', name, path),
-      delete: (name, path) => ipcRenderer.invoke('svn:shelve:delete', name, path)
+      delete: (name, path) => ipcRenderer.invoke('svn:shelve:delete', name, path),
     },
     proplist: (path) => ipcRenderer.invoke('svn:proplist', path),
     propset: (path, name, value) => ipcRenderer.invoke('svn:propset', path, name, value),
     propdel: (path, name) => ipcRenderer.invoke('svn:propdel', path, name),
     // Blame (Annotate)
-    blame: (path, startRevision?, endRevision?) => 
+    blame: (path, startRevision?, endRevision?) =>
       ipcRenderer.invoke('svn:blame', path, startRevision, endRevision) as Promise<SvnBlameResult>,
     // Repository Browser
     list: (url, revision?, depth?, credentials?) =>
       ipcRenderer.invoke('svn:list', url, revision, depth, credentials) as Promise<SvnListResult>,
     // Patch Operations
     patch: {
-      create: (paths, outputPath) => 
-        ipcRenderer.invoke('svn:patch:create', paths, outputPath) as Promise<{ success: boolean; output: string }>,
-      apply: (patchPath, targetPath, dryRun?) => 
-        ipcRenderer.invoke('svn:patch:apply', patchPath, targetPath, dryRun) as Promise<SvnPatchResult>
+      create: (paths, outputPath) =>
+        ipcRenderer.invoke('svn:patch:create', paths, outputPath) as Promise<{
+          success: boolean;
+          output: string;
+        }>,
+      apply: (patchPath, targetPath, dryRun?) =>
+        ipcRenderer.invoke(
+          'svn:patch:apply',
+          patchPath,
+          targetPath,
+          dryRun
+        ) as Promise<SvnPatchResult>,
     },
     // Externals Management
     externals: {
       list: (path) => ipcRenderer.invoke('svn:externals:list', path) as Promise<SvnExternal[]>,
       add: (workingCopyPath, external) =>
-        ipcRenderer.invoke('svn:externals:add', workingCopyPath, external) as Promise<{ success: boolean }>,
+        ipcRenderer.invoke('svn:externals:add', workingCopyPath, external) as Promise<{
+          success: boolean;
+        }>,
       remove: (workingCopyPath, externalPath) =>
-        ipcRenderer.invoke('svn:externals:remove', workingCopyPath, externalPath) as Promise<{ success: boolean }>
+        ipcRenderer.invoke('svn:externals:remove', workingCopyPath, externalPath) as Promise<{
+          success: boolean;
+        }>,
     },
     // Repository Diagnostics
-    diagnostics: (workingCopyPath) => ipcRenderer.invoke('svn:diagnostics', workingCopyPath) as Promise<RepoDiagnostics>
+    diagnostics: (workingCopyPath) =>
+      ipcRenderer.invoke('svn:diagnostics', workingCopyPath) as Promise<RepoDiagnostics>,
   },
   external: {
-    openDiffTool: (tool, left, right) => ipcRenderer.invoke('external:openDiffTool', tool, left, right),
-    openMergeTool: (tool, base, mine, theirs, merged) => ipcRenderer.invoke('external:openMergeTool', tool, base, mine, theirs, merged),
+    openDiffTool: (tool, left, right) =>
+      ipcRenderer.invoke('external:openDiffTool', tool, left, right),
+    openMergeTool: (tool, base, mine, theirs, merged) =>
+      ipcRenderer.invoke('external:openMergeTool', tool, base, mine, theirs, merged),
     openFolder: (path) => ipcRenderer.invoke('external:openFolder', path),
-    openFile: (path) => ipcRenderer.invoke('external:openFile', path)
+    openFile: (path) => ipcRenderer.invoke('external:openFile', path),
   },
   monitor: {
-    getWorkingCopies: () => ipcRenderer.invoke('monitor:getWorkingCopies') as Promise<WorkingCopyInfo[]>,
+    getWorkingCopies: () =>
+      ipcRenderer.invoke('monitor:getWorkingCopies') as Promise<WorkingCopyInfo[]>,
     addWorkingCopy: (path) => ipcRenderer.invoke('monitor:addWorkingCopy', path),
     removeWorkingCopy: (path) => ipcRenderer.invoke('monitor:removeWorkingCopy', path),
-    refreshStatus: (path) => ipcRenderer.invoke('monitor:refreshStatus', path) as Promise<WorkingCopyInfo | null>,
+    refreshStatus: (path) =>
+      ipcRenderer.invoke('monitor:refreshStatus', path) as Promise<WorkingCopyInfo | null>,
     startMonitoring: () => ipcRenderer.invoke('monitor:startMonitoring'),
-    stopMonitoring: () => ipcRenderer.invoke('monitor:stopMonitoring')
+    stopMonitoring: () => ipcRenderer.invoke('monitor:stopMonitoring'),
   },
   fs: {
     // Fast file listing (filesystem only, no SVN)
@@ -105,111 +166,153 @@ const api: ElectronAPI = {
     // Shallow SVN status (fast, --depth=immediates)
     getStatus: (path) => ipcRenderer.invoke('fs:getStatus', path) as Promise<FsStatusResult>,
     // Deep SVN status (slower, --depth=infinity) for folder aggregation
-    getDeepStatus: (path) => ipcRenderer.invoke('fs:getDeepStatus', path) as Promise<FsStatusResult>,
+    getDeepStatus: (path) =>
+      ipcRenderer.invoke('fs:getDeepStatus', path) as Promise<FsStatusResult>,
     // Apply status to files
-    applyStatus: (files, directStatus, allEntries) => 
+    applyStatus: (files, directStatus, allEntries) =>
       ipcRenderer.invoke('fs:applyStatus', files, directStatus, allEntries) as Promise<FileInfo[]>,
     // Cancel active deep scan
     cancelScan: (path) => ipcRenderer.invoke('fs:cancelScan', path),
     // Check if versioned
     isVersioned: (path) => ipcRenderer.invoke('fs:isVersioned', path) as Promise<boolean>,
     // Read file content for preview
-    readFile: (path) => ipcRenderer.invoke('fs:readFile', path) as Promise<{ success: boolean; content?: string; error?: string }>,
+    readFile: (path) =>
+      ipcRenderer.invoke('fs:readFile', path) as Promise<{
+        success: boolean;
+        content?: string;
+        error?: string;
+      }>,
     // Read image file as base64 for thumbnails
-    readImageAsBase64: (filePath) => 
-      ipcRenderer.invoke('fs:readImageAsBase64', filePath) as Promise<{ success: boolean; data?: string; error?: string }>,
+    readImageAsBase64: (filePath) =>
+      ipcRenderer.invoke('fs:readImageAsBase64', filePath) as Promise<{
+        success: boolean;
+        data?: string;
+        error?: string;
+      }>,
     // Calculate folder sizes
-    getFolderSizes: (folderPaths) => ipcRenderer.invoke('fs:getFolderSizes', folderPaths) as Promise<Record<string, number>>,
+    getFolderSizes: (folderPaths) =>
+      ipcRenderer.invoke('fs:getFolderSizes', folderPaths) as Promise<Record<string, number>>,
     // Copy file (for non-versioned files)
-    copyFile: (source, target) => ipcRenderer.invoke('fs:copyFile', source, target) as Promise<{ success: boolean; error?: string }>,
+    copyFile: (source, target) =>
+      ipcRenderer.invoke('fs:copyFile', source, target) as Promise<{
+        success: boolean;
+        error?: string;
+      }>,
     // Write file (for plugins)
-    writeFile: (path, content) => ipcRenderer.invoke('fs:writeFile', path, content) as Promise<{ success: boolean; error?: string }>,
+    writeFile: (path, content) =>
+      ipcRenderer.invoke('fs:writeFile', path, content) as Promise<{
+        success: boolean;
+        error?: string;
+      }>,
     // Watch directory for changes
-    watch: (path: string, callback: (event: { path: string; eventType: string; changedPath: string }) => void, options?: { watchSvnOnly?: boolean }) => {
-      const handler = (_: unknown, event: { path: string; eventType: string; changedPath: string }) => callback(event)
-      ipcRenderer.on('fs:watch:change', handler)
-      ipcRenderer.invoke('fs:watch', path, options)
-      
+    watch: (
+      path: string,
+      callback: (event: { path: string; eventType: string; changedPath: string }) => void,
+      options?: { watchSvnOnly?: boolean }
+    ) => {
+      const handler = (
+        _: unknown,
+        event: { path: string; eventType: string; changedPath: string }
+      ) => callback(event);
+      ipcRenderer.on('fs:watch:change', handler);
+      ipcRenderer.invoke('fs:watch', path, options);
+
       // Return cleanup function
       return () => {
-        ipcRenderer.removeListener('fs:watch:change', handler)
-        ipcRenderer.invoke('fs:unwatch', path)
-      }
+        ipcRenderer.removeListener('fs:watch:change', handler);
+        ipcRenderer.invoke('fs:unwatch', path);
+      };
     },
-    // Stop watching directory
-    unwatch: (path: string) => ipcRenderer.invoke('fs:unwatch', path) as Promise<{ success: boolean }>
+    unwatch: (path: string) =>
+      ipcRenderer.invoke('fs:unwatch', path) as Promise<{ success: boolean }>,
+    exists: (path: string) => ipcRenderer.invoke('fs:exists', path) as Promise<boolean>,
   },
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
     openFile: (filters?: FileFilter[]) => ipcRenderer.invoke('dialog:openFile', filters),
-    saveFile: (defaultName?: string) => ipcRenderer.invoke('dialog:saveFile', defaultName)
+    saveFile: (defaultName?: string) => ipcRenderer.invoke('dialog:saveFile', defaultName),
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getPath: (name) => ipcRenderer.invoke('app:getPath', name),
     openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
-    clearCache: () => ipcRenderer.invoke('app:clearCache') as Promise<{ success: boolean; error?: string }>,
-    getCacheSize: () => ipcRenderer.invoke('app:getCacheSize') as Promise<{ size: number; files: number }>,
+    clearCache: () =>
+      ipcRenderer.invoke('app:clearCache') as Promise<{ success: boolean; error?: string }>,
+    getCacheSize: () =>
+      ipcRenderer.invoke('app:getCacheSize') as Promise<{ size: number; files: number }>,
     window: {
       minimize: () => ipcRenderer.invoke('app:window:minimize'),
       maximize: () => ipcRenderer.invoke('app:window:maximize'),
       close: () => ipcRenderer.invoke('app:window:close'),
-      isMaximized: () => ipcRenderer.invoke('app:window:isMaximized') as Promise<boolean>
-    }
+      isMaximized: () => ipcRenderer.invoke('app:window:isMaximized') as Promise<boolean>,
+    },
   },
   store: {
     get: <T>(key: string) => ipcRenderer.invoke('store:get', key) as Promise<T | undefined>,
     set: <T>(key: string, value: T) => ipcRenderer.invoke('store:set', key, value),
-    delete: (key: string) => ipcRenderer.invoke('store:delete', key)
+    delete: (key: string) => ipcRenderer.invoke('store:delete', key),
   },
   auth: {
     get: (realm: string) => ipcRenderer.invoke('auth:get', realm) as Promise<AuthCredential | null>,
-    set: (realm: string, username: string, password: string) => 
+    set: (realm: string, username: string, password: string) =>
       ipcRenderer.invoke('auth:set', realm, username, password) as Promise<{ success: boolean }>,
-    delete: (realm: string) => ipcRenderer.invoke('auth:delete', realm) as Promise<{ success: boolean }>,
+    delete: (realm: string) =>
+      ipcRenderer.invoke('auth:delete', realm) as Promise<{ success: boolean }>,
     list: () => ipcRenderer.invoke('auth:list') as Promise<AuthListEntry[]>,
     has: (realm: string) => ipcRenderer.invoke('auth:has', realm) as Promise<boolean>,
     clear: () => ipcRenderer.invoke('auth:clear') as Promise<{ success: boolean }>,
-    isEncryptionAvailable: () => ipcRenderer.invoke('auth:isEncryptionAvailable') as Promise<boolean>
+    isEncryptionAvailable: () =>
+      ipcRenderer.invoke('auth:isEncryptionAvailable') as Promise<boolean>,
   },
   shell: {
     register: () => ipcRenderer.invoke('shell:register') as Promise<{ success: boolean }>,
     unregister: () => ipcRenderer.invoke('shell:unregister') as Promise<{ success: boolean }>,
-    isRegistered: () => ipcRenderer.invoke('shell:isRegistered') as Promise<{ registered: boolean }>,
-    updateOverlay: (path: string, status: string) => 
+    isRegistered: () =>
+      ipcRenderer.invoke('shell:isRegistered') as Promise<{ registered: boolean }>,
+    updateOverlay: (path: string, status: string) =>
       ipcRenderer.invoke('shell:updateOverlay', path, status) as Promise<{ success: boolean }>,
-    clearOverlay: (path: string) => 
+    clearOverlay: (path: string) =>
       ipcRenderer.invoke('shell:clearOverlay', path) as Promise<{ success: boolean }>,
-    clearAllOverlays: () => 
-      ipcRenderer.invoke('shell:clearAllOverlays') as Promise<{ success: boolean }>
+    clearAllOverlays: () =>
+      ipcRenderer.invoke('shell:clearAllOverlays') as Promise<{ success: boolean }>,
   },
   deepLink: {
-    onAction: (callback: (link: { action: string; params: Record<string, string>; path?: string; url?: string }) => void) => {
-      const handler = (_: unknown, link: unknown) => callback(link as { action: string; params: Record<string, string>; path?: string; url?: string })
-      ipcRenderer.on('deep-link', handler)
-      return () => ipcRenderer.removeListener('deep-link', handler)
-    }
-  }
-}
+    onAction: (
+      callback: (link: {
+        action: string;
+        params: Record<string, string>;
+        path?: string;
+        url?: string;
+      }) => void
+    ) => {
+      const handler = (_: unknown, link: unknown) =>
+        callback(
+          link as { action: string; params: Record<string, string>; path?: string; url?: string }
+        );
+      ipcRenderer.on('deep-link', handler);
+      return () => ipcRenderer.removeListener('deep-link', handler);
+    },
+  },
+};
 
 // Use `contextBridge` APIs to expose Electron APIs to renderer
 // only if context isolation is enabled
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('electron', electronAPI);
+    contextBridge.exposeInMainWorld('api', api);
   } catch (error) {
-    console.error('Failed to expose API:', error)
+    console.error('Failed to expose API:', error);
   }
 } else {
   // SECURITY WARNING: Context isolation is disabled. This is insecure.
   // Only use in development environments.
   console.warn(
     '[SECURITY WARNING] Context isolation is disabled. ' +
-    'This should only be used during development.'
-  )
+      'This should only be used during development.'
+  );
   // Direct assignment for non-isolated environments
   // Cast through unknown to avoid type conflicts
-  ;(window as unknown as { electron: typeof electronAPI }).electron = electronAPI
-  ;(window as unknown as { api: typeof api }).api = api
+  (window as unknown as { electron: typeof electronAPI }).electron = electronAPI;
+  (window as unknown as { api: typeof api }).api = api;
 }

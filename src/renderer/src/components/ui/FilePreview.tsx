@@ -1,35 +1,92 @@
-import { useState, useEffect, useMemo, memo, useRef, useCallback } from 'react'
-import { X, FileText, FileImage, FileCode, File, Copy, Check, ChevronRight, RotateCw, GitCompare, Maximize2, FileX } from 'lucide-react'
-import { CodeHighlighter, detectLanguage } from './CodeHighlighter'
+import { useState, useEffect, useMemo, memo, useRef, useCallback } from 'react';
+import {
+  X,
+  FileText,
+  FileImage,
+  FileCode,
+  File,
+  Copy,
+  Check,
+  ChevronRight,
+  RotateCw,
+  GitCompare,
+  Maximize2,
+  FileX,
+} from 'lucide-react';
+import { CodeHighlighter, detectLanguage } from './CodeHighlighter';
 
 interface FilePreviewProps {
-  filePath: string | null
-  isOpen: boolean
-  onClose: () => void
-  onOpen?: () => void
-  onDiff?: (filePath: string) => void
-  className?: string
+  filePath: string | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onOpen?: () => void;
+  onDiff?: (filePath: string) => void;
+  className?: string;
 }
 
-type ImageZoomLevel = 'fit' | '100' | '200'
+type ImageZoomLevel = 'fit' | '100' | '200';
 
 // Binary file extensions that should not be displayed as text
 const BINARY_EXTENSIONS = new Set([
   // Executables
-  'exe', 'dll', 'so', 'dylib', 'app', 'dmg', 'msi',
+  'exe',
+  'dll',
+  'so',
+  'dylib',
+  'app',
+  'dmg',
+  'msi',
   // Archives
-  'zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz',
+  'zip',
+  'tar',
+  'gz',
+  'rar',
+  '7z',
+  'bz2',
+  'xz',
   // Documents
-  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'odt',
+  'ods',
+  'odp',
   // Media (non-previewable)
-  'mp3', 'mp4', 'wav', 'avi', 'mov', 'mkv', 'flac', 'ogg', 'wma', 'wmv',
+  'mp3',
+  'mp4',
+  'wav',
+  'avi',
+  'mov',
+  'mkv',
+  'flac',
+  'ogg',
+  'wma',
+  'wmv',
   // Database
-  'db', 'sqlite', 'sqlite3',
+  'db',
+  'sqlite',
+  'sqlite3',
   // Fonts
-  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  'ttf',
+  'otf',
+  'woff',
+  'woff2',
+  'eot',
   // Other binary
-  'bin', 'iso', 'img', 'class', 'jar', 'war', 'ear', 'pyc', 'pyo'
-])
+  'bin',
+  'iso',
+  'img',
+  'class',
+  'jar',
+  'war',
+  'ear',
+  'pyc',
+  'pyo',
+]);
 
 export const FilePreview = memo(function FilePreview({
   filePath,
@@ -37,212 +94,240 @@ export const FilePreview = memo(function FilePreview({
   onClose,
   onOpen,
   onDiff,
-  className = ''
+  className = '',
 }: FilePreviewProps) {
-  const [content, setContent] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [content, setContent] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Image state
-  const [imageZoom, setImageZoom] = useState<ImageZoomLevel>('fit')
-  const [imageRotation, setImageRotation] = useState(0)
+  const [imageZoom, setImageZoom] = useState<ImageZoomLevel>('fit');
+  const [imageRotation, setImageRotation] = useState(0);
 
   // Diff state
-  const [diffContent, setDiffContent] = useState<string | null>(null)
-  const [isDiffLoading, setIsDiffLoading] = useState(false)
-  const [showDiff, setShowDiff] = useState(false)
-  const [diffError, setDiffError] = useState<string | null>(null)
+  const [diffContent, setDiffContent] = useState<string | null>(null);
+  const [isDiffLoading, setIsDiffLoading] = useState(false);
+  const [showDiff, setShowDiff] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
 
-  const imageContainerRef = useRef<HTMLDivElement>(null)
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fileType = useMemo(() => {
-    if (!filePath) return null
-    const ext = filePath.split('.').pop()?.toLowerCase() || ''
+    if (!filePath) return null;
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
 
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp'].includes(ext)) {
-      return 'image'
+      return 'image';
     }
     if (BINARY_EXTENSIONS.has(ext)) {
-      return 'binary'
+      return 'binary';
     }
-    if (['ts', 'tsx', 'js', 'jsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'cs', 'swift', 'kt', 'php', 'vue', 'svelte'].includes(ext)) {
-      return 'code'
+    if (
+      [
+        'ts',
+        'tsx',
+        'js',
+        'jsx',
+        'py',
+        'rb',
+        'go',
+        'rs',
+        'java',
+        'c',
+        'cpp',
+        'h',
+        'cs',
+        'swift',
+        'kt',
+        'php',
+        'vue',
+        'svelte',
+      ].includes(ext)
+    ) {
+      return 'code';
     }
     if (['json', 'xml', 'yaml', 'yml', 'toml', 'ini', 'env', 'config'].includes(ext)) {
-      return 'config'
+      return 'config';
     }
     if (['md', 'txt', 'rst', 'log'].includes(ext)) {
-      return 'text'
+      return 'text';
     }
-    return 'unknown'
-  }, [filePath])
+    return 'unknown';
+  }, [filePath]);
 
   // Get syntax highlighting language
   const language = useMemo(() => {
-    if (!filePath || (fileType !== 'code' && fileType !== 'config')) return 'text'
-    return detectLanguage(filePath)
-  }, [filePath, fileType])
+    if (!filePath || (fileType !== 'code' && fileType !== 'config')) return 'text';
+    return detectLanguage(filePath);
+  }, [filePath, fileType]);
 
   // Reset state when file changes
   useEffect(() => {
-    setImageZoom('fit')
-    setImageRotation(0)
-    setShowDiff(false)
-    setDiffContent(null)
-    setDiffError(null)
-    setError(null)
-  }, [filePath])
+    setImageZoom('fit');
+    setImageRotation(0);
+    setShowDiff(false);
+    setDiffContent(null);
+    setDiffError(null);
+    setError(null);
+  }, [filePath]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) {
-        clearTimeout(copyTimeoutRef.current)
+        clearTimeout(copyTimeoutRef.current);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   useEffect(() => {
     if (!filePath || !isOpen || fileType === 'image' || fileType === 'binary') {
-      setContent(null)
-      return
+      setContent(null);
+      return;
     }
 
-    let cancelled = false
+    let cancelled = false;
 
     const loadContent = async () => {
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
       try {
-        const result = await window.api.fs.readFile(filePath)
-        if (cancelled) return
+        const result = await window.api.fs.readFile(filePath);
+        if (cancelled) return;
         if (result.success && result.content) {
-          setContent(result.content)
+          setContent(result.content);
         } else {
-          setError(result.error || 'Failed to read file')
+          setError(result.error || 'Failed to read file');
         }
       } catch (err) {
-        if (cancelled) return
-        setError((err as Error).message)
+        if (cancelled) return;
+        setError((err as Error).message);
       } finally {
         if (!cancelled) {
-          setIsLoading(false)
+          setIsLoading(false);
         }
       }
-    }
+    };
 
-    loadContent()
+    loadContent();
 
     return () => {
-      cancelled = true
-    }
-  }, [filePath, isOpen, fileType])
+      cancelled = true;
+    };
+  }, [filePath, isOpen, fileType]);
 
   // Load diff when requested
   const loadDiff = useCallback(async () => {
-    if (!filePath || isDiffLoading) return
+    if (!filePath || isDiffLoading) return;
 
-    setIsDiffLoading(true)
-    setDiffError(null)
+    setIsDiffLoading(true);
+    setDiffError(null);
     try {
-      const result = await window.api.svn.diff(filePath)
+      const result = await window.api.svn.diff(filePath);
       if (result && result.files && result.files.length > 0) {
         // Format diff content for display
-        const diffText = result.files.map(file => {
-          const hunks = file.hunks.map(hunk => {
-            const lines = hunk.lines.map(line => {
-              const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '
-              return `${prefix}${line.content}`
-            }).join('\n')
-            return `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@\n${lines}`
-          }).join('\n')
-          return `--- ${file.oldPath}\n+++ ${file.newPath}\n${hunks}`
-        }).join('\n')
-        setDiffContent(diffText)
-        setShowDiff(true)
+        const diffText = result.files
+          .map((file) => {
+            const hunks = file.hunks
+              .map((hunk) => {
+                const lines = hunk.lines
+                  .map((line) => {
+                    const prefix =
+                      line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
+                    return `${prefix}${line.content}`;
+                  })
+                  .join('\n');
+                return `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@\n${lines}`;
+              })
+              .join('\n');
+            return `--- ${file.oldPath}\n+++ ${file.newPath}\n${hunks}`;
+          })
+          .join('\n');
+        setDiffContent(diffText);
+        setShowDiff(true);
       } else {
-        setDiffContent('No changes detected')
-        setShowDiff(true)
+        setDiffContent('No changes detected');
+        setShowDiff(true);
       }
     } catch (err) {
-      setDiffError((err as Error).message)
+      setDiffError((err as Error).message);
     } finally {
-      setIsDiffLoading(false)
+      setIsDiffLoading(false);
     }
-  }, [filePath, isDiffLoading])
+  }, [filePath, isDiffLoading]);
 
   const handleCopy = async () => {
-    const textToCopy = showDiff && diffContent ? diffContent : content
+    const textToCopy = showDiff && diffContent ? diffContent : content;
     if (textToCopy) {
-      await navigator.clipboard.writeText(textToCopy)
-      setCopied(true)
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
       if (copyTimeoutRef.current) {
-        clearTimeout(copyTimeoutRef.current)
+        clearTimeout(copyTimeoutRef.current);
       }
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     }
-  }
+  };
 
   const handleImageZoom = (level: ImageZoomLevel) => {
-    setImageZoom(level)
-  }
+    setImageZoom(level);
+  };
 
   const handleImageRotate = () => {
-    setImageRotation(prev => (prev + 90) % 360)
-  }
+    setImageRotation((prev) => (prev + 90) % 360);
+  };
 
   const handleToggleDiff = () => {
     if (showDiff) {
-      setShowDiff(false)
-      setDiffContent(null)
+      setShowDiff(false);
+      setDiffContent(null);
     } else {
-      loadDiff()
+      loadDiff();
     }
-  }
+  };
 
   const handleOpenFullDiff = () => {
     if (filePath && onDiff) {
-      onDiff(filePath)
+      onDiff(filePath);
     }
-  }
+  };
 
-  const filename = filePath ? filePath.split(/[/\\]/).pop() || filePath : 'Preview'
+  const filename = filePath ? filePath.split(/[/\\]/).pop() || filePath : 'Preview';
 
   // Memoize truncated content for performance
   const displayContent = useMemo(() => {
-    const textContent = showDiff && diffContent ? diffContent : content
-    if (!textContent) return null
+    const textContent = showDiff && diffContent ? diffContent : content;
+    if (!textContent) return null;
     // Limit to 30KB for better performance
     if (textContent.length > 30000) {
-      return textContent.slice(0, 30000) + '\n\n... (content truncated)'
+      return textContent.slice(0, 30000) + '\n\n... (content truncated)';
     }
-    return textContent
-  }, [content, diffContent, showDiff])
+    return textContent;
+  }, [content, diffContent, showDiff]);
 
   // Image zoom style
   const imageStyle = useMemo(() => {
     const baseStyle: React.CSSProperties = {
-      transform: `rotate(${imageRotation}deg)`
-    }
+      transform: `rotate(${imageRotation}deg)`,
+    };
 
     if (imageZoom === 'fit') {
       return {
         ...baseStyle,
         maxWidth: '100%',
         maxHeight: '100%',
-        objectFit: 'contain' as const
-      }
+        objectFit: 'contain' as const,
+      };
     }
 
-    const scale = imageZoom === '100' ? 1 : 2
+    const scale = imageZoom === '100' ? 1 : 2;
     return {
       ...baseStyle,
       transform: `rotate(${imageRotation}deg) scale(${scale})`,
-      transformOrigin: 'center center'
-    }
-  }, [imageZoom, imageRotation])
+      transformOrigin: 'center center',
+    };
+  }, [imageZoom, imageRotation]);
 
   return (
     <div
@@ -266,10 +351,12 @@ export const FilePreview = memo(function FilePreview({
       )}
 
       {/* Header */}
-      <div className={`
+      <div
+        className={`
         flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border
         ${isOpen ? 'opacity-100' : 'opacity-0'}
-      `}>
+      `}
+      >
         <div className="flex items-center gap-2 min-w-0">
           {fileType === 'image' && <FileImage className="w-4 h-4 text-accent flex-shrink-0" />}
           {fileType === 'code' && <FileCode className="w-4 h-4 text-accent flex-shrink-0" />}
@@ -302,19 +389,15 @@ export const FilePreview = memo(function FilePreview({
             </button>
           )}
           {(content || diffContent) && (
-            <button
-              onClick={handleCopy}
-              className="btn-icon-sm"
-              title="Copy content"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+            <button onClick={handleCopy} className="btn-icon-sm" title="Copy content">
+              {copied ? (
+                <Check className="w-3.5 h-3.5 text-success" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
             </button>
           )}
-          <button
-            onClick={onClose}
-            className="btn-icon-sm"
-            title="Close preview"
-          >
+          <button onClick={onClose} className="btn-icon-sm" title="Close preview">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -345,11 +428,7 @@ export const FilePreview = memo(function FilePreview({
             200%
           </button>
           <div className="w-px h-4 bg-border mx-1" />
-          <button
-            onClick={handleImageRotate}
-            className="btn-icon-sm"
-            title="Rotate 90°"
-          >
+          <button onClick={handleImageRotate} className="btn-icon-sm" title="Rotate 90°">
             <RotateCw className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -393,8 +472,8 @@ export const FilePreview = memo(function FilePreview({
               style={imageStyle}
               className="rounded transition-transform duration-200"
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none'
-                setError('Failed to load image')
+                (e.target as HTMLImageElement).style.display = 'none';
+                setError('Failed to load image');
               }}
             />
           </div>
@@ -428,5 +507,5 @@ export const FilePreview = memo(function FilePreview({
         {showDiff ? `Diff: ${filePath || 'No file selected'}` : filePath || 'No file selected'}
       </div>
     </div>
-  )
-})
+  );
+});

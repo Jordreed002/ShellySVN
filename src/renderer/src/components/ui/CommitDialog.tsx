@@ -1,142 +1,162 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  X, Upload, AlertCircle, CheckCircle, Eye,
-  ChevronDown, Clock, FilePlus, RotateCcw, RefreshCw, Loader2,
-  Sparkles, Wand2, AlertTriangle
-} from 'lucide-react'
-import { useCommitMessageHistory, useCommitTemplates } from '@renderer/hooks/useCommitMessageHistory'
-import { useFocusTrap } from '@renderer/hooks/useFocusTrap'
-import { AutoCompleteInput, type AutocompleteOption } from './AutoCompleteInput'
-import { EnhancedDiffViewer, type DiffViewMode } from './EnhancedDiffViewer'
+  X,
+  Upload,
+  AlertCircle,
+  CheckCircle,
+  Eye,
+  ChevronDown,
+  Clock,
+  FilePlus,
+  RotateCcw,
+  RefreshCw,
+  Loader2,
+  Sparkles,
+  Wand2,
+  AlertTriangle,
+} from 'lucide-react';
+import {
+  useCommitMessageHistory,
+  useCommitTemplates,
+} from '@renderer/hooks/useCommitMessageHistory';
+import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
+import { AutoCompleteInput, type AutocompleteOption } from './AutoCompleteInput';
+import { EnhancedDiffViewer, type DiffViewMode } from './EnhancedDiffViewer';
 import {
   analyzeFiles,
-  getAutocompleteSuggestions,
   getTemplatesWithRecommendations,
   validateCommitMessage,
-  type TemplateRecommendation
-} from '@renderer/utils/suggestionEngine'
-import type { SvnStatusChar } from '@shared/types'
+  type TemplateRecommendation,
+} from '@renderer/utils/suggestionEngine';
+import type { SvnStatusChar } from '@shared/types';
 
 interface CommitFile {
-  path: string
-  status: SvnStatusChar
-  isDirectory: boolean
-  selected: boolean
+  path: string;
+  status: SvnStatusChar;
+  isDirectory: boolean;
+  selected: boolean;
 }
 
 interface CommitDialogProps {
-  isOpen: boolean
-  workingCopyPath: string
-  onClose: () => void
-  onSubmit: (paths: string[], message: string) => Promise<{ success: boolean; message?: string; revision?: number }>
+  isOpen: boolean;
+  workingCopyPath: string;
+  onClose: () => void;
+  onSubmit: (
+    paths: string[],
+    message: string
+  ) => Promise<{ success: boolean; message?: string; revision?: number }>;
 }
 
 const STATUS_CONFIG: Record<SvnStatusChar, { label: string; color: string }> = {
   ' ': { label: 'Normal', color: 'text-text-muted' },
-  'A': { label: 'Added', color: 'text-success' },
-  'C': { label: 'Conflicted', color: 'text-warning' },
-  'D': { label: 'Deleted', color: 'text-error' },
-  'I': { label: 'Ignored', color: 'text-text-faint' },
-  'M': { label: 'Modified', color: 'text-accent' },
-  'R': { label: 'Replaced', color: 'text-accent' },
-  'X': { label: 'External', color: 'text-info' },
+  A: { label: 'Added', color: 'text-success' },
+  C: { label: 'Conflicted', color: 'text-warning' },
+  D: { label: 'Deleted', color: 'text-error' },
+  I: { label: 'Ignored', color: 'text-text-faint' },
+  M: { label: 'Modified', color: 'text-accent' },
+  R: { label: 'Replaced', color: 'text-accent' },
+  X: { label: 'External', color: 'text-info' },
   '?': { label: 'Unversioned', color: 'text-text-secondary' },
   '!': { label: 'Missing', color: 'text-error' },
   '~': { label: 'Obstructed', color: 'text-warning' },
-}
+};
 
 export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: CommitDialogProps) {
-  const [message, setMessage] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ revision: number } | null>(null)
-  const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
-  const [showTemplates, setShowTemplates] = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
-  const [fileFilter, setFileFilter] = useState<'all' | 'modified' | 'added' | 'deleted'>('all')
-  const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified')
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [validationWarnings, setValidationWarnings] = useState<string[]>([])
+  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ revision: number } | null>(null);
+  const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [fileFilter, setFileFilter] = useState<'all' | 'modified' | 'added' | 'deleted'>('all');
+  const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { history, addMessage } = useCommitMessageHistory()
-  const { templates, applyTemplate } = useCommitTemplates()
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { history, addMessage } = useCommitMessageHistory();
+  const { templates, applyTemplate } = useCommitTemplates();
 
   // Focus trap for accessibility
   const modalRef = useFocusTrap({
     active: isOpen && !success,
     onEscape: () => {
-      if (!isSubmitting) onClose()
+      if (!isSubmitting) onClose();
     },
     initialFocus: () => textareaRef.current,
-    returnFocus: true
-  })
+    returnFocus: true,
+  });
 
   // Generate unique IDs for accessibility
-  const dialogId = useMemo(() => `commit-dialog-${Math.random().toString(36).slice(2, 11)}`, [])
-  const titleId = `${dialogId}-title`
-  const descriptionId = `${dialogId}-description`
-  
+  const dialogId = useMemo(() => `commit-dialog-${Math.random().toString(36).slice(2, 11)}`, []);
+  const titleId = `${dialogId}-title`;
+  const descriptionId = `${dialogId}-description`;
+
   // Fetch status to get files
-  const { data: statusData, isLoading: isLoadingStatus, refetch } = useQuery({
+  const {
+    data: statusData,
+    isLoading: isLoadingStatus,
+    refetch,
+  } = useQuery({
     queryKey: ['svn:status', workingCopyPath],
     queryFn: () => window.api.svn.status(workingCopyPath),
-    enabled: isOpen && !!workingCopyPath
-  })
-  
+    enabled: isOpen && !!workingCopyPath,
+  });
+
   // Process files into commitable list
-  const [files, setFiles] = useState<CommitFile[]>([])
+  const [files, setFiles] = useState<CommitFile[]>([]);
 
   useEffect(() => {
     if (statusData?.entries) {
-      const commitableStatuses: SvnStatusChar[] = ['M', 'A', 'D', 'R', 'C', '?']
+      const commitableStatuses: SvnStatusChar[] = ['M', 'A', 'D', 'R', 'C', '?'];
       const commitFiles = statusData.entries
-        .filter(e => commitableStatuses.includes(e.status))
-        .map(e => ({
+        .filter((e) => commitableStatuses.includes(e.status))
+        .map((e) => ({
           path: e.path,
           status: e.status,
           isDirectory: e.isDirectory,
-          selected: e.status !== '?' // Auto-select versioned changes
-        }))
-      setFiles(commitFiles)
+          selected: e.status !== '?', // Auto-select versioned changes
+        }));
+      setFiles(commitFiles);
     }
-  }, [statusData])
+  }, [statusData]);
 
   // Generate suggestions based on selected files
   const aiSuggestions = useMemo(() => {
-    const selectedFilesList = files.filter(f => f.selected)
-    if (selectedFilesList.length === 0) return []
+    const selectedFilesList = files.filter((f) => f.selected);
+    if (selectedFilesList.length === 0) return [];
 
     const { suggestions } = analyzeFiles(
-      selectedFilesList.map(f => ({ path: f.path, status: f.status }))
-    )
-    return suggestions
-  }, [files])
+      selectedFilesList.map((f) => ({ path: f.path, status: f.status }))
+    );
+    return suggestions;
+  }, [files]);
 
   // Template recommendations based on files
   const templateRecommendations = useMemo(() => {
-    const selectedFilesList = files.filter(f => f.selected)
-    if (selectedFilesList.length === 0) return []
+    const selectedFilesList = files.filter((f) => f.selected);
+    if (selectedFilesList.length === 0) return [];
 
     return getTemplatesWithRecommendations(
-      selectedFilesList.map(f => ({ path: f.path, status: f.status }))
-    )
-  }, [files])
+      selectedFilesList.map((f) => ({ path: f.path, status: f.status }))
+    );
+  }, [files]);
 
   // Autocomplete options
   const autocompleteOptions = useMemo((): AutocompleteOption[] => {
-    const options: AutocompleteOption[] = []
+    const options: AutocompleteOption[] = [];
 
     // Add AI suggestions
     for (const suggestion of aiSuggestions.slice(0, 3)) {
-      const fullMessage = `${suggestion.prefix}: ${suggestion.description}`
+      const fullMessage = `${suggestion.prefix}: ${suggestion.description}`;
       options.push({
         value: fullMessage,
         label: `${suggestion.prefix}: ${suggestion.description}`,
         description: `${Math.round(suggestion.confidence * 100)}% confidence`,
-        category: 'AI Suggestions'
-      })
+        category: 'AI Suggestions',
+      });
     }
 
     // Add history
@@ -145,154 +165,148 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
         value: h.message,
         label: h.message.slice(0, 50) + (h.message.length > 50 ? '...' : ''),
         description: new Date(h.timestamp).toLocaleDateString(),
-        category: 'Recent'
-      })
+        category: 'Recent',
+      });
     }
 
-    return options
-  }, [aiSuggestions, history])
-  
+    return options;
+  }, [aiSuggestions, history]);
+
   // Fetch diff for selected file
   const { data: diffData } = useQuery({
     queryKey: ['svn:diff', selectedDiffFile],
     queryFn: () => window.api.svn.diff(selectedDiffFile!),
-    enabled: !!selectedDiffFile
-  })
-  
+    enabled: !!selectedDiffFile,
+  });
+
   // Filtered files
   const filteredFiles = useMemo(() => {
-    if (fileFilter === 'all') return files
+    if (fileFilter === 'all') return files;
     const filterMap: Record<string, SvnStatusChar[]> = {
       modified: ['M', 'R'],
       added: ['A', '?'],
-      deleted: ['D']
-    }
-    return files.filter(f => filterMap[fileFilter]?.includes(f.status))
-  }, [files, fileFilter])
-  
-  const selectedFiles = files.filter(f => f.selected)
-  const selectedCount = selectedFiles.length
-  
+      deleted: ['D'],
+    };
+    return files.filter((f) => filterMap[fileFilter]?.includes(f.status));
+  }, [files, fileFilter]);
+
+  const selectedFiles = files.filter((f) => f.selected);
+  const selectedCount = selectedFiles.length;
+
   // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
-      setMessage('')
-      setError(null)
-      setSuccess(null)
-      setIsSubmitting(false)
-      setSelectedDiffFile(null)
-      setShowTemplates(false)
-      setShowHistory(false)
-      setFileFilter('all')
-      setDiffViewMode('unified')
-      setShowSuggestions(false)
-      setValidationWarnings([])
-      setTimeout(() => textareaRef.current?.focus(), 100)
+      setMessage('');
+      setError(null);
+      setSuccess(null);
+      setIsSubmitting(false);
+      setSelectedDiffFile(null);
+      setShowTemplates(false);
+      setShowHistory(false);
+      setFileFilter('all');
+      setDiffViewMode('unified');
+      setShowSuggestions(false);
+      setValidationWarnings([]);
+      setTimeout(() => textareaRef.current?.focus(), 100);
     }
-  }, [isOpen])
+  }, [isOpen]);
 
   // Validate message on change
   useEffect(() => {
     if (message.trim()) {
-      const validation = validateCommitMessage(message)
-      setValidationWarnings(validation.warnings)
+      const validation = validateCommitMessage(message);
+      setValidationWarnings(validation.warnings);
     } else {
-      setValidationWarnings([])
+      setValidationWarnings([]);
     }
-  }, [message])
-  
+  }, [message]);
+
   const handleToggleFile = (path: string) => {
-    setFiles(prev => prev.map(f => 
-      f.path === path ? { ...f, selected: !f.selected } : f
-    ))
-  }
-  
+    setFiles((prev) => prev.map((f) => (f.path === path ? { ...f, selected: !f.selected } : f)));
+  };
+
   const handleSelectAll = () => {
-    setFiles(prev => prev.map(f => ({ ...f, selected: true })))
-  }
-  
+    setFiles((prev) => prev.map((f) => ({ ...f, selected: true })));
+  };
+
   const handleDeselectAll = () => {
-    setFiles(prev => prev.map(f => ({ ...f, selected: false })))
-  }
-  
+    setFiles((prev) => prev.map((f) => ({ ...f, selected: false })));
+  };
+
   const handleRevertFile = async (path: string) => {
     try {
-      await window.api.svn.revert([path])
-      refetch()
+      await window.api.svn.revert([path]);
+      refetch();
     } catch (err) {
-      console.error('Revert failed:', err)
+      console.error('Revert failed:', err);
     }
-  }
-  
+  };
+
   const handleTemplateSelect = (templateId: string) => {
-    setMessage(applyTemplate(templateId))
-    setShowTemplates(false)
-    textareaRef.current?.focus()
-  }
+    setMessage(applyTemplate(templateId));
+    setShowTemplates(false);
+    textareaRef.current?.focus();
+  };
 
   const handleHistorySelect = (msg: string) => {
-    setMessage(msg)
-    setShowHistory(false)
-    textareaRef.current?.focus()
-  }
+    setMessage(msg);
+    setShowHistory(false);
+    textareaRef.current?.focus();
+  };
 
   // Apply AI suggestion
-  const handleApplySuggestion = (suggestion: typeof aiSuggestions[0]) => {
-    setMessage(`${suggestion.prefix}: ${suggestion.description}`)
-    setShowSuggestions(false)
-    textareaRef.current?.focus()
-  }
+  const handleApplySuggestion = (suggestion: (typeof aiSuggestions)[0]) => {
+    setMessage(`${suggestion.prefix}: ${suggestion.description}`);
+    setShowSuggestions(false);
+    textareaRef.current?.focus();
+  };
 
   // Apply recommended template
   const handleApplyRecommendation = (rec: TemplateRecommendation) => {
-    setMessage(rec.template)
-    setShowTemplates(false)
-    textareaRef.current?.focus()
-  }
-  
+    setMessage(rec.template);
+    setShowTemplates(false);
+    textareaRef.current?.focus();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!message.trim()) {
-      setError('Please enter a commit message')
-      return
+      setError('Please enter a commit message');
+      return;
     }
-    
+
     if (selectedCount === 0) {
-      setError('Please select at least one file to commit')
-      return
+      setError('Please select at least one file to commit');
+      return;
     }
-    
-    setIsSubmitting(true)
-    setError(null)
-    
-    const pathsToCommit = selectedFiles.map(f => f.path)
-    const result = await onSubmit(pathsToCommit, message.trim())
-    
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const pathsToCommit = selectedFiles.map((f) => f.path);
+    const result = await onSubmit(pathsToCommit, message.trim());
+
     if (result.success) {
       // Save to history
-      addMessage(message.trim(), workingCopyPath)
-      setSuccess({ revision: result.revision || 0 })
+      addMessage(message.trim(), workingCopyPath);
+      setSuccess({ revision: result.revision || 0 });
     } else {
-      setError(result.message || 'Commit failed')
-      setIsSubmitting(false)
+      setError(result.message || 'Commit failed');
+      setIsSubmitting(false);
     }
-  }
-  
+  };
+
   const handleClose = () => {
     if (!isSubmitting) {
-      onClose()
+      onClose();
     }
-  }
-  
-  if (!isOpen) return null
+  };
+
+  if (!isOpen) return null;
 
   return (
-    <div
-      className="modal-overlay"
-      onClick={handleClose}
-      role="presentation"
-    >
+    <div className="modal-overlay" onClick={handleClose} role="presentation">
       <div
         ref={modalRef}
         className="modal w-[900px] max-h-[90vh]"
@@ -323,7 +337,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
         <p id={descriptionId} className="sr-only">
           Select files to commit and enter a commit message
         </p>
-        
+
         {/* Content */}
         {success ? (
           <div className="modal-body" role="status" aria-live="polite">
@@ -332,14 +346,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 <CheckCircle className="w-6 h-6 text-success" aria-hidden="true" />
               </div>
               <h3 className="text-lg font-medium text-text mb-2">Committed Successfully</h3>
-              <p className="text-text-secondary mb-6">
-                Revision {success.revision}
-              </p>
-              <button
-                onClick={onClose}
-                className="btn btn-primary"
-                aria-label="Close and finish"
-              >
+              <p className="text-text-secondary mb-6">Revision {success.revision}</p>
+              <button onClick={onClose} className="btn btn-primary" aria-label="Close and finish">
                 Done
               </button>
             </div>
@@ -356,7 +364,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 {/* File filter */}
                 <div className="px-3 py-2 border-b border-border bg-bg-tertiary">
                   <div className="flex items-center gap-2">
-                    <label htmlFor="file-filter" className="sr-only">Filter files by status</label>
+                    <label htmlFor="file-filter" className="sr-only">
+                      Filter files by status
+                    </label>
                     <select
                       id="file-filter"
                       value={fileFilter}
@@ -382,7 +392,11 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 </div>
 
                 {/* Select all/none */}
-                <div className="px-3 py-1.5 border-b border-border flex items-center gap-2 text-xs" role="group" aria-label="Selection controls">
+                <div
+                  className="px-3 py-1.5 border-b border-border flex items-center gap-2 text-xs"
+                  role="group"
+                  aria-label="Selection controls"
+                >
                   <button
                     type="button"
                     onClick={handleSelectAll}
@@ -391,7 +405,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                   >
                     Select all
                   </button>
-                  <span className="text-text-faint" aria-hidden="true">|</span>
+                  <span className="text-text-faint" aria-hidden="true">
+                    |
+                  </span>
                   <button
                     type="button"
                     onClick={handleDeselectAll}
@@ -400,11 +416,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                   >
                     Select none
                   </button>
-                  <span
-                    className="text-text-faint ml-auto"
-                    aria-live="polite"
-                    aria-atomic="true"
-                  >
+                  <span className="text-text-faint ml-auto" aria-live="polite" aria-atomic="true">
                     {selectedCount}/{files.length} selected
                   </span>
                 </div>
@@ -422,20 +434,20 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       role="status"
                       aria-label="Loading files"
                     >
-                      <Loader2 className="w-5 h-5 text-text-muted animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="w-5 h-5 text-text-muted animate-spin"
+                        aria-hidden="true"
+                      />
                       <span className="sr-only">Loading files...</span>
                     </div>
                   ) : filteredFiles.length === 0 ? (
-                    <div
-                      className="text-center py-8 text-text-muted text-sm"
-                      role="status"
-                    >
+                    <div className="text-center py-8 text-text-muted text-sm" role="status">
                       No files to commit
                     </div>
                   ) : (
                     filteredFiles.map((file, index) => {
-                      const statusInfo = STATUS_CONFIG[file.status]
-                      const filename = file.path.split(/[/\\]/).pop()
+                      const statusInfo = STATUS_CONFIG[file.status];
+                      const filename = file.path.split(/[/\\]/).pop();
 
                       return (
                         <div
@@ -471,8 +483,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             <button
                               type="button"
                               onClick={(e) => {
-                                e.stopPropagation()
-                                handleRevertFile(file.path)
+                                e.stopPropagation();
+                                handleRevertFile(file.path);
                               }}
                               className="btn-icon-sm opacity-0 group-hover:opacity-100"
                               title="Revert this file"
@@ -482,19 +494,29 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             </button>
                           )}
                         </div>
-                      )
+                      );
                     })
                   )}
                 </div>
               </div>
 
               {/* Right panel - Message and diff */}
-              <div className="flex-1 flex flex-col" role="region" aria-label="Commit message and diff">
+              <div
+                className="flex-1 flex flex-col"
+                role="region"
+                aria-label="Commit message and diff"
+              >
                 {/* Commit message area */}
                 <div className="border-b border-border p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <label htmlFor="commit-message" className="text-sm font-medium text-text-secondary">
-                      Message <span className="text-error" aria-label="required">*</span>
+                    <label
+                      htmlFor="commit-message"
+                      className="text-sm font-medium text-text-secondary"
+                    >
+                      Message{' '}
+                      <span className="text-error" aria-label="required">
+                        *
+                      </span>
                     </label>
                     <div className="flex items-center gap-2">
                       {/* AI Suggestions */}
@@ -503,9 +525,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           <button
                             type="button"
                             onClick={() => {
-                              setShowSuggestions(!showSuggestions)
-                              setShowTemplates(false)
-                              setShowHistory(false)
+                              setShowSuggestions(!showSuggestions);
+                              setShowTemplates(false);
+                              setShowHistory(false);
                             }}
                             className="btn btn-sm text-xs bg-accent/10 text-accent hover:bg-accent/20 border-accent/30"
                             aria-expanded={showSuggestions}
@@ -555,9 +577,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                         <button
                           type="button"
                           onClick={() => {
-                            setShowTemplates(!showTemplates)
-                            setShowHistory(false)
-                            setShowSuggestions(false)
+                            setShowTemplates(!showTemplates);
+                            setShowHistory(false);
+                            setShowSuggestions(false);
                           }}
                           className="btn btn-secondary btn-sm text-xs"
                           aria-expanded={showTemplates}
@@ -575,25 +597,32 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             aria-label="Commit templates"
                           >
                             {/* Recommended template */}
-                            {templateRecommendations.length > 0 && templateRecommendations[0].confidence > 0 && (
-                              <li>
-                                <div className="px-3 py-1.5 text-xs text-accent bg-accent/10 border-b border-border flex items-center gap-1">
-                                  <Sparkles className="w-3 h-3" />
-                                  Recommended for your changes
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleApplyRecommendation(templateRecommendations[0])}
-                                  className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary bg-accent/5"
-                                  role="menuitem"
-                                >
-                                  <div className="font-medium text-text">{templateRecommendations[0].name}</div>
-                                  <div className="text-text-muted text-[10px]">{templateRecommendations[0].reason}</div>
-                                </button>
-                                <div className="border-b border-border" />
-                              </li>
-                            )}
-                            {templates.map(t => (
+                            {templateRecommendations.length > 0 &&
+                              templateRecommendations[0].confidence > 0 && (
+                                <li>
+                                  <div className="px-3 py-1.5 text-xs text-accent bg-accent/10 border-b border-border flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3" />
+                                    Recommended for your changes
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleApplyRecommendation(templateRecommendations[0])
+                                    }
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary bg-accent/5"
+                                    role="menuitem"
+                                  >
+                                    <div className="font-medium text-text">
+                                      {templateRecommendations[0].name}
+                                    </div>
+                                    <div className="text-text-muted text-[10px]">
+                                      {templateRecommendations[0].reason}
+                                    </div>
+                                  </button>
+                                  <div className="border-b border-border" />
+                                </li>
+                              )}
+                            {templates.map((t) => (
                               <li key={t.id}>
                                 <button
                                   type="button"
@@ -614,9 +643,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                         <button
                           type="button"
                           onClick={() => {
-                            setShowHistory(!showHistory)
-                            setShowTemplates(false)
-                            setShowSuggestions(false)
+                            setShowHistory(!showHistory);
+                            setShowTemplates(false);
+                            setShowSuggestions(false);
                           }}
                           className="btn btn-secondary btn-sm text-xs"
                           disabled={history.length === 0}
@@ -684,7 +713,11 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 </div>
 
                 {/* Diff preview with enhanced viewer */}
-                <div className="flex-1 overflow-hidden flex flex-col" role="region" aria-label="File diff preview">
+                <div
+                  className="flex-1 overflow-hidden flex flex-col"
+                  role="region"
+                  aria-label="File diff preview"
+                >
                   {selectedDiffFile ? (
                     diffData?.files && diffData.files.length > 0 ? (
                       <EnhancedDiffViewer
@@ -732,10 +765,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
 
             {/* Footer */}
             <div className="modal-footer">
-              <div
-                className="flex-1 text-sm text-text-faint"
-                aria-live="polite"
-              >
+              <div className="flex-1 text-sm text-text-faint" aria-live="polite">
                 {selectedCount} file{selectedCount !== 1 ? 's' : ''} selected
               </div>
               <button
@@ -751,7 +781,11 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 type="submit"
                 className="btn btn-primary"
                 disabled={isSubmitting || !message.trim() || selectedCount === 0}
-                aria-label={isSubmitting ? 'Committing changes...' : `Commit ${selectedCount} file${selectedCount !== 1 ? 's' : ''}`}
+                aria-label={
+                  isSubmitting
+                    ? 'Committing changes...'
+                    : `Commit ${selectedCount} file${selectedCount !== 1 ? 's' : ''}`
+                }
                 aria-busy={isSubmitting}
               >
                 {isSubmitting ? (
@@ -771,5 +805,5 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
         )}
       </div>
     </div>
-  )
+  );
 }

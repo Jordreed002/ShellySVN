@@ -9,7 +9,7 @@
 
 **A modern, standalone Subversion client for macOS and Windows**
 
-*Inspired by TortoiseSVN, rebuilt for today*
+_Inspired by TortoiseSVN, rebuilt for today_
 
 [Features](#features) • [Download](#download) • [Getting Started](#getting-started) • [Architecture](#architecture) • [Contributing](#contributing)
 
@@ -23,12 +23,12 @@ ShellySVN is a native desktop application that provides a graphical interface fo
 
 ### Why ShellySVN?
 
-| Problem | Solution |
-|---------|----------|
-| Installing SVN tools is tedious | Portable SVN binary bundled with the app |
-| Other clients feel outdated | Modern UI with virtualized rendering |
-| Large repositories lag | 60fps scrolling with 10,000+ files |
-| Cross-platform inconsistency | Native experience on both macOS and Windows |
+| Problem                         | Solution                                    |
+| ------------------------------- | ------------------------------------------- |
+| Installing SVN tools is tedious | Portable SVN binary bundled with the app    |
+| Other clients feel outdated     | Modern UI with virtualized rendering        |
+| Large repositories lag          | 60fps scrolling with 10,000+ files          |
+| Cross-platform inconsistency    | Native experience on both macOS and Windows |
 
 ---
 
@@ -127,12 +127,12 @@ Toggle "Show remote items" in the toolbar to see files that exist in the reposit
 
 ## Download
 
-| Platform | Architecture | Download |
-|----------|-------------|----------|
-| Windows | x64 | `ShellySVN-Setup-x.x.x.exe` |
-| macOS | Intel (x64) | `ShellySVN-x.x.x-x64.dmg` |
-| macOS | Apple Silicon (ARM64) | `ShellySVN-x.x.x-arm64.dmg` |
-| macOS | Universal | `ShellySVN-x.x.x-universal.dmg` |
+| Platform | Architecture          | Download                        |
+| -------- | --------------------- | ------------------------------- |
+| Windows  | x64                   | `ShellySVN-Setup-x.x.x.exe`     |
+| macOS    | Intel (x64)           | `ShellySVN-x.x.x-x64.dmg`       |
+| macOS    | Apple Silicon (ARM64) | `ShellySVN-x.x.x-arm64.dmg`     |
+| macOS    | Universal             | `ShellySVN-x.x.x-universal.dmg` |
 
 > Download the latest release from the [Releases](https://github.com/Jordreed002/shellysvn/releases) page.
 
@@ -235,23 +235,23 @@ ShellySVN/
 
 ### Technology Choices
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Desktop Framework | Electron 33+ | Mature, cross-platform, native integrations |
-| Package Manager | Bun | Fast installs, workspace support, compile feature |
-| Frontend | React 18 | Component model, hooks, ecosystem |
-| Routing | TanStack Router | Type-safe, file-based routing |
-| State | Zustand | Simple, performant, minimal boilerplate |
-| Data Fetching | TanStack Query | Caching, background updates, deduplication |
-| Virtualization | TanStack Virtual | Handle massive lists at 60fps |
-| Styling | Tailwind CSS | Utility-first, consistent design |
-| Icons | Lucide React | Beautiful, consistent, tree-shakeable |
+| Layer             | Technology       | Why                                               |
+| ----------------- | ---------------- | ------------------------------------------------- |
+| Desktop Framework | Electron 33+     | Mature, cross-platform, native integrations       |
+| Package Manager   | Bun              | Fast installs, workspace support, compile feature |
+| Frontend          | React 18         | Component model, hooks, ecosystem                 |
+| Routing           | TanStack Router  | Type-safe, file-based routing                     |
+| State             | Zustand          | Simple, performant, minimal boilerplate           |
+| Data Fetching     | TanStack Query   | Caching, background updates, deduplication        |
+| Virtualization    | TanStack Virtual | Handle massive lists at 60fps                     |
+| Styling           | Tailwind CSS     | Utility-first, consistent design                  |
+| Icons             | Lucide React     | Beautiful, consistent, tree-shakeable             |
 
 ---
 
 ## Screenshots
 
-*Coming soon*
+_Coming soon_
 
 ---
 

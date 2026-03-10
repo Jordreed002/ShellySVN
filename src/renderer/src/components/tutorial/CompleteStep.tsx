@@ -1,5 +1,5 @@
-import { CheckCircle, Rocket, Settings, BookOpen } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { CheckCircle, Rocket, Settings, BookOpen } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
 export function CompleteStep({ onNext, onPrevious, currentStep, totalSteps }: TutorialStepProps) {
   return (
@@ -73,17 +73,13 @@ export function CompleteStep({ onNext, onPrevious, currentStep, totalSteps }: Tu
           <button onClick={onPrevious} className="btn btn-secondary">
             Review Tutorial
           </button>
-          <button
-            onClick={onNext}
-            className="btn btn-primary"
-            data-testid="complete-tutorial-btn"
-          >
+          <button onClick={onNext} className="btn btn-primary" data-testid="complete-tutorial-btn">
             Start Using ShellySVN
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function NextStepCard({
@@ -91,9 +87,9 @@ function NextStepCard({
   title,
   description,
 }: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
 }) {
   return (
     <div className="p-4 bg-bg-secondary rounded-lg border border-border text-center">
@@ -101,5 +97,5 @@ function NextStepCard({
       <h3 className="text-sm font-medium text-text">{title}</h3>
       <p className="text-xs text-text-secondary mt-1">{description}</p>
     </div>
-  )
+  );
 }

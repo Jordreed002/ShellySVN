@@ -1,7 +1,13 @@
-import { History, GitCommit, User, Calendar, MessageSquare } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { History, GitCommit, User, Calendar, MessageSquare } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function LogHistoryStep({ onNext, onPrevious, onSkip, currentStep, totalSteps }: TutorialStepProps) {
+export function LogHistoryStep({
+  onNext,
+  onPrevious,
+  onSkip,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
@@ -45,7 +51,9 @@ export function LogHistoryStep({ onNext, onPrevious, onSkip, currentStep, totalS
         <h4 className="text-sm font-medium text-text mb-3">Log View Features</h4>
         <div className="grid grid-cols-2 gap-2 text-xs text-text-secondary">
           <div className="flex items-center gap-2">
-            <kbd className="px-1.5 py-0.5 bg-bg-secondary border border-border rounded text-2xs font-mono">Ctrl+L</kbd>
+            <kbd className="px-1.5 py-0.5 bg-bg-secondary border border-border rounded text-2xs font-mono">
+              Ctrl+L
+            </kbd>
             <span>Open log view</span>
           </div>
           <div className="flex items-center gap-2">
@@ -87,7 +95,7 @@ export function LogHistoryStep({ onNext, onPrevious, onSkip, currentStep, totalS
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function LogEntry({
@@ -98,18 +106,22 @@ function LogEntry({
   files,
   isExpanded,
 }: {
-  revision: number
-  author: string
-  date: string
-  message: string
-  files: number
-  isExpanded?: boolean
+  revision: number;
+  author: string;
+  date: string;
+  message: string;
+  files: number;
+  isExpanded?: boolean;
 }) {
   return (
-    <div className={`p-3 bg-bg-secondary rounded-lg border border-border ${isExpanded ? 'ring-1 ring-accent/50' : ''}`}>
+    <div
+      className={`p-3 bg-bg-secondary rounded-lg border border-border ${isExpanded ? 'ring-1 ring-accent/50' : ''}`}
+    >
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 bg-accent/20 text-accent text-xs font-mono rounded">r{revision}</span>
+          <span className="px-2 py-0.5 bg-accent/20 text-accent text-xs font-mono rounded">
+            r{revision}
+          </span>
           <span className="text-sm font-medium text-text">{author}</span>
         </div>
         <span className="text-xs text-text-secondary">{date}</span>
@@ -120,10 +132,8 @@ function LogEntry({
           <MessageSquare className="w-3 h-3" />
           {files} files changed
         </span>
-        {isExpanded && (
-          <span className="text-accent">Viewing changes...</span>
-        )}
+        {isExpanded && <span className="text-accent">Viewing changes...</span>}
       </div>
     </div>
-  )
+  );
 }

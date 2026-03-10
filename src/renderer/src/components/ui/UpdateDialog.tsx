@@ -1,70 +1,67 @@
-import { useState, useEffect } from 'react'
-import { X, Download, RefreshCw, AlertCircle, CheckCircle, Loader2, Layers } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { X, Download, RefreshCw, AlertCircle, CheckCircle, Loader2, Layers } from 'lucide-react';
 
 interface UpdateDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  path: string
-  onComplete?: (revision: number) => void
+  isOpen: boolean;
+  onClose: () => void;
+  path: string;
+  onComplete?: (revision: number) => void;
 }
 
 export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialogProps) {
-  const [revision, setRevision] = useState('HEAD')
-  const [depth, setDepth] = useState<'empty' | 'files' | 'immediates' | 'infinity'>('infinity')
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ revision: number; filesUpdated: number } | null>(null)
-  const [ignoreExternals, setIgnoreExternals] = useState(false)
-  const [force, setForce] = useState(false)
-  
+  const [revision, setRevision] = useState('HEAD');
+  const [depth, setDepth] = useState<'empty' | 'files' | 'immediates' | 'infinity'>('infinity');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ revision: number; filesUpdated: number } | null>(null);
+  const [ignoreExternals, setIgnoreExternals] = useState(false);
+  const [force, setForce] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
-      setRevision('HEAD')
-      setDepth('infinity')
-      setError(null)
-      setSuccess(null)
-      setIsUpdating(false)
-      setIgnoreExternals(false)
-      setForce(false)
+      setRevision('HEAD');
+      setDepth('infinity');
+      setError(null);
+      setSuccess(null);
+      setIsUpdating(false);
+      setIgnoreExternals(false);
+      setForce(false);
     }
-  }, [isOpen])
-  
+  }, [isOpen]);
+
   const handleUpdate = async () => {
-    setIsUpdating(true)
-    setError(null)
-    
+    setIsUpdating(true);
+    setError(null);
+
     try {
       // For now, use the existing update handler
       // In a full implementation, we'd pass depth and other options
-      const result = await window.api.svn.update(path)
-      
+      const result = await window.api.svn.update(path);
+
       if (result.success) {
-        setSuccess({ revision: result.revision, filesUpdated: 0 })
-        onComplete?.(result.revision)
+        setSuccess({ revision: result.revision, filesUpdated: 0 });
+        onComplete?.(result.revision);
       } else {
-        setError('Update failed')
+        setError('Update failed');
       }
     } catch (err) {
-      setError((err as Error).message || 'Update failed')
+      setError((err as Error).message || 'Update failed');
     } finally {
-      setIsUpdating(false)
+      setIsUpdating(false);
     }
-  }
-  
+  };
+
   const handleClose = () => {
     if (!isUpdating) {
-      onClose()
+      onClose();
     }
-  }
-  
-  if (!isOpen) return null
-  
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div 
-        className="modal w-[500px]" 
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal w-[500px]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -75,7 +72,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
             <X className="w-4 h-4" />
           </button>
         </div>
-        
+
         {/* Content */}
         {success ? (
           <div className="modal-body">
@@ -84,13 +81,8 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
                 <CheckCircle className="w-6 h-6 text-success" />
               </div>
               <h3 className="text-lg font-medium text-text mb-2">Update Complete</h3>
-              <p className="text-text-secondary mb-6">
-                Updated to revision {success.revision}
-              </p>
-              <button
-                onClick={onClose}
-                className="btn btn-primary"
-              >
+              <p className="text-text-secondary mb-6">Updated to revision {success.revision}</p>
+              <button onClick={onClose} className="btn btn-primary">
                 Done
               </button>
             </div>
@@ -102,7 +94,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
               <p className="text-xs text-text-faint mb-1">Working copy:</p>
               <p className="text-sm font-mono text-text-secondary truncate">{path}</p>
             </div>
-            
+
             {/* Revision */}
             <div>
               <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -116,9 +108,11 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
                 className="input w-32"
                 disabled={isUpdating}
               />
-              <span className="text-xs text-text-faint ml-2">HEAD = latest, or specify a number</span>
+              <span className="text-xs text-text-faint ml-2">
+                HEAD = latest, or specify a number
+              </span>
             </div>
-            
+
             {/* Depth */}
             <div>
               <label className="text-sm font-medium text-text-secondary mb-1.5 block">
@@ -140,12 +134,10 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
                 Use "immediates" or "files" for sparse update of existing checkout
               </p>
             </div>
-            
+
             {/* Options */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-text-secondary block">
-                Options
-              </label>
+              <label className="text-sm font-medium text-text-secondary block">Options</label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -167,7 +159,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
                 <span className="text-sm text-text">Force update (overwrite local changes)</span>
               </label>
             </div>
-            
+
             {error && (
               <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -176,7 +168,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
             )}
           </div>
         )}
-        
+
         {/* Footer */}
         {!success && (
           <div className="modal-footer">
@@ -188,11 +180,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
             >
               Cancel
             </button>
-            <button
-              onClick={handleUpdate}
-              disabled={isUpdating}
-              className="btn btn-primary"
-            >
+            <button onClick={handleUpdate} disabled={isUpdating} className="btn btn-primary">
               {isUpdating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -209,5 +197,5 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,0 +1,67 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["import", "typescript", "unicorn", "react", "jsx-a11y", "vitest"],
+  "categories": {
+    "correctness": "warn",
+    "suspicious": "warn"
+  },
+  "env": {
+    "browser": true,
+    "es6": true,
+    "node": true
+  },
+  "rules": {
+    "eslint/no-unused-vars": "error",
+    "typescript/no-explicit-any": "warn",
+    "import/no-cycle": "error",
+    "import/no-self-import": "error",
+    "react/react-in-jsx-scope": "off",
+    "react/jsx-uses-react": "off",
+    "jsx-a11y/no-static-element-interactions": "off",
+    "jsx-a11y/click-events-have-key-events": "off",
+    "jsx-a11y/label-has-associated-control": "warn",
+    "unicorn/consistent-function-scoping": "warn",
+    "react-hooks/exhaustive-deps": "warn"
+  },
+  "ignorePatterns": [
+    "out/",
+    "node_modules/",
+    "release/",
+    "dist/",
+    "*.config.js",
+    "*.config.ts",
+    "electron.vite.config.ts",
+    "vitest.config.ts"
+  ],
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.spec.ts", "tests/**"],
+      "plugins": ["vitest"],
+      "env": {
+        "vitest": true
+      },
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "vitest/consistent-test-it": "warn"
+      }
+    },
+    {
+      "files": ["src/main/**/*.ts"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx"],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": ["packages/logic-engine/**/*.ts"],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}

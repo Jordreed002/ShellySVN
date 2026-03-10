@@ -14,13 +14,13 @@
  * - Memory grows linearly with file size
  */
 
-import { useRef, useCallback, useMemo, useState, useEffect, memo } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { Loader2, FileText, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
-import type { SvnDiffResult, SvnDiffLine, SvnDiffHunk, SvnDiffFile } from '@shared/types'
+import { useRef, useCallback, useMemo, useState, useEffect, memo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Loader2, FileText, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import type { SvnDiffResult, SvnDiffLine, SvnDiffHunk, SvnDiffFile } from '@shared/types';
 
 // Import the LRU cache
-import { LRUCache } from '@shared/utils/lru-cache'
+import { LRUCache } from '@shared/utils/lru-cache';
 
 // ============================================
 // Types
@@ -28,40 +28,45 @@ import { LRUCache } from '@shared/utils/lru-cache'
 
 interface VirtualizedDiffViewerProps {
   /** Diff result to display */
-  diff: SvnDiffResult | null
+  diff: SvnDiffResult | null;
   /** Whether diff is currently loading */
-  isLoading?: boolean
+  isLoading?: boolean;
   /** Error message if loading failed */
-  error?: string | null
+  error?: string | null;
   /** Custom class name */
-  className?: string
+  className?: string;
   /** Estimated row height for virtualization */
-  estimatedRowHeight?: number
+  estimatedRowHeight?: number;
   /** Number of overscan rows */
-  overscan?: number
+  overscan?: number;
   /** Callback when a line is clicked */
-  onLineClick?: (line: SvnDiffLine, fileIndex: number, hunkIndex: number, lineIndex: number) => void
+  onLineClick?: (
+    line: SvnDiffLine,
+    fileIndex: number,
+    hunkIndex: number,
+    lineIndex: number
+  ) => void;
   /** Whether to show file headers */
-  showFileHeaders?: boolean
+  showFileHeaders?: boolean;
   /** Whether to collapse unchanged sections */
-  collapseContext?: boolean
+  collapseContext?: boolean;
   /** Context lines to show around changes when collapsed */
-  contextLines?: number
+  contextLines?: number;
 }
 
 interface FlattenedLine {
-  type: 'file-header' | 'hunk-header' | 'diff-line'
-  line?: SvnDiffLine
-  file?: SvnDiffFile
-  hunk?: SvnDiffHunk
-  fileIndex: number
-  hunkIndex: number
-  lineIndex: number
-  isCollapsed?: boolean
+  type: 'file-header' | 'hunk-header' | 'diff-line';
+  line?: SvnDiffLine;
+  file?: SvnDiffFile;
+  hunk?: SvnDiffHunk;
+  fileIndex: number;
+  hunkIndex: number;
+  lineIndex: number;
+  isCollapsed?: boolean;
 }
 
 interface FileCollapseState {
-  [key: number]: boolean // fileIndex -> isCollapsed
+  [key: number]: boolean; // fileIndex -> isCollapsed
 }
 
 // ============================================
@@ -70,16 +75,16 @@ interface FileCollapseState {
 
 // Cache for diff flattening results (100MB limit)
 // Using a module-level cache that can be cleared when needed
-let diffCache: LRUCache<FlattenedLine[]> | null = null
+let diffCache: LRUCache<FlattenedLine[]> | null = null;
 
 function getDiffCache(): LRUCache<FlattenedLine[]> {
   if (!diffCache) {
     diffCache = new LRUCache<FlattenedLine[]>({
       maxSize: 100 * 1024 * 1024,
-      defaultTTL: 30 * 60 * 1000 // 30 minutes
-    })
+      defaultTTL: 30 * 60 * 1000, // 30 minutes
+    });
   }
-  return diffCache
+  return diffCache;
 }
 
 /**
@@ -87,8 +92,8 @@ function getDiffCache(): LRUCache<FlattenedLine[]> {
  */
 export function clearDiffCache(): void {
   if (diffCache) {
-    diffCache.destroy()
-    diffCache = null
+    diffCache.destroy();
+    diffCache = null;
   }
 }
 
@@ -101,18 +106,18 @@ export function clearDiffCache(): void {
  * Uses content sampling to reduce collision probability
  */
 function hashDiffContent(diff: SvnDiffResult): string {
-  let hash = 0
-  const sampleSize = Math.min(diff.files.length, 5)
+  let hash = 0;
+  const sampleSize = Math.min(diff.files.length, 5);
 
   for (let i = 0; i < sampleSize; i++) {
-    const file = diff.files[i]
+    const file = diff.files[i];
     // Include first hunk's first line content for uniqueness
-    const firstHunk = file.hunks[0]
-    const firstLine = firstHunk?.lines[0]?.content || ''
-    hash = ((hash << 5) - hash + file.oldPath.length + file.newPath.length + firstLine.length) | 0
+    const firstHunk = file.hunks[0];
+    const firstLine = firstHunk?.lines[0]?.content || '';
+    hash = ((hash << 5) - hash + file.oldPath.length + file.newPath.length + firstLine.length) | 0;
   }
 
-  return hash.toString(16)
+  return hash.toString(16);
 }
 
 /**
@@ -120,9 +125,9 @@ function hashDiffContent(diff: SvnDiffResult): string {
  * Uses structural info + content hash for better uniqueness
  */
 function getDiffCacheKey(diff: SvnDiffResult): string {
-  const structure = diff.files.map((f, i) => `${i}:${f.oldPath}:${f.hunks.length}`).join('|')
-  const contentHash = hashDiffContent(diff)
-  return `diff:${contentHash}:${structure.length}`
+  const structure = diff.files.map((f, i) => `${i}:${f.oldPath}:${f.hunks.length}`).join('|');
+  const contentHash = hashDiffContent(diff);
+  return `diff:${contentHash}:${structure.length}`;
 }
 
 /**
@@ -134,19 +139,19 @@ function flattenDiff(
   collapseContext: boolean = false,
   contextLines: number = 3
 ): FlattenedLine[] {
-  const cacheKey = getDiffCacheKey(diff) + `:${collapseContext}:${contextLines}`
-  const cache = getDiffCache()
+  const cacheKey = getDiffCacheKey(diff) + `:${collapseContext}:${contextLines}`;
+  const cache = getDiffCache();
 
   // Check cache
-  const cached = cache.peek(cacheKey)
+  const cached = cache.peek(cacheKey);
   if (cached) {
-    return cached
+    return cached;
   }
 
-  const lines: FlattenedLine[] = []
+  const lines: FlattenedLine[] = [];
 
   for (let fileIndex = 0; fileIndex < diff.files.length; fileIndex++) {
-    const file = diff.files[fileIndex]
+    const file = diff.files[fileIndex];
 
     // File header
     lines.push({
@@ -154,11 +159,11 @@ function flattenDiff(
       file,
       fileIndex,
       hunkIndex: -1,
-      lineIndex: -1
-    })
+      lineIndex: -1,
+    });
 
     for (let hunkIndex = 0; hunkIndex < file.hunks.length; hunkIndex++) {
-      const hunk = file.hunks[hunkIndex]
+      const hunk = file.hunks[hunkIndex];
 
       // Hunk header
       lines.push({
@@ -166,43 +171,43 @@ function flattenDiff(
         hunk,
         fileIndex,
         hunkIndex,
-        lineIndex: -1
-      })
+        lineIndex: -1,
+      });
 
       // Diff lines
       if (collapseContext) {
         // Collapse long runs of context lines
-        const collapsed = collapseContextLines(hunk.lines, contextLines)
+        const collapsed = collapseContextLines(hunk.lines, contextLines);
         for (let lineIndex = 0; lineIndex < collapsed.lines.length; lineIndex++) {
-          const line = collapsed.lines[lineIndex]
+          const line = collapsed.lines[lineIndex];
           lines.push({
             type: 'diff-line',
             line,
             fileIndex,
             hunkIndex,
             lineIndex,
-            isCollapsed: collapsed.collapsedIndices.has(lineIndex)
-          })
+            isCollapsed: collapsed.collapsedIndices.has(lineIndex),
+          });
         }
       } else {
         for (let lineIndex = 0; lineIndex < hunk.lines.length; lineIndex++) {
-          const line = hunk.lines[lineIndex]
+          const line = hunk.lines[lineIndex];
           lines.push({
             type: 'diff-line',
             line,
             fileIndex,
             hunkIndex,
-            lineIndex
-          })
+            lineIndex,
+          });
         }
       }
     }
   }
 
   // Cache the result
-  cache.set(cacheKey, lines)
+  cache.set(cacheKey, lines);
 
-  return lines
+  return lines;
 }
 
 /**
@@ -212,41 +217,41 @@ function collapseContextLines(
   lines: SvnDiffLine[],
   contextLines: number
 ): { lines: SvnDiffLine[]; collapsedIndices: Set<number> } {
-  const result: SvnDiffLine[] = [...lines]
-  const collapsedIndices = new Set<number>()
+  const result: SvnDiffLine[] = [...lines];
+  const collapsedIndices = new Set<number>();
 
   // Find runs of context lines
-  let contextRun: number[] = []
+  let contextRun: number[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].type === 'context') {
-      contextRun.push(i)
+      contextRun.push(i);
     } else {
       // End of context run
       if (contextRun.length > contextLines * 2 + 10) {
         // Collapse middle of run
-        const start = contextLines
-        const end = contextRun.length - contextLines
+        const start = contextLines;
+        const end = contextRun.length - contextLines;
 
         for (let j = start; j < end; j++) {
-          collapsedIndices.add(contextRun[j])
+          collapsedIndices.add(contextRun[j]);
         }
       }
-      contextRun = []
+      contextRun = [];
     }
   }
 
   // Handle trailing context run
   if (contextRun.length > contextLines * 2 + 10) {
-    const start = contextLines
-    const end = contextRun.length - contextLines
+    const start = contextLines;
+    const end = contextRun.length - contextLines;
 
     for (let j = start; j < end; j++) {
-      collapsedIndices.add(contextRun[j])
+      collapsedIndices.add(contextRun[j]);
     }
   }
 
-  return { lines: result, collapsedIndices }
+  return { lines: result, collapsedIndices };
 }
 
 // ============================================
@@ -258,17 +263,17 @@ function collapseContextLines(
  */
 const DiffFileHeader = memo(function DiffFileHeader({
   file,
-  fileIndex,
+  _fileIndex,
   isCollapsed,
-  onToggle
+  onToggle,
 }: {
-  file: SvnDiffFile
-  fileIndex: number
-  isCollapsed: boolean
-  onToggle: () => void
+  file: SvnDiffFile;
+  _fileIndex: number;
+  isCollapsed: boolean;
+  onToggle: () => void;
 }) {
-  const fileName = file.newPath || file.oldPath
-  const displayPath = fileName.split('/').pop() || fileName
+  const fileName = file.newPath || file.oldPath;
+  const displayPath = fileName.split('/').pop() || fileName;
 
   return (
     <div
@@ -278,8 +283,8 @@ const DiffFileHeader = memo(function DiffFileHeader({
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onToggle()
+          e.preventDefault();
+          onToggle();
         }
       }}
     >
@@ -299,82 +304,82 @@ const DiffFileHeader = memo(function DiffFileHeader({
         {file.hunks.length} hunk{file.hunks.length !== 1 ? 's' : ''}
       </span>
     </div>
-  )
-})
+  );
+});
 
 /**
  * Hunk header component
  */
-const DiffHunkHeader = memo(function DiffHunkHeader({
-  hunk
-}: {
-  hunk: SvnDiffHunk
-}) {
+const DiffHunkHeader = memo(function DiffHunkHeader({ hunk }: { hunk: SvnDiffHunk }) {
   return (
     <div className="diff-hunk-header bg-bg-tertiary px-4 py-1 text-text-muted text-xs font-mono">
       @@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},{hunk.newLines} @@
     </div>
-  )
-})
+  );
+});
 
 /**
  * Single diff line component
  */
 const DiffLineComponent = memo(function DiffLineComponent({
   line,
-  onClick
+  onClick,
 }: {
-  line: SvnDiffLine
-  onClick?: () => void
+  line: SvnDiffLine;
+  onClick?: () => void;
 }) {
   const getLineClass = () => {
     switch (line.type) {
       case 'added':
-        return 'bg-green-500/10 hover:bg-green-500/20'
+        return 'bg-green-500/10 hover:bg-green-500/20';
       case 'removed':
-        return 'bg-red-500/10 hover:bg-red-500/20'
+        return 'bg-red-500/10 hover:bg-red-500/20';
       case 'hunk':
-        return 'bg-blue-500/10'
+        return 'bg-blue-500/10';
       default:
-        return 'hover:bg-bg-secondary'
+        return 'hover:bg-bg-secondary';
     }
-  }
+  };
 
   const getLineNumber = () => {
     if (line.type === 'added' && line.newLineNumber !== undefined) {
-      return line.newLineNumber
+      return line.newLineNumber;
     }
     if (line.type === 'removed' && line.oldLineNumber !== undefined) {
-      return line.oldLineNumber
+      return line.oldLineNumber;
     }
     if (line.type === 'context') {
-      return line.newLineNumber ?? line.oldLineNumber ?? ''
+      return line.newLineNumber ?? line.oldLineNumber ?? '';
     }
-    return ''
-  }
+    return '';
+  };
 
   const getPrefix = () => {
     switch (line.type) {
-      case 'added': return '+'
-      case 'removed': return '-'
-      case 'hunk': return ''
-      default: return ' '
+      case 'added':
+        return '+';
+      case 'removed':
+        return '-';
+      case 'hunk':
+        return '';
+      default:
+        return ' ';
     }
-  }
+  };
 
   const getPrefixClass = () => {
     switch (line.type) {
-      case 'added': return 'text-green-600 dark:text-green-400'
-      case 'removed': return 'text-red-600 dark:text-red-400'
-      default: return 'text-text-muted'
+      case 'added':
+        return 'text-green-600 dark:text-green-400';
+      case 'removed':
+        return 'text-red-600 dark:text-red-400';
+      default:
+        return 'text-text-muted';
     }
-  }
+  };
 
   return (
-    <div
-      className={`${getLineClass()} flex font-mono text-sm cursor-pointer`}
-      onClick={onClick}
-    >
+    <div className={`${getLineClass()} flex font-mono text-sm cursor-pointer`} onClick={onClick}>
       {/* Line number */}
       <div className="diff-line-number w-12 flex-shrink-0 text-right pr-3 text-text-faint select-none border-r border-border">
         {getLineNumber()}
@@ -390,23 +395,23 @@ const DiffLineComponent = memo(function DiffLineComponent({
         {line.content}
       </div>
     </div>
-  )
-})
+  );
+});
 
 /**
  * Collapsed context indicator
  */
 const CollapsedContextIndicator = memo(function CollapsedContextIndicator({
-  count
+  count,
 }: {
-  count: number
+  count: number;
 }) {
   return (
     <div className="diff-collapsed-context bg-bg-tertiary px-4 py-1 text-text-muted text-xs text-center italic">
       {count} unchanged lines hidden
     </div>
-  )
-})
+  );
+});
 
 // ============================================
 // Main Component
@@ -435,24 +440,24 @@ export function VirtualizedDiffViewer({
   onLineClick,
   showFileHeaders = true,
   collapseContext = false,
-  contextLines = 3
+  contextLines = 3,
 }: VirtualizedDiffViewerProps) {
-  const parentRef = useRef<HTMLDivElement>(null)
-  const [collapsedFiles, setCollapsedFiles] = useState<FileCollapseState>({})
+  const parentRef = useRef<HTMLDivElement>(null);
+  const [collapsedFiles, setCollapsedFiles] = useState<FileCollapseState>({});
 
   // Flatten diff for virtualization
   const flattenedLines = useMemo(() => {
-    if (!diff) return []
-    return flattenDiff(diff, collapseContext, contextLines)
-  }, [diff, collapseContext, contextLines])
+    if (!diff) return [];
+    return flattenDiff(diff, collapseContext, contextLines);
+  }, [diff, collapseContext, contextLines]);
 
   // Filter out lines from collapsed files
   const visibleLines = useMemo(() => {
     return flattenedLines.filter((line) => {
-      if (line.type === 'file-header') return true
-      return !collapsedFiles[line.fileIndex]
-    })
-  }, [flattenedLines, collapsedFiles])
+      if (line.type === 'file-header') return true;
+      return !collapsedFiles[line.fileIndex];
+    });
+  }, [flattenedLines, collapsedFiles]);
 
   // Create virtualizer
   const rowVirtualizer = useVirtualizer({
@@ -460,39 +465,39 @@ export function VirtualizedDiffViewer({
     getScrollElement: () => parentRef.current,
     estimateSize: useCallback(
       (index: number) => {
-        const line = visibleLines[index]
-        if (line.type === 'file-header') return 44
-        if (line.type === 'hunk-header') return 28
-        return estimatedRowHeight
+        const line = visibleLines[index];
+        if (line.type === 'file-header') return 44;
+        if (line.type === 'hunk-header') return 28;
+        return estimatedRowHeight;
       },
       [visibleLines, estimatedRowHeight]
     ),
-    overscan
-  })
+    overscan,
+  });
 
   // Toggle file collapse
   const toggleFileCollapse = useCallback((fileIndex: number) => {
     setCollapsedFiles((prev) => ({
       ...prev,
-      [fileIndex]: !prev[fileIndex]
-    }))
-  }, [])
+      [fileIndex]: !prev[fileIndex],
+    }));
+  }, []);
 
   // Get virtual items
-  const virtualItems = rowVirtualizer.getVirtualItems()
+  const virtualItems = rowVirtualizer.getVirtualItems();
 
   // Calculate diff stats
   const stats = useMemo(() => {
-    if (!diff) return { additions: 0, deletions: 0, files: 0 }
+    if (!diff) return { additions: 0, deletions: 0, files: 0 };
 
-    let additions = 0
-    let deletions = 0
+    let additions = 0;
+    let deletions = 0;
 
     for (const file of diff.files) {
       for (const hunk of file.hunks) {
         for (const line of hunk.lines) {
-          if (line.type === 'added') additions++
-          if (line.type === 'removed') deletions++
+          if (line.type === 'added') additions++;
+          if (line.type === 'removed') deletions++;
         }
       }
     }
@@ -500,9 +505,9 @@ export function VirtualizedDiffViewer({
     return {
       additions,
       deletions,
-      files: diff.files.length
-    }
-  }, [diff])
+      files: diff.files.length,
+    };
+  }, [diff]);
 
   // Loading state
   if (isLoading) {
@@ -513,7 +518,7 @@ export function VirtualizedDiffViewer({
           <span className="text-text-secondary">Loading diff...</span>
         </div>
       </div>
-    )
+    );
   }
 
   // Error state
@@ -528,7 +533,7 @@ export function VirtualizedDiffViewer({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // Empty state
@@ -543,7 +548,7 @@ export function VirtualizedDiffViewer({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // Binary file state
@@ -558,7 +563,7 @@ export function VirtualizedDiffViewer({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -585,12 +590,12 @@ export function VirtualizedDiffViewer({
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
             width: '100%',
-            position: 'relative'
+            position: 'relative',
           }}
         >
           {virtualItems.map((virtualRow) => {
-            const line = visibleLines[virtualRow.index]
-            const isCollapsed = collapsedFiles[line.fileIndex]
+            const line = visibleLines[virtualRow.index];
+            const isCollapsed = collapsedFiles[line.fileIndex];
 
             return (
               <div
@@ -602,13 +607,13 @@ export function VirtualizedDiffViewer({
                   top: 0,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`
+                  transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
                 {line.type === 'file-header' && showFileHeaders && line.file && (
                   <DiffFileHeader
                     file={line.file}
-                    fileIndex={line.fileIndex}
+                    _fileIndex={line.fileIndex}
                     isCollapsed={isCollapsed}
                     onToggle={() => toggleFileCollapse(line.fileIndex)}
                   />
@@ -627,7 +632,7 @@ export function VirtualizedDiffViewer({
                         line={line.line}
                         onClick={() => {
                           if (onLineClick) {
-                            onLineClick(line.line, line.fileIndex, line.hunkIndex, line.lineIndex)
+                            onLineClick(line.line, line.fileIndex, line.hunkIndex, line.lineIndex);
                           }
                         }}
                       />
@@ -635,12 +640,12 @@ export function VirtualizedDiffViewer({
                   </>
                 )}
               </div>
-            )
+            );
           })}
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -651,45 +656,45 @@ export function VirtualizedDiffViewer({
  * Hook for progressive image loading with lazy loading
  */
 export function useProgressiveImageLoad(src: string | null, placeholder?: string) {
-  const [imageSrc, setImageSrc] = useState<string | null>(placeholder || null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [imageSrc, setImageSrc] = useState<string | null>(placeholder || null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!src) {
-      setImageSrc(null)
-      setIsLoading(false)
-      return
+      setImageSrc(null);
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
-    const img = new Image()
+    const img = new Image();
 
     img.onload = () => {
-      setImageSrc(src)
-      setIsLoading(false)
-    }
+      setImageSrc(src);
+      setIsLoading(false);
+    };
 
     img.onerror = () => {
-      setError('Failed to load image')
-      setIsLoading(false)
-    }
+      setError('Failed to load image');
+      setIsLoading(false);
+    };
 
-    img.src = src
+    img.src = src;
 
     return () => {
-      img.onload = null
-      img.onerror = null
-    }
-  }, [src])
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [src]);
 
-  return { src: imageSrc, isLoading, error }
+  return { src: imageSrc, isLoading, error };
 }
 
 // ============================================
 // Export
 // ============================================
 
-export default VirtualizedDiffViewer
+export default VirtualizedDiffViewer;

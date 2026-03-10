@@ -4,8 +4,8 @@
  * Tests the parsing and handling of svn list command output
  */
 
-import { describe, it, expect } from 'vitest'
-import { parseSvnListXml } from '@main/ipc/svn'
+import { describe, it, expect } from 'vitest';
+import { parseSvnListXml } from '@main/ipc/svn';
 
 describe('SVN List Parser', () => {
   describe('parseSvnListXml', () => {
@@ -14,12 +14,12 @@ describe('SVN List Parser', () => {
 <lists>
   <list path="https://example.com/svn/repo/trunk">
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
-      expect(result.entries).toHaveLength(0)
-    })
+      expect(result.entries).toHaveLength(0);
+    });
 
     it('should parse directory entries', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -40,16 +40,16 @@ describe('SVN List Parser', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
-      expect(result.entries).toHaveLength(2)
-      expect(result.entries[0].kind).toBe('dir')
-      expect(result.entries[0].name).toBe('src')
-      expect(result.entries[0].author).toBe('developer')
-      expect(result.entries[1].name).toBe('tests')
-    })
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].kind).toBe('dir');
+      expect(result.entries[0].name).toBe('src');
+      expect(result.entries[0].author).toBe('developer');
+      expect(result.entries[1].name).toBe('tests');
+    });
 
     it('should parse file entries with size', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -64,14 +64,14 @@ describe('SVN List Parser', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
-      expect(result.entries).toHaveLength(1)
-      expect(result.entries[0].kind).toBe('file')
-      expect(result.entries[0].size).toBe(2048)
-    })
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].kind).toBe('file');
+      expect(result.entries[0].size).toBe(2048);
+    });
 
     it('should build correct URLs for entries', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -85,13 +85,13 @@ describe('SVN List Parser', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
-      expect(result.entries[0].url).toBe('https://example.com/svn/repo/trunk/src')
-      expect(result.entries[0].path).toBe('https://example.com/svn/repo/trunk/src')
-    })
+      expect(result.entries[0].url).toBe('https://example.com/svn/repo/trunk/src');
+      expect(result.entries[0].path).toBe('https://example.com/svn/repo/trunk/src');
+    });
 
     it('should handle directory names with trailing slash', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -105,14 +105,14 @@ describe('SVN List Parser', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
       // Name should preserve the slash, but URL should not have double slash
-      expect(result.entries[0].name).toBe('src/')
-      expect(result.entries[0].url).toBe('https://example.com/svn/repo/trunk/src')
-    })
+      expect(result.entries[0].name).toBe('src/');
+      expect(result.entries[0].url).toBe('https://example.com/svn/repo/trunk/src');
+    });
 
     it('should handle mixed files and directories', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -149,16 +149,16 @@ describe('SVN List Parser', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
-      expect(result.entries).toHaveLength(4)
-      const dirs = result.entries.filter(e => e.kind === 'dir')
-      const files = result.entries.filter(e => e.kind === 'file')
-      expect(dirs).toHaveLength(2)
-      expect(files).toHaveLength(2)
-    })
+      expect(result.entries).toHaveLength(4);
+      const dirs = result.entries.filter((e) => e.kind === 'dir');
+      const files = result.entries.filter((e) => e.kind === 'file');
+      expect(dirs).toHaveLength(2);
+      expect(files).toHaveLength(2);
+    });
 
     it('should handle special characters in names', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -181,13 +181,13 @@ describe('SVN List Parser', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
-      expect(result.entries[0].name).toBe('file with spaces.txt')
-      expect(result.entries[1].name).toBe('file-with-dashes.json')
-    })
+      expect(result.entries[0].name).toBe('file with spaces.txt');
+      expect(result.entries[1].name).toBe('file-with-dashes.json');
+    });
 
     it('should handle missing optional fields', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -200,56 +200,81 @@ describe('SVN List Parser', () => {
       </commit>
     </entry>
   </list>
-</lists>`
+</lists>`;
 
-      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk')
+      const result = parseSvnListXml(xml, 'https://example.com/svn/repo/trunk');
 
-      expect(result.entries[0].size).toBeUndefined()
-      expect(result.entries[0].author).toBe('')
-    })
-  })
-})
+      expect(result.entries[0].size).toBeUndefined();
+      expect(result.entries[0].author).toBe('');
+    });
+  });
+});
 
 describe('SVN List Depth Parameter', () => {
   it('should generate correct args for immediates depth', () => {
-    const args = ['list', '--xml', '--non-interactive', '--depth', 'immediates', 'https://example.com/svn/repo']
+    const args = [
+      'list',
+      '--xml',
+      '--non-interactive',
+      '--depth',
+      'immediates',
+      'https://example.com/svn/repo',
+    ];
 
-    expect(args).toContain('--depth')
-    expect(args[args.indexOf('--depth') + 1]).toBe('immediates')
-  })
+    expect(args).toContain('--depth');
+    expect(args[args.indexOf('--depth') + 1]).toBe('immediates');
+  });
 
   it('should generate correct args for infinity depth', () => {
-    const args = ['list', '--xml', '--non-interactive', '--depth', 'infinity', 'https://example.com/svn/repo']
+    const args = [
+      'list',
+      '--xml',
+      '--non-interactive',
+      '--depth',
+      'infinity',
+      'https://example.com/svn/repo',
+    ];
 
-    expect(args).toContain('--depth')
-    expect(args[args.indexOf('--depth') + 1]).toBe('infinity')
-  })
+    expect(args).toContain('--depth');
+    expect(args[args.indexOf('--depth') + 1]).toBe('infinity');
+  });
 
   it('should generate correct args for empty depth', () => {
-    const args = ['list', '--xml', '--non-interactive', '--depth', 'empty', 'https://example.com/svn/repo']
+    const args = [
+      'list',
+      '--xml',
+      '--non-interactive',
+      '--depth',
+      'empty',
+      'https://example.com/svn/repo',
+    ];
 
-    expect(args).toContain('--depth')
-    expect(args[args.indexOf('--depth') + 1]).toBe('empty')
-  })
+    expect(args).toContain('--depth');
+    expect(args[args.indexOf('--depth') + 1]).toBe('empty');
+  });
 
   it('should include credentials when provided', () => {
     const args = [
-      'list', '--xml', '--non-interactive',
-      '--username', 'testuser',
-      '--password', 'testpass',
-      'https://example.com/svn/repo'
-    ]
+      'list',
+      '--xml',
+      '--non-interactive',
+      '--username',
+      'testuser',
+      '--password',
+      'testpass',
+      'https://example.com/svn/repo',
+    ];
 
-    expect(args).toContain('--username')
-    expect(args[args.indexOf('--username') + 1]).toBe('testuser')
-    expect(args).toContain('--password')
-    expect(args[args.indexOf('--password') + 1]).toBe('testpass')
-  })
+    expect(args).toContain('--username');
+    expect(args[args.indexOf('--username') + 1]).toBe('testuser');
+    expect(args).toContain('--password');
+    expect(args[args.indexOf('--password') + 1]).toBe('testpass');
+  });
 
   it('should include revision when specified', () => {
-    const args = ['list', '--xml', '-r', '1234', 'https://example.com/svn/repo']
+    const args = ['list', '--xml', '-r', '1234', 'https://example.com/svn/repo'];
 
-    expect(args).toContain('-r')
-    expect(args[args.indexOf('-r') + 1]).toBe('1234')
-  })
-})
+    expect(args).toContain('-r');
+    expect(args[args.indexOf('-r') + 1]).toBe('1234');
+  });
+});

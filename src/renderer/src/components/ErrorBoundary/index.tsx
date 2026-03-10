@@ -18,28 +18,30 @@
  *    - Provides component-level retry and fallback options
  */
 
-import { Component, type ReactNode, type ErrorInfo, type ComponentType } from 'react'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { Component, type ReactNode, type ErrorInfo, type ComponentType } from 'react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
-// Re-export the main components
-export { GlobalErrorBoundary, type GlobalErrorBoundaryProps } from './GlobalErrorBoundary'
-export { RouteErrorBoundary } from './RouteErrorBoundary'
+// Import and re-export the main components
+export { GlobalErrorBoundary, type GlobalErrorBoundaryProps } from './GlobalErrorBoundary';
+export { RouteErrorBoundary } from './RouteErrorBoundary';
+import { GlobalErrorBoundary } from './GlobalErrorBoundary';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 
 /**
  * Common props for all error boundary types
  */
 export interface ErrorBoundaryBaseProps {
-  children: ReactNode
+  children: ReactNode;
   /** Custom fallback UI to show when an error occurs */
-  fallback?: ReactNode
+  fallback?: ReactNode;
   /** Callback when an error is caught */
-  onError?: (error: Error, errorInfo: ErrorInfo) => void
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
   /** Callback when user clicks retry */
-  onRetry?: () => void
+  onRetry?: () => void;
   /** Maximum retry attempts before giving up */
-  maxRetries?: number
+  maxRetries?: number;
   /** Enable development mode with full stack traces */
-  isDev?: boolean
+  isDev?: boolean;
 }
 
 /**
@@ -47,24 +49,24 @@ export interface ErrorBoundaryBaseProps {
  */
 export interface WithErrorBoundaryOptions {
   /** Name displayed in error UI */
-  displayName?: string
+  displayName?: string;
   /** Custom fallback component */
-  FallbackComponent?: ComponentType<{ error: Error; retry: () => void }>
+  FallbackComponent?: ComponentType<{ error: Error; retry: () => void }>;
   /** Callback when an error is caught */
-  onError?: (error: Error, errorInfo: ErrorInfo) => void
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
   /** Maximum retry attempts */
-  maxRetries?: number
+  maxRetries?: number;
   /** Show retry button */
-  showRetry?: boolean
+  showRetry?: boolean;
 }
 
 /**
  * State for ComponentErrorBoundary
  */
 interface ComponentErrorBoundaryState {
-  hasError: boolean
-  error: Error | null
-  retryCount: number
+  hasError: boolean;
+  error: Error | null;
+  retryCount: number;
 }
 
 /**
@@ -72,66 +74,66 @@ interface ComponentErrorBoundaryState {
  */
 class ComponentErrorBoundary extends Component<
   {
-    children: ReactNode
-    FallbackComponent?: ComponentType<{ error: Error; retry: () => void }>
-    displayName?: string
-    onError?: (error: Error, errorInfo: ErrorInfo) => void
-    onRetry?: () => void
-    maxRetries: number
-    showRetry: boolean
+    children: ReactNode;
+    FallbackComponent?: ComponentType<{ error: Error; retry: () => void }>;
+    displayName?: string;
+    onError?: (error: Error, errorInfo: ErrorInfo) => void;
+    onRetry?: () => void;
+    maxRetries: number;
+    showRetry: boolean;
   },
   ComponentErrorBoundaryState
 > {
   constructor(props: ComponentErrorBoundary['props']) {
-    super(props)
+    super(props);
     this.state = {
       hasError: false,
       error: null,
-      retryCount: 0
-    }
+      retryCount: 0,
+    };
   }
 
   static getDerivedStateFromError(error: Error): Partial<ComponentErrorBoundaryState> {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    this.props.onError?.(error, errorInfo)
+    this.props.onError?.(error, errorInfo);
 
     if (import.meta.env.DEV) {
-      console.error('ComponentErrorBoundary caught an error:', error, errorInfo)
+      console.error('ComponentErrorBoundary caught an error:', error, errorInfo);
     }
   }
 
   handleRetry = (): void => {
-    const { maxRetries, onRetry } = this.props
-    const { retryCount } = this.state
+    const { maxRetries, onRetry } = this.props;
+    const { retryCount } = this.state;
 
     if (retryCount >= maxRetries) {
-      return
+      return;
     }
 
     this.setState((prev) => ({
       hasError: false,
       error: null,
-      retryCount: prev.retryCount + 1
-    }))
+      retryCount: prev.retryCount + 1,
+    }));
 
-    onRetry?.()
-  }
+    onRetry?.();
+  };
 
   render(): ReactNode {
-    const { children, FallbackComponent, displayName, showRetry, maxRetries } = this.props
-    const { hasError, error, retryCount } = this.state
+    const { children, FallbackComponent, displayName, showRetry, maxRetries } = this.props;
+    const { hasError, error, retryCount } = this.state;
 
     if (hasError && error) {
       // Use custom fallback component if provided
       if (FallbackComponent) {
-        return <FallbackComponent error={error} retry={this.handleRetry} />
+        return <FallbackComponent error={error} retry={this.handleRetry} />;
       }
 
       // Default fallback UI
-      const canRetry = showRetry && retryCount < maxRetries
+      const canRetry = showRetry && retryCount < maxRetries;
 
       return (
         <div className="flex flex-col items-center justify-center p-6 min-h-[200px] bg-surface-elevated/50 rounded-lg border border-border">
@@ -156,15 +158,17 @@ class ComponentErrorBoundary extends Component<
               <RefreshCw className="w-3 h-3" />
               Retry
               {retryCount > 0 && (
-                <span className="text-xs opacity-70">({retryCount}/{maxRetries})</span>
+                <span className="text-xs opacity-70">
+                  ({retryCount}/{maxRetries})
+                </span>
               )}
             </button>
           )}
         </div>
-      )
+      );
     }
 
-    return children
+    return children;
   }
 }
 
@@ -197,13 +201,7 @@ export function withErrorBoundary<P extends object>(
   Component: ComponentType<P>,
   options: WithErrorBoundaryOptions = {}
 ): ComponentType<P> {
-  const {
-    displayName,
-    FallbackComponent,
-    onError,
-    maxRetries = 3,
-    showRetry = true
-  } = options
+  const { displayName, FallbackComponent, onError, maxRetries = 3, showRetry = true } = options;
 
   const WrappedComponent = (props: P) => (
     <ComponentErrorBoundary
@@ -215,11 +213,11 @@ export function withErrorBoundary<P extends object>(
     >
       <Component {...props} />
     </ComponentErrorBoundary>
-  )
+  );
 
-  WrappedComponent.displayName = `withErrorBoundary(${displayName || Component.displayName || Component.name || 'Component'})`
+  WrappedComponent.displayName = `withErrorBoundary(${displayName || Component.displayName || Component.name || 'Component'})`;
 
-  return WrappedComponent
+  return WrappedComponent;
 }
 
 /**
@@ -245,30 +243,30 @@ export function withErrorBoundary<P extends object>(
  * ```
  */
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext } from 'react';
 
 interface ErrorBoundaryContextValue {
-  resetErrorBoundary: () => void
+  resetErrorBoundary: () => void;
 }
 
-const ErrorBoundaryContext = createContext<ErrorBoundaryContextValue | null>(null)
+const ErrorBoundaryContext = createContext<ErrorBoundaryContextValue | null>(null);
 
-export const ErrorBoundaryProvider = ErrorBoundaryContext.Provider
+export const ErrorBoundaryProvider = ErrorBoundaryContext.Provider;
 
 export function useErrorBoundaryReset(): () => void {
-  const context = useContext(ErrorBoundaryContext)
+  const context = useContext(ErrorBoundaryContext);
   if (!context) {
     // Return a no-op function with a warning instead of throwing
     // This prevents crashes if the hook is used outside the provider
     if (import.meta.env.DEV) {
       console.warn(
         'useErrorBoundaryReset: No ErrorBoundaryContext found. ' +
-        'Wrap your component tree with ErrorBoundaryProvider to use this hook.'
-      )
+          'Wrap your component tree with ErrorBoundaryProvider to use this hook.'
+      );
     }
-    return () => {}
+    return () => {};
   }
-  return context.resetErrorBoundary
+  return context.resetErrorBoundary;
 }
 
 /**
@@ -277,5 +275,5 @@ export function useErrorBoundaryReset(): () => void {
 export default {
   GlobalErrorBoundary,
   RouteErrorBoundary,
-  withErrorBoundary
-}
+  withErrorBoundary,
+};

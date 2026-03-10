@@ -1,16 +1,16 @@
-import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import '@testing-library/jest-dom'
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '@testing-library/jest-dom';
 
-import { Toolbar } from '../src/components/ui/Toolbar'
+import { Toolbar } from '../src/components/ui/Toolbar';
 
 describe('Toolbar - Show Remote Items Toggle', () => {
-  const mockOnToggleRemoteItems = vi.fn()
-  
+  const mockOnToggleRemoteItems = vi.fn();
+
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   it('renders the remote items toggle button when versioned and in local mode', () => {
     render(
@@ -20,10 +20,10 @@ describe('Toolbar - Show Remote Items Toggle', () => {
         showRemoteItems={false}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    expect(screen.getByTitle('Show remote items (sparse checkout)')).toBeInTheDocument()
-  })
+    );
+
+    expect(screen.getByTitle('Show remote items (sparse checkout)')).toBeInTheDocument();
+  });
 
   it('does not render the toggle when not versioned', () => {
     render(
@@ -33,10 +33,10 @@ describe('Toolbar - Show Remote Items Toggle', () => {
         showRemoteItems={false}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    expect(screen.queryByTitle('Show remote items (sparse checkout)')).not.toBeInTheDocument()
-  })
+    );
+
+    expect(screen.queryByTitle('Show remote items (sparse checkout)')).not.toBeInTheDocument();
+  });
 
   it('does not render the toggle when in online mode', () => {
     render(
@@ -46,10 +46,10 @@ describe('Toolbar - Show Remote Items Toggle', () => {
         showRemoteItems={false}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    expect(screen.queryByTitle('Show remote items (sparse checkout)')).not.toBeInTheDocument()
-  })
+    );
+
+    expect(screen.queryByTitle('Show remote items (sparse checkout)')).not.toBeInTheDocument();
+  });
 
   it('calls onToggleRemoteItems when clicked', () => {
     render(
@@ -59,13 +59,13 @@ describe('Toolbar - Show Remote Items Toggle', () => {
         showRemoteItems={false}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    const toggleButton = screen.getByTitle('Show remote items (sparse checkout)')
-    fireEvent.click(toggleButton)
-    
-    expect(mockOnToggleRemoteItems).toHaveBeenCalledTimes(1)
-  })
+    );
+
+    const toggleButton = screen.getByTitle('Show remote items (sparse checkout)');
+    fireEvent.click(toggleButton);
+
+    expect(mockOnToggleRemoteItems).toHaveBeenCalledTimes(1);
+  });
 
   it('shows active state when remote items are shown', () => {
     render(
@@ -75,12 +75,12 @@ describe('Toolbar - Show Remote Items Toggle', () => {
         showRemoteItems={true}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    const toggleButton = screen.getByTitle('Hide remote items')
-    expect(toggleButton).toHaveClass('text-info')
-    expect(toggleButton).toHaveClass('bg-info/10')
-  })
+    );
+
+    const toggleButton = screen.getByTitle('Hide remote items');
+    expect(toggleButton).toHaveClass('text-info');
+    expect(toggleButton).toHaveClass('bg-info/10');
+  });
 
   it('shows correct title when remote items are shown', () => {
     render(
@@ -90,19 +90,19 @@ describe('Toolbar - Show Remote Items Toggle', () => {
         showRemoteItems={true}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    expect(screen.getByTitle('Hide remote items')).toBeInTheDocument()
-  })
-})
+    );
+
+    expect(screen.getByTitle('Hide remote items')).toBeInTheDocument();
+  });
+});
 
 describe('Toolbar - Browse Mode Toggle Integration', () => {
-  const mockOnBrowseModeChange = vi.fn()
-  const mockOnToggleRemoteItems = vi.fn()
-  
+  const mockOnBrowseModeChange = vi.fn();
+  const mockOnToggleRemoteItems = vi.fn();
+
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   it('shows both local/online toggle and remote items toggle when canBrowseOnline is true', () => {
     render(
@@ -114,12 +114,12 @@ describe('Toolbar - Browse Mode Toggle Integration', () => {
         showRemoteItems={false}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    expect(screen.getByText('Local')).toBeInTheDocument()
-    expect(screen.getByText('Online')).toBeInTheDocument()
-    expect(screen.getByTitle('Show remote items (sparse checkout)')).toBeInTheDocument()
-  })
+    );
+
+    expect(screen.getByText('Local')).toBeInTheDocument();
+    expect(screen.getByText('Online')).toBeInTheDocument();
+    expect(screen.getByTitle('Show remote items (sparse checkout)')).toBeInTheDocument();
+  });
 
   it('remote items toggle is hidden when in online mode', () => {
     render(
@@ -131,10 +131,10 @@ describe('Toolbar - Browse Mode Toggle Integration', () => {
         showRemoteItems={false}
         onToggleRemoteItems={mockOnToggleRemoteItems}
       />
-    )
-    
-    expect(screen.getByText('Local')).toBeInTheDocument()
-    expect(screen.getByText('Online')).toBeInTheDocument()
-    expect(screen.queryByTitle('Show remote items (sparse checkout)')).not.toBeInTheDocument()
-  })
-})
+    );
+
+    expect(screen.getByText('Local')).toBeInTheDocument();
+    expect(screen.getByText('Online')).toBeInTheDocument();
+    expect(screen.queryByTitle('Show remote items (sparse checkout)')).not.toBeInTheDocument();
+  });
+});

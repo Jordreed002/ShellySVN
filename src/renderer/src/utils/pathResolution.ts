@@ -5,13 +5,13 @@
  */
 
 function normalizeToForwardSlash(path: string): string {
-  return path.replace(/\\/g, '/')
+  return path.replace(/\\/g, '/');
 }
 
 function normalizeToPlatformPath(path: string): string {
-  const isWindows = typeof process !== 'undefined' && process.platform === 'win32'
-  const normalized = normalizeToForwardSlash(path)
-  return isWindows ? normalized.replace(/\//g, '\\') : normalized
+  const isWindows = typeof process !== 'undefined' && process.platform === 'win32';
+  const normalized = normalizeToForwardSlash(path);
+  return isWindows ? normalized.replace(/\//g, '\\') : normalized;
 }
 
 /**
@@ -22,28 +22,28 @@ function normalizeToPlatformPath(path: string): string {
  */
 export function getRelativePath(fullPath: string, basePath: string): string {
   if (!fullPath || !basePath) {
-    return ''
+    return '';
   }
 
-  const normalizedFull = normalizeToForwardSlash(fullPath).replace(/\/+$/, '')
-  const normalizedBase = normalizeToForwardSlash(basePath).replace(/\/+$/, '')
+  const normalizedFull = normalizeToForwardSlash(fullPath).replace(/\/+$/, '');
+  const normalizedBase = normalizeToForwardSlash(basePath).replace(/\/+$/, '');
 
   if (normalizedFull === normalizedBase) {
-    return ''
+    return '';
   }
 
-  const baseWithSlash = normalizedBase + '/'
+  const baseWithSlash = normalizedBase + '/';
 
   if (normalizedFull.startsWith(baseWithSlash)) {
-    return normalizedFull.slice(baseWithSlash.length)
+    return normalizedFull.slice(baseWithSlash.length);
   }
 
   if (normalizedFull.startsWith(normalizedBase) && normalizedFull.length > normalizedBase.length) {
-    const remaining = normalizedFull.slice(normalizedBase.length)
-    return remaining.startsWith('/') ? remaining.slice(1) : remaining
+    const remaining = normalizedFull.slice(normalizedBase.length);
+    return remaining.startsWith('/') ? remaining.slice(1) : remaining;
   }
 
-  return ''
+  return '';
 }
 
 /**
@@ -62,27 +62,27 @@ export function resolveRemoteUrlToLocalPath(
   repositoryRoot: string
 ): string | null {
   if (!remoteUrl || !workingCopyRoot || !repositoryRoot) {
-    return null
+    return null;
   }
 
-  const normalizedUrl = normalizeToForwardSlash(remoteUrl)
-  const normalizedRepoRoot = normalizeToForwardSlash(repositoryRoot).replace(/\/+$/, '')
-  const normalizedWorkingCopyRoot = normalizeToForwardSlash(workingCopyRoot).replace(/\/+$/, '')
+  const normalizedUrl = normalizeToForwardSlash(remoteUrl);
+  const normalizedRepoRoot = normalizeToForwardSlash(repositoryRoot).replace(/\/+$/, '');
+  const normalizedWorkingCopyRoot = normalizeToForwardSlash(workingCopyRoot).replace(/\/+$/, '');
 
-  const repoRootWithSlash = normalizedRepoRoot + '/'
+  const repoRootWithSlash = normalizedRepoRoot + '/';
 
   if (normalizedUrl === normalizedRepoRoot) {
-    return normalizeToPlatformPath(normalizedWorkingCopyRoot)
+    return normalizeToPlatformPath(normalizedWorkingCopyRoot);
   }
 
   if (!normalizedUrl.startsWith(repoRootWithSlash)) {
-    return null
+    return null;
   }
 
-  const relativePath = normalizedUrl.slice(repoRootWithSlash.length)
-  const localPath = normalizedWorkingCopyRoot + '/' + relativePath
+  const relativePath = normalizedUrl.slice(repoRootWithSlash.length);
+  const localPath = normalizedWorkingCopyRoot + '/' + relativePath;
 
-  return normalizeToPlatformPath(localPath)
+  return normalizeToPlatformPath(localPath);
 }
 
 /**
@@ -91,17 +91,17 @@ export function resolveRemoteUrlToLocalPath(
  */
 export function isUrlInRepository(remoteUrl: string, repositoryRoot: string): boolean {
   if (!remoteUrl || !repositoryRoot) {
-    return false
+    return false;
   }
 
-  const normalizedUrl = normalizeToForwardSlash(remoteUrl).replace(/\/+$/, '')
-  const normalizedRepoRoot = normalizeToForwardSlash(repositoryRoot).replace(/\/+$/, '')
+  const normalizedUrl = normalizeToForwardSlash(remoteUrl).replace(/\/+$/, '');
+  const normalizedRepoRoot = normalizeToForwardSlash(repositoryRoot).replace(/\/+$/, '');
 
   if (normalizedUrl === normalizedRepoRoot) {
-    return true
+    return true;
   }
 
-  const repoRootWithSlash = normalizedRepoRoot + '/'
+  const repoRootWithSlash = normalizedRepoRoot + '/';
 
-  return normalizedUrl.startsWith(repoRootWithSlash)
+  return normalizedUrl.startsWith(repoRootWithSlash);
 }

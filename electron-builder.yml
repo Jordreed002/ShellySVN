@@ -14,8 +14,8 @@ directories:
 
 files:
   - out/**/*
-  - "!**/*.map"
-  - "!src/**/*"
+  - '!**/*.map'
+  - '!src/**/*'
   - package.json
 
 # Windows configuration
@@ -118,7 +118,7 @@ deb:
   priority: optional
   compression: xz
 
-# RPM package options  
+# RPM package options
 rpm:
   compression: xz
 
@@ -134,4 +134,4 @@ compression: maximum
 # ASAR configuration
 asar: true
 asarUnpack:
-  - "**/*.node"
+  - '**/*.node'

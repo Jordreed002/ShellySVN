@@ -1,79 +1,73 @@
-import React, { Component, type ReactNode } from 'react'
-import { AlertCircle, RefreshCw, AlertTriangle, Info } from 'lucide-react'
-import { classifySparseError, type SparseCheckoutError } from '@renderer/utils/sparseErrorHandling'
+import React, { Component, type ReactNode } from 'react';
+import { AlertCircle, RefreshCw, AlertTriangle, Info } from 'lucide-react';
+import { classifySparseError, type SparseCheckoutError } from '@renderer/utils/sparseErrorHandling';
 
 interface Props {
-  children: ReactNode
-  fallback?: ReactNode
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
-  onRetry?: () => void
+  children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  onRetry?: () => void;
 }
 
 interface State {
-  hasError: boolean
-  error: SparseCheckoutError | null
-  errorInfo: React.ErrorInfo | null
+  hasError: boolean;
+  error: SparseCheckoutError | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
 export class SparseCheckoutErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
-    super(props)
+    super(props);
     this.state = {
       hasError: false,
       error: null,
-      errorInfo: null
-    }
+      errorInfo: null,
+    };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    const classifiedError = classifySparseError(error)
+    const classifiedError = classifySparseError(error);
     return {
       hasError: true,
-      error: classifiedError
-    }
+      error: classifiedError,
+    };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    this.setState({ errorInfo })
-    this.props.onError?.(error, errorInfo)
+    this.setState({ errorInfo });
+    this.props.onError?.(error, errorInfo);
   }
 
   handleRetry = () => {
     this.setState({
       hasError: false,
       error: null,
-      errorInfo: null
-    })
-    this.props.onRetry?.()
-  }
+      errorInfo: null,
+    });
+    this.props.onRetry?.();
+  };
 
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
-        return this.props.fallback
+        return this.props.fallback;
       }
 
-      const { error } = this.state
+      const { error } = this.state;
       if (!error) {
         return (
           <div className="flex flex-col items-center justify-center p-8 text-center">
             <AlertCircle className="w-12 h-12 text-error mb-4" />
             <h3 className="text-lg font-medium text-text mb-2">Something went wrong</h3>
-            <p className="text-sm text-text-secondary mb-4">
-              An unexpected error occurred.
-            </p>
+            <p className="text-sm text-text-secondary mb-4">An unexpected error occurred.</p>
             {this.props.onRetry && (
-              <button
-                type="button"
-                onClick={this.handleRetry}
-                className="btn btn-secondary"
-              >
+              <button type="button" onClick={this.handleRetry} className="btn btn-secondary">
                 <RefreshCw className="w-4 h-4" />
                 Try Again
               </button>
             )}
           </div>
-        )
+        );
       }
 
       const iconMap = {
@@ -89,8 +83,8 @@ export class SparseCheckoutErrorBoundary extends Component<Props, State> {
         CONFLICT: <AlertTriangle className="w-12 h-12 text-warning" />,
         OUT_OF_DATE: <AlertTriangle className="w-12 h-12 text-warning" />,
         LOCKED: <AlertTriangle className="w-12 h-12 text-warning" />,
-        UNKNOWN: <AlertCircle className="w-12 h-12 text-error" />
-      }
+        UNKNOWN: <AlertCircle className="w-12 h-12 text-error" />,
+      };
 
       const bgColorMap = {
         NETWORK_FAILURE: 'bg-warning/10',
@@ -105,8 +99,8 @@ export class SparseCheckoutErrorBoundary extends Component<Props, State> {
         CONFLICT: 'bg-warning/10',
         OUT_OF_DATE: 'bg-warning/10',
         LOCKED: 'bg-warning/10',
-        UNKNOWN: 'bg-error/10'
-      }
+        UNKNOWN: 'bg-error/10',
+      };
 
       return (
         <div className="flex flex-col items-center justify-center p-8 min-h-[200px]">
@@ -115,9 +109,7 @@ export class SparseCheckoutErrorBoundary extends Component<Props, State> {
           </div>
 
           <h3 className="text-lg font-medium text-text mb-2">{error.title}</h3>
-          <p className="text-sm text-text-secondary text-center max-w-md mb-4">
-            {error.message}
-          </p>
+          <p className="text-sm text-text-secondary text-center max-w-md mb-4">{error.message}</p>
 
           {error.suggestions.length > 0 && (
             <div className="bg-surface-elevated rounded-lg p-4 max-w-md mb-4">
@@ -148,49 +140,45 @@ export class SparseCheckoutErrorBoundary extends Component<Props, State> {
           )}
 
           {error.retryable && this.props.onRetry && (
-            <button
-              type="button"
-              onClick={this.handleRetry}
-              className="btn btn-primary"
-            >
+            <button type="button" onClick={this.handleRetry} className="btn btn-primary">
               <RefreshCw className="w-4 h-4" />
               Try Again
             </button>
           )}
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }
 
 interface ErrorStateWrapperProps {
-  error: Error | string | null
-  onRetry?: () => void
-  onAuthRequired?: () => void
-  children: ReactNode
+  error: Error | string | null;
+  onRetry?: () => void;
+  onAuthRequired?: () => void;
+  children: ReactNode;
 }
 
 export function SparseErrorStateWrapper({
   error,
   onRetry,
   onAuthRequired,
-  children
+  children,
 }: ErrorStateWrapperProps) {
   if (!error) {
-    return <>{children}</>
+    return <>{children}</>;
   }
 
-  const classifiedError = classifySparseError(error)
+  const classifiedError = classifySparseError(error);
 
   const handleAction = () => {
     if (classifiedError.requiresAuth && onAuthRequired) {
-      onAuthRequired()
+      onAuthRequired();
     } else if (classifiedError.retryable && onRetry) {
-      onRetry()
+      onRetry();
     }
-  }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center p-8 min-h-[200px]">
@@ -216,18 +204,15 @@ export function SparseErrorStateWrapper({
         </div>
       )}
 
-      {(classifiedError.retryable || classifiedError.requiresAuth) && (onRetry || onAuthRequired) && (
-        <button
-          type="button"
-          onClick={handleAction}
-          className="btn btn-primary"
-        >
-          <RefreshCw className="w-4 h-4" />
-          {classifiedError.requiresAuth ? 'Authenticate' : 'Try Again'}
-        </button>
-      )}
+      {(classifiedError.retryable || classifiedError.requiresAuth) &&
+        (onRetry || onAuthRequired) && (
+          <button type="button" onClick={handleAction} className="btn btn-primary">
+            <RefreshCw className="w-4 h-4" />
+            {classifiedError.requiresAuth ? 'Authenticate' : 'Try Again'}
+          </button>
+        )}
     </div>
-  )
+  );
 }
 
-export default SparseCheckoutErrorBoundary
+export default SparseCheckoutErrorBoundary;

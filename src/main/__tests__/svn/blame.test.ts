@@ -4,8 +4,8 @@
  * Tests the parsing and handling of svn blame command output
  */
 
-import { describe, it, expect } from 'vitest'
-import { parseSvnBlameXml } from '@main/ipc/svn'
+import { describe, it, expect } from 'vitest';
+import { parseSvnBlameXml } from '@main/ipc/svn';
 
 describe('SVN Blame Parser', () => {
   describe('parseSvnBlameXml', () => {
@@ -14,14 +14,14 @@ describe('SVN Blame Parser', () => {
 <blame>
   <target path="empty.txt">
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'empty.txt')
+      const result = parseSvnBlameXml(xml, 'empty.txt');
 
-      expect(result.lines).toHaveLength(0)
-      expect(result.startRevision).toBe(0)
-      expect(result.endRevision).toBe(0)
-    })
+      expect(result.lines).toHaveLength(0);
+      expect(result.startRevision).toBe(0);
+      expect(result.endRevision).toBe(0);
+    });
 
     it('should parse single line blame', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -35,18 +35,18 @@ describe('SVN Blame Parser', () => {
       <text>This is the first line</text>
     </entry>
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'test.txt')
+      const result = parseSvnBlameXml(xml, 'test.txt');
 
-      expect(result.lines).toHaveLength(1)
-      expect(result.lines[0].lineNumber).toBe(1)
-      expect(result.lines[0].revision).toBe(1234)
-      expect(result.lines[0].author).toBe('developer')
-      expect(result.lines[0].content).toBe('This is the first line')
-      expect(result.startRevision).toBe(1234)
-      expect(result.endRevision).toBe(1234)
-    })
+      expect(result.lines).toHaveLength(1);
+      expect(result.lines[0].lineNumber).toBe(1);
+      expect(result.lines[0].revision).toBe(1234);
+      expect(result.lines[0].author).toBe('developer');
+      expect(result.lines[0].content).toBe('This is the first line');
+      expect(result.startRevision).toBe(1234);
+      expect(result.endRevision).toBe(1234);
+    });
 
     it('should parse multiple lines with different authors', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -74,17 +74,17 @@ describe('SVN Blame Parser', () => {
       <text>// New comment</text>
     </entry>
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'test.ts')
+      const result = parseSvnBlameXml(xml, 'test.ts');
 
-      expect(result.lines).toHaveLength(3)
-      expect(result.lines[0].author).toBe('alice')
-      expect(result.lines[1].author).toBe('bob')
-      expect(result.lines[2].author).toBe('charlie')
-      expect(result.startRevision).toBe(1200)
-      expect(result.endRevision).toBe(1234)
-    })
+      expect(result.lines).toHaveLength(3);
+      expect(result.lines[0].author).toBe('alice');
+      expect(result.lines[1].author).toBe('bob');
+      expect(result.lines[2].author).toBe('charlie');
+      expect(result.startRevision).toBe(1200);
+      expect(result.endRevision).toBe(1234);
+    });
 
     it('should handle lines from same revision', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -112,17 +112,17 @@ describe('SVN Blame Parser', () => {
       <text>line 3</text>
     </entry>
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'test.ts')
+      const result = parseSvnBlameXml(xml, 'test.ts');
 
-      expect(result.lines).toHaveLength(3)
-      expect(result.startRevision).toBe(1234)
-      expect(result.endRevision).toBe(1234)
+      expect(result.lines).toHaveLength(3);
+      expect(result.startRevision).toBe(1234);
+      expect(result.endRevision).toBe(1234);
 
       // All lines should have same revision
-      expect(result.lines.every(l => l.revision === 1234)).toBe(true)
-    })
+      expect(result.lines.every((l) => l.revision === 1234)).toBe(true);
+    });
 
     it('should handle empty content lines', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -136,13 +136,13 @@ describe('SVN Blame Parser', () => {
       <text></text>
     </entry>
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'test.txt')
+      const result = parseSvnBlameXml(xml, 'test.txt');
 
-      expect(result.lines).toHaveLength(1)
-      expect(result.lines[0].content).toBe('')
-    })
+      expect(result.lines).toHaveLength(1);
+      expect(result.lines[0].content).toBe('');
+    });
 
     it('should preserve XML entities in content (not decoded by regex parser)', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -156,14 +156,14 @@ describe('SVN Blame Parser', () => {
       <text>const regex = /test&amp;pattern/;</text>
     </entry>
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'test.ts')
+      const result = parseSvnBlameXml(xml, 'test.ts');
 
       // Note: The blame parser uses regex parsing, not XML parser,
       // so XML entities are NOT automatically decoded
-      expect(result.lines[0].content).toContain('&amp;')
-    })
+      expect(result.lines[0].content).toContain('&amp;');
+    });
 
     it('should handle missing author gracefully', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -176,56 +176,59 @@ describe('SVN Blame Parser', () => {
       <text>line without author</text>
     </entry>
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'test.txt')
+      const result = parseSvnBlameXml(xml, 'test.txt');
 
-      expect(result.lines[0].author).toBe('unknown')
-    })
+      expect(result.lines[0].author).toBe('unknown');
+    });
 
     it('should handle large file with many lines', () => {
       // Generate XML for 100 lines
-      const entries = Array.from({ length: 100 }, (_, i) => `
+      const entries = Array.from(
+        { length: 100 },
+        (_, i) => `
     <entry line-number="${i + 1}">
       <commit revision="${1200 + i}">
         <author>dev${i % 5}</author>
         <date>2024-01-${String(10 + (i % 20)).padStart(2, '0')}T10:00:00.000000Z</date>
       </commit>
       <text>Line ${i + 1} content</text>
-    </entry>`).join('')
+    </entry>`
+      ).join('');
 
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <blame>
   <target path="large.txt">${entries}
   </target>
-</blame>`
+</blame>`;
 
-      const result = parseSvnBlameXml(xml, 'large.txt')
+      const result = parseSvnBlameXml(xml, 'large.txt');
 
-      expect(result.lines).toHaveLength(100)
-      expect(result.startRevision).toBe(1200)
-      expect(result.endRevision).toBe(1299)
-    })
-  })
-})
+      expect(result.lines).toHaveLength(100);
+      expect(result.startRevision).toBe(1200);
+      expect(result.endRevision).toBe(1299);
+    });
+  });
+});
 
 describe('SVN Blame Revision Range', () => {
   it('should generate correct args with revision range', () => {
-    const args = ['blame', '--xml', '-v', '-r', '1000:1234', 'src/file.ts']
+    const args = ['blame', '--xml', '-v', '-r', '1000:1234', 'src/file.ts'];
 
-    expect(args).toContain('-r')
-    expect(args[args.indexOf('-r') + 1]).toBe('1000:1234')
-  })
+    expect(args).toContain('-r');
+    expect(args[args.indexOf('-r') + 1]).toBe('1000:1234');
+  });
 
   it('should generate correct args without revision range', () => {
-    const args = ['blame', '--xml', '-v', 'src/file.ts']
+    const args = ['blame', '--xml', '-v', 'src/file.ts'];
 
-    expect(args).not.toContain('-r')
-  })
+    expect(args).not.toContain('-r');
+  });
 
   it('should include verbose flag', () => {
-    const args = ['blame', '--xml', '-v', 'src/file.ts']
+    const args = ['blame', '--xml', '-v', 'src/file.ts'];
 
-    expect(args).toContain('-v')
-  })
-})
+    expect(args).toContain('-v');
+  });
+});

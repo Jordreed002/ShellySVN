@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react';
 import {
   Activity,
   HardDrive,
@@ -15,8 +15,8 @@ import {
   XCircle,
   CheckCircle2,
   Gauge,
-  Timer
-} from 'lucide-react'
+  Timer,
+} from 'lucide-react';
 import {
   usePerformanceMonitor,
   formatBytes,
@@ -24,26 +24,23 @@ import {
   type PerformanceMetric,
   type PerformanceAlert,
   type MemorySnapshot,
-  type FrameRateSnapshot,
-  type PerformanceSummary,
   type PerformanceThresholds,
-  DEFAULT_THRESHOLDS
-} from '@renderer/hooks/usePerformanceMonitor'
+} from '@renderer/hooks/usePerformanceMonitor';
 
 /**
  * Props for PerformanceDashboard component
  */
 export interface PerformanceDashboardProps {
   /** Whether the dashboard is visible */
-  visible?: boolean
+  visible?: boolean;
   /** Callback when dashboard is closed */
-  onClose?: () => void
+  onClose?: () => void;
   /** Custom thresholds to display */
-  thresholds?: Partial<PerformanceThresholds>
+  thresholds?: Partial<PerformanceThresholds>;
   /** Whether to show detailed metrics */
-  detailed?: boolean
+  detailed?: boolean;
   /** Additional CSS classes */
-  className?: string
+  className?: string;
 }
 
 /**
@@ -70,7 +67,7 @@ export function PerformanceDashboard({
   onClose,
   thresholds = {},
   detailed = false,
-  className = ''
+  className = '',
 }: PerformanceDashboardProps) {
   const {
     metrics,
@@ -82,76 +79,76 @@ export function PerformanceDashboard({
     isOperationRunning,
     summary,
     clearMetrics,
-    clearFpsHistory,
-    clearMemoryHistory,
     getMetricsByCategory,
-    thresholds: activeThresholds
+    thresholds: activeThresholds,
   } = usePerformanceMonitor({
     thresholds,
     onAlert: (alert) => {
-      console.log(`[Performance ${alert.type.toUpperCase()}] ${alert.message}`)
-    }
-  })
+      console.log(`[Performance ${alert.type.toUpperCase()}] ${alert.message}`);
+    },
+  });
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     memory: true,
     fps: true,
     operations: true,
-    alerts: true
-  })
+    alerts: true,
+  });
 
-  const [selectedCategory, setSelectedCategory] = useState<PerformanceMetric['category'] | 'all'>('all')
+  const [selectedCategory, setSelectedCategory] = useState<PerformanceMetric['category'] | 'all'>(
+    'all'
+  );
 
   const toggleSection = useCallback((section: string) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
-      [section]: !prev[section]
-    }))
-  }, [])
+      [section]: !prev[section],
+    }));
+  }, []);
 
   // Filter metrics by category
   const filteredMetrics = useMemo(() => {
-    if (selectedCategory === 'all') return metrics
-    return getMetricsByCategory(selectedCategory)
-  }, [metrics, selectedCategory, getMetricsByCategory])
+    if (selectedCategory === 'all') return metrics;
+    return getMetricsByCategory(selectedCategory);
+  }, [metrics, selectedCategory, getMetricsByCategory]);
 
   // Calculate memory trend
   const memoryTrend = useMemo(() => {
-    if (memoryHistory.length < 2) return 'stable'
-    const recent = memoryHistory.slice(-5)
-    const avgRecent = recent.reduce((sum, m) => sum + m.usedJSHeapSize, 0) / recent.length
-    const older = memoryHistory.slice(0, -5)
-    if (older.length === 0) return 'stable'
-    const avgOlder = older.reduce((sum, m) => sum + m.usedJSHeapSize, 0) / older.length
+    if (memoryHistory.length < 2) return 'stable';
+    const recent = memoryHistory.slice(-5);
+    const avgRecent = recent.reduce((sum, m) => sum + m.usedJSHeapSize, 0) / recent.length;
+    const older = memoryHistory.slice(0, -5);
+    if (older.length === 0) return 'stable';
+    const avgOlder = older.reduce((sum, m) => sum + m.usedJSHeapSize, 0) / older.length;
 
-    const change = (avgRecent - avgOlder) / avgOlder
-    if (change > 0.05) return 'up'
-    if (change < -0.05) return 'down'
-    return 'stable'
-  }, [memoryHistory])
+    const change = (avgRecent - avgOlder) / avgOlder;
+    if (change > 0.05) return 'up';
+    if (change < -0.05) return 'down';
+    return 'stable';
+  }, [memoryHistory]);
 
   // Calculate FPS trend
   const fpsTrend = useMemo(() => {
-    if (fpsHistory.length < 2) return 'stable'
-    const recent = fpsHistory.slice(-5)
-    const avgRecent = recent.reduce((sum, f) => sum + f.fps, 0) / recent.length
-    const older = fpsHistory.slice(0, -5)
-    if (older.length === 0) return 'stable'
-    const avgOlder = older.reduce((sum, f) => sum + f.fps, 0) / older.length
+    if (fpsHistory.length < 2) return 'stable';
+    const recent = fpsHistory.slice(-5);
+    const avgRecent = recent.reduce((sum, f) => sum + f.fps, 0) / recent.length;
+    const older = fpsHistory.slice(0, -5);
+    if (older.length === 0) return 'stable';
+    const avgOlder = older.reduce((sum, f) => sum + f.fps, 0) / older.length;
 
-    if (avgRecent < avgOlder - 3) return 'down'
-    if (avgRecent > avgOlder + 3) return 'up'
-    return 'stable'
-  }, [fpsHistory])
+    if (avgRecent < avgOlder - 3) return 'down';
+    if (avgRecent > avgOlder + 3) return 'up';
+    return 'stable';
+  }, [fpsHistory]);
 
   // Count alerts by type
   const alertCounts = useMemo(() => {
-    const warnings = alerts.filter(a => a.type === 'warning').length
-    const critical = alerts.filter(a => a.type === 'critical').length
-    return { warnings, critical, total: warnings + critical }
-  }, [alerts])
+    const warnings = alerts.filter((a) => a.type === 'warning').length;
+    const critical = alerts.filter((a) => a.type === 'critical').length;
+    return { warnings, critical, total: warnings + critical };
+  }, [alerts]);
 
-  if (!visible) return null
+  if (!visible) return null;
 
   return (
     <div className={`bg-slate-900 text-white rounded-lg shadow-2xl overflow-hidden ${className}`}>
@@ -195,7 +192,9 @@ export function PerformanceDashboard({
           icon={<HardDrive className="w-4 h-4" />}
           label="Memory"
           value={memory ? formatBytes(memory.usedJSHeapSize) : 'N/A'}
-          subValue={memory ? `${((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100).toFixed(0)}%` : ''}
+          subValue={
+            memory ? `${((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100).toFixed(0)}%` : ''
+          }
           status={getMemoryStatus(memory, activeThresholds.maxMemoryMB)}
           trend={memoryTrend}
         />
@@ -219,7 +218,9 @@ export function PerformanceDashboard({
           label="Alerts"
           value={`${alertCounts.total}`}
           subValue={`${alertCounts.critical} critical`}
-          status={alertCounts.critical > 0 ? 'critical' : alertCounts.warnings > 0 ? 'warning' : 'good'}
+          status={
+            alertCounts.critical > 0 ? 'critical' : alertCounts.warnings > 0 ? 'warning' : 'good'
+          }
         />
       </div>
 
@@ -263,7 +264,7 @@ export function PerformanceDashboard({
               )}
               {detailed && memoryHistory.length > 1 && (
                 <SparklineChart
-                  data={memoryHistory.map(m => m.usedJSHeapSize / (1024 * 1024))}
+                  data={memoryHistory.map((m) => m.usedJSHeapSize / (1024 * 1024))}
                   label="Memory (MB)"
                   color="#60a5fa"
                 />
@@ -294,12 +295,12 @@ export function PerformanceDashboard({
               </div>
               <div>
                 <span className="text-slate-400">Dropped Frames</span>
-                <p className="font-mono">{fpsHistory.filter(f => f.droppedFrame).length}</p>
+                <p className="font-mono">{fpsHistory.filter((f) => f.droppedFrame).length}</p>
               </div>
             </div>
             {detailed && fpsHistory.length > 1 && (
               <SparklineChart
-                data={fpsHistory.map(f => f.fps)}
+                data={fpsHistory.map((f) => f.fps)}
                 label="FPS"
                 color="#34d399"
                 max={60}
@@ -319,7 +320,7 @@ export function PerformanceDashboard({
           <div className="space-y-3">
             {/* Category Filter */}
             <div className="flex gap-1 flex-wrap">
-              {(['all', 'scan', 'render', 'memory', 'network', 'ui'] as const).map(cat => (
+              {(['all', 'scan', 'render', 'memory', 'network', 'ui'] as const).map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
@@ -339,9 +340,10 @@ export function PerformanceDashboard({
               {filteredMetrics.length === 0 ? (
                 <p className="text-slate-400 text-sm">No operations recorded</p>
               ) : (
-                filteredMetrics.slice(-20).reverse().map(metric => (
-                  <MetricRow key={metric.id} metric={metric} />
-                ))
+                filteredMetrics
+                  .slice(-20)
+                  .toReversed()
+                  .map((metric) => <MetricRow key={metric.id} metric={metric} />)
               )}
             </div>
 
@@ -374,9 +376,12 @@ export function PerformanceDashboard({
             {alerts.length === 0 ? (
               <p className="text-slate-400 text-sm">No alerts</p>
             ) : (
-              alerts.slice(-10).reverse().map((alert, index) => (
-                <AlertRow key={`${alert.timestamp}-${index}`} alert={alert} />
-              ))
+              alerts
+                .slice(-10)
+                .toReversed()
+                .map((alert, index) => (
+                  <AlertRow key={`${alert.timestamp}-${index}`} alert={alert} />
+                ))
             )}
           </div>
         </ExpandableSection>
@@ -388,16 +393,15 @@ export function PerformanceDashboard({
           <div className="flex justify-between">
             <span>Thresholds:</span>
             <span>
-              Scan: {formatDuration(activeThresholds.maxScanTime)} |
-              Memory: {activeThresholds.maxMemoryMB}MB |
-              FPS: {activeThresholds.minFps} |
-              Render: {formatDuration(activeThresholds.maxRenderTime)}
+              Scan: {formatDuration(activeThresholds.maxScanTime)} | Memory:{' '}
+              {activeThresholds.maxMemoryMB}MB | FPS: {activeThresholds.minFps} | Render:{' '}
+              {formatDuration(activeThresholds.maxRenderTime)}
             </span>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -405,46 +409,54 @@ export function PerformanceDashboard({
 // ============================================
 
 interface SummaryCardProps {
-  icon: React.ReactNode
-  label: string
-  value: string
-  subValue?: string
-  status: 'good' | 'warning' | 'critical'
-  trend?: 'up' | 'down' | 'stable'
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  subValue?: string;
+  status: 'good' | 'warning' | 'critical';
+  trend?: 'up' | 'down' | 'stable';
 }
 
 function SummaryCard({ icon, label, value, subValue, status, trend }: SummaryCardProps) {
   const statusColors = {
     good: 'text-green-400',
     warning: 'text-yellow-400',
-    critical: 'text-red-400'
-  }
+    critical: 'text-red-400',
+  };
 
-  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus
+  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
 
   return (
     <div className="bg-slate-800 p-3">
       <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
         {icon}
         <span>{label}</span>
-        {trend && <TrendIcon className={`w-3 h-3 ${
-          trend === 'up' ? 'text-red-400' : trend === 'down' ? 'text-green-400' : 'text-slate-500'
-        }`} />}
+        {trend && (
+          <TrendIcon
+            className={`w-3 h-3 ${
+              trend === 'up'
+                ? 'text-red-400'
+                : trend === 'down'
+                  ? 'text-green-400'
+                  : 'text-slate-500'
+            }`}
+          />
+        )}
       </div>
       <p className={`text-lg font-semibold ${statusColors[status]}`}>{value}</p>
       {subValue && <p className="text-xs text-slate-500">{subValue}</p>}
     </div>
-  )
+  );
 }
 
 interface ExpandableSectionProps {
-  title: string
-  icon: React.ReactNode
-  expanded: boolean
-  onToggle: () => void
-  children: React.ReactNode
-  badge?: number | string
-  badgeColor?: 'yellow' | 'red'
+  title: string;
+  icon: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  badge?: number | string;
+  badgeColor?: 'yellow' | 'red';
 }
 
 function ExpandableSection({
@@ -454,7 +466,7 @@ function ExpandableSection({
   onToggle,
   children,
   badge,
-  badgeColor = 'yellow'
+  badgeColor = 'yellow',
 }: ExpandableSectionProps) {
   return (
     <div>
@@ -466,9 +478,13 @@ function ExpandableSection({
           {icon}
           <span className="font-medium">{title}</span>
           {badge !== undefined && (
-            <span className={`px-1.5 py-0.5 text-xs rounded ${
-              badgeColor === 'red' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
-            }`}>
+            <span
+              className={`px-1.5 py-0.5 text-xs rounded ${
+                badgeColor === 'red'
+                  ? 'bg-red-500/20 text-red-400'
+                  : 'bg-yellow-500/20 text-yellow-400'
+              }`}
+            >
               {badge}
             </span>
           )}
@@ -479,24 +495,20 @@ function ExpandableSection({
           <ChevronDown className="w-4 h-4 text-slate-400" />
         )}
       </button>
-      {expanded && (
-        <div className="px-4 py-3 bg-slate-800/30">
-          {children}
-        </div>
-      )}
+      {expanded && <div className="px-4 py-3 bg-slate-800/30">{children}</div>}
     </div>
-  )
+  );
 }
 
 interface MemoryBarProps {
-  memory: MemorySnapshot
-  maxMemoryMB: number
+  memory: MemorySnapshot;
+  maxMemoryMB: number;
 }
 
 function MemoryBar({ memory, maxMemoryMB }: MemoryBarProps) {
-  const usedMB = memory.usedJSHeapSize / (1024 * 1024)
-  const percentage = (usedMB / maxMemoryMB) * 100
-  const isOverLimit = usedMB > maxMemoryMB
+  const usedMB = memory.usedJSHeapSize / (1024 * 1024);
+  const percentage = (usedMB / maxMemoryMB) * 100;
+  const isOverLimit = usedMB > maxMemoryMB;
 
   return (
     <div className="space-y-1">
@@ -513,17 +525,17 @@ function MemoryBar({ memory, maxMemoryMB }: MemoryBarProps) {
         <span>{maxMemoryMB} MB limit</span>
       </div>
     </div>
-  )
+  );
 }
 
 interface FpsBarProps {
-  fps: number
-  minFps: number
+  fps: number;
+  minFps: number;
 }
 
 function FpsBar({ fps, minFps }: FpsBarProps) {
-  const percentage = (fps / 60) * 100
-  const isBelowTarget = fps < minFps
+  const percentage = (fps / 60) * 100;
+  const isBelowTarget = fps < minFps;
 
   return (
     <div className="space-y-1">
@@ -540,11 +552,11 @@ function FpsBar({ fps, minFps }: FpsBarProps) {
         <span>60 fps target</span>
       </div>
     </div>
-  )
+  );
 }
 
 interface MetricRowProps {
-  metric: PerformanceMetric
+  metric: PerformanceMetric;
 }
 
 function MetricRow({ metric }: MetricRowProps) {
@@ -553,46 +565,48 @@ function MetricRow({ metric }: MetricRowProps) {
     render: 'text-purple-400',
     memory: 'text-orange-400',
     network: 'text-cyan-400',
-    ui: 'text-green-400'
-  }
+    ui: 'text-green-400',
+  };
 
-  const statusIcon = metric.isRunning
-    ? <RefreshCw className="w-3 h-3 animate-spin text-yellow-400" />
-    : metric.metadata?.error
-      ? <XCircle className="w-3 h-3 text-red-400" />
-      : <CheckCircle2 className="w-3 h-3 text-green-400" />
+  const statusIcon = metric.isRunning ? (
+    <RefreshCw className="w-3 h-3 animate-spin text-yellow-400" />
+  ) : metric.metadata?.error ? (
+    <XCircle className="w-3 h-3 text-red-400" />
+  ) : (
+    <CheckCircle2 className="w-3 h-3 text-green-400" />
+  );
 
   return (
     <div className="flex items-center gap-2 py-1 px-2 rounded bg-slate-700/50 text-sm">
       {statusIcon}
-      <span className={`font-medium ${categoryColors[metric.category]}`}>
-        {metric.name}
-      </span>
-      <span className="text-slate-400 text-xs">
-        {metric.category}
-      </span>
+      <span className={`font-medium ${categoryColors[metric.category]}`}>{metric.name}</span>
+      <span className="text-slate-400 text-xs">{metric.category}</span>
       <span className="ml-auto font-mono text-xs">
         {metric.isRunning ? 'running...' : formatDuration(metric.duration)}
       </span>
     </div>
-  )
+  );
 }
 
 interface AlertRowProps {
-  alert: PerformanceAlert
+  alert: PerformanceAlert;
 }
 
 function AlertRow({ alert }: AlertRowProps) {
-  const Icon = alert.type === 'critical' ? AlertCircle : AlertTriangle
-  const time = new Date(alert.timestamp).toLocaleTimeString()
+  const Icon = alert.type === 'critical' ? AlertCircle : AlertTriangle;
+  const time = new Date(alert.timestamp).toLocaleTimeString();
 
   return (
-    <div className={`flex items-start gap-2 py-2 px-2 rounded text-sm ${
-      alert.type === 'critical' ? 'bg-red-500/10' : 'bg-yellow-500/10'
-    }`}>
-      <Icon className={`w-4 h-4 flex-shrink-0 ${
-        alert.type === 'critical' ? 'text-red-400' : 'text-yellow-400'
-      }`} />
+    <div
+      className={`flex items-start gap-2 py-2 px-2 rounded text-sm ${
+        alert.type === 'critical' ? 'bg-red-500/10' : 'bg-yellow-500/10'
+      }`}
+    >
+      <Icon
+        className={`w-4 h-4 flex-shrink-0 ${
+          alert.type === 'critical' ? 'text-red-400' : 'text-yellow-400'
+        }`}
+      />
       <div className="flex-1 min-w-0">
         <p className="text-white">{alert.message}</p>
         <p className="text-xs text-slate-400 mt-0.5">
@@ -600,23 +614,25 @@ function AlertRow({ alert }: AlertRowProps) {
         </p>
       </div>
     </div>
-  )
+  );
 }
 
 interface SparklineChartProps {
-  data: number[]
-  label: string
-  color: string
-  max?: number
+  data: number[];
+  label: string;
+  color: string;
+  max?: number;
 }
 
 function SparklineChart({ data, label, color, max }: SparklineChartProps) {
-  const maxValue = max ?? Math.max(...data, 1)
-  const points = data.map((value, index) => {
-    const x = (index / Math.max(data.length - 1, 1)) * 100
-    const y = 100 - (value / maxValue) * 100
-    return `${x},${y}`
-  }).join(' ')
+  const maxValue = max ?? Math.max(...data, 1);
+  const points = data
+    .map((value, index) => {
+      const x = (index / Math.max(data.length - 1, 1)) * 100;
+      const y = 100 - (value / maxValue) * 100;
+      return `${x},${y}`;
+    })
+    .join(' ');
 
   return (
     <div className="space-y-1">
@@ -631,32 +647,35 @@ function SparklineChart({ data, label, color, max }: SparklineChartProps) {
         />
       </svg>
     </div>
-  )
+  );
 }
 
 // ============================================
 // Helper functions
 // ============================================
 
-function getMemoryStatus(memory: MemorySnapshot | null, maxMemoryMB: number): 'good' | 'warning' | 'critical' {
-  if (!memory) return 'good'
-  const usedMB = memory.usedJSHeapSize / (1024 * 1024)
-  if (usedMB > maxMemoryMB) return 'critical'
-  if (usedMB > maxMemoryMB * 0.8) return 'warning'
-  return 'good'
+function getMemoryStatus(
+  memory: MemorySnapshot | null,
+  maxMemoryMB: number
+): 'good' | 'warning' | 'critical' {
+  if (!memory) return 'good';
+  const usedMB = memory.usedJSHeapSize / (1024 * 1024);
+  if (usedMB > maxMemoryMB) return 'critical';
+  if (usedMB > maxMemoryMB * 0.8) return 'warning';
+  return 'good';
 }
 
 function getFpsStatus(fps: number, minFps: number): 'good' | 'warning' | 'critical' {
-  if (fps < minFps - 5) return 'critical'
-  if (fps < minFps) return 'warning'
-  return 'good'
+  if (fps < minFps - 5) return 'critical';
+  if (fps < minFps) return 'warning';
+  return 'good';
 }
 
 function getScanStatus(avgScanTime: number, maxScanTime: number): 'good' | 'warning' | 'critical' {
-  if (avgScanTime === 0) return 'good'
-  if (avgScanTime > maxScanTime * 1.5) return 'critical'
-  if (avgScanTime > maxScanTime) return 'warning'
-  return 'good'
+  if (avgScanTime === 0) return 'good';
+  if (avgScanTime > maxScanTime * 1.5) return 'critical';
+  if (avgScanTime > maxScanTime) return 'warning';
+  return 'good';
 }
 
-export default PerformanceDashboard
+export default PerformanceDashboard;

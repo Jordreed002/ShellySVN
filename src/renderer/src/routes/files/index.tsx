@@ -1,6 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { FileExplorer } from '@renderer/components/FileExplorer'
-import { RouteErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { createFileRoute } from '@tanstack/react-router';
+import { FileExplorer } from '@renderer/components/FileExplorer';
+import { RouteErrorBoundary } from '@renderer/components/ErrorBoundary';
 
 export const Route = createFileRoute('/files/')({
   component: () => (
@@ -10,7 +10,7 @@ export const Route = createFileRoute('/files/')({
   ),
   validateSearch: (search: Record<string, unknown>) => {
     return {
-      path: (search.path as string) || '/'
-    }
-  }
-})
+      path: (search.path as string) || '/',
+    };
+  },
+});

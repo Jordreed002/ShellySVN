@@ -1,7 +1,13 @@
-import { FileText, Circle, AlertTriangle, Plus, Minus, HelpCircle } from 'lucide-react'
-import type { TutorialStepProps } from './types'
+import { FileText, Circle, AlertTriangle, Plus, Minus, HelpCircle } from 'lucide-react';
+import type { TutorialStepProps } from './types';
 
-export function StatusViewStep({ onNext, onPrevious, onSkip, currentStep, totalSteps }: TutorialStepProps) {
+export function StatusViewStep({
+  onNext,
+  onPrevious,
+  onSkip,
+  currentStep,
+  totalSteps,
+}: TutorialStepProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
@@ -11,7 +17,8 @@ export function StatusViewStep({ onNext, onPrevious, onSkip, currentStep, totalS
         <div>
           <h2 className="text-xl font-semibold text-text">Understanding File Status</h2>
           <p className="text-text-secondary mt-1">
-            ShellySVN uses color-coded indicators to show the status of each file in your working copy.
+            ShellySVN uses color-coded indicators to show the status of each file in your working
+            copy.
           </p>
         </div>
       </div>
@@ -22,7 +29,11 @@ export function StatusViewStep({ onNext, onPrevious, onSkip, currentStep, totalS
         <StatusItem color="bg-svn-modified" label="Modified" description="Local changes detected" />
         <StatusItem color="bg-svn-deleted" label="Deleted" description="Scheduled for deletion" />
         <StatusItem color="bg-svn-conflict" label="Conflict" description="Needs resolution" />
-        <StatusItem color="bg-svn-unversioned" label="Unversioned" description="Not under SVN control" />
+        <StatusItem
+          color="bg-svn-unversioned"
+          label="Unversioned"
+          description="Not under SVN control"
+        />
       </div>
 
       <div className="p-4 bg-bg-tertiary rounded-lg border border-border">
@@ -74,7 +85,7 @@ export function StatusViewStep({ onNext, onPrevious, onSkip, currentStep, totalS
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function StatusItem({
@@ -82,9 +93,9 @@ function StatusItem({
   label,
   description,
 }: {
-  color: string
-  label: string
-  description: string
+  color: string;
+  label: string;
+  description: string;
 }) {
   return (
     <div className="flex items-center gap-3 p-3 bg-bg-secondary rounded-lg border border-border">
@@ -94,5 +105,5 @@ function StatusItem({
         <div className="text-xs text-text-secondary">{description}</div>
       </div>
     </div>
-  )
+  );
 }

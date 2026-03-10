@@ -1,20 +1,24 @@
-import { useState, useCallback } from 'react'
-import { FileText, Plus, Trash2, Edit2, Check, X, Star } from 'lucide-react'
-import { useCommitTemplates, applyTemplateString, type CommitTemplate } from '../../hooks/useCommitTemplates'
+import { useState, useCallback } from 'react';
+import { FileText, Plus, Trash2, Edit2, Check, X, Star } from 'lucide-react';
+import {
+  useCommitTemplates,
+  applyTemplateString,
+  type CommitTemplate,
+} from '../../hooks/useCommitTemplates';
 
 interface CommitTemplateManagerProps {
-  onSelectTemplate?: (template: string) => void
-  repositoryPath?: string
-  className?: string
+  onSelectTemplate?: (template: string) => void;
+  repositoryPath?: string;
+  className?: string;
 }
 
 /**
  * UI for managing commit message templates
  */
-export function CommitTemplateManager({ 
-  onSelectTemplate, 
+export function CommitTemplateManager({
+  onSelectTemplate,
   repositoryPath,
-  className = '' 
+  className = '',
 }: CommitTemplateManagerProps) {
   const {
     templates,
@@ -23,85 +27,92 @@ export function CommitTemplateManager({
     updateTemplate,
     deleteTemplate,
     getDefaultTemplate,
-    setDefaultTemplate
-  } = useCommitTemplates()
-  
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<Partial<CommitTemplate>>({})
-  const [showNewForm, setShowNewForm] = useState(false)
-  const [previewTemplate, setPreviewTemplate] = useState<string | null>(null)
-  
-  const relevantTemplates = repositoryPath 
-    ? templates.filter(t => t.repositoryPath === repositoryPath || !t.repositoryPath)
-    : templates.filter(t => !t.repositoryPath)
-  
-  const defaultTemplate = getDefaultTemplate(repositoryPath)
-  
+    setDefaultTemplate,
+  } = useCommitTemplates();
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<CommitTemplate>>({});
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
+
+  const relevantTemplates = repositoryPath
+    ? templates.filter((t) => t.repositoryPath === repositoryPath || !t.repositoryPath)
+    : templates.filter((t) => !t.repositoryPath);
+
+  const defaultTemplate = getDefaultTemplate(repositoryPath);
+
   const handleEdit = useCallback((template: CommitTemplate) => {
-    setEditingId(template.id)
-    setEditForm(template)
-  }, [])
-  
+    setEditingId(template.id);
+    setEditForm(template);
+  }, []);
+
   const handleSave = useCallback(async () => {
-    if (!editingId) return
-    await updateTemplate(editingId, editForm)
-    setEditingId(null)
-    setEditForm({})
-  }, [editingId, editForm, updateTemplate])
-  
+    if (!editingId) return;
+    await updateTemplate(editingId, editForm);
+    setEditingId(null);
+    setEditForm({});
+  }, [editingId, editForm, updateTemplate]);
+
   const handleCancel = useCallback(() => {
-    setEditingId(null)
-    setEditForm({})
-    setShowNewForm(false)
-  }, [])
-  
+    setEditingId(null);
+    setEditForm({});
+    setShowNewForm(false);
+  }, []);
+
   const handleAdd = useCallback(async () => {
-    if (!editForm.name || !editForm.template) return
-    
+    if (!editForm.name || !editForm.template) return;
+
     await addTemplate({
       name: editForm.name,
       description: editForm.description,
       template: editForm.template,
-      repositoryPath
-    })
-    
-    setShowNewForm(false)
-    setEditForm({})
-  }, [editForm, addTemplate, repositoryPath])
-  
-  const handleDelete = useCallback(async (id: string) => {
-    if (confirm('Are you sure you want to delete this template?')) {
-      await deleteTemplate(id)
-    }
-  }, [deleteTemplate])
-  
-  const handleSetDefault = useCallback(async (id: string) => {
-    await setDefaultTemplate(id)
-  }, [setDefaultTemplate])
-  
+      repositoryPath,
+    });
+
+    setShowNewForm(false);
+    setEditForm({});
+  }, [editForm, addTemplate, repositoryPath]);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (confirm('Are you sure you want to delete this template?')) {
+        await deleteTemplate(id);
+      }
+    },
+    [deleteTemplate]
+  );
+
+  const handleSetDefault = useCallback(
+    async (id: string) => {
+      await setDefaultTemplate(id);
+    },
+    [setDefaultTemplate]
+  );
+
   const handlePreview = useCallback(async (template: CommitTemplate) => {
     const preview = await applyTemplateString(template.template, {
       description: 'Example commit description',
       files: 'file1.ts\nfile2.ts',
       type: 'feat',
-      scope: 'core'
-    })
-    setPreviewTemplate(preview)
-  }, [])
-  
-  const handleSelect = useCallback(async (template: CommitTemplate) => {
-    const applied = await applyTemplateString(template.template)
-    onSelectTemplate?.(applied)
-  }, [onSelectTemplate])
-  
+      scope: 'core',
+    });
+    setPreviewTemplate(preview);
+  }, []);
+
+  const handleSelect = useCallback(
+    async (template: CommitTemplate) => {
+      const applied = await applyTemplateString(template.template);
+      onSelectTemplate?.(applied);
+    },
+    [onSelectTemplate]
+  );
+
   if (isLoading) {
     return (
-      <div className={`p-4 text-center text-slate-500 ${className}`}>
-        Loading templates...
-      </div>
-    )
+      <div className={`p-4 text-center text-slate-500 ${className}`}>Loading templates...</div>
+    );
   }
-  
+
   return (
     <div className={`bg-white dark:bg-slate-800 rounded-lg ${className}`}>
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
@@ -117,11 +128,11 @@ export function CommitTemplateManager({
           New Template
         </button>
       </div>
-      
+
       {/* Template List */}
       <div className="divide-y divide-slate-200 dark:divide-slate-700">
-        {relevantTemplates.map(template => (
-          <div 
+        {relevantTemplates.map((template) => (
+          <div
             key={template.id}
             className={`p-4 ${template.isDefault ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
           >
@@ -131,13 +142,13 @@ export function CommitTemplateManager({
                 <input
                   type="text"
                   value={editForm.name || ''}
-                  onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Template name"
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                 />
                 <textarea
                   value={editForm.template || ''}
-                  onChange={e => setEditForm(prev => ({ ...prev, template: e.target.value }))}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, template: e.target.value }))}
                   placeholder="Template content with {{variables}}"
                   rows={6}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono text-sm"
@@ -228,14 +239,14 @@ export function CommitTemplateManager({
             )}
           </div>
         ))}
-        
+
         {relevantTemplates.length === 0 && !showNewForm && (
           <div className="p-8 text-center text-slate-500 dark:text-slate-400">
             No templates yet. Click "New Template" to create one.
           </div>
         )}
       </div>
-      
+
       {/* New Template Form */}
       {showNewForm && (
         <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
@@ -244,19 +255,20 @@ export function CommitTemplateManager({
             <input
               type="text"
               value={editForm.name || ''}
-              onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
               placeholder="Template name"
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
             />
             <textarea
               value={editForm.template || ''}
-              onChange={e => setEditForm(prev => ({ ...prev, template: e.target.value }))}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, template: e.target.value }))}
               placeholder="Template content with {{variables}}"
               rows={6}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono text-sm"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Available variables: {`{{date}}, {{time}}, {{datetime}}, {{username}}, {{branch}}, {{files}}`}
+              Available variables:{' '}
+              {`{{date}}, {{time}}, {{datetime}}, {{username}}, {{branch}}, {{files}}`}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -275,7 +287,7 @@ export function CommitTemplateManager({
           </div>
         </div>
       )}
-      
+
       {/* Preview Modal */}
       {previewTemplate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -296,7 +308,7 @@ export function CommitTemplateManager({
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default CommitTemplateManager
+export default CommitTemplateManager;
