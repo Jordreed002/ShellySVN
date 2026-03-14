@@ -123,6 +123,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   svnConfigPath: '',
   logCachePath: '',
   maxLogCacheSize: 100,
+
+  // Tutorial
+  hasCompletedTutorial: false,
+  tutorialStep: 0,
 };
 
 const MAX_RECENT_REPOS = 10;
