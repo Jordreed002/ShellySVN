@@ -20,6 +20,8 @@ import type {
   SvnLockResult,
   SvnUnlockResult,
   RepoDiagnostics,
+  CheckoutProgress,
+  CheckoutOptions,
 } from '@shared/types';
 
 const api: ElectronAPI = {
@@ -74,6 +76,44 @@ const api: ElectronAPI = {
     lockList: (path) => ipcRenderer.invoke('svn:lockList', path) as Promise<SvnLockInfo[]>,
     checkout: (url, path, revision?, depth?, options?) =>
       ipcRenderer.invoke('svn:checkout', url, path, revision, depth, options),
+    checkoutWithProgress: (
+      url: string,
+      path: string,
+      onProgress: (progress: CheckoutProgress) => void,
+      revision?: string,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: CheckoutOptions
+    ) => {
+      // Set up progress listener
+      const handler = (_: unknown, progress: unknown) => {
+        onProgress(progress as CheckoutProgress);
+      };
+
+      ipcRenderer.on('svn:checkout:progress', handler);
+
+      // Start the checkout
+      const promise = ipcRenderer.invoke(
+        'svn:checkoutWithProgress',
+        url,
+        path,
+        revision,
+        depth,
+        options
+      ) as Promise<{ success: boolean; revision: number; output?: string }>;
+
+      // Return a modified promise that cleans up the listener when done
+      return promise.then(
+        (result) => {
+          ipcRenderer.removeListener('svn:checkout:progress', handler);
+          return result;
+        },
+        (error) => {
+          ipcRenderer.removeListener('svn:checkout:progress', handler);
+          throw error;
+        }
+      );
+    },
+    cancelCheckout: () => ipcRenderer.invoke('svn:cancelCheckout'),
     export: (url, path, revision?) => ipcRenderer.invoke('svn:export', url, path, revision),
     import: (path, url, message) => ipcRenderer.invoke('svn:import', path, url, message),
     resolve: (path, resolution) => ipcRenderer.invoke('svn:resolve', path, resolution),

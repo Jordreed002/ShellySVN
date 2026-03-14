@@ -1312,6 +1312,253 @@ export function registerSvnHandlers(): void {
     }
   );
 
+  /**
+   * Parse checkout progress from SVN output lines
+   */
+  function parseCheckoutProgress(line: string): {
+    action: 'A' | 'U' | 'D' | 'G' | 'E' | 'C' | null;
+    path: string | null;
+  } {
+    const match = line.match(/^([AUCDGE])\s+(.+)$/);
+    if (match) {
+      return { action: match[1] as 'A' | 'U' | 'D' | 'G' | 'E' | 'C', path: match[2].trim() };
+    }
+    return { action: null, path: null };
+  }
+
+  /**
+   * Map to track active checkout processes for cancellation
+   */
+  const activeCheckouts = new Map<string, import('child_process').ChildProcess>();
+
+  // SVN Checkout with Progress Streaming
+  ipcMain.handle(
+    'svn:checkoutWithProgress',
+    async (
+      event,
+      checkoutId: string,
+      url: string,
+      path: string,
+      revision?: string,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: CheckoutOptions
+    ) => {
+      const settingsManager = getSettingsManager();
+      const svnCommand = settingsManager.getSvnClientPath();
+      const globalContext = settingsManager.getSvnExecutionContext();
+
+      // Build args similar to regular checkout
+      const args = ['checkout', '--non-interactive'];
+
+      if (revision) args.push('-r', revision);
+      if (depth) args.push('--depth', depth);
+
+      if (options?.sparsePaths && options.sparsePaths.length > 0) {
+        args.push('--depth', 'empty');
+        options.sparsePaths.forEach((p) => args.push(p));
+      }
+
+      // Build execution context
+      const operationContext: Partial<SvnExecutionContext> = {};
+
+      if (options?.trustSsl) {
+        const failures = options.sslFailures || ['unknown-ca'];
+        const failureStr = failures
+          .map((f) => {
+            switch (f) {
+              case 'untrusted-issuer':
+              case 'unknown-ca':
+                return 'unknown-ca';
+              case 'hostname-mismatch':
+              case 'cn-mismatch':
+                return 'cn-mismatch';
+              case 'expired':
+                return 'expired';
+              case 'not-yet-valid':
+                return 'not-yet-valid';
+              default:
+                return 'other';
+            }
+          })
+          .join(',');
+
+        args.push('--trust-server-cert-failures', failureStr);
+      }
+
+      if (options?.credentials) {
+        args.push('--username', options.credentials.username);
+        if (options.credentials.password) {
+          args.push('--password', options.credentials.password);
+        }
+      }
+
+      args.push(url, path);
+
+      // Merge contexts for proxy/timeout settings
+      const context: SvnExecutionContext = {
+        proxySettings: operationContext?.proxySettings ?? globalContext.proxySettings,
+        connectionTimeout: operationContext?.connectionTimeout ?? globalContext.connectionTimeout,
+        sslVerify: operationContext?.sslVerify ?? globalContext.sslVerify,
+        clientCertificatePath:
+          operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath,
+      };
+
+      // Create temp config if proxy settings are provided
+      let tempConfigDir: string | null = null;
+      if (context.proxySettings?.enabled) {
+        tempConfigDir = await createTempSvnConfig(context.proxySettings);
+      }
+
+      return new Promise((resolve) => {
+        const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
+        const finalArgs: string[] = [];
+
+        if (tempConfigDir) {
+          finalArgs.push('--config-dir', tempConfigDir);
+        }
+
+        finalArgs.push(...args);
+
+        // Apply SSL bypass if needed
+        const shouldBypassSsl = context.sslVerify === false || options?.trustSsl;
+        if (shouldBypassSsl) {
+          if (!finalArgs.includes('--non-interactive')) {
+            finalArgs.push('--non-interactive');
+          }
+          const failures = ALLOWED_SSL_FAILURES.join(',');
+          finalArgs.push('--trust-server-cert-failures', failures);
+        }
+
+        // Add client certificate if configured
+        if (context.clientCertificatePath && context.clientCertificatePath.trim()) {
+          finalArgs.push('--certificate', context.clientCertificatePath.trim());
+        }
+
+        debug.log(`[SVN] Running checkout with progress: svn ${finalArgs.join(' ')} in ${path}`);
+
+        const proc = spawn(svnCommand, finalArgs, {
+          cwd: process.cwd(),
+          env,
+          windowsHide: true,
+        });
+
+        // Track active checkout for cancellation
+        activeCheckouts.set(checkoutId, proc);
+
+        let stdout = '';
+        let stderr = '';
+        let lastProgressTime = 0;
+        const PROGRESS_THROTTLE_MS = 500;
+        let filesProcessed = 0;
+        let currentPath = '';
+
+        proc.stdout.on('data', (data) => {
+          const chunk = data.toString();
+          stdout += chunk;
+
+          // Parse progress from output
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            const progress = parseCheckoutProgress(line);
+            if (progress.action && progress.path) {
+              filesProcessed++;
+              currentPath = progress.path;
+
+              // Throttle progress events
+              const now = Date.now();
+              if (now - lastProgressTime >= PROGRESS_THROTTLE_MS) {
+                lastProgressTime = now;
+                event.sender.send('svn:checkout:progress', {
+                  checkoutId,
+                  action: progress.action,
+                  path: progress.path,
+                  filesProcessed,
+                });
+              }
+            }
+          }
+        });
+
+        proc.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        // Set up timeout if specified
+        let timeoutId: NodeJS.Timeout | null = null;
+        if (context.connectionTimeout && context.connectionTimeout > 0) {
+          timeoutId = setTimeout(() => {
+            proc.kill();
+            activeCheckouts.delete(checkoutId);
+            if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
+            resolve({
+              success: false,
+              revision: 0,
+              output: `Checkout timed out after ${context.connectionTimeout} seconds`,
+            });
+          }, context.connectionTimeout * 1000);
+        }
+
+        proc.on('close', (code) => {
+          if (timeoutId) clearTimeout(timeoutId);
+          activeCheckouts.delete(checkoutId);
+          if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
+
+          debug.log(`[SVN] Checkout exit code: ${code}`);
+
+          // Send final progress update with current path
+          if (currentPath) {
+            event.sender.send('svn:checkout:progress', {
+              checkoutId,
+              action: null,
+              path: currentPath,
+              filesProcessed,
+            });
+          }
+
+          if (code === 0) {
+            const match = stdout.match(/Checked out revision (\d+)\./);
+            resolve({
+              success: true,
+              revision: match ? parseInt(match[1], 10) : 0,
+              output: stdout,
+              filesProcessed,
+            });
+          } else {
+            resolve({
+              success: false,
+              revision: 0,
+              output: stderr || `SVN exited with code ${code}`,
+            });
+          }
+        });
+
+        proc.on('error', (err) => {
+          if (timeoutId) clearTimeout(timeoutId);
+          activeCheckouts.delete(checkoutId);
+          if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
+          debug.error(`[SVN] Checkout error:`, err);
+          resolve({
+            success: false,
+            revision: 0,
+            output: err.message,
+          });
+        });
+      });
+    }
+  );
+
+  // SVN Cancel Checkout
+  ipcMain.handle('svn:cancelCheckout', async (_, checkoutId: string) => {
+    const proc = activeCheckouts.get(checkoutId);
+    if (proc) {
+      proc.kill();
+      activeCheckouts.delete(checkoutId);
+      debug.log(`[SVN] Cancelled checkout: ${checkoutId}`);
+      return { success: true };
+    }
+    return { success: false, error: 'No active checkout found with that ID' };
+  });
+
   // SVN Export
   ipcMain.handle('svn:export', async (_, url: string, path: string, revision?: string) => {
     const args = [

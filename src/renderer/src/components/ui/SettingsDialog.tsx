@@ -20,6 +20,7 @@ import {
   Settings,
   Shield,
   Sun,
+  Terminal,
   Trash2,
   Volume2,
   Wrench,
@@ -1662,6 +1663,31 @@ function AuthSettings({ isOpen }: AuthSettingsProps) {
           </button>
         </div>
       )}
+
+      {/* SSL Certificates Section */}
+      <div className="space-y-4">
+        <h4 className="text-sm font-medium flex items-center gap-2">
+          <Key className="w-4 h-4" />
+          SSL Certificates
+        </h4>
+        <p className="text-xs text-text-secondary">
+          Client certificate management coming soon. For now, configure certificates in the SVN tab.
+        </p>
+        <div className="text-xs text-text-faint">
+          Current certificate path: Not configured
+        </div>
+      </div>
+
+      {/* SSH Keys Section */}
+      <div className="space-y-4 mt-6">
+        <h4 className="text-sm font-medium flex items-center gap-2">
+          <Terminal className="w-4 h-4" />
+          SSH Keys
+        </h4>
+        <p className="text-xs text-text-secondary">
+          SSH key management coming soon. SVN+SSH connections will use your system's ssh-agent.
+        </p>
+      </div>
     </div>
   );
 }

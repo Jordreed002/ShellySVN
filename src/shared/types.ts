@@ -333,6 +333,9 @@ export interface AppSettings {
   // Authentication
   savedCredentials: SavedCredential[];
 
+  // SSH Settings
+  sshSettings?: SSHSettings;
+
   // Advanced
   logLevel: LogLevel;
   svnConfigPath: string;
@@ -361,6 +364,30 @@ export interface CheckoutOptions {
   sparsePaths?: string[];
 }
 
+/**
+ * Checkout progress information for streaming updates
+ */
+export interface CheckoutProgress {
+  /** Current file being checked out */
+  currentFile?: string;
+  /** Number of files processed so far */
+  filesProcessed: number;
+  /** Total files to process (may be undefined until SVN reports it) */
+  totalFiles?: number;
+  /** Progress percentage (0-100) if available */
+  percentage?: number;
+  /** Bytes transferred so far */
+  bytesTransferred?: number;
+  /** Total bytes to transfer */
+  totalBytes?: number;
+  /** Current operation status */
+  status: 'running' | 'completed' | 'cancelled' | 'error';
+  /** Error message if status is 'error' */
+  error?: string;
+  /** Final revision when completed */
+  revision?: number;
+}
+
 // ============================================
 // Auth Types
 // ============================================
@@ -374,6 +401,59 @@ export interface AuthListEntry {
   realm: string;
   username: string;
   createdAt: number;
+}
+
+// ============================================
+// Client Certificate Types
+// ============================================
+
+export interface ClientCertificate {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** Display name for the certificate */
+  name: string;
+  /** Path to the certificate file (PEM format) */
+  path: string;
+  /** Whether certificate requires a passphrase */
+  hasPassphrase: boolean;
+  /** Associated realm/host pattern (optional - for auto-selection) */
+  realmPattern?: string;
+  /** Creation timestamp */
+  createdAt: number;
+  /** Last used timestamp */
+  lastUsedAt?: number;
+}
+
+// ============================================
+// SSH Key Types
+// ============================================
+
+export interface SSHKey {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** Display name for the key */
+  name: string;
+  /** Path to the private key file */
+  privateKeyPath: string;
+  /** Key type */
+  keyType: 'rsa' | 'ed25519' | 'ecdsa' | 'dsa' | 'unknown';
+  /** Whether key has a passphrase */
+  hasPassphrase: boolean;
+  /** Associated host pattern (optional - for auto-selection) */
+  hostPattern?: string;
+  /** Creation timestamp */
+  createdAt: number;
+  /** Last used timestamp */
+  lastUsedAt?: number;
+}
+
+export interface SSHSettings {
+  /** Path to SSH client (empty = use system default) */
+  sshClientPath: string;
+  /** Whether to use ssh-agent/Pageant */
+  useAgent: boolean;
+  /** Configured SSH keys */
+  keys: SSHKey[];
 }
 
 // ============================================
@@ -551,6 +631,15 @@ export interface ElectronAPI {
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
     ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    checkoutWithProgress: (
+      url: string,
+      path: string,
+      onProgress: (progress: CheckoutProgress) => void,
+      revision?: string,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: CheckoutOptions
+    ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    cancelCheckout: () => Promise<void>;
     export: (
       url: string,
       path: string,
