@@ -41,6 +41,8 @@ export interface FileRowActions {
   onOpenInExplorer?: (entry: SvnStatusEntry) => void;
   onCopyPath?: (entry: SvnStatusEntry) => void;
   onPreview?: (entry: SvnStatusEntry) => void;
+  onGetLock?: (entry: SvnStatusEntry) => void;
+  onReleaseLock?: (entry: SvnStatusEntry) => void;
   onManageLocks?: (entry: SvnStatusEntry) => void;
   onExport?: (entry: SvnStatusEntry) => void;
   onImport?: (entry: SvnStatusEntry) => void;
@@ -243,6 +245,8 @@ export const FileRow = memo(function FileRow({
       ? () => actions.onCopyPath!(entry)
       : () => navigator.clipboard.writeText(entry.path),
     onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
+    onGetLock: actions.onGetLock ? () => actions.onGetLock!(entry) : undefined,
+    onReleaseLock: actions.onReleaseLock ? () => actions.onReleaseLock!(entry) : undefined,
     onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
     onCleanup: actions.onCleanup ? () => actions.onCleanup!(entry) : undefined,
     onCreatePatch: actions.onCreatePatch ? () => actions.onCreatePatch!(entry) : undefined,

@@ -1062,6 +1062,28 @@ export function FileExplorer() {
           setShelveDialogPath(entry.path);
         }
       },
+      // Direct lock/unlock actions
+      onGetLock: async (entry: SvnStatusEntry) => {
+        if (!entry.isDirectory) {
+          const message = prompt('Lock message (optional):');
+          const result = await actions.lock(entry.path, message || undefined);
+          if (result.success) {
+            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+          } else {
+            alert(`Lock failed: ${result.message || 'Unknown error'}`);
+          }
+        }
+      },
+      onReleaseLock: async (entry: SvnStatusEntry) => {
+        if (!entry.isDirectory) {
+          const result = await actions.unlock(entry.path);
+          if (result.success) {
+            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+          } else {
+            alert(`Unlock failed: ${result.message || 'Unknown error'}`);
+          }
+        }
+      },
       onManageLocks: (entry: SvnStatusEntry) => setLockManagementPath(entry.path),
       onExport: (entry: SvnStatusEntry) => setExportPath(entry.path),
       onImport: () => setIsImportDialogOpen(true),

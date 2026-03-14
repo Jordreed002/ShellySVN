@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
+  AlertCircle,
   AlertTriangle,
   Bell,
   Check,
+  CheckCircle,
   ChevronDown,
   Clock,
   FileDiff,
   FolderOpen,
+  FolderSync,
   GitBranch,
   Key,
   Loader2,
