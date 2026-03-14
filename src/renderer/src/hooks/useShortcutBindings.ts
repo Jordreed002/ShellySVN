@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { debug } from '@shared/utils/debug';
 
 /**
  * Customizable shortcut binding
@@ -191,7 +192,7 @@ export function useShortcutBindings() {
         setBindings(merged);
       }
     } catch (error) {
-      console.error('Failed to load shortcut bindings:', error);
+      debug.error('Failed to load shortcut bindings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -204,7 +205,7 @@ export function useShortcutBindings() {
     try {
       await window.api.store.set(STORAGE_KEY, newBindings);
     } catch (error) {
-      console.error('Failed to save shortcut bindings:', error);
+      debug.error('Failed to save shortcut bindings:', error);
     }
   }, []);
 

@@ -39,7 +39,9 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
       return stored[workingCopyPath];
     }
   } catch (error) {
-    debug.error('[SVN] Failed to get hooks:', error);
+    // Intentionally graceful: Hook retrieval failure should not break SVN operations.
+    // Store may be unavailable during app shutdown or if settings file is corrupted.
+    debug.error('[SVN] Failed to get hooks (continuing without hooks):', error);
   }
   return [];
 }
@@ -362,7 +364,14 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
     }
   } catch (error) {
     debug.error('[SVN] Failed to parse status XML:', error);
-    // Return empty result on parse error
+    // Return partial result with error flag - callers can check parseError
+    // to know that entries may be incomplete due to malformed XML
+    return {
+      path: basePath,
+      entries,
+      revision: 0,
+      parseError: error instanceof Error ? error.message : 'Failed to parse status XML',
+    };
   }
 
   return {
@@ -451,6 +460,8 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
     };
   } catch (error) {
     debug.error('[SVN] Failed to parse info XML:', error);
+    // Return default values with error flag - callers should check parseError
+    // before relying on any field values
     return {
       path: '',
       url: '',
@@ -461,6 +472,7 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
       lastChangedAuthor: '',
       lastChangedRevision: 0,
       lastChangedDate: '',
+      parseError: error instanceof Error ? error.message : 'Failed to parse info XML',
     };
   }
 }
@@ -470,6 +482,7 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
  */
 export function parseSvnLogXml(xml: string): SvnLogResult {
   const entries: SvnLogResult['entries'] = [];
+  let parseError: string | undefined;
 
   try {
     const parsed = xmlParser.parse(xml) as {
@@ -552,7 +565,8 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
     }
   } catch (error) {
     debug.error('[SVN] Failed to parse log XML:', error);
-    // Return empty result on parse error
+    // Set error flag - entries may be incomplete, return what we have
+    parseError = error instanceof Error ? error.message : 'Failed to parse log XML';
   }
 
   const revisions = entries.map((e) => e.revision);
@@ -561,6 +575,7 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
     entries,
     startRevision: revisions.length > 0 ? Math.min(...revisions) : 0,
     endRevision: revisions.length > 0 ? Math.max(...revisions) : 0,
+    ...(parseError && { parseError }),
   };
 }
 

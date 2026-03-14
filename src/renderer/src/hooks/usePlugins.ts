@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { debug } from '@shared/utils/debug';
 
 /**
  * Plugin manifest
@@ -142,7 +143,7 @@ export function usePlugins() {
         setPlugins(stored);
       }
     } catch (error) {
-      console.error('Failed to load plugins:', error);
+      debug.error('Failed to load plugins:', error);
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +156,7 @@ export function usePlugins() {
     try {
       await window.api.store.set(STORAGE_KEY, newPlugins);
     } catch (error) {
-      console.error('Failed to save plugins:', error);
+      debug.error('Failed to save plugins:', error);
     }
   }, []);
 
@@ -393,7 +394,7 @@ export function usePlugins() {
             const result = await handler(data, api);
             results.push(result);
           } catch (error) {
-            console.error(`Plugin ${plugin.manifest.id} hook error:`, error);
+            debug.error(`Plugin ${plugin.manifest.id} hook error:`, error);
           }
         }
       }

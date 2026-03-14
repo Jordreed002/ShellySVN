@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { debug } from '@shared/utils/debug';
 
 /**
  * Template context for variable resolvers
@@ -152,7 +153,7 @@ export function useCommitTemplates() {
         await window.api.store.set(STORAGE_KEY, defaults);
       }
     } catch (error) {
-      console.error('Failed to load commit templates:', error);
+      debug.error('Failed to load commit templates:', error);
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +166,7 @@ export function useCommitTemplates() {
     try {
       await window.api.store.set(STORAGE_KEY, newTemplates);
     } catch (error) {
-      console.error('Failed to save commit templates:', error);
+      debug.error('Failed to save commit templates:', error);
     }
   }, []);
 

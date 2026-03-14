@@ -40,6 +40,8 @@ export interface SvnStatusResult {
   path: string;
   entries: SvnStatusEntry[];
   revision: number;
+  /** Set when XML parsing failed - entries may be incomplete or empty */
+  parseError?: string;
 }
 
 // ============================================
@@ -65,6 +67,8 @@ export interface SvnLogResult {
   entries: SvnLogEntry[];
   startRevision: number;
   endRevision: number;
+  /** Set when XML parsing failed - entries may be incomplete or empty */
+  parseError?: string;
 }
 
 // ============================================
@@ -116,6 +120,8 @@ export interface SvnInfoResult {
   lastChangedDate: string;
   workingCopyRoot?: string;
   lock?: SvnLockInfo;
+  /** Set when XML parsing failed - fields may contain default/empty values */
+  parseError?: string;
 }
 
 // ============================================

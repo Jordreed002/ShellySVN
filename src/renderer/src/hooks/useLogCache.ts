@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { SvnLogResult, SvnLogEntry } from '@shared/types';
+import { debug } from '@shared/utils/debug';
 
 const LOG_CACHE_KEY = 'shellysvn:log-cache';
 const MAX_CACHE_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -72,7 +73,7 @@ export function useLogCache(path: string | null) {
         await window.api.store.set(LOG_CACHE_KEY, store);
         setCachedLog(store[path]);
       } catch (err) {
-        console.error('Failed to cache log:', err);
+        debug.error('Failed to cache log:', err);
       }
     },
     [path]
@@ -90,7 +91,7 @@ export function useLogCache(path: string | null) {
         setCachedLog(null);
       }
     } catch (err) {
-      console.error('Failed to clear cache:', err);
+      debug.error('Failed to clear cache:', err);
     }
   }, [path]);
 
@@ -100,7 +101,7 @@ export function useLogCache(path: string | null) {
       await window.api.store.delete(LOG_CACHE_KEY);
       setCachedLog(null);
     } catch (err) {
-      console.error('Failed to clear all caches:', err);
+      debug.error('Failed to clear all caches:', err);
     }
   }, []);
 

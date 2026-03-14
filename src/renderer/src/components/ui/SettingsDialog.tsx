@@ -38,7 +38,7 @@ import { useSettings } from '../../hooks/useSettings';
 import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
 import { formatBytes } from '@shared/utils/formatBytes';
 
-type SettingsTab =
+export type SettingsTab =
   | 'general'
   | 'svn'
   | 'diffmerge'

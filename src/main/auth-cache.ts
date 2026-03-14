@@ -1,6 +1,7 @@
 import { safeStorage } from 'electron';
 import { readFile, writeFile, access, mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
+import { debug } from '@shared/utils/debug';
 
 interface CachedCredential {
   realm: string;
@@ -26,12 +27,12 @@ class AuthCache {
     this.encryptionAvailable = safeStorage.isEncryptionAvailable();
 
     if (!this.encryptionAvailable) {
-      console.warn(
+      debug.warn(
         '[AUTH] Encryption not available. Credentials will be stored in memory only.',
         'On macOS, ensure the app has Keychain access.'
       );
     } else {
-      console.log('[AUTH] Secure storage available - credentials will persist');
+      debug.log('[AUTH] Secure storage available - credentials will persist');
     }
 
     this.loadPromise = this.load();
@@ -55,7 +56,7 @@ class AuthCache {
     };
     this.credentials.set(realm, credential);
     this.save();
-    console.log('[AUTH] Credential saved for realm:', realm);
+    debug.log('[AUTH] Credential saved for realm:', realm);
   }
 
   get(realm: string): { username: string; password: string } | null {
@@ -73,7 +74,7 @@ class AuthCache {
         password: decryptedPassword,
       };
     } catch {
-      console.error('[AUTH] Failed to decrypt credential for realm:', realm);
+      debug.error('[AUTH] Failed to decrypt credential for realm:', realm);
       this.delete(realm);
       return null;
     }
@@ -140,7 +141,7 @@ class AuthCache {
           realm: bestMatch.realm,
         };
       } catch {
-        console.error('[AUTH] Failed to decrypt credential for realm:', bestMatch.realm);
+        debug.error('[AUTH] Failed to decrypt credential for realm:', bestMatch.realm);
         this.delete(bestMatch.realm);
         return null;
       }
@@ -172,16 +173,16 @@ class AuthCache {
               this.decrypt(cred.password);
               this.credentials.set(cred.realm, cred);
             } catch {
-              console.warn('[AUTH] Could not decrypt stored credential for:', cred.realm);
+              debug.warn('[AUTH] Could not decrypt stored credential for:', cred.realm);
             }
           } else {
             this.credentials.set(cred.realm, cred);
           }
         }
-        console.log('[AUTH] Loaded', this.credentials.size, 'credentials from disk');
+        debug.log('[AUTH] Loaded', this.credentials.size, 'credentials from disk');
       }
     } catch {
-      console.log('[AUTH] No existing credential cache found');
+      debug.log('[AUTH] No existing credential cache found');
     }
   }
 
@@ -199,9 +200,9 @@ class AuthCache {
         await mkdir(dir, { recursive: true });
 
         await writeFile(this.storePath, JSON.stringify(data, null, 2), 'utf-8');
-        console.log('[AUTH] Saved', this.credentials.size, 'credentials to disk');
+        debug.log('[AUTH] Saved', this.credentials.size, 'credentials to disk');
       } catch (error) {
-        console.error('[AUTH] Failed to save credentials:', error);
+        debug.error('[AUTH] Failed to save credentials:', error);
       }
     })();
   }
@@ -213,7 +214,7 @@ export function getAuthCache(): AuthCache {
   if (!authCacheInstance) {
     const { app } = require('electron');
     const userDataPath = app.getPath('userData');
-    console.log('[AUTH] Using userData path:', userDataPath);
+    debug.log('[AUTH] Using userData path:', userDataPath);
     authCacheInstance = new AuthCache(userDataPath);
   }
   return authCacheInstance;

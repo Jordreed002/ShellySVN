@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { debug } from '@shared/utils/debug';
 
 const MAX_HISTORY_SIZE = 50;
 const STORAGE_KEY = 'shellysvn:commit-message-history';
@@ -24,7 +25,7 @@ export function useCommitMessageHistory() {
           setHistory(stored);
         }
       } catch (err) {
-        console.error('Failed to load commit message history:', err);
+        debug.error('Failed to load commit message history:', err);
       }
     };
     loadHistory();
@@ -35,7 +36,7 @@ export function useCommitMessageHistory() {
     try {
       await window.api.store.set(STORAGE_KEY, newHistory);
     } catch (err) {
-      console.error('Failed to save commit message history:', err);
+      debug.error('Failed to save commit message history:', err);
     }
   }, []);
 
@@ -179,7 +180,7 @@ export function useCommitTemplates() {
           ]);
         }
       } catch (err) {
-        console.error('Failed to load commit templates:', err);
+        debug.error('Failed to load commit templates:', err);
       }
     };
     loadTemplates();

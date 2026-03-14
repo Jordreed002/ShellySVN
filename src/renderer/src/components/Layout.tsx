@@ -4,12 +4,22 @@ import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog';
 import { CommandPalette } from './ui/CommandPalette';
 import { QuickNotesPanel } from './ui/QuickNotesPanel';
 import { StatusBar } from './ui/StatusBar';
+import { PerformanceDashboard } from './ui/PerformanceDashboard';
 import { OnboardingTutorial, useOnboarding } from './tutorial';
+import { PluginManagerDialog } from './ui/PluginManagerDialog';
 import { useSettings } from '../hooks/useSettings';
 import { useVisualSettings } from '../hooks/useVisualSettings';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { GitBranch, Minus, Square, X, StickyNote } from 'lucide-react';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
+
+/**
+ * Common search params shared across routes
+ */
+interface CommonSearchSchema {
+  path?: string;
+  url?: string;
+}
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,6 +29,8 @@ export function Layout({ children }: LayoutProps) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
+  const [showPluginManager, setShowPluginManager] = useState(false);
   const [_isMaximized, setIsMaximized] = useState(false);
   const [forceShowTutorial, setForceShowTutorial] = useState(false);
   const { settings } = useSettings();
@@ -28,8 +40,7 @@ export function Layout({ children }: LayoutProps) {
   const isMac = navigator.platform.toLowerCase().includes('mac');
 
   const routerState = useRouterState();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentPath = (routerState.location.search as any)?.path as string | undefined;
+  const currentPath = (routerState.location.search as CommonSearchSchema)?.path;
 
   useVisualSettings(settings);
 
@@ -49,6 +60,12 @@ export function Layout({ children }: LayoutProps) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
         e.preventDefault();
         setShowCommandPalette(true);
+        return;
+      }
+
+      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        setShowPerformanceDashboard(prev => !prev);
         return;
       }
 
@@ -214,6 +231,10 @@ export function Layout({ children }: LayoutProps) {
           window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNSHELVE));
           setShowCommandPalette(false);
         }}
+        onManagePlugins={() => {
+          setShowCommandPalette(false);
+          setShowPluginManager(true);
+        }}
       />
 
       {/* Quick Notes Panel */}
@@ -221,6 +242,23 @@ export function Layout({ children }: LayoutProps) {
         isOpen={showNotes}
         currentPath={currentPath}
         onClose={() => setShowNotes(false)}
+      />
+
+      {/* Performance Dashboard */}
+      {showPerformanceDashboard && (
+        <div className="fixed bottom-4 right-4 z-50 w-[480px]">
+          <PerformanceDashboard
+            visible={showPerformanceDashboard}
+            onClose={() => setShowPerformanceDashboard(false)}
+            detailed
+          />
+        </div>
+      )}
+
+      {/* Plugin Manager Dialog */}
+      <PluginManagerDialog
+        isOpen={showPluginManager}
+        onClose={() => setShowPluginManager(false)}
       />
     </div>
   );

@@ -22,12 +22,14 @@ import {
   Loader2,
   Bookmark,
   Globe,
+  Puzzle,
 } from 'lucide-react';
 import { AddRepoModal } from './ui/AddRepoModal';
 import { ImportDialog } from './ui/ImportDialog';
 import { StatusDot } from './ui/StatusIcon';
-import { SettingsDialog } from './ui/SettingsDialog';
+import { SettingsDialog, type SettingsTab } from './ui/SettingsDialog';
 import { BookmarksManager } from './ui/BookmarksManager';
+import { PluginManagerDialog } from './ui/PluginManagerDialog';
 
 interface QuickAccessItem {
   name: string;
@@ -148,9 +150,10 @@ export function Sidebar() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; repo: string } | null>(
     null
   );
-  const [settingsTab, setSettingsTab] = useState<string>('general');
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const [isBookmarksManagerOpen, setIsBookmarksManagerOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isPluginManagerOpen, setIsPluginManagerOpen] = useState(false);
 
   const recentRepos = settings?.recentRepositories || [];
   const bookmarks = settings?.bookmarks || [];
@@ -526,15 +529,25 @@ export function Sidebar() {
             <span>
               {recentRepos.length} repositor{recentRepos.length === 1 ? 'y' : 'ies'}
             </span>
-            <button
-              type="button"
-              onClick={() => setIsSettingsDialogOpen(true)}
-              className="hover:text-text transition-fast"
-              data-testid="settings-button"
-              title="Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPluginManagerOpen(true)}
+                className="hover:text-text transition-fast"
+                title="Plugins"
+              >
+                <Puzzle className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSettingsDialogOpen(true)}
+                className="hover:text-text transition-fast"
+                data-testid="settings-button"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -558,7 +571,7 @@ export function Sidebar() {
       <SettingsDialog
         isOpen={isSettingsDialogOpen}
         onClose={() => setIsSettingsDialogOpen(false)}
-        initialTab={settingsTab as any}
+        initialTab={settingsTab}
       />
 
       {/* Bookmarks Manager */}
@@ -575,6 +588,12 @@ export function Sidebar() {
         isOpen={isImportDialogOpen}
         onClose={() => setIsImportDialogOpen(false)}
         initialPath={currentPath}
+      />
+
+      {/* Plugin Manager Dialog */}
+      <PluginManagerDialog
+        isOpen={isPluginManagerOpen}
+        onClose={() => setIsPluginManagerOpen(false)}
       />
 
       {/* Context Menu */}

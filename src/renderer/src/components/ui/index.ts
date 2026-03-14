@@ -24,7 +24,6 @@ export { UpdateToRevisionDialog } from './UpdateToRevisionDialog';
 export { SettingsDialog, SettingsButton } from './SettingsDialog';
 export { ModificationsView } from './ModificationsView';
 export { ResolveDialog } from './ResolveDialog';
-export { ConflictResolutionDialog } from './ConflictResolutionDialog';
 export { ConflictResolutionWizard } from './ConflictResolutionWizard';
 export { BranchTagDialog } from './BranchTagDialog';
 export { SwitchDialog } from './SwitchDialog';

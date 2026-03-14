@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { debug } from '@shared/utils/debug';
 
 /**
  * Accessibility settings structure
@@ -68,7 +69,7 @@ export function useAccessibility() {
       setSettings(merged);
       applySettings(merged);
     } catch (error) {
-      console.error('Failed to load accessibility settings:', error);
+      debug.error('Failed to load accessibility settings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -81,7 +82,7 @@ export function useAccessibility() {
     try {
       await window.api.store.set(STORAGE_KEY, newSettings);
     } catch (error) {
-      console.error('Failed to save accessibility settings:', error);
+      debug.error('Failed to save accessibility settings:', error);
     }
   }, []);
 

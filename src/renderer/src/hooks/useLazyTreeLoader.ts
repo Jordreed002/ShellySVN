@@ -7,6 +7,15 @@ import type {
 } from '@shared/types';
 import { useCallback, useState } from 'react';
 
+/**
+ * Cached tree data structure for TanStack Query
+ */
+interface SvnTreeCacheData {
+  path: string;
+  nodes: LazyTreeNode[];
+  result: SvnListResult;
+}
+
 const TREE_CACHE_STALE_TIME = 5 * 60 * 1000; // 5 minutes staleTime as required
 const TREE_CACHE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
@@ -144,7 +153,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
     },
     onSuccess: (data) => {
       // Update the tree with loaded children
-      queryClient.setQueryData(['svn:tree', rootUrl], (oldData: any) => {
+      queryClient.setQueryData<SvnTreeCacheData | undefined>(['svn:tree', rootUrl], (oldData) => {
         if (!oldData) return oldData;
 
         const updatedNodes = [...oldData.nodes];
@@ -169,7 +178,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
       );
 
       // Update loading state
-      queryClient.setQueryData(['svn:tree', rootUrl], (oldData: any) => {
+      queryClient.setQueryData<SvnTreeCacheData | undefined>(['svn:tree', rootUrl], (oldData) => {
         if (!oldData) return oldData;
 
         const updatedNodes = [...oldData.nodes];

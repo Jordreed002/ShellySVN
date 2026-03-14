@@ -25,6 +25,7 @@ import {
   ListChecks,
   Archive,
   ArchiveRestore,
+  Puzzle,
 } from 'lucide-react';
 
 interface CommandItem {
@@ -67,6 +68,8 @@ interface CommandPaletteProps {
   onChangelist?: () => void;
   onShelve?: () => void;
   onUnshelve?: () => void;
+  // Plugin management
+  onManagePlugins?: () => void;
   // Recent paths
   recentPaths?: string[];
   // Bookmarks
@@ -100,6 +103,7 @@ export function CommandPalette({
   onChangelist,
   onShelve,
   onUnshelve,
+  onManagePlugins,
   recentPaths = [],
   bookmarks = [],
 }: CommandPaletteProps) {
@@ -422,6 +426,18 @@ export function CommandPalette({
       });
     }
 
+    if (onManagePlugins) {
+      items.push({
+        id: 'plugins',
+        title: 'Manage Plugins',
+        description: 'Install, configure, and manage plugins',
+        icon: Puzzle,
+        category: 'Tools',
+        action: onManagePlugins,
+        keywords: ['plugin', 'extension', 'addon', 'manage'],
+      });
+    }
+
     return items;
   }, [
     onCommit,
@@ -447,6 +463,7 @@ export function CommandPalette({
     onChangelist,
     onShelve,
     onUnshelve,
+    onManagePlugins,
     currentPath,
     recentPaths,
     bookmarks,
