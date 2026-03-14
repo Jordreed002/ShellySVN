@@ -13,7 +13,6 @@ import {
   Turtle,
 } from 'lucide-react';
 import { AddRepoModal } from './ui/AddRepoModal';
-import { CheckoutDialog } from './ui/CheckoutDialog';
 
 // Shell/Turtle SVG Logo for ShellySVN
 function ShellLogo({ className = '' }: { className?: string }) {
@@ -85,7 +84,7 @@ export function WelcomeScreen() {
   const navigate = useNavigate();
   const { settings, addRecentRepo } = useSettings();
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
-  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+  const [addRepoModalTab, setAddRepoModalTab] = useState<'open' | 'checkout' | 'import'>('open');
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleOpenWorkingCopy = useCallback(
@@ -96,14 +95,6 @@ export function WelcomeScreen() {
       navigate({ to: '/files', search: { path } });
     },
     [navigate, addRecentRepo]
-  );
-
-  const handleCheckoutComplete = useCallback(
-    (path: string) => {
-      // Navigate to the newly checked out working copy
-      handleOpenWorkingCopy(path);
-    },
-    [handleOpenWorkingCopy]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -140,6 +131,11 @@ export function WelcomeScreen() {
     [handleOpenWorkingCopy]
   );
 
+  const openModal = (tab: 'open' | 'checkout' | 'import') => {
+    setAddRepoModalTab(tab);
+    setIsAddRepoModalOpen(true);
+  };
+
   const recentRepos = settings?.recentRepositories || [];
 
   return (
@@ -172,7 +168,7 @@ export function WelcomeScreen() {
               drop-zone cursor-pointer transition-all duration-300
               ${isDragOver ? 'drop-zone-active scale-[1.02]' : ''}
             `}
-            onClick={() => setIsAddRepoModalOpen(true)}
+            onClick={() => openModal('open')}
           >
             <div className="flex flex-col items-center gap-3">
               <div
@@ -200,7 +196,7 @@ export function WelcomeScreen() {
           {/* Quick Actions */}
           <div className="flex justify-center gap-4">
             <button
-              onClick={() => setIsAddRepoModalOpen(true)}
+              onClick={() => openModal('open')}
               className="btn btn-secondary gap-2"
               data-testid="browse-button"
             >
@@ -208,7 +204,7 @@ export function WelcomeScreen() {
               Browse
             </button>
             <button
-              onClick={() => setIsCheckoutDialogOpen(true)}
+              onClick={() => openModal('checkout')}
               className="btn btn-primary gap-2"
               data-testid="checkout-button"
             >
@@ -272,19 +268,13 @@ export function WelcomeScreen() {
         <span>No external dependencies required</span>
       </div>
 
-      {/* Add Repo Modal */}
+      {/* Unified Modal */}
       <AddRepoModal
         isOpen={isAddRepoModalOpen}
         onClose={() => setIsAddRepoModalOpen(false)}
         onOpenRepo={handleOpenWorkingCopy}
         recentRepos={recentRepos}
-      />
-
-      {/* Checkout Dialog */}
-      <CheckoutDialog
-        isOpen={isCheckoutDialogOpen}
-        onClose={() => setIsCheckoutDialogOpen(false)}
-        onComplete={handleCheckoutComplete}
+        initialTab={addRepoModalTab}
       />
     </div>
   );
