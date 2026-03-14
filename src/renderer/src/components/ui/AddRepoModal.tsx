@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import {
   X,
   FolderOpen,
-  GitBranch,
   Clock,
   ChevronRight,
   AlertCircle,
@@ -17,7 +16,6 @@ interface AddRepoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenRepo: (path: string) => void;
-  onCheckout?: (url: string, path: string) => void;
   onImport?: () => void;
   recentRepos?: AppSettings['recentRepositories'];
 }
@@ -26,14 +24,11 @@ export function AddRepoModal({
   isOpen,
   onClose,
   onOpenRepo,
-  onCheckout,
   onImport,
   recentRepos = [],
 }: AddRepoModalProps) {
-  const [mode, setMode] = useState<'open' | 'checkout' | 'import'>('open');
+  const [mode, setMode] = useState<'open' | 'import'>('open');
   const [selectedPath, setSelectedPath] = useState<string>('');
-  const [checkoutUrl, setCheckoutUrl] = useState<string>('');
-  const [checkoutPath, setCheckoutPath] = useState<string>('');
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,14 +36,6 @@ export function AddRepoModal({
     const path = await window.api.dialog.openDirectory();
     if (path) {
       setSelectedPath(path);
-      setError(null);
-    }
-  };
-
-  const handleBrowseCheckout = async () => {
-    const path = await window.api.dialog.openDirectory();
-    if (path) {
-      setCheckoutPath(path);
       setError(null);
     }
   };
@@ -76,29 +63,6 @@ export function AddRepoModal({
     }
   };
 
-  const handleCheckout = async () => {
-    if (!checkoutUrl) {
-      setError('Please enter a repository URL');
-      return;
-    }
-    if (!checkoutPath) {
-      setError('Please select a destination folder');
-      return;
-    }
-
-    setIsChecking(true);
-    setError(null);
-
-    try {
-      onCheckout?.(checkoutUrl, checkoutPath);
-      onClose();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setIsChecking(false);
-    }
-  };
-
   const handleRecentClick = (path: string) => {
     onOpenRepo(path);
     onClose();
@@ -117,12 +81,12 @@ export function AddRepoModal({
         <div className="modal-header flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-              <GitBranch className="w-5 h-5 text-accent" />
+              <FolderOpen className="w-5 h-5 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-text">Add Repository</h2>
+              <h2 className="text-lg font-semibold text-text">Open Working Copy</h2>
               <p className="text-sm text-text-secondary">
-                Open an existing working copy or checkout new
+                Select an existing SVN working copy to open
               </p>
             </div>
           </div>
@@ -148,22 +112,6 @@ export function AddRepoModal({
             `}
           >
             Open Working Copy
-          </button>
-          <button
-            onClick={() => {
-              setMode('checkout');
-              setError(null);
-            }}
-            className={`
-              flex-1 px-4 py-3 text-sm font-medium transition-fast
-              ${
-                mode === 'checkout'
-                  ? 'text-accent border-b-2 border-accent'
-                  : 'text-text-secondary hover:text-text'
-              }
-            `}
-          >
-            Checkout from URL
           </button>
           <button
             onClick={() => {
@@ -233,50 +181,7 @@ export function AddRepoModal({
                 </div>
               )}
             </div>
-          ) : mode === 'checkout' ? (
-            <div className="space-y-4">
-              {/* Repository URL */}
-              <div>
-                <label className="block text-sm font-medium text-text mb-2">Repository URL</label>
-                <input
-                  type="text"
-                  value={checkoutUrl}
-                  onChange={(e) => setCheckoutUrl(e.target.value)}
-                  placeholder="https://example.com/svn/repo/trunk"
-                  className="input"
-                />
-              </div>
-
-              {/* Destination Path */}
-              <div>
-                <label className="block text-sm font-medium text-text mb-2">
-                  Checkout Directory
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={checkoutPath}
-                    onChange={(e) => setCheckoutPath(e.target.value)}
-                    placeholder="Select destination folder..."
-                    className="input flex-1"
-                    readOnly
-                  />
-                  <button onClick={handleBrowseCheckout} className="btn btn-secondary">
-                    <FolderOpen className="w-4 h-4" />
-                    Browse
-                  </button>
-                </div>
-              </div>
-
-              {/* Checkout Options */}
-              <div className="pt-2">
-                <p className="text-xs text-text-muted">
-                  The repository will be checked out to the specified directory. Make sure the
-                  destination folder is empty.
-                </p>
-              </div>
-            </div>
-          ) : mode === 'import' ? (
+          ) : (
             <div className="space-y-4">
               {/* Import Description */}
               <div className="flex items-start gap-3 p-4 bg-accent/5 border border-accent/20 rounded-lg">
@@ -299,7 +204,7 @@ export function AddRepoModal({
                 </p>
               </div>
             </div>
-          ) : null}
+          )}
 
           {/* Error Message */}
           {error && (
@@ -333,24 +238,6 @@ export function AddRepoModal({
                 </>
               )}
             </button>
-          ) : mode === 'checkout' ? (
-            <button
-              onClick={handleCheckout}
-              disabled={!checkoutUrl || !checkoutPath || isChecking}
-              className="btn btn-primary"
-            >
-              {isChecking ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Checking out...
-                </>
-              ) : (
-                <>
-                  <GitBranch className="w-4 h-4" />
-                  Checkout
-                </>
-              )}
-            </button>
           ) : (
             <button
               onClick={() => {
@@ -380,13 +267,13 @@ export function AddRepoButton({ onClick }: { onClick: () => void }) {
       className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg border border-dashed border-border hover:border-accent hover:bg-accent/5 transition-all duration-200 group"
     >
       <div className="w-8 h-8 rounded-md bg-bg-tertiary flex items-center justify-center group-hover:bg-accent/20 transition-fast">
-        <GitBranch className="w-4 h-4 text-text-secondary group-hover:text-accent" />
+        <FolderOpen className="w-4 h-4 text-text-secondary group-hover:text-accent" />
       </div>
       <div>
         <span className="text-sm font-medium text-text-secondary group-hover:text-text">
-          Add Repository
+          Open Working Copy
         </span>
-        <p className="text-xs text-text-muted">Open or checkout a working copy</p>
+        <p className="text-xs text-text-muted">Browse for an existing SVN working copy</p>
       </div>
     </button>
   );

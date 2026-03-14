@@ -86,7 +86,6 @@ export function WelcomeScreen() {
   const { settings, addRecentRepo } = useSettings();
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
-  const [checkoutUrl, setCheckoutUrl] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleOpenWorkingCopy = useCallback(
@@ -98,12 +97,6 @@ export function WelcomeScreen() {
     },
     [navigate, addRecentRepo]
   );
-
-  const handleCheckout = useCallback((url: string, _path: string) => {
-    // Open the checkout dialog with the URL pre-filled
-    setCheckoutUrl(url);
-    setIsCheckoutDialogOpen(true);
-  }, []);
 
   const handleCheckoutComplete = useCallback(
     (path: string) => {
@@ -284,7 +277,6 @@ export function WelcomeScreen() {
         isOpen={isAddRepoModalOpen}
         onClose={() => setIsAddRepoModalOpen(false)}
         onOpenRepo={handleOpenWorkingCopy}
-        onCheckout={handleCheckout}
         recentRepos={recentRepos}
       />
 
@@ -293,7 +285,6 @@ export function WelcomeScreen() {
         isOpen={isCheckoutDialogOpen}
         onClose={() => setIsCheckoutDialogOpen(false)}
         onComplete={handleCheckoutComplete}
-        initialUrl={checkoutUrl}
       />
     </div>
   );

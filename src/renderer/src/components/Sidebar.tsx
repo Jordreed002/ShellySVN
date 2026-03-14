@@ -24,7 +24,6 @@ import {
   Globe,
 } from 'lucide-react';
 import { AddRepoModal } from './ui/AddRepoModal';
-import { CheckoutDialog } from './ui/CheckoutDialog';
 import { ImportDialog } from './ui/ImportDialog';
 import { StatusDot } from './ui/StatusIcon';
 import { SettingsDialog } from './ui/SettingsDialog';
@@ -142,8 +141,6 @@ export function Sidebar() {
 
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
-  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
-  const [checkoutUrl, setCheckoutUrl] = useState('');
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [quickAccess, setQuickAccess] = useState<QuickAccessItem[]>([]);
@@ -524,25 +521,15 @@ export function Sidebar() {
       <AddRepoModal
         isOpen={isAddRepoModalOpen}
         onClose={() => setIsAddRepoModalOpen(false)}
-        onOpenRepo={handleOpenRepo}
-        onCheckout={(url) => {
-          setCheckoutUrl(url);
+        onOpenRepo={(path) => {
           setIsAddRepoModalOpen(false);
-          setIsCheckoutDialogOpen(true);
+          handleOpenRepo(path);
         }}
         onImport={() => {
           setIsAddRepoModalOpen(false);
           setIsImportDialogOpen(true);
         }}
         recentRepos={recentRepos}
-      />
-
-      {/* Checkout Dialog */}
-      <CheckoutDialog
-        isOpen={isCheckoutDialogOpen}
-        onClose={() => setIsCheckoutDialogOpen(false)}
-        onComplete={handleOpenRepo}
-        initialUrl={checkoutUrl}
       />
 
       {/* Settings Dialog */}
