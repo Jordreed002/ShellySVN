@@ -13,6 +13,7 @@ import {
   Turtle,
 } from 'lucide-react';
 import { AddRepoModal } from './ui/AddRepoModal';
+import { ImportDialog } from './ui/ImportDialog';
 
 // Shell/Turtle SVG Logo for ShellySVN
 function ShellLogo({ className = '' }: { className?: string }) {
@@ -86,6 +87,7 @@ export function WelcomeScreen() {
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
   const [addRepoModalTab, setAddRepoModalTab] = useState<'open' | 'checkout' | 'import'>('open');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   const handleOpenWorkingCopy = useCallback(
     async (path: string) => {
@@ -273,8 +275,18 @@ export function WelcomeScreen() {
         isOpen={isAddRepoModalOpen}
         onClose={() => setIsAddRepoModalOpen(false)}
         onOpenRepo={handleOpenWorkingCopy}
+        onImport={() => {
+          setIsAddRepoModalOpen(false);
+          setIsImportDialogOpen(true);
+        }}
         recentRepos={recentRepos}
         initialTab={addRepoModalTab}
+      />
+
+      {/* Import Dialog */}
+      <ImportDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
       />
     </div>
   );
