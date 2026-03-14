@@ -9,6 +9,7 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
+  Upload,
 } from 'lucide-react';
 import type { AppSettings } from '@shared/types';
 
@@ -17,6 +18,7 @@ interface AddRepoModalProps {
   onClose: () => void;
   onOpenRepo: (path: string) => void;
   onCheckout?: (url: string, path: string) => void;
+  onImport?: () => void;
   recentRepos?: AppSettings['recentRepositories'];
 }
 
@@ -25,9 +27,10 @@ export function AddRepoModal({
   onClose,
   onOpenRepo,
   onCheckout,
+  onImport,
   recentRepos = [],
 }: AddRepoModalProps) {
-  const [mode, setMode] = useState<'open' | 'checkout'>('open');
+  const [mode, setMode] = useState<'open' | 'checkout' | 'import'>('open');
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [checkoutUrl, setCheckoutUrl] = useState<string>('');
   const [checkoutPath, setCheckoutPath] = useState<string>('');
@@ -162,6 +165,22 @@ export function AddRepoModal({
           >
             Checkout from URL
           </button>
+          <button
+            onClick={() => {
+              setMode('import');
+              setError(null);
+            }}
+            className={`
+              flex-1 px-4 py-3 text-sm font-medium transition-fast
+              ${
+                mode === 'import'
+                  ? 'text-accent border-b-2 border-accent'
+                  : 'text-text-secondary hover:text-text'
+              }
+            `}
+          >
+            Import
+          </button>
         </div>
 
         {/* Body */}
@@ -214,7 +233,7 @@ export function AddRepoModal({
                 </div>
               )}
             </div>
-          ) : (
+          ) : mode === 'checkout' ? (
             <div className="space-y-4">
               {/* Repository URL */}
               <div>
@@ -257,7 +276,30 @@ export function AddRepoModal({
                 </p>
               </div>
             </div>
-          )}
+          ) : mode === 'import' ? (
+            <div className="space-y-4">
+              {/* Import Description */}
+              <div className="flex items-start gap-3 p-4 bg-accent/5 border border-accent/20 rounded-lg">
+                <Upload className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-text mb-1">Import to Repository</h3>
+                  <p className="text-xs text-text-secondary">
+                    Upload a local folder to a repository location. This creates a new directory
+                    in the repository containing the contents of your local folder.
+                  </p>
+                </div>
+              </div>
+
+              {/* Import Info */}
+              <div className="text-sm text-text-secondary">
+                <p>
+                  The Import dialog allows you to upload an unversioned folder to an SVN
+                  repository. You will be able to specify the source folder, destination URL,
+                  and commit message.
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           {/* Error Message */}
           {error && (
@@ -291,7 +333,7 @@ export function AddRepoModal({
                 </>
               )}
             </button>
-          ) : (
+          ) : mode === 'checkout' ? (
             <button
               onClick={handleCheckout}
               disabled={!checkoutUrl || !checkoutPath || isChecking}
@@ -308,6 +350,17 @@ export function AddRepoModal({
                   Checkout
                 </>
               )}
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                onImport?.();
+                onClose();
+              }}
+              className="btn btn-primary"
+            >
+              <Upload className="w-4 h-4" />
+              Open Import Dialog
             </button>
           )}
         </div>

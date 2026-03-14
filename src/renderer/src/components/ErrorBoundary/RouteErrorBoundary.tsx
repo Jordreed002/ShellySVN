@@ -253,11 +253,8 @@ class RouteErrorBoundaryInner extends Component<
     };
   }
 
-  static getDerivedStateFromError(
-    error: Error,
-    props: RouteErrorBoundaryInner['props']
-  ): Partial<RouteErrorBoundaryState> {
-    const classifiedError = classifyRouteError(error, props.routeName);
+  static getDerivedStateFromError(error: Error): Partial<RouteErrorBoundaryState> {
+    const classifiedError = classifyRouteError(error);
     return {
       hasError: true,
       error,
@@ -266,7 +263,7 @@ class RouteErrorBoundaryInner extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    this.setState({ errorInfo });
+    this.setState({ errorInfo, classifiedError: classifyRouteError(error, this.props.routeName) });
     this.props.onError?.(error, errorInfo);
 
     if (this.props.isDev ?? import.meta.env.DEV) {

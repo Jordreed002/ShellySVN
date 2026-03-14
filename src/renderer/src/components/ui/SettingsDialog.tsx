@@ -25,6 +25,7 @@ import {
   Volume2,
   Play,
 } from 'lucide-react';
+import { ShellIntegrationDialog } from './ShellIntegrationDialog';
 import type {
   AppSettings,
   LogLevel,
@@ -150,6 +151,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [localSettings, setLocalSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showShellIntegrationDialog, setShowShellIntegrationDialog] = useState(false);
 
   // Load settings and start preview when dialog opens
   useEffect(() => {
@@ -214,138 +216,145 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal w-[820px] h-[680px] flex" onClick={(e) => e.stopPropagation()}>
-        {/* Sidebar Navigation */}
-        <div className="w-[180px] flex-shrink-0 bg-bg-tertiary border-r border-border flex flex-col">
-          <div className="px-4 py-4 border-b border-border">
-            <h2 className="text-lg font-semibold text-text flex items-center gap-2">
-              <Settings className="w-5 h-5 text-accent" />
-              Settings
-            </h2>
+    <>
+      <div className="modal-overlay" onClick={handleClose}>
+        <div className="modal w-[820px] h-[680px] flex" onClick={(e) => e.stopPropagation()}>
+          {/* Sidebar Navigation */}
+          <div className="w-[180px] flex-shrink-0 bg-bg-tertiary border-r border-border flex flex-col">
+            <div className="px-4 py-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-text flex items-center gap-2">
+                <Settings className="w-5 h-5 text-accent" />
+                Settings
+              </h2>
+            </div>
+
+            <nav className="flex-1 py-2 overflow-y-auto scrollbar-overlay">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    w-full flex items-center gap-3 px-4 py-2 text-sm font-medium
+                    transition-all duration-150 text-left
+                    ${
+                      activeTab === tab.id
+                        ? 'bg-accent/10 text-accent border-r-2 border-accent'
+                        : 'text-text-secondary hover:text-text hover:bg-bg-elevated/50'
+                    }
+                  `}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            {/* Version info */}
+            <div className="px-4 py-3 border-t border-border">
+              <p className="text-xs text-text-faint">ShellySVN v0.1.0</p>
+            </div>
           </div>
 
-          <nav className="flex-1 py-2 overflow-y-auto scrollbar-overlay">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  w-full flex items-center gap-3 px-4 py-2 text-sm font-medium
-                  transition-all duration-150 text-left
-                  ${
-                    activeTab === tab.id
-                      ? 'bg-accent/10 text-accent border-r-2 border-accent'
-                      : 'text-text-secondary hover:text-text hover:bg-bg-elevated/50'
-                  }
-                `}
-              >
-                {tab.icon}
-                {tab.label}
+          {/* Content Area */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="text-base font-medium text-text">
+                {TABS.find((t) => t.id === activeTab)?.label}
+              </h3>
+              <button onClick={handleClose} className="btn-icon-sm" data-testid="modal-close-button">
+                <X className="w-4 h-4" />
               </button>
-            ))}
-          </nav>
+            </div>
 
-          {/* Version info */}
-          <div className="px-4 py-3 border-t border-border">
-            <p className="text-xs text-text-faint">ShellySVN v0.1.0</p>
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <h3 className="text-base font-medium text-text">
-              {TABS.find((t) => t.id === activeTab)?.label}
-            </h3>
-            <button onClick={handleClose} className="btn-icon-sm" data-testid="modal-close-button">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-overlay">
-            {activeTab === 'general' && (
-              <GeneralSettings settings={localSettings} onChange={updateLocalSetting} />
-            )}
-            {activeTab === 'svn' && (
-              <SvnSettings
-                settings={localSettings}
-                onChange={updateLocalSetting}
-                onChangeNested={updateNestedSetting}
-              />
-            )}
-            {activeTab === 'diffmerge' && (
-              <DiffMergeSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
-            )}
-            {activeTab === 'dialogs' && (
-              <DialogsSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
-            )}
-            {activeTab === 'notifications' && (
-              <NotificationsSettingsTab
-                settings={localSettings}
-                onChangeNested={updateNestedSetting}
-              />
-            )}
-            {activeTab === 'integration' && (
-              <IntegrationSettingsTab
-                settings={localSettings}
-                onChangeNested={updateNestedSetting}
-              />
-            )}
-            {activeTab === 'appearance' && (
-              <AppearanceSettings settings={localSettings} onChange={updateLocalSetting} />
-            )}
-            {activeTab === 'auth' && <AuthSettings isOpen={isOpen} />}
-            {activeTab === 'advanced' && (
-              <AdvancedSettings
-                settings={localSettings}
-                onChange={updateLocalSetting}
-                onReset={handleReset}
-                showResetConfirm={showResetConfirm}
-                setShowResetConfirm={setShowResetConfirm}
-              />
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-tertiary/30">
-            <div className="flex items-center gap-2">
-              {hasPreviewChanges && (
-                <span className="text-xs text-warning flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Unsaved changes
-                </span>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-overlay">
+              {activeTab === 'general' && (
+                <GeneralSettings settings={localSettings} onChange={updateLocalSetting} />
+              )}
+              {activeTab === 'svn' && (
+                <SvnSettings
+                  settings={localSettings}
+                  onChange={updateLocalSetting}
+                  onChangeNested={updateNestedSetting}
+                />
+              )}
+              {activeTab === 'diffmerge' && (
+                <DiffMergeSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
+              )}
+              {activeTab === 'dialogs' && (
+                <DialogsSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
+              )}
+              {activeTab === 'notifications' && (
+                <NotificationsSettingsTab
+                  settings={localSettings}
+                  onChangeNested={updateNestedSetting}
+                />
+              )}
+              {activeTab === 'integration' && (
+                <IntegrationSettingsTab
+                  settings={localSettings}
+                  onChangeNested={updateNestedSetting}
+                  onOpenShellIntegration={() => setShowShellIntegrationDialog(true)}
+                />
+              )}
+              {activeTab === 'appearance' && (
+                <AppearanceSettings settings={localSettings} onChange={updateLocalSetting} />
+              )}
+              {activeTab === 'auth' && <AuthSettings isOpen={isOpen} />}
+              {activeTab === 'advanced' && (
+                <AdvancedSettings
+                  settings={localSettings}
+                  onChange={updateLocalSetting}
+                  onReset={handleReset}
+                  showResetConfirm={showResetConfirm}
+                  setShowResetConfirm={setShowResetConfirm}
+                />
               )}
             </div>
-            <div className="flex items-center gap-3">
-              <button onClick={handleClose} className="btn btn-secondary">
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!hasPreviewChanges || isUpdating}
-                className="btn btn-primary"
-              >
-                {isUpdating ? (
-                  <>
-                    <span className="animate-spin">...</span>
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Save Changes
-                  </>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-tertiary/30">
+              <div className="flex items-center gap-2">
+                {hasPreviewChanges && (
+                  <span className="text-xs text-warning flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Unsaved changes
+                  </span>
                 )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={handleClose} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={!hasPreviewChanges || isUpdating}
+                  className="btn btn-primary"
+                >
+                  {isUpdating ? (
+                    <>
+                      <span className="animate-spin">...</span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </button>
+               </div>
+             </div>
+           </div>
+           </div>
+         </div>
+         <ShellIntegrationDialog
+           isOpen={showShellIntegrationDialog}
+           onClose={() => setShowShellIntegrationDialog(false)}
+         />
+       </>
+     );
 }
 
 // ============================================
@@ -1154,7 +1163,11 @@ function NotificationsSettingsTab({ settings, onChangeNested }: NestedSettingsPr
 // Integration Settings Tab
 // ============================================
 
-function IntegrationSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
+interface IntegrationSettingsProps extends NestedSettingsProps {
+  onOpenShellIntegration: () => void;
+}
+
+function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIntegration }: IntegrationSettingsProps) {
   const contextMenuOptions = [
     { id: 'update', label: 'Update' },
     { id: 'commit', label: 'Commit' },
@@ -1223,6 +1236,23 @@ function IntegrationSettingsTab({ settings, onChangeNested }: NestedSettingsProp
             Show status icon overlays
           </span>
         </label>
+      </SettingsGroup>
+
+      {/* Shell Integration Setup */}
+      <SettingsGroup title="Shell Integration" description="Configure shell extension, icon overlays, and context menu integration">
+        <div className="space-y-3">
+          <p className="text-xs text-text-muted">
+            Configure shell integration for enhanced SVN workflows
+          </p>
+          <button
+            type="button"
+            onClick={onOpenShellIntegration}
+            className="btn btn-secondary"
+          >
+            <Shield className="w-4 h-4" />
+            Setup Shell Integration...
+          </button>
+        </div>
       </SettingsGroup>
 
       {/* Context Menu Items */}
@@ -1609,6 +1639,10 @@ function AuthSettings({ isOpen }: AuthSettingsProps) {
 // Advanced Settings Tab
 // ============================================
 
+// ============================================
+// Advanced Settings Tab
+// ============================================
+
 interface AdvancedSettingsProps {
   settings: AppSettings;
   onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -1908,3 +1942,5 @@ export function SettingsMenuItem({ onClick }: { onClick: () => void }) {
     </button>
   );
 }
+
+export default SettingsDialog;

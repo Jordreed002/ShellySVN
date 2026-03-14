@@ -239,6 +239,7 @@ export function getSvnContextMenuItems(
     onChangelist?: () => void;
     onRevisionGraph?: () => void;
     onCheckForModifications?: () => void;
+    onShelve?: () => void;
   }
 ): ContextMenuItem[] {
   const isVersioned = status !== '?' && status !== 'I' && status !== 'O';
@@ -268,6 +269,15 @@ export function getSvnContextMenuItems(
         label: 'Check for Modifications...',
         icon: RefreshCw,
         onClick: actions.onCheckForModifications,
+      });
+    }
+    // Shelve changes (SVN 1.10+)
+    if (actions.onShelve) {
+      items.push({
+        id: 'shelve',
+        label: 'Shelve Changes...',
+        icon: Archive,
+        onClick: actions.onShelve,
       });
     }
   }

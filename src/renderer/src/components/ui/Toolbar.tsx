@@ -20,6 +20,7 @@ import {
   Globe,
   Cloud,
   Stethoscope,
+  StickyNote,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
@@ -55,6 +56,7 @@ interface ToolbarProps {
   canBrowseOnline?: boolean;
   showRemoteItems?: boolean;
   onToggleRemoteItems?: () => void;
+  onShowNotes?: () => void;
   className?: string;
 }
 
@@ -90,6 +92,7 @@ export function Toolbar({
   canBrowseOnline = false,
   showRemoteItems = false,
   onToggleRemoteItems,
+  onShowNotes,
   className = '',
 }: ToolbarProps) {
   const [showViewMenu, setShowViewMenu] = useState(false);
@@ -412,6 +415,19 @@ export function Toolbar({
           aria-label="Open settings"
         >
           <Settings className="w-4 h-4" aria-hidden="true" />
+        </button>
+      )}
+
+      {/* Quick Notes */}
+      {onShowNotes && (
+        <button
+          type="button"
+          onClick={onShowNotes}
+          className="btn btn-ghost"
+          title="Quick Notes"
+        >
+          <StickyNote className="w-4 h-4" />
+          <span className="hidden xl:inline">Notes</span>
         </button>
       )}
 

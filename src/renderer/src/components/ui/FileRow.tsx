@@ -42,6 +42,9 @@ export interface FileRowActions {
   onCopyPath?: (entry: SvnStatusEntry) => void;
   onPreview?: (entry: SvnStatusEntry) => void;
   onManageLocks?: (entry: SvnStatusEntry) => void;
+  onExport?: (entry: SvnStatusEntry) => void;
+  onRepoBrowser?: (entry: SvnStatusEntry) => void;
+  onRevisionGraph?: (entry: SvnStatusEntry) => void;
 }
 
 // File type to icon mapping

@@ -17,6 +17,14 @@ import {
   Zap,
   Star,
   StarOff,
+  GitBranch,
+  ArrowRightLeft,
+  GitMerge,
+  MapPin,
+  User,
+  ListChecks,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 
 interface CommandItem {
@@ -49,6 +57,16 @@ interface CommandPaletteProps {
   onQuickCommit?: () => void;
   onAddBookmark?: () => void;
   onGoToPath?: (path: string) => void;
+  // New SVN operations callbacks
+  onBranchTag?: () => void;
+  onSwitch?: () => void;
+  onMerge?: () => void;
+  onRelocate?: () => void;
+  onBlame?: () => void;
+  onProperties?: () => void;
+  onChangelist?: () => void;
+  onShelve?: () => void;
+  onUnshelve?: () => void;
   // Recent paths
   recentPaths?: string[];
   // Bookmarks
@@ -73,6 +91,15 @@ export function CommandPalette({
   onQuickCommit,
   onAddBookmark,
   onGoToPath,
+  onBranchTag,
+  onSwitch,
+  onMerge,
+  onRelocate,
+  onBlame,
+  onProperties,
+  onChangelist,
+  onShelve,
+  onUnshelve,
   recentPaths = [],
   bookmarks = [],
 }: CommandPaletteProps) {
@@ -147,6 +174,118 @@ export function CommandPalette({
         category: 'SVN',
         action: onQuickCommit,
         keywords: ['fast', 'auto', 'quick'],
+      });
+    }
+
+    if (onBranchTag) {
+      items.push({
+        id: 'branch-tag',
+        title: 'Branch/Tag...',
+        description: 'Create branch or tag in repository',
+        icon: GitBranch,
+        shortcut: 'Ctrl+Shift+B',
+        category: 'SVN',
+        action: onBranchTag,
+        keywords: ['branch', 'tag'],
+      });
+    }
+
+    if (onSwitch) {
+      items.push({
+        id: 'switch',
+        title: 'Switch...',
+        description: 'Switch to a different branch or URL',
+        icon: ArrowRightLeft,
+        shortcut: 'Ctrl+Shift+S',
+        category: 'SVN',
+        action: onSwitch,
+        keywords: ['switch'],
+      });
+    }
+
+    if (onMerge) {
+      items.push({
+        id: 'merge',
+        title: 'Merge...',
+        description: 'Merge changes from another location',
+        icon: GitMerge,
+        shortcut: 'Ctrl+Shift+M',
+        category: 'SVN',
+        action: onMerge,
+        keywords: ['merge'],
+      });
+    }
+
+    if (onRelocate) {
+      items.push({
+        id: 'relocate',
+        title: 'Relocate...',
+        description: 'Change repository URL of working copy',
+        icon: MapPin,
+        shortcut: 'Ctrl+Shift+R',
+        category: 'SVN',
+        action: onRelocate,
+        keywords: ['relocate'],
+      });
+    }
+
+    if (onBlame) {
+      items.push({
+        id: 'blame',
+        title: 'Blame/Annotate',
+        description: 'Show file revision history',
+        icon: User,
+        category: 'SVN',
+        action: onBlame,
+        keywords: ['blame', 'annotate'],
+      });
+    }
+
+    if (onProperties) {
+      items.push({
+        id: 'properties',
+        title: 'Properties...',
+        description: 'Edit file or directory properties',
+        icon: Settings,
+        category: 'SVN',
+        action: onProperties,
+        keywords: ['properties', 'props'],
+      });
+    }
+
+    if (onChangelist) {
+      items.push({
+        id: 'changelist',
+        title: 'Changelist...',
+        description: 'Manage changelists for changes',
+        icon: ListChecks,
+        category: 'SVN',
+        action: onChangelist,
+        keywords: ['changelist'],
+      });
+    }
+
+    if (onShelve) {
+      items.push({
+        id: 'shelve',
+        title: 'Shelve Changes...',
+        description: 'Temporarily store changes locally',
+        icon: Archive,
+        category: 'SVN',
+        action: onShelve,
+        keywords: ['shelve', 'archive'],
+      });
+    }
+
+    if (onUnshelve) {
+      items.push({
+        id: 'unshelve',
+        title: 'Unshelve Changes...',
+        description: 'Restore previously shelved changes',
+        icon: ArchiveRestore,
+        category: 'SVN',
+        action: onUnshelve,
+        keywords: ['unshelve', 'restore'],
       });
     }
 
@@ -299,6 +438,15 @@ export function CommandPalette({
     onQuickCommit,
     onAddBookmark,
     onGoToPath,
+    onBranchTag,
+    onSwitch,
+    onMerge,
+    onRelocate,
+    onBlame,
+    onProperties,
+    onChangelist,
+    onShelve,
+    onUnshelve,
     currentPath,
     recentPaths,
     bookmarks,

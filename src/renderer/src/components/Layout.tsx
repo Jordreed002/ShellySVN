@@ -8,6 +8,7 @@ import { useSettings } from '../hooks/useSettings';
 import { useVisualSettings } from '../hooks/useVisualSettings';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { GitBranch, Minus, Square, X } from 'lucide-react';
+import { SVN_EVENTS } from '../lib/svnOperationEvents';
 
 interface LayoutProps {
   children: ReactNode;
@@ -159,6 +160,42 @@ export function Layout({ children }: LayoutProps) {
         onShowShortcuts={() => {
           setShowCommandPalette(false);
           setShowShortcuts(true);
+        }}
+        onBranchTag={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG));
+          setShowCommandPalette(false);
+        }}
+        onSwitch={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.SWITCH));
+          setShowCommandPalette(false);
+        }}
+        onMerge={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.MERGE));
+          setShowCommandPalette(false);
+        }}
+        onRelocate={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.RELOCATE));
+          setShowCommandPalette(false);
+        }}
+        onBlame={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.BLAME));
+          setShowCommandPalette(false);
+        }}
+        onProperties={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.PROPERTIES));
+          setShowCommandPalette(false);
+        }}
+        onChangelist={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.CHANGELIST));
+          setShowCommandPalette(false);
+        }}
+        onShelve={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.SHELVE));
+          setShowCommandPalette(false);
+        }}
+        onUnshelve={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNSHELVE));
+          setShowCommandPalette(false);
         }}
       />
     </div>

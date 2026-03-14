@@ -23,6 +23,7 @@ import { FilePreview } from './ui/FilePreview';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
 import { useFolderSizes } from '../hooks/useFolderSizes';
+import { SVN_EVENTS } from '../lib/svnOperationEvents';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>
@@ -38,6 +39,60 @@ const UpdateToRevisionDialog = lazy(() =>
 );
 const RepoDiagnosticsPanel = lazy(() =>
   import('./RepoDiagnostics').then((m) => ({ default: m.RepoDiagnosticsPanel }))
+);
+const BranchTagDialog = lazy(() =>
+  import('./ui/BranchTagDialog').then((m) => ({ default: m.BranchTagDialog }))
+);
+const SwitchDialog = lazy(() =>
+  import('./ui/SwitchDialog').then((m) => ({ default: m.SwitchDialog }))
+);
+const MergeWizard = lazy(() =>
+  import('./ui/MergeWizard').then((m) => ({ default: m.MergeWizard }))
+);
+const RelocateDialog = lazy(() =>
+  import('./ui/RelocateDialog').then((m) => ({ default: m.RelocateDialog }))
+);
+const BlameViewer = lazy(() =>
+  import('./ui/BlameViewer').then((m) => ({ default: m.BlameViewer }))
+);
+const PropertiesDialog = lazy(() =>
+  import('./ui/PropertiesDialog').then((m) => ({ default: m.PropertiesDialog }))
+);
+const ChangelistDialog = lazy(() =>
+  import('./ui/ChangelistDialog').then((m) => ({ default: m.ChangelistDialog }))
+);
+const CreatePatchDialog = lazy(() =>
+  import('./ui/CreatePatchDialog').then((m) => ({ default: m.CreatePatchDialog }))
+);
+const ApplyPatchDialog = lazy(() =>
+  import('./ui/ApplyPatchDialog').then((m) => ({ default: m.ApplyPatchDialog }))
+);
+const IgnoreDialog = lazy(() =>
+  import('./ui/IgnoreDialog').then((m) => ({ default: m.IgnoreDialog }))
+);
+const ShelveDialog = lazy(() =>
+  import('./ui/ShelveDialog').then((m) => ({ default: m.ShelveDialog }))
+);
+const QuickNotesPanel = lazy(() =>
+  import('./ui/QuickNotesPanel').then((m) => ({ default: m.QuickNotesPanel }))
+);
+const LockManagementDialog = lazy(() =>
+  import('./ui/LockManagementDialog').then((m) => ({ default: m.LockManagementDialog }))
+);
+const ExportDialog = lazy(() =>
+  import('./ui/ExportDialog').then((m) => ({ default: m.ExportDialog }))
+);
+const RevisionGraph = lazy(() =>
+  import('./ui/RevisionGraph').then((m) => ({ default: m.RevisionGraph }))
+);
+const RepoBrowser = lazy(() =>
+  import('./ui/RepoBrowser').then((m) => ({ default: m.RepoBrowser }))
+);
+const ImportDialog = lazy(() =>
+  import('./ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
+);
+const ResolveDialog = lazy(() =>
+  import('./ui/ResolveDialog').then((m) => ({ default: m.ResolveDialog }))
 );
 
 // Loading fallback for lazy components
@@ -178,6 +233,26 @@ export function FileExplorer() {
   const [pendingUpdateEntry, setPendingUpdateEntry] = useState<SvnStatusEntry | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
+  // Dialog state for context menu actions
+  const [branchTagPath, setBranchTagPath] = useState<string | null>(null);
+  const [branchTagMode, setBranchTagMode] = useState<'branch' | 'tag'>('branch');
+  const [switchPath, setSwitchPath] = useState<string | null>(null);
+  const [mergePath, setMergePath] = useState<string | null>(null);
+  const [relocatePath, setRelocatePath] = useState<string | null>(null);
+  const [blamePath, setBlamePath] = useState<string | null>(null);
+  const [propertiesPath, setPropertiesPath] = useState<string | null>(null);
+  const [changelistPath, setChangelistPath] = useState<string | null>(null);
+  const [createPatchPath, setCreatePatchPath] = useState<string | null>(null);
+  const [applyPatchPath, setApplyPatchPath] = useState<string | null>(null);
+  const [ignoreEntry, setIgnoreEntry] = useState<{path: string; fileName?: string} | null>(null);
+  const [shelveDialogPath, setShelveDialogPath] = useState<string | null>(null);
+  const [lockManagementPath, setLockManagementPath] = useState<string | null>(null);
+  const [exportPath, setExportPath] = useState<string | null>(null);
+  const [revisionGraphPath, setRevisionGraphPath] = useState<string | null>(null);
+  const [repoBrowserUrl, setRepoBrowserUrl] = useState<string | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [resolveEntry, setResolveEntry] = useState<SvnStatusEntry | null>(null);
+
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authRealm, setAuthRealm] = useState('');
   const [authUsername, setAuthUsername] = useState('');
@@ -202,6 +277,7 @@ export function FileExplorer() {
 
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
 
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string>('name');
@@ -585,6 +661,62 @@ export function FileExplorer() {
     selectedPaths
   );
 
+  // Event listeners for SVN operations from CommandPalette
+  useEffect(() => {
+    const handleBranchTag = () => {
+      if (path) {
+        setBranchTagPath(path);
+        setBranchTagMode('branch');
+      }
+    };
+    const handleSwitch = () => {
+      if (path) setSwitchPath(path);
+    };
+    const handleMerge = () => {
+      if (path) setMergePath(path);
+    };
+    const handleRelocate = () => {
+      if (path) setRelocatePath(path);
+    };
+    const handleBlame = () => {
+      if (selectedEntry && !selectedEntry.isDirectory) setBlamePath(selectedEntry.path);
+    };
+    const handleProperties = () => {
+      if (selectedEntry) setPropertiesPath(selectedEntry.path);
+    };
+    const handleChangelist = () => {
+      if (selectedEntry) setChangelistPath(selectedEntry.path);
+    };
+    const handleShelve = () => {
+      if (path) setShelveDialogPath(path);
+    };
+    const handleImport = () => {
+      setIsImportDialogOpen(true);
+    };
+
+    window.addEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
+    window.addEventListener(SVN_EVENTS.SWITCH, handleSwitch);
+    window.addEventListener(SVN_EVENTS.MERGE, handleMerge);
+    window.addEventListener(SVN_EVENTS.RELOCATE, handleRelocate);
+    window.addEventListener(SVN_EVENTS.BLAME, handleBlame);
+    window.addEventListener(SVN_EVENTS.PROPERTIES, handleProperties);
+    window.addEventListener(SVN_EVENTS.CHANGELIST, handleChangelist);
+    window.addEventListener(SVN_EVENTS.SHELVE, handleShelve);
+    window.addEventListener(SVN_EVENTS.IMPORT, handleImport);
+
+    return () => {
+      window.removeEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
+      window.removeEventListener(SVN_EVENTS.SWITCH, handleSwitch);
+      window.removeEventListener(SVN_EVENTS.MERGE, handleMerge);
+      window.removeEventListener(SVN_EVENTS.RELOCATE, handleRelocate);
+      window.removeEventListener(SVN_EVENTS.BLAME, handleBlame);
+      window.removeEventListener(SVN_EVENTS.PROPERTIES, handleProperties);
+      window.removeEventListener(SVN_EVENTS.CHANGELIST, handleChangelist);
+      window.removeEventListener(SVN_EVENTS.SHELVE, handleShelve);
+      window.removeEventListener(SVN_EVENTS.IMPORT, handleImport);
+    };
+  }, [path, selectedEntry]);
+
   // Virtualizer
   const virtualizer = useVirtualizer({
     count: filteredEntries.length,
@@ -804,8 +936,72 @@ export function FileExplorer() {
           setShowPreview(true);
         }
       },
+      // Context menu dialog actions
+      onBranchTag: (entry: SvnStatusEntry) => {
+        setBranchTagPath(entry.path);
+        setBranchTagMode('branch');
+      },
+      onSwitch: (entry: SvnStatusEntry) => setSwitchPath(entry.path),
+      onMerge: (entry: SvnStatusEntry) => setMergePath(entry.path),
+      onRelocate: (entry: SvnStatusEntry) => setRelocatePath(entry.path),
+      onBlame: (entry: SvnStatusEntry) => setBlamePath(entry.path),
+      onProperties: (entry: SvnStatusEntry) => setPropertiesPath(entry.path),
+      onChangelist: (entry: SvnStatusEntry) => setChangelistPath(entry.path),
+      onCreatePatch: (entry: SvnStatusEntry) => setCreatePatchPath(entry.path),
+      onApplyPatch: (entry: SvnStatusEntry) => setApplyPatchPath(entry.path),
+      onAddToIgnore: (entry: SvnStatusEntry) => {
+        const fileName = entry.path.split(/[/\\]/).pop();
+        setIgnoreEntry({ path: entry.path, fileName });
+      },
+      onShelve: (entry: SvnStatusEntry) => {
+        if (entry.isDirectory) {
+          setShelveDialogPath(entry.path);
+        }
+      },
+      onManageLocks: (entry: SvnStatusEntry) => setLockManagementPath(entry.path),
+      onExport: (entry: SvnStatusEntry) => setExportPath(entry.path),
+      onRepoBrowser: (entry: SvnStatusEntry) => setRepoBrowserUrl(entry.path),
+      onRevisionGraph: (entry: SvnStatusEntry) => setRevisionGraphPath(entry.path),
+      // Resolve - only for conflicted files
+      onResolve: (entry: SvnStatusEntry) => {
+        if (entry.status === 'C') {
+          setResolveEntry(entry);
+        }
+      },
+      // Cleanup - for directories with working copy issues
+      onCleanup: async (entry: SvnStatusEntry) => {
+        if (entry.isDirectory && confirm(`Run cleanup on "${entry.path}"?`)) {
+          await actions.cleanup(entry.path);
+          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+        }
+      },
+      // Check for Modifications - placeholder (view doesn't exist yet)
+      onCheckForModifications: undefined,
     }),
-    [selectedEntry, selectedPaths, actions, path]
+    [
+      selectedEntry,
+      selectedPaths,
+      actions,
+      path,
+      queryClient,
+      setBranchTagPath,
+      setBranchTagMode,
+      setSwitchPath,
+      setMergePath,
+      setRelocatePath,
+      setBlamePath,
+      setPropertiesPath,
+      setChangelistPath,
+      setCreatePatchPath,
+      setApplyPatchPath,
+      setIgnoreEntry,
+      setShelveDialogPath,
+      setLockManagementPath,
+      setExportPath,
+      setRepoBrowserUrl,
+      setRevisionGraphPath,
+      setResolveEntry,
+    ]
   );
 
   const handleUpdateToRevision = useCallback(
@@ -1035,6 +1231,7 @@ export function FileExplorer() {
           canBrowseOnline={!!effectiveUrl}
           showRemoteItems={showRemoteItems}
           onToggleRemoteItems={() => setShowRemoteItems((prev) => !prev)}
+          onShowNotes={() => setShowNotes(true)}
         />
 
         {/* Filter Bar */}
@@ -1233,6 +1430,243 @@ export function FileExplorer() {
                 : undefined
             }
             workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
+          />
+        </Suspense>
+      )}
+
+      {/* Branch/Tag Dialog */}
+      {branchTagPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <BranchTagDialog
+            isOpen={!!branchTagPath}
+            onClose={() => setBranchTagPath(null)}
+            sourcePath={branchTagPath}
+            sourceUrl={svnInfo?.url}
+            mode={branchTagMode}
+            onComplete={(url: string) => {
+              setBranchTagPath(null);
+              queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Switch Dialog */}
+      {switchPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <SwitchDialog
+            isOpen={!!switchPath}
+            onClose={() => setSwitchPath(null)}
+            currentPath={switchPath}
+            currentUrl={svnInfo?.url}
+            onComplete={(url: string) => {
+              setSwitchPath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Merge Wizard */}
+      {mergePath && (
+        <Suspense fallback={<DialogLoader />}>
+          <MergeWizard
+            isOpen={!!mergePath}
+            onClose={() => setMergePath(null)}
+            targetPath={mergePath}
+            onComplete={() => {
+              setMergePath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Relocate Dialog */}
+      {relocatePath && (
+        <Suspense fallback={<DialogLoader />}>
+          <RelocateDialog
+            isOpen={!!relocatePath}
+            onClose={() => setRelocatePath(null)}
+            workingCopyPath={relocatePath}
+            currentUrl={svnInfo?.url}
+            onSuccess={() => {
+              setRelocatePath(null);
+              queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Blame Viewer */}
+      {blamePath && (
+        <Suspense fallback={<DialogLoader />}>
+          <BlameViewer
+            isOpen={!!blamePath}
+            filePath={blamePath}
+            onClose={() => setBlamePath(null)}
+          />
+        </Suspense>
+      )}
+
+      {/* Properties Dialog */}
+      {propertiesPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <PropertiesDialog
+            isOpen={!!propertiesPath}
+            onClose={() => setPropertiesPath(null)}
+            path={propertiesPath}
+          />
+        </Suspense>
+      )}
+
+      {/* Changelist Dialog */}
+      {changelistPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <ChangelistDialog
+            isOpen={!!changelistPath}
+            onClose={() => setChangelistPath(null)}
+            path={changelistPath}
+            selectedFiles={selectedPaths.size > 0 ? Array.from(selectedPaths) : undefined}
+          />
+        </Suspense>
+      )}
+
+      {/* Create Patch Dialog */}
+      {createPatchPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <CreatePatchDialog
+            isOpen={!!createPatchPath}
+            onClose={() => setCreatePatchPath(null)}
+            path={createPatchPath}
+            selectedPaths={selectedPaths.size > 0 ? Array.from(selectedPaths) : undefined}
+          />
+        </Suspense>
+      )}
+
+      {/* Apply Patch Dialog */}
+      {applyPatchPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <ApplyPatchDialog
+            isOpen={!!applyPatchPath}
+            onClose={() => setApplyPatchPath(null)}
+            targetPath={applyPatchPath}
+            onComplete={() => {
+              setApplyPatchPath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Ignore Dialog */}
+      {ignoreEntry && (
+        <Suspense fallback={<DialogLoader />}>
+          <IgnoreDialog
+            isOpen={!!ignoreEntry}
+            onClose={() => setIgnoreEntry(null)}
+            path={ignoreEntry.path}
+            fileName={ignoreEntry.fileName}
+            onApply={(patterns: string[]) => {
+              setIgnoreEntry(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Shelve Dialog */}
+      {shelveDialogPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <ShelveDialog
+            isOpen={!!shelveDialogPath}
+            workingCopyPath={shelveDialogPath}
+            onClose={() => setShelveDialogPath(null)}
+          />
+        </Suspense>
+      )}
+
+      {/* Quick Notes Panel */}
+      {showNotes && (
+        <Suspense fallback={<DialogLoader />}>
+          <QuickNotesPanel
+            isOpen={showNotes}
+            currentPath={path}
+            onClose={() => setShowNotes(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Lock Management Dialog */}
+      {lockManagementPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <LockManagementDialog
+            isOpen={!!lockManagementPath}
+            workingCopyPath={lockManagementPath}
+            onClose={() => setLockManagementPath(null)}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] })}
+          />
+        </Suspense>
+      )}
+
+      {/* Export Dialog */}
+      {exportPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <ExportDialog
+            isOpen={!!exportPath}
+            onClose={() => setExportPath(null)}
+            initialPath={exportPath}
+          />
+        </Suspense>
+      )}
+
+      {/* Revision Graph */}
+      {revisionGraphPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <RevisionGraph
+            isOpen={!!revisionGraphPath}
+            path={revisionGraphPath}
+            onClose={() => setRevisionGraphPath(null)}
+          />
+        </Suspense>
+      )}
+
+      {/* Repo Browser */}
+      {repoBrowserUrl && (
+        <Suspense fallback={<DialogLoader />}>
+          <RepoBrowser
+            isOpen={!!repoBrowserUrl}
+            repoUrl={repoBrowserUrl}
+            onClose={() => setRepoBrowserUrl(null)}
+          />
+        </Suspense>
+      )}
+
+      {/* Resolve Dialog */}
+      {resolveEntry && (
+        <Suspense fallback={<DialogLoader />}>
+          <ResolveDialog
+            isOpen={!!resolveEntry}
+            filePath={resolveEntry.path}
+            status={resolveEntry.status as 'C' | '?' | '!'}
+            onClose={() => setResolveEntry(null)}
+            onResolve={async (resolution) => {
+              await actions.resolve(resolveEntry.path, resolution);
+              setResolveEntry(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Import Dialog */}
+      {isImportDialogOpen && (
+        <Suspense fallback={<DialogLoader />}>
+          <ImportDialog
+            isOpen={isImportDialogOpen}
+            onClose={() => setIsImportDialogOpen(false)}
+            initialPath={path || ''}
           />
         </Suspense>
       )}

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { AddRepoModal } from './ui/AddRepoModal';
 import { CheckoutDialog } from './ui/CheckoutDialog';
+import { ImportDialog } from './ui/ImportDialog';
 import { StatusDot } from './ui/StatusIcon';
 import { SettingsDialog } from './ui/SettingsDialog';
 import { BookmarksManager } from './ui/BookmarksManager';
@@ -151,6 +152,7 @@ export function Sidebar() {
   );
   const [settingsTab, setSettingsTab] = useState<string>('general');
   const [isBookmarksManagerOpen, setIsBookmarksManagerOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   const recentRepos = settings?.recentRepositories || [];
   const bookmarks = settings?.bookmarks || [];
@@ -528,6 +530,10 @@ export function Sidebar() {
           setIsAddRepoModalOpen(false);
           setIsCheckoutDialogOpen(true);
         }}
+        onImport={() => {
+          setIsAddRepoModalOpen(false);
+          setIsImportDialogOpen(true);
+        }}
         recentRepos={recentRepos}
       />
 
@@ -553,6 +559,13 @@ export function Sidebar() {
         bookmarks={bookmarks}
         onAddBookmark={(path, name) => addBookmark(path, name)}
         onRemoveBookmark={(path) => removeBookmark(path)}
+      />
+
+      {/* Import Dialog */}
+      <ImportDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        initialPath={currentPath}
       />
 
       {/* Context Menu */}
