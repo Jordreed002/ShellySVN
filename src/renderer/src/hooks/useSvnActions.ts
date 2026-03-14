@@ -96,6 +96,14 @@ export function useSvnActions() {
           invalidateStatus(path);
           // Update overlay to clean status
           await updateOverlayIfEnabled(path, ' ');
+          // Show notification if enabled
+          if (result.revision) {
+            await window.api.notification?.show({
+              title: 'SVN Update Complete',
+              body: `Updated to revision r${result.revision}`,
+              type: 'success',
+            });
+          }
           return { success: true, revision: result.revision };
         }
 
@@ -129,6 +137,14 @@ export function useSvnActions() {
           }
           // Update overlays to clean status for committed files
           await updateOverlaysIfEnabled(paths, ' ');
+          // Show notification if enabled
+          if (result.revision) {
+            await window.api.notification?.show({
+              title: 'SVN Commit Complete',
+              body: `Committed revision r${result.revision} (${paths.length} files)`,
+              type: 'success',
+            });
+          }
           return { success: true, revision: result.revision };
         }
 

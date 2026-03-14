@@ -6,7 +6,7 @@
  */
 
 import { normalize } from 'path';
-import { existsSync, statSync } from 'fs';
+import { existsSync, statSync } from 'node:fs';
 import { MAX_COMMIT_MESSAGE_LENGTH } from '@shared/constants';
 
 /**

@@ -171,14 +171,81 @@ export function ConflictResolutionWizard({
     setExternalToolError(null);
 
     try {
-      // Get conflict file paths
-      // SVN creates .mine, .r<rev>, and .r<prev> files during conflicts
-      const minePath = currentFile.path + '.mine';
-      const basePath = currentFile.path + '.rBASE';
-      const theirsPath = currentFile.path + '.rTHEIRS';
+      // Detect actual conflict files in the directory
+      // SVN creates files with patterns: filename.mine, filename.r<old-rev>, filename.r<new-rev>
 
-      // For SVN, we need to get the actual conflict file paths
-      // The actual revision numbers would come from svn info, but for now use common patterns
+      // Extract directory and filename using cross-platform approach
+      const lastSepIndex = Math.max(currentFile.path.lastIndexOf('/'), currentFile.path.lastIndexOf('\\'));
+      const dirPath = lastSepIndex >= 0 ? currentFile.path.substring(0, lastSepIndex) : currentFile.path;
+      const baseName = lastSepIndex >= 0 ? currentFile.path.substring(lastSepIndex + 1) : currentFile.path;
+
+      // Determine path separator for constructing paths
+      const sep = currentFile.path.includes('\\') ? '\\' : '/';
+
+      // List directory to find conflict files
+      const dirFiles = await window.api.fs.listDirectory(dirPath);
+
+      // Find conflict files matching the pattern
+      // SVN conflict file patterns:
+      // - filename.mine (local changes)
+      // - filename.r<revision> (base and theirs - the lower revision is base, higher is theirs)
+      const conflictFiles = dirFiles
+        .filter(f => f.name.startsWith(baseName + '.'))
+        .map(f => f.name);
+
+      const minePattern = `${baseName}.mine`;
+      const revisionPattern = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.r(\\d+)$`);
+
+      const mineFile = conflictFiles.find(f => f === minePattern);
+      const revisionFiles = conflictFiles
+        .filter(f => revisionPattern.test(f))
+        .map(f => ({
+          name: f,
+          revision: parseInt(revisionPattern.exec(f)![1], 10)
+        }))
+        .sort((a, b) => a.revision - b.revision);
+
+      // Determine paths: base is lower revision, theirs is higher revision
+      let basePath: string;
+      let theirsPath: string;
+      let minePath: string;
+
+      const missingFiles: string[] = [];
+
+      if (revisionFiles.length >= 2) {
+        // We have both base and theirs revision files
+        basePath = `${dirPath}${sep}${revisionFiles[0].name}`;
+        theirsPath = `${dirPath}${sep}${revisionFiles[revisionFiles.length - 1].name}`;
+      } else if (revisionFiles.length === 1) {
+        // Only one revision file found - use it for both (unusual but handle gracefully)
+        basePath = `${dirPath}${sep}${revisionFiles[0].name}`;
+        theirsPath = basePath;
+        console.warn('[ConflictWizard] Only one revision file found, using same for base and theirs');
+      } else {
+        // No revision files found - use placeholder that will fail validation
+        basePath = `${currentFile.path}.rBASE`;
+        theirsPath = `${currentFile.path}.rTHEIRS`;
+        missingFiles.push('base/theirs revision files (.r<rev>)');
+      }
+
+      if (mineFile) {
+        minePath = `${dirPath}${sep}${mineFile}`;
+      } else {
+        minePath = `${currentFile.path}.mine`;
+        missingFiles.push('local file (.mine)');
+      }
+
+      // If we're missing conflict files, show a warning but still try to proceed
+      if (missingFiles.length > 0) {
+        console.warn('[ConflictWizard] Missing conflict files:', missingFiles);
+        setExternalToolError(
+          `Warning: Could not find ${missingFiles.join(', ')}. ` +
+          `The conflict files may have been moved or the conflict may be resolved. ` +
+          `Please verify the conflict still exists.`
+        );
+        // Still try to launch - the external tool validation will fail with a clearer error
+      }
+
       const result = await window.api.external.openMergeTool(
         settings.diffMerge.externalMergeTool,
         basePath,
@@ -189,6 +256,9 @@ export function ConflictResolutionWizard({
 
       if (!result.success) {
         setExternalToolError(result.error || 'Failed to launch external merge tool');
+      } else if (missingFiles.length === 0) {
+        // Clear any previous warning if launch succeeded
+        setExternalToolError(null);
       }
     } catch (err) {
       setExternalToolError(`Failed to launch external merge tool: ${(err as Error).message}`);

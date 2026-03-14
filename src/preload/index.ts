@@ -22,6 +22,7 @@ import type {
   RepoDiagnostics,
   CheckoutProgress,
   CheckoutOptions,
+  NotificationOptions,
 } from '@shared/types';
 
 const api: ElectronAPI = {
@@ -332,6 +333,10 @@ const api: ElectronAPI = {
       ipcRenderer.on('deep-link', handler);
       return () => ipcRenderer.removeListener('deep-link', handler);
     },
+  },
+  notification: {
+    show: (options: NotificationOptions) =>
+      ipcRenderer.invoke('notification:show', options) as Promise<boolean>,
   },
 };
 

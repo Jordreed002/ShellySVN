@@ -273,6 +273,13 @@ export interface NotificationSettings {
   monitorPollInterval: number; // seconds
 }
 
+export interface NotificationOptions {
+  title: string;
+  body: string;
+  type: 'success' | 'warning' | 'error' | 'info';
+  silent?: boolean;
+}
+
 export interface IntegrationSettings {
   shellExtensionEnabled: boolean;
   contextMenuItems: string[];
@@ -818,6 +825,9 @@ export interface ElectronAPI {
         url?: string;
       }) => void
     ) => () => void;
+  };
+  notification: {
+    show: (options: NotificationOptions) => Promise<boolean>;
   };
 }
 

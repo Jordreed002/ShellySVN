@@ -8,6 +8,15 @@ import { join } from 'path';
 const ALLOWED_EXTERNAL_SCHEMES = ['http:', 'https:', 'mailto:'];
 
 /**
+ * Cache type definitions
+ */
+interface CacheBreakdown {
+  electron: number;
+  logs: number;
+  auth: number;
+}
+
+/**
  * Validate a URL before opening externally
  * SECURITY: Only allow specific schemes to prevent potential abuse
  */
@@ -63,6 +72,88 @@ async function clearDirectory(dirPath: string): Promise<void> {
     }
   } catch {
     // File/directory doesn't exist or can't be deleted
+  }
+}
+
+/**
+ * Get cache breakdown by type
+ */
+async function getCacheBreakdown(): Promise<CacheBreakdown> {
+  const userDataPath = app.getPath('userData');
+
+  // Electron cache directories
+  const electronDirs = [
+    join(userDataPath, 'Cache'),
+    join(userDataPath, 'Code Cache'),
+    join(userDataPath, 'GPUCache'),
+    join(userDataPath, 'DawnCache'),
+    join(userDataPath, 'GrShaderCache'),
+  ];
+
+  // Log cache directory
+  const logDir = join(userDataPath, 'shelly-cache', 'logs');
+
+  // Auth cache directory (stored in shelly-cache/auth)
+  const authDir = join(userDataPath, 'shelly-cache', 'auth');
+
+  let electronSize = 0;
+  let logsSize = 0;
+  let authSize = 0;
+
+  // Calculate Electron cache size
+  for (const dir of electronDirs) {
+    const result = await getDirectorySize(dir);
+    electronSize += result.size;
+  }
+
+  // Calculate logs size
+  const logsResult = await getDirectorySize(logDir);
+  logsSize = logsResult.size;
+
+  // Calculate auth size
+  const authResult = await getDirectorySize(authDir);
+  authSize = authResult.size;
+
+  return {
+    electron: electronSize,
+    logs: logsSize,
+    auth: authSize,
+  };
+}
+
+/**
+ * Clear specific cache types
+ */
+async function clearCacheTypes(types: ('electron' | 'logs' | 'auth')[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userDataPath = app.getPath('userData');
+
+    if (types.includes('electron')) {
+      const electronDirs = [
+        join(userDataPath, 'Cache'),
+        join(userDataPath, 'Code Cache'),
+        join(userDataPath, 'GPUCache'),
+        join(userDataPath, 'DawnCache'),
+        join(userDataPath, 'GrShaderCache'),
+      ];
+      for (const dir of electronDirs) {
+        await clearDirectory(dir);
+      }
+    }
+
+    if (types.includes('logs')) {
+      const logDir = join(userDataPath, 'shelly-cache', 'logs');
+      await clearDirectory(logDir);
+    }
+
+    if (types.includes('auth')) {
+      const authDir = join(userDataPath, 'shelly-cache', 'auth');
+      await clearDirectory(authDir);
+    }
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
   }
 }
 
@@ -149,6 +240,19 @@ export function registerAppHandlers(): void {
       return { size: 0, files: 0 };
     }
   });
+
+  // Get cache breakdown by type
+  ipcMain.handle('app:getCacheBreakdown', async (): Promise<CacheBreakdown> => {
+    return getCacheBreakdown();
+  });
+
+  // Clear specific cache types
+  ipcMain.handle(
+    'app:clearCacheTypes',
+    async (_, types: ('electron' | 'logs' | 'auth')[]): Promise<{ success: boolean; error?: string }> => {
+      return clearCacheTypes(types);
+    }
+  );
 
   // Window control handlers
   ipcMain.handle('app:window:minimize', () => {

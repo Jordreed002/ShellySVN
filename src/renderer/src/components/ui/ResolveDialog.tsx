@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, CheckCircle, Loader2, FileText, GitMerge } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, Loader2, FileText, GitMerge, Wrench } from 'lucide-react';
+import { useSettings } from '@renderer/hooks/useSettings';
 
 interface ResolveDialogProps {
   isOpen: boolean;
@@ -70,6 +71,13 @@ export function ResolveDialog({
   const [isResolving, setIsResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isLaunchingExternalTool, setIsLaunchingExternalTool] = useState(false);
+  const [externalToolError, setExternalToolError] = useState<string | null>(null);
+  const [externalToolUsed, setExternalToolUsed] = useState(false);
+
+  const { settings } = useSettings();
+  const hasExternalMergeTool =
+    settings.diffMerge.externalMergeTool && settings.diffMerge.externalMergeTool.trim() !== '';
 
   useEffect(() => {
     if (isOpen) {
@@ -77,6 +85,9 @@ export function ResolveDialog({
       setError(null);
       setSuccess(false);
       setIsResolving(false);
+      setIsLaunchingExternalTool(false);
+      setExternalToolError(null);
+      setExternalToolUsed(false);
     }
   }, [isOpen]);
 
@@ -91,6 +102,102 @@ export function ResolveDialog({
       setSuccess(true);
     } catch (err) {
       setError((err as Error).message || 'Failed to resolve conflict');
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  // Open external merge tool
+  const handleOpenExternalMergeTool = async () => {
+    if (!hasExternalMergeTool) return;
+
+    setIsLaunchingExternalTool(true);
+    setExternalToolError(null);
+
+    try {
+      // Detect actual conflict files in the directory
+      // SVN creates files with patterns: filename.mine, filename.r<old-rev>, filename.r<new-rev>
+      const lastSep = filePath.lastIndexOf(filePath.includes('\\') ? '\\' : '/');
+      const dirPath = filePath.substring(0, lastSep);
+      const baseName = filePath.split(/[/\\]/).pop() || '';
+
+      // List directory to find conflict files
+      const dirFiles = await window.api.fs.listDirectory(dirPath);
+
+      // Find conflict files matching the pattern
+      // SVN conflict file patterns:
+      // - filename.mine (local changes)
+      // - filename.r<revision> (base and theirs - the lower revision is base, higher is theirs)
+      const conflictFiles = dirFiles
+        .filter(f => f.name.startsWith(baseName + '.'))
+        .map(f => f.name);
+
+      let minePath = '';
+      let basePath = '';
+      let theirsPath = '';
+
+      // Find .mine file
+      const mineFile = conflictFiles.find(f => f === baseName + '.mine');
+      if (mineFile) {
+        minePath = `${dirPath}/${mineFile}`;
+      }
+
+      // Find .r* files (revision files)
+      const revisionFiles = conflictFiles
+        .filter(f => f.startsWith(baseName + '.r'))
+        .map(f => ({
+          name: f,
+          rev: parseInt(f.replace(baseName + '.r', ''), 10)
+        }))
+        .filter(f => !isNaN(f.rev))
+        .sort((a, b) => a.rev - b.rev);
+
+      if (revisionFiles.length >= 2) {
+        // Lower revision is base, higher is theirs
+        basePath = `${dirPath}/${revisionFiles[0].name}`;
+        theirsPath = `${dirPath}/${revisionFiles[1].name}`;
+      } else if (revisionFiles.length === 1) {
+        // Only one revision file available, use it as theirs
+        theirsPath = `${dirPath}/${revisionFiles[0].name}`;
+      }
+
+      // If we couldn't find conflict files, try using the direct paths
+      // Some tools can handle missing files
+      if (!minePath) minePath = filePath + '.mine';
+      if (!basePath) basePath = filePath + '.rBASE';
+      if (!theirsPath) theirsPath = filePath + '.rTHEIRS';
+
+      const result = await window.api.external.openMergeTool(
+        settings.diffMerge.externalMergeTool,
+        basePath,
+        minePath,
+        theirsPath,
+        filePath
+      );
+
+      if (!result.success) {
+        setExternalToolError(result.error || 'Failed to launch external merge tool');
+      } else {
+        setExternalToolUsed(true);
+        setExternalToolError(null);
+      }
+    } catch (err) {
+      setExternalToolError(`Failed to launch external merge tool: ${(err as Error).message}`);
+    } finally {
+      setIsLaunchingExternalTool(false);
+    }
+  };
+
+  // Mark as resolved after using external tool
+  const handleMarkResolvedAfterExternal = async () => {
+    setIsResolving(true);
+    setError(null);
+
+    try {
+      await onResolve('working');
+      setSuccess(true);
+    } catch (err) {
+      setError((err as Error).message || 'Failed to mark as resolved');
     } finally {
       setIsResolving(false);
     }
@@ -185,6 +292,46 @@ export function ResolveDialog({
                 ))}
               </div>
             </div>
+
+            {/* External Merge Tool Option */}
+            {hasExternalMergeTool && (
+              <div className="bg-bg-tertiary rounded-lg p-3">
+                <h5 className="text-sm font-medium text-text mb-2">External Merge Tool</h5>
+                <p className="text-xs text-text-secondary mb-3">
+                  Launch {settings.diffMerge.externalMergeTool} to visually resolve conflicts.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleOpenExternalMergeTool}
+                    disabled={isLaunchingExternalTool || isResolving}
+                    className="btn btn-primary btn-sm"
+                  >
+                    {isLaunchingExternalTool ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Wrench className="w-4 h-4" />
+                    )}
+                    Edit Conflicts
+                  </button>
+                  <button
+                    onClick={handleMarkResolvedAfterExternal}
+                    disabled={isResolving || !externalToolUsed}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Mark as Resolved
+                  </button>
+                </div>
+                {externalToolUsed && (
+                  <p className="text-xs text-success mt-2">
+                    External tool launched. After resolving conflicts, click "Mark as Resolved".
+                  </p>
+                )}
+                {externalToolError && (
+                  <p className="text-xs text-error mt-2">{externalToolError}</p>
+                )}
+              </div>
+            )}
 
             {/* Warning */}
             <div className="bg-warning/10 border border-warning/20 rounded-lg p-3">

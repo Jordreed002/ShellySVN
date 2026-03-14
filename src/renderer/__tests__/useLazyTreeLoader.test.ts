@@ -1,215 +1,267 @@
-import { renderHook, act } from '@testing-library/react';
-import { useLazyTreeLoader } from '../src/hooks/useLazyTreeLoader';
-import type { SvnListResult } from '../../shared/types';
+/**
+ * Tests for useLazyTreeLoader hook
+ */
 
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+
+import { useLazyTreeLoader } from '../src/hooks/useLazyTreeLoader';
+import type { SvnListResult, ElectronAPI } from '../../shared/types';
+
+// Mock window.api
 const mockSvnList = vi.fn();
-const mockQueryClient = {
-  invalidateQueries: vi.fn(),
-  prefetchQuery: vi.fn(),
-  setQueryData: vi.fn(),
-};
 
 beforeEach(() => {
-  global.document = {
-    createElement: vi.fn(),
-    getElementById: vi.fn(),
-    querySelector: vi.fn(),
-    querySelectorAll: vi.fn(),
-    body: {
-      appendChild: vi.fn(),
-      removeChild: vi.fn(),
-    },
-    head: {
-      appendChild: vi.fn(),
-      removeChild: vi.fn(),
-    },
-  } as any;
+  vi.clearAllMocks();
 
-  global.window = {
+  // Set up window.api mock
+  (globalThis as any).window = {
     api: {
       svn: {
         list: mockSvnList,
       },
-    },
-  } as any;
-
-  global.navigator = {
-    userAgent: 'test',
-  } as any;
-
-  global.MutationObserver = vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    disconnect: vi.fn(),
-    unobserve: vi.fn(),
-  }));
+    } as Partial<ElectronAPI>,
+  };
 });
 
-// Mock TanStack Query
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: vi.fn((options) => {
-    const { queryKey, _queryFn } = options;
+// Create a wrapper with QueryClient
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+        staleTime: 0,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  });
 
-    if (queryKey[0] === 'svn:tree' && queryKey[1] === 'test-url') {
-      // Mock successful root load
-      const mockResult: SvnListResult = {
-        path: 'test-url',
-        entries: [
-          {
-            name: 'folder1',
-            path: 'test-url/folder1',
-            url: 'test-url/folder1',
-            kind: 'dir',
-            revision: 1,
-            author: 'test',
-            date: '2023-01-01',
-          },
-          {
-            name: 'file1.txt',
-            path: 'test-url/file1.txt',
-            url: 'test-url/file1.txt',
-            kind: 'file',
-            size: 100,
-            revision: 1,
-            author: 'test',
-            date: '2023-01-01',
-          },
-        ],
-      };
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    );
+  };
+}
 
-      return {
-        data: {
-          path: 'test-url',
-          nodes: [
-            {
-              path: 'test-url/folder1',
-              name: 'folder1',
-              kind: 'dir',
-              isLoading: false,
-              isLoaded: true,
-              children: [],
-              hasChildren: true,
-              status: undefined,
-            },
-            {
-              path: 'test-url/file1.txt',
-              name: 'file1.txt',
-              kind: 'file',
-              isLoading: false,
-              isLoaded: true,
-              children: [],
-              hasChildren: false,
-              status: undefined,
-            },
-          ],
-          result: mockResult,
-        },
-        isLoading: false,
-        error: null,
-        refetch: vi.fn(),
-      };
-    }
-
-    return {
-      data: null,
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    };
-  }),
-
-  useQueryClient: () => mockQueryClient,
-
-  useMutation: vi.fn((options) => ({
-    mutateAsync: options.mutationFn,
-    isPending: false,
-    error: null,
-  })),
-}));
+// Helper to create mock SVN list result
+function createMockListResult(path: string, entries: Array<{ name: string; kind: 'file' | 'dir' }>): SvnListResult {
+  return {
+    path,
+    entries: entries.map((e) => ({
+      name: e.name,
+      path: `${path}/${e.name}`,
+      url: `${path}/${e.name}`,
+      kind: e.kind,
+      revision: 1,
+      author: 'testuser',
+      date: '2024-01-01T12:00:00Z',
+      ...(e.kind === 'file' ? { size: 100 } : {}),
+    })),
+  };
+}
 
 describe('useLazyTreeLoader', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  describe('initialization', () => {
+    it('should initialize with loading state when fetching', async () => {
+      // Create a promise that we can resolve manually
+      let resolvePromise: (value: SvnListResult) => void;
+      const pendingPromise = new Promise<SvnListResult>((resolve) => {
+        resolvePromise = resolve;
+      });
+      mockSvnList.mockReturnValue(pendingPromise);
 
-  it('should initialize with correct default state', () => {
-    const { result } = renderHook(() => useLazyTreeLoader('test-url'));
+      const { result } = renderHook(() => useLazyTreeLoader('https://svn.example.com/repo/trunk'), {
+        wrapper: createWrapper(),
+      });
 
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeUndefined();
-    expect(result.current.nodes).toBeInstanceOf(Map);
-    expect(result.current.roots).toEqual([]);
-    expect(result.current.selection).toEqual({
-      selectedPaths: new Set(),
-      expandedPaths: new Set(),
+      // Initially loading
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.nodes).toBeInstanceOf(Map);
+      expect(result.current.roots).toEqual([]);
+
+      // Resolve the promise
+      resolvePromise!(createMockListResult('https://svn.example.com/repo/trunk', []));
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+    });
+
+    it('should initialize with empty state when no URL provided', async () => {
+      const { result } = renderHook(() => useLazyTreeLoader(''), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBeUndefined();
+      expect(result.current.nodes).toBeInstanceOf(Map);
+      expect(result.current.roots).toEqual([]);
     });
   });
 
-  it('should load root tree successfully', () => {
-    const { result } = renderHook(() => useLazyTreeLoader('test-url'));
+  describe('loading tree data', () => {
+    it('should load root tree successfully', async () => {
+      mockSvnList.mockResolvedValue(
+        createMockListResult('https://svn.example.com/repo/trunk', [
+          { name: 'src', kind: 'dir' },
+          { name: 'README.md', kind: 'file' },
+        ])
+      );
 
-    expect(result.current.roots).toHaveLength(2);
-    expect(result.current.nodes.size).toBe(2);
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
+        { wrapper: createWrapper() }
+      );
 
-    const folderNode = result.current.nodes.get('test-url/folder1');
-    expect(folderNode?.name).toBe('folder1');
-    expect(folderNode?.kind).toBe('dir');
-    expect(folderNode?.hasChildren).toBe(true);
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
 
-    const fileNode = result.current.nodes.get('test-url/file1.txt');
-    expect(fileNode?.name).toBe('file1.txt');
-    expect(fileNode?.kind).toBe('file');
-    expect(fileNode?.hasChildren).toBe(false);
-  });
+      expect(result.current.roots).toHaveLength(2);
+      expect(result.current.nodes.size).toBe(2);
 
-  it('should handle loading errors gracefully', async () => {
-    mockSvnList.mockRejectedValueOnce(new Error('Network error'));
+      const srcNode = result.current.nodes.get('https://svn.example.com/repo/trunk/src');
+      expect(srcNode?.name).toBe('src');
+      expect(srcNode?.kind).toBe('dir');
+      expect(srcNode?.hasChildren).toBe(true);
 
-    const { result } = renderHook(() => useLazyTreeLoader('test-url'));
-
-    await act(async () => {
-      await result.current.loadNode('non-existent-path');
+      const readmeNode = result.current.nodes.get('https://svn.example.com/repo/trunk/README.md');
+      expect(readmeNode?.name).toBe('README.md');
+      expect(readmeNode?.kind).toBe('file');
+      expect(readmeNode?.hasChildren).toBe(false);
     });
 
-    expect(result.current.getNodeError('non-existent-path')).toBe('Network error');
-  });
+    it('should handle empty repository', async () => {
+      mockSvnList.mockResolvedValue(
+        createMockListResult('https://svn.example.com/repo/empty', [])
+      );
 
-  it('should refresh tree correctly', () => {
-    const { result } = renderHook(() => useLazyTreeLoader('test-url'));
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/empty'),
+        { wrapper: createWrapper() }
+      );
 
-    act(() => {
-      result.current.refreshTree();
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.roots).toEqual([]);
+      expect(result.current.nodes.size).toBe(0);
     });
 
-    expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['svn:tree', 'test-url', undefined],
+    it('should handle loading errors', async () => {
+      mockSvnList.mockRejectedValue(new Error('Network error'));
+
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.error).toContain('Failed to load root tree');
     });
   });
 
-  it('should clear node errors', () => {
-    const { result } = renderHook(() => useLazyTreeLoader('test-url'));
+  describe('refreshTree', () => {
+    it('should refresh tree correctly', async () => {
+      mockSvnList.mockResolvedValue(
+        createMockListResult('https://svn.example.com/repo/trunk', [
+          { name: 'file.txt', kind: 'file' },
+        ])
+      );
 
-    act(() => {
-      result.current.clearNodeError('test-path');
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(mockSvnList).toHaveBeenCalledTimes(1);
+
+      // Refresh
+      act(() => {
+        result.current.refreshTree();
+      });
+
+      await waitFor(() => {
+        expect(mockSvnList).toHaveBeenCalledTimes(2);
+      });
     });
-
-    expect(result.current.getNodeError('test-path')).toBeUndefined();
   });
 
-  it('should check if node is loading', () => {
-    const { result } = renderHook(() => useLazyTreeLoader('test-url'));
+  describe('node error handling', () => {
+    it('should clear node errors', async () => {
+      mockSvnList.mockResolvedValue(
+        createMockListResult('https://svn.example.com/repo/trunk', [])
+      );
 
-    expect(result.current.isNodeLoading('test-path')).toBe(false);
-  });
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
+        { wrapper: createWrapper() }
+      );
 
-  it('should handle empty repository', () => {
-    mockSvnList.mockResolvedValueOnce({
-      path: 'empty-url',
-      entries: [],
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Clear a node error (even if there isn't one)
+      act(() => {
+        result.current.clearNodeError('test-path');
+      });
+
+      expect(result.current.getNodeError('test-path')).toBeUndefined();
     });
 
-    const { result } = renderHook(() => useLazyTreeLoader('empty-url'));
+    it('should check if node is loading', async () => {
+      mockSvnList.mockResolvedValue(
+        createMockListResult('https://svn.example.com/repo/trunk', [])
+      );
 
-    expect(result.current.roots).toEqual([]);
-    expect(result.current.nodes.size).toBe(0);
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isNodeLoading('test-path')).toBe(false);
+    });
+  });
+
+  describe('selection state', () => {
+    it('should initialize with empty selection', async () => {
+      mockSvnList.mockResolvedValue(
+        createMockListResult('https://svn.example.com/repo/trunk', [])
+      );
+
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.selection).toEqual({
+        selectedPaths: new Set(),
+        expandedPaths: new Set(),
+      });
+    });
   });
 });

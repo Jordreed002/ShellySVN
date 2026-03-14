@@ -10,26 +10,35 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'lcov', 'html'],
       reportsDirectory: './coverage',
-      // Focus coverage on testable parsing functions
-      include: ['src/main/ipc/svn.ts'],
-      exclude: ['src/**/__tests__/**', 'src/**/types.ts', 'src/**/*.d.ts', 'src/**/index.ts'],
+      // Include all testable source files
+      include: [
+        'src/main/ipc/svn.ts',
+        'src/main/utils/validation.ts',
+        'src/main/auth-cache.ts',
+        'src/shared/utils/**/*.ts',
+        'packages/logic-engine/src/**/*.ts',
+      ],
+      exclude: [
+        'src/**/__tests__/**',
+        'src/**/types.ts',
+        'src/**/*.d.ts',
+        'src/**/index.ts',
+        'src/__test-utils__/**',
+      ],
       all: true,
       thresholds: {
-        // Focus on parsing functions coverage - the IPC handlers require
-        // Electron mocking which is complex and best tested via E2E tests
-        // Note: These thresholds reflect ACTUAL coverage of production code
-        // (not re-implemented test code)
-        lines: 19,
-        functions: 10,
-        branches: 23,
-        statements: 18,
+        // Target thresholds for Phase 1
+        lines: 25,
+        functions: 20,
+        branches: 25,
+        statements: 25,
       },
       perFile: true,
       watermarks: {
-        lines: [15, 30],
-        functions: [10, 25],
-        branches: [20, 35],
-        statements: [15, 30],
+        lines: [20, 50],
+        functions: [20, 50],
+        branches: [20, 50],
+        statements: [20, 50],
       },
     },
     testTimeout: 10000,

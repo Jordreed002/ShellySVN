@@ -158,11 +158,31 @@ export function Sidebar() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isPluginManagerOpen, setIsPluginManagerOpen] = useState(false);
   const [isCertificateManagerOpen, setIsCertificateManagerOpen] = useState(false);
+  const [drives, setDrives] = useState<import('@shared/types').FileInfo[]>([]);
+  const [loadingDrives, setLoadingDrives] = useState(false);
 
   const recentRepos = settings?.recentRepositories || [];
   const bookmarks = settings?.bookmarks || [];
 
   const isWindows = navigator.platform.toLowerCase().startsWith('win');
+
+  // Load drives on Windows
+  useEffect(() => {
+    if (isWindows) {
+      const loadDrives = async () => {
+        setLoadingDrives(true);
+        try {
+          const driveList = await window.api.fs.listDrives();
+          setDrives(driveList);
+        } catch (err) {
+          console.error('Failed to load drives:', err);
+        } finally {
+          setLoadingDrives(false);
+        }
+      };
+      loadDrives();
+    }
+  }, [isWindows]);
 
   // Load quick access locations
   useEffect(() => {
@@ -186,13 +206,11 @@ export function Sidebar() {
       } catch {}
 
       // Add drives (Windows) or root (Mac/Linux)
-      if (isWindows) {
-        // On Windows, add drives
-        items.push({ name: 'This PC', path: 'DRIVES://', icon: HardDrive });
-      } else {
+      if (!isWindows) {
         // On Mac/Linux, add root
         items.push({ name: 'Root', path: '/', icon: HardDrive });
       }
+      // Note: On Windows, drives are shown separately below Quick Access
 
       setQuickAccess(items);
     };
@@ -343,6 +361,38 @@ export function Sidebar() {
               );
             })}
           </div>
+
+          {/* Drives Section (Windows only) */}
+          {isWindows && (
+            <div className="py-2 border-t border-border">
+              <div className="px-3 py-1.5 text-2xs font-semibold text-text-muted uppercase tracking-wider">
+                This PC
+              </div>
+              {loadingDrives ? (
+                <div className="px-3 py-2 flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-text-muted" />
+                  <span className="text-xs text-text-muted">Loading drives...</span>
+                </div>
+              ) : drives.length > 0 ? (
+                drives.map((drive) => {
+                  const isActive = currentPath === drive.path;
+                  return (
+                    <Link
+                      key={drive.path}
+                      to="/files"
+                      search={{ path: drive.path }}
+                      className={`tree-item ${isActive ? 'tree-item-active' : ''}`}
+                    >
+                      <HardDrive className="w-4 h-4" />
+                      <span className="truncate">{drive.name}</span>
+                    </Link>
+                  );
+                })
+              ) : (
+                <div className="px-3 py-2 text-xs text-text-muted">No drives found</div>
+              )}
+            </div>
+          )}
 
           {/* Main Navigation */}
           <div className="py-2 border-t border-border">
