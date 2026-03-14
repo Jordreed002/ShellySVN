@@ -28,6 +28,7 @@ import { useSettings } from '@renderer/hooks/useSettings';
 
 import { AddRepoModal } from './ui/AddRepoModal';
 import { BookmarksManager } from './ui/BookmarksManager';
+import { CertificateManagerDialog } from './ui/CertificateManagerDialog';
 import { ImportDialog } from './ui/ImportDialog';
 import { PluginManagerDialog } from './ui/PluginManagerDialog';
 import { SettingsDialog, type SettingsTab } from './ui/SettingsDialog';
@@ -156,6 +157,7 @@ export function Sidebar() {
   const [isBookmarksManagerOpen, setIsBookmarksManagerOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isPluginManagerOpen, setIsPluginManagerOpen] = useState(false);
+  const [isCertificateManagerOpen, setIsCertificateManagerOpen] = useState(false);
 
   const recentRepos = settings?.recentRepositories || [];
   const bookmarks = settings?.bookmarks || [];
@@ -534,6 +536,14 @@ export function Sidebar() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setIsCertificateManagerOpen(true)}
+                className="hover:text-text transition-fast"
+                title="Certificates"
+              >
+                <Key className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsPluginManagerOpen(true)}
                 className="hover:text-text transition-fast"
                 title="Plugins"
@@ -596,6 +606,12 @@ export function Sidebar() {
       <PluginManagerDialog
         isOpen={isPluginManagerOpen}
         onClose={() => setIsPluginManagerOpen(false)}
+      />
+
+      {/* Certificate Manager Dialog */}
+      <CertificateManagerDialog
+        isOpen={isCertificateManagerOpen}
+        onClose={() => setIsCertificateManagerOpen(false)}
       />
 
       {/* Context Menu */}

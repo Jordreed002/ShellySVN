@@ -24,6 +24,7 @@ import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
 import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
+import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>
@@ -195,6 +196,11 @@ export function FileExplorer() {
   const queryClient = useQueryClient();
   const parentRef = useRef<HTMLDivElement>(null);
   const { settings, addRecentPath, addBookmark, removeBookmark } = useSettings();
+
+  // Performance monitoring for SVN operations
+  const { startMetric, endMetric } = usePerformanceMonitor({
+    enabled: true,
+  });
 
   // Track recent paths on navigation
   useEffect(() => {
@@ -550,6 +556,43 @@ export function FileExplorer() {
   const entries = useMemo(() => {
     return (files || []).map(fileInfoToEntry);
   }, [files]);
+
+  // Performance tracking: Track file count when entries are loaded
+  useEffect(() => {
+    if (entries.length > 0) {
+      // Record file count as a quick metric with the 'scan' category
+      const metricId = startMetric('file-count', 'scan', { count: entries.length, path });
+      endMetric(metricId, { count: entries.length });
+    }
+  }, [entries.length, startMetric, endMetric, path]);
+
+  // Performance tracking: Track SVN status fetch timing
+  const statusMetricIdRef = useRef<string>('');
+  useEffect(() => {
+    if (isLoadingStatus && !statusMetricIdRef.current) {
+      statusMetricIdRef.current = startMetric('status-fetch', 'scan', { path });
+    } else if (!isLoadingStatus && statusMetricIdRef.current) {
+      endMetric(statusMetricIdRef.current, {
+        fileCount: entries.length,
+        success: !error,
+      });
+      statusMetricIdRef.current = '';
+    }
+  }, [isLoadingStatus, startMetric, endMetric, entries.length, path, error]);
+
+  // Performance tracking: Track deep status fetch timing
+  const deepStatusMetricIdRef = useRef<string>('');
+  useEffect(() => {
+    if (isLoadingDeep && !deepStatusMetricIdRef.current) {
+      deepStatusMetricIdRef.current = startMetric('deep-status-fetch', 'scan', { path });
+    } else if (!isLoadingDeep && deepStatusMetricIdRef.current) {
+      endMetric(deepStatusMetricIdRef.current, {
+        fileCount: entries.length,
+        success: true,
+      });
+      deepStatusMetricIdRef.current = '';
+    }
+  }, [isLoadingDeep, startMetric, endMetric, entries.length, path]);
 
   // Calculate folder sizes when enabled
   const { folderSizes } = useFolderSizes(entries, settings.showFolderSizes);

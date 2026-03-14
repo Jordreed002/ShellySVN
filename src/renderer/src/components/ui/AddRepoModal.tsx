@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -16,10 +16,11 @@ import {
   User,
   Key,
   ChevronDown,
+  XCircle,
 } from 'lucide-react';
 import { useSettings } from '@renderer/hooks/useSettings';
 import { ChooseItemsDialog } from './ChooseItemsDialog';
-import type { AppSettings } from '@shared/types';
+import type { AppSettings, CheckoutProgress } from '@shared/types';
 
 interface SslCertificate {
   fingerprint: string;
@@ -80,6 +81,16 @@ export function AddRepoModal({
   const [showChooseItemsDialog, setShowChooseItemsDialog] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
 
+  // Checkout progress state
+  const [checkoutProgress, setCheckoutProgress] = useState<{
+    currentFile?: string;
+    filesProcessed: number;
+    status: 'running' | 'completed' | 'cancelled' | 'error' | 'idle';
+  }>({
+    filesProcessed: 0,
+    status: 'idle',
+  });
+
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -106,6 +117,11 @@ export function AddRepoModal({
       setProvideCredentials(false);
       setSaveCredentials(false);
       setSelectedPaths([]);
+      // Reset checkout progress
+      setCheckoutProgress({
+        filesProcessed: 0,
+        status: 'idle',
+      });
     }
   }, [isOpen, initialTab, settings?.defaultCheckoutDirectory]);
 
@@ -265,6 +281,7 @@ export function AddRepoModal({
 
     setIsCheckingOut(true);
     setError(null);
+    setCheckoutProgress({ filesProcessed: 0, status: 'running' });
 
     try {
       const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined;
@@ -277,9 +294,23 @@ export function AddRepoModal({
         sslFailures,
       };
 
-      const result = await window.api.svn.checkout(
+      const result = await window.api.svn.checkoutWithProgress(
         checkoutUrl.trim(),
         checkoutPath.trim(),
+        (progress: CheckoutProgress) => {
+          setCheckoutProgress({
+            currentFile: progress.currentFile,
+            filesProcessed: progress.filesProcessed,
+            status: progress.status,
+          });
+
+          if (progress.status === 'completed') {
+            // Handle success
+            setSuccess({ revision: progress.revision || 0, path: checkoutPath.trim() });
+          } else if (progress.status === 'error') {
+            setError(progress.error || 'Checkout failed');
+          }
+        },
         revision === 'HEAD' ? undefined : revision,
         checkoutDepth,
         checkoutOptions
@@ -302,6 +333,7 @@ export function AddRepoModal({
       handleCheckoutError((err as Error).message || 'Checkout failed');
     } finally {
       setIsCheckingOut(false);
+      setCheckoutProgress((prev) => ({ ...prev, status: 'idle' }));
     }
   };
 
@@ -333,6 +365,13 @@ export function AddRepoModal({
       setCheckoutPath(result);
     }
   };
+
+  const handleCancelCheckout = useCallback(async () => {
+    await window.api.svn.cancelCheckout();
+    setIsCheckingOut(false);
+    setCheckoutProgress((prev) => ({ ...prev, status: 'cancelled' }));
+    setError('Checkout cancelled');
+  }, []);
 
   const handleClose = () => {
     if (mode === 'checkout' && isCheckingOut) return;
@@ -579,6 +618,23 @@ export function AddRepoModal({
                   </select>
                 </div>
 
+                {/* Checkout Progress */}
+                {isCheckingOut && checkoutProgress.status === 'running' && (
+                  <div className="space-y-2 p-3 bg-bg-secondary rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                      <span className="text-sm text-text-secondary">
+                        Checking out... {checkoutProgress.filesProcessed} files
+                      </span>
+                    </div>
+                    {checkoutProgress.currentFile && (
+                      <div className="text-xs text-text-faint truncate">
+                        {checkoutProgress.currentFile}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Choose Items */}
                 {checkoutUrl.trim() && (
                   <div className="flex items-center gap-2">
@@ -738,23 +794,21 @@ export function AddRepoModal({
               )}
             </button>
           ) : mode === 'checkout' ? (
-            success ? null : (
+            success ? null : isCheckingOut ? (
+              <button onClick={handleCancelCheckout} className="btn btn-danger">
+                <XCircle className="w-4 h-4" />
+                Cancel
+              </button>
+            ) : (
               <button
                 onClick={() => executeCheckout()}
                 disabled={isCheckingOut || !checkoutUrl.trim() || !checkoutPath.trim()}
                 className="btn btn-primary"
               >
-                {isCheckingOut ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Checking out...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    Checkout
-                  </>
-                )}
+                <>
+                  <Download className="w-4 h-4" />
+                  Checkout
+                </>
               </button>
             )
           ) : (
