@@ -1,5 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { SvnInfoResult, SvnLogResult, SvnStatusResult, SvnStatusEntry } from '@shared/types';
+import { formatBytes } from '@shared/utils/formatBytes';
+import { formatDuration } from '@shared/utils/formatTime';
+import {
+  OFFLINE_CACHE_TTL_MS,
+  OFFLINE_CACHE_SIZE_BYTES,
+  OFFLINE_DURATION_UPDATE_INTERVAL_MS,
+} from '@shared/constants';
 
 /**
  * Offline cache entry with metadata
@@ -37,8 +44,8 @@ interface OfflineCacheConfig {
 }
 
 const DEFAULT_CONFIG: OfflineCacheConfig = {
-  defaultTtl: 24 * 60 * 60 * 1000, // 24 hours
-  maxCacheSize: 50 * 1024 * 1024, // 50 MB
+  defaultTtl: OFFLINE_CACHE_TTL_MS,
+  maxCacheSize: OFFLINE_CACHE_SIZE_BYTES,
   persistToDisk: true,
   storageKey: 'shellysvn-offline-cache',
 };
@@ -395,12 +402,12 @@ export function useOfflineDetector() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Update offline duration every minute
+    // Update offline duration periodically
     const interval = setInterval(() => {
       if (isOffline && lastOnlineTime) {
         setOfflineDuration(Date.now() - lastOnlineTime.getTime());
       }
-    }, 60000);
+    }, OFFLINE_DURATION_UPDATE_INTERVAL_MS);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -414,7 +421,7 @@ export function useOfflineDetector() {
     isOnline: !isOffline,
     lastOnlineTime,
     offlineDuration,
-    formattedOfflineDuration: formatDuration(offlineDuration),
+    formattedOfflineDuration: formatDuration(offlineDuration, 'long'),
   };
 }
 
@@ -505,27 +512,6 @@ export function useOfflineAware(path: string) {
     getOfflineData,
     cache,
   };
-}
-
-/**
- * Format bytes to human-readable string
- */
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-}
-
-/**
- * Format duration to human-readable string
- */
-function formatDuration(ms: number): string {
-  if (ms < 60000) return '< 1 minute';
-  if (ms < 3600000) return `${Math.floor(ms / 60000)} minutes`;
-  if (ms < 86400000) return `${Math.floor(ms / 3600000)} hours`;
-  return `${Math.floor(ms / 86400000)} days`;
 }
 
 export default useOfflineCache;

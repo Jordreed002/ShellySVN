@@ -13,6 +13,13 @@ export const SVN_EVENTS = {
   SHELVE: 'svn:shelve',
   UNSHELVE: 'svn:unshelve',
   IMPORT: 'svn:import',
+  EXPORT: 'svn:export',
+  REPO_BROWSER: 'svn:repo-browser',
+  REVISION_GRAPH: 'svn:revision-graph',
+  CREATE_PATCH: 'svn:create-patch',
+  APPLY_PATCH: 'svn:apply-patch',
+  LOCK: 'svn:lock',
+  UNLOCK: 'svn:unlock',
 } as const;
 
 export type SvnEventName = (typeof SVN_EVENTS)[keyof typeof SVN_EVENTS];

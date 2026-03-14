@@ -25,6 +25,7 @@ import {
   Layers,
   ClipboardList,
   Shield,
+  Archive,
 } from 'lucide-react';
 import type { SvnStatusChar } from '@shared/types';
 
@@ -231,6 +232,7 @@ export function getSvnContextMenuItems(
     onSwitch?: () => void;
     onMerge?: () => void;
     onExport?: () => void;
+    onImport?: () => void;
     onRelocate?: () => void;
     onRepoBrowser?: () => void;
     onCreatePatch?: () => void;
@@ -500,7 +502,7 @@ export function getSvnContextMenuItems(
   }
 
   // Divider - Patch operations
-  if (isDirectory && isVersioned) {
+  if ((isDirectory && isVersioned) || (isModified && isFile)) {
     items.push({ id: 'divider-4', label: '', divider: true });
 
     // === Create Patch ===
@@ -512,6 +514,10 @@ export function getSvnContextMenuItems(
         onClick: actions.onCreatePatch,
       });
     }
+  }
+
+  // Apply Patch - only for directories
+  if (isDirectory && isVersioned) {
 
     // === Apply Patch ===
     if (actions.onApplyPatch) {
@@ -539,12 +545,22 @@ export function getSvnContextMenuItems(
     }
 
     // === Export ===
-    if (actions.onExport) {
+    if (actions.onExport && isDirectory) {
       items.push({
         id: 'export',
         label: 'Export...',
         icon: Download,
         onClick: actions.onExport,
+      });
+    }
+
+    // === Import ===
+    if (actions.onImport && isDirectory) {
+      items.push({
+        id: 'import',
+        label: 'Import...',
+        icon: Upload,
+        onClick: actions.onImport,
       });
     }
 

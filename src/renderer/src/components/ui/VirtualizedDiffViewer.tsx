@@ -21,6 +21,7 @@ import type { SvnDiffResult, SvnDiffLine, SvnDiffHunk, SvnDiffFile } from '@shar
 
 // Import the LRU cache
 import { LRUCache } from '@shared/utils/lru-cache';
+import { DEFAULT_DIFF_CACHE_SIZE_BYTES, DEFAULT_DIFF_CACHE_TTL_MS } from '@shared/constants';
 
 // ============================================
 // Types
@@ -80,8 +81,8 @@ let diffCache: LRUCache<FlattenedLine[]> | null = null;
 function getDiffCache(): LRUCache<FlattenedLine[]> {
   if (!diffCache) {
     diffCache = new LRUCache<FlattenedLine[]>({
-      maxSize: 100 * 1024 * 1024,
-      defaultTTL: 30 * 60 * 1000, // 30 minutes
+      maxSize: DEFAULT_DIFF_CACHE_SIZE_BYTES,
+      defaultTTL: DEFAULT_DIFF_CACHE_TTL_MS,
     });
   }
   return diffCache;

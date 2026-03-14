@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { formatBytes } from '@shared/utils/formatBytes';
+import { formatDuration } from '@shared/utils/formatTime';
 
 /**
  * Performance metric types for large repo operations
@@ -659,32 +661,6 @@ function getEventListenerCount(): number {
   });
 
   return count;
-}
-
-/**
- * Format bytes to human readable string
- */
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${units[i]}`;
-}
-
-/**
- * Format milliseconds to human readable string
- */
-export function formatDuration(ms: number): string {
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`;
-  if (ms < 1000) return `${ms.toFixed(ms < 10 ? 1 : 0)}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
-
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  return `${minutes}m ${seconds}s`;
 }
 
 export default usePerformanceMonitor;

@@ -13,6 +13,12 @@
  * - Memory estimation for complex objects
  */
 
+import {
+  CACHE_CLEANUP_INTERVAL_MS,
+  DEFAULT_DIFF_CACHE_SIZE_BYTES,
+  DEFAULT_DIFF_CACHE_TTL_MS,
+} from '../constants';
+
 interface CacheEntry<V> {
   value: V;
   size: number; // Estimated size in bytes
@@ -154,9 +160,9 @@ export class LRUCache<V = unknown> {
     this.defaultTTL = options.defaultTTL;
     this.onEvict = options.onEvict;
 
-    // Run periodic cleanup for expired entries (every 30 seconds)
+    // Run periodic cleanup for expired entries
     if (this.defaultTTL) {
-      this.cleanupInterval = setInterval(() => this.cleanupExpired(), 30000);
+      this.cleanupInterval = setInterval(() => this.cleanupExpired(), CACHE_CLEANUP_INTERVAL_MS);
     }
   }
 
@@ -411,12 +417,12 @@ export class LRUCache<V = unknown> {
 }
 
 /**
- * Create a default LRU cache for diff data (100MB limit)
+ * Create a default LRU cache for diff data
  */
 export function createDiffCache(): LRUCache<unknown> {
   return new LRUCache({
-    maxSize: 100 * 1024 * 1024, // 100MB
-    defaultTTL: 30 * 60 * 1000, // 30 minutes
+    maxSize: DEFAULT_DIFF_CACHE_SIZE_BYTES,
+    defaultTTL: DEFAULT_DIFF_CACHE_TTL_MS,
     onEvict: (key, _value, reason) => {
       console.debug(`[DiffCache] Evicted ${key} (${reason})`);
     },

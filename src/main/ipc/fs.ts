@@ -13,6 +13,7 @@ import { join, basename, normalize, dirname } from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import { platform } from 'os';
 import type { FileInfo, SvnStatusChar } from '@shared/types';
+import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
 
 interface SvnStatusEntry {
@@ -521,16 +522,16 @@ export function registerFsHandlers(): void {
         const validatedPath = validatePath(path, {
           mustExist: true,
           mustBeFile: true,
-          maxSize: 1024 * 1024,
+          maxSize: MAX_FILE_PREVIEW_SIZE_BYTES,
         });
 
         // PERFORMANCE: Use async file operations to avoid blocking
         const { stat, readFile } = await import('fs/promises');
         const stats = await stat(validatedPath);
 
-        // Limit file size to 1MB for preview
-        if (stats.size > 1024 * 1024) {
-          return { success: false, error: 'File too large for preview (>1MB)' };
+        // Limit file size for preview
+        if (stats.size > MAX_FILE_PREVIEW_SIZE_BYTES) {
+          return { success: false, error: `File too large for preview (>${MAX_FILE_PREVIEW_SIZE_BYTES / 1024 / 1024}MB)` };
         }
 
         const content = await readFile(validatedPath, 'utf-8');
@@ -554,7 +555,7 @@ export function registerFsHandlers(): void {
           mustExist: true,
           mustBeFile: true,
           allowedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp'],
-          maxSize: 10 * 1024 * 1024, // 10MB max for images
+          maxSize: MAX_FILE_WRITE_SIZE_BYTES,
         });
 
         const buffer = await readFile(validatedPath);

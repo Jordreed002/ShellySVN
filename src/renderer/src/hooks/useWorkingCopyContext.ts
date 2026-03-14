@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { DEFAULT_QUERY_STALE_TIME_MS } from '@shared/constants';
 
 export interface WorkingCopyContext {
   repositoryRoot: string;
@@ -31,7 +32,7 @@ export function useWorkingCopyContext(localPath: string | null | undefined) {
       }
     },
     enabled: !!localPath && localPath !== 'DRIVES://',
-    staleTime: 1000 * 60 * 5,
+    staleTime: DEFAULT_QUERY_STALE_TIME_MS,
     retry: 1,
   });
 

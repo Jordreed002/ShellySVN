@@ -284,6 +284,8 @@ export function useSvnActions() {
 
         if (result.success) {
           invalidateStatus(path);
+          // Update overlay to show locked status (file remains modified but now locked)
+          await updateOverlayIfEnabled(path, 'M');
           return { success: true };
         }
 
@@ -296,7 +298,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlayIfEnabled]
   );
 
   /**
@@ -312,6 +314,8 @@ export function useSvnActions() {
 
         if (result.success) {
           invalidateStatus(path);
+          // Update overlay - after unlock, file typically returns to modified status
+          await updateOverlayIfEnabled(path, 'M');
           return { success: true };
         }
 
@@ -324,7 +328,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlayIfEnabled]
   );
 
   /**

@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Download, Upload, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { formatBytes } from '@shared/utils/formatBytes';
+import { formatTime } from '@shared/utils/formatTime';
 
 export interface ProgressIndicatorProps {
   /** Current operation status */
@@ -32,40 +34,6 @@ export interface ProgressIndicatorProps {
   className?: string;
   /** Compact mode (minimal UI) */
   compact?: boolean;
-}
-
-/**
- * Format bytes to human-readable string
- */
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const size = bytes / k ** i;
-
-  if (i >= 2) {
-    return `${size.toFixed(1)} ${units[i]}`;
-  }
-  return `${Math.round(size)} ${units[i]}`;
-}
-
-/**
- * Format seconds to human-readable time
- */
-function formatTime(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds}s`;
-  } else if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`;
-  } else {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-  }
 }
 
 /**

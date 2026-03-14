@@ -4,6 +4,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsPreviewProvider } from './contexts/SettingsPreviewContext';
 import { GlobalErrorBoundary } from './components/ErrorBoundary';
+import { DEFAULT_QUERY_STALE_TIME_MS } from '@shared/constants';
 
 // Import styles
 import './styles/global.css';
@@ -25,7 +26,7 @@ declare module '@tanstack/react-router' {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: DEFAULT_QUERY_STALE_TIME_MS,
       retry: 1,
     },
   },

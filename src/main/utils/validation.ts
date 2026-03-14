@@ -7,6 +7,7 @@
 
 import { normalize } from 'path';
 import { existsSync, statSync } from 'fs';
+import { MAX_COMMIT_MESSAGE_LENGTH } from '@shared/constants';
 
 /**
  * Validation options for path inputs
@@ -254,7 +255,6 @@ export function validateSvnPropertyName(name: unknown): string {
 /**
  * Commit message validation
  */
-const MAX_COMMIT_MESSAGE_LENGTH = 100000; // ~100KB
 
 export function validateCommitMessage(message: unknown): string {
   const validated = validateString(message, 'commitMessage', {

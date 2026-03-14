@@ -14,6 +14,7 @@
 
 import { Transform, TransformCallback, PassThrough } from 'stream';
 import type { SvnDiffFile, SvnDiffHunk, SvnDiffLine, SvnDiffResult } from '@shared/types';
+import { MAX_DIFF_LINE_LENGTH_BYTES, DEFAULT_DIFF_CHUNK_SIZE } from '@shared/constants';
 
 /**
  * Represents a parsed diff chunk that can be rendered independently
@@ -123,8 +124,8 @@ function parseHunkHeader(
   };
 }
 
-/** Maximum line length to buffer (1MB) - prevents memory exhaustion from extremely long lines */
-const MAX_LINE_LENGTH = 1024 * 1024;
+/** Maximum line length to buffer - prevents memory exhaustion from extremely long lines */
+const MAX_LINE_LENGTH = MAX_DIFF_LINE_LENGTH_BYTES;
 
 /**
  * Streaming Diff Parser
@@ -166,7 +167,7 @@ export class StreamingDiffParser extends Transform {
 
   constructor(options: StreamingDiffParserOptions = {}) {
     super({ decodeStrings: true, encoding: 'utf8' });
-    this.chunkSize = options.chunkSize ?? 1000;
+    this.chunkSize = options.chunkSize ?? DEFAULT_DIFF_CHUNK_SIZE;
     this.includeContext = options.includeContext ?? true;
     this.onChunk = options.onChunk;
     this.onComplete = options.onComplete;

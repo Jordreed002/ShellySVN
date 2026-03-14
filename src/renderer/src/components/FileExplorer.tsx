@@ -960,6 +960,7 @@ export function FileExplorer() {
       },
       onManageLocks: (entry: SvnStatusEntry) => setLockManagementPath(entry.path),
       onExport: (entry: SvnStatusEntry) => setExportPath(entry.path),
+      onImport: () => setIsImportDialogOpen(true),
       onRepoBrowser: (entry: SvnStatusEntry) => setRepoBrowserUrl(entry.path),
       onRevisionGraph: (entry: SvnStatusEntry) => setRevisionGraphPath(entry.path),
       // Resolve - only for conflicted files
@@ -971,8 +972,13 @@ export function FileExplorer() {
       // Cleanup - for directories with working copy issues
       onCleanup: async (entry: SvnStatusEntry) => {
         if (entry.isDirectory && confirm(`Run cleanup on "${entry.path}"?`)) {
-          await actions.cleanup(entry.path);
-          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+          const result = await actions.cleanup(entry.path);
+          if (result.success) {
+            alert('Cleanup completed successfully.');
+            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+          } else {
+            alert(`Cleanup failed: ${result.message || 'Unknown error'}`);
+          }
         }
       },
       // Check for Modifications - placeholder (view doesn't exist yet)
@@ -1568,9 +1574,32 @@ export function FileExplorer() {
             onClose={() => setIgnoreEntry(null)}
             path={ignoreEntry.path}
             fileName={ignoreEntry.fileName}
-            onApply={(patterns: string[]) => {
-              setIgnoreEntry(null);
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            onApply={async (patterns: string[]) => {
+              if (!ignoreEntry) return;
+
+              // The path in ignoreEntry is the full path to the file/dir
+              // svn:ignore is set on the parent directory
+              const parentPath = ignoreEntry.path.split(/[/\\]/).slice(0, -1).join('/') || '.';
+
+              try {
+                // Get existing svn:ignore patterns
+                const existingProps = await window.api.svn.proplist(parentPath);
+                const existingIgnore = existingProps.find(p => p.name === 'svn:ignore');
+                const existingPatterns = existingIgnore?.value
+                  ? existingIgnore.value.split('\n').filter(p => p.trim())
+                  : [];
+
+                // Merge with new patterns (avoid duplicates)
+                const mergedPatterns = [...new Set([...existingPatterns, ...patterns])];
+
+                // Set the updated svn:ignore property
+                await window.api.svn.propset(parentPath, 'svn:ignore', mergedPatterns.join('\n'));
+
+                setIgnoreEntry(null);
+                queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              } catch (error) {
+                console.error('Failed to set svn:ignore:', error);
+              }
             }}
           />
         </Suspense>

@@ -43,9 +43,15 @@ export interface FileRowActions {
   onPreview?: (entry: SvnStatusEntry) => void;
   onManageLocks?: (entry: SvnStatusEntry) => void;
   onExport?: (entry: SvnStatusEntry) => void;
+  onImport?: (entry: SvnStatusEntry) => void;
   onRepoBrowser?: (entry: SvnStatusEntry) => void;
   onRevisionGraph?: (entry: SvnStatusEntry) => void;
   onCleanup?: (entry: SvnStatusEntry) => void;
+  onCreatePatch?: (entry: SvnStatusEntry) => void;
+  onApplyPatch?: (entry: SvnStatusEntry) => void;
+  onBlame?: (entry: SvnStatusEntry) => void;
+  onShelve?: (entry: SvnStatusEntry) => void;
+  onChangelist?: (entry: SvnStatusEntry) => void;
 }
 
 // File type to icon mapping
@@ -236,6 +242,15 @@ export const FileRow = memo(function FileRow({
     onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
     onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
     onCleanup: actions.onCleanup ? () => actions.onCleanup!(entry) : undefined,
+    onCreatePatch: actions.onCreatePatch ? () => actions.onCreatePatch!(entry) : undefined,
+    onApplyPatch: actions.onApplyPatch ? () => actions.onApplyPatch!(entry) : undefined,
+    onBlame: actions.onBlame ? () => actions.onBlame!(entry) : undefined,
+    onExport: actions.onExport ? () => actions.onExport!(entry) : undefined,
+    onImport: actions.onImport ? () => actions.onImport!(entry) : undefined,
+    onRepoBrowser: actions.onRepoBrowser ? () => actions.onRepoBrowser!(entry) : undefined,
+    onRevisionGraph: actions.onRevisionGraph ? () => actions.onRevisionGraph!(entry) : undefined,
+    onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
+    onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
   });
 
   return (

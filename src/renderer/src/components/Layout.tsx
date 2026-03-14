@@ -2,12 +2,13 @@ import { ReactNode, useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog';
 import { CommandPalette } from './ui/CommandPalette';
+import { QuickNotesPanel } from './ui/QuickNotesPanel';
 import { StatusBar } from './ui/StatusBar';
 import { OnboardingTutorial, useOnboarding } from './tutorial';
 import { useSettings } from '../hooks/useSettings';
 import { useVisualSettings } from '../hooks/useVisualSettings';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { GitBranch, Minus, Square, X } from 'lucide-react';
+import { GitBranch, Minus, Square, X, StickyNote } from 'lucide-react';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 
 interface LayoutProps {
@@ -17,6 +18,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [_isMaximized, setIsMaximized] = useState(false);
   const [forceShowTutorial, setForceShowTutorial] = useState(false);
   const { settings } = useSettings();
@@ -94,9 +96,20 @@ export function Layout({ children }: LayoutProps) {
           <span className="text-sm font-semibold text-text">ShellySVN</span>
         </div>
 
-        {/* Center: Window title (draggable) */}
-        <div className="flex-1 flex items-center justify-center">
+        {/* Center: Window title (draggable) and Quick Notes button */}
+        <div className="flex-1 flex items-center justify-center gap-4">
           <span className="text-xs text-text-muted font-medium">Subversion Client</span>
+          <button
+            onClick={() => setShowNotes(!showNotes)}
+            className={`titlebar-no-drag p-1.5 rounded transition-fast ${
+              showNotes
+                ? 'bg-accent/20 text-accent'
+                : 'text-text-muted hover:text-text hover:bg-bg-elevated'
+            }`}
+            title="Quick Notes"
+          >
+            <StickyNote className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Right: Window controls (Windows/Linux) */}
@@ -161,6 +174,10 @@ export function Layout({ children }: LayoutProps) {
           setShowCommandPalette(false);
           setShowShortcuts(true);
         }}
+        onShowNotes={() => {
+          setShowCommandPalette(false);
+          setShowNotes(true);
+        }}
         onBranchTag={() => {
           window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG));
           setShowCommandPalette(false);
@@ -197,6 +214,13 @@ export function Layout({ children }: LayoutProps) {
           window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNSHELVE));
           setShowCommandPalette(false);
         }}
+      />
+
+      {/* Quick Notes Panel */}
+      <QuickNotesPanel
+        isOpen={showNotes}
+        currentPath={currentPath}
+        onClose={() => setShowNotes(false)}
       />
     </div>
   );

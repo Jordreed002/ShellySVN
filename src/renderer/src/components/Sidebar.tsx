@@ -83,6 +83,7 @@ function RepoTreeItem({
         style={{ paddingLeft: `${12 + depth * 12}px` }}
       >
         <button
+          type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           className="p-0.5 hover:bg-bg-elevated rounded transition-fast"
         >
@@ -289,6 +290,7 @@ export function Sidebar() {
             Repositories
           </span>
           <button
+            type="button"
             onClick={() => setIsAddRepoModalOpen(true)}
             className="btn-icon-sm"
             title="Add Repository"
@@ -377,6 +379,7 @@ export function Sidebar() {
                   Bookmarks
                 </span>
                 <button
+                  type="button"
                   onClick={() => setIsBookmarksManagerOpen(true)}
                   className="btn-icon-sm p-0.5"
                   title="Manage Bookmarks"
@@ -398,6 +401,7 @@ export function Sidebar() {
                 ))}
                 {bookmarks.length > 5 && (
                   <button
+                    type="button"
                     onClick={() => setIsBookmarksManagerOpen(true)}
                     className="w-full text-left px-6 py-1 text-xs text-text-muted hover:text-text transition-fast"
                   >
@@ -415,7 +419,7 @@ export function Sidebar() {
                 SVN Repositories
               </span>
               {recentRepos.length > 0 && (
-                <button className="btn-icon-sm p-0.5">
+                <button type="button" className="btn-icon-sm p-0.5">
                   <RefreshCw className="w-3 h-3" />
                 </button>
               )}
@@ -428,6 +432,7 @@ export function Sidebar() {
                 </div>
                 <p className="text-xs text-text-muted mb-2">No repositories yet</p>
                 <button
+                  type="button"
                   onClick={() => setIsAddRepoModalOpen(true)}
                   className="text-xs text-accent hover:text-accent-hover"
                 >
@@ -446,14 +451,29 @@ export function Sidebar() {
                     <div key={repo}>
                       {/* Repository Item */}
                       <div
+                        role="button"
+                        tabIndex={0}
                         className={`
                           flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-fast group
                           ${isActive || isContextMenuOpen ? 'bg-accent/10' : 'hover:bg-bg-tertiary'}
                         `}
                         onClick={() => toggleRepo(repo)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleRepo(repo);
+                          }
+                        }}
                         onContextMenu={(e) => handleContextMenu(e, repo)}
                       >
-                        <button className="p-0.5 hover:bg-bg-elevated rounded transition-fast">
+                        <button
+                          type="button"
+                          className="p-0.5 hover:bg-bg-elevated rounded transition-fast"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRepo(repo);
+                          }}
+                        >
                           {isExpanded ? (
                             <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
                           ) : (
@@ -475,6 +495,7 @@ export function Sidebar() {
                           </span>
                         </Link>
                         <button
+                          type="button"
                           className="btn-icon-sm p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -506,6 +527,7 @@ export function Sidebar() {
               {recentRepos.length} repositor{recentRepos.length === 1 ? 'y' : 'ies'}
             </span>
             <button
+              type="button"
               onClick={() => setIsSettingsDialogOpen(true)}
               className="hover:text-text transition-fast"
               data-testid="settings-button"
@@ -558,11 +580,20 @@ export function Sidebar() {
       {/* Context Menu */}
       {contextMenu && (
         <div
+          role="menu"
+          aria-label="Repository actions"
           className="fixed z-50 bg-bg-secondary border border-border rounded-lg shadow-lg py-1 min-w-[180px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setContextMenu(null);
+            }
+          }}
         >
           <button
+            type="button"
+            role="menuitem"
             onClick={() => {
               navigate({ to: '/files', search: { path: contextMenu.repo } });
               setContextMenu(null);
@@ -573,22 +604,28 @@ export function Sidebar() {
             Open
           </button>
           <button
+            type="button"
+            role="menuitem"
             onClick={() => handleOpenInExplorer(contextMenu.repo)}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-text hover:bg-bg-tertiary transition-fast"
           >
             <ExternalLink className="w-4 h-4" />
             Open in Explorer
           </button>
-          <div className="border-t border-border my-1" />
+          <div role="separator" className="border-t border-border my-1" />
           <button
+            type="button"
+            role="menuitem"
             onClick={handleManageCredentials}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-text hover:bg-bg-tertiary transition-fast"
           >
             <Key className="w-4 h-4" />
             Manage Credentials
           </button>
-          <div className="border-t border-border my-1" />
+          <div role="separator" className="border-t border-border my-1" />
           <button
+            type="button"
+            role="menuitem"
             onClick={() => handleRemoveRepo(contextMenu.repo)}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-error hover:bg-error/10 transition-fast"
           >

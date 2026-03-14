@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import type { WorkingCopyInfo } from '@shared/types';
+import { MONITOR_REFRESH_INTERVAL_MS } from '@shared/constants';
 
 // In-memory storage for monitored working copies
 let monitoredWorkingCopies: Map<string, WorkingCopyInfo> = new Map();
@@ -80,7 +81,7 @@ export function registerMonitorHandlers(): void {
           }
         }
       }
-    }, 60000); // Check every minute
+    }, MONITOR_REFRESH_INTERVAL_MS);
   });
 
   // Stop monitoring
