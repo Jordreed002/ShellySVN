@@ -1,42 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  X,
-  Settings,
-  GitBranch,
-  Palette,
-  Key,
-  Wrench,
-  Sun,
-  Moon,
-  Monitor,
-  FolderOpen,
-  Trash2,
-  RotateCcw,
   AlertTriangle,
+  Bell,
   Check,
   ChevronDown,
-  FileDiff,
-  MessageSquare,
-  Bell,
-  Puzzle,
-  Loader2,
   Clock,
-  Shield,
-  Volume2,
+  FileDiff,
+  FolderOpen,
+  GitBranch,
+  Key,
+  Loader2,
+  MessageSquare,
+  Monitor,
+  Moon,
+  Palette,
   Play,
+  Puzzle,
+  RotateCcw,
+  Settings,
+  Shield,
+  Sun,
+  Trash2,
+  Volume2,
+  Wrench,
+  X,
 } from 'lucide-react';
-import { ShellIntegrationDialog } from './ShellIntegrationDialog';
+
 import type {
   AppSettings,
-  LogLevel,
+  AuthListEntry,
   FontSize,
+  LogLevel,
   StartupAction,
   WorkingCopyFormat,
-  AuthListEntry,
 } from '@shared/types';
-import { useSettings } from '../../hooks/useSettings';
-import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
 import { formatBytes } from '@shared/utils/formatBytes';
+
+import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
+import { useSettings } from '../../hooks/useSettings';
+
+import { ShellIntegrationDialog } from './ShellIntegrationDialog';
 
 export type SettingsTab =
   | 'general'

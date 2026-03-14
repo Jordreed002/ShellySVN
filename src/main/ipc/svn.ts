@@ -1,30 +1,32 @@
-import { ipcMain } from 'electron';
 import { spawn } from 'child_process';
 import { writeFile, mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { ipcMain } from 'electron';
 import { XMLParser } from 'fast-xml-parser';
+
 import type {
-  SvnStatusResult,
-  SvnLogResult,
-  SvnInfoResult,
-  SvnDiffResult,
+  CheckoutOptions,
+  RepoDiagnostics,
+  SvnBlameResult,
+  SvnChangelistResult,
   SvnDiffFile,
   SvnDiffHunk,
-  SvnChangelistResult,
-  SvnShelveListResult,
-  CheckoutOptions,
-  SvnBlameResult,
-  SvnListResult,
-  SvnPatchResult,
-  SvnExternal,
+  SvnDiffResult,
   SvnExecutionContext,
+  SvnExternal,
+  SvnInfoResult,
+  SvnListResult,
   SvnLockInfo,
-  RepoDiagnostics,
+  SvnLogResult,
+  SvnPatchResult,
+  SvnShelveListResult,
+  SvnStatusResult,
 } from '@shared/types';
-import { getSettingsManager } from '../settings-manager';
-import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
+
 import { getAuthCache } from '../auth-cache';
+import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
+import { getSettingsManager } from '../settings-manager';
 import debug from '../utils/debug';
 
 /**

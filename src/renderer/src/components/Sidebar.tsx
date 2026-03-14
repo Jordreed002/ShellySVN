@@ -26,8 +26,8 @@ import {
 
 import { useSettings } from '@renderer/hooks/useSettings';
 
-import { BookmarksManager } from './ui/BookmarksManager';
 import { AddRepoModal } from './ui/AddRepoModal';
+import { BookmarksManager } from './ui/BookmarksManager';
 import { ImportDialog } from './ui/ImportDialog';
 import { PluginManagerDialog } from './ui/PluginManagerDialog';
 import { SettingsDialog, type SettingsTab } from './ui/SettingsDialog';

@@ -6,11 +6,10 @@ import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
-import { useOnboarding } from './tutorial';
 import { Sidebar } from './Sidebar';
+import { OnboardingTutorial, useOnboarding } from './tutorial';
 import { CommandPalette } from './ui/CommandPalette';
 import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog';
-import { OnboardingTutorial } from './tutorial';
 import { PerformanceDashboard } from './ui/PerformanceDashboard';
 import { PluginManagerDialog } from './ui/PluginManagerDialog';
 import { QuickNotesPanel } from './ui/QuickNotesPanel';
