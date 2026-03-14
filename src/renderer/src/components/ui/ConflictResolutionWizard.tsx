@@ -14,8 +14,11 @@ import {
   Check,
   Info,
   AlertCircle,
+  Wrench,
+  Loader2,
 } from 'lucide-react';
 import { ThreeWayMergeEditor } from './ThreeWayMergeEditor';
+import { useSettings } from '@renderer/hooks/useSettings';
 
 interface ConflictWizardProps {
   isOpen: boolean;
@@ -43,12 +46,19 @@ export function ConflictResolutionWizard({
   onAllResolved,
 }: ConflictWizardProps) {
   const queryClient = useQueryClient();
+  const { settings } = useSettings();
   const [currentStep, setCurrentStep] = useState<WizardStep>('overview');
   const [conflictFiles, setConflictFiles] = useState<ConflictFile[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showMergeEditor, setShowMergeEditor] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLaunchingExternalTool, setIsLaunchingExternalTool] = useState(false);
+  const [externalToolError, setExternalToolError] = useState<string | null>(null);
+
+  // Check if external merge tool is configured
+  const hasExternalMergeTool =
+    settings.diffMerge.externalMergeTool && settings.diffMerge.externalMergeTool.trim() !== '';
 
   // Initialize conflict files
   useEffect(() => {
@@ -151,6 +161,45 @@ export function ConflictResolutionWizard({
   // Open merge editor
   const handleOpenMergeEditor = () => {
     setShowMergeEditor(true);
+  };
+
+  // Open external merge tool
+  const handleOpenExternalMergeTool = async () => {
+    if (!currentFile || !hasExternalMergeTool) return;
+
+    setIsLaunchingExternalTool(true);
+    setExternalToolError(null);
+
+    try {
+      // Get conflict file paths
+      // SVN creates .mine, .r<rev>, and .r<prev> files during conflicts
+      const minePath = currentFile.path + '.mine';
+      const basePath = currentFile.path + '.rBASE';
+      const theirsPath = currentFile.path + '.rTHEIRS';
+
+      // For SVN, we need to get the actual conflict file paths
+      // The actual revision numbers would come from svn info, but for now use common patterns
+      const result = await window.api.external.openMergeTool(
+        settings.diffMerge.externalMergeTool,
+        basePath,
+        minePath,
+        theirsPath,
+        currentFile.path
+      );
+
+      if (!result.success) {
+        setExternalToolError(result.error || 'Failed to launch external merge tool');
+      }
+    } catch (err) {
+      setExternalToolError(`Failed to launch external merge tool: ${(err as Error).message}`);
+    } finally {
+      setIsLaunchingExternalTool(false);
+    }
+  };
+
+  // Mark as resolved after using external tool
+  const handleMarkResolvedAfterExternal = async () => {
+    await handleResolve('merged');
   };
 
   // Handle merge editor save
@@ -504,10 +553,45 @@ export function ConflictResolutionWizard({
                   </button>
                 </div>
 
-                {/* Merge option */}
-                <button onClick={handleOpenMergeEditor} className="btn btn-primary w-full">
+                {/* External merge tool option */}
+                {hasExternalMergeTool && (
+                  <div className="bg-bg-tertiary rounded-lg p-3">
+                    <h5 className="text-sm font-medium text-text mb-2">External Merge Tool</h5>
+                    <p className="text-xs text-text-secondary mb-3">
+                      Launch {settings.diffMerge.externalMergeTool} to visually resolve conflicts.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleOpenExternalMergeTool}
+                        disabled={isLaunchingExternalTool || isProcessing}
+                        className="btn btn-primary btn-sm"
+                      >
+                        {isLaunchingExternalTool ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Wrench className="w-4 h-4" />
+                        )}
+                        Edit Conflicts
+                      </button>
+                      <button
+                        onClick={handleMarkResolvedAfterExternal}
+                        disabled={isProcessing}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Mark as Resolved
+                      </button>
+                    </div>
+                    <p className="text-xs text-text-faint mt-2">
+                      After resolving in the external tool, click "Mark as Resolved"
+                    </p>
+                  </div>
+                )}
+
+                {/* Built-in merge option */}
+                <button onClick={handleOpenMergeEditor} className="btn btn-secondary w-full">
                   <Eye className="w-4 h-4" />
-                  Open Visual Merge Editor
+                  Open Built-in Merge Editor
                 </button>
 
                 {/* Skip */}
@@ -515,6 +599,14 @@ export function ConflictResolutionWizard({
                   Skip for now
                 </button>
               </div>
+
+              {/* External tool error */}
+              {externalToolError && (
+                <div className="bg-error/10 border border-error/30 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-error mt-0.5" />
+                  <div className="text-sm text-error">{externalToolError}</div>
+                </div>
+              )}
 
               {/* Error display */}
               {currentFile.error && (

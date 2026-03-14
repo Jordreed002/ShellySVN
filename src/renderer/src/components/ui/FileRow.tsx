@@ -45,6 +45,7 @@ export interface FileRowActions {
   onExport?: (entry: SvnStatusEntry) => void;
   onRepoBrowser?: (entry: SvnStatusEntry) => void;
   onRevisionGraph?: (entry: SvnStatusEntry) => void;
+  onCleanup?: (entry: SvnStatusEntry) => void;
 }
 
 // File type to icon mapping
@@ -234,6 +235,7 @@ export const FileRow = memo(function FileRow({
       : () => navigator.clipboard.writeText(entry.path),
     onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
     onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
+    onCleanup: actions.onCleanup ? () => actions.onCleanup!(entry) : undefined,
   });
 
   return (

@@ -523,6 +523,7 @@ export function useFileExplorerActions(
     handleUnlockSelected,
     handleResolveSelected,
     handleManageLocks,
+    cleanup: svnActions.cleanup,
 
     // Commit dialog
     commitDialogOpen,

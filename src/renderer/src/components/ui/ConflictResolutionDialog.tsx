@@ -42,7 +42,9 @@ export function ConflictResolutionDialog({
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
-      const stored = await window.api.store.get<{ externalMergeTool?: string }>('settings');
+      const stored = await window.api.store.get<{
+        diffMerge?: { externalMergeTool?: string };
+      }>('settings');
       return stored || {};
     },
     enabled: isOpen,
@@ -113,7 +115,7 @@ export function ConflictResolutionDialog({
   const handleLaunchMergeTool = async () => {
     if (!conflictData) return;
 
-    const mergeTool = settings?.externalMergeTool;
+    const mergeTool = settings?.diffMerge?.externalMergeTool;
     if (!mergeTool) {
       setMergeToolError(
         'No external merge tool configured. Please set one in Settings > Diff & Merge.'
@@ -204,7 +206,7 @@ export function ConflictResolutionDialog({
               )}
 
               {/* External merge tool option */}
-              {settings?.externalMergeTool && (
+              {settings?.diffMerge?.externalMergeTool && (
                 <div className="bg-bg-tertiary rounded-lg p-3">
                   <h4 className="text-sm font-medium text-text mb-2">Use External Merge Tool</h4>
                   <p className="text-xs text-text-secondary mb-3">
