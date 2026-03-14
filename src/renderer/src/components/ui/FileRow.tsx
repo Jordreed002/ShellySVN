@@ -149,6 +149,7 @@ export interface FileRowProps {
   showThumbnails?: boolean;
   showFolderSizes?: boolean;
   folderSizes?: Record<string, number>;
+  workingCopyRoot?: string;
   onSelect: (
     entry: SvnStatusEntry,
     event?: { ctrlKey?: boolean; shiftKey?: boolean; metaKey?: boolean }
@@ -178,6 +179,7 @@ export const FileRow = memo(function FileRow({
   showThumbnails = false,
   showFolderSizes = false,
   folderSizes = EMPTY_FOLDER_SIZES,
+  workingCopyRoot,
   onSelect,
   onToggle,
   onNavigate,
@@ -226,6 +228,7 @@ export const FileRow = memo(function FileRow({
   };
 
   // Context menu items with action callbacks
+  const isWorkingCopyRoot = workingCopyRoot === entry.path;
   const contextMenuItems = getSvnContextMenuItems(entry.status, entry.isDirectory, {
     onUpdate: actions.onUpdate ? () => actions.onUpdate!(entry) : undefined,
     onDownload: actions.onDownload ? () => actions.onDownload!(entry) : undefined,
@@ -251,7 +254,7 @@ export const FileRow = memo(function FileRow({
     onRevisionGraph: actions.onRevisionGraph ? () => actions.onRevisionGraph!(entry) : undefined,
     onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
     onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
-  });
+  }, isWorkingCopyRoot);
 
   return (
     <>

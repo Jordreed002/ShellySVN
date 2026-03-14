@@ -1,4 +1,4 @@
-import { readFile, writeFile, access, mkdir } from 'fs/promises';
+import { readFile, writeFile, access, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'path';
 import { safeStorage } from 'electron';
 

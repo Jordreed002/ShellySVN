@@ -1428,6 +1428,7 @@ export function FileExplorer() {
                     showThumbnails={settings.showThumbnails}
                     showFolderSizes={settings.showFolderSizes}
                     folderSizes={folderSizes}
+                    workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
                     style={
                       settings.fileListHeight === 'fill'
                         ? {

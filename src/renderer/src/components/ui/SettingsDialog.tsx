@@ -1173,6 +1173,11 @@ interface IntegrationSettingsProps extends NestedSettingsProps {
 }
 
 function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIntegration }: IntegrationSettingsProps) {
+  const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const contextMenuOptions = [
     { id: 'update', label: 'Update' },
     { id: 'commit', label: 'Commit' },
@@ -1194,11 +1199,109 @@ function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIntegrati
     { id: 'properties', label: 'Properties' },
   ];
 
+  // Check registration status on mount
+  useEffect(() => {
+    const checkStatus = async () => {
+      setIsLoading(true);
+      try {
+        const result = await window.api.shell.isRegistered();
+        setIsRegistered(result.registered);
+      } catch {
+        setIsRegistered(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkStatus();
+  }, []);
+
+  const handleRegister = async () => {
+    setIsRegistering(true);
+    setError(null);
+    try {
+      const result = await window.api.shell.register();
+      if (result.success) {
+        setIsRegistered(true);
+        onChangeNested('integration', 'shellExtensionEnabled', true);
+      } else {
+        setError('Failed to register shell integration');
+      }
+    } catch (err) {
+      setError((err as Error).message || 'Failed to register shell integration');
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const handleUnregister = async () => {
+    setIsRegistering(true);
+    setError(null);
+    try {
+      const result = await window.api.shell.unregister();
+      if (result.success) {
+        setIsRegistered(false);
+        onChangeNested('integration', 'shellExtensionEnabled', false);
+      } else {
+        setError('Failed to unregister shell integration');
+      }
+    } catch (err) {
+      setError((err as Error).message || 'Failed to unregister shell integration');
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Shell Extension */}
-      <SettingsGroup title="Shell Extension" description="System integration (requires setup)">
-        <div className="space-y-3">
+      {/* Shell Integration */}
+      <SettingsGroup title="Shell Integration" description="Configure shell extension, icon overlays, and context menu integration">
+        <div className="space-y-4">
+          {/* Status indicator */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border">
+            <div className="flex items-center gap-3">
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
+              ) : isRegistered ? (
+                <CheckCircle className="w-5 h-5 text-success" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-text-muted" />
+              )}
+              <div>
+                <p className="text-sm font-medium text-text">
+                  {isLoading ? 'Checking status...' : isRegistered ? 'Registered' : 'Not Registered'}
+                </p>
+                <p className="text-xs text-text-muted">
+                  {isRegistered
+                    ? 'Shell extension is active'
+                    : 'Register to enable context menu integration'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={isRegistered ? handleUnregister : handleRegister}
+              disabled={isRegistering || isLoading}
+              className={isRegistered ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm'}
+            >
+              {isRegistering ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : isRegistered ? (
+                <FolderSync className="w-4 h-4" />
+              ) : (
+                <Shield className="w-4 h-4" />
+              )}
+              {isRegistering ? 'Please wait...' : isRegistered ? 'Unregister' : 'Register'}
+            </button>
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="p-3 rounded-lg bg-error/10 border border-error/30 text-sm text-error">
+              {error}
+            </div>
+          )}
+
+          {/* Toggle for context menu */}
           <label className="flex items-center gap-3 cursor-pointer group">
             <input
               type="checkbox"
@@ -1208,22 +1311,26 @@ function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIntegrati
               }
               className="checkbox"
             />
-            <span className="text-sm text-text-secondary group-hover:text-text transition-fast">
-              Enable shell extension (Explorer context menu)
-            </span>
+            <div className="flex-1">
+              <span className="text-sm text-text-secondary group-hover:text-text transition-fast">
+                Show in Explorer context menu
+              </span>
+              <p className="text-xs text-text-faint">
+                Add SVN options to right-click menu in Explorer/Finder
+              </p>
+            </div>
           </label>
 
-          <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-warning mt-0.5" />
-              <div className="text-sm text-warning">
-                <p className="font-medium mb-1">Shell extension requires native build</p>
-                <p className="text-xs text-warning/80">
-                  Windows: Build shell extension DLL and register with administrator rights. macOS:
-                  Build Finder Sync extension.
-                </p>
-              </div>
-            </div>
+          {/* Advanced setup button */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={onOpenShellIntegration}
+              className="btn btn-secondary btn-sm"
+            >
+              <Wrench className="w-4 h-4" />
+              Advanced Setup...
+            </button>
           </div>
         </div>
       </SettingsGroup>
@@ -1241,23 +1348,6 @@ function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIntegrati
             Show status icon overlays
           </span>
         </label>
-      </SettingsGroup>
-
-      {/* Shell Integration Setup */}
-      <SettingsGroup title="Shell Integration" description="Configure shell extension, icon overlays, and context menu integration">
-        <div className="space-y-3">
-          <p className="text-xs text-text-muted">
-            Configure shell integration for enhanced SVN workflows
-          </p>
-          <button
-            type="button"
-            onClick={onOpenShellIntegration}
-            className="btn btn-secondary"
-          >
-            <Shield className="w-4 h-4" />
-            Setup Shell Integration...
-          </button>
-        </div>
       </SettingsGroup>
 
       {/* Context Menu Items */}

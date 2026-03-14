@@ -242,7 +242,8 @@ export function getSvnContextMenuItems(
     onRevisionGraph?: () => void;
     onCheckForModifications?: () => void;
     onShelve?: () => void;
-  }
+  },
+  isWorkingCopyRoot?: boolean
 ): ContextMenuItem[] {
   const isVersioned = status !== '?' && status !== 'I' && status !== 'O';
   const isModified = status === 'M';
@@ -555,7 +556,7 @@ export function getSvnContextMenuItems(
     }
 
     // === Import ===
-    if (actions.onImport && isDirectory) {
+    if (actions.onImport && isWorkingCopyRoot) {
       items.push({
         id: 'import',
         label: 'Import...',

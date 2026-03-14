@@ -6,6 +6,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/__tests__/**/*.test.{ts,tsx}'],
+    // Allow mocking of Node.js built-in modules
+    deps: {
+      interopDefault: true,
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'lcov', 'html'],
