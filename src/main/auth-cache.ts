@@ -1,6 +1,7 @@
-import { safeStorage } from 'electron';
 import { readFile, writeFile, access, mkdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { dirname, join } from 'path';
+import { safeStorage } from 'electron';
+
 import { debug } from '@shared/utils/debug';
 
 interface CachedCredential {

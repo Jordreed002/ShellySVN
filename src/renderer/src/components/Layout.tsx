@@ -1,17 +1,20 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { GitBranch, Minus, Square, StickyNote, X } from 'lucide-react';
+
+import { useSettings } from '@renderer/hooks/useSettings';
+import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
+
+import { SVN_EVENTS } from '../lib/svnOperationEvents';
+import { useOnboarding } from './tutorial';
 import { Sidebar } from './Sidebar';
-import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog';
 import { CommandPalette } from './ui/CommandPalette';
+import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog';
+import { OnboardingTutorial } from './tutorial';
+import { PerformanceDashboard } from './ui/PerformanceDashboard';
+import { PluginManagerDialog } from './ui/PluginManagerDialog';
 import { QuickNotesPanel } from './ui/QuickNotesPanel';
 import { StatusBar } from './ui/StatusBar';
-import { PerformanceDashboard } from './ui/PerformanceDashboard';
-import { OnboardingTutorial, useOnboarding } from './tutorial';
-import { PluginManagerDialog } from './ui/PluginManagerDialog';
-import { useSettings } from '../hooks/useSettings';
-import { useVisualSettings } from '../hooks/useVisualSettings';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { GitBranch, Minus, Square, X, StickyNote } from 'lucide-react';
-import { SVN_EVENTS } from '../lib/svnOperationEvents';
 
 /**
  * Common search params shared across routes
@@ -229,6 +232,38 @@ export function Layout({ children }: LayoutProps) {
         }}
         onUnshelve={() => {
           window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNSHELVE));
+          setShowCommandPalette(false);
+        }}
+        onLock={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.LOCK));
+          setShowCommandPalette(false);
+        }}
+        onUnlock={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNLOCK));
+          setShowCommandPalette(false);
+        }}
+        onExport={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.EXPORT));
+          setShowCommandPalette(false);
+        }}
+        onImport={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.IMPORT));
+          setShowCommandPalette(false);
+        }}
+        onRepoBrowser={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.REPO_BROWSER));
+          setShowCommandPalette(false);
+        }}
+        onRevisionGraph={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.REVISION_GRAPH));
+          setShowCommandPalette(false);
+        }}
+        onCreatePatch={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.CREATE_PATCH));
+          setShowCommandPalette(false);
+        }}
+        onApplyPatch={() => {
+          window.dispatchEvent(new CustomEvent(SVN_EVENTS.APPLY_PATCH));
           setShowCommandPalette(false);
         }}
         onManagePlugins={() => {

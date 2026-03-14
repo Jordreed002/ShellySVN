@@ -690,6 +690,9 @@ export function FileExplorer() {
     const handleShelve = () => {
       if (path) setShelveDialogPath(path);
     };
+    const handleUnshelve = () => {
+      if (path) setShelveDialogPath(path);
+    };
     const handleImport = () => {
       setIsImportDialogOpen(true);
     };
@@ -723,6 +726,18 @@ export function FileExplorer() {
         setLockManagementPath(targetPath);
       }
     };
+    const handleCreatePatch = () => {
+      const targetPath = selectedEntry?.path || path;
+      if (targetPath) {
+        setCreatePatchPath(targetPath);
+      }
+    };
+    const handleApplyPatch = () => {
+      const targetPath = selectedEntry?.path || path;
+      if (targetPath) {
+        setApplyPatchPath(targetPath);
+      }
+    };
 
     window.addEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
     window.addEventListener(SVN_EVENTS.SWITCH, handleSwitch);
@@ -732,12 +747,15 @@ export function FileExplorer() {
     window.addEventListener(SVN_EVENTS.PROPERTIES, handleProperties);
     window.addEventListener(SVN_EVENTS.CHANGELIST, handleChangelist);
     window.addEventListener(SVN_EVENTS.SHELVE, handleShelve);
+    window.addEventListener(SVN_EVENTS.UNSHELVE, handleUnshelve);
     window.addEventListener(SVN_EVENTS.IMPORT, handleImport);
     window.addEventListener(SVN_EVENTS.EXPORT, handleExport);
     window.addEventListener(SVN_EVENTS.REPO_BROWSER, handleRepoBrowser);
     window.addEventListener(SVN_EVENTS.REVISION_GRAPH, handleRevisionGraph);
     window.addEventListener(SVN_EVENTS.LOCK, handleLock);
     window.addEventListener(SVN_EVENTS.UNLOCK, handleUnlock);
+    window.addEventListener(SVN_EVENTS.CREATE_PATCH, handleCreatePatch);
+    window.addEventListener(SVN_EVENTS.APPLY_PATCH, handleApplyPatch);
 
     return () => {
       window.removeEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
@@ -748,12 +766,15 @@ export function FileExplorer() {
       window.removeEventListener(SVN_EVENTS.PROPERTIES, handleProperties);
       window.removeEventListener(SVN_EVENTS.CHANGELIST, handleChangelist);
       window.removeEventListener(SVN_EVENTS.SHELVE, handleShelve);
+      window.removeEventListener(SVN_EVENTS.UNSHELVE, handleUnshelve);
       window.removeEventListener(SVN_EVENTS.IMPORT, handleImport);
       window.removeEventListener(SVN_EVENTS.EXPORT, handleExport);
       window.removeEventListener(SVN_EVENTS.REPO_BROWSER, handleRepoBrowser);
       window.removeEventListener(SVN_EVENTS.REVISION_GRAPH, handleRevisionGraph);
       window.removeEventListener(SVN_EVENTS.LOCK, handleLock);
       window.removeEventListener(SVN_EVENTS.UNLOCK, handleUnlock);
+      window.removeEventListener(SVN_EVENTS.CREATE_PATCH, handleCreatePatch);
+      window.removeEventListener(SVN_EVENTS.APPLY_PATCH, handleApplyPatch);
     };
   }, [path, selectedEntry]);
 

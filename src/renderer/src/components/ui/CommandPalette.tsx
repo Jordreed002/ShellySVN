@@ -26,6 +26,13 @@ import {
   Archive,
   ArchiveRestore,
   Puzzle,
+  Lock,
+  LockOpen,
+  Globe,
+  GitCompare,
+  FileInput,
+  FileOutput,
+  Network,
 } from 'lucide-react';
 
 interface CommandItem {
@@ -68,6 +75,15 @@ interface CommandPaletteProps {
   onChangelist?: () => void;
   onShelve?: () => void;
   onUnshelve?: () => void;
+  // Additional SVN operations
+  onLock?: () => void;
+  onUnlock?: () => void;
+  onExport?: () => void;
+  onImport?: () => void;
+  onRepoBrowser?: () => void;
+  onRevisionGraph?: () => void;
+  onCreatePatch?: () => void;
+  onApplyPatch?: () => void;
   // Plugin management
   onManagePlugins?: () => void;
   // Recent paths
@@ -103,6 +119,14 @@ export function CommandPalette({
   onChangelist,
   onShelve,
   onUnshelve,
+  onLock,
+  onUnlock,
+  onExport,
+  onImport,
+  onRepoBrowser,
+  onRevisionGraph,
+  onCreatePatch,
+  onApplyPatch,
   onManagePlugins,
   recentPaths = [],
   bookmarks = [],
@@ -293,6 +317,102 @@ export function CommandPalette({
       });
     }
 
+    if (onLock) {
+      items.push({
+        id: 'lock',
+        title: 'Lock...',
+        description: 'Lock selected files in repository',
+        icon: Lock,
+        category: 'SVN',
+        action: onLock,
+        keywords: ['lock'],
+      });
+    }
+
+    if (onUnlock) {
+      items.push({
+        id: 'unlock',
+        title: 'Unlock...',
+        description: 'Release lock on selected files',
+        icon: LockOpen,
+        category: 'SVN',
+        action: onUnlock,
+        keywords: ['unlock'],
+      });
+    }
+
+    if (onExport) {
+      items.push({
+        id: 'export',
+        title: 'Export...',
+        description: 'Export directory or files from working copy',
+        icon: FileOutput,
+        category: 'SVN',
+        action: onExport,
+        keywords: ['export'],
+      });
+    }
+
+    if (onImport) {
+      items.push({
+        id: 'import',
+        title: 'Import...',
+        description: 'Import files to repository',
+        icon: FileInput,
+        category: 'SVN',
+        action: onImport,
+        keywords: ['import'],
+      });
+    }
+
+    if (onRepoBrowser) {
+      items.push({
+        id: 'repo-browser',
+        title: 'Repository Browser',
+        description: 'Browse repository structure',
+        icon: Globe,
+        category: 'SVN',
+        action: onRepoBrowser,
+        keywords: ['repo', 'browser', 'repository'],
+      });
+    }
+
+    if (onRevisionGraph) {
+      items.push({
+        id: 'revision-graph',
+        title: 'Revision Graph',
+        description: 'Show revision history graph',
+        icon: Network,
+        category: 'SVN',
+        action: onRevisionGraph,
+        keywords: ['revision', 'graph', 'history'],
+      });
+    }
+
+    if (onCreatePatch) {
+      items.push({
+        id: 'create-patch',
+        title: 'Create Patch...',
+        description: 'Create a patch file from changes',
+        icon: GitCompare,
+        category: 'SVN',
+        action: onCreatePatch,
+        keywords: ['patch', 'diff', 'create'],
+      });
+    }
+
+    if (onApplyPatch) {
+      items.push({
+        id: 'apply-patch',
+        title: 'Apply Patch...',
+        description: 'Apply a patch file to working copy',
+        icon: GitCompare,
+        category: 'SVN',
+        action: onApplyPatch,
+        keywords: ['patch', 'apply'],
+      });
+    }
+
     // Navigation
     if (onRefresh) {
       items.push({
@@ -463,6 +583,14 @@ export function CommandPalette({
     onChangelist,
     onShelve,
     onUnshelve,
+    onLock,
+    onUnlock,
+    onExport,
+    onImport,
+    onRepoBrowser,
+    onRevisionGraph,
+    onCreatePatch,
+    onApplyPatch,
     onManagePlugins,
     currentPath,
     recentPaths,

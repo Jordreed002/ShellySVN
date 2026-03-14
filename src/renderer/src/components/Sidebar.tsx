@@ -1,35 +1,37 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { useSettings } from '@renderer/hooks/useSettings';
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
-  Folder,
-  History,
-  Settings,
-  ChevronRight,
+  Bookmark,
   ChevronDown,
-  Plus,
-  MoreHorizontal,
-  Search,
-  RefreshCw,
-  Home,
-  HardDrive,
-  FileText,
-  Monitor,
-  Trash2,
+  ChevronRight,
   ExternalLink,
+  FileText,
+  Folder,
+  Globe,
+  HardDrive,
+  History,
+  Home,
   Key,
   Loader2,
-  Bookmark,
-  Globe,
+  Monitor,
+  MoreHorizontal,
+  Plus,
   Puzzle,
+  RefreshCw,
+  Search,
+  Settings,
+  Trash2,
 } from 'lucide-react';
+
+import { useSettings } from '@renderer/hooks/useSettings';
+
+import { BookmarksManager } from './ui/BookmarksManager';
 import { AddRepoModal } from './ui/AddRepoModal';
 import { ImportDialog } from './ui/ImportDialog';
-import { StatusDot } from './ui/StatusIcon';
-import { SettingsDialog, type SettingsTab } from './ui/SettingsDialog';
-import { BookmarksManager } from './ui/BookmarksManager';
 import { PluginManagerDialog } from './ui/PluginManagerDialog';
+import { SettingsDialog, type SettingsTab } from './ui/SettingsDialog';
+import { StatusDot } from './ui/StatusIcon';
 
 interface QuickAccessItem {
   name: string;
