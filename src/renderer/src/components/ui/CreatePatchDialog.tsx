@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, FileDiff, Save, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { X, FileDiff, Save, AlertCircle, CheckCircle, Loader2, FolderOpen } from 'lucide-react';
 
 interface CreatePatchDialogProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ export function CreatePatchDialog({
 }: CreatePatchDialogProps) {
   const [patchContent, setPatchContent] = useState('');
   const [filename, setFilename] = useState('changes.patch');
+  const [outputPath, setOutputPath] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -24,6 +25,7 @@ export function CreatePatchDialog({
     if (isOpen) {
       setPatchContent('');
       setFilename('changes.patch');
+      setOutputPath('');
       setError(null);
       setSuccess(false);
       setIsGenerating(false);
@@ -65,11 +67,12 @@ export function CreatePatchDialog({
     }
 
     try {
-      const result = await window.api.dialog.saveFile(filename);
-      if (result) {
+      // Use the pre-selected output path, or open the save dialog
+      const savePath = outputPath || (await window.api.dialog.saveFile(filename));
+      if (savePath) {
         // Use the patch create API to save the file
         const paths = selectedPaths.length > 0 ? selectedPaths : [path];
-        const saveResult = await window.api.svn.patch.create(paths, result);
+        const saveResult = await window.api.svn.patch.create(paths, savePath);
 
         if (saveResult.success) {
           setSuccess(true);
@@ -84,6 +87,16 @@ export function CreatePatchDialog({
 
   const handleCopy = () => {
     navigator.clipboard.writeText(patchContent);
+  };
+
+  const handleBrowseOutputPath = async () => {
+    const result = await window.api.dialog.saveFile(filename || 'changes.patch');
+    if (result) {
+      setOutputPath(result);
+      // Extract filename from the full path for display
+      const name = result.split(/[/\\]/).pop() || result;
+      setFilename(name);
+    }
   };
 
   if (!isOpen) return null;
@@ -142,18 +155,32 @@ export function CreatePatchDialog({
                 </button>
               )}
 
-              {/* Filename */}
+              {/* Output path */}
               {patchContent && (
                 <div>
                   <label className="text-sm font-medium text-text-secondary mb-1.5 block">
-                    Filename
+                    Save to
                   </label>
-                  <input
-                    type="text"
-                    value={filename}
-                    onChange={(e) => setFilename(e.target.value)}
-                    className="input"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={outputPath || filename}
+                      onChange={(e) => {
+                        setOutputPath(e.target.value);
+                        // Also update filename if it looks like just a filename
+                        const name = e.target.value.split(/[/\\]/).pop() || e.target.value;
+                        if (name === e.target.value) {
+                          setFilename(name);
+                        }
+                      }}
+                      placeholder="changes.patch"
+                      className="input flex-1"
+                    />
+                    <button onClick={handleBrowseOutputPath} className="btn btn-secondary">
+                      <FolderOpen className="w-4 h-4" />
+                      Browse
+                    </button>
+                  </div>
                 </div>
               )}
 

@@ -1533,6 +1533,7 @@ interface AuthSettingsProps {
 function AuthSettings({ isOpen }: AuthSettingsProps) {
   const [credentials, setCredentials] = useState<AuthListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEncryptionAvailable, setIsEncryptionAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1540,10 +1541,15 @@ function AuthSettings({ isOpen }: AuthSettingsProps) {
     const loadCredentials = async () => {
       setIsLoading(true);
       try {
-        const list = await window.api.auth.list();
+        const [list, encryptionAvailable] = await Promise.all([
+          window.api.auth.list(),
+          window.api.auth.isEncryptionAvailable(),
+        ]);
         setCredentials(list);
+        setIsEncryptionAvailable(encryptionAvailable);
       } catch {
         setCredentials([]);
+        setIsEncryptionAvailable(false);
       } finally {
         setIsLoading(false);
       }
@@ -1572,11 +1578,32 @@ function AuthSettings({ isOpen }: AuthSettingsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="p-4 rounded-lg bg-info/10 border border-info/20">
-        <p className="text-sm text-info">
-          Saved credentials are stored securely in your system's keychain.
-        </p>
-      </div>
+      {isEncryptionAvailable === null ? (
+        <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-text-muted animate-spin" />
+            <p className="text-sm text-text-muted">Checking encryption status...</p>
+          </div>
+        </div>
+      ) : isEncryptionAvailable ? (
+        <div className="p-4 rounded-lg bg-success/10 border border-success/20">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-success" />
+            <p className="text-sm text-success">
+              Credentials are encrypted using system keychain
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-warning" />
+            <p className="text-sm text-warning">
+              Credential encryption unavailable - credentials stored in plaintext
+            </p>
+          </div>
+        </div>
+      )}
 
       <SettingsGroup
         title="Saved Credentials"

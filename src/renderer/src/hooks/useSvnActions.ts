@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { SvnStatusEntry } from '@shared/types';
+import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
+import { useSettings } from './useSettings';
 
 interface SvnActionResult {
   success: boolean;
@@ -10,8 +11,48 @@ interface SvnActionResult {
 
 export function useSvnActions() {
   const queryClient = useQueryClient();
+  const { settings } = useSettings();
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+
+  /**
+   * Update overlay icon if shell integration is enabled
+   * Errors are caught and logged to avoid breaking the main operation
+   */
+  const updateOverlayIfEnabled = useCallback(
+    async (path: string, status: SvnStatusChar): Promise<void> => {
+      // Check if shell integration and icon overlays are enabled
+      if (!settings.integration?.shellExtensionEnabled || !settings.integration?.iconOverlaysEnabled) {
+        return;
+      }
+
+      try {
+        await window.api.shell.updateOverlay(path, status);
+      } catch (error) {
+        // Log error but don't throw - overlay updates should not break operations
+        console.warn(`Failed to update overlay for ${path}:`, error);
+      }
+    },
+    [settings.integration?.shellExtensionEnabled, settings.integration?.iconOverlaysEnabled]
+  );
+
+  /**
+   * Update overlays for multiple paths
+   */
+  const updateOverlaysIfEnabled = useCallback(
+    async (paths: string[], status: SvnStatusChar): Promise<void> => {
+      // Check if shell integration and icon overlays are enabled
+      if (!settings.integration?.shellExtensionEnabled || !settings.integration?.iconOverlaysEnabled) {
+        return;
+      }
+
+      // Update all paths in parallel, errors are handled individually
+      await Promise.allSettled(
+        paths.map((path) => updateOverlayIfEnabled(path, status))
+      );
+    },
+    [updateOverlayIfEnabled, settings.integration?.shellExtensionEnabled, settings.integration?.iconOverlaysEnabled]
+  );
 
   /**
    * Invalidate all status caches for a path and its parents
@@ -53,6 +94,8 @@ export function useSvnActions() {
         if (result.success) {
           // Invalidate all status caches
           invalidateStatus(path);
+          // Update overlay to clean status
+          await updateOverlayIfEnabled(path, ' ');
           return { success: true, revision: result.revision };
         }
 
@@ -65,7 +108,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlayIfEnabled]
   );
 
   /**
@@ -84,6 +127,8 @@ export function useSvnActions() {
           for (const p of paths) {
             invalidateStatus(p);
           }
+          // Update overlays to clean status for committed files
+          await updateOverlaysIfEnabled(paths, ' ');
           return { success: true, revision: result.revision };
         }
 
@@ -96,7 +141,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -115,6 +160,8 @@ export function useSvnActions() {
           for (const p of paths) {
             invalidateStatus(p);
           }
+          // Update overlays to clean status for reverted files
+          await updateOverlaysIfEnabled(paths, ' ');
           return { success: true };
         }
 
@@ -127,7 +174,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -146,6 +193,8 @@ export function useSvnActions() {
           for (const p of paths) {
             invalidateStatus(p);
           }
+          // Update overlays to 'A' (added) status
+          await updateOverlaysIfEnabled(paths, 'A');
           return { success: true };
         }
 
@@ -158,7 +207,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -177,6 +226,8 @@ export function useSvnActions() {
           for (const p of paths) {
             invalidateStatus(p);
           }
+          // Update overlays to 'D' (deleted) status
+          await updateOverlaysIfEnabled(paths, 'D');
           return { success: true };
         }
 
@@ -189,7 +240,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -292,6 +343,10 @@ export function useSvnActions() {
 
         if (result.success) {
           invalidateStatus(path);
+          // After resolve, the file is typically modified (M) since we resolved a conflict
+          // 'mine-full' and 'theirs-full' resolve completely, potentially leaving it clean
+          // For simplicity, we mark as modified - the next status refresh will correct if needed
+          await updateOverlayIfEnabled(path, 'M');
           return { success: true };
         }
 
@@ -304,7 +359,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [invalidateStatus, updateOverlayIfEnabled]
   );
 
   const clearError = useCallback(() => {
