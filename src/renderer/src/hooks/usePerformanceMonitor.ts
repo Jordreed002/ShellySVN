@@ -2,6 +2,9 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { formatBytes } from '@shared/utils/formatBytes';
 import { formatDuration } from '@shared/utils/formatTime';
 
+// Re-export utility functions for convenience
+export { formatBytes, formatDuration };
+
 /**
  * Performance metric types for large repo operations
  */

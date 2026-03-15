@@ -44,3 +44,4 @@ temp/
 binaries/*/
 !binaries/.gitkeep
 Shelly.af
+playwright-report/
