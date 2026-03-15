@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import React from 'react';
 import '@testing-library/jest-dom';
 import { ProgressIndicator, useProgressTracker } from '../src/components/ui/ProgressIndicator';
 
