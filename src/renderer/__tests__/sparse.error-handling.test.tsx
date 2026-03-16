@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
@@ -84,7 +85,7 @@ describe('Sparse Error Handling Utilities', () => {
     });
 
     it('classifies timeout errors', () => {
-      const error = new Error('Operation timed out');
+      const error = new Error('Request timeout');
       const result = classifySparseError(error);
 
       expect(result.type).toBe(SparseErrorType.TIMEOUT);

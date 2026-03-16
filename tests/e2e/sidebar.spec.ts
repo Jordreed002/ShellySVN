@@ -69,9 +69,15 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('add repository button is present', async ({ page }) => {
-    // Check for the + button in title bar
+    // Wait for the sidebar to be fully rendered with the repositories section
+    const repositoriesHeader = page.locator('aside').getByText('Repositories', { exact: true });
+    await repositoriesHeader.waitFor({ state: 'visible', timeout: 10000 });
+
+    // Check for the + button next to Repositories header using a more specific selector
+    // The button is a sibling of the Repositories span within the same container
     const addButton = page.locator('aside button[title="Add Repository"]');
-    const addButtonVisible = await addButton.isVisible();
-    expect(addButtonVisible).toBe(true);
+
+    // Wait for the button to be visible with a timeout
+    await expect(addButton).toBeVisible({ timeout: 10000 });
   });
 });
