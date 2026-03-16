@@ -118,33 +118,22 @@ test.describe('Sparse Checkout - ChooseItemsDialog', () => {
     const chooseButton = page.locator('button:has-text("Choose items")');
     if ((await chooseButton.count()) > 0) {
       await chooseButton.click();
-      await page.waitForTimeout(500);
+
+      // Wait for the Choose Items dialog to appear (SVN list command takes time)
+      const chooseItemsTitle = page.locator('h2.modal-title:has-text("Choose Items")');
+      await chooseItemsTitle.waitFor({ state: 'visible', timeout: 30000 });
 
       await page.screenshot({ path: 'tests/results/sparse-03-choose-items-dialog.png' });
 
-      // Use a more specific selector to find the ChooseItemsDialog modal (not the parent AddRepoModal)
-      // The ChooseItemsDialog has h2.modal-title containing "Choose Items to Checkout"
-      // Use :scope to ensure we're matching the modal itself, not a parent
-      const chooseItemsDialogs = page.locator('.modal');
-      const dialogCount = await chooseItemsDialogs.count();
+      // Verify the dialog title
+      const title = await chooseItemsTitle.textContent();
+      expect(title).toContain('Choose Items to Checkout');
 
-      // Find the dialog with "Choose Items" in its title
-      let foundDialog = false;
-      for (let i = 0; i < dialogCount; i++) {
-        const dialog = chooseItemsDialogs.nth(i);
-        const title = await dialog.locator('h2.modal-title').textContent();
-        if (title?.includes('Choose Items')) {
-          expect(title).toContain('Choose Items to Checkout');
-
-          const cancelButton = dialog.locator('.modal-footer button:has-text("Cancel")').first();
-          if ((await cancelButton.count()) > 0) {
-            await cancelButton.click();
-          }
-          foundDialog = true;
-          break;
-        }
+      // Close the dialog
+      const cancelButton = page.locator('.modal:has(h2.modal-title:has-text("Choose Items")) .modal-footer button:has-text("Cancel")').first();
+      if ((await cancelButton.count()) > 0) {
+        await cancelButton.click();
       }
-      expect(foundDialog).toBe(true);
     }
 
     await page.getByTestId('modal-close-button').click();
