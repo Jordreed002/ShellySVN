@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['src/**/__tests__/**/*.test.{ts,tsx}'],
+    include: ['src/**/__tests__/**/*.test.{ts,tsx}', 'packages/**/__tests__/**/*.test.{ts,tsx}'],
     // Allow mocking of Node.js built-in modules
     deps: {
       interopDefault: true,
