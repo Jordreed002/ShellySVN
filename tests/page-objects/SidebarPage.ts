@@ -42,6 +42,16 @@ export class SidebarPage {
    * Click the Add Repository button
    */
   async clickAddRepository(): Promise<void> {
+    // First close any existing modal that might be blocking
+    const overlay = this.page.locator('.modal-overlay');
+    if (await overlay.isVisible()) {
+      try {
+        await this.page.getByTestId('modal-close-button').click({ timeout: 1000 });
+        await overlay.waitFor({ state: 'hidden', timeout: 2000 });
+      } catch {
+        // Ignore if close fails
+      }
+    }
     await this.addButton.click();
   }
 

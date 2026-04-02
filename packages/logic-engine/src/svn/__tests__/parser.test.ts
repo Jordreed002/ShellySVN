@@ -53,7 +53,7 @@ describe('parseSvnStatusXml', () => {
 
       const entry = result.entries[0];
       expect(entry.path).toBe('src/main.ts');
-      expect(entry.status).toBe('M');
+      expect(entry.status).toBe('modified');
       expect(entry.revision).toBe(120);
       expect(entry.author).toBe('developer');
       expect(entry.date).toBe('2024-01-15T10:30:00Z');
@@ -72,7 +72,7 @@ describe('parseSvnStatusXml', () => {
 
       const result = parseSvnStatusXml(xml, '/test/repo');
 
-      expect(result.entries[0].status).toBe('A');
+      expect(result.entries[0].status).toBe('added');
     });
 
     it('should parse a deleted file', () => {
@@ -88,7 +88,7 @@ describe('parseSvnStatusXml', () => {
 
       const result = parseSvnStatusXml(xml, '/test/repo');
 
-      expect(result.entries[0].status).toBe('D');
+      expect(result.entries[0].status).toBe('deleted');
     });
 
     it('should parse a conflicted file', () => {
@@ -104,7 +104,7 @@ describe('parseSvnStatusXml', () => {
 
       const result = parseSvnStatusXml(xml, '/test/repo');
 
-      expect(result.entries[0].status).toBe('C');
+      expect(result.entries[0].status).toBe('conflicted');
     });
 
     it('should parse an unversioned file', () => {
@@ -120,7 +120,7 @@ describe('parseSvnStatusXml', () => {
 
       const result = parseSvnStatusXml(xml, '/test/repo');
 
-      expect(result.entries[0].status).toBe('?');
+      expect(result.entries[0].status).toBe('unversioned');
     });
 
     it('should parse a missing file', () => {
@@ -136,7 +136,7 @@ describe('parseSvnStatusXml', () => {
 
       const result = parseSvnStatusXml(xml, '/test/repo');
 
-      expect(result.entries[0].status).toBe('!');
+      expect(result.entries[0].status).toBe('missing');
     });
   });
 
@@ -163,9 +163,9 @@ describe('parseSvnStatusXml', () => {
       const result = parseSvnStatusXml(xml, '/test/repo');
 
       expect(result.entries).toHaveLength(3);
-      expect(result.entries[0].status).toBe('M');
-      expect(result.entries[1].status).toBe('A');
-      expect(result.entries[2].status).toBe('D');
+      expect(result.entries[0].status).toBe('modified');
+      expect(result.entries[1].status).toBe('added');
+      expect(result.entries[2].status).toBe('deleted');
     });
   });
 
@@ -183,8 +183,8 @@ describe('parseSvnStatusXml', () => {
 
       const result = parseSvnStatusXml(xml, '/test/repo');
 
-      expect(result.entries[0].status).toBe(' ');
-      expect(result.entries[0].propsStatus).toBe('M');
+      expect(result.entries[0].status).toBe('normal');
+      expect(result.entries[0].propsStatus).toBe('modified');
     });
   });
 });

@@ -1,196 +1,21 @@
 /**
- * Comprehensive Electron API Mock for Testing
+ * Electron API Mock for Testing
  *
  * Provides mock implementations of window.api for unit tests.
- * Import and use createMockElectronAPI() in your test setup.
  */
 
 import { vi } from 'vitest';
-import type {
-  ElectronAPI,
-  SvnStatusResult,
-  SvnLogResult,
-  SvnInfoResult,
-  SvnDiffResult,
-  SvnListResult,
-  SvnBlameResult,
-  SvnLockInfo,
-  SvnChangelistResult,
-  SvnShelveListResult,
-  SvnExternal,
-  RepoDiagnostics,
-  FileInfo,
-  FsStatusResult,
-  AuthCredential,
-  AuthListEntry,
-  WorkingCopyInfo,
-  CheckoutProgress,
-} from '@shared/types';
+import type { ElectronAPI } from '@shared/types';
 
 /**
- * Create mock SVN response generators
+ * Create a comprehensive mock Electron API
  */
-export function createMockSvnResponses() {
+export function createMockElectronAPI(): ElectronAPI {
   return {
-    status: {
-      empty: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [],
-        revision: 1,
-      }),
-      modified: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [
-          {
-            path: '/test/repo/modified.txt',
-            status: 'M',
-            isDirectory: false,
-            revision: 5,
-            author: 'testuser',
-          },
-        ],
-        revision: 5,
-      }),
-      added: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [
-          {
-            path: '/test/repo/new.txt',
-            status: 'A',
-            isDirectory: false,
-          },
-        ],
-        revision: 1,
-      }),
-      conflicted: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [
-          {
-            path: '/test/repo/conflict.txt',
-            status: 'C',
-            isDirectory: false,
-          },
-        ],
-        revision: 1,
-      }),
-      unversioned: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [
-          {
-            path: '/test/repo/untracked.txt',
-            status: '?',
-            isDirectory: false,
-          },
-        ],
-        revision: 1,
-      }),
-      deleted: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [
-          {
-            path: '/test/repo/removed.txt',
-            status: 'D',
-            isDirectory: false,
-          },
-        ],
-        revision: 1,
-      }),
-      locked: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [
-          {
-            path: '/test/repo/locked.txt',
-            status: ' ',
-            isDirectory: false,
-            lock: {
-              owner: 'lockuser',
-              comment: 'Locked for editing',
-              date: '2024-01-01T00:00:00Z',
-            },
-          },
-        ],
-        revision: 1,
-      }),
-      mixed: (): SvnStatusResult => ({
-        path: '/test/repo',
-        entries: [
-          {
-            path: '/test/repo/modified.txt',
-            status: 'M',
-            isDirectory: false,
-            revision: 5,
-            author: 'user1',
-          },
-          {
-            path: '/test/repo/added.txt',
-            status: 'A',
-            isDirectory: false,
-          },
-          {
-            path: '/test/repo/untracked.txt',
-            status: '?',
-            isDirectory: false,
-          },
-          {
-            path: '/test/repo/subdir',
-            status: ' ',
-            isDirectory: true,
-          },
-        ],
-        revision: 5,
-      }),
-    },
-
-    log: {
-      empty: (): SvnLogResult => ({
-        entries: [],
-        startRevision: 0,
-        endRevision: 0,
-      }),
-      single: (): SvnLogResult => ({
-        entries: [
-          {
-            revision: 1,
-            author: 'testuser',
-            date: '2024-01-01T12:00:00Z',
-            message: 'Initial commit',
-            paths: [{ action: 'A', path: '/trunk' }],
-          },
-        ],
-        startRevision: 1,
-        endRevision: 1,
-      }),
-      multiple: (): SvnLogResult => ({
-        entries: [
-          {
-            revision: 3,
-            author: 'user2',
-            date: '2024-01-03T12:00:00Z',
-            message: 'Third commit',
-            paths: [{ action: 'M', path: '/trunk/file.txt' }],
-          },
-          {
-            revision: 2,
-            author: 'user1',
-            date: '2024-01-02T12:00:00Z',
-            message: 'Second commit',
-            paths: [{ action: 'A', path: '/trunk/file.txt' }],
-          },
-          {
-            revision: 1,
-            author: 'user1',
-            date: '2024-01-01T12:00:00Z',
-            message: 'Initial commit',
-            paths: [{ action: 'A', path: '/trunk' }],
-          },
-        ],
-        startRevision: 1,
-        endRevision: 3,
-      }),
-    },
-
-    info: {
-      basic: (): SvnInfoResult => ({
+    svn: {
+      status: vi.fn().mockResolvedValue({ path: '/test/repo', entries: [], revision: 1 }),
+      log: vi.fn().mockResolvedValue({ entries: [], startRevision: 0, endRevision: 0 }),
+      info: vi.fn().mockResolvedValue({
         path: '/test/repo',
         url: 'https://svn.example.com/repo/trunk',
         repositoryRoot: 'https://svn.example.com/repo',
@@ -200,132 +25,15 @@ export function createMockSvnResponses() {
         lastChangedAuthor: 'testuser',
         lastChangedRevision: 5,
         lastChangedDate: '2024-01-01T12:00:00Z',
-        workingCopyRoot: '/test/repo',
       }),
-      locked: (): SvnInfoResult => ({
-        path: '/test/repo/locked.txt',
-        url: 'https://svn.example.com/repo/trunk/locked.txt',
-        repositoryRoot: 'https://svn.example.com/repo',
-        repositoryUuid: '12345678-1234-1234-1234-123456789012',
-        revision: 5,
-        nodeKind: 'file',
-        lastChangedAuthor: 'testuser',
-        lastChangedRevision: 5,
-        lastChangedDate: '2024-01-01T12:00:00Z',
-        lock: {
-          path: '/test/repo/locked.txt',
-          owner: 'lockuser',
-          comment: 'Locked for editing',
-          date: '2024-01-01T00:00:00Z',
-        },
-      }),
-    },
-
-    list: {
-      empty: (): SvnListResult => ({
-        path: 'https://svn.example.com/repo/trunk',
-        entries: [],
-      }),
-      basic: (): SvnListResult => ({
-        path: 'https://svn.example.com/repo/trunk',
-        entries: [
-          {
-            name: 'src',
-            path: 'https://svn.example.com/repo/trunk/src',
-            url: 'https://svn.example.com/repo/trunk/src',
-            kind: 'dir',
-            revision: 5,
-            author: 'testuser',
-            date: '2024-01-01T12:00:00Z',
-          },
-          {
-            name: 'README.md',
-            path: 'https://svn.example.com/repo/trunk/README.md',
-            url: 'https://svn.example.com/repo/trunk/README.md',
-            kind: 'file',
-            size: 1024,
-            revision: 3,
-            author: 'user1',
-            date: '2024-01-01T10:00:00Z',
-          },
-        ],
-      }),
-    },
-
-    diff: {
-      empty: (): SvnDiffResult => ({
-        files: [],
-        hasChanges: false,
-      }),
-      modified: (): SvnDiffResult => ({
-        files: [
-          {
-            oldPath: '/test/repo/file.txt',
-            newPath: '/test/repo/file.txt',
-            hunks: [
-              {
-                oldStart: 1,
-                oldLines: 1,
-                newStart: 1,
-                newLines: 2,
-                lines: [
-                  { type: 'context', content: 'context line', oldLineNumber: 1, newLineNumber: 1 },
-                  { type: 'removed', content: 'old line', oldLineNumber: 2 },
-                  { type: 'added', content: 'new line', newLineNumber: 2 },
-                ],
-              },
-            ],
-          },
-        ],
-        hasChanges: true,
-      }),
-    },
-
-    blame: {
-      basic: (): SvnBlameResult => ({
-        path: '/test/repo/file.txt',
-        lines: [
-          {
-            lineNumber: 1,
-            revision: 1,
-            author: 'user1',
-            date: '2024-01-01T12:00:00Z',
-            content: 'first line',
-          },
-          {
-            lineNumber: 2,
-            revision: 2,
-            author: 'user2',
-            date: '2024-01-02T12:00:00Z',
-            content: 'second line',
-          },
-        ],
-        startRevision: 1,
-        endRevision: 2,
-      }),
-    },
-  };
-}
-
-/**
- * Create a comprehensive mock Electron API
- */
-export function createMockElectronAPI(): ElectronAPI {
-  const mockResponses = createMockSvnResponses();
-
-  return {
-    svn: {
-      status: vi.fn().mockResolvedValue(mockResponses.status.empty()),
-      log: vi.fn().mockResolvedValue(mockResponses.log.empty()),
-      info: vi.fn().mockResolvedValue(mockResponses.info.basic()),
-      infoUrl: vi.fn().mockResolvedValue(mockResponses.info.basic()),
+      infoUrl: vi.fn().mockResolvedValue(null),
       getWorkingCopyContext: vi.fn().mockResolvedValue({
         workingCopyRoot: '/test/repo',
         repositoryRoot: 'https://svn.example.com/repo',
         url: 'https://svn.example.com/repo/trunk',
       }),
-      diff: vi.fn().mockResolvedValue(mockResponses.diff.empty()),
-      diffStreaming: vi.fn().mockResolvedValue(mockResponses.diff.empty()),
+      diff: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
+      diffStreaming: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
       update: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
       updateItem: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
       updateToRevision: vi.fn().mockResolvedValue({ success: true, revision: 3 }),
@@ -368,8 +76,8 @@ export function createMockElectronAPI(): ElectronAPI {
       proplist: vi.fn().mockResolvedValue([]),
       propset: vi.fn().mockResolvedValue({ success: true }),
       propdel: vi.fn().mockResolvedValue({ success: true }),
-      blame: vi.fn().mockResolvedValue(mockResponses.blame.basic()),
-      list: vi.fn().mockResolvedValue(mockResponses.list.basic()),
+      blame: vi.fn().mockResolvedValue({ path: '/test/repo/file.txt', lines: [] }),
+      list: vi.fn().mockResolvedValue({ path: '', entries: [] }),
       patch: {
         create: vi.fn().mockResolvedValue({ success: true, output: '' }),
         apply: vi.fn().mockResolvedValue({ success: true, filesPatched: 0, rejects: 0, output: '' }),
@@ -389,7 +97,7 @@ export function createMockElectronAPI(): ElectronAPI {
         credentialRealm: null,
         credentialUsername: null,
         connectionStatus: 'ok',
-      } as RepoDiagnostics),
+      }),
     },
     external: {
       openDiffTool: vi.fn().mockResolvedValue({ success: true }),
@@ -474,7 +182,7 @@ export function createMockElectronAPI(): ElectronAPI {
  */
 export function setupWindowApiMock(): void {
   const mockApi = createMockElectronAPI();
-  (globalThis as any).window = {
+  (globalThis as Record<string, unknown>).window = {
     api: mockApi,
   };
 }
@@ -484,48 +192,6 @@ export function setupWindowApiMock(): void {
  */
 export function clearAllMocks(): void {
   vi.clearAllMocks();
-}
-
-/**
- * Helper to mock a successful SVN status operation
- */
-export function mockSuccessfulSvnStatus(entries: SvnStatusResult['entries']): void {
-  const mockApi = (globalThis as any).window?.api as ElectronAPI;
-  if (mockApi) {
-    (mockApi.svn.status as ReturnType<typeof vi.fn>).mockResolvedValue({
-      path: '/test/repo',
-      entries,
-      revision: 1,
-    });
-  }
-}
-
-/**
- * Helper to mock a failed SVN operation
- */
-export function mockFailedSvnOperation(operation: keyof ElectronAPI['svn'], error: string): void {
-  const mockApi = (globalThis as any).window?.api as ElectronAPI;
-  if (mockApi) {
-    const fn = mockApi.svn[operation] as ReturnType<typeof vi.fn>;
-    if (fn && typeof fn.mockRejectedValue === 'function') {
-      fn.mockRejectedValue(new Error(error));
-    }
-  }
-}
-
-/**
- * Helper to mock auth credentials
- */
-export function mockAuthCredential(realm: string, username: string, password: string): void {
-  const mockApi = (globalThis as any).window?.api as ElectronAPI;
-  if (mockApi) {
-    (mockApi.auth.get as ReturnType<typeof vi.fn>).mockImplementation(async (r: string) => {
-      if (r === realm) {
-        return { username, password };
-      }
-      return null;
-    });
-  }
 }
 
 export { createMockElectronAPI as default };

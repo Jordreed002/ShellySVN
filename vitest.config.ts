@@ -54,6 +54,7 @@ export default defineConfig({
       '@shared': resolve(__dirname, 'src/shared'),
       '@main': resolve(__dirname, 'src/main'),
       '@preload': resolve(__dirname, 'src/preload'),
+      '@test-utils': resolve(__dirname, 'src/__test-utils__'),
     },
   },
 });

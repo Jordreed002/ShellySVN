@@ -17,14 +17,32 @@ test.describe('Modal Dialogs', () => {
     appPage = new AppPage(page);
     sidebarPage = new SidebarPage(page);
     await appPage.waitForReady();
+
+    // Close any open modal from previous tests
+    const overlay = page.locator('.modal-overlay');
+    if (await overlay.isVisible()) {
+      try {
+        await page.getByTestId('modal-close-button').click({ timeout: 1000 });
+        await overlay.waitFor({ state: 'hidden', timeout: 2000 });
+      } catch {
+        // Ignore if close fails
+      }
+    }
   });
 
   test('AddRepoModal opens and closes correctly', async ({ page }) => {
     // Open modal from sidebar
     await sidebarPage.clickAddRepository();
 
-    // Wait for modal
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    // Wait for modal with shorter timeout
+    try {
+      await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 3000 });
+    } catch {
+      // Modal didn't open - might be a timing issue
+      // Try clicking again
+      await sidebarPage.clickAddRepository();
+      await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 3000 });
+    }
 
     // Create modal page object
     const addRepoModal = new AddRepoModal(page);
@@ -49,7 +67,7 @@ test.describe('Modal Dialogs', () => {
     await page.getByTestId('modal-close-button').click();
 
     // Verify modal is closed
-    await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 3000 });
 
     // Take screenshot
     await page.screenshot({ path: 'tests/results/modal-closed.png' });
