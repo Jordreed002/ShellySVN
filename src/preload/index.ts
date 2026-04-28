@@ -26,6 +26,7 @@ import type {
   WebhookDeliverRequest,
   WebhookDeliverResult,
 } from '@shared/types';
+import type { IpcInvokeArgs, IpcInvokeChannel, IpcInvokeResult } from '@shared/ipc-contract';
 
 let activeCheckoutId: string | null = null;
 
@@ -33,23 +34,23 @@ function createOperationId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function invokeIpc<C extends IpcInvokeChannel>(
+  channel: C,
+  ...args: IpcInvokeArgs<C>
+): Promise<IpcInvokeResult<C>> {
+  return ipcRenderer.invoke(channel, ...args) as Promise<IpcInvokeResult<C>>;
+}
+
 const api: ElectronAPI = {
   svn: {
-    status: (path) => ipcRenderer.invoke('svn:status', path),
+    status: (path) => invokeIpc('svn:status', path),
     log: (path, limit?, startRev?, endRev?) =>
-      ipcRenderer.invoke('svn:log', path, limit, startRev, endRev),
-    info: (path) => ipcRenderer.invoke('svn:info', path) as Promise<SvnInfoResult>,
-    infoUrl: (url) => ipcRenderer.invoke('svn:infoUrl', url) as Promise<SvnInfoResult>,
-    getWorkingCopyContext: (path) =>
-      ipcRenderer.invoke('svn:getWorkingCopyContext', path) as Promise<{
-        workingCopyRoot: string;
-        repositoryRoot: string;
-        url: string;
-      } | null>,
-    diff: (path, revision?) =>
-      ipcRenderer.invoke('svn:diff', path, revision) as Promise<SvnDiffResult>,
-    diffStreaming: (path, revision?) =>
-      ipcRenderer.invoke('svn:diffStreaming', path, revision) as Promise<SvnDiffResult>,
+      invokeIpc('svn:log', path, limit, startRev, endRev),
+    info: (path) => invokeIpc('svn:info', path),
+    infoUrl: (url) => invokeIpc('svn:infoUrl', url),
+    getWorkingCopyContext: (path) => invokeIpc('svn:getWorkingCopyContext', path),
+    diff: (path, revision?) => invokeIpc('svn:diff', path, revision),
+    diffStreaming: (path, revision?) => invokeIpc('svn:diffStreaming', path, revision),
     update: (path, depth?, options?) =>
       ipcRenderer.invoke('svn:update', path, depth, options) as Promise<{
         success: boolean;
