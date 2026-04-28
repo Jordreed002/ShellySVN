@@ -193,6 +193,8 @@ Build output warns that `RepoBrowserContent.tsx` does not export a route.
 
 **Location:** `src/**/__tests__`, `tests/e2e`
 
+**Status:** Triaged in `.spec/skipped-tests.md`. The baseline guard prevents new skips; remaining work is to unskip batches and reduce the baseline.
+
 The codebase currently contains 27 `describe.skip`, `it.skip`, or `test.skip` occurrences, including sparse checkout integration, auth persistence/concurrency, validation filesystem checks, and several renderer components.
 
 **Impact:** Reported test coverage overstates exercised behavior, especially around areas that are already high-risk.
@@ -338,6 +340,8 @@ CI uses `bunx vitest run --coverage`, and `package.json` has no first-class unit
 ### 25. Logic engine appears incomplete relative to product claims
 
 **Location:** `packages/logic-engine/src/svn/client.ts`
+
+**Status:** Decided in `.spec/adr-logic-engine.md`. The Electron main process remains the production SVN backend; `packages/logic-engine` is experimental until a parity project promotes it.
 
 The logic-engine client has simplified diff parsing and returns empty blame/list data for some operations.
 

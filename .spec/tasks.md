@@ -15,7 +15,7 @@ Execution order is defined in `fix-plan.md`.
 - [x] Add a `test` or `test:unit` script that runs the local Vitest dependency instead of using an unpinned `bunx vitest`.
 - [x] Add a `verify` script for typecheck, lint, unit tests, and build.
 - [x] Add or update CI to run `bun run typecheck`, `bun run lint`, unit tests, and `bun run build`.
-- [ ] Triage all skipped tests and decide which should be fixed, moved to a Node environment, or deleted.
+- [x] Triage all skipped tests and decide which should be fixed, moved to a Node environment, or deleted.
 - [x] Add a CI check that fails when skipped tests increase without an explicit allowlist update.
 
 ---
@@ -75,7 +75,7 @@ Execution order is defined in `fix-plan.md`.
 - [x] Align auth cache reporting/clearing with the real credential cache file path.
 - [ ] Centralize all SVN process spawning behind one executor service.
 - [x] Replace regex-based SVN XML parsing with typed parser helpers.
-- [ ] Decide whether `packages/logic-engine` is production architecture or remove it from release documentation.
+- [x] Decide whether `packages/logic-engine` is production architecture or remove it from release documentation.
 - [x] Move webhook delivery to a main-process service with URL validation and timeout handling.
 - [x] Correct shell integration status when native helpers are missing.
 - [ ] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
