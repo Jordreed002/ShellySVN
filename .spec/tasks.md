@@ -134,7 +134,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 ### History / Review / Analytics
 
 - [x] Add revision log filtering by author, message, path, revision range, date range, and issue ID.
-- [ ] Add log cache for large repositories.
+- [x] Add log cache for large repositories.
 - [ ] Add branch/tag comparison.
 - [ ] Improve revision graph branch, tag, copy, and merge visualization.
 - [ ] Add merge-tracking log view.

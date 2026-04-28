@@ -13,6 +13,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
+import { useCachedLog } from '@renderer/hooks/useLogCache';
 import {
   EMPTY_LOG_FILTERS,
   countActiveLogFilters,
@@ -39,6 +40,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [filters, setFilters] = useState<LogFilterState>(EMPTY_LOG_FILTERS);
   const listRef = useRef<HTMLDivElement>(null);
   const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, path);
+  const { cachedLog, cacheInfo, hasCachedData, isRefreshing, refreshLog, clearCache } =
+    useCachedLog(isOpen ? path : null, limit);
   const filteredEntries = useMemo(
     () => filterLogEntries(log?.entries || [], filters, issueTrackerConfig),
     [log, filters, issueTrackerConfig]
@@ -56,14 +59,20 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     setError(null);
 
     try {
-      const result = await window.api.svn.log(path, limit);
-      setLog(result);
+      const result = await refreshLog();
+      if (result) {
+        setLog(result);
+      }
     } catch (err) {
-      setError((err as Error).message || 'Failed to load log');
+      setError(
+        hasCachedData
+          ? 'Failed to refresh log; showing cached history.'
+          : (err as Error).message || 'Failed to load log'
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [limit, path]);
+  }, [hasCachedData, path, refreshLog]);
 
   useEffect(() => {
     if (isOpen && path) {
@@ -71,6 +80,12 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
       setSelectedEntry(null);
     }
   }, [isOpen, path, loadLog]);
+
+  useEffect(() => {
+    if (isOpen && cachedLog && !log) {
+      setLog(cachedLog);
+    }
+  }, [cachedLog, isOpen, log]);
 
   useEffect(() => {
     if (
@@ -148,8 +163,27 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               <option value={100}>100 entries</option>
               <option value={200}>200 entries</option>
             </select>
+            {cacheInfo && (
+              <span className="text-xs text-text-muted" title="Cached log entries">
+                Cached {cacheInfo.entryCount}
+              </span>
+            )}
+            {hasCachedData && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await clearCache();
+                  setLog(null);
+                  await loadLog();
+                }}
+                className="btn btn-secondary btn-sm text-xs"
+                title="Clear cached log"
+              >
+                Clear cache
+              </button>
+            )}
             <button onClick={loadLog} disabled={isLoading} className="btn-icon-sm" title="Refresh">
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
             </button>
             <button onClick={onClose} className="btn-icon-sm">
               <X className="w-4 h-4" />
@@ -246,9 +280,14 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               </div>
             )}
 
-            {error && (
+            {error && !log && (
               <div className="flex items-center justify-center h-full p-4 text-center">
                 <div className="text-error">{error}</div>
+              </div>
+            )}
+            {error && log && (
+              <div className="border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                {error}
               </div>
             )}
 

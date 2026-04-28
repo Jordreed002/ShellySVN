@@ -143,8 +143,16 @@ export function useLogCache(path: string | null) {
  */
 export function useCachedLog(path: string | null, limit: number = 100) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const { cachedLog, cachedEntries, cacheInfo, hasCachedData, saveToCache, setIsOffline } =
-    useLogCache(path);
+  const {
+    cachedLog,
+    cachedEntries,
+    cacheInfo,
+    hasCachedData,
+    isOffline,
+    saveToCache,
+    setIsOffline,
+    clearCache,
+  } = useLogCache(path);
 
   // Fetch fresh log data
   const refreshLog = useCallback(async (): Promise<SvnLogResult | null> => {
@@ -181,6 +189,8 @@ export function useCachedLog(path: string | null, limit: number = 100) {
     cachedEntries,
     cacheInfo,
     hasCachedData,
+    isOffline,
     isRefreshing,
+    clearCache,
   };
 }
