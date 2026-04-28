@@ -9,8 +9,6 @@ import {
   Inbox,
   Loader,
   ArrowUp,
-  Lock,
-  X,
   Globe,
 } from 'lucide-react';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
@@ -27,6 +25,7 @@ import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
+import { FileExplorerAuthPrompt } from './files/FileExplorerAuthPrompt';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>
@@ -1781,71 +1780,15 @@ export function FileExplorer() {
       )}
 
       {showAuthPrompt && (
-        <div className="modal-overlay" onClick={() => setShowAuthPrompt(false)}>
-          <div className="modal w-[400px]" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">
-                <Lock className="w-5 h-5 text-accent" />
-                Authentication Required
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowAuthPrompt(false)}
-                className="btn-icon-sm"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="modal-body space-y-4">
-              <p className="text-sm text-text-secondary">
-                Authentication is required to view remote files from this repository.
-              </p>
-              <div>
-                <label className="block text-sm font-medium text-text mb-1.5">Realm</label>
-                <div className="px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-muted truncate">
-                  {authRealm}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text mb-1.5">Username</label>
-                <input
-                  type="text"
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  className="input"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text mb-1.5">Password</label>
-                <input
-                  type="password"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAuthSubmit()}
-                  className="input"
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                onClick={() => setShowAuthPrompt(false)}
-                className="btn btn-ghost"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleAuthSubmit}
-                disabled={!authUsername}
-                className="btn btn-primary"
-              >
-                Save Credentials
-              </button>
-            </div>
-          </div>
-        </div>
+        <FileExplorerAuthPrompt
+          realm={authRealm}
+          username={authUsername}
+          password={authPassword}
+          onUsernameChange={setAuthUsername}
+          onPasswordChange={setAuthPassword}
+          onCancel={() => setShowAuthPrompt(false)}
+          onSubmit={handleAuthSubmit}
+        />
       )}
 
       {/* Repository Diagnostics */}
