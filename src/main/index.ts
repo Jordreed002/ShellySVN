@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import { registerSvnHandlers } from './ipc/svn';
@@ -12,6 +12,7 @@ import { registerMonitorHandlers } from './ipc/monitor';
 import { registerShellIntegrationHandlers } from './shell/ShellIntegration';
 import { setupProtocolHandler, registerDeepLinkHandler } from './services/protocol-handler';
 import { registerNotificationHandlers } from './ipc/notification';
+import { openValidatedExternalUrl } from './utils/external-url';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -41,7 +42,9 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
+    openValidatedExternalUrl(details.url).catch((error) => {
+      console.error('[SECURITY] Failed to open external URL:', error);
+    });
     return { action: 'deny' };
   });
 

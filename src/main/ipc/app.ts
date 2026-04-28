@@ -1,11 +1,7 @@
-import { ipcMain, app, shell, BrowserWindow } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import { readdir, stat, unlink, rmdir } from 'fs/promises';
 import { join } from 'path';
-
-/**
- * Allowed URL schemes for external links
- */
-const ALLOWED_EXTERNAL_SCHEMES = ['http:', 'https:', 'mailto:'];
+import { openValidatedExternalUrl } from '../utils/external-url';
 
 /**
  * Cache type definitions
@@ -14,19 +10,6 @@ interface CacheBreakdown {
   electron: number;
   logs: number;
   auth: number;
-}
-
-/**
- * Validate a URL before opening externally
- * SECURITY: Only allow specific schemes to prevent potential abuse
- */
-function isValidExternalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return ALLOWED_EXTERNAL_SCHEMES.includes(parsed.protocol);
-  } catch {
-    return false;
-  }
 }
 
 async function getDirectorySize(dirPath: string): Promise<{ size: number; files: number }> {
@@ -173,17 +156,7 @@ export function registerAppHandlers(): void {
   );
 
   ipcMain.handle('app:openExternal', async (_, url: string) => {
-    // SECURITY: Validate URL before opening
-    if (!isValidExternalUrl(url)) {
-      console.warn('[SECURITY] Blocked attempt to open invalid URL:', url.substring(0, 100));
-      return {
-        success: false,
-        error: 'Invalid URL scheme. Only http, https, and mailto are allowed.',
-      };
-    }
-
-    await shell.openExternal(url);
-    return { success: true };
+    return openValidatedExternalUrl(url);
   });
 
   ipcMain.handle('app:clearCache', async () => {

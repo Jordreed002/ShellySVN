@@ -56,7 +56,9 @@ class AuthCache {
       createdAt: Date.now(),
     };
     this.credentials.set(realm, credential);
-    this.save();
+    if (this.encryptionAvailable) {
+      this.save();
+    }
     debug.log('[AUTH] Credential saved for realm:', realm);
   }
 
@@ -162,6 +164,11 @@ class AuthCache {
   }
 
   private async load(): Promise<void> {
+    if (!this.encryptionAvailable) {
+      debug.log('[AUTH] Skipping credential cache load because encryption is unavailable');
+      return;
+    }
+
     try {
       await access(this.storePath);
       const content = await readFile(this.storePath, 'utf-8');
@@ -188,6 +195,11 @@ class AuthCache {
   }
 
   private async save(): Promise<void> {
+    if (!this.encryptionAvailable) {
+      debug.warn('[AUTH] Skipping credential persistence because encryption is unavailable');
+      return;
+    }
+
     await this.savePromise;
 
     this.savePromise = (async () => {

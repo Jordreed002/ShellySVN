@@ -28,6 +28,7 @@ import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getSettingsManager } from '../settings-manager';
 import debug from '../utils/debug';
+import { redactArgs } from '../utils/redaction';
 
 /**
  * Helper to get hooks for a working copy from store
@@ -207,7 +208,7 @@ async function executeSvn(
       finalArgs.push('--certificate', context.clientCertificatePath.trim());
     }
 
-    debug.log(`[SVN] Running: svn ${finalArgs.join(' ')} in ${cwd || process.cwd()}`);
+    debug.log(`[SVN] Running: svn ${redactArgs(finalArgs).join(' ')} in ${cwd || process.cwd()}`);
 
     const proc = spawn(svnCommand, finalArgs, {
       cwd: cwd || process.cwd(),

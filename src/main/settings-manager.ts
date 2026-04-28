@@ -216,6 +216,15 @@ class SettingsManager {
 
     // Encrypt proxy password if present
     if (encrypted.proxySettings?.password) {
+      if (!this.encryptionAvailable) {
+        console.warn('[SECURITY] Dropping proxy password from persisted settings - encryption not available');
+        encrypted.proxySettings = {
+          ...encrypted.proxySettings,
+          password: '',
+        };
+        return encrypted;
+      }
+
       encrypted.proxySettings = {
         ...encrypted.proxySettings,
         password: this.encryptSensitiveValue(encrypted.proxySettings.password),
@@ -226,17 +235,14 @@ class SettingsManager {
   }
 
   /**
-   * Encrypt a sensitive value using safeStorage
-   * Returns the original value if encryption is not available (will be stored in memory only)
+   * Encrypt a sensitive value using safeStorage.
    */
   private encryptSensitiveValue(value: string): string {
     if (!value) return value;
 
-    // If encryption is not available, return value with a prefix to indicate it's plaintext
-    // This shouldn't happen in normal operation, but provides a fallback
     if (!this.encryptionAvailable) {
-      console.warn('[SECURITY] Cannot encrypt proxy password - encryption not available');
-      return value; // Store as-is (not ideal but better than losing the setting)
+      console.warn('[SECURITY] Cannot encrypt sensitive value - encryption not available');
+      return '';
     }
 
     try {
@@ -257,8 +263,8 @@ class SettingsManager {
 
     // Check if this is an encrypted value (prefixed with 'enc:')
     if (!value.startsWith('enc:')) {
-      // Not encrypted - could be plaintext from older version or empty
-      return value;
+      console.warn('[SECURITY] Dropping plaintext sensitive value from settings');
+      return '';
     }
 
     if (!this.encryptionAvailable) {

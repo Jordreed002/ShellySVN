@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { shell } from 'electron';
+import { openValidatedExternalUrl } from '../utils/external-url';
 
 /**
  * Parsed deep link structure
@@ -233,8 +233,8 @@ export const deepLinks = {
       return processDeepLink(url);
     }
 
-    await shell.openExternal(url);
-    return true;
+    const result = await openValidatedExternalUrl(url);
+    return result.success;
   },
 };
 
