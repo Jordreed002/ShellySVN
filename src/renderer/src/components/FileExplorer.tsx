@@ -13,7 +13,7 @@ import {
   X,
   Globe,
 } from 'lucide-react';
-import type { FileInfo, SvnStatusEntry, SvnStatusChar } from '@shared/types';
+import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
@@ -27,7 +27,6 @@ import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
-import { useInvalidateStatus } from '../features/files/useInvalidateStatus';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>

@@ -1,4 +1,3 @@
-import { existsSync as fsExistsSync } from 'fs';
 import { join } from 'path';
 import { ipcMain } from 'electron';
 import { XMLParser } from 'fast-xml-parser';
@@ -23,7 +22,6 @@ import type {
 
 import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
-import { getSettingsManager } from '../settings-manager';
 import {
   cancelCheckout,
   checkout,
@@ -60,7 +58,7 @@ import {
   rename as renameWorkingCopyItem,
   revert as revertWorkingCopyItems,
 } from '../services/svn-working-copy';
-import { runSvn, runSvnText } from '../services/svn-executor';
+import { runSvnText } from '../services/svn-executor';
 import debug from '../utils/debug';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { getStore } from './store';
@@ -104,33 +102,6 @@ const xmlParser = new XMLParser({
  */
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
-
-function normalizeSslFailures(failures?: string[]): string {
-  const mapped = new Set<(typeof ALLOWED_SSL_FAILURES)[number]>();
-
-  for (const failure of failures && failures.length > 0 ? failures : ['unknown-ca']) {
-    switch (failure) {
-      case 'untrusted-issuer':
-      case 'unknown-ca':
-        mapped.add('unknown-ca');
-        break;
-      case 'hostname-mismatch':
-      case 'cn-mismatch':
-        mapped.add('cn-mismatch');
-        break;
-      case 'expired':
-        mapped.add('expired');
-        break;
-      case 'not-yet-valid':
-        mapped.add('not-yet-valid');
-        break;
-      default:
-        debug.warn('[SECURITY] Ignoring unsupported SSL trust failure type:', failure);
-    }
-  }
-
-  return mapped.size > 0 ? Array.from(mapped).join(',') : 'unknown-ca';
-}
 
 /**
  * Execute SVN command with settings-aware context

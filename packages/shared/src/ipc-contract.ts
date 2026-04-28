@@ -1,5 +1,4 @@
 import type {
-  AppSettings,
   AuthCredential,
   AuthListEntry,
   CheckoutOptions,
