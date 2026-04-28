@@ -1,0 +1,131 @@
+// @vitest-environment node
+
+import { rm } from 'fs/promises';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mockState = vi.hoisted(() => ({
+  runSvnText: vi.fn(),
+  rm: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+  return {
+    ...actual,
+    rm: mockState.rm,
+  };
+});
+
+vi.mock('../svn-executor', () => ({
+  runSvnText: mockState.runSvnText,
+}));
+
+vi.mock('../../ipc/store', () => ({
+  getStore: vi.fn(),
+}));
+
+vi.mock('../../auth-cache', () => ({
+  getAuthCache: vi.fn(),
+}));
+
+vi.mock('../../hooks/HookExecutor', () => ({
+  executeHooksForType: vi.fn(),
+}));
+
+vi.mock('../../utils/debug', () => ({
+  debug: {
+    error: vi.fn(),
+    log: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
+import {
+  getWorkingCopyUpgradeStatus,
+  remove,
+  upgradeWorkingCopy,
+} from '../svn-working-copy';
+
+const statusXml = (path: string, item: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<status>
+  <target path="${path}">
+    <entry path="${path}">
+      <wc-status item="${item}" props="none" />
+    </entry>
+  </target>
+</status>`;
+
+describe('svn-working-copy remove', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'status') {
+        const path = args[2];
+        return statusXml(path, path.includes('unversioned') ? 'unversioned' : 'modified');
+      }
+      return '';
+    });
+  });
+
+  it('deletes unversioned paths from disk and SVN-managed paths with force', async () => {
+    await remove(['C:\\wc\\tracked.txt', 'C:\\wc\\unversioned.txt']);
+
+    expect(rm).toHaveBeenCalledWith('C:\\wc\\unversioned.txt', {
+      recursive: true,
+      force: true,
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'delete',
+      '--force',
+      'C:\\wc\\tracked.txt',
+    ]);
+  });
+
+  it('does not call svn delete when all selected paths are unversioned', async () => {
+    await remove(['C:\\wc\\unversioned.txt']);
+
+    expect(rm).toHaveBeenCalledWith('C:\\wc\\unversioned.txt', {
+      recursive: true,
+      force: true,
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalledWith(
+      expect.arrayContaining(['delete'])
+    );
+  });
+});
+
+describe('svn-working-copy upgrade helpers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reports no upgrade requirement when svn info succeeds', async () => {
+    mockState.runSvnText.mockResolvedValue('<info />');
+
+    const result = await getWorkingCopyUpgradeStatus('/wc');
+
+    expect(result).toEqual({ path: '/wc', required: false });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['info', '--xml', '/wc']);
+  });
+
+  it('detects old working copy metadata errors', async () => {
+    mockState.runSvnText.mockRejectedValue(
+      new Error("svn: E155036: Please see the 'svn upgrade' command")
+    );
+
+    const result = await getWorkingCopyUpgradeStatus('/wc');
+
+    expect(result.required).toBe(true);
+    expect(result.path).toBe('/wc');
+    expect(result.reason).toContain('older SVN client');
+  });
+
+  it('runs svn upgrade for the selected working copy', async () => {
+    mockState.runSvnText.mockResolvedValue('Upgraded /wc');
+
+    const result = await upgradeWorkingCopy('/wc');
+
+    expect(result).toEqual({ success: true, output: 'Upgraded /wc' });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['upgrade', '/wc']);
+  });
+});

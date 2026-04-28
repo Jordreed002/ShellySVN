@@ -53,6 +53,13 @@ export interface SvnStatusResult {
   parseError?: string;
 }
 
+export interface WorkingCopyUpgradeStatus {
+  path: string;
+  required: boolean;
+  reason?: string;
+  error?: string;
+}
+
 // ============================================
 // SVN Log Types
 // ============================================
@@ -193,6 +200,8 @@ export interface DirectoryInfo {
 export type SvnChannels = {
   'svn:status': (path: string) => SvnStatusResult;
   'svn:statusRemote': (path: string) => SvnStatusResult;
+  'svn:workingCopyUpgradeStatus': (path: string) => WorkingCopyUpgradeStatus;
+  'svn:upgradeWorkingCopy': (path: string) => { success: boolean; output?: string; error?: string };
   'svn:log': (path: string, limit?: number, startRev?: number, endRev?: number) => SvnLogResult;
   'svn:info': (path: string) => SvnInfoResult;
   'svn:update': (
@@ -636,6 +645,8 @@ export interface ElectronAPI {
   svn: {
     status: (path: string) => Promise<SvnStatusResult>;
     statusRemote: (path: string) => Promise<SvnStatusResult>;
+    workingCopyUpgradeStatus: (path: string) => Promise<WorkingCopyUpgradeStatus>;
+    upgradeWorkingCopy: (path: string) => Promise<{ success: boolean; output?: string; error?: string }>;
     log: (
       path: string,
       limit?: number,

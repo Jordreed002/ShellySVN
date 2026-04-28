@@ -161,6 +161,7 @@ export function FileExplorer() {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [pendingUpdateEntry, setPendingUpdateEntry] = useState<SvnStatusEntry | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [isUpgradingWorkingCopy, setIsUpgradingWorkingCopy] = useState(false);
 
   // Dialog state for context menu actions
   const [branchTagPath, setBranchTagPath] = useState<string | null>(null);
@@ -265,6 +266,14 @@ export function FileExplorer() {
     staleTime: FILE_CACHE_TIME,
   });
 
+  const { data: workingCopyUpgradeStatus } = useQuery({
+    queryKey: ['svn:workingCopyUpgradeStatus', path],
+    queryFn: () => window.api.svn.workingCopyUpgradeStatus(path),
+    enabled: !!path && path !== 'DRIVES://' && isVersioned === true,
+    staleTime: FILE_CACHE_TIME,
+    retry: false,
+  });
+
   const { data: workingCopyContext } = useQuery({
     queryKey: ['svn:getWorkingCopyContext', path],
     queryFn: () => window.api.svn.getWorkingCopyContext(path),
@@ -274,6 +283,42 @@ export function FileExplorer() {
 
   const effectiveRepoRoot = svnInfo?.repositoryRoot || workingCopyContext?.repositoryRoot;
   const effectiveUrl = svnInfo?.url || workingCopyContext?.url;
+
+  const handleUpgradeWorkingCopy = useCallback(async () => {
+    if (!path || path === 'DRIVES://') return;
+
+    const confirmed = await confirmAppAction({
+      type: 'warning',
+      message:
+        'Upgrade this working copy metadata? Older SVN clients may no longer be able to use it after the upgrade.',
+      confirmLabel: 'Upgrade',
+    });
+    if (!confirmed) return;
+
+    setIsUpgradingWorkingCopy(true);
+    try {
+      const result = await window.api.svn.upgradeWorkingCopy(path);
+      if (result.success) {
+        await showAppMessage({
+          type: 'info',
+          message: 'Working copy upgraded successfully.',
+        });
+        queryClient.invalidateQueries({ queryKey: ['svn:workingCopyUpgradeStatus', path] });
+        queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+      } else {
+        await showAppMessage({
+          type: 'error',
+          message: 'Working copy upgrade failed',
+          detail: result.error || 'Unknown error',
+        });
+      }
+    } finally {
+      setIsUpgradingWorkingCopy(false);
+    }
+  }, [path, queryClient]);
 
   const onlineUrl = useMemo(() => {
     if (!effectiveRepoRoot) return '';
@@ -1145,6 +1190,7 @@ export function FileExplorer() {
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:isVersioned', path] });
+            queryClient.invalidateQueries({ queryKey: ['svn:workingCopyUpgradeStatus', path] });
           }}
           onUpdate={actions.handleUpdate}
           onCommit={actions.handleCommit}
@@ -1178,6 +1224,28 @@ export function FileExplorer() {
           onToggleRemoteItems={() => setShowRemoteItems((prev) => !prev)}
           onShowNotes={() => setShowNotes(true)}
         />
+
+        {workingCopyUpgradeStatus?.required && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-warning/10 border-b border-warning/30">
+            <AlertCircle className="w-5 h-5 text-warning flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-text">Working copy upgrade required</div>
+              <div className="text-xs text-text-secondary truncate">
+                {workingCopyUpgradeStatus.reason ||
+                  'Upgrade this working copy before running SVN operations.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleUpgradeWorkingCopy}
+              className="btn btn-primary"
+              disabled={isUpgradingWorkingCopy}
+            >
+              {isUpgradingWorkingCopy && <Loader className="w-4 h-4 animate-spin" />}
+              Upgrade
+            </button>
+          </div>
+        )}
 
         {/* Filter Bar */}
         {showFilters && (

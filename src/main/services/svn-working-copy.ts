@@ -1,7 +1,13 @@
 import { existsSync, mkdirSync } from 'fs';
+import { rm } from 'fs/promises';
 import { dirname, join, relative } from 'path';
 
-import type { SvnInfoResult, SvnStatusResult, UpdateOptions } from '@shared/types';
+import type {
+  SvnInfoResult,
+  SvnStatusResult,
+  UpdateOptions,
+  WorkingCopyUpgradeStatus,
+} from '@shared/types';
 import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
@@ -27,6 +33,20 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
 function parseUpdatedRevision(output: string): number {
   const match = output.match(/Updated to revision (\d+)\./);
   return match ? parseInt(match[1], 10) : 0;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || '');
+}
+
+function isWorkingCopyUpgradeRequired(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes('e155036') ||
+    message.includes('working copy format is too old') ||
+    message.includes('working copy is too old') ||
+    message.includes('needs to be upgraded')
+  );
 }
 
 export async function getWorkingCopyContext(
@@ -79,6 +99,41 @@ export async function getRemoteStatus(path: string): Promise<SvnStatusResult> {
   } catch (error) {
     debug.error('[SVN] Remote status error:', error);
     return { path, entries: [], revision: 0, remoteChecked: true };
+  }
+}
+
+export async function getWorkingCopyUpgradeStatus(
+  path: string
+): Promise<WorkingCopyUpgradeStatus> {
+  try {
+    await runSvnText(['info', '--xml', path]);
+    return { path, required: false };
+  } catch (error) {
+    const message = getErrorMessage(error);
+    if (isWorkingCopyUpgradeRequired(error)) {
+      return {
+        path,
+        required: true,
+        reason:
+          'This working copy was created by an older SVN client and must be upgraded before normal operations can continue.',
+      };
+    }
+
+    debug.error('[SVN] Working copy upgrade status check failed:', error);
+    return { path, required: false, error: message };
+  }
+}
+
+export async function upgradeWorkingCopy(
+  path: string
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  try {
+    const output = await runSvnText(['upgrade', path]);
+    return { success: true, output };
+  } catch (error) {
+    const message = getErrorMessage(error);
+    debug.error('[SVN] Working copy upgrade failed:', error);
+    return { success: false, error: message };
   }
 }
 
@@ -178,7 +233,7 @@ export async function update(
       return {
         success: false,
         error:
-          'Working copy format is too old. Please upgrade the working copy using "svn upgrade" in the terminal.',
+          'Working copy format is too old. Use the working copy upgrade prompt in ShellySVN before updating.',
       };
     }
 
@@ -323,7 +378,23 @@ export async function add(paths: string[]): Promise<{ success: boolean }> {
 }
 
 export async function remove(paths: string[]): Promise<{ success: boolean }> {
-  await runSvnText(['delete', ...paths]);
+  const svnPaths: string[] = [];
+
+  for (const path of paths) {
+    const status = await getStatus(path);
+    const entry = status.entries.find((item) => item.path === path) ?? status.entries[0];
+
+    if (entry?.status === '?' || entry?.status === 'I') {
+      await rm(path, { recursive: true, force: true });
+    } else {
+      svnPaths.push(path);
+    }
+  }
+
+  if (svnPaths.length > 0) {
+    await runSvnText(['delete', '--force', ...svnPaths]);
+  }
+
   return { success: true };
 }
 

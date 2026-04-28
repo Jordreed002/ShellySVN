@@ -247,6 +247,10 @@ function createMockElectronAPI() {
       statusRemote: vi
         .fn()
         .mockResolvedValue({ path: '/test/repo', entries: [], revision: 1, remoteChecked: true }),
+      workingCopyUpgradeStatus: vi
+        .fn()
+        .mockResolvedValue({ path: '/test/repo', required: false }),
+      upgradeWorkingCopy: vi.fn().mockResolvedValue({ success: true, output: '' }),
       log: vi.fn().mockResolvedValue({ entries: [], startRevision: 0, endRevision: 0 }),
       info: vi.fn().mockResolvedValue({
         path: '/test/repo',

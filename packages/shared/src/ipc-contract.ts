@@ -38,6 +38,14 @@ type RevisionResult = { success: boolean; revision: number; error?: string; outp
 export interface IpcInvokeContract {
   'svn:status': IpcCall<[path: string], import('./types').SvnStatusResult>;
   'svn:statusRemote': IpcCall<[path: string], import('./types').SvnStatusResult>;
+  'svn:workingCopyUpgradeStatus': IpcCall<
+    [path: string],
+    import('./types').WorkingCopyUpgradeStatus
+  >;
+  'svn:upgradeWorkingCopy': IpcCall<
+    [path: string],
+    { success: boolean; output?: string; error?: string }
+  >;
   'svn:log': IpcCall<[path: string, limit?: number, startRev?: number, endRev?: number], import('./types').SvnLogResult>;
   'svn:info': IpcCall<[path: string], SvnInfoResult>;
   'svn:infoUrl': IpcCall<[url: string], SvnInfoResult>;

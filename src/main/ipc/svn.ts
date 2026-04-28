@@ -66,11 +66,13 @@ import {
   getInfoUrl,
   getRemoteStatus,
   getStatus,
+  getWorkingCopyUpgradeStatus,
   move as moveWorkingCopyItem,
   remove as removeWorkingCopyItems,
   rename as renameWorkingCopyItem,
   revert as revertWorkingCopyItems,
   update as updateWorkingCopy,
+  upgradeWorkingCopy,
   updateItem as updateWorkingCopyItem,
   updateToRevision,
 } from '../services/svn-working-copy';
@@ -83,6 +85,14 @@ export function registerSvnHandlers(): void {
 
   ipcMain.handle('svn:statusRemote', async (_, path: string): Promise<SvnStatusResult> => {
     return getRemoteStatus(path);
+  });
+
+  ipcMain.handle('svn:workingCopyUpgradeStatus', async (_, path: string) => {
+    return getWorkingCopyUpgradeStatus(path);
+  });
+
+  ipcMain.handle('svn:upgradeWorkingCopy', async (_, path: string) => {
+    return upgradeWorkingCopy(path);
   });
 
   // SVN Log

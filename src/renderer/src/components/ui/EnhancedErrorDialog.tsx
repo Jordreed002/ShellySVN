@@ -224,6 +224,13 @@ export function parseSvnError(error: string): ErrorDetail {
   } else if (error.includes('locked') || error.includes('lock')) {
     suggestions.push('Wait for the lock to be released');
     suggestions.push('Contact the lock owner or use "Cleanup"');
+  } else if (
+    error.includes('E155036') ||
+    error.toLowerCase().includes('working copy format is too old') ||
+    error.toLowerCase().includes('needs to be upgraded')
+  ) {
+    suggestions.push('Use the working copy upgrade prompt in the file explorer');
+    suggestions.push('Back up important local changes before upgrading');
   } else if (error.includes('working copy')) {
     suggestions.push('Run "Cleanup" to fix working copy issues');
     suggestions.push('Try checking out a fresh copy');
