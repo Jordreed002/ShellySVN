@@ -143,7 +143,6 @@ test.describe('Settings - Theme', () => {
 
       // Get initial theme class
       const htmlElement = page.locator('html');
-      const initialClass = await htmlElement.getAttribute('class') || '';
 
       // Look for theme radio buttons or select
       const darkRadio = page.locator('.modal input[value="dark"]').first();
@@ -151,8 +150,7 @@ test.describe('Settings - Theme', () => {
         await darkRadio.click();
         await page.waitForTimeout(300);
 
-        // Verify theme was applied (class should change)
-        const newClass = await htmlElement.getAttribute('class') || '';
+        await htmlElement.getAttribute('class');
         // Theme might be applied differently, so we just verify the click worked
         expect(true).toBe(true);
       }

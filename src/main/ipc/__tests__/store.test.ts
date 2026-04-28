@@ -42,7 +42,7 @@ vi.mock('../../settings-manager', () => ({
 }));
 
 // Import after mocking
-import { registerStoreHandlers, getStore } from '../store';
+import { registerStoreHandlers } from '../store';
 
 describe('Store IPC Handlers', () => {
   // Store registered handlers

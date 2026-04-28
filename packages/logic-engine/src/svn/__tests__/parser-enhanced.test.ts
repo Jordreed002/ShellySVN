@@ -4,7 +4,7 @@
  * Tests robust XML parsing with error handling, validation, and extended features.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   parseSvnStatusXml,
   parseSvnLogXml,

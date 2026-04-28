@@ -16,8 +16,8 @@ const mockFsState = vi.hoisted(() => ({
 
 vi.mock('node:fs', () => ({
   default: {},
-  existsSync: (path: string) => mockFsState.existsSyncResult,
-  statSync: (path: string) => mockFsState.statSyncResult,
+  existsSync: () => mockFsState.existsSyncResult,
+  statSync: () => mockFsState.statSyncResult,
 }));
 
 // Import after mocking
@@ -37,19 +37,6 @@ import {
 vi.mock('@shared/constants', () => ({
   MAX_COMMIT_MESSAGE_LENGTH: 10000,
 }));
-
-// Import after mocking
-import {
-  validatePath,
-  validateUrl,
-  validateString,
-  validateNumber,
-  validateStringArray,
-  validateSvnPropertyName,
-  validateCommitMessage,
-  withValidation,
-  InputValidationError,
-} from '../../utils/validation';
 
 describe('InputValidationError', () => {
   it('should create error with field name', () => {

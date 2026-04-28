@@ -788,16 +788,16 @@ interface SideBySideLineProps {
 const SideBySideLine = memo(function SideBySideLine({
   line,
   side,
-  lineIndex,
+  lineIndex: _lineIndex,
   language,
   showLineNumbers,
-  searchQuery,
+  searchQuery: _searchQuery,
   isMatch,
   isCurrentMatch,
   highlightStyle,
   onCopyLine,
   copiedLine,
-  isDarkTheme,
+  isDarkTheme: _isDarkTheme,
 }: SideBySideLineProps) {
   const [isHovered, setIsHovered] = useState(false);
 

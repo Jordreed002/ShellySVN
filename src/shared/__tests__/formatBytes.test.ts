@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatBytes, type FormatBytesOptions } from '../utils/formatBytes';
+import { formatBytes } from '../utils/formatBytes';
 
 describe('formatBytes', () => {
   describe('basic functionality', () => {

@@ -185,7 +185,6 @@ export async function expectAsyncError<T>(
  * Create a mock stream for testing streaming operations
  */
 export function createMockStream<T>(items: T[], delayMs: number = 10) {
-  let index = 0;
   const callbacks = {
     data: [] as ((item: T) => void)[],
     end: [] as (() => void)[],

@@ -27,7 +27,7 @@ export function useWorkingCopyContext(localPath: string | null | undefined) {
           workingCopyRoot: info.workingCopyRoot,
           relativePath,
         };
-      } catch (_error) {
+      } catch {
         return null;
       }
     },

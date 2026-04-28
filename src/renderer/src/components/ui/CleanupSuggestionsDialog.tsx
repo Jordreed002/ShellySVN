@@ -228,7 +228,7 @@ export async function checkWorkingCopyHealth(path: string): Promise<CleanupIssue
         autoFixable: false,
       });
     }
-  } catch (_err) {
+  } catch {
     // If status fails, might need cleanup
     issues.push({
       type: 'warning',

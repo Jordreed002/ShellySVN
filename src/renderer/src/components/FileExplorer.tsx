@@ -1576,7 +1576,7 @@ export function FileExplorer() {
             sourcePath={branchTagPath}
             sourceUrl={svnInfo?.url}
             mode={branchTagMode}
-            onComplete={(url: string) => {
+            onComplete={() => {
               setBranchTagPath(null);
               queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
             }}
@@ -1592,7 +1592,7 @@ export function FileExplorer() {
             onClose={() => setSwitchPath(null)}
             currentPath={switchPath}
             currentUrl={svnInfo?.url}
-            onComplete={(url: string) => {
+            onComplete={() => {
               setSwitchPath(null);
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             }}

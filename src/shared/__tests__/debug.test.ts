@@ -86,9 +86,6 @@ describe('debug utility', () => {
     it('should format messages with DEBUG category', () => {
       // Note: debug.log only outputs in dev mode, which may or may not be active
       // We test the format when it does log
-      const originalEnv = process.env.NODE_ENV;
-      const originalResourcesPath = process.resourcesPath;
-
       // In dev mode, it should log
       // The actual behavior depends on environment detection
       debug.log('Test debug');
@@ -119,9 +116,7 @@ describe('debug utility', () => {
     });
 
     it('should include timestamp in output', () => {
-      const beforeTime = new Date();
       debug.warn('Message');
-      const afterTime = new Date();
 
       const call = consoleWarnSpy.mock.calls[0];
       const timestampMatch = call[0].match(/\[(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]/);

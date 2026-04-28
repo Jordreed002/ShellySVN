@@ -6,11 +6,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getBinaryPath, getResourcesPath } from '../paths';
-import { join } from 'path';
 
 describe('paths utilities', () => {
   const originalEnv = process.env;
-  const originalPlatform = process.platform;
   const originalResourcesPath = process.resourcesPath;
 
   beforeEach(() => {
