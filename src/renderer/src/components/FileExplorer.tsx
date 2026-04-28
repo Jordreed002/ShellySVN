@@ -26,6 +26,7 @@ import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
 import { FileExplorerAuthPrompt } from './files/FileExplorerAuthPrompt';
+import { useFileExplorerAuthPrompt } from './files/useFileExplorerAuthPrompt';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>
@@ -182,27 +183,7 @@ export function FileExplorer() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [resolveEntry, setResolveEntry] = useState<SvnStatusEntry | null>(null);
 
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [authRealm, setAuthRealm] = useState('');
-  const [authUsername, setAuthUsername] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-
-  // Auto-fill saved credentials when auth prompt appears
-  useEffect(() => {
-    if (showAuthPrompt && authRealm) {
-      window.api.auth
-        .get(authRealm)
-        .then((savedCreds) => {
-          if (savedCreds) {
-            setAuthUsername(savedCreds.username);
-            setAuthPassword(savedCreds.password);
-          }
-        })
-        .catch(() => {
-          // Ignore errors - user can type manually
-        });
-    }
-  }, [showAuthPrompt, authRealm]);
+  const authPrompt = useFileExplorerAuthPrompt();
 
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
@@ -335,14 +316,13 @@ export function FileExplorer() {
           errorMsg.includes('E215004')
         ) {
           if (effectiveRepoRoot) {
-            setAuthRealm(effectiveRepoRoot);
-            setShowAuthPrompt(true);
+            authPrompt.requestAuthentication(effectiveRepoRoot);
           }
         }
         return { path: '', entries: [] };
       }
     },
-    enabled: !!onlineUrl && !showAuthPrompt && browseMode === 'online',
+    enabled: !!onlineUrl && !authPrompt.isOpen && browseMode === 'online',
     staleTime: STATUS_STALE_TIME,
     refetchOnWindowFocus: false,
     retry: false,
@@ -367,8 +347,7 @@ export function FileExplorer() {
           errorMsg.includes('E215004')
         ) {
           if (effectiveRepoRoot) {
-            setAuthRealm(effectiveRepoRoot);
-            setShowAuthPrompt(true);
+            authPrompt.requestAuthentication(effectiveRepoRoot);
           }
         }
         return { path: '', entries: [] };
@@ -376,7 +355,7 @@ export function FileExplorer() {
     },
     enabled:
       !!effectiveUrl &&
-      !showAuthPrompt &&
+      !authPrompt.isOpen &&
       showRemoteItems &&
       browseMode === 'local' &&
       isVersioned === true,
@@ -384,18 +363,6 @@ export function FileExplorer() {
     refetchOnWindowFocus: false,
     retry: false,
   });
-
-  const handleAuthSubmit = useCallback(async () => {
-    if (!authUsername || !authRealm) return;
-
-    try {
-      await window.api.auth.set(authRealm, authUsername, authPassword);
-      queryClient.invalidateQueries({ queryKey: ['auth', authRealm] });
-      setShowAuthPrompt(false);
-      setAuthUsername('');
-      setAuthPassword('');
-    } catch {}
-  }, [authUsername, authPassword, authRealm, queryClient]);
 
   const files = useMemo(() => {
     if (browseMode === 'online' && onlineFiles?.entries) {
@@ -1779,15 +1746,15 @@ export function FileExplorer() {
         </Suspense>
       )}
 
-      {showAuthPrompt && (
+      {authPrompt.isOpen && (
         <FileExplorerAuthPrompt
-          realm={authRealm}
-          username={authUsername}
-          password={authPassword}
-          onUsernameChange={setAuthUsername}
-          onPasswordChange={setAuthPassword}
-          onCancel={() => setShowAuthPrompt(false)}
-          onSubmit={handleAuthSubmit}
+          realm={authPrompt.realm}
+          username={authPrompt.username}
+          password={authPrompt.password}
+          onUsernameChange={authPrompt.setUsername}
+          onPasswordChange={authPrompt.setPassword}
+          onCancel={authPrompt.close}
+          onSubmit={authPrompt.submit}
         />
       )}
 
@@ -1799,8 +1766,7 @@ export function FileExplorer() {
             onClose={() => setDiagnosticsOpen(false)}
             onAuthenticate={() => {
               if (effectiveRepoRoot) {
-                setAuthRealm(effectiveRepoRoot);
-                setShowAuthPrompt(true);
+                authPrompt.requestAuthentication(effectiveRepoRoot);
               }
             }}
           />
