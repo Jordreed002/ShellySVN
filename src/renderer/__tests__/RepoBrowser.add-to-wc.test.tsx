@@ -83,7 +83,7 @@ vi.stubGlobal('window', {
   },
 });
 
-import { RepoBrowserContent } from '../src/routes/repo-browser/RepoBrowserContent';
+import { RepoBrowserContent } from '../src/routes/repo-browser/-RepoBrowserContent';
 
 // NOTE: This test suite is skipped due to React/jsdom compatibility issues
 // The "Should not already be working" error occurs when rendering React components

@@ -20,7 +20,7 @@ vi.mock('@renderer/hooks/useWorkingCopyContext', () => ({
   useWorkingCopyContext: vi.fn(() => ({ data: null, isLoading: false })),
 }));
 
-import { RepoBrowserContent } from '../src/routes/repo-browser/RepoBrowserContent';
+import { RepoBrowserContent } from '../src/routes/repo-browser/-RepoBrowserContent';
 
 describe('RepoBrowserContent Working Copy Detection', () => {
   beforeEach(() => {
