@@ -13,7 +13,7 @@ import {
   X,
   Globe,
 } from 'lucide-react';
-import type { FileInfo, SvnStatusEntry, SvnStatusChar, FsStatusResult } from '@shared/types';
+import type { FileInfo, SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
@@ -26,6 +26,7 @@ import { useSettings } from '../hooks/useSettings';
 import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
+import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>
@@ -112,58 +113,6 @@ function DialogLoader() {
 const FILE_CACHE_TIME = 5 * 60 * 1000; // 5 minutes - files rarely change
 const STATUS_STALE_TIME = 30 * 1000; // 30 seconds - status can change externally
 const DEEP_STATUS_STALE_TIME = 2 * 60 * 1000; // 2 minutes - expensive to compute
-
-// Convert FileInfo to SvnStatusEntry for FileRow compatibility
-function fileInfoToEntry(file: FileInfo): SvnStatusEntry {
-  return {
-    path: file.path,
-    status: file.svnStatus?.status || ' ',
-    revision: file.svnStatus?.revision,
-    author: file.svnStatus?.author,
-    date: file.svnStatus?.date,
-    isDirectory: file.isDirectory,
-  };
-}
-
-// Apply deep status to files
-function applyDeepStatus(files: FileInfo[], deepStatus: FsStatusResult): FileInfo[] {
-  const statusPriority: Record<string, number> = {
-    C: 100,
-    '!': 90,
-    '~': 85,
-    M: 80,
-    D: 70,
-    R: 60,
-    A: 50,
-    X: 40,
-    '?': 30,
-    I: 20,
-    ' ': 0,
-  };
-
-  return files.map((file) => {
-    if (file.isDirectory) {
-      let worstStatus: SvnStatusChar = ' ';
-      for (const entry of deepStatus.allEntries) {
-        if (
-          entry.fullPath.startsWith(file.path + '\\') ||
-          entry.fullPath.startsWith(file.path + '/')
-        ) {
-          if (statusPriority[entry.status] > statusPriority[worstStatus]) {
-            worstStatus = entry.status;
-          }
-        }
-      }
-      if (worstStatus !== ' ') {
-        return {
-          ...file,
-          svnStatus: { path: file.path, status: worstStatus as SvnStatusChar, isDirectory: true },
-        };
-      }
-    }
-    return file;
-  });
-}
 
 // Hook to invalidate SVN status caches after actions
 export function useInvalidateStatus() {
