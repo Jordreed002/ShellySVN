@@ -135,10 +135,11 @@ export function RelocateDialog({
 
             {/* From URL */}
             <div>
-              <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+              <label htmlFor="relocate-from-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                 From URL <span className="text-error">*</span>
               </label>
               <input
+                id="relocate-from-url"
                 type="text"
                 value={fromUrl}
                 onChange={(e) => setFromUrl(e.target.value)}
@@ -153,10 +154,11 @@ export function RelocateDialog({
 
             {/* To URL */}
             <div>
-              <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+              <label htmlFor="relocate-to-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                 To URL <span className="text-error">*</span>
               </label>
               <input
+                id="relocate-to-url"
                 type="text"
                 value={toUrl}
                 onChange={(e) => setToUrl(e.target.value)}

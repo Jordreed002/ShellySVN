@@ -222,10 +222,11 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
               {page === 2 && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                    <label htmlFor="merge-source-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                       From URL <span className="text-error">*</span>
                     </label>
                     <input
+                      id="merge-source-url"
                       type="text"
                       value={options.sourceUrl}
                       onChange={(e) => setOptions({ ...options, sourceUrl: e.target.value })}
@@ -236,10 +237,11 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
 
                   {options.type === 'range' && (
                     <div>
-                      <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                      <label htmlFor="merge-revision-range" className="text-sm font-medium text-text-secondary mb-1.5 block">
                         Revision range
                       </label>
                       <input
+                        id="merge-revision-range"
                         type="text"
                         value={options.revisions}
                         onChange={(e) => setOptions({ ...options, revisions: e.target.value })}
@@ -253,9 +255,9 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                   )}
 
                   <div>
-                    <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                    <div className="text-sm font-medium text-text-secondary mb-1.5">
                       Working copy path
-                    </label>
+                    </div>
                     <div className="bg-bg-tertiary rounded px-3 py-2 text-sm text-text-secondary truncate">
                       {targetPath}
                     </div>
@@ -267,10 +269,11 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
               {page === 3 && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                    <label htmlFor="merge-depth" className="text-sm font-medium text-text-secondary mb-1.5 block">
                       Depth
                     </label>
                     <select
+                      id="merge-depth"
                       value={options.depth}
                       onChange={(e) =>
                         setOptions({ ...options, depth: e.target.value as typeof options.depth })

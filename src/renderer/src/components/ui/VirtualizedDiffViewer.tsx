@@ -277,11 +277,10 @@ const DiffFileHeader = memo(function DiffFileHeader({
   const displayPath = fileName.split('/').pop() || fileName;
 
   return (
-    <div
+    <button
+      type="button"
       className="diff-file-header sticky top-0 z-20 bg-bg-elevated px-4 py-2 border-b border-border flex items-center gap-2 cursor-pointer hover:bg-bg-secondary"
       onClick={onToggle}
-      role="button"
-      tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -304,7 +303,7 @@ const DiffFileHeader = memo(function DiffFileHeader({
       <span className="text-text-muted text-xs ml-auto">
         {file.hunks.length} hunk{file.hunks.length !== 1 ? 's' : ''}
       </span>
-    </div>
+    </button>
   );
 });
 

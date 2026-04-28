@@ -156,11 +156,12 @@ export function ApplyPatchDialog({
             <>
               {/* Patch file selection */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="apply-patch-file" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Patch file
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="apply-patch-file"
                     type="text"
                     value={patchPath}
                     onChange={(e) => setPatchPath(e.target.value)}
@@ -176,10 +177,11 @@ export function ApplyPatchDialog({
 
               {/* Or paste content */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="apply-patch-content" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Or paste patch content
                 </label>
                 <textarea
+                  id="apply-patch-content"
                   value={patchContent}
                   onChange={(e) => setPatchContent(e.target.value)}
                   placeholder="--- file.txt
@@ -195,9 +197,9 @@ export function ApplyPatchDialog({
 
               {/* Target path */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <div className="text-sm font-medium text-text-secondary mb-1.5">
                   Apply to directory
-                </label>
+                </div>
                 <div className="bg-bg-tertiary rounded px-3 py-2 text-sm text-text-secondary truncate">
                   {targetPath}
                 </div>

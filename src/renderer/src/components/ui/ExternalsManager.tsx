@@ -185,8 +185,9 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                   <div className="px-4 py-4 bg-bg-tertiary">
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs text-text-muted mb-1">Local Path</label>
+                        <label htmlFor="external-local-path" className="block text-xs text-text-muted mb-1">Local Path</label>
                         <input
+                          id="external-local-path"
                           type="text"
                           value={newExternal.localPath || ''}
                           onChange={(e) =>
@@ -197,8 +198,9 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-text-muted mb-1">Repository URL</label>
+                        <label htmlFor="external-repository-url" className="block text-xs text-text-muted mb-1">Repository URL</label>
                         <input
+                          id="external-repository-url"
                           type="text"
                           value={newExternal.url || ''}
                           onChange={(e) =>
@@ -210,10 +212,11 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                       </div>
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <label className="block text-xs text-text-muted mb-1">
+                          <label htmlFor="external-revision" className="block text-xs text-text-muted mb-1">
                             Revision (optional)
                           </label>
                           <input
+                            id="external-revision"
                             type="text"
                             value={newExternal.revision || ''}
                             onChange={(e) =>

@@ -107,9 +107,9 @@ export function SwitchDialog({
             <div className="modal-body space-y-4">
               {/* Current */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <div className="text-sm font-medium text-text-secondary mb-1.5">
                   Current URL
-                </label>
+                </div>
                 <div className="bg-bg-tertiary rounded px-3 py-2 text-sm text-text-secondary truncate">
                   {currentUrl || currentPath}
                 </div>
@@ -117,10 +117,11 @@ export function SwitchDialog({
 
               {/* Target URL */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="switch-target-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Switch to URL <span className="text-error">*</span>
                 </label>
                 <input
+                  id="switch-target-url"
                   type="text"
                   value={targetUrl}
                   onChange={(e) => setTargetUrl(e.target.value)}
@@ -135,10 +136,11 @@ export function SwitchDialog({
 
               {/* Revision */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="switch-revision" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Revision
                 </label>
                 <input
+                  id="switch-revision"
                   type="text"
                   value={revision}
                   onChange={(e) => setRevision(e.target.value)}

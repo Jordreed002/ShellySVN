@@ -252,10 +252,11 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
               {isAdding ? (
                 <div className="bg-bg-tertiary rounded-lg p-3 space-y-3">
                   <div>
-                    <label className="text-xs font-medium text-text-secondary mb-1 block">
+                    <label htmlFor="property-name" className="text-xs font-medium text-text-secondary mb-1 block">
                       Property name
                     </label>
                     <input
+                      id="property-name"
                       type="text"
                       value={newPropName}
                       onChange={(e) => setNewPropName(e.target.value)}
@@ -271,10 +272,11 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-text-secondary mb-1 block">
+                    <label htmlFor="property-value" className="text-xs font-medium text-text-secondary mb-1 block">
                       Value
                     </label>
                     <textarea
+                      id="property-value"
                       value={newPropValue}
                       onChange={(e) => setNewPropValue(e.target.value)}
                       placeholder="Enter property value..."

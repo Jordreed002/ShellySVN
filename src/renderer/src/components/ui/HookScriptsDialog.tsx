@@ -202,10 +202,11 @@ export function HookScriptsDialog({ isOpen, onClose, workingCopyPath }: HookScri
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1 block">
+                  <label htmlFor="hook-script-name" className="text-xs font-medium text-text-secondary mb-1 block">
                     Name <span className="text-error">*</span>
                   </label>
                   <input
+                    id="hook-script-name"
                     type="text"
                     value={formState.name}
                     onChange={(e) => setFormState((prev) => ({ ...prev, name: e.target.value }))}
@@ -215,10 +216,11 @@ export function HookScriptsDialog({ isOpen, onClose, workingCopyPath }: HookScri
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-text-secondary mb-1 block">
+                  <label htmlFor="hook-script-type" className="text-xs font-medium text-text-secondary mb-1 block">
                     Hook Type
                   </label>
                   <select
+                    id="hook-script-type"
                     value={formState.type}
                     onChange={(e) =>
                       setFormState((prev) => ({
@@ -238,11 +240,12 @@ export function HookScriptsDialog({ isOpen, onClose, workingCopyPath }: HookScri
               </div>
 
               <div>
-                <label className="text-xs font-medium text-text-secondary mb-1 block">
+                <label htmlFor="hook-script-path" className="text-xs font-medium text-text-secondary mb-1 block">
                   Script Path <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="hook-script-path"
                     type="text"
                     value={formState.path}
                     onChange={(e) => setFormState((prev) => ({ ...prev, path: e.target.value }))}

@@ -118,11 +118,12 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Source Path */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="import-source-path" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Source folder <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="import-source-path"
                     type="text"
                     value={sourcePath}
                     onChange={(e) => setSourcePath(e.target.value)}
@@ -144,10 +145,11 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Destination URL */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="import-destination-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Repository URL <span className="text-error">*</span>
                 </label>
                 <input
+                  id="import-destination-url"
                   type="text"
                   value={destUrl}
                   onChange={(e) => setDestUrl(e.target.value)}
@@ -159,10 +161,11 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Commit Message */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="import-log-message" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Log message <span className="text-error">*</span>
                 </label>
                 <textarea
+                  id="import-log-message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Initial import of project files..."

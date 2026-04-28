@@ -158,11 +158,12 @@ export function CreatePatchDialog({
               {/* Output path */}
               {patchContent && (
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label htmlFor="create-patch-output" className="text-sm font-medium text-text-secondary mb-1.5 block">
                     Save to
                   </label>
                   <div className="flex gap-2">
                     <input
+                      id="create-patch-output"
                       type="text"
                       value={outputPath || filename}
                       onChange={(e) => {
@@ -187,10 +188,11 @@ export function CreatePatchDialog({
               {/* Patch content */}
               {patchContent && (
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label htmlFor="create-patch-content" className="text-sm font-medium text-text-secondary mb-1.5 block">
                     Patch content
                   </label>
                   <textarea
+                    id="create-patch-content"
                     value={patchContent}
                     onChange={(e) => setPatchContent(e.target.value)}
                     className="input h-64 resize-none font-mono text-xs"

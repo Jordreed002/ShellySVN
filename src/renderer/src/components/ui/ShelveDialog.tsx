@@ -91,10 +91,11 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
           {showCreate ? (
             <div className="bg-bg-tertiary rounded-lg p-3 space-y-3">
               <div>
-                <label className="text-xs font-medium text-text-secondary mb-1 block">
+                <label htmlFor="shelve-name" className="text-xs font-medium text-text-secondary mb-1 block">
                   Shelve Name <span className="text-error">*</span>
                 </label>
                 <input
+                  id="shelve-name"
                   type="text"
                   value={shelveName}
                   onChange={(e) => setShelveName(e.target.value)}
@@ -103,10 +104,11 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-text-secondary mb-1 block">
+                <label htmlFor="shelve-message" className="text-xs font-medium text-text-secondary mb-1 block">
                   Message (optional)
                 </label>
                 <textarea
+                  id="shelve-message"
                   value={shelveMessage}
                   onChange={(e) => setShelveMessage(e.target.value)}
                   placeholder="Describe the shelved changes..."

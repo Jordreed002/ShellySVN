@@ -99,10 +99,11 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
 
             {/* Revision */}
             <div>
-              <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+              <label htmlFor="update-revision" className="text-sm font-medium text-text-secondary mb-1.5 block">
                 Revision
               </label>
               <input
+                id="update-revision"
                 type="text"
                 value={revision}
                 onChange={(e) => setRevision(e.target.value)}
@@ -117,11 +118,12 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
 
             {/* Depth */}
             <div>
-              <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+              <label htmlFor="update-depth" className="text-sm font-medium text-text-secondary mb-1.5 block">
                 <Layers className="w-4 h-4 inline mr-1" />
                 Update depth
               </label>
               <select
+                id="update-depth"
                 value={depth}
                 onChange={(e) => setDepth(e.target.value as typeof depth)}
                 className="input"
@@ -139,7 +141,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
 
             {/* Options */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-text-secondary block">Options</label>
+              <div className="text-sm font-medium text-text-secondary">Options</div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"

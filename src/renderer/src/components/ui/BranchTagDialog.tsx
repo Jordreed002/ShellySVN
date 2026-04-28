@@ -145,7 +145,7 @@ export function BranchTagDialog({
             <div className="modal-body space-y-4">
               {/* Source */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">From</label>
+                <div className="text-sm font-medium text-text-secondary mb-1.5">From</div>
                 <div className="bg-bg-tertiary rounded px-3 py-2 text-sm text-text-secondary truncate">
                   {sourceUrl || sourcePath}
                 </div>
@@ -153,9 +153,9 @@ export function BranchTagDialog({
 
               {/* Source Revision */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <div className="text-sm font-medium text-text-secondary mb-1.5">
                   Revision
-                </label>
+                </div>
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -200,11 +200,12 @@ export function BranchTagDialog({
 
               {/* Destination URL */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="branch-tag-destination-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   To URL <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="branch-tag-destination-url"
                     type="text"
                     value={destUrl}
                     onChange={(e) => setDestUrl(e.target.value)}
@@ -230,10 +231,11 @@ export function BranchTagDialog({
 
               {/* Log Message */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="branch-tag-log-message" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Log message <span className="text-error">*</span>
                 </label>
                 <textarea
+                  id="branch-tag-log-message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   className="input h-20 resize-none"

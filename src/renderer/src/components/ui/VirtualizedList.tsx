@@ -368,7 +368,8 @@ export function VirtualizedTree({
                 ))}
 
               {node.isDirectory && (
-                <span
+                <button
+                  type="button"
                   className="mr-1 p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -380,8 +381,6 @@ export function VirtualizedTree({
                       onToggleExpand?.(node);
                     }
                   }}
-                  role="button"
-                  tabIndex={0}
                   aria-label={isExpanded ? 'Collapse' : 'Expand'}
                 >
                   {isLoading ? (
@@ -391,7 +390,7 @@ export function VirtualizedTree({
                   ) : (
                     <ChevronRight className="w-3 h-3 text-slate-500" />
                   )}
-                </span>
+                </button>
               )}
 
               <span className="mr-2">

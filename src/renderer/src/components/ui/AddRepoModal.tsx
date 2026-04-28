@@ -479,11 +479,12 @@ export function AddRepoModal({
             <div className="space-y-4">
               {/* Browse Section */}
               <div>
-                <label className="block text-sm font-medium text-text mb-2">
+                <label htmlFor="add-repo-working-copy-path" className="block text-sm font-medium text-text mb-2">
                   Working Copy Path
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="add-repo-working-copy-path"
                     type="text"
                     value={selectedPath}
                     onChange={(e) => setSelectedPath(e.target.value)}
@@ -540,10 +541,11 @@ export function AddRepoModal({
               <form onSubmit={(e) => executeCheckout(undefined, e)} className="space-y-4">
                 {/* Repository URL */}
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label htmlFor="add-repo-checkout-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                     URL of repository <span className="text-error">*</span>
                   </label>
                   <input
+                    id="add-repo-checkout-url"
                     type="text"
                     value={checkoutUrl}
                     onChange={(e) => setCheckoutUrl(e.target.value)}
@@ -555,11 +557,12 @@ export function AddRepoModal({
 
                 {/* Destination Path */}
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label htmlFor="add-repo-checkout-path" className="text-sm font-medium text-text-secondary mb-1.5 block">
                     Checkout directory <span className="text-error">*</span>
                   </label>
                   <div className="flex gap-2">
                     <input
+                      id="add-repo-checkout-path"
                       type="text"
                       value={checkoutPath}
                       onChange={(e) => setCheckoutPath(e.target.value)}
@@ -581,10 +584,11 @@ export function AddRepoModal({
 
                 {/* Revision */}
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label htmlFor="add-repo-checkout-revision" className="text-sm font-medium text-text-secondary mb-1.5 block">
                     Revision
                   </label>
                   <input
+                    id="add-repo-checkout-revision"
                     type="text"
                     value={revision}
                     onChange={(e) => setRevision(e.target.value)}
@@ -598,7 +602,7 @@ export function AddRepoModal({
                 {/* Depth */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-sm font-medium text-text-secondary">Checkout depth</label>
+                    <label htmlFor="add-repo-checkout-depth" className="text-sm font-medium text-text-secondary">Checkout depth</label>
                     {selectedPaths.length > 0 && (
                       <span className="text-xs text-accent">
                         {selectedPaths.length} items selected
@@ -606,6 +610,7 @@ export function AddRepoModal({
                     )}
                   </div>
                   <select
+                    id="add-repo-checkout-depth"
                     value={depth}
                     onChange={(e) => setDepth(e.target.value as typeof depth)}
                     className="input"
@@ -691,11 +696,12 @@ export function AddRepoModal({
                       </p>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5">
+                          <label htmlFor="add-repo-credential-username" className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5">
                             <User className="w-3.5 h-3.5" />
                             Username
                           </label>
                           <input
+                            id="add-repo-credential-username"
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
@@ -705,11 +711,12 @@ export function AddRepoModal({
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5">
+                          <label htmlFor="add-repo-credential-password" className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5">
                             <Key className="w-3.5 h-3.5" />
                             Password
                           </label>
                           <input
+                            id="add-repo-credential-password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -719,8 +726,9 @@ export function AddRepoModal({
                           />
                         </div>
                       </div>
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <label htmlFor="add-repo-save-credentials" className="flex items-center gap-2 text-xs cursor-pointer">
                         <input
+                          id="add-repo-save-credentials"
                           type="checkbox"
                           checked={saveCredentials}
                           onChange={(e) => setSaveCredentials(e.target.checked)}
@@ -946,26 +954,27 @@ export function AddRepoModal({
                 )}
 
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label htmlFor="add-repo-auth-username" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
                     <User className="w-4 h-4" />
                     Username <span className="text-error">*</span>
                   </label>
                   <input
+                    id="add-repo-auth-username"
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter username"
                     className="input"
-                    autoFocus
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label htmlFor="add-repo-auth-password" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
                     <Key className="w-4 h-4" />
                     Password
                   </label>
                   <input
+                    id="add-repo-auth-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

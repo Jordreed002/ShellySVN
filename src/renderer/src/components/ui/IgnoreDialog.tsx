@@ -126,11 +126,12 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
 
           {/* Custom pattern input */}
           <div>
-            <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+            <label htmlFor="ignore-pattern-input" className="text-sm font-medium text-text-secondary mb-1.5 block">
               Add pattern
             </label>
             <div className="flex gap-2">
               <input
+                id="ignore-pattern-input"
                 type="text"
                 value={ignoreType !== 'pattern' ? generatePatternFromFileName() : newPattern}
                 onChange={(e) => {
@@ -156,9 +157,9 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
           {/* Patterns to add */}
           {patterns.length > 0 && (
             <div>
-              <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+              <div className="text-sm font-medium text-text-secondary mb-1.5">
                 Patterns to add:
-              </label>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {patterns.map((pattern, index) => (
                   <div
@@ -180,9 +181,9 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
 
           {/* Quick patterns */}
           <div>
-            <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+            <div className="text-sm font-medium text-text-secondary mb-1.5">
               Quick add common patterns:
-            </label>
+            </div>
             <div className="flex flex-wrap gap-1">
               {COMMON_IGNORE_PATTERNS.map(({ pattern, description }) => (
                 <button

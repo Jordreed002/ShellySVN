@@ -534,11 +534,12 @@ export function ChooseItemsDialog({
                 </p>
 
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label htmlFor="choose-items-auth-username" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
                     <User className="w-4 h-4" />
                     Username <span className="text-error">*</span>
                   </label>
                   <input
+                    id="choose-items-auth-username"
                     type="text"
                     value={authUsername}
                     onChange={(e) => setAuthUsername(e.target.value)}
@@ -549,11 +550,12 @@ export function ChooseItemsDialog({
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label htmlFor="choose-items-auth-password" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
                     <Key className="w-4 h-4" />
                     Password
                   </label>
                   <input
+                    id="choose-items-auth-password"
                     type="password"
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}

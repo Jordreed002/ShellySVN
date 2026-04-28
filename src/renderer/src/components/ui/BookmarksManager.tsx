@@ -113,9 +113,10 @@ export function BookmarksManager({
           {isAdding ? (
             <div className="bg-bg-tertiary rounded-lg p-4 space-y-3">
               <div>
-                <label className="block text-xs text-text-muted mb-1">Path</label>
+                <label htmlFor="bookmark-path" className="block text-xs text-text-muted mb-1">Path</label>
                 <div className="flex gap-2">
                   <input
+                    id="bookmark-path"
                     type="text"
                     value={newPath}
                     onChange={(e) => setNewPath(e.target.value)}
@@ -128,8 +129,9 @@ export function BookmarksManager({
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-text-muted mb-1">Name</label>
+                <label htmlFor="bookmark-name" className="block text-xs text-text-muted mb-1">Name</label>
                 <input
+                  id="bookmark-name"
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
@@ -186,7 +188,6 @@ export function BookmarksManager({
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
                               className="input flex-1"
-                              autoFocus
                             />
                             <button
                               onClick={() => handleSaveEdit(bookmark.path)}

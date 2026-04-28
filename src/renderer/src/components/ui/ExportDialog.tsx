@@ -118,10 +118,11 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Source URL/Path */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="export-source-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Source URL or path <span className="text-error">*</span>
                 </label>
                 <input
+                  id="export-source-url"
                   type="text"
                   value={sourceUrl}
                   onChange={(e) => setSourceUrl(e.target.value)}
@@ -133,11 +134,12 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Destination Path */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="export-destination-path" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Export to directory <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="export-destination-path"
                     type="text"
                     value={destPath}
                     onChange={(e) => setDestPath(e.target.value)}
@@ -159,10 +161,11 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Revision */}
               <div>
-                <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label htmlFor="export-revision" className="text-sm font-medium text-text-secondary mb-1.5 block">
                   Revision
                 </label>
                 <input
+                  id="export-revision"
                   type="text"
                   value={revision}
                   onChange={(e) => setRevision(e.target.value)}

@@ -128,11 +128,12 @@ export function TreeConflictDialog({
 
           {/* Resolution options */}
           <div>
-            <label className="text-sm font-medium text-text-secondary mb-2 block">Resolution</label>
+            <div className="text-sm font-medium text-text-secondary mb-2">Resolution</div>
             <div className="space-y-2">
               {resolutions.map((resolution) => (
                 <label
                   key={resolution.value}
+                  aria-label={resolution.label}
                   className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-fast ${
                     selectedResolution === resolution.value
                       ? 'border-accent bg-accent/10'

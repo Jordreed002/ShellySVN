@@ -696,24 +696,29 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                 Authentication is required to access this repository.
               </p>
               <div>
-                <label className="block text-sm font-medium text-text mb-1.5">Realm</label>
+                <div className="block text-sm font-medium text-text mb-1.5">Realm</div>
                 <div className="px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-muted">
                   {authRealm}
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-text mb-1.5">Username</label>
+                <label htmlFor="repo-browser-auth-username" className="block text-sm font-medium text-text mb-1.5">
+                  Username
+                </label>
                 <input
+                  id="repo-browser-auth-username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="input"
-                  autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-text mb-1.5">Password</label>
+                <label htmlFor="repo-browser-auth-password" className="block text-sm font-medium text-text mb-1.5">
+                  Password
+                </label>
                 <input
+                  id="repo-browser-auth-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

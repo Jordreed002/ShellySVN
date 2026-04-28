@@ -190,7 +190,7 @@ export function UpdateToRevisionDialog({
 
                 <div>
                   <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-text mb-2">Update Depth</label>
+                    <div className="block text-sm font-medium text-text mb-2">Update Depth</div>
                     {repoUrl && workingCopyRoot && (
                       <button
                         type="button"
@@ -204,7 +204,10 @@ export function UpdateToRevisionDialog({
                     )}
                   </div>
                   <div className="space-y-2">
-                    <label className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer">
+                    <label
+                      className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer"
+                      aria-label="Fully recursive update depth"
+                    >
                       <input
                         type="radio"
                         name="depth"
@@ -218,7 +221,10 @@ export function UpdateToRevisionDialog({
                         <p className="text-xs text-text-muted">Download all files and subfolders</p>
                       </div>
                     </label>
-                    <label className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer">
+                    <label
+                      className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer"
+                      aria-label="Immediate children update depth"
+                    >
                       <input
                         type="radio"
                         name="depth"
@@ -234,7 +240,10 @@ export function UpdateToRevisionDialog({
                         </p>
                       </div>
                     </label>
-                    <label className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer">
+                    <label
+                      className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer"
+                      aria-label="Files only update depth"
+                    >
                       <input
                         type="radio"
                         name="depth"
@@ -250,7 +259,10 @@ export function UpdateToRevisionDialog({
                         </p>
                       </div>
                     </label>
-                    <label className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer">
+                    <label
+                      className="flex items-start gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer"
+                      aria-label="Empty only update depth"
+                    >
                       <input
                         type="radio"
                         name="depth"
@@ -270,7 +282,10 @@ export function UpdateToRevisionDialog({
                 </div>
 
                 <div className="pt-2 border-t border-border">
-                  <label className="flex items-center gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer">
+                  <label
+                    className="flex items-center gap-3 p-2 rounded hover:bg-bg-tertiary cursor-pointer"
+                    aria-label="Make depth sticky"
+                  >
                     <input
                       type="checkbox"
                       checked={setDepthSticky}
