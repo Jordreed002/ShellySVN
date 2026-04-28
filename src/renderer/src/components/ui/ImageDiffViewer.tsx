@@ -10,6 +10,7 @@ import {
   Rows,
   Maximize2,
 } from 'lucide-react';
+import { isImageFile } from './image-utils';
 
 interface ImageDiffViewerProps {
   isOpen: boolean;
@@ -627,11 +628,4 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
   );
 }
 
-/**
- * Utility function to check if a file is an image based on extension
- */
-export function isImageFile(path: string): boolean {
-  const ext = path.split('.').pop()?.toLowerCase() || '';
-  const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'];
-  return imageExtensions.includes(ext);
-}
+export { isImageFile };

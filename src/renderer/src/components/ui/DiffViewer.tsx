@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { X, FileText, AlertTriangle, Loader, Image as ImageIcon, ExternalLink } from 'lucide-react';
 import type { SvnDiffResult, SvnDiffLine } from '@shared/types';
-import { isImageFile } from './ImageDiffViewer';
+import { isImageFile } from './image-utils';
 import { useSettings } from '@renderer/hooks/useSettings';
 
 // Lazy load ImageDiffViewer - only loaded when viewing image files

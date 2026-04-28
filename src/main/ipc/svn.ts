@@ -29,13 +29,13 @@ import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getSettingsManager } from '../settings-manager';
 import debug from '../utils/debug';
 import { redactArgs } from '../utils/redaction';
+import { getStore } from './store';
 
 /**
  * Helper to get hooks for a working copy from store
  */
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
   try {
-    const { getStore } = await import('./store');
     const store = await getStore();
     const stored = await store.get<Record<string, HookScript[]>>('shellysvn:hook-scripts');
     if (stored && stored[workingCopyPath]) {
