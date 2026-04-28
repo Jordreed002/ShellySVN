@@ -306,7 +306,8 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('auth:isEncryptionAvailable') as Promise<boolean>,
   },
   shell: {
-    register: () => ipcRenderer.invoke('shell:register') as Promise<{ success: boolean }>,
+    register: () =>
+      ipcRenderer.invoke('shell:register') as Promise<{ success: boolean; error?: string }>,
     unregister: () => ipcRenderer.invoke('shell:unregister') as Promise<{ success: boolean }>,
     isRegistered: () =>
       ipcRenderer.invoke('shell:isRegistered') as Promise<{ registered: boolean }>,

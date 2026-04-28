@@ -15,6 +15,7 @@
 import { app, ipcMain } from 'electron';
 import { join } from 'path';
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import type { SvnStatusChar } from '@shared/types';
 import debug from '../utils/debug';
 
@@ -51,6 +52,11 @@ interface WindowsHelperData {
   overlays?: OverlayIcon[];
 }
 
+export interface ShellIntegrationResult {
+  success: boolean;
+  error?: string;
+}
+
 export class ShellIntegrationManager {
   private isWindows: boolean;
   private isMac: boolean;
@@ -80,10 +86,10 @@ export class ShellIntegrationManager {
   /**
    * Register shell integration
    */
-  async register(): Promise<boolean> {
+  async register(): Promise<ShellIntegrationResult> {
     if (!this.isWindows && !this.isMac) {
       debug.log('[Shell] Shell integration not supported on this platform');
-      return false;
+      return { success: false, error: 'Shell integration is not supported on this platform.' };
     }
 
     try {
@@ -94,10 +100,10 @@ export class ShellIntegrationManager {
       }
 
       this.isRegistered = true;
-      return true;
+      return { success: true };
     } catch (err) {
       debug.error('[Shell] Failed to register shell integration:', err);
-      return false;
+      return { success: false, error: (err as Error).message };
     }
   }
 
@@ -189,11 +195,10 @@ export class ShellIntegrationManager {
 
   private async registerWindowsShellExtension(): Promise<void> {
     // Check if helper exists
-    const fs = require('fs');
-    if (!fs.existsSync(this.helperPath)) {
+    if (!existsSync(this.helperPath)) {
       debug.log('[Shell] Windows shell helper not found at:', this.helperPath);
       debug.log('[Shell] Shell integration requires compilation of native shell extension');
-      return;
+      throw new Error('Windows shell helper is missing. Native shell integration is not installed.');
     }
 
     // Register the shell extension via helper
@@ -246,8 +251,7 @@ export class ShellIntegrationManager {
     debug.log('[Shell] macOS Finder Sync requires native extension compilation');
     debug.log('[Shell] See resources/shell/ShellySVNFinderSync for implementation');
 
-    // For now, we'll use a simpler approach: Finder toolbar item
-    // This can be done via AppleScript
+    throw new Error('macOS Finder Sync helper is missing. Native shell integration is not installed.');
   }
 
   private async unregisterMacFinderSync(): Promise<void> {
@@ -270,7 +274,7 @@ export function registerShellIntegrationHandlers(): void {
   // Register shell integration
   ipcMain.handle('shell:register', async () => {
     const shell = getShellIntegration();
-    return { success: await shell.register() };
+    return shell.register();
   });
 
   // Unregister shell integration

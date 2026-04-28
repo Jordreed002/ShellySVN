@@ -15,6 +15,7 @@
 
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { AlertTriangle, RefreshCw, Home, Copy, Check, Bug, RotateCcw } from 'lucide-react';
+import { redactDiagnosticText } from './redaction';
 
 /**
  * Classified error information for display
@@ -301,7 +302,7 @@ export class GlobalErrorBoundary extends Component<
       .join('\n\n');
 
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(redactDiagnosticText(text));
       this.setState({ copied: true });
       this.copyTimeoutId = setTimeout(() => this.setState({ copied: false }), 2000);
     } catch {

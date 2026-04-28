@@ -26,6 +26,7 @@ import {
   Check,
   FileQuestion,
 } from 'lucide-react';
+import { redactDiagnosticText } from './redaction';
 
 /**
  * Props wrapper component for route navigation
@@ -337,7 +338,7 @@ class RouteErrorBoundaryInner extends Component<
       .join('\n\n');
 
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(redactDiagnosticText(text));
       this.setState({ copied: true });
       this.copyTimeoutId = setTimeout(() => this.setState({ copied: false }), 2000);
     } catch {

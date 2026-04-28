@@ -1,5 +1,5 @@
 import { ipcMain, app, BrowserWindow } from 'electron';
-import { readdir, stat, unlink, rmdir } from 'fs/promises';
+import { readdir, stat, unlink as removeFile, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { openValidatedExternalUrl } from '../utils/external-url';
 
@@ -10,6 +10,19 @@ interface CacheBreakdown {
   electron: number;
   logs: number;
   auth: number;
+}
+
+function getAuthCachePath(): string {
+  return join(app.getPath('userData'), 'auth-cache.json');
+}
+
+async function getFileSize(filePath: string): Promise<{ size: number; files: number }> {
+  try {
+    const stats = await stat(filePath);
+    return stats.isFile() ? { size: stats.size, files: 1 } : { size: 0, files: 0 };
+  } catch {
+    return { size: 0, files: 0 };
+  }
 }
 
 async function getDirectorySize(dirPath: string): Promise<{ size: number; files: number }> {
@@ -50,7 +63,7 @@ async function clearDirectory(dirPath: string): Promise<void> {
         await clearDirectory(fullPath);
         await rmdir(fullPath);
       } else {
-        await unlink(fullPath);
+        await removeFile(fullPath);
       }
     }
   } catch {
@@ -76,8 +89,7 @@ async function getCacheBreakdown(): Promise<CacheBreakdown> {
   // Log cache directory
   const logDir = join(userDataPath, 'shelly-cache', 'logs');
 
-  // Auth cache directory (stored in shelly-cache/auth)
-  const authDir = join(userDataPath, 'shelly-cache', 'auth');
+  const authCachePath = getAuthCachePath();
 
   let electronSize = 0;
   let logsSize = 0;
@@ -94,7 +106,7 @@ async function getCacheBreakdown(): Promise<CacheBreakdown> {
   logsSize = logsResult.size;
 
   // Calculate auth size
-  const authResult = await getDirectorySize(authDir);
+  const authResult = await getFileSize(authCachePath);
   authSize = authResult.size;
 
   return {
@@ -130,8 +142,11 @@ async function clearCacheTypes(types: ('electron' | 'logs' | 'auth')[]): Promise
     }
 
     if (types.includes('auth')) {
-      const authDir = join(userDataPath, 'shelly-cache', 'auth');
-      await clearDirectory(authDir);
+      try {
+        await removeFile(getAuthCachePath());
+      } catch {
+        // Auth cache may not exist yet.
+      }
     }
 
     return { success: true };

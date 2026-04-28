@@ -66,7 +66,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
 
       const result = await window.api.shell.register();
       if (!result.success) {
-        throw new Error('Failed to register shell integration');
+        throw new Error(result.error || 'Failed to register shell integration');
       }
 
       const newStatus: ShellStatus = {

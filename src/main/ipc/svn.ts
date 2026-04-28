@@ -69,6 +69,34 @@ const xmlParser = new XMLParser({
  * Valid values per SVN: unknown-ca, cn-mismatch, expired, not-yet-valid, other
  */
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
+const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
+
+function normalizeSslFailures(failures?: string[]): string {
+  const mapped = new Set<(typeof ALLOWED_SSL_FAILURES)[number]>();
+
+  for (const failure of failures && failures.length > 0 ? failures : ['unknown-ca']) {
+    switch (failure) {
+      case 'untrusted-issuer':
+      case 'unknown-ca':
+        mapped.add('unknown-ca');
+        break;
+      case 'hostname-mismatch':
+      case 'cn-mismatch':
+        mapped.add('cn-mismatch');
+        break;
+      case 'expired':
+        mapped.add('expired');
+        break;
+      case 'not-yet-valid':
+        mapped.add('not-yet-valid');
+        break;
+      default:
+        debug.warn('[SECURITY] Ignoring unsupported SSL trust failure type:', failure);
+    }
+  }
+
+  return mapped.size > 0 ? Array.from(mapped).join(',') : 'unknown-ca';
+}
 
 /**
  * Create a temporary SVN config directory with proxy settings
@@ -188,8 +216,7 @@ async function executeSvn(
       }
 
       // SECURITY: Only allow specific failure types, exclude 'other'
-      const failures = ALLOWED_SSL_FAILURES.join(',');
-      finalArgs.push('--trust-server-cert-failures', failures);
+      finalArgs.push('--trust-server-cert-failures', DEFAULT_SSL_FAILURES);
 
       // Log SSL bypass for security audit
       debug.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`);
@@ -762,7 +789,7 @@ export function registerSvnHandlers(): void {
         '--xml',
         '--non-interactive',
         '--trust-server-cert-failures',
-        'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+        DEFAULT_SSL_FAILURES,
         url,
       ];
       const xml = await executeSvn(args);
@@ -1259,27 +1286,7 @@ export function registerSvnHandlers(): void {
       const operationContext: Partial<SvnExecutionContext> = {};
 
       if (options?.trustSsl) {
-        const failures = options.sslFailures || ['unknown-ca'];
-        const failureStr = failures
-          .map((f) => {
-            switch (f) {
-              case 'untrusted-issuer':
-              case 'unknown-ca':
-                return 'unknown-ca';
-              case 'hostname-mismatch':
-              case 'cn-mismatch':
-                return 'cn-mismatch';
-              case 'expired':
-                return 'expired';
-              case 'not-yet-valid':
-                return 'not-yet-valid';
-              default:
-                return 'other';
-            }
-          })
-          .join(',');
-
-        args.push('--trust-server-cert-failures', failureStr);
+        args.push('--trust-server-cert-failures', normalizeSslFailures(options.sslFailures));
       }
 
       // Add credentials if provided
@@ -1363,27 +1370,7 @@ export function registerSvnHandlers(): void {
       const operationContext: Partial<SvnExecutionContext> = {};
 
       if (options?.trustSsl) {
-        const failures = options.sslFailures || ['unknown-ca'];
-        const failureStr = failures
-          .map((f) => {
-            switch (f) {
-              case 'untrusted-issuer':
-              case 'unknown-ca':
-                return 'unknown-ca';
-              case 'hostname-mismatch':
-              case 'cn-mismatch':
-                return 'cn-mismatch';
-              case 'expired':
-                return 'expired';
-              case 'not-yet-valid':
-                return 'not-yet-valid';
-              default:
-                return 'other';
-            }
-          })
-          .join(',');
-
-        args.push('--trust-server-cert-failures', failureStr);
+        args.push('--trust-server-cert-failures', normalizeSslFailures(options.sslFailures));
       }
 
       if (options?.credentials) {
@@ -1426,8 +1413,7 @@ export function registerSvnHandlers(): void {
           if (!finalArgs.includes('--non-interactive')) {
             finalArgs.push('--non-interactive');
           }
-          const failures = ALLOWED_SSL_FAILURES.join(',');
-          finalArgs.push('--trust-server-cert-failures', failures);
+          finalArgs.push('--trust-server-cert-failures', DEFAULT_SSL_FAILURES);
         }
 
         // Add client certificate if configured
@@ -1435,7 +1421,9 @@ export function registerSvnHandlers(): void {
           finalArgs.push('--certificate', context.clientCertificatePath.trim());
         }
 
-        debug.log(`[SVN] Running checkout with progress: svn ${finalArgs.join(' ')} in ${path}`);
+        debug.log(
+          `[SVN] Running checkout with progress: svn ${redactArgs(finalArgs).join(' ')} in ${path}`
+        );
 
         const proc = spawn(svnCommand, finalArgs, {
           cwd: process.cwd(),
@@ -1566,7 +1554,7 @@ export function registerSvnHandlers(): void {
       'export',
       '--non-interactive',
       '--trust-server-cert-failures',
-      'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+      DEFAULT_SSL_FAILURES,
       url,
       path,
     ];
@@ -1588,7 +1576,7 @@ export function registerSvnHandlers(): void {
       message,
       '--non-interactive',
       '--trust-server-cert-failures',
-      'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+      DEFAULT_SSL_FAILURES,
       path,
       url,
     ]);
@@ -2069,7 +2057,7 @@ export function registerSvnHandlers(): void {
         '--xml',
         '--non-interactive',
         '--trust-server-cert-failures',
-        'unknown-ca,cn-mismatch,expired,not-yet-valid,other',
+        DEFAULT_SSL_FAILURES,
       ];
       if (revision) args.push('-r', revision);
       if (depth) args.push('--depth', depth);

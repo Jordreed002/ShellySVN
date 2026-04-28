@@ -70,15 +70,15 @@ const BUILTIN_VARIABLES: TemplateVariable[] = [
   },
   {
     name: 'username',
-    description: 'Current system username',
+    description: 'Current app username',
     example: 'developer',
-    resolver: () => process.env.USER || process.env.USERNAME || 'unknown',
+    resolver: () => 'unknown',
   },
   {
     name: 'hostname',
     description: 'Computer hostname',
     example: 'dev-machine',
-    resolver: () => require('os').hostname(),
+    resolver: () => 'unknown',
   },
   {
     name: 'branch',

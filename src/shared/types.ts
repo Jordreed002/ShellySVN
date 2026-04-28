@@ -809,7 +809,7 @@ export interface ElectronAPI {
     isEncryptionAvailable: () => Promise<boolean>;
   };
   shell: {
-    register: () => Promise<{ success: boolean }>;
+    register: () => Promise<{ success: boolean; error?: string }>;
     unregister: () => Promise<{ success: boolean }>;
     isRegistered: () => Promise<{ registered: boolean }>;
     updateOverlay: (path: string, status: string) => Promise<{ success: boolean }>;

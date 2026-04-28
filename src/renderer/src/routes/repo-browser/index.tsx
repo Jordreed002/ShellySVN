@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { RepoBrowserContent } from './RepoBrowserContent';
+import { RepoBrowserContent } from './-RepoBrowserContent';
 import { RouteErrorBoundary } from '@renderer/components/ErrorBoundary';
 
 export const Route = createFileRoute('/repo-browser/')({
