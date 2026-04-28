@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import type { WorkingCopyInfo } from '@shared/types';
 import { MONITOR_REFRESH_INTERVAL_MS } from '@shared/constants';
 import { parseSvnInfoSummaryXml, parseSvnStatusEntriesXml } from '../utils/svn-xml';
+import { runSvnText } from '../services/svn-executor';
 
 // In-memory storage for monitored working copies
 let monitoredWorkingCopies: Map<string, WorkingCopyInfo> = new Map();
@@ -96,50 +97,20 @@ export function registerMonitorHandlers(): void {
 
 // Helper to get SVN info
 async function getSvnInfo(path: string): Promise<{ url: string; revision: number } | null> {
-  const { spawn } = require('child_process');
-
-  return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
-    const proc = spawn(svnCommand, ['info', '--xml', path], {
-      env: { ...process.env, LANG: 'en_US.UTF-8' },
-    });
-
-    let stdout = '';
-    proc.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.on('close', (code: number) => {
-      if (code === 0) {
-        resolve(parseSvnInfoSummaryXml(stdout));
-      } else {
-        resolve(null);
-      }
-    });
-
-    proc.on('error', () => resolve(null));
-  });
+  try {
+    const stdout = await runSvnText(['info', '--xml', path], { cwd: path });
+    return parseSvnInfoSummaryXml(stdout);
+  } catch {
+    return null;
+  }
 }
 
 // Helper to get SVN status
 async function getSvnStatus(path: string): Promise<{ entries: { path: string }[] }> {
-  const { spawn } = require('child_process');
-
-  return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
-    const proc = spawn(svnCommand, ['status', '--xml', path], {
-      env: { ...process.env, LANG: 'en_US.UTF-8' },
-    });
-
-    let stdout = '';
-    proc.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.on('close', () => {
-      resolve({ entries: parseSvnStatusEntriesXml(stdout).map((entry) => ({ path: entry.path })) });
-    });
-
-    proc.on('error', () => resolve({ entries: [] }));
-  });
+  try {
+    const stdout = await runSvnText(['status', '--xml', path], { cwd: path });
+    return { entries: parseSvnStatusEntriesXml(stdout).map((entry) => ({ path: entry.path })) };
+  } catch {
+    return { entries: [] };
+  }
 }

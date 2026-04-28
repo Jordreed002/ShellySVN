@@ -1,7 +1,4 @@
-import { spawn } from 'child_process';
 import { existsSync as fsExistsSync, statSync as fsStatSync } from 'fs';
-import { writeFile, mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
 import { isAbsolute, join } from 'path';
 import { app, ipcMain } from 'electron';
 import { XMLParser } from 'fast-xml-parser';
@@ -28,8 +25,8 @@ import type {
 import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getSettingsManager } from '../settings-manager';
+import { runSvn, runSvnText } from '../services/svn-executor';
 import debug from '../utils/debug';
-import { redactArgs } from '../utils/redaction';
 import {
   parseSvnBlameEntriesXml,
   parseSvnListEntriesXml,
@@ -169,58 +166,6 @@ function normalizeSslFailures(failures?: string[]): string {
 }
 
 /**
- * Create a temporary SVN config directory with proxy settings
- * SECURITY: This avoids putting credentials in environment variables
- */
-async function createTempSvnConfig(
-  proxySettings: SvnExecutionContext['proxySettings']
-): Promise<string | null> {
-  if (!proxySettings?.enabled || !proxySettings.host || !proxySettings.port) {
-    return null;
-  }
-
-  // mkdtemp creates the directory for us
-  const configDir = await mkdtemp(join(tmpdir(), 'svn-config-'));
-  const serversPath = join(configDir, 'servers');
-
-  // Build servers config file
-  const configLines = [
-    '[global]',
-    `http-proxy-host = ${proxySettings.host}`,
-    `http-proxy-port = ${proxySettings.port}`,
-  ];
-
-  if (proxySettings.username) {
-    configLines.push(`http-proxy-username = ${proxySettings.username}`);
-  }
-
-  if (proxySettings.password) {
-    // SECURITY: Password stored in temp file with restricted permissions
-    // File is deleted after SVN operation completes
-    configLines.push(`http-proxy-password = ${proxySettings.password}`);
-  }
-
-  if (proxySettings.bypassForLocal) {
-    configLines.push('http-proxy-exceptions = localhost, 127.0.0.1');
-  }
-
-  await writeFile(serversPath, configLines.join('\n'), { mode: 0o600 });
-
-  return configDir;
-}
-
-/**
- * Clean up temporary SVN config directory
- */
-async function cleanupTempSvnConfig(configDir: string): Promise<void> {
-  try {
-    await rm(configDir, { recursive: true, force: true });
-  } catch (error) {
-    debug.warn('[SVN] Failed to cleanup temp config dir:', error);
-  }
-}
-
-/**
  * Execute SVN command with settings-aware context
  *
  * This function now automatically applies global settings (proxy, SSL, timeout)
@@ -239,119 +184,11 @@ async function executeSvn(
   trustSslFailures: boolean = false,
   credentials?: { username: string; password: string }
 ): Promise<string> {
-  // Get global settings context and merge with operation-specific overrides
-  const settingsManager = getSettingsManager();
-  const globalContext = settingsManager.getSvnExecutionContext();
-
-  // Merge contexts: operation-specific settings override global settings
-  const context: SvnExecutionContext = {
-    proxySettings: operationContext?.proxySettings ?? globalContext.proxySettings,
-    connectionTimeout: operationContext?.connectionTimeout ?? globalContext.connectionTimeout,
-    sslVerify: operationContext?.sslVerify ?? globalContext.sslVerify,
-    clientCertificatePath:
-      operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath,
-  };
-
-  // Create temp config if proxy settings are provided
-  let tempConfigDir: string | null = null;
-
-  if (context.proxySettings?.enabled) {
-    tempConfigDir = await createTempSvnConfig(context.proxySettings);
-  }
-
-  return new Promise((resolve, reject) => {
-    // Use custom SVN path from settings, or fall back to system SVN
-    const svnCommand = settingsManager.getSvnClientPath();
-
-    // Build environment - no credentials in environment variables
-    const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
-
-    // Build final args
-    const finalArgs: string[] = [];
-
-    // Add config directory if using proxy
-    if (tempConfigDir) {
-      finalArgs.push('--config-dir', tempConfigDir);
-    }
-
-    finalArgs.push(...args);
-
-    // Build SSL options if needed
-    // Apply if: global setting disables SSL verify, OR this operation explicitly trusts SSL failures
-    const shouldBypassSsl = context.sslVerify === false || trustSslFailures;
-    if (shouldBypassSsl) {
-      // Add SSL trust options for non-interactive mode
-      if (!finalArgs.includes('--non-interactive')) {
-        finalArgs.push('--non-interactive');
-      }
-
-      // SECURITY: Only allow specific failure types, exclude 'other'
-      finalArgs.push('--trust-server-cert-failures', DEFAULT_SSL_FAILURES);
-
-      // Log SSL bypass for security audit
-      debug.warn(`[SECURITY] SSL verification bypassed for: ${cwd || process.cwd()}`);
-    }
-
-    // Add credentials if provided
-    if (credentials?.username) {
-      finalArgs.push('--username', credentials.username);
-    }
-    if (credentials?.password) {
-      finalArgs.push('--password', credentials.password);
-    }
-
-    // Add client certificate if configured
-    if (context.clientCertificatePath && context.clientCertificatePath.trim()) {
-      finalArgs.push('--certificate', context.clientCertificatePath.trim());
-    }
-
-    debug.log(`[SVN] Running: svn ${redactArgs(finalArgs).join(' ')} in ${cwd || process.cwd()}`);
-
-    const proc = spawn(svnCommand, finalArgs, {
-      cwd: cwd || process.cwd(),
-      env,
-      windowsHide: true, // Hide from process listing on Windows
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    // Set up timeout if specified
-    let timeoutId: NodeJS.Timeout | null = null;
-    if (context.connectionTimeout && context.connectionTimeout > 0) {
-      timeoutId = setTimeout(() => {
-        proc.kill();
-        if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
-        reject(new Error(`SVN operation timed out after ${context.connectionTimeout} seconds`));
-      }, context.connectionTimeout * 1000);
-    }
-
-    proc.on('close', (code) => {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
-
-      debug.log(`[SVN] Exit code: ${code}`);
-      if (code === 0) {
-        resolve(stdout);
-      } else {
-        reject(new Error(stderr || `SVN exited with code ${code}`));
-      }
-    });
-
-    proc.on('error', (err) => {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
-      debug.error(`[SVN] Error:`, err);
-      reject(err);
-    });
+  return runSvnText(args, {
+    cwd,
+    operationContext,
+    trustSslFailures,
+    credentials,
   });
 }
 
@@ -1407,7 +1244,7 @@ export function registerSvnHandlers(): void {
   /**
    * Map to track active checkout processes for cancellation
    */
-  const activeCheckouts = new Map<string, import('child_process').ChildProcess>();
+  const activeCheckouts = new Map<string, AbortController>();
 
   // SVN Checkout with Progress Streaming
   ipcMain.handle(
@@ -1421,10 +1258,6 @@ export function registerSvnHandlers(): void {
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
     ) => {
-      const settingsManager = getSettingsManager();
-      const svnCommand = settingsManager.getSvnClientPath();
-      const globalContext = settingsManager.getSvnExecutionContext();
-
       // Build args similar to regular checkout
       const args = ['checkout', '--non-interactive'];
 
@@ -1439,178 +1272,83 @@ export function registerSvnHandlers(): void {
       // Build execution context
       const operationContext: Partial<SvnExecutionContext> = {};
 
-      if (options?.trustSsl) {
-        args.push('--trust-server-cert-failures', normalizeSslFailures(options.sslFailures));
-      }
-
-      if (options?.credentials) {
-        args.push('--username', options.credentials.username);
-        if (options.credentials.password) {
-          args.push('--password', options.credentials.password);
-        }
-      }
-
       args.push(url, path);
 
-      // Merge contexts for proxy/timeout settings
-      const context: SvnExecutionContext = {
-        proxySettings: operationContext?.proxySettings ?? globalContext.proxySettings,
-        connectionTimeout: operationContext?.connectionTimeout ?? globalContext.connectionTimeout,
-        sslVerify: operationContext?.sslVerify ?? globalContext.sslVerify,
-        clientCertificatePath:
-          operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath,
-      };
+      const controller = new AbortController();
+      activeCheckouts.set(checkoutId, controller);
 
-      // Create temp config if proxy settings are provided
-      let tempConfigDir: string | null = null;
-      if (context.proxySettings?.enabled) {
-        tempConfigDir = await createTempSvnConfig(context.proxySettings);
-      }
+      let lastProgressTime = 0;
+      const PROGRESS_THROTTLE_MS = 500;
+      let filesProcessed = 0;
+      let currentPath = '';
 
-      return new Promise((resolve) => {
-        const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
-        const finalArgs: string[] = [];
-
-        if (tempConfigDir) {
-          finalArgs.push('--config-dir', tempConfigDir);
-        }
-
-        finalArgs.push(...args);
-
-        // Apply SSL bypass if needed
-        const shouldBypassSsl = context.sslVerify === false || options?.trustSsl;
-        if (shouldBypassSsl) {
-          if (!finalArgs.includes('--non-interactive')) {
-            finalArgs.push('--non-interactive');
-          }
-          finalArgs.push('--trust-server-cert-failures', DEFAULT_SSL_FAILURES);
-        }
-
-        // Add client certificate if configured
-        if (context.clientCertificatePath && context.clientCertificatePath.trim()) {
-          finalArgs.push('--certificate', context.clientCertificatePath.trim());
-        }
-
-        debug.log(
-          `[SVN] Running checkout with progress: svn ${redactArgs(finalArgs).join(' ')} in ${path}`
-        );
-
-        const proc = spawn(svnCommand, finalArgs, {
+      try {
+        const result = await runSvn(args, {
           cwd: process.cwd(),
-          env,
-          windowsHide: true,
-        });
+          operationContext,
+          trustSslFailures: options?.trustSsl,
+          trustedSslFailures: options?.trustSsl
+            ? normalizeSslFailures(options.sslFailures)
+            : undefined,
+          credentials: options?.credentials,
+          signal: controller.signal,
+          onStdout: (chunk) => {
+            for (const line of chunk.split('\n')) {
+              const progress = parseCheckoutProgress(line);
+              if (progress.action && progress.path) {
+                filesProcessed++;
+                currentPath = progress.path;
 
-        // Track active checkout for cancellation
-        activeCheckouts.set(checkoutId, proc);
-
-        let stdout = '';
-        let stderr = '';
-        let lastProgressTime = 0;
-        const PROGRESS_THROTTLE_MS = 500;
-        let filesProcessed = 0;
-        let currentPath = '';
-
-        proc.stdout.on('data', (data) => {
-          const chunk = data.toString();
-          stdout += chunk;
-
-          // Parse progress from output
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            const progress = parseCheckoutProgress(line);
-            if (progress.action && progress.path) {
-              filesProcessed++;
-              currentPath = progress.path;
-
-              // Throttle progress events
-              const now = Date.now();
-              if (now - lastProgressTime >= PROGRESS_THROTTLE_MS) {
-                lastProgressTime = now;
-                event.sender.send('svn:checkout:progress', {
-                  checkoutId,
-                  action: progress.action,
-                  path: progress.path,
-                  filesProcessed,
-                });
+                const now = Date.now();
+                if (now - lastProgressTime >= PROGRESS_THROTTLE_MS) {
+                  lastProgressTime = now;
+                  event.sender.send('svn:checkout:progress', {
+                    checkoutId,
+                    action: progress.action,
+                    path: progress.path,
+                    filesProcessed,
+                  });
+                }
               }
             }
-          }
+          },
         });
 
-        proc.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        // Set up timeout if specified
-        let timeoutId: NodeJS.Timeout | null = null;
-        if (context.connectionTimeout && context.connectionTimeout > 0) {
-          timeoutId = setTimeout(() => {
-            proc.kill();
-            activeCheckouts.delete(checkoutId);
-            if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
-            resolve({
-              success: false,
-              revision: 0,
-              output: `Checkout timed out after ${context.connectionTimeout} seconds`,
-            });
-          }, context.connectionTimeout * 1000);
+        if (currentPath) {
+          event.sender.send('svn:checkout:progress', {
+            checkoutId,
+            action: null,
+            path: currentPath,
+            filesProcessed,
+          });
         }
 
-        proc.on('close', (code) => {
-          if (timeoutId) clearTimeout(timeoutId);
+        const match = result.stdout.match(/Checked out revision (\d+)\./);
+        return {
+          success: true,
+          revision: match ? parseInt(match[1], 10) : 0,
+          output: result.stdout,
+          filesProcessed,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          revision: 0,
+          output: error instanceof Error ? error.message : 'Checkout failed',
+        };
+      } finally {
+        if (activeCheckouts.get(checkoutId) === controller) {
           activeCheckouts.delete(checkoutId);
-          if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
-
-          debug.log(`[SVN] Checkout exit code: ${code}`);
-
-          // Send final progress update with current path
-          if (currentPath) {
-            event.sender.send('svn:checkout:progress', {
-              checkoutId,
-              action: null,
-              path: currentPath,
-              filesProcessed,
-            });
-          }
-
-          if (code === 0) {
-            const match = stdout.match(/Checked out revision (\d+)\./);
-            resolve({
-              success: true,
-              revision: match ? parseInt(match[1], 10) : 0,
-              output: stdout,
-              filesProcessed,
-            });
-          } else {
-            resolve({
-              success: false,
-              revision: 0,
-              output: stderr || `SVN exited with code ${code}`,
-            });
-          }
-        });
-
-        proc.on('error', (err) => {
-          if (timeoutId) clearTimeout(timeoutId);
-          activeCheckouts.delete(checkoutId);
-          if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
-          debug.error(`[SVN] Checkout error:`, err);
-          resolve({
-            success: false,
-            revision: 0,
-            output: err.message,
-          });
-        });
-      });
+        }
+      }
     }
   );
 
   // SVN Cancel Checkout
   ipcMain.handle('svn:cancelCheckout', async (_, checkoutId: string) => {
-    const proc = activeCheckouts.get(checkoutId);
-    if (proc) {
-      proc.kill();
+    const controller = activeCheckouts.get(checkoutId);
+    if (controller) {
+      controller.abort();
       activeCheckouts.delete(checkoutId);
       debug.log(`[SVN] Cancelled checkout: ${checkoutId}`);
       return { success: true };

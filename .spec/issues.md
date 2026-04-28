@@ -221,6 +221,8 @@ Several workflows use `prompt()` and `confirm()` for destructive actions, lock m
 
 **Location:** `src/main/ipc/svn.ts`, `src/main/ipc/fs.ts`, `src/main/ipc/monitor.ts`, `packages/logic-engine/src/svn/client.ts`
 
+**Status:** Resolved for the production Electron main-process path. SVN process spawning now goes through `src/main/services/svn-executor.ts` for SVN IPC, filesystem status/deep scans, and monitor refreshes. `packages/logic-engine` remains an experimental non-production backend per `adr-logic-engine.md`.
+
 The app has several independent SVN spawning paths. Some use `executeSvn()` with settings, proxy, timeout, SSL, and credential behavior. Others spawn `svn.exe` / `svn` directly and bypass those controls.
 
 **Impact:** Behavior differs by feature. Custom SVN path, proxy settings, timeout, SSL policy, bundled binary selection, and logging/redaction can silently fail to apply.

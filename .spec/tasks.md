@@ -73,9 +73,10 @@ Execution order is defined in `fix-plan.md`.
 - [x] Replace remaining production `prompt()` usage with an accessible renderer input dialog.
 - [x] Fix commit template resolvers that rely on renderer-side Node globals.
 - [x] Align auth cache reporting/clearing with the real credential cache file path.
-- [ ] Centralize all SVN process spawning behind one executor service.
+- [x] Centralize all production SVN process spawning behind one executor service.
 - [x] Replace regex-based SVN XML parsing with typed parser helpers.
 - [x] Decide whether `packages/logic-engine` is production architecture or remove it from release documentation.
 - [x] Move webhook delivery to a main-process service with URL validation and timeout handling.
 - [x] Correct shell integration status when native helpers are missing.
 - [ ] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
+  First boundary identified and started by extracting `src/main/services/svn-executor.ts`.

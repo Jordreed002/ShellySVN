@@ -10,13 +10,14 @@ import {
 } from 'fs/promises';
 import chokidar from 'chokidar';
 import { join, basename, normalize, dirname, isAbsolute } from 'path';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import { platform } from 'os';
 import type { FileInfo, SvnStatusChar } from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
+import { runSvnText } from '../services/svn-executor';
 
 interface SvnStatusEntry {
   status: SvnStatusChar;
@@ -117,22 +118,14 @@ async function getSvnStatus(
   dirPath: string,
   depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'immediates'
 ): Promise<{ directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }> {
-  return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
-
-    const proc = spawn(svnCommand, ['status', '--xml', `--depth=${depth}`, dirPath], {
+  try {
+    const stdout = await runSvnText(['status', '--xml', `--depth=${depth}`, dirPath], {
       cwd: dirPath,
-      env: { ...process.env, LANG: 'en_US.UTF-8' },
     });
-
-    let stdout = '';
-    proc.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    proc.on('close', () => resolve(parseSvnStatusXml(stdout, dirPath)));
-    proc.on('error', () => resolve({ directStatus: {}, allEntries: [] }));
-  });
+    return parseSvnStatusXml(stdout, dirPath);
+  } catch {
+    return { directStatus: {}, allEntries: [] };
+  }
 }
 
 /**
@@ -168,12 +161,12 @@ function calculateFolderStatus(
  * Check if a directory is under version control
  */
 async function isVersioned(dirPath: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
-    const proc = spawn(svnCommand, ['info', '--xml', dirPath], { cwd: dirPath });
-    proc.on('close', (code) => resolve(code === 0));
-    proc.on('error', () => resolve(false));
-  });
+  try {
+    await runSvnText(['info', '--xml', dirPath], { cwd: dirPath });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -250,15 +243,15 @@ export function applySvnStatusToFiles(
 }
 
 // Track active background scans
-const activeScans = new Map<string, ChildProcess>();
+const activeScans = new Map<string, AbortController>();
 
 // Track active file watchers
 const activeWatchers = new Map<string, chokidar.FSWatcher>();
 
 function cancelDeepScan(dirPath: string) {
-  const proc = activeScans.get(dirPath);
-  if (proc) {
-    proc.kill();
+  const controller = activeScans.get(dirPath);
+  if (controller) {
+    controller.abort();
     activeScans.delete(dirPath);
   }
 }
@@ -272,31 +265,22 @@ async function startDeepScan(dirPath: string): Promise<{
 }> {
   cancelDeepScan(dirPath);
 
-  return new Promise((resolve) => {
-    const svnCommand = process.platform === 'win32' ? 'svn.exe' : 'svn';
+  const controller = new AbortController();
+  activeScans.set(dirPath, controller);
 
-    const proc = spawn(svnCommand, ['status', '--xml', '--depth=infinity', dirPath], {
+  try {
+    const stdout = await runSvnText(['status', '--xml', '--depth=infinity', dirPath], {
       cwd: dirPath,
-      env: { ...process.env, LANG: 'en_US.UTF-8' },
+      signal: controller.signal,
     });
-
-    activeScans.set(dirPath, proc);
-
-    let stdout = '';
-    proc.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    proc.on('close', () => {
+    return parseSvnStatusXml(stdout, dirPath);
+  } catch {
+    return { directStatus: {}, allEntries: [] };
+  } finally {
+    if (activeScans.get(dirPath) === controller) {
       activeScans.delete(dirPath);
-      resolve(parseSvnStatusXml(stdout, dirPath));
-    });
-
-    proc.on('error', () => {
-      activeScans.delete(dirPath);
-      resolve({ directStatus: {}, allEntries: [] });
-    });
-  });
+    }
+  }
 }
 
 /**
