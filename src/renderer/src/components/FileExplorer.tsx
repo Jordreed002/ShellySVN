@@ -27,6 +27,10 @@ import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
 import { FileExplorerAuthPrompt } from './files/FileExplorerAuthPrompt';
 import { useFileExplorerAuthPrompt } from './files/useFileExplorerAuthPrompt';
+import {
+  useFileExplorerKeyboardNavigation,
+  useFileExplorerSelection,
+} from './files/useFileExplorerSelection';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>
@@ -145,11 +149,6 @@ export function FileExplorer() {
       addBookmark(path, name);
     }
   }, [path, isBookmarked, addBookmark, removeBookmark]);
-
-  // Multi-select state
-  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
-  const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1);
-  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [browseMode, setBrowseMode] = useState<'local' | 'online'>('local');
@@ -726,151 +725,29 @@ export function FileExplorer() {
     [navigate]
   );
 
-  // Multi-select handler - supports Ctrl, Shift, and normal clicks
-  const handleSelect = useCallback(
-    (
-      entry: SvnStatusEntry,
-      event?: { ctrlKey?: boolean; shiftKey?: boolean; metaKey?: boolean }
-    ) => {
-      const entryIndex = filteredEntries.findIndex((e) => e.path === entry.path);
-
-      // Shift+click: range selection
-      if (event?.shiftKey && lastSelectedIndex >= 0) {
-        const start = Math.min(lastSelectedIndex, entryIndex);
-        const end = Math.max(lastSelectedIndex, entryIndex);
-        const rangePaths = new Set<string>();
-        for (let i = start; i <= end; i++) {
-          rangePaths.add(filteredEntries[i].path);
-        }
-        setSelectedPaths(rangePaths);
-        setFocusedIndex(entryIndex);
-        return;
-      }
-
-      // Ctrl+click: toggle selection
-      if (event?.ctrlKey || event?.metaKey) {
-        setSelectedPaths((prev) => {
-          const next = new Set(prev);
-          if (next.has(entry.path)) {
-            next.delete(entry.path);
-          } else {
-            next.add(entry.path);
-          }
-          return next;
-        });
-        setLastSelectedIndex(entryIndex);
-        setFocusedIndex(entryIndex);
-        return;
-      }
-
-      // Normal click: single selection
-      setSelectedPaths(new Set([entry.path]));
-      setLastSelectedIndex(entryIndex);
-      setFocusedIndex(entryIndex);
-    },
-    [filteredEntries, lastSelectedIndex]
-  );
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (diffViewerPath || logViewerPath || actions.commitDialogOpen) return;
-
-      // Handle navigation keys
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-
-        const direction = event.key === 'ArrowDown' ? 1 : -1;
-        let newIndex = focusedIndex;
-
-        if (focusedIndex < 0) {
-          newIndex = direction === 1 ? 0 : filteredEntries.length - 1;
-        } else {
-          newIndex = Math.max(0, Math.min(filteredEntries.length - 1, focusedIndex + direction));
-        }
-
-        // Shift+Arrow: extend selection
-        if (event.shiftKey) {
-          setSelectedPaths((prev) => {
-            const next = new Set(prev);
-            next.add(filteredEntries[newIndex].path);
-            return next;
-          });
-        } else {
-          setSelectedPaths(new Set([filteredEntries[newIndex].path]));
-          setLastSelectedIndex(newIndex);
-        }
-
-        setFocusedIndex(newIndex);
-
-        // Scroll into view
-        virtualizer.scrollToIndex(newIndex, { align: 'auto' });
-      }
-
-      // Ctrl+A: select all
-      if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
-        event.preventDefault();
-        setSelectedPaths(new Set(filteredEntries.map((entry) => entry.path)));
-      }
-
-      // Escape: clear selection
-      if (event.key === 'Escape') {
-        setSelectedPaths(new Set());
-        setFocusedIndex(-1);
-      }
-
-      // Enter: open folder
-      if (event.key === 'Enter' && focusedIndex >= 0) {
-        const entry = filteredEntries[focusedIndex];
-        if (entry.isDirectory) {
-          handleNavigateToEntry(entry);
-        }
-      }
-
-      // Delete: delete selected
-      if (event.key === 'Delete' && selectedPaths.size > 0) {
-        event.preventDefault();
-        // Will implement with actions
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    focusedIndex,
-    filteredEntries,
-    virtualizer,
+  const {
     selectedPaths,
-    diffViewerPath,
-    logViewerPath,
-    actions.commitDialogOpen,
-    handleNavigateToEntry,
-  ]);
-
-  // Clear selection when path changes
-  useEffect(() => {
-    setSelectedPaths(new Set());
-    setFocusedIndex(-1);
-    setLastSelectedIndex(-1);
-  }, [path]);
+    focusedIndex,
+    setSelectedPaths,
+    setFocusedIndex,
+    clearSelection,
+    handleSelect,
+  } = useFileExplorerSelection(filteredEntries);
 
   const handleSetBrowseMode = useCallback((mode: 'local' | 'online') => {
     setBrowseMode(mode);
     if (mode === 'local') {
       setOnlinePath('');
     }
-    setSelectedPaths(new Set());
-    setFocusedIndex(-1);
-    setLastSelectedIndex(-1);
-  }, []);
+    clearSelection();
+  }, [clearSelection]);
 
   const handleNavigateToEntry = useCallback(
     (entry: SvnStatusEntry) => {
       if (browseMode === 'online') {
         if (entry.isDirectory) {
           setOnlinePath(entry.path);
-          setSelectedPaths(new Set());
-          setFocusedIndex(-1);
+          clearSelection();
         }
         return;
       }
@@ -878,8 +755,24 @@ export function FileExplorer() {
         navigate({ to: '/files', search: { path: entry.path } });
       }
     },
-    [navigate, browseMode]
+    [navigate, browseMode, clearSelection]
   );
+
+  useFileExplorerKeyboardNavigation({
+    entries: filteredEntries,
+    selectedPaths,
+    focusedIndex,
+    virtualizer,
+    disabled: !!diffViewerPath || !!logViewerPath || actions.commitDialogOpen,
+    onNavigateToEntry: handleNavigateToEntry,
+    setSelectedPaths,
+    setFocusedIndex,
+  });
+
+  // Clear selection when path changes
+  useEffect(() => {
+    clearSelection();
+  }, [path, clearSelection]);
 
   // FileRow actions - works with multi-select
   const fileRowActions = useMemo(
