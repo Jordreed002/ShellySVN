@@ -101,8 +101,8 @@ These tasks track the important parity work needed for ShellySVN to become the p
 ### Commit Workflow
 
 - [ ] Upgrade commit dialog file selection to clearly handle versioned, unversioned, missing, deleted, changelist, externals, and nested working-copy items.
-- [ ] Add per-project minimum commit message length rules.
-- [ ] Add required issue ID validation before commit.
+- [x] Add per-project minimum commit message length rules.
+- [x] Add required issue ID validation before commit.
 - [ ] Add commit message spellcheck.
 - [ ] Add commit message path and keyword autocomplete.
 - [ ] Add commit template and history management that works in packaged builds.
@@ -144,7 +144,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 
 - [ ] Add per-project issue tracker configuration.
 - [ ] Add issue ID field or message parser in commit dialog.
-- [ ] Add optional required issue ID warnings.
+- [x] Add optional required issue ID warnings.
 - [ ] Add issue links in log, blame, and commit views.
 - [ ] Add issue ID column in revision log.
 - [ ] Support configurable issue regex and URL templates.

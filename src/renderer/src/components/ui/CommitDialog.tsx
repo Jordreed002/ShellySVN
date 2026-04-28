@@ -15,11 +15,13 @@ import {
   Sparkles,
   Wand2,
   AlertTriangle,
+  Settings2,
 } from 'lucide-react';
 import {
   useCommitMessageHistory,
   useCommitTemplates,
 } from '@renderer/hooks/useCommitMessageHistory';
+import { useCommitRules } from '@renderer/hooks/useCommitRules';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import { AutoCompleteInput, type AutocompleteOption } from './AutoCompleteInput';
 import { EnhancedDiffViewer, type DiffViewMode } from './EnhancedDiffViewer';
@@ -29,6 +31,7 @@ import {
   validateCommitMessage,
   type TemplateRecommendation,
 } from '@renderer/utils/suggestionEngine';
+import { validateCommitRules } from '@renderer/utils/commitRules';
 import type { SvnStatusChar } from '@shared/types';
 
 interface CommitFile {
@@ -73,11 +76,13 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
   const [fileFilter, setFileFilter] = useState<'all' | 'modified' | 'added' | 'deleted'>('all');
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { history, addMessage } = useCommitMessageHistory();
   const { templates, applyTemplate } = useCommitTemplates();
+  const { rules, updateRules } = useCommitRules(workingCopyPath);
 
   // Focus trap for accessibility
   const modalRef = useFocusTrap({
@@ -192,6 +197,10 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
 
   const selectedFiles = files.filter((f) => f.selected);
   const selectedCount = selectedFiles.length;
+  const ruleErrors = useMemo(
+    () => (message.trim() ? validateCommitRules(message, rules) : []),
+    [message, rules]
+  );
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -203,6 +212,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
       setSelectedDiffFile(null);
       setShowTemplates(false);
       setShowHistory(false);
+      setShowRules(false);
       setFileFilter('all');
       setDiffViewMode('unified');
       setShowSuggestions(false);
@@ -278,6 +288,11 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
 
     if (selectedCount === 0) {
       setError('Please select at least one file to commit');
+      return;
+    }
+
+    if (ruleErrors.length > 0) {
+      setError(ruleErrors[0]);
       return;
     }
 
@@ -572,6 +587,75 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                         </div>
                       )}
 
+                      {/* Commit rules */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowRules(!showRules);
+                            setShowTemplates(false);
+                            setShowHistory(false);
+                            setShowSuggestions(false);
+                          }}
+                          className="btn btn-secondary btn-sm text-xs"
+                          aria-expanded={showRules}
+                          aria-haspopup="dialog"
+                          aria-label="Commit rules"
+                        >
+                          <Settings2 className="w-3 h-3" aria-hidden="true" />
+                          Rules
+                        </button>
+                        {showRules && (
+                          <div
+                            className="absolute right-0 top-full mt-1 w-72 bg-bg-elevated border border-border rounded-lg shadow-lg z-10 p-3 space-y-3"
+                            role="dialog"
+                            aria-label="Commit rules"
+                          >
+                            <label className="block">
+                              <span className="text-xs font-medium text-text-secondary">
+                                Minimum message length
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={500}
+                                value={rules.minMessageLength}
+                                onChange={(e) =>
+                                  updateRules({ minMessageLength: Number(e.target.value) })
+                                }
+                                className="input mt-1 w-full text-sm"
+                              />
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-text">
+                              <input
+                                type="checkbox"
+                                checked={rules.requireIssueId}
+                                onChange={(e) =>
+                                  updateRules({ requireIssueId: e.target.checked })
+                                }
+                                className="checkbox"
+                              />
+                              Require issue ID
+                            </label>
+                            <label className="block">
+                              <span className="text-xs font-medium text-text-secondary">
+                                Issue ID pattern
+                              </span>
+                              <input
+                                type="text"
+                                value={rules.issueIdPattern}
+                                onChange={(e) => updateRules({ issueIdPattern: e.target.value })}
+                                className="input mt-1 w-full text-sm font-mono"
+                                placeholder="[A-Z]+-\\d+"
+                              />
+                            </label>
+                            <p className="text-xs text-text-faint">
+                              Rules are saved for this working copy.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Templates dropdown */}
                       <div className="relative">
                         <button
@@ -710,6 +794,17 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       </ul>
                     </div>
                   )}
+
+                  {ruleErrors.length > 0 && (
+                    <div className="mt-2 flex items-start gap-2 text-xs text-error">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <ul className="list-disc list-inside">
+                        {ruleErrors.map((ruleError, i) => (
+                          <li key={i}>{ruleError}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {/* Diff preview with enhanced viewer */}
@@ -780,7 +875,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={isSubmitting || !message.trim() || selectedCount === 0}
+                disabled={
+                  isSubmitting || !message.trim() || selectedCount === 0 || ruleErrors.length > 0
+                }
                 aria-label={
                   isSubmitting
                     ? 'Committing changes...'
