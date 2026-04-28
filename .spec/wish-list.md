@@ -30,6 +30,8 @@ This file tracks product and engineering improvements that are not immediate def
 
 - Add a diagnostics screen that shows SVN binary path, version, bundled binary availability, encryption availability, and shell integration status.
 - Add a safe "copy diagnostic report" action that redacts usernames, passwords, repository credentials, and local sensitive paths.
+- Add a TortoiseSVN replacement roadmap focused on Windows Explorer, macOS Finder, commit workflow, status, diff/merge, history, and issue tracker parity.
+- Prefer platform-native integration over copying Windows-only TortoiseSVN behavior directly.
 - Add clearer user prompts for SSL certificate trust decisions, especially for certificate failures that map to SVN's broad `other` category.
 - Add a guided first-run setup for selecting system SVN versus bundled SVN.
 - Replace all browser-native prompts/confirms with consistent app-native dialogs.

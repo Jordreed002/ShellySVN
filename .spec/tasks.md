@@ -80,3 +80,80 @@ Execution order is defined in `fix-plan.md`.
 - [x] Correct shell integration status when native helpers are missing.
 - [ ] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
   First boundary identified and started by extracting `src/main/services/svn-executor.ts`.
+
+---
+
+## TortoiseSVN Replacement Roadmap
+
+These tasks track the important parity work needed for ShellySVN to become the preferred SVN client on Windows and macOS. Details and non-goals are in `tortoisesvn-parity-roadmap.md`.
+
+### File Manager Integration
+
+- [ ] Add Windows Explorer context menu commands for checkout, update, commit, diff, log, revert, cleanup, resolve, lock/unlock, branch/tag, switch, merge, and properties.
+- [ ] Add Windows Explorer overlay icons for normal, modified, added, deleted, conflicted, locked, ignored, unversioned, external, and obstructed states.
+- [ ] Add macOS Finder Sync context menu commands for the same common working-copy actions.
+- [ ] Add macOS Finder badge support for the supported SVN status set.
+- [ ] Add shell/Finder integration diagnostics with repair guidance and registration status.
+- [ ] Add packaged installer checks for Windows shell extension registration.
+- [ ] Add packaged installer/package checks for macOS Finder Sync registration and permissions.
+- [ ] Define fallback app workflows when overlays or Finder badges are unavailable.
+
+### Commit Workflow
+
+- [ ] Upgrade commit dialog file selection to clearly handle versioned, unversioned, missing, deleted, changelist, externals, and nested working-copy items.
+- [ ] Add per-project minimum commit message length rules.
+- [ ] Add required issue ID validation before commit.
+- [ ] Add commit message spellcheck.
+- [ ] Add commit message path and keyword autocomplete.
+- [ ] Add commit template and history management that works in packaged builds.
+- [ ] Add commit dialog warnings for mixed revisions, switched paths, locks, and externals.
+
+### Update / Status / Working Copy
+
+- [x] Wire Update dialog revision, depth, ignore externals, and force options to SVN.
+- [ ] Add update progress events and cancellation.
+- [ ] Add commit progress events and cancellation.
+- [ ] Add merge progress events and cancellation.
+- [ ] Add export/import progress events and cancellation.
+- [ ] Add explicit local-vs-remote status checks.
+- [ ] Add working-copy upgrade detection and guided upgrade flow.
+- [ ] Improve sparse checkout, externals, nested working-copy, and switched-path status display.
+- [ ] Add bounded background repository browser prefetch/caching.
+
+### Diff / Merge / Conflict Tools
+
+- [ ] Add side-by-side text diff view with inline changes.
+- [ ] Add per-extension external diff tool configuration.
+- [ ] Add per-extension external merge tool configuration.
+- [ ] Harden three-way conflict editor save/revert behavior.
+- [ ] Improve image diff workflows for common asset formats.
+- [ ] Add patch apply dry-run output and reject-file visibility.
+- [ ] Decide and document Office/document diff support strategy.
+
+### History / Review / Analytics
+
+- [ ] Add revision log filtering by author, message, path, revision range, date range, and issue ID.
+- [ ] Add log cache for large repositories.
+- [ ] Add branch/tag comparison.
+- [ ] Improve revision graph branch, tag, copy, and merge visualization.
+- [ ] Add merge-tracking log view.
+- [ ] Improve blame view with line-level log-message context.
+- [ ] Add project statistics for commits over time, authors, file churn, and branch/tag activity.
+
+### Issue Tracker Integration
+
+- [ ] Add per-project issue tracker configuration.
+- [ ] Add issue ID field or message parser in commit dialog.
+- [ ] Add optional required issue ID warnings.
+- [ ] Add issue links in log, blame, and commit views.
+- [ ] Add issue ID column in revision log.
+- [ ] Support configurable issue regex and URL templates.
+- [ ] Investigate compatibility with common TortoiseSVN `bugtraq:` project properties.
+
+### Release Quality
+
+- [ ] Add packaged-app smoke tests for Windows.
+- [ ] Add packaged-app smoke tests for macOS Intel.
+- [ ] Add packaged-app smoke tests for macOS Apple Silicon.
+- [ ] Add shell/Finder integration smoke tests where platform automation permits.
+- [ ] Continue reducing skipped test baseline after each restored test cluster.

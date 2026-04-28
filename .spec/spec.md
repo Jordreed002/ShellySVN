@@ -255,6 +255,21 @@ The app must support:
 - Patch create / apply
 - Repository diagnostics
 
+### TortoiseSVN Replacement Goals
+
+ShellySVN must become a credible replacement for TortoiseSVN on Windows while also being a first-class macOS SVN client. The goal is not exact feature cloning. The goal is platform-native workflow parity for the SVN actions users perform every day.
+
+Requirements:
+
+- Provide Windows Explorer integration for common SVN commands and status overlays.
+- Provide macOS Finder integration for common SVN commands and status badges where supported.
+- Keep the standalone app as the primary surface for complex workflows such as commit review, log search, branch comparison, merge, conflict resolution, repository browsing, sparse checkout, diagnostics, and settings.
+- Provide commit workflow parity for file selection, unversioned files, changelists, templates, message validation, issue IDs, and warnings.
+- Provide strong diff, merge, blame, history, revision graph, patch, and image diff workflows.
+- Provide issue tracker integration with configurable issue parsing and links.
+- Provide cancellation and progress for long-running update, commit, checkout, merge, export, and import operations.
+- Avoid copying Windows-only behavior when macOS has a better native pattern.
+
 ### Local Filesystem
 
 The app must support:
