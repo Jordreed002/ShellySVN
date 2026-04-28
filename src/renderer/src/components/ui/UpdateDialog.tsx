@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Download, RefreshCw, AlertCircle, CheckCircle, Loader2, Layers } from 'lucide-react';
+import type { CheckoutProgress } from '@shared/types';
 
 interface UpdateDialogProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
   const [success, setSuccess] = useState<{ revision: number; filesUpdated: number } | null>(null);
   const [ignoreExternals, setIgnoreExternals] = useState(false);
   const [force, setForce] = useState(false);
+  const [progress, setProgress] = useState<CheckoutProgress | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -26,25 +28,41 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
       setIsUpdating(false);
       setIgnoreExternals(false);
       setForce(false);
+      setProgress(null);
     }
   }, [isOpen]);
 
   const handleUpdate = async () => {
     setIsUpdating(true);
     setError(null);
+    setProgress({ status: 'running', filesProcessed: 0 });
+    let filesProcessed = 0;
 
     try {
-      const result = await window.api.svn.update(path, depth, {
-        revision,
-        ignoreExternals,
-        force,
-      });
+      const result = await window.api.svn.updateWithProgress(
+        path,
+        (updateProgress) => {
+          filesProcessed = updateProgress.filesProcessed;
+          setProgress(updateProgress);
+          if (updateProgress.status === 'error') {
+            setError(updateProgress.error || 'Update failed');
+          } else if (updateProgress.status === 'cancelled') {
+            setError('Update cancelled');
+          }
+        },
+        depth,
+        {
+          revision,
+          ignoreExternals,
+          force,
+        }
+      );
 
       if (result.success) {
-        setSuccess({ revision: result.revision, filesUpdated: 0 });
+        setSuccess({ revision: result.revision, filesUpdated: filesProcessed });
         onComplete?.(result.revision);
       } else {
-        setError('Update failed');
+        setError(result.error || 'Update failed');
       }
     } catch (err) {
       setError((err as Error).message || 'Update failed');
@@ -57,6 +75,22 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
     if (!isUpdating) {
       onClose();
     }
+  };
+
+  const handleCancel = async () => {
+    if (!isUpdating) {
+      onClose();
+      return;
+    }
+
+    await window.api.svn.cancelUpdate();
+    setProgress((current) => ({
+      ...(current || { filesProcessed: 0 }),
+      status: 'cancelled',
+      error: 'Update cancelled',
+    }));
+    setError('Update cancelled');
+    setIsUpdating(false);
   };
 
   if (!isOpen) return null;
@@ -170,6 +204,21 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
                 <span>{error}</span>
               </div>
             )}
+
+            {isUpdating && progress && (
+              <div className="bg-bg-tertiary rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">Updating working copy</span>
+                  <span className="text-text-faint">{progress.filesProcessed} items</span>
+                </div>
+                <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
+                  <div className="h-full w-1/3 bg-accent rounded-full animate-indeterminate-progress" />
+                </div>
+                {progress.currentFile && (
+                  <p className="text-xs text-text-faint truncate">{progress.currentFile}</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -178,11 +227,10 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
           <div className="modal-footer">
             <button
               type="button"
-              onClick={handleClose}
+              onClick={handleCancel}
               className="btn btn-secondary"
-              disabled={isUpdating}
             >
-              Cancel
+              {isUpdating ? 'Stop' : 'Cancel'}
             </button>
             <button onClick={handleUpdate} disabled={isUpdating} className="btn btn-primary">
               {isUpdating ? (

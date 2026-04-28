@@ -59,6 +59,16 @@ export interface IpcInvokeContract {
     [path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', options?: UpdateOptions],
     RevisionResult
   >;
+  'svn:updateWithProgress': IpcCall<
+    [
+      updateId: string,
+      path: string,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: UpdateOptions,
+    ],
+    RevisionResult
+  >;
+  'svn:cancelUpdate': IpcCall<[updateId: string], OperationResult>;
   'svn:updateItem': IpcCall<[path: string], RevisionResult>;
   'svn:updateToRevision': IpcCall<
     [
@@ -217,6 +227,7 @@ export type IpcInvokeResult<C extends IpcInvokeChannel> = IpcInvokeContract[C]['
 
 export type IpcEventContract = {
   'svn:checkout:progress': CheckoutProgress & { checkoutId?: string };
+  'svn:update:progress': CheckoutProgress & { updateId?: string };
   'fs:watch:change': { path: string; eventType: string; changedPath: string };
   'deep-link': {
     action: string;

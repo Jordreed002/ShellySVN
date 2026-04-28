@@ -112,7 +112,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 ### Update / Status / Working Copy
 
 - [x] Wire Update dialog revision, depth, ignore externals, and force options to SVN.
-- [ ] Add update progress events and cancellation.
+- [x] Add update progress events and cancellation.
 - [ ] Add commit progress events and cancellation.
 - [ ] Add merge progress events and cancellation.
 - [ ] Add export/import progress events and cancellation.

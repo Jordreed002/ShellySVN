@@ -272,6 +272,11 @@ function createMockElectronAPI() {
       diff: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
       diffStreaming: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
       update: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
+      updateWithProgress: vi.fn().mockImplementation(async (_path, onProgress) => {
+        onProgress?.({ status: 'completed', filesProcessed: 0, revision: 5 });
+        return { success: true, revision: 5 };
+      }),
+      cancelUpdate: vi.fn().mockResolvedValue({ success: true }),
       updateItem: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
       updateToRevision: vi.fn().mockResolvedValue({ success: true, revision: 3 }),
       commit: vi.fn().mockResolvedValue({ success: true, revision: 6 }),

@@ -117,7 +117,13 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
 
   // Mutation for loading individual nodes (children)
   const loadNodeMutation = useMutation({
-    mutationFn: async ({ path, credentials }: { path: string; credentials?: AuthCredential }) => {
+    mutationFn: async ({
+      path,
+      credentials: nodeCredentials,
+    }: {
+      path: string;
+      credentials?: AuthCredential;
+    }) => {
       setLoadingNodes((prev) => new Set(prev).add(path));
 
       try {
@@ -125,8 +131,8 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
           path,
           undefined, // revision
           'immediates', // depth: immediate children only
-          credentials
-            ? { username: credentials.username, password: credentials.password }
+          nodeCredentials
+            ? { username: nodeCredentials.username, password: nodeCredentials.password }
             : undefined
         );
 

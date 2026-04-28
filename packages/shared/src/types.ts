@@ -665,6 +665,13 @@ export interface ElectronAPI {
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: UpdateOptions
     ) => Promise<{ success: boolean; revision: number; error?: string }>;
+    updateWithProgress: (
+      path: string,
+      onProgress: (progress: CheckoutProgress) => void,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: UpdateOptions
+    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
+    cancelUpdate: () => Promise<{ success: boolean; error?: string }>;
     updateItem: (path: string) => Promise<{ success: boolean; revision: number; error?: string }>;
     updateToRevision: (
       workingCopyRoot: string,

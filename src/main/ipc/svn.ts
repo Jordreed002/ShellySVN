@@ -60,6 +60,7 @@ import {
 } from '../services/svn-repository-ops';
 import {
   add as addWorkingCopyItems,
+  cancelUpdate,
   cleanup as cleanupWorkingCopy,
   getWorkingCopyContext,
   getInfo,
@@ -72,6 +73,7 @@ import {
   rename as renameWorkingCopyItem,
   revert as revertWorkingCopyItems,
   update as updateWorkingCopy,
+  updateWithProgress,
   upgradeWorkingCopy,
   updateItem as updateWorkingCopyItem,
   updateToRevision,
@@ -136,6 +138,21 @@ export function registerSvnHandlers(): void {
       options?: Parameters<typeof updateWorkingCopy>[2]
     ) => updateWorkingCopy(path, depth, options)
   );
+
+  ipcMain.handle(
+    'svn:updateWithProgress',
+    async (
+      event,
+      updateId: string,
+      path: string,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: Parameters<typeof updateWorkingCopy>[2]
+    ) => updateWithProgress(event, updateId, path, depth, options)
+  );
+
+  ipcMain.handle('svn:cancelUpdate', async (_, updateId: string) => {
+    return cancelUpdate(updateId);
+  });
 
   ipcMain.handle('svn:updateItem', async (_, localPath: string) => {
     return updateWorkingCopyItem(localPath);

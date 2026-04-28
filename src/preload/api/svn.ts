@@ -16,6 +16,7 @@ import type {
 import { createOperationId, type InvokeIpc } from './ipc';
 
 let activeCheckoutId: string | null = null;
+let activeUpdateId: string | null = null;
 
 export function createSvnApi(
   ipcRenderer: IpcRenderer,
@@ -34,6 +35,44 @@ export function createSvnApi(
     diff: (path, revision?) => invokeIpc('svn:diff', path, revision),
     diffStreaming: (path, revision?) => invokeIpc('svn:diffStreaming', path, revision),
     update: (path, depth?, options?) => invokeIpc('svn:update', path, depth, options),
+    updateWithProgress: (path, onProgress, depth?, options?) => {
+      const updateId = createOperationId('update');
+      activeUpdateId = updateId;
+
+      const handler = (_: unknown, progress: unknown) => {
+        const updateProgress = progress as CheckoutProgress & { updateId?: string };
+        if (!updateProgress.updateId || updateProgress.updateId === updateId) {
+          onProgress(updateProgress);
+        }
+      };
+
+      ipcRenderer.on('svn:update:progress', handler);
+
+      const promise = invokeIpc('svn:updateWithProgress', updateId, path, depth, options);
+
+      return promise.then(
+        (result) => {
+          ipcRenderer.removeListener('svn:update:progress', handler);
+          if (activeUpdateId === updateId) {
+            activeUpdateId = null;
+          }
+          return result;
+        },
+        (error) => {
+          ipcRenderer.removeListener('svn:update:progress', handler);
+          if (activeUpdateId === updateId) {
+            activeUpdateId = null;
+          }
+          throw error;
+        }
+      );
+    },
+    cancelUpdate: () => {
+      if (!activeUpdateId) {
+        return Promise.resolve({ success: false, error: 'No active update' });
+      }
+      return invokeIpc('svn:cancelUpdate', activeUpdateId);
+    },
     updateItem: (path) => invokeIpc('svn:updateItem', path),
     updateToRevision: (workingCopyRoot, url, localPath, depth?, setDepthSticky?) =>
       invokeIpc('svn:updateToRevision', workingCopyRoot, url, localPath, depth, setDepthSticky),

@@ -1,8 +1,10 @@
 import { existsSync, mkdirSync } from 'fs';
 import { rm } from 'fs/promises';
 import { dirname, join, relative } from 'path';
+import type { IpcMainInvokeEvent } from 'electron';
 
 import type {
+  CheckoutProgress,
   SvnInfoResult,
   SvnStatusResult,
   UpdateOptions,
@@ -13,9 +15,10 @@ import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { parseSvnInfoXml, parseSvnStatusXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
-import { runSvnText } from './svn-executor';
+import { runSvn, runSvnText } from './svn-executor';
 
 const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');
+const activeUpdates = new Map<string, AbortController>();
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
   try {
@@ -31,7 +34,7 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
 }
 
 function parseUpdatedRevision(output: string): number {
-  const match = output.match(/Updated to revision (\d+)\./);
+  const match = output.match(/(?:Updated to|At) revision (\d+)\./);
   return match ? parseInt(match[1], 10) : 0;
 }
 
@@ -47,6 +50,29 @@ function isWorkingCopyUpgradeRequired(error: unknown): boolean {
     message.includes('working copy is too old') ||
     message.includes('needs to be upgraded')
   );
+}
+
+function buildUpdateArgs(
+  path: string,
+  depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+  options?: UpdateOptions
+): string[] {
+  const args = ['update'];
+  const revision = options?.revision?.trim();
+  if (revision && revision.toUpperCase() !== 'HEAD') {
+    args.push('-r', revision);
+  }
+  if (depth) args.push('--depth', depth);
+  if (options?.ignoreExternals) args.push('--ignore-externals');
+  if (options?.force) args.push('--force');
+  args.push(path);
+  return args;
+}
+
+function parseSvnProgressLine(line: string): { action: string | null; path: string | null } {
+  const match = line.match(/^([AUCDGER ])\s+(.+)$/);
+  if (!match) return { action: null, path: null };
+  return { action: match[1].trim() || ' ', path: match[2].trim() };
 }
 
 export async function getWorkingCopyContext(
@@ -191,17 +217,9 @@ export async function update(
   }
 
   try {
-    const args = ['update'];
-    const revision = options?.revision?.trim();
-    if (revision && revision.toUpperCase() !== 'HEAD') {
-      args.push('-r', revision);
-    }
-    if (depth) args.push('--depth', depth);
-    if (options?.ignoreExternals) args.push('--ignore-externals');
-    if (options?.force) args.push('--force');
-    args.push(path);
-
-    const output = await runSvnText(args, { trustSslFailures: true });
+    const output = await runSvnText(buildUpdateArgs(path, depth, options), {
+      trustSslFailures: true,
+    });
     const result = {
       success: true,
       revision: parseUpdatedRevision(output),
@@ -239,6 +257,87 @@ export async function update(
 
     return { success: false, error: `SVN update failed: ${errorMsg}` };
   }
+}
+
+export async function updateWithProgress(
+  event: IpcMainInvokeEvent,
+  updateId: string,
+  path: string,
+  depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+  options?: UpdateOptions
+): Promise<{ success: boolean; revision: number; error?: string; output?: string }> {
+  const controller = new AbortController();
+  activeUpdates.set(updateId, controller);
+
+  let filesProcessed = 0;
+  let currentFile = '';
+  let lastProgressTime = 0;
+  const progressThrottleMs = 250;
+
+  const sendProgress = (progress: CheckoutProgress) => {
+    event.sender.send('svn:update:progress', { updateId, ...progress });
+  };
+
+  try {
+    const result = await runSvn(buildUpdateArgs(path, depth, options), {
+      trustSslFailures: true,
+      signal: controller.signal,
+      onStdout: (chunk) => {
+        for (const line of chunk.split(/\r?\n/)) {
+          const parsed = parseSvnProgressLine(line);
+          if (!parsed.path) continue;
+
+          filesProcessed++;
+          currentFile = parsed.path;
+          const now = Date.now();
+          if (now - lastProgressTime >= progressThrottleMs) {
+            lastProgressTime = now;
+            sendProgress({
+              status: 'running',
+              currentFile,
+              filesProcessed,
+            });
+          }
+        }
+      },
+    });
+
+    const revision = parseUpdatedRevision(result.stdout);
+    sendProgress({
+      status: 'completed',
+      currentFile,
+      filesProcessed,
+      revision,
+    });
+
+    return { success: true, revision, output: result.stdout };
+  } catch (error) {
+    const message = getErrorMessage(error);
+    const cancelled = message.toLowerCase().includes('cancelled');
+    sendProgress({
+      status: cancelled ? 'cancelled' : 'error',
+      currentFile,
+      filesProcessed,
+      error: message,
+    });
+    return { success: false, revision: 0, error: message };
+  } finally {
+    if (activeUpdates.get(updateId) === controller) {
+      activeUpdates.delete(updateId);
+    }
+  }
+}
+
+export function cancelUpdate(updateId: string): { success: boolean; error?: string } {
+  const controller = activeUpdates.get(updateId);
+  if (!controller) {
+    return { success: false, error: 'No active update found with that ID' };
+  }
+
+  controller.abort();
+  activeUpdates.delete(updateId);
+  debug.log(`[SVN] Cancelled update: ${updateId}`);
+  return { success: true };
 }
 
 export async function updateItem(
