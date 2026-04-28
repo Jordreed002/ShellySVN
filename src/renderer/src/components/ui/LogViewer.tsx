@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   X,
   History,
@@ -8,8 +8,17 @@ import {
   GitCommit,
   RefreshCw,
   ExternalLink,
+  Filter,
+  Search,
+  RotateCcw,
 } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
+import {
+  EMPTY_LOG_FILTERS,
+  countActiveLogFilters,
+  filterLogEntries,
+  type LogFilterState,
+} from '@renderer/utils/logFilters';
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
 import type { SvnLogResult, SvnLogEntry } from '@shared/types';
 
@@ -27,14 +36,20 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [selectedEntry, setSelectedEntry] = useState<SvnLogEntry | null>(null);
   const [limit, setLimit] = useState(50);
   const [configPath, setConfigPath] = useState(path);
+  const [filters, setFilters] = useState<LogFilterState>(EMPTY_LOG_FILTERS);
   const listRef = useRef<HTMLDivElement>(null);
   const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, path);
+  const filteredEntries = useMemo(
+    () => filterLogEntries(log?.entries || [], filters, issueTrackerConfig),
+    [log, filters, issueTrackerConfig]
+  );
+  const activeFilterCount = countActiveLogFilters(filters);
   const selectedIssueLinks = useMemo(
     () => (selectedEntry ? extractIssueLinks(selectedEntry.message, issueTrackerConfig) : []),
     [selectedEntry, issueTrackerConfig]
   );
 
-  const loadLog = async () => {
+  const loadLog = useCallback(async () => {
     if (!path) return;
 
     setIsLoading(true);
@@ -48,14 +63,23 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [limit, path]);
 
   useEffect(() => {
     if (isOpen && path) {
       loadLog();
       setSelectedEntry(null);
     }
-  }, [isOpen, path, limit]);
+  }, [isOpen, path, loadLog]);
+
+  useEffect(() => {
+    if (
+      selectedEntry &&
+      !filteredEntries.some((entry) => entry.revision === selectedEntry.revision)
+    ) {
+      setSelectedEntry(null);
+    }
+  }, [filteredEntries, selectedEntry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,9 +121,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   if (!isOpen) return null;
 
   const pathName = path.split(/[/\\]/).pop() || path;
-  const handleOpenIssue = (url?: string) => {
-    if (!url) return;
-    void window.api.app.openExternal(url);
+  const updateFilter = (name: keyof LogFilterState, value: string) => {
+    setFilters((currentFilters) => ({ ...currentFilters, [name]: value }));
   };
 
   return (
@@ -134,6 +157,85 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
           </div>
         </div>
 
+        {/* Filters */}
+        <div className="flex-shrink-0 border-b border-border bg-bg-secondary px-4 py-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-medium text-text-secondary">
+              <Filter className="h-4 w-4 text-text-muted" aria-hidden="true" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">
+                  {activeFilterCount}
+                </span>
+              )}
+            </div>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilters(EMPTY_LOG_FILTERS)}
+                className="btn btn-secondary btn-sm text-xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            <FilterInput
+              label="Author"
+              value={filters.author}
+              onChange={(value) => updateFilter('author', value)}
+              placeholder="author"
+            />
+            <FilterInput
+              label="Message"
+              value={filters.message}
+              onChange={(value) => updateFilter('message', value)}
+              placeholder="message"
+            />
+            <FilterInput
+              label="Path"
+              value={filters.path}
+              onChange={(value) => updateFilter('path', value)}
+              placeholder="path"
+            />
+            <FilterInput
+              label="Issue"
+              value={filters.issueId}
+              onChange={(value) => updateFilter('issueId', value)}
+              placeholder="issue ID"
+            />
+          </div>
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            <FilterInput
+              label="Revision from"
+              type="number"
+              value={filters.revisionFrom}
+              onChange={(value) => updateFilter('revisionFrom', value)}
+              placeholder="rev from"
+            />
+            <FilterInput
+              label="Revision to"
+              type="number"
+              value={filters.revisionTo}
+              onChange={(value) => updateFilter('revisionTo', value)}
+              placeholder="rev to"
+            />
+            <FilterInput
+              label="Date from"
+              type="date"
+              value={filters.dateFrom}
+              onChange={(value) => updateFilter('dateFrom', value)}
+            />
+            <FilterInput
+              label="Date to"
+              type="date"
+              value={filters.dateTo}
+              onChange={(value) => updateFilter('dateTo', value)}
+            />
+          </div>
+        </div>
+
         {/* Content */}
         <div className="flex-1 overflow-hidden flex">
           {/* Log entries list */}
@@ -156,13 +258,19 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               </div>
             )}
 
-            {log && log.entries.length > 0 && (
+            {log && log.entries.length > 0 && filteredEntries.length === 0 && (
+              <div className="flex items-center justify-center h-full p-4 text-center text-text-muted">
+                No revisions match the current filters
+              </div>
+            )}
+
+            {log && filteredEntries.length > 0 && (
               <div className="divide-y divide-border">
                 <div className="sticky top-0 z-10 grid grid-cols-[1fr_6rem] gap-2 bg-bg-secondary px-3 py-1.5 text-[10px] font-medium uppercase text-text-faint">
                   <span>Revision</span>
                   <span>Issues</span>
                 </div>
-                {log.entries.map((entry) => {
+                {filteredEntries.map((entry) => {
                   const issueLinks = extractIssueLinks(entry.message, issueTrackerConfig);
 
                   return (
@@ -316,11 +424,53 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
         {/* Footer */}
         {log && log.entries.length > 0 && (
           <div className="flex-shrink-0 px-4 py-2 bg-bg-secondary border-t border-border text-sm text-text-secondary">
-            Showing {log.entries.length} revisions (r{log.startRevision} - r{log.endRevision})
+            Showing {filteredEntries.length} of {log.entries.length} revisions (r
+            {log.startRevision} - r{log.endRevision})
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function handleOpenIssue(url?: string) {
+  if (!url) return;
+  void window.api.app.openExternal(url);
+}
+
+function FilterInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: 'date' | 'number' | 'text';
+}) {
+  return (
+    <label className="block">
+      <span className="sr-only">{label}</span>
+      <div className="relative">
+        {type === 'text' && (
+          <Search
+            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-faint"
+            aria-hidden="true"
+          />
+        )}
+        <input
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`input h-8 text-xs ${type === 'text' ? 'pl-7' : ''}`}
+          placeholder={placeholder || label}
+          aria-label={label}
+        />
+      </div>
+    </label>
   );
 }
 
