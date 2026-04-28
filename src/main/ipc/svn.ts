@@ -26,6 +26,11 @@ import type {
 import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getSettingsManager } from '../settings-manager';
+import {
+  cancelCheckout,
+  checkout,
+  checkoutWithProgress,
+} from '../services/svn-checkout';
 import { runSvn, runSvnText } from '../services/svn-executor';
 import debug from '../utils/debug';
 import {
@@ -1184,79 +1189,8 @@ export function registerSvnHandlers(): void {
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) => {
-      const args = ['checkout', '--non-interactive'];
-
-      // Add revision if specified
-      if (revision) args.push('-r', revision);
-
-      // Add depth if specified
-      if (depth) args.push('--depth', depth);
-
-      // Add sparse paths if specified (this enables sparse checkout)
-      if (options?.sparsePaths && options.sparsePaths.length > 0) {
-        // Set depth to empty first, then add specific paths
-        args.push('--depth', 'empty');
-        // Add each specific path
-        options.sparsePaths.forEach((p) => args.push(p));
-      }
-
-      // Build execution context - merge per-operation options with global settings
-      const operationContext: Partial<SvnExecutionContext> = {};
-
-      if (options?.trustSsl) {
-        args.push('--trust-server-cert-failures', normalizeSslFailures(options.sslFailures));
-      }
-
-      // Add credentials if provided
-      if (options?.credentials) {
-        args.push('--username', options.credentials.username);
-        if (options.credentials.password) {
-          args.push('--password', options.credentials.password);
-        }
-      }
-
-      // Add URL and path
-      args.push(url, path);
-
-      try {
-        const output = await executeSvn(args, undefined, operationContext);
-        const match = output.match(/Checked out revision (\d+)\./);
-        return {
-          success: true,
-          revision: match ? parseInt(match[1], 10) : 0,
-          output,
-        };
-      } catch (error) {
-        // Return error with output for parsing
-        const errorMsg = (error as Error).message || 'Checkout failed';
-        return {
-          success: false,
-          revision: 0,
-          output: errorMsg,
-        };
-      }
-    }
+    ) => checkout(url, path, revision, depth, options)
   );
-
-  /**
-   * Parse checkout progress from SVN output lines
-   */
-  function parseCheckoutProgress(line: string): {
-    action: 'A' | 'U' | 'D' | 'G' | 'E' | 'C' | null;
-    path: string | null;
-  } {
-    const match = line.match(/^([AUCDGE])\s+(.+)$/);
-    if (match) {
-      return { action: match[1] as 'A' | 'U' | 'D' | 'G' | 'E' | 'C', path: match[2].trim() };
-    }
-    return { action: null, path: null };
-  }
-
-  /**
-   * Map to track active checkout processes for cancellation
-   */
-  const activeCheckouts = new Map<string, AbortController>();
 
   // SVN Checkout with Progress Streaming
   ipcMain.handle(
@@ -1269,103 +1203,12 @@ export function registerSvnHandlers(): void {
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) => {
-      // Build args similar to regular checkout
-      const args = ['checkout', '--non-interactive'];
-
-      if (revision) args.push('-r', revision);
-      if (depth) args.push('--depth', depth);
-
-      if (options?.sparsePaths && options.sparsePaths.length > 0) {
-        args.push('--depth', 'empty');
-        options.sparsePaths.forEach((p) => args.push(p));
-      }
-
-      // Build execution context
-      const operationContext: Partial<SvnExecutionContext> = {};
-
-      args.push(url, path);
-
-      const controller = new AbortController();
-      activeCheckouts.set(checkoutId, controller);
-
-      let lastProgressTime = 0;
-      const PROGRESS_THROTTLE_MS = 500;
-      let filesProcessed = 0;
-      let currentPath = '';
-
-      try {
-        const result = await runSvn(args, {
-          cwd: process.cwd(),
-          operationContext,
-          trustSslFailures: options?.trustSsl,
-          trustedSslFailures: options?.trustSsl
-            ? normalizeSslFailures(options.sslFailures)
-            : undefined,
-          credentials: options?.credentials,
-          signal: controller.signal,
-          onStdout: (chunk) => {
-            for (const line of chunk.split('\n')) {
-              const progress = parseCheckoutProgress(line);
-              if (progress.action && progress.path) {
-                filesProcessed++;
-                currentPath = progress.path;
-
-                const now = Date.now();
-                if (now - lastProgressTime >= PROGRESS_THROTTLE_MS) {
-                  lastProgressTime = now;
-                  event.sender.send('svn:checkout:progress', {
-                    checkoutId,
-                    action: progress.action,
-                    path: progress.path,
-                    filesProcessed,
-                  });
-                }
-              }
-            }
-          },
-        });
-
-        if (currentPath) {
-          event.sender.send('svn:checkout:progress', {
-            checkoutId,
-            action: null,
-            path: currentPath,
-            filesProcessed,
-          });
-        }
-
-        const match = result.stdout.match(/Checked out revision (\d+)\./);
-        return {
-          success: true,
-          revision: match ? parseInt(match[1], 10) : 0,
-          output: result.stdout,
-          filesProcessed,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          revision: 0,
-          output: error instanceof Error ? error.message : 'Checkout failed',
-        };
-      } finally {
-        if (activeCheckouts.get(checkoutId) === controller) {
-          activeCheckouts.delete(checkoutId);
-        }
-      }
-    }
+    ) => checkoutWithProgress(event, checkoutId, url, path, revision, depth, options)
   );
 
   // SVN Cancel Checkout
   ipcMain.handle('svn:cancelCheckout', async (_, checkoutId: string) => {
-    const controller = activeCheckouts.get(checkoutId);
-    if (controller) {
-      controller.abort();
-      activeCheckouts.delete(checkoutId);
-      debug.log(`[SVN] Cancelled checkout: ${checkoutId}`);
-      return { success: true };
-    }
-    return { success: false, error: 'No active checkout found with that ID' };
+    return cancelCheckout(checkoutId);
   });
 
   // SVN Export
