@@ -5,6 +5,7 @@ import {
   applyTemplateString,
   type CommitTemplate,
 } from '../../hooks/useCommitTemplates';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface CommitTemplateManagerProps {
   onSelectTemplate?: (template: string) => void;
@@ -75,7 +76,12 @@ export function CommitTemplateManager({
 
   const handleDelete = useCallback(
     async (id: string) => {
-      if (confirm('Are you sure you want to delete this template?')) {
+      if (
+        await confirmAppAction({
+          message: 'Are you sure you want to delete this template?',
+          confirmLabel: 'Delete',
+        })
+      ) {
         await deleteTemplate(id);
       }
     },

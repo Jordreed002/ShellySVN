@@ -18,6 +18,7 @@ import { Breadcrumb } from './ui/Breadcrumb';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
+import { confirmAppAction, showAppMessage } from '../utils/dialogs';
 import { useDualPane } from './ui/DualPaneView';
 import { FilePreview } from './ui/FilePreview';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
@@ -1070,7 +1071,11 @@ export function FileExplorer() {
           if (result.success) {
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
           } else {
-            alert(`Lock failed: ${result.message || 'Unknown error'}`);
+            await showAppMessage({
+              type: 'error',
+              message: 'Lock failed',
+              detail: result.message || 'Unknown error',
+            });
           }
         }
       },
@@ -1080,7 +1085,11 @@ export function FileExplorer() {
           if (result.success) {
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
           } else {
-            alert(`Unlock failed: ${result.message || 'Unknown error'}`);
+            await showAppMessage({
+              type: 'error',
+              message: 'Unlock failed',
+              detail: result.message || 'Unknown error',
+            });
           }
         }
       },
@@ -1097,13 +1106,27 @@ export function FileExplorer() {
       },
       // Cleanup - for directories with working copy issues
       onCleanup: async (entry: SvnStatusEntry) => {
-        if (entry.isDirectory && confirm(`Run cleanup on "${entry.path}"?`)) {
+        if (
+          entry.isDirectory &&
+          (await confirmAppAction({
+            type: 'warning',
+            message: `Run cleanup on "${entry.path}"?`,
+            confirmLabel: 'Cleanup',
+          }))
+        ) {
           const result = await actions.cleanup(entry.path);
           if (result.success) {
-            alert('Cleanup completed successfully.');
+            await showAppMessage({
+              type: 'info',
+              message: 'Cleanup completed successfully.',
+            });
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
           } else {
-            alert(`Cleanup failed: ${result.message || 'Unknown error'}`);
+            await showAppMessage({
+              type: 'error',
+              message: 'Cleanup failed',
+              detail: result.message || 'Unknown error',
+            });
           }
         }
       },

@@ -15,6 +15,7 @@ import {
   CheckCircle,
   Loader2,
 } from 'lucide-react';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface ThreeWayMergeEditorProps {
   isOpen: boolean;
@@ -282,7 +283,11 @@ export function ThreeWayMergeEditor({
   const handleSave = async () => {
     const unresolvedCount = conflicts.filter((c) => !c.resolved).length;
     if (unresolvedCount > 0) {
-      const proceed = confirm(`There are ${unresolvedCount} unresolved conflicts. Save anyway?`);
+      const proceed = await confirmAppAction({
+        type: 'warning',
+        message: `There are ${unresolvedCount} unresolved conflicts. Save anyway?`,
+        confirmLabel: 'Save',
+      });
       if (!proceed) return;
     }
 

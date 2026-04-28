@@ -365,6 +365,8 @@ function createMockElectronAPI() {
       openDirectory: vi.fn().mockResolvedValue(null),
       openFile: vi.fn().mockResolvedValue(null),
       saveFile: vi.fn().mockResolvedValue(null),
+      showMessage: vi.fn().mockResolvedValue(undefined),
+      confirm: vi.fn().mockResolvedValue(true),
     },
     app: {
       getVersion: vi.fn().mockResolvedValue('1.0.0'),

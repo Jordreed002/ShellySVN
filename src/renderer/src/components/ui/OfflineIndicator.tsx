@@ -1,5 +1,6 @@
 import { Wifi, WifiOff, CloudOff, Clock, RefreshCw, Database } from 'lucide-react';
 import { useOfflineDetector, useOfflineCache } from '../../hooks/useOfflineCache';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface OfflineIndicatorProps {
   showDetails?: boolean;
@@ -156,7 +157,13 @@ export function OfflineCacheManager({ className = '' }: OfflineCacheManagerProps
   const stats = cache.getStats();
 
   const handleClearAll = async () => {
-    if (confirm('Clear all cached data? This cannot be undone.')) {
+    if (
+      await confirmAppAction({
+        type: 'warning',
+        message: 'Clear all cached data? This cannot be undone.',
+        confirmLabel: 'Clear',
+      })
+    ) {
       await cache.clearAll();
     }
   };

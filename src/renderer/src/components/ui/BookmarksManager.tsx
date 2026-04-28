@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Bookmark, Plus, Trash2, FolderOpen, Edit2, Check } from 'lucide-react';
 import type { AppSettings } from '@shared/types';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface BookmarksManagerProps {
   isOpen: boolean;
@@ -67,8 +68,13 @@ export function BookmarksManager({
     setEditName('');
   };
 
-  const handleDelete = (path: string) => {
-    if (confirm('Remove this bookmark?')) {
+  const handleDelete = async (path: string) => {
+    if (
+      await confirmAppAction({
+        message: 'Remove this bookmark?',
+        confirmLabel: 'Remove',
+      })
+    ) {
       onRemoveBookmark(path);
     }
   };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, ExternalLink, Plus, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface ExternalEntry {
   path: string;
@@ -77,7 +78,14 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
   };
 
   const handleRemoveExternal = async (external: ExternalEntry) => {
-    if (!confirm('Remove this external?')) return;
+    if (
+      !(await confirmAppAction({
+        message: 'Remove this external?',
+        confirmLabel: 'Remove',
+      }))
+    ) {
+      return;
+    }
 
     setIsLoading(true);
     try {

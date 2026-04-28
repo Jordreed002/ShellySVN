@@ -274,6 +274,8 @@ const api: ElectronAPI = {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
     openFile: (filters?: FileFilter[]) => ipcRenderer.invoke('dialog:openFile', filters),
     saveFile: (defaultName?: string) => ipcRenderer.invoke('dialog:saveFile', defaultName),
+    showMessage: (options) => ipcRenderer.invoke('dialog:showMessage', options),
+    confirm: (options) => ipcRenderer.invoke('dialog:confirm', options) as Promise<boolean>,
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),

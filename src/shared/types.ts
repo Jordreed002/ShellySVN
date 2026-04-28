@@ -797,6 +797,20 @@ export interface ElectronAPI {
     openDirectory: () => Promise<string | null>;
     openFile: (filters?: FileFilter[]) => Promise<string | null>;
     saveFile: (defaultName?: string) => Promise<string | null>;
+    showMessage: (options: {
+      type?: 'info' | 'warning' | 'error';
+      title?: string;
+      message: string;
+      detail?: string;
+    }) => Promise<void>;
+    confirm: (options: {
+      type?: 'info' | 'warning' | 'error';
+      title?: string;
+      message: string;
+      detail?: string;
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }) => Promise<boolean>;
   };
   app: {
     getVersion: () => Promise<string>;

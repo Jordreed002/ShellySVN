@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // Create mock functions with hoisting
 const mockShowOpenDialog = vi.hoisted(() => vi.fn());
 const mockShowSaveDialog = vi.hoisted(() => vi.fn());
+const mockShowMessageBox = vi.hoisted(() => vi.fn());
 const mockIpcMainHandle = vi.hoisted(() => vi.fn());
 
 // Mock electron module
@@ -16,6 +17,7 @@ vi.mock('electron', () => ({
   dialog: {
     showOpenDialog: mockShowOpenDialog,
     showSaveDialog: mockShowSaveDialog,
+    showMessageBox: mockShowMessageBox,
   },
   ipcMain: {
     handle: mockIpcMainHandle,
@@ -57,6 +59,14 @@ describe('Dialog IPC Handlers', () => {
 
     it('should register dialog:saveFile handler', () => {
       expect(handlers.has('dialog:saveFile')).toBe(true);
+    });
+
+    it('should register dialog:showMessage handler', () => {
+      expect(handlers.has('dialog:showMessage')).toBe(true);
+    });
+
+    it('should register dialog:confirm handler', () => {
+      expect(handlers.has('dialog:confirm')).toBe(true);
     });
   });
 
@@ -201,6 +211,49 @@ describe('Dialog IPC Handlers', () => {
       const result = await handler!({}, undefined);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('message dialogs', () => {
+    it('should show a message box', async () => {
+      mockShowMessageBox.mockResolvedValue({ response: 0 });
+
+      const handler = handlers.get('dialog:showMessage');
+      await handler!({}, { type: 'error', title: 'Failure', message: 'Something failed' });
+
+      expect(mockShowMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'error',
+          title: 'Failure',
+          message: 'Something failed',
+          buttons: ['OK'],
+        })
+      );
+    });
+
+    it('should return true when confirm button is selected', async () => {
+      mockShowMessageBox.mockResolvedValue({ response: 0 });
+
+      const handler = handlers.get('dialog:confirm');
+      const result = await handler!({}, { message: 'Proceed?', confirmLabel: 'Proceed' });
+
+      expect(result).toBe(true);
+      expect(mockShowMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buttons: ['Proceed', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+        })
+      );
+    });
+
+    it('should return false when cancel button is selected', async () => {
+      mockShowMessageBox.mockResolvedValue({ response: 1 });
+
+      const handler = handlers.get('dialog:confirm');
+      const result = await handler!({}, { message: 'Proceed?' });
+
+      expect(result).toBe(false);
     });
   });
 });

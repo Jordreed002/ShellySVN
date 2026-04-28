@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Archive, Plus, Trash2, Play, Loader2, Clock } from 'lucide-react';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface ShelveDialogProps {
   isOpen: boolean;
@@ -194,8 +195,14 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
                         Apply
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`Delete shelve "${shelve.name}"?`)) {
+                        onClick={async () => {
+                          if (
+                            await confirmAppAction({
+                              type: 'warning',
+                              message: `Delete shelve "${shelve.name}"?`,
+                              confirmLabel: 'Delete',
+                            })
+                          ) {
                             deleteMutation.mutate(shelve.name);
                           }
                         }}

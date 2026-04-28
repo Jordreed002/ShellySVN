@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Settings, Plus, Trash2, AlertCircle, Loader2, Check, Save } from 'lucide-react';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface PropertiesDialogProps {
   isOpen: boolean;
@@ -94,7 +95,13 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
   };
 
   const handleDelete = async (index: number) => {
-    if (confirm(`Delete property "${properties[index].name}"?`)) {
+    if (
+      await confirmAppAction({
+        type: 'warning',
+        message: `Delete property "${properties[index].name}"?`,
+        confirmLabel: 'Delete',
+      })
+    ) {
       const propName = properties[index].name;
       setIsSaving(true);
       setError(null);

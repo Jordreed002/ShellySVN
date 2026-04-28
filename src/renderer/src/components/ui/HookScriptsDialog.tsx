@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Terminal, Plus, Trash2, FolderOpen, Info } from 'lucide-react';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface HookScript {
   id: string;
@@ -130,8 +131,13 @@ export function HookScriptsDialog({ isOpen, onClose, workingCopyPath }: HookScri
     resetForm();
   };
 
-  const handleDeleteHook = (id: string) => {
-    if (confirm('Delete this hook script?')) {
+  const handleDeleteHook = async (id: string) => {
+    if (
+      await confirmAppAction({
+        message: 'Delete this hook script?',
+        confirmLabel: 'Delete',
+      })
+    ) {
       saveHooks(hooks.filter((h) => h.id !== id));
     }
   };

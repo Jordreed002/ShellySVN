@@ -193,6 +193,8 @@ The codebase currently contains 27 `describe.skip`, `it.skip`, or `test.skip` oc
 
 **Location:** Multiple renderer components and hooks
 
+**Status:** Partially resolved in code. `confirm()` and `alert()` call sites now route through app-owned dialog IPC. Remaining `prompt()` usages still need a renderer input-dialog component.
+
 Several workflows use `prompt()` and `confirm()` for destructive actions, lock messages, ignore patterns, plugin input, and merge conflict decisions.
 
 **Impact:** Native browser dialogs are inconsistent with the app UI, hard to test, block the renderer, and limit accessibility.

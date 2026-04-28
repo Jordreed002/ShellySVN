@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { useSettings } from './useSettings';
+import { confirmAppAction } from '../utils/dialogs';
 
 interface SvnActionResult {
   success: boolean;
@@ -517,7 +518,13 @@ export function useFileExplorerActions(
           ? `Are you sure you want to delete "${paths[0]}"?`
           : `Are you sure you want to delete ${paths.length} selected files?`;
 
-      if (confirm(message)) {
+      if (
+        await confirmAppAction({
+          type: 'warning',
+          message,
+          confirmLabel: 'Delete',
+        })
+      ) {
         await svnActions.delete(paths);
         onRefresh();
       }
