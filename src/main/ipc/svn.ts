@@ -29,6 +29,7 @@ import {
   checkout,
   checkoutWithProgress,
 } from '../services/svn-checkout';
+import { getBlame, getDiff, getDiffStreaming, getLog } from '../services/svn-history';
 import { runSvn, runSvnText } from '../services/svn-executor';
 import debug from '../utils/debug';
 import {
@@ -37,12 +38,9 @@ import {
   parseSvnStatusEntriesXml,
 } from '../utils/svn-xml';
 import {
-  parseSvnBlameXml,
-  parseSvnDiff,
   parseSvnExternals,
   parseSvnInfoXml,
   parseSvnListXml,
-  parseSvnLogXml,
   parseSvnStatusXml,
 } from '../svn/parsers';
 import { getStore } from './store';
@@ -218,13 +216,7 @@ export function registerSvnHandlers(): void {
 
   // SVN Log
   ipcMain.handle('svn:log', async (_, path: string, limit = 100): Promise<SvnLogResult> => {
-    try {
-      const xml = await executeSvn(['log', '--xml', '-l', String(limit), path]);
-      return parseSvnLogXml(xml);
-    } catch (error) {
-      debug.error('[SVN] Log error:', error);
-      return { entries: [], startRevision: 0, endRevision: 0 };
-    }
+    return getLog(path, limit);
   });
 
   // SVN Info
@@ -302,52 +294,14 @@ export function registerSvnHandlers(): void {
 
   // SVN Diff
   ipcMain.handle('svn:diff', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
-    try {
-      const args = ['diff'];
-      if (revision) {
-        args.push('-c', revision);
-      }
-      args.push(path);
-
-      const output = await executeSvn(args);
-      return parseSvnDiff(output);
-    } catch (error) {
-      debug.error('[SVN] Diff error:', error);
-      return { files: [], hasChanges: false, rawDiff: (error as Error).message };
-    }
+    return getDiff(path, revision);
   });
 
   // SVN Streaming Diff - Memory-efficient diff parsing for large files
   ipcMain.handle(
     'svn:diffStreaming',
     async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
-      try {
-        const { parseDiffStreaming } = await import('../utils/diff-parser');
-
-        const args = ['diff'];
-        if (revision) {
-          args.push('-c', revision);
-        }
-        args.push(path);
-
-        const output = await executeSvn(args);
-
-        // Check for binary file indicator
-        if (output.includes('Cannot display: file marked as a binary type')) {
-          return {
-            files: [],
-            hasChanges: true,
-            isBinary: true,
-            rawDiff: output,
-          };
-        }
-
-        // Use streaming parser for memory efficiency
-        return await parseDiffStreaming(output);
-      } catch (error) {
-        debug.error('[SVN] Streaming diff error:', error);
-        return { files: [], hasChanges: false, rawDiff: (error as Error).message };
-      }
+      return getDiffStreaming(path, revision);
     }
   );
 
@@ -1196,19 +1150,7 @@ export function registerSvnHandlers(): void {
       startRevision?: number,
       endRevision?: number
     ): Promise<SvnBlameResult> => {
-      try {
-        const args = ['blame', '--xml', '-v'];
-        if (startRevision !== undefined && endRevision !== undefined) {
-          args.push('-r', `${startRevision}:${endRevision}`);
-        }
-        args.push(path);
-
-        const xml = await executeSvn(args);
-        return parseSvnBlameXml(xml, path);
-      } catch (error) {
-        debug.error('[SVN] Blame error:', error);
-        return { path, lines: [], startRevision: 0, endRevision: 0 };
-      }
+      return getBlame(path, startRevision, endRevision);
     }
   );
 
