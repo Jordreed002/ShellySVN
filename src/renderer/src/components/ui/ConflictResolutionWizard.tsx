@@ -203,7 +203,7 @@ export function ConflictResolutionWizard({
           name: f,
           revision: parseInt(revisionPattern.exec(f)![1], 10)
         }))
-        .sort((a, b) => a.revision - b.revision);
+        .toSorted((a, b) => a.revision - b.revision);
 
       // Determine paths: base is lower revision, theirs is higher revision
       let basePath: string;

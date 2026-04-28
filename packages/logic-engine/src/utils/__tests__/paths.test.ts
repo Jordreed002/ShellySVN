@@ -53,8 +53,8 @@ describe('paths utilities', () => {
         process.env.ELECTRON_RUN_AS_NODE = 'true';
 
         // We need to re-import the module to get fresh values
-        return import('../paths').then(({ getBinaryPath }) => {
-          const result = getBinaryPath('svn');
+        return import('../paths').then(({ getBinaryPath: getFreshBinaryPath }) => {
+          const result = getFreshBinaryPath('svn');
 
           // Should include resources/binaries in the path
           expect(result).toContain('binaries');
@@ -72,8 +72,8 @@ describe('paths utilities', () => {
           configurable: true,
         });
 
-        return import('../paths').then(({ getBinaryPath }) => {
-          const result = getBinaryPath('svn');
+        return import('../paths').then(({ getBinaryPath: getFreshBinaryPath }) => {
+          const result = getFreshBinaryPath('svn');
 
           expect(result).toContain('svn.exe');
         });
@@ -89,8 +89,8 @@ describe('paths utilities', () => {
           configurable: true,
         });
 
-        return import('../paths').then(({ getBinaryPath }) => {
-          const result = getBinaryPath('svn');
+        return import('../paths').then(({ getBinaryPath: getFreshBinaryPath }) => {
+          const result = getFreshBinaryPath('svn');
 
           expect(result).not.toContain('.exe');
           expect(result).toContain('svn');
@@ -103,8 +103,8 @@ describe('paths utilities', () => {
         // Clear resourcesPath
         delete (process as Record<string, unknown>).resourcesPath;
 
-        return import('../paths').then(({ getBinaryPath }) => {
-          const result = getBinaryPath('svn');
+        return import('../paths').then(({ getBinaryPath: getFreshBinaryPath }) => {
+          const result = getFreshBinaryPath('svn');
 
           // Should still work with fallback
           expect(result).toContain('binaries');

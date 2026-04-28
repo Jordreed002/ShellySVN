@@ -150,7 +150,7 @@ export function ResolveDialog({
           rev: parseInt(f.replace(baseName + '.r', ''), 10)
         }))
         .filter(f => !isNaN(f.rev))
-        .sort((a, b) => a.rev - b.rev);
+        .toSorted((a, b) => a.rev - b.rev);
 
       if (revisionFiles.length >= 2) {
         // Lower revision is base, higher is theirs
