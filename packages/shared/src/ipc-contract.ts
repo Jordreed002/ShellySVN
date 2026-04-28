@@ -133,7 +133,14 @@ export interface IpcInvokeContract {
   'fs:getParent': IpcCall<[path: string], string | null>;
   'fs:getStatus': IpcCall<[path: string], FsStatusResult>;
   'fs:getDeepStatus': IpcCall<[path: string], FsStatusResult>;
-  'fs:applyStatus': IpcCall<[files: FileInfo[], directStatus: FsStatusResult, allEntries: FsStatusResult['allEntries']], FileInfo[]>;
+  'fs:applyStatus': IpcCall<
+    [
+      files: FileInfo[],
+      directStatus: FsStatusResult['directStatus'],
+      allEntries: FsStatusResult['allEntries'],
+    ],
+    FileInfo[]
+  >;
   'fs:cancelScan': IpcCall<[path: string], OperationResult>;
   'fs:isVersioned': IpcCall<[path: string], boolean>;
   'fs:readFile': IpcCall<[path: string], { success: boolean; content?: string; error?: string }>;
