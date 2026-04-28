@@ -12,7 +12,6 @@ import type {
   SvnInfoResult,
   SvnListResult,
   SvnLogResult,
-  SvnPatchResult,
   SvnShelveListResult,
   SvnStatusResult,
   UpdateOptions,
@@ -53,6 +52,7 @@ import {
   shelveSave,
 } from '../services/svn-metadata';
 import { getDiagnostics } from '../services/svn-diagnostics';
+import { applyPatch, createPatch } from '../services/svn-patch';
 import {
   add as addWorkingCopyItems,
   cleanup as cleanupWorkingCopy,
@@ -849,48 +849,14 @@ export function registerSvnHandlers(): void {
       paths: string[],
       outputPath: string
     ): Promise<{ success: boolean; output: string }> => {
-      try {
-        const args = ['diff', ...paths];
-        const output = await executeSvn(args);
-
-        // Write patch to file
-        await writeFile(outputPath, output, 'utf-8');
-        return { success: true, output };
-      } catch (error) {
-        debug.error('[SVN] Patch create error:', error);
-        return { success: false, output: (error as Error).message };
-      }
+      return createPatch(paths, outputPath);
     }
   );
 
   ipcMain.handle(
     'svn:patch:apply',
-    async (_, patchPath: string, targetPath: string, dryRun?: boolean): Promise<SvnPatchResult> => {
-      try {
-        const args = ['patch', patchPath, targetPath];
-        if (dryRun) args.push('--dry-run');
-
-        const output = await executeSvn(args);
-
-        // Parse output for stats
-        const filesPatchedMatch = output.match(/Patched\s+(\d+)\s+files?/i);
-        const rejectsMatch = output.match(/(\d+)\s+rejects?/i);
-
-        return {
-          success: !output.includes('FAILED') && !output.includes('rejected'),
-          filesPatched: filesPatchedMatch ? parseInt(filesPatchedMatch[1], 10) : 0,
-          rejects: rejectsMatch ? parseInt(rejectsMatch[1], 10) : 0,
-          output,
-        };
-      } catch (error) {
-        debug.error('[SVN] Patch apply error:', error);
-        return {
-          success: false,
-          filesPatched: 0,
-          rejects: 0,
-          output: (error as Error).message,
-        };
-      }
+    async (_, patchPath: string, targetPath: string, dryRun?: boolean) => {
+      return applyPatch(patchPath, targetPath, dryRun);
     }
   );
 
