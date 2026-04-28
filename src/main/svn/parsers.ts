@@ -15,7 +15,7 @@ import {
   parseSvnBlameEntriesXml,
   parseSvnListEntriesXml,
 } from '../utils/svn-xml';
-import debug from '../utils/debug';
+import { debug } from '../utils/debug';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -372,4 +372,3 @@ function parseExternalDef(def: string, basePath: string): SvnExternal | null {
   const localPath = parts.length > 1 ? parts[parts.length - 1] : url.split('/').pop() || 'external';
   return { name: localPath, url, path: basePath + '/' + localPath, revision };
 }
-

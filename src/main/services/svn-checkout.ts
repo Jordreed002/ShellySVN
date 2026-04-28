@@ -1,7 +1,7 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import type { CheckoutOptions, SvnExecutionContext } from '@shared/types';
 import { runSvn, runSvnText } from './svn-executor';
-import debug from '../utils/debug';
+import { debug } from '../utils/debug';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 
@@ -192,4 +192,3 @@ export function cancelCheckout(checkoutId: string): { success: boolean; error?: 
   }
   return { success: false, error: 'No active checkout found with that ID' };
 }
-

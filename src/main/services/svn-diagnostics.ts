@@ -5,7 +5,7 @@ import type { RepoDiagnostics } from '@shared/types';
 import { getAuthCache } from '../auth-cache';
 import { getSettingsManager } from '../settings-manager';
 import { parseSvnInfoXml } from '../svn/parsers';
-import debug from '../utils/debug';
+import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
 function getCurrentBinaryTarget(): string {
@@ -167,4 +167,3 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
 
   return result;
 }
-

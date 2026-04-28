@@ -10,7 +10,7 @@ import {
   parseSvnShelvesXml,
   parseSvnStatusEntriesXml,
 } from '../utils/svn-xml';
-import debug from '../utils/debug';
+import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
 const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');
@@ -198,7 +198,7 @@ export async function externalsRemove(
       return name !== externalPath && !line.includes(externalPath);
     });
 
-    if (lines.length > 0 && lines.some((line) => line.trim())) {
+    if (lines.some((line) => line.trim())) {
       await runSvnText(['propset', 'svn:externals', lines.join('\n'), workingCopyPath]);
     } else {
       await runSvnText(['propdel', 'svn:externals', workingCopyPath]);
@@ -209,4 +209,3 @@ export async function externalsRemove(
     return { success: false };
   }
 }
-

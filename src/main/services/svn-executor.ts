@@ -5,7 +5,7 @@ import { join } from 'path';
 
 import type { SvnExecutionContext } from '@shared/types';
 import { getSettingsManager } from '../settings-manager';
-import debug from '../utils/debug';
+import { debug } from '../utils/debug';
 import { redactArgs } from '../utils/redaction';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;

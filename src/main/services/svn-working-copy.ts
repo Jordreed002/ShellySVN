@@ -6,7 +6,7 @@ import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { parseSvnInfoXml, parseSvnStatusXml } from '../svn/parsers';
-import debug from '../utils/debug';
+import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
 const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');

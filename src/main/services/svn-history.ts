@@ -1,7 +1,7 @@
 import type { SvnBlameResult, SvnDiffResult, SvnLogResult } from '@shared/types';
 import { parseSvnBlameXml, parseSvnDiff, parseSvnLogXml } from '../svn/parsers';
 import { parseDiffStreaming } from '../utils/diff-parser';
-import debug from '../utils/debug';
+import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
 export async function getLog(path: string, limit = 100): Promise<SvnLogResult> {
@@ -74,4 +74,3 @@ export async function getBlame(
     return { path, lines: [], startRevision: 0, endRevision: 0 };
   }
 }
-
