@@ -27,6 +27,7 @@ import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
+import { useInvalidateStatus } from '../features/files/useInvalidateStatus';
 
 // Lazy load heavy dialog components for better initial bundle size
 const CommitDialog = lazy(() =>
@@ -113,32 +114,6 @@ function DialogLoader() {
 const FILE_CACHE_TIME = 5 * 60 * 1000; // 5 minutes - files rarely change
 const STATUS_STALE_TIME = 30 * 1000; // 30 seconds - status can change externally
 const DEEP_STATUS_STALE_TIME = 2 * 60 * 1000; // 2 minutes - expensive to compute
-
-// Hook to invalidate SVN status caches after actions
-export function useInvalidateStatus() {
-  const queryClient = useQueryClient();
-
-  return useCallback(
-    (path: string) => {
-      // Invalidate status for this path and all parent paths
-      queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-      queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
-
-      // Invalidate file listing (in case files were added/deleted)
-      queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-
-      // Invalidate parent directories too (folder aggregation changes)
-      const parts = path.split(/[/\\]/);
-      for (let i = parts.length - 1; i > 0; i--) {
-        const parentPath = parts.slice(0, i).join(path.includes('\\') ? '\\' : '/');
-        if (parentPath) {
-          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', parentPath] });
-        }
-      }
-    },
-    [queryClient]
-  );
-}
 
 export function FileExplorer() {
   const { path } = useSearch({ from: '/files/' });
