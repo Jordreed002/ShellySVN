@@ -15,6 +15,7 @@ import { platform } from 'os';
 import type { FileInfo, SvnStatusChar } from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
+import { assertPathApprovedForIpc } from '../utils/approved-paths';
 
 interface SvnStatusEntry {
   status: SvnStatusChar;
@@ -434,7 +435,8 @@ async function calculateFolderSizes(folderPaths: string[]): Promise<Record<strin
   const results: Record<string, number> = {};
 
   for (const folderPath of folderPaths) {
-    results[folderPath] = await calculateFolderSize(folderPath);
+    const approvedPath = assertPathApprovedForIpc(folderPath, 'Folder size calculation');
+    results[folderPath] = await calculateFolderSize(approvedPath);
   }
 
   return results;
@@ -606,14 +608,20 @@ export function registerFsHandlers(): void {
     async (_, source: string, target: string): Promise<{ success: boolean; error?: string }> => {
       try {
         // SECURITY: Validate both paths
-        const validatedSource = validatePath(source, { mustExist: true, mustBeFile: true });
+        const validatedSource = validatePath(source, {
+          mustExist: true,
+          mustBeFile: true,
+          allowAbsolute: true,
+        });
         const validatedTarget = validatePath(target, { allowAbsolute: true });
+        const approvedSource = assertPathApprovedForIpc(validatedSource, 'File copy source');
+        const approvedTarget = assertPathApprovedForIpc(validatedTarget, 'File copy target');
 
         // Ensure target directory exists (mkdir with recursive won't throw if exists)
-        const targetDir = dirname(validatedTarget);
+        const targetDir = dirname(approvedTarget);
         await mkdir(targetDir, { recursive: true });
 
-        await fsCopyFile(validatedSource, validatedTarget);
+        await fsCopyFile(approvedSource, approvedTarget);
         return { success: true };
       } catch (err) {
         if (err instanceof InputValidationError) {
@@ -631,18 +639,19 @@ export function registerFsHandlers(): void {
     async (_, path: string, content: string): Promise<{ success: boolean; error?: string }> => {
       try {
         // SECURITY: Validate path (allow absolute for plugin files)
-        const validatedPath = validatePath(path, { allowAbsolute: true });
-
         // Validate content size (limit to 10MB for safety)
         if (content.length > 10 * 1024 * 1024) {
           return { success: false, error: 'Content too large (max 10MB)' };
         }
 
+        const validatedPath = validatePath(path, { allowAbsolute: true });
+        const approvedPath = assertPathApprovedForIpc(validatedPath, 'File write');
+
         // Ensure directory exists
-        const dir = dirname(validatedPath);
+        const dir = dirname(approvedPath);
         await mkdir(dir, { recursive: true });
 
-        await fsWriteFile(validatedPath, content, 'utf-8');
+        await fsWriteFile(approvedPath, content, 'utf-8');
         return { success: true };
       } catch (err) {
         if (err instanceof InputValidationError) {
@@ -665,13 +674,15 @@ export function registerFsHandlers(): void {
       }
     ): Promise<{ success: boolean; error?: string }> => {
       try {
-        if (activeWatchers.has(path)) {
+        const approvedPath = assertPathApprovedForIpc(path, 'File watching');
+
+        if (activeWatchers.has(approvedPath)) {
           return { success: true };
         }
 
         const watchSvnOnly = options?.watchSvnOnly ?? false;
 
-        const watcher = chokidar.watch(path, {
+        const watcher = chokidar.watch(approvedPath, {
           ignored: [
             /(^|[/\\])\../, // hidden files
             /node_modules/,
@@ -700,7 +711,7 @@ export function registerFsHandlers(): void {
           console.error('[FS] Watcher error:', error);
         });
 
-        activeWatchers.set(path, watcher);
+        activeWatchers.set(approvedPath, watcher);
         return { success: true };
       } catch (error) {
         return { success: false, error: (error as Error).message };
@@ -709,10 +720,11 @@ export function registerFsHandlers(): void {
   );
 
   ipcMain.handle('fs:unwatch', async (_, path: string): Promise<{ success: boolean }> => {
-    const watcher = activeWatchers.get(path);
+    const approvedPath = assertPathApprovedForIpc(path, 'File watching');
+    const watcher = activeWatchers.get(approvedPath);
     if (watcher) {
       await watcher.close();
-      activeWatchers.delete(path);
+      activeWatchers.delete(approvedPath);
     }
     return { success: true };
   });

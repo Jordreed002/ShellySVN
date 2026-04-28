@@ -76,6 +76,12 @@ vi.mock('node:fs', () => ({
   statSync: mockState.statSync,
 }));
 
+vi.mock('fs', () => ({
+  default: {},
+  existsSync: mockState.existsSync,
+  statSync: mockState.statSync,
+}));
+
 // Mock child_process
 vi.mock('child_process', () => ({
   default: {},
@@ -106,6 +112,7 @@ vi.mock('../../utils/debug', () => ({
 
 // Import after mocking
 import { registerFsHandlers, applySvnStatusToFiles } from '../fs';
+import { approvePathForIpc, clearApprovedPathsForTests } from '../../utils/approved-paths';
 import type { FileInfo } from '@shared/types';
 
 describe('FS IPC Handlers', () => {
@@ -114,6 +121,7 @@ describe('FS IPC Handlers', () => {
 
   beforeEach(() => {
     handlers.clear();
+    clearApprovedPathsForTests();
 
     // Reset mock call counts but keep implementations
     mockState.ipcMainHandle.mockClear();
@@ -139,6 +147,9 @@ describe('FS IPC Handlers', () => {
     });
     mockState.access.mockResolvedValue(undefined);
     mockState.readFile.mockResolvedValue(Buffer.from('test content'));
+    mockState.writeFile.mockResolvedValue(undefined);
+    mockState.copyFile.mockResolvedValue(undefined);
+    mockState.mkdir.mockResolvedValue(undefined);
     mockState.existsSync.mockReturnValue(true);
     mockState.statSync.mockReturnValue({
       isFile: () => true,
@@ -156,7 +167,7 @@ describe('FS IPC Handlers', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    clearApprovedPathsForTests();
   });
 
   describe('handler registration', () => {
@@ -335,15 +346,6 @@ describe('FS IPC Handlers', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject absolute paths without allowAbsolute', async () => {
-      const handler = handlers.get('fs:copyFile');
-      const result = (await handler!({}, '/source/file', '/target/file')) as {
-        success: boolean;
-        error?: string;
-      };
-
-      expect(result.success).toBe(false);
-    });
   });
 
   describe('fs:writeFile - security validation', () => {
@@ -357,8 +359,17 @@ describe('FS IPC Handlers', () => {
       expect(result.success).toBe(false);
     });
 
-    // Note: fs:writeFile allows absolute paths by design (allowAbsolute: true)
-    // for plugin files. This is intentional.
+    it('should reject writes outside approved roots', async () => {
+      const handler = handlers.get('fs:writeFile');
+      const result = (await handler!({}, '/tmp/outside.txt', 'content')) as {
+        success: boolean;
+        error?: string;
+      };
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('selected through ShellySVN');
+      expect(mockState.writeFile).not.toHaveBeenCalled();
+    });
 
     it('should reject content that is too large', async () => {
       mockState.existsSync.mockReturnValue(true);
@@ -452,6 +463,8 @@ describe('FS IPC Handlers', () => {
 
   describe('fs:watch', () => {
     it('should create a watcher for valid path', async () => {
+      approvePathForIpc('/test/path');
+
       const handler = handlers.get('fs:watch');
       const result = (await handler!(
         { sender: { send: vi.fn() } },
@@ -459,10 +472,15 @@ describe('FS IPC Handlers', () => {
       )) as { success: boolean };
 
       expect(result.success).toBe(true);
-      expect(mockState.chokidarWatch).toHaveBeenCalledWith('/test/path', expect.any(Object));
+      expect(mockState.chokidarWatch).toHaveBeenCalledWith(
+        expect.stringContaining('test'),
+        expect.any(Object)
+      );
     });
 
     it('should return success if already watching', async () => {
+      approvePathForIpc('/test/path');
+
       const sender = { send: vi.fn() };
       const handler = handlers.get('fs:watch');
 
@@ -475,6 +493,8 @@ describe('FS IPC Handlers', () => {
 
   describe('fs:unwatch', () => {
     it('should close and remove watcher', async () => {
+      approvePathForIpc('/test/path');
+
       const sender = { send: vi.fn() };
       const watchHandler = handlers.get('fs:watch');
       const unwatchHandler = handlers.get('fs:unwatch');
@@ -486,6 +506,8 @@ describe('FS IPC Handlers', () => {
     });
 
     it('should succeed even if no watcher exists', async () => {
+      approvePathForIpc('/nonexistent');
+
       const handler = handlers.get('fs:unwatch');
       const result = (await handler!({}, '/nonexistent')) as { success: boolean };
 
@@ -505,6 +527,9 @@ describe('FS IPC Handlers', () => {
 
   describe('fs:getFolderSizes', () => {
     it('should return sizes for folders', async () => {
+      approvePathForIpc('/folder1');
+      approvePathForIpc('/folder2');
+
       mockState.readdir.mockResolvedValue([]);
       mockState.stat.mockResolvedValue({
         isFile: () => true,

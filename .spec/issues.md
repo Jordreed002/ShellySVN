@@ -76,6 +76,8 @@ The shared SSL bypass allow-list excludes `other`, but some SVN handlers still p
 
 **Location:** `src/main/ipc/fs.ts`
 
+**Status:** Partially resolved in code. Write, copy, watch, unwatch, and recursive folder-size IPC now require paths under a main-process approved root populated by native file/directory dialogs. Read/list operations still need a fuller product-level permission model.
+
 The renderer can request arbitrary absolute writes, copies, watches, and reads through IPC.
 
 **Impact:** A renderer compromise would have a broad local filesystem impact.
@@ -87,6 +89,8 @@ The renderer can request arbitrary absolute writes, copies, watches, and reads t
 ### 7. Path validation does not reliably enforce root or absolute-path restrictions
 
 **Location:** `src/main/utils/validation.ts`
+
+**Status:** Partially resolved in code. Sensitive filesystem operations now enforce resolve/relative root checks through the approved-path registry; broader path validation hardening and platform-specific edge-case coverage remain tracked.
 
 `validatePath()` blocks paths starting with `/`, which does not catch Windows absolute paths. It also checks `normalizedPath.includes('..')`, which is not a robust substitute for resolving a candidate path against an allowed root.
 

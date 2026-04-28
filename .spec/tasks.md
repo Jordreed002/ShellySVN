@@ -32,8 +32,8 @@ Execution order is defined in `fix-plan.md`.
 - [ ] Remove default support for `other` SSL trust failures unless there is a dedicated user-confirmed path.
 - [ ] Replace current path validation with resolve-against-allowed-root validation.
 - [ ] Add validation tests for Windows absolute paths, drive-relative paths, UNC paths, parent traversal, symlinks, and non-existent targets.
-- [ ] Scope `fs:writeFile` to app/plugin-owned directories or explicit user-approved paths.
-- [ ] Scope `fs:copyFile`, `fs:watch`, and recursive folder-size operations to approved roots.
+- [x] Scope `fs:writeFile` to app/plugin-owned directories or explicit user-approved paths.
+- [x] Scope `fs:copyFile`, `fs:watch`, and recursive folder-size operations to approved roots.
 - [x] Validate custom SVN binary paths before saving and before spawning.
 - [x] Add an SVN binary version check for custom clients.
 - [x] Validate and confirm mutating deep-link actions before dispatch.
