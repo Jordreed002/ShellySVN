@@ -34,22 +34,22 @@ Execution order is defined in `fix-plan.md`.
 - [ ] Add validation tests for Windows absolute paths, drive-relative paths, UNC paths, parent traversal, symlinks, and non-existent targets.
 - [ ] Scope `fs:writeFile` to app/plugin-owned directories or explicit user-approved paths.
 - [ ] Scope `fs:copyFile`, `fs:watch`, and recursive folder-size operations to approved roots.
-- [ ] Validate custom SVN binary paths before saving and before spawning.
-- [ ] Add an SVN binary version check for custom clients.
-- [ ] Validate and confirm mutating deep-link actions before dispatch.
-- [ ] Move webhook secrets out of the generic store.
-- [ ] Redact copied error-boundary diagnostics.
+- [x] Validate custom SVN binary paths before saving and before spawning.
+- [x] Add an SVN binary version check for custom clients.
+- [x] Validate and confirm mutating deep-link actions before dispatch.
+- [x] Move webhook secrets out of the generic store.
+- [x] Redact copied error-boundary diagnostics.
 
 ---
 
 ## Build / Routing
 
-- [ ] Resolve the `react-syntax-highlighter` build failure.
-- [ ] Decide whether `RepoBrowserContent.tsx` belongs under `routes`.
-- [ ] If it is not a route, move it, prefix it with `-`, or configure `routeFileIgnorePattern`.
-- [ ] Re-run the production build and confirm the TanStack Router warning is gone or intentionally documented.
-- [ ] Bundle renderer fonts locally or remove the remote Google Fonts import.
-- [ ] Verify the production CSP against the built renderer assets.
+- [x] Resolve the `react-syntax-highlighter` build failure.
+- [x] Decide whether `RepoBrowserContent.tsx` belongs under `routes`.
+- [x] If it is not a route, move it, prefix it with `-`, or configure `routeFileIgnorePattern`.
+- [x] Re-run the production build and confirm the TanStack Router warning is gone or intentionally documented.
+- [x] Bundle renderer fonts locally or remove the remote Google Fonts import.
+- [x] Verify the production CSP against the built renderer assets.
 - [ ] Add a prepackage binary verification script for bundled SVN and `shelly-engine`.
 - [ ] Fail packaging if bundled binaries are missing, tiny placeholders, non-executable, or fail `--version`.
 
@@ -58,8 +58,8 @@ Execution order is defined in `fix-plan.md`.
 ## Documentation
 
 - [ ] Fix mojibake characters in README and existing `.spec` reports.
-- [ ] Document expected install and verification commands.
-- [ ] Document security expectations for credential handling, SSL trust, and filesystem IPC.
+- [x] Document expected install and verification commands.
+- [x] Document security expectations for credential handling, SSL trust, and filesystem IPC.
 
 ---
 
@@ -70,11 +70,11 @@ Execution order is defined in `fix-plan.md`.
 - [ ] Add packaged-app smoke tests per target platform.
 - [ ] Add cancellation and progress reporting to more long-running SVN operations.
 - [ ] Replace production `prompt()` / `confirm()` usage with accessible app dialogs.
-- [ ] Fix commit template resolvers that rely on renderer-side Node globals.
-- [ ] Align auth cache reporting/clearing with the real credential cache file path.
+- [x] Fix commit template resolvers that rely on renderer-side Node globals.
+- [x] Align auth cache reporting/clearing with the real credential cache file path.
 - [ ] Centralize all SVN process spawning behind one executor service.
 - [ ] Replace regex-based SVN XML parsing with typed parser helpers.
 - [ ] Decide whether `packages/logic-engine` is production architecture or remove it from release documentation.
-- [ ] Move webhook delivery to a main-process service with URL validation and timeout handling.
-- [ ] Correct shell integration status when native helpers are missing.
+- [x] Move webhook delivery to a main-process service with URL validation and timeout handling.
+- [x] Correct shell integration status when native helpers are missing.
 - [ ] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.

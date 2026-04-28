@@ -237,6 +237,8 @@ Deep links parse arbitrary `path` and `url` query values, then dispatch them to 
 
 **Location:** `src/renderer/src/hooks/useWebhooks.ts`
 
+**Status:** Resolved in code. Webhook secrets are migrated into the encrypted auth cache and stripped before generic store persistence.
+
 Webhook configurations include optional `secret` values and are saved through `window.api.store.set()` as ordinary settings data.
 
 **Impact:** Webhook signing secrets are likely persisted in plaintext in the app config.
@@ -248,6 +250,8 @@ Webhook configurations include optional `secret` values and are saved through `w
 ### 20. Renderer-side webhook delivery conflicts with CSP and bypasses main-process network policy
 
 **Location:** `src/renderer/src/hooks/useWebhooks.ts`, `src/renderer/index.html`
+
+**Status:** Resolved in code. Delivery now goes through `webhook:deliver` in the main process with URL validation, timeout handling, HMAC signing from the auth cache, and renderer CSP now keeps `connect-src` scoped to `self`.
 
 Webhook delivery uses browser `fetch()` directly. The renderer CSP does not define `connect-src`, so external webhook delivery may be blocked by `default-src 'self'`. Even if allowed later, renderer-side network delivery bypasses main-process validation and auditing.
 

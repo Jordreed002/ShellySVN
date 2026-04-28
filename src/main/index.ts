@@ -12,6 +12,7 @@ import { registerMonitorHandlers } from './ipc/monitor';
 import { registerShellIntegrationHandlers } from './shell/ShellIntegration';
 import { setupProtocolHandler, registerDeepLinkHandler } from './services/protocol-handler';
 import { registerNotificationHandlers } from './ipc/notification';
+import { registerWebhookHandlers } from './ipc/webhook';
 import { openValidatedExternalUrl } from './utils/external-url';
 
 let mainWindow: BrowserWindow | null = null;
@@ -78,6 +79,7 @@ app.whenReady().then(() => {
   registerMonitorHandlers();
   registerShellIntegrationHandlers();
   registerNotificationHandlers();
+  registerWebhookHandlers();
 
   // Setup deep link protocol handler
   setupProtocolHandler();

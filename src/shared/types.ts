@@ -592,6 +592,23 @@ export interface FsStatusResult {
   allEntries: { status: SvnStatusChar; fullPath: string; revision?: number; author?: string }[];
 }
 
+export interface WebhookDeliverRequest {
+  webhookId: string;
+  deliveryId: string;
+  url: string;
+  event: string;
+  timestamp: number;
+  payload: unknown;
+  timeout?: number;
+}
+
+export interface WebhookDeliverResult {
+  success: boolean;
+  statusCode?: number;
+  responseTime?: number;
+  error?: string;
+}
+
 export interface ElectronAPI {
   svn: {
     status: (path: string) => Promise<SvnStatusResult>;
@@ -807,6 +824,9 @@ export interface ElectronAPI {
     has: (realm: string) => Promise<boolean>;
     clear: () => Promise<{ success: boolean }>;
     isEncryptionAvailable: () => Promise<boolean>;
+  };
+  webhook: {
+    deliver: (request: WebhookDeliverRequest) => Promise<WebhookDeliverResult>;
   };
   shell: {
     register: () => Promise<{ success: boolean; error?: string }>;

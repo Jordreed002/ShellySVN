@@ -6,61 +6,6 @@ import { useState, useCallback, useEffect } from 'react';
 const DEFAULT_WEBHOOK_TIMEOUT = 10000;
 
 /**
- * Generate HMAC-SHA256 signature for webhook payload
- * Uses Web Crypto API for secure signature generation
- */
-async function generateHmacSignature(secret: string, payload: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(payload);
-
-  // Import the secret key
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  // Generate signature
-  const signature = await crypto.subtle.sign('HMAC', key, messageData);
-
-  // Convert to hex string
-  const hashArray = Array.from(new Uint8Array(signature));
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-
-  return `sha256=${hashHex}`;
-}
-
-/**
- * Fetch with timeout using AbortController
- */
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeout: number = DEFAULT_WEBHOOK_TIMEOUT
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeout / 1000} seconds`, { cause: error });
-    }
-    throw error;
-  }
-}
-
-/**
  * Webhook configuration
  */
 export interface WebhookConfig {
@@ -353,49 +298,27 @@ export function useWebhooks() {
       setDeliveries(newDeliveries);
 
       try {
-        const startTime = Date.now();
-        const payloadString = JSON.stringify(payload);
-
-        // Build headers
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'X-ShellySVN-Event': payload.event,
-          'X-ShellySVN-Delivery': delivery.id,
-          'X-ShellySVN-Timestamp': String(payload.timestamp),
-        };
-
         if (!isValidWebhookUrl(webhook.url)) {
           throw new Error('Webhook URL must use http or https.');
         }
 
-        const storedSecret = await window.api.auth.get(getWebhookSecretRealm(webhook.id));
-
-        // Generate proper HMAC-SHA256 signature if secret is set
-        if (storedSecret?.password) {
-          const signature = await generateHmacSignature(storedSecret.password, payloadString);
-          headers['X-ShellySVN-Signature-256'] = signature;
-        }
-
-        // Use fetch with timeout
-        const timeout = webhook.timeout || DEFAULT_WEBHOOK_TIMEOUT;
-        const response = await fetchWithTimeout(
-          webhook.url,
-          {
-            method: 'POST',
-            headers,
-            body: payloadString,
-          },
-          timeout
-        );
-
-        const responseTime = Date.now() - startTime;
+        const result = await window.api.webhook.deliver({
+          webhookId: webhook.id,
+          deliveryId: delivery.id,
+          url: webhook.url,
+          event: payload.event,
+          timestamp: payload.timestamp,
+          payload,
+          timeout: webhook.timeout || DEFAULT_WEBHOOK_TIMEOUT,
+        });
 
         // Update delivery status
         const updatedDelivery: WebhookDelivery = {
           ...delivery,
-          status: response.ok ? 'success' : 'failed',
-          statusCode: response.status,
-          responseTime,
+          status: result.success ? 'success' : 'failed',
+          statusCode: result.statusCode,
+          responseTime: result.responseTime,
+          error: result.error,
         };
 
         const updatedDeliveries = newDeliveries.map((d) =>
@@ -407,10 +330,10 @@ export function useWebhooks() {
         // Update webhook last triggered
         await updateWebhook(webhook.id, {
           lastTriggered: Date.now(),
-          lastStatus: response.ok ? 'success' : 'failed',
+          lastStatus: result.success ? 'success' : 'failed',
         });
 
-        return response.ok;
+        return result.success;
       } catch (error) {
         // Update delivery as failed
         const updatedDelivery: WebhookDelivery = {

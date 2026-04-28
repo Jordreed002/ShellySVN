@@ -23,6 +23,8 @@ import type {
   CheckoutProgress,
   CheckoutOptions,
   NotificationOptions,
+  WebhookDeliverRequest,
+  WebhookDeliverResult,
 } from '@shared/types';
 
 const api: ElectronAPI = {
@@ -304,6 +306,10 @@ const api: ElectronAPI = {
     clear: () => ipcRenderer.invoke('auth:clear') as Promise<{ success: boolean }>,
     isEncryptionAvailable: () =>
       ipcRenderer.invoke('auth:isEncryptionAvailable') as Promise<boolean>,
+  },
+  webhook: {
+    deliver: (request: WebhookDeliverRequest) =>
+      ipcRenderer.invoke('webhook:deliver', request) as Promise<WebhookDeliverResult>,
   },
   shell: {
     register: () =>
