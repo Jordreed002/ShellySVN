@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import type { WorkingCopyInfo } from '@shared/types';
 import { MONITOR_REFRESH_INTERVAL_MS } from '@shared/constants';
+import { parseSvnInfoSummaryXml, parseSvnStatusEntriesXml } from '../utils/svn-xml';
 
 // In-memory storage for monitored working copies
 let monitoredWorkingCopies: Map<string, WorkingCopyInfo> = new Map();
@@ -110,12 +111,7 @@ async function getSvnInfo(path: string): Promise<{ url: string; revision: number
 
     proc.on('close', (code: number) => {
       if (code === 0) {
-        const urlMatch = stdout.match(/<url>([^<]+)<\/url>/);
-        const revMatch = stdout.match(/revision="(\d+)"/);
-        resolve({
-          url: urlMatch?.[1] || '',
-          revision: revMatch ? parseInt(revMatch[1], 10) : 0,
-        });
+        resolve(parseSvnInfoSummaryXml(stdout));
       } else {
         resolve(null);
       }
@@ -141,9 +137,7 @@ async function getSvnStatus(path: string): Promise<{ entries: { path: string }[]
     });
 
     proc.on('close', () => {
-      // Count entries
-      const entryMatches = stdout.match(/<entry[^>]*path="/g) || [];
-      resolve({ entries: entryMatches.map(() => ({ path: '' })) });
+      resolve({ entries: parseSvnStatusEntriesXml(stdout).map((entry) => ({ path: entry.path })) });
     });
 
     proc.on('error', () => resolve({ entries: [] }));

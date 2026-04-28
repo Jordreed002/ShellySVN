@@ -9,13 +9,14 @@ import {
   access,
 } from 'fs/promises';
 import chokidar from 'chokidar';
-import { join, basename, normalize, dirname } from 'path';
+import { join, basename, normalize, dirname, isAbsolute } from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import { platform } from 'os';
 import type { FileInfo, SvnStatusChar } from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 
 interface SvnStatusEntry {
   status: SvnStatusChar;
@@ -81,23 +82,28 @@ function parseSvnStatusXml(
   const directStatus: SvnStatusMap = {};
   const allEntries: SvnStatusEntry[] = [];
 
-  const entryMatches = xml.matchAll(
-    /<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?<wc-status[^>]*item="([^"]*)"/g
-  );
-
-  for (const match of entryMatches) {
-    const entryPath = match[1];
-    const statusName = match[2];
+  for (const entry of parseSvnStatusEntriesXml(xml)) {
+    const entryPath = entry.path;
+    const statusName = entry.item;
     const status = SVN_STATUS_MAP[statusName] || ' ';
-    const fullPath = normalize(entryPath);
-    const fileName = basename(entryPath);
+    const fullPath = normalize(isAbsolute(entryPath) ? entryPath : join(baseDir, entryPath));
+    const fileName = basename(fullPath);
 
-    allEntries.push({ status, fullPath });
+    allEntries.push({
+      status,
+      revision: entry.revision,
+      author: entry.author,
+      fullPath,
+    });
 
     // Direct entries (immediate children)
-    const entryParent = normalize(join(entryPath, '..'));
+    const entryParent = normalize(dirname(fullPath));
     if (entryParent === normalize(baseDir)) {
-      directStatus[fileName] = { status };
+      directStatus[fileName] = {
+        status,
+        revision: entry.revision,
+        author: entry.author,
+      };
     }
   }
 
