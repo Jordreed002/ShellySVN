@@ -19,6 +19,8 @@ export default defineConfig({
         'src/main/ipc/svn.ts',
         'src/main/utils/validation.ts',
         'src/main/auth-cache.ts',
+        'src/renderer/src/features/**/*.ts',
+        'src/renderer/src/features/**/*.tsx',
         'packages/shared/src/utils/**/*.ts',
         'packages/logic-engine/src/**/*.ts',
       ],
