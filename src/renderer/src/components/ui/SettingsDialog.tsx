@@ -42,6 +42,7 @@ import { formatBytes } from '@shared/utils/formatBytes';
 
 import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
 import { useSettings } from '../../hooks/useSettings';
+import { promptAppInput } from '../../utils/dialogs';
 
 import { ShellIntegrationDialog } from './ShellIntegrationDialog';
 
@@ -576,8 +577,13 @@ function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
     }
   };
 
-  const handleAddIgnorePattern = () => {
-    const pattern = prompt('Enter ignore pattern (e.g., *.log, node_modules/):');
+  const handleAddIgnorePattern = async () => {
+    const pattern = await promptAppInput({
+      title: 'Add ignore pattern',
+      message: 'Enter ignore pattern',
+      placeholder: '*.log, node_modules/',
+      confirmLabel: 'Add',
+    });
     if (pattern && pattern.trim()) {
       onChange('globalIgnorePatterns', [...settings.globalIgnorePatterns, pattern.trim()]);
     }

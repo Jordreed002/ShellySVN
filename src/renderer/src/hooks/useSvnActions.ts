@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { useSettings } from './useSettings';
-import { confirmAppAction } from '../utils/dialogs';
+import { confirmAppAction, promptAppInput } from '../utils/dialogs';
 
 interface SvnActionResult {
   success: boolean;
@@ -535,7 +535,14 @@ export function useFileExplorerActions(
   const handleLockSelected = useCallback(async () => {
     const paths = getSelectedPaths();
     if (paths.length > 0) {
-      const message = prompt('Lock message (optional):');
+      const message = await promptAppInput({
+        title: 'Lock files',
+        message: 'Lock message (optional):',
+        confirmLabel: 'Lock',
+      });
+      if (message === null) {
+        return;
+      }
       // Lock each path
       for (const path of paths) {
         await svnActions.lock(path, message || undefined);

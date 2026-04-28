@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { debug } from '@shared/utils/debug';
+import { promptAppInput } from '../utils/dialogs';
 
 /**
  * Plugin manifest
@@ -233,8 +234,7 @@ export function usePlugins() {
           );
         },
         showInput: async (promptText: string, defaultValue?: string) => {
-          // Implementation would show input dialog
-          return window.prompt(promptText, defaultValue || '') || null;
+          return promptAppInput({ message: promptText, defaultValue: defaultValue || '' });
         },
         refreshUI: () => {
           // Dispatch refresh event

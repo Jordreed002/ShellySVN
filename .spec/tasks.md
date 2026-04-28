@@ -70,7 +70,7 @@ Execution order is defined in `fix-plan.md`.
 - [ ] Add packaged-app smoke tests per target platform.
 - [ ] Add cancellation and progress reporting to more long-running SVN operations.
 - [x] Replace production `confirm()` / `alert()` usage with app-owned dialogs.
-- [ ] Replace remaining production `prompt()` usage with an accessible renderer input dialog.
+- [x] Replace remaining production `prompt()` usage with an accessible renderer input dialog.
 - [x] Fix commit template resolvers that rely on renderer-side Node globals.
 - [x] Align auth cache reporting/clearing with the real credential cache file path.
 - [ ] Centralize all SVN process spawning behind one executor service.

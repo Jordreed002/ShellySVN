@@ -18,7 +18,7 @@ import { Breadcrumb } from './ui/Breadcrumb';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
-import { confirmAppAction, showAppMessage } from '../utils/dialogs';
+import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialogs';
 import { useDualPane } from './ui/DualPaneView';
 import { FilePreview } from './ui/FilePreview';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
@@ -1066,7 +1066,14 @@ export function FileExplorer() {
       // Direct lock/unlock actions
       onGetLock: async (entry: SvnStatusEntry) => {
         if (!entry.isDirectory) {
-          const message = prompt('Lock message (optional):');
+          const message = await promptAppInput({
+            title: 'Lock file',
+            message: 'Lock message (optional):',
+            confirmLabel: 'Lock',
+          });
+          if (message === null) {
+            return;
+          }
           const result = await actions.lock(entry.path, message || undefined);
           if (result.success) {
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
