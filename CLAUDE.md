@@ -30,7 +30,7 @@ bun run test:e2e                    # Run Playwright E2E tests
 bun run test:e2e:ui                 # Run E2E tests with UI
 bun run test:e2e:debug              # Run E2E tests in debug mode
 bunx vitest run                     # Run unit tests
-bunx vitest run src/shared/__tests__/types.test.ts  # Run single test file
+bunx vitest run packages/shared/src/__tests__/types.test.ts  # Run single test file
 ```
 
 ## CLI Development
@@ -61,7 +61,7 @@ IPC handlers are organized by domain in `src/main/ipc/`:
 - `fs.ts` - Filesystem operations
 - `monitor.ts` - Working copy monitoring
 
-The renderer accesses these via `window.api` (typed as `ElectronAPI` in `src/shared/types.ts`).
+The renderer accesses these via `window.api` (typed as `ElectronAPI` in `packages/shared/src/types.ts`).
 
 ### Key Patterns
 
@@ -78,5 +78,5 @@ The renderer accesses these via `window.api` (typed as `ElectronAPI` in `src/sha
 
 - `@main` → `src/main/`
 - `@renderer` → `src/renderer/src/`
-- `@shared` → `src/shared/`
+- `@shared` → `packages/shared/src/`
 - `@preload` → `src/preload/`

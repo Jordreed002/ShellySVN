@@ -17,7 +17,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
 import { useLazyTreeLoader } from '../src/hooks/useLazyTreeLoader';
-import type { SvnListResult, ElectronAPI } from '../../shared/types';
+import type { SvnListResult, ElectronAPI } from '@shared/types';
 
 // Mock window.api
 const mockSvnList = vi.fn();

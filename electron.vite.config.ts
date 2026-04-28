@@ -9,7 +9,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@main': resolve('src/main'),
-        '@shared': resolve('src/shared'),
+        '@shared': resolve('packages/shared/src'),
       },
     },
     build: {
@@ -25,7 +25,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@preload': resolve('src/preload'),
-        '@shared': resolve('src/shared'),
+        '@shared': resolve('packages/shared/src'),
       },
     },
     build: {
@@ -45,7 +45,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('src/shared'),
+        '@shared': resolve('packages/shared/src'),
       },
     },
     plugins: [

@@ -19,7 +19,7 @@ export default defineConfig({
         'src/main/ipc/svn.ts',
         'src/main/utils/validation.ts',
         'src/main/auth-cache.ts',
-        'src/shared/utils/**/*.ts',
+        'packages/shared/src/utils/**/*.ts',
         'packages/logic-engine/src/**/*.ts',
       ],
       exclude: [
@@ -51,7 +51,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@renderer': resolve(__dirname, 'src/renderer/src'),
-      '@shared': resolve(__dirname, 'src/shared'),
+      '@shared': resolve(__dirname, 'packages/shared/src'),
       '@main': resolve(__dirname, 'src/main'),
       '@preload': resolve(__dirname, 'src/preload'),
       '@test-utils': resolve(__dirname, 'src/__test-utils__'),
