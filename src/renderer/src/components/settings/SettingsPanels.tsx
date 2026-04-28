@@ -320,7 +320,10 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       {/* File Visibility */}
       <SettingsGroup title="File Visibility" description="Control which files are shown">
         <div className="space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer group">
+          <label
+            className="flex items-center gap-3 cursor-pointer group"
+            aria-label="Show in Explorer context menu"
+          >
             <input
               type="checkbox"
               checked={settings.showIgnoredFiles}
@@ -331,7 +334,10 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
               Show ignored files
             </span>
           </label>
-          <label className="flex items-center gap-3 cursor-pointer group">
+          <label
+            className="flex items-center gap-3 cursor-pointer group"
+            aria-label="Show in Explorer context menu"
+          >
             <input
               type="checkbox"
               checked={settings.showUnversionedFiles}
@@ -408,8 +414,9 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
           {settings.proxySettings.enabled && (
             <div className="grid grid-cols-2 gap-3 pl-6">
               <div>
-                <label className="text-xs text-text-muted">Host</label>
+                <label htmlFor="settings-proxy-host" className="text-xs text-text-muted">Host</label>
                 <input
+                  id="settings-proxy-host"
                   type="text"
                   value={settings.proxySettings.host}
                   onChange={(e) => onChangeNested('proxySettings', 'host', e.target.value)}
@@ -418,8 +425,9 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
                 />
               </div>
               <div>
-                <label className="text-xs text-text-muted">Port</label>
+                <label htmlFor="settings-proxy-port" className="text-xs text-text-muted">Port</label>
                 <input
+                  id="settings-proxy-port"
                   type="number"
                   value={settings.proxySettings.port}
                   onChange={(e) =>
@@ -429,8 +437,11 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
                 />
               </div>
               <div>
-                <label className="text-xs text-text-muted">Username (optional)</label>
+                <label htmlFor="settings-proxy-username" className="text-xs text-text-muted">
+                  Username (optional)
+                </label>
                 <input
+                  id="settings-proxy-username"
                   type="text"
                   value={settings.proxySettings.username}
                   onChange={(e) => onChangeNested('proxySettings', 'username', e.target.value)}
@@ -438,8 +449,11 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
                 />
               </div>
               <div>
-                <label className="text-xs text-text-muted">Password (optional)</label>
+                <label htmlFor="settings-proxy-password" className="text-xs text-text-muted">
+                  Password (optional)
+                </label>
                 <input
+                  id="settings-proxy-password"
                   type="password"
                   value={settings.proxySettings.password}
                   onChange={(e) => onChangeNested('proxySettings', 'password', e.target.value)}
@@ -500,9 +514,12 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
           </label>
 
           <div>
-            <label className="text-xs text-text-muted">Client Certificate (optional)</label>
+            <label htmlFor="settings-client-certificate" className="text-xs text-text-muted">
+              Client Certificate (optional)
+            </label>
             <div className="flex gap-2 mt-1">
               <input
+                id="settings-client-certificate"
                 type="text"
                 value={settings.clientCertificatePath}
                 onChange={(e) => onChange('clientCertificatePath', e.target.value)}
@@ -690,7 +707,7 @@ export function DialogsSettingsTab({ settings, onChangeNested }: NestedSettingsP
       <SettingsGroup title="Commit Dialog" description="Customize commit dialog behavior">
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-text-muted">Visible Columns</label>
+            <div className="text-xs text-text-muted">Visible Columns</div>
             <div className="flex flex-wrap gap-2 mt-2">
               {['status', 'path', 'extension', 'size', 'modified'].map((col) => (
                 <label key={col} className="inline-flex items-center gap-2 cursor-pointer">
@@ -980,7 +997,10 @@ export function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIn
           )}
 
           {/* Toggle for context menu */}
-          <label className="flex items-center gap-3 cursor-pointer group">
+          <label
+            className="flex items-center gap-3 cursor-pointer group"
+            aria-label="Show in Explorer context menu"
+          >
             <input
               type="checkbox"
               checked={settings.integration.shellExtensionEnabled}
@@ -1571,9 +1591,12 @@ export function AdvancedSettings({
       <SettingsGroup title="Custom Paths" description="Override default locations">
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-text-muted">SVN Config Directory</label>
+            <label htmlFor="settings-svn-config-path" className="text-xs text-text-muted">
+              SVN Config Directory
+            </label>
             <div className="flex gap-2 mt-1">
               <input
+                id="settings-svn-config-path"
                 type="text"
                 value={settings.svnConfigPath}
                 onChange={(e) => onChange('svnConfigPath', e.target.value)}
@@ -1586,9 +1609,12 @@ export function AdvancedSettings({
             </div>
           </div>
           <div>
-            <label className="text-xs text-text-muted">Log Cache Directory</label>
+            <label htmlFor="settings-log-cache-path" className="text-xs text-text-muted">
+              Log Cache Directory
+            </label>
             <div className="flex gap-2 mt-1">
               <input
+                id="settings-log-cache-path"
                 type="text"
                 value={settings.logCachePath}
                 onChange={(e) => onChange('logCachePath', e.target.value)}
