@@ -1,0 +1,355 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  useCommitMessageHistory,
+  useCommitTemplates,
+} from '@renderer/hooks/useCommitMessageHistory';
+import { useCommitRules } from '@renderer/hooks/useCommitRules';
+import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
+import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
+import { validateCommitRules } from '@renderer/utils/commitRules';
+import { extractIssueLinks } from '@renderer/utils/issueTracker';
+import {
+  analyzeFiles,
+  getTemplatesWithRecommendations,
+  validateCommitMessage,
+  type TemplateRecommendation,
+} from '@renderer/utils/suggestionEngine';
+import type { SvnStatusChar } from '@shared/types';
+import type { AutocompleteOption } from '../ui/AutoCompleteInput';
+import type { DiffViewMode } from '../ui/EnhancedDiffViewer';
+
+export interface CommitFile {
+  path: string;
+  status: SvnStatusChar;
+  isDirectory: boolean;
+  selected: boolean;
+}
+
+type CommitDialogSubmit = (
+  paths: string[],
+  message: string
+) => Promise<{ success: boolean; message?: string; revision?: number }>;
+
+interface UseCommitDialogControllerOptions {
+  isOpen: boolean;
+  workingCopyPath: string;
+  onClose: () => void;
+  onSubmit: CommitDialogSubmit;
+}
+
+const COMMITABLE_STATUSES: SvnStatusChar[] = ['M', 'A', 'D', 'R', 'C', '?'];
+
+const openIssue = (url?: string) => {
+  if (!url) return;
+  void window.api.app.openExternal(url);
+};
+
+export function useCommitDialogController({
+  isOpen,
+  workingCopyPath,
+  onClose,
+  onSubmit,
+}: UseCommitDialogControllerOptions) {
+  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ revision: number } | null>(null);
+  const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [fileFilter, setFileFilter] = useState<'all' | 'modified' | 'added' | 'deleted'>('all');
+  const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
+  const [files, setFiles] = useState<CommitFile[]>([]);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { history, addMessage } = useCommitMessageHistory();
+  const { templates, applyTemplate } = useCommitTemplates();
+  const { config: issueTrackerConfig, updateConfig: updateIssueTrackerConfig } =
+    useIssueTrackerConfig(workingCopyPath);
+  const { rules, updateRules } = useCommitRules(workingCopyPath, issueTrackerConfig);
+
+  const modalRef = useFocusTrap({
+    active: isOpen && !success,
+    onEscape: () => {
+      if (!isSubmitting) onClose();
+    },
+    initialFocus: () => textareaRef.current,
+    returnFocus: true,
+  });
+
+  const dialogId = useMemo(() => `commit-dialog-${Math.random().toString(36).slice(2, 11)}`, []);
+  const titleId = `${dialogId}-title`;
+  const descriptionId = `${dialogId}-description`;
+
+  const {
+    data: statusData,
+    isLoading: isLoadingStatus,
+    refetch,
+  } = useQuery({
+    queryKey: ['svn:status', workingCopyPath],
+    queryFn: () => window.api.svn.status(workingCopyPath),
+    enabled: isOpen && !!workingCopyPath,
+  });
+
+  useEffect(() => {
+    if (statusData?.entries) {
+      const commitFiles = statusData.entries
+        .filter((entry) => COMMITABLE_STATUSES.includes(entry.status))
+        .map((entry) => ({
+          path: entry.path,
+          status: entry.status,
+          isDirectory: entry.isDirectory,
+          selected: entry.status !== '?',
+        }));
+      setFiles(commitFiles);
+    }
+  }, [statusData]);
+
+  const aiSuggestions = useMemo(() => {
+    const selectedFilesList = files.filter((file) => file.selected);
+    if (selectedFilesList.length === 0) return [];
+
+    const { suggestions } = analyzeFiles(
+      selectedFilesList.map((file) => ({ path: file.path, status: file.status }))
+    );
+    return suggestions;
+  }, [files]);
+
+  const templateRecommendations = useMemo(() => {
+    const selectedFilesList = files.filter((file) => file.selected);
+    if (selectedFilesList.length === 0) return [];
+
+    return getTemplatesWithRecommendations(
+      selectedFilesList.map((file) => ({ path: file.path, status: file.status }))
+    );
+  }, [files]);
+
+  const autocompleteOptions = useMemo((): AutocompleteOption[] => {
+    const options: AutocompleteOption[] = [];
+
+    for (const suggestion of aiSuggestions.slice(0, 3)) {
+      const fullMessage = `${suggestion.prefix}: ${suggestion.description}`;
+      options.push({
+        value: fullMessage,
+        label: `${suggestion.prefix}: ${suggestion.description}`,
+        description: `${Math.round(suggestion.confidence * 100)}% confidence`,
+        category: 'AI Suggestions',
+      });
+    }
+
+    for (const historyItem of history.slice(0, 5)) {
+      options.push({
+        value: historyItem.message,
+        label:
+          historyItem.message.slice(0, 50) + (historyItem.message.length > 50 ? '...' : ''),
+        description: new Date(historyItem.timestamp).toLocaleDateString(),
+        category: 'Recent',
+      });
+    }
+
+    return options;
+  }, [aiSuggestions, history]);
+
+  const { data: diffData } = useQuery({
+    queryKey: ['svn:diff', selectedDiffFile],
+    queryFn: () => window.api.svn.diff(selectedDiffFile!),
+    enabled: !!selectedDiffFile,
+  });
+
+  const filteredFiles = useMemo(() => {
+    if (fileFilter === 'all') return files;
+    const filterMap: Record<string, SvnStatusChar[]> = {
+      modified: ['M', 'R'],
+      added: ['A', '?'],
+      deleted: ['D'],
+    };
+    return files.filter((file) => filterMap[fileFilter]?.includes(file.status));
+  }, [files, fileFilter]);
+
+  const selectedFiles = files.filter((file) => file.selected);
+  const selectedCount = selectedFiles.length;
+  const ruleErrors = useMemo(
+    () => (message.trim() ? validateCommitRules(message, rules) : []),
+    [message, rules]
+  );
+  const issueLinks = useMemo(
+    () => extractIssueLinks(message, issueTrackerConfig),
+    [message, issueTrackerConfig]
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setMessage('');
+      setError(null);
+      setSuccess(null);
+      setIsSubmitting(false);
+      setSelectedDiffFile(null);
+      setShowTemplates(false);
+      setShowHistory(false);
+      setShowRules(false);
+      setFileFilter('all');
+      setDiffViewMode('unified');
+      setShowSuggestions(false);
+      setValidationWarnings([]);
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (message.trim()) {
+      const validation = validateCommitMessage(message);
+      setValidationWarnings(validation.warnings);
+    } else {
+      setValidationWarnings([]);
+    }
+  }, [message]);
+
+  const handleToggleFile = (path: string) => {
+    setFiles((previous) =>
+      previous.map((file) => (file.path === path ? { ...file, selected: !file.selected } : file))
+    );
+  };
+
+  const handleSelectAll = () => {
+    setFiles((previous) => previous.map((file) => ({ ...file, selected: true })));
+  };
+
+  const handleDeselectAll = () => {
+    setFiles((previous) => previous.map((file) => ({ ...file, selected: false })));
+  };
+
+  const handleRevertFile = async (path: string) => {
+    try {
+      await window.api.svn.revert([path]);
+      refetch();
+    } catch (revertError) {
+      console.error('Revert failed:', revertError);
+    }
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    setMessage(applyTemplate(templateId));
+    setShowTemplates(false);
+    textareaRef.current?.focus();
+  };
+
+  const handleHistorySelect = (nextMessage: string) => {
+    setMessage(nextMessage);
+    setShowHistory(false);
+    textareaRef.current?.focus();
+  };
+
+  const handleApplySuggestion = (suggestion: (typeof aiSuggestions)[0]) => {
+    setMessage(`${suggestion.prefix}: ${suggestion.description}`);
+    setShowSuggestions(false);
+    textareaRef.current?.focus();
+  };
+
+  const handleApplyRecommendation = (recommendation: TemplateRecommendation) => {
+    setMessage(recommendation.template);
+    setShowTemplates(false);
+    textareaRef.current?.focus();
+  };
+
+  const handleIssuePatternChange = (issueIdPattern: string) => {
+    updateRules({ issueIdPattern });
+    updateIssueTrackerConfig({ issueIdPattern });
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!message.trim()) {
+      setError('Please enter a commit message');
+      return;
+    }
+
+    if (selectedCount === 0) {
+      setError('Please select at least one file to commit');
+      return;
+    }
+
+    if (ruleErrors.length > 0) {
+      setError(ruleErrors[0]);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const pathsToCommit = selectedFiles.map((file) => file.path);
+    const result = await onSubmit(pathsToCommit, message.trim());
+
+    if (result.success) {
+      addMessage(message.trim(), workingCopyPath);
+      setSuccess({ revision: result.revision || 0 });
+    } else {
+      setError(result.message || 'Commit failed');
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      onClose();
+    }
+  };
+
+  return {
+    message,
+    setMessage,
+    isSubmitting,
+    error,
+    success,
+    selectedDiffFile,
+    setSelectedDiffFile,
+    showTemplates,
+    setShowTemplates,
+    showHistory,
+    setShowHistory,
+    fileFilter,
+    setFileFilter,
+    diffViewMode,
+    setDiffViewMode,
+    showSuggestions,
+    setShowSuggestions,
+    showRules,
+    setShowRules,
+    validationWarnings,
+    textareaRef,
+    history,
+    templates,
+    issueTrackerConfig,
+    updateIssueTrackerConfig,
+    rules,
+    isLoadingStatus,
+    aiSuggestions,
+    templateRecommendations,
+    autocompleteOptions,
+    diffData,
+    filteredFiles,
+    selectedCount,
+    ruleErrors,
+    issueLinks,
+    modalRef,
+    dialogId,
+    titleId,
+    descriptionId,
+    handleToggleFile,
+    handleSelectAll,
+    handleDeselectAll,
+    handleRevertFile,
+    handleTemplateSelect,
+    handleHistorySelect,
+    handleApplySuggestion,
+    handleApplyRecommendation,
+    handleIssuePatternChange,
+    handleOpenIssue: openIssue,
+    handleSubmit,
+    handleClose,
+  };
+}
