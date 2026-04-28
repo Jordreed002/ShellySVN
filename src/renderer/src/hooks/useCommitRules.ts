@@ -4,13 +4,17 @@ import {
   normalizeCommitRules,
   type CommitRules,
 } from '@renderer/utils/commitRules';
+import { type IssueTrackerConfig } from '@renderer/utils/issueTracker';
 import debug from '@shared/utils/debug';
 
 const STORAGE_KEY = 'shellysvn:commit-rules';
 
 type CommitRuleStore = Record<string, CommitRules>;
 
-export function useCommitRules(workingCopyPath: string) {
+export function useCommitRules(
+  workingCopyPath: string,
+  issueTrackerConfig?: IssueTrackerConfig
+) {
   const [rules, setRules] = useState<CommitRules>(DEFAULT_COMMIT_RULES);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,7 +31,13 @@ export function useCommitRules(workingCopyPath: string) {
       try {
         const stored = (await window.api.store.get<CommitRuleStore>(STORAGE_KEY)) || {};
         if (!cancelled) {
-          setRules(normalizeCommitRules(stored[workingCopyPath]));
+          setRules(
+            normalizeCommitRules({
+              ...stored[workingCopyPath],
+              issueIdPattern:
+                stored[workingCopyPath]?.issueIdPattern || issueTrackerConfig?.issueIdPattern,
+            })
+          );
         }
       } catch (error) {
         debug.error('Failed to load commit rules:', error);
@@ -46,7 +56,7 @@ export function useCommitRules(workingCopyPath: string) {
     return () => {
       cancelled = true;
     };
-  }, [workingCopyPath]);
+  }, [workingCopyPath, issueTrackerConfig?.issueIdPattern]);
 
   const updateRules = useCallback(
     async (updates: Partial<CommitRules>) => {

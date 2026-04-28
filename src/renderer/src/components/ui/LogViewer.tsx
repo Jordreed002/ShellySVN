@@ -1,5 +1,16 @@
-import { useEffect, useState, useRef } from 'react';
-import { X, History, Loader, User, Calendar, GitCommit, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  X,
+  History,
+  Loader,
+  User,
+  Calendar,
+  GitCommit,
+  RefreshCw,
+  ExternalLink,
+} from 'lucide-react';
+import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
+import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
 import type { SvnLogResult, SvnLogEntry } from '@shared/types';
 
 interface LogViewerProps {
@@ -15,7 +26,13 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [error, setError] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<SvnLogEntry | null>(null);
   const [limit, setLimit] = useState(50);
+  const [configPath, setConfigPath] = useState(path);
   const listRef = useRef<HTMLDivElement>(null);
+  const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath);
+  const selectedIssueLinks = useMemo(
+    () => (selectedEntry ? extractIssueLinks(selectedEntry.message, issueTrackerConfig) : []),
+    [selectedEntry, issueTrackerConfig]
+  );
 
   const loadLog = async () => {
     if (!path) return;
@@ -40,6 +57,31 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     }
   }, [isOpen, path, limit]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveConfigPath() {
+      if (!isOpen || !path) return;
+
+      try {
+        const context = await window.api.svn.getWorkingCopyContext(path);
+        if (!cancelled) {
+          setConfigPath(context?.workingCopyRoot || path);
+        }
+      } catch {
+        if (!cancelled) {
+          setConfigPath(path);
+        }
+      }
+    }
+
+    resolveConfigPath();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, path]);
+
   // Keyboard shortcut to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,6 +97,10 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   if (!isOpen) return null;
 
   const pathName = path.split(/[/\\]/).pop() || path;
+  const handleOpenIssue = (url?: string) => {
+    if (!url) return;
+    void window.api.app.openExternal(url);
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -112,30 +158,48 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
 
             {log && log.entries.length > 0 && (
               <div className="divide-y divide-border">
-                {log.entries.map((entry) => (
-                  <div
-                    key={entry.revision}
-                    onClick={() => setSelectedEntry(entry)}
-                    className={`p-3 cursor-pointer transition-colors ${
-                      selectedEntry?.revision === entry.revision
-                        ? 'bg-accent/10 border-l-2 border-l-accent'
-                        : 'hover:bg-bg-elevated border-l-2 border-l-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-sm text-accent font-medium">
-                        r{entry.revision}
-                      </span>
-                      <span className="text-xs text-text-muted flex-1 truncate">
-                        {entry.author}
-                      </span>
+                {log.entries.map((entry) => {
+                  const issueLinks = extractIssueLinks(entry.message, issueTrackerConfig);
+
+                  return (
+                    <div
+                      key={entry.revision}
+                      onClick={() => setSelectedEntry(entry)}
+                      className={`p-3 cursor-pointer transition-colors ${
+                        selectedEntry?.revision === entry.revision
+                          ? 'bg-accent/10 border-l-2 border-l-accent'
+                          : 'hover:bg-bg-elevated border-l-2 border-l-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-sm text-accent font-medium">
+                          r{entry.revision}
+                        </span>
+                        <span className="text-xs text-text-muted flex-1 truncate">
+                          {entry.author}
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-secondary line-clamp-2">
+                        {entry.message || (
+                          <span className="italic text-text-faint">No message</span>
+                        )}
+                      </div>
+                      {issueLinks.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {issueLinks.slice(0, 3).map((issue) => (
+                            <span
+                              key={issue.id}
+                              className="rounded border border-border bg-bg-secondary px-1.5 py-0.5 text-[10px] text-accent"
+                            >
+                              {issue.id}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-xs text-text-faint mt-1">{formatDate(entry.date)}</div>
                     </div>
-                    <div className="text-xs text-text-secondary line-clamp-2">
-                      {entry.message || <span className="italic text-text-faint">No message</span>}
-                    </div>
-                    <div className="text-xs text-text-faint mt-1">{formatDate(entry.date)}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -182,6 +246,13 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                     )}
                   </div>
                 </div>
+
+                {selectedIssueLinks.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-text-secondary mb-2">Issues</h4>
+                    <IssueLinkList issues={selectedIssueLinks} onOpen={handleOpenIssue} />
+                  </div>
+                )}
 
                 {/* Changed paths */}
                 {selectedEntry.paths.length > 0 && (
@@ -250,6 +321,40 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function IssueLinkList({
+  issues,
+  onOpen,
+}: {
+  issues: IssueLink[];
+  onOpen: (url?: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {issues.map((issue) =>
+        issue.url ? (
+          <button
+            key={issue.id}
+            type="button"
+            onClick={() => onOpen(issue.url)}
+            className="inline-flex items-center gap-1 rounded border border-border bg-bg-secondary px-2 py-1 text-sm text-accent hover:bg-bg-tertiary"
+            title={issue.url}
+          >
+            {issue.id}
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        ) : (
+          <span
+            key={issue.id}
+            className="rounded border border-border bg-bg-secondary px-2 py-1 text-sm text-text-secondary"
+          >
+            {issue.id}
+          </span>
+        )
+      )}
     </div>
   );
 }

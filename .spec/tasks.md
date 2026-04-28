@@ -142,12 +142,13 @@ These tasks track the important parity work needed for ShellySVN to become the p
 
 ### Issue Tracker Integration
 
-- [ ] Add per-project issue tracker configuration.
-- [ ] Add issue ID field or message parser in commit dialog.
+- [x] Add per-project issue tracker configuration.
+- [x] Add issue ID field or message parser in commit dialog.
 - [x] Add optional required issue ID warnings.
-- [ ] Add issue links in log, blame, and commit views.
+- [x] Add issue links in commit and log views.
+- [ ] Add issue links in blame view.
 - [ ] Add issue ID column in revision log.
-- [ ] Support configurable issue regex and URL templates.
+- [x] Support configurable issue regex and URL templates.
 - [ ] Investigate compatibility with common TortoiseSVN `bugtraq:` project properties.
 
 ### Release Quality

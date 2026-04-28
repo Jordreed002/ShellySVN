@@ -1,3 +1,5 @@
+import { extractIssueIds, isValidIssuePattern } from './issueTracker';
+
 export interface CommitRules {
   minMessageLength: number;
   requireIssueId: boolean;
@@ -27,13 +29,10 @@ export function validateCommitRules(message: string, rules: CommitRules): string
   }
 
   if (rules.requireIssueId) {
-    try {
-      const issueRegex = new RegExp(rules.issueIdPattern);
-      if (!issueRegex.test(trimmedMessage)) {
-        errors.push(`Commit message must include an issue ID matching ${rules.issueIdPattern}.`);
-      }
-    } catch {
+    if (!isValidIssuePattern(rules.issueIdPattern)) {
       errors.push('Commit issue ID pattern is invalid.');
+    } else if (extractIssueIds(trimmedMessage, rules.issueIdPattern).length === 0) {
+      errors.push(`Commit message must include an issue ID matching ${rules.issueIdPattern}.`);
     }
   }
 

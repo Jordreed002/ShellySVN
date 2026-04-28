@@ -16,12 +16,14 @@ import {
   Wand2,
   AlertTriangle,
   Settings2,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useCommitMessageHistory,
   useCommitTemplates,
 } from '@renderer/hooks/useCommitMessageHistory';
 import { useCommitRules } from '@renderer/hooks/useCommitRules';
+import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import { AutoCompleteInput, type AutocompleteOption } from './AutoCompleteInput';
 import { EnhancedDiffViewer, type DiffViewMode } from './EnhancedDiffViewer';
@@ -32,6 +34,7 @@ import {
   type TemplateRecommendation,
 } from '@renderer/utils/suggestionEngine';
 import { validateCommitRules } from '@renderer/utils/commitRules';
+import { extractIssueLinks } from '@renderer/utils/issueTracker';
 import type { SvnStatusChar } from '@shared/types';
 
 interface CommitFile {
@@ -82,7 +85,9 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { history, addMessage } = useCommitMessageHistory();
   const { templates, applyTemplate } = useCommitTemplates();
-  const { rules, updateRules } = useCommitRules(workingCopyPath);
+  const { config: issueTrackerConfig, updateConfig: updateIssueTrackerConfig } =
+    useIssueTrackerConfig(workingCopyPath);
+  const { rules, updateRules } = useCommitRules(workingCopyPath, issueTrackerConfig);
 
   // Focus trap for accessibility
   const modalRef = useFocusTrap({
@@ -201,6 +206,10 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     () => (message.trim() ? validateCommitRules(message, rules) : []),
     [message, rules]
   );
+  const issueLinks = useMemo(
+    () => extractIssueLinks(message, issueTrackerConfig),
+    [message, issueTrackerConfig]
+  );
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -276,6 +285,16 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     setMessage(rec.template);
     setShowTemplates(false);
     textareaRef.current?.focus();
+  };
+
+  const handleIssuePatternChange = (issueIdPattern: string) => {
+    updateRules({ issueIdPattern });
+    updateIssueTrackerConfig({ issueIdPattern });
+  };
+
+  const handleOpenIssue = (url?: string) => {
+    if (!url) return;
+    void window.api.app.openExternal(url);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -607,7 +626,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                         </button>
                         {showRules && (
                           <div
-                            className="absolute right-0 top-full mt-1 w-72 bg-bg-elevated border border-border rounded-lg shadow-lg z-10 p-3 space-y-3"
+                            className="absolute right-0 top-full mt-1 w-80 bg-bg-elevated border border-border rounded-lg shadow-lg z-10 p-3 space-y-3"
                             role="dialog"
                             aria-label="Commit rules"
                           >
@@ -644,13 +663,48 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                               <input
                                 type="text"
                                 value={rules.issueIdPattern}
-                                onChange={(e) => updateRules({ issueIdPattern: e.target.value })}
+                                onChange={(e) => handleIssuePatternChange(e.target.value)}
                                 className="input mt-1 w-full text-sm font-mono"
                                 placeholder="[A-Z]+-\\d+"
                               />
                             </label>
+                            <div className="border-t border-border pt-3 space-y-3">
+                              <div className="text-xs font-medium text-text-secondary">
+                                Issue tracker
+                              </div>
+                              <label className="flex items-center gap-2 text-sm text-text">
+                                <input
+                                  type="checkbox"
+                                  checked={issueTrackerConfig.enabled}
+                                  onChange={(e) =>
+                                    updateIssueTrackerConfig({ enabled: e.target.checked })
+                                  }
+                                  className="checkbox"
+                                />
+                                Link issue IDs in messages
+                              </label>
+                              <label className="block">
+                                <span className="text-xs font-medium text-text-secondary">
+                                  Issue URL template
+                                </span>
+                                <input
+                                  type="url"
+                                  value={issueTrackerConfig.issueUrlTemplate}
+                                  onChange={(e) =>
+                                    updateIssueTrackerConfig({
+                                      issueUrlTemplate: e.target.value,
+                                    })
+                                  }
+                                  className="input mt-1 w-full text-sm"
+                                  placeholder="https://tracker.example.com/browse/{id}"
+                                />
+                              </label>
+                              <p className="text-xs text-text-faint">
+                                Use {'{id}'} or {'{issue}'} where the issue ID belongs.
+                              </p>
+                            </div>
                             <p className="text-xs text-text-faint">
-                              Rules are saved for this working copy.
+                              Rules and tracker settings are saved for this working copy.
                             </p>
                           </div>
                         )}
@@ -803,6 +857,33 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           <li key={i}>{ruleError}</li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {issueLinks.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-text-faint">Issues:</span>
+                      {issueLinks.map((issue) =>
+                        issue.url ? (
+                          <button
+                            key={issue.id}
+                            type="button"
+                            onClick={() => handleOpenIssue(issue.url)}
+                            className="inline-flex items-center gap-1 rounded border border-border bg-bg-secondary px-2 py-1 text-accent hover:bg-bg-tertiary"
+                            title={issue.url}
+                          >
+                            {issue.id}
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </button>
+                        ) : (
+                          <span
+                            key={issue.id}
+                            className="rounded border border-border bg-bg-secondary px-2 py-1 text-text-secondary"
+                          >
+                            {issue.id}
+                          </span>
+                        )
+                      )}
                     </div>
                   )}
                 </div>

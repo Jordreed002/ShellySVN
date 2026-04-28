@@ -30,6 +30,16 @@ describe('commitRules', () => {
     expect(errors).toContain('Commit message must include an issue ID matching [A-Z]+-\\d+.');
   });
 
+  it('reports invalid required issue id patterns', () => {
+    const errors = validateCommitRules('SVN-123 Fix checkout flow', {
+      minMessageLength: 0,
+      requireIssueId: true,
+      issueIdPattern: '[',
+    });
+
+    expect(errors).toContain('Commit issue ID pattern is invalid.');
+  });
+
   it('accepts messages that satisfy all rules', () => {
     const errors = validateCommitRules('SVN-123 Fix checkout flow', {
       minMessageLength: 10,
