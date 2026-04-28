@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseSvnListXml } from '@main/ipc/svn';
+import { parseSvnListXml } from '@main/svn/parsers';
 
 describe('SVN List Parser', () => {
   describe('parseSvnListXml', () => {

@@ -4,11 +4,11 @@
  * These tests verify that the XML parsing logic correctly handles
  * various SVN command outputs, including edge cases and malformed input.
  *
- * Tests the actual exported parsing functions from svn.ts for real coverage.
+ * Tests the parser module directly so parser coverage is independent of IPC registration.
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseSvnStatusXml, parseSvnInfoXml, parseSvnLogXml, parseSvnDiff } from '@main/ipc/svn';
+import { parseSvnStatusXml, parseSvnInfoXml, parseSvnLogXml, parseSvnDiff } from '@main/svn/parsers';
 
 describe('SVN Status XML Parser', () => {
   describe('parseSvnStatusXml', () => {
