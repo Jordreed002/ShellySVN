@@ -280,7 +280,7 @@ function createMockElectronAPI() {
       lockList: vi.fn().mockResolvedValue([]),
       checkout: vi.fn().mockResolvedValue({ success: true, revision: 1 }),
       checkoutWithProgress: vi.fn().mockResolvedValue({ success: true, revision: 1 }),
-      cancelCheckout: vi.fn().mockResolvedValue(undefined),
+      cancelCheckout: vi.fn().mockResolvedValue({ success: true }),
       export: vi.fn().mockResolvedValue({ success: true, revision: 1 }),
       import: vi.fn().mockResolvedValue({ success: true, revision: 1 }),
       resolve: vi.fn().mockResolvedValue({ success: true }),

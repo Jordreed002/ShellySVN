@@ -663,7 +663,7 @@ export interface ElectronAPI {
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
     ) => Promise<{ success: boolean; revision: number; output?: string }>;
-    cancelCheckout: () => Promise<void>;
+    cancelCheckout: () => Promise<{ success: boolean; error?: string }>;
     export: (
       url: string,
       path: string,

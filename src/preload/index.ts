@@ -27,6 +27,12 @@ import type {
   WebhookDeliverResult,
 } from '@shared/types';
 
+let activeCheckoutId: string | null = null;
+
+function createOperationId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 const api: ElectronAPI = {
   svn: {
     status: (path) => ipcRenderer.invoke('svn:status', path),
@@ -87,9 +93,15 @@ const api: ElectronAPI = {
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
     ) => {
+      const checkoutId = createOperationId('checkout');
+      activeCheckoutId = checkoutId;
+
       // Set up progress listener
       const handler = (_: unknown, progress: unknown) => {
-        onProgress(progress as CheckoutProgress);
+        const checkoutProgress = progress as CheckoutProgress & { checkoutId?: string };
+        if (!checkoutProgress.checkoutId || checkoutProgress.checkoutId === checkoutId) {
+          onProgress(checkoutProgress);
+        }
       };
 
       ipcRenderer.on('svn:checkout:progress', handler);
@@ -97,6 +109,7 @@ const api: ElectronAPI = {
       // Start the checkout
       const promise = ipcRenderer.invoke(
         'svn:checkoutWithProgress',
+        checkoutId,
         url,
         path,
         revision,
@@ -108,15 +121,29 @@ const api: ElectronAPI = {
       return promise.then(
         (result) => {
           ipcRenderer.removeListener('svn:checkout:progress', handler);
+          if (activeCheckoutId === checkoutId) {
+            activeCheckoutId = null;
+          }
           return result;
         },
         (error) => {
           ipcRenderer.removeListener('svn:checkout:progress', handler);
+          if (activeCheckoutId === checkoutId) {
+            activeCheckoutId = null;
+          }
           throw error;
         }
       );
     },
-    cancelCheckout: () => ipcRenderer.invoke('svn:cancelCheckout'),
+    cancelCheckout: () => {
+      if (!activeCheckoutId) {
+        return Promise.resolve({ success: false, error: 'No active checkout' });
+      }
+      return ipcRenderer.invoke('svn:cancelCheckout', activeCheckoutId) as Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+    },
     export: (url, path, revision?) => ipcRenderer.invoke('svn:export', url, path, revision),
     import: (path, url, message) => ipcRenderer.invoke('svn:import', path, url, message),
     resolve: (path, resolution) => ipcRenderer.invoke('svn:resolve', path, resolution),
