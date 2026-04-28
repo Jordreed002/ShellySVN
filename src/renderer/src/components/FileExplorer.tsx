@@ -575,6 +575,15 @@ export function FileExplorer() {
     [sortColumn]
   );
 
+  const {
+    selectedPaths,
+    focusedIndex,
+    setSelectedPaths,
+    setFocusedIndex,
+    clearSelection,
+    handleSelect,
+  } = useFileExplorerSelection(filteredEntries);
+
   // SVN Actions - get first selected entry for single-file actions
   const selectedEntry = useMemo(() => {
     const firstSelected = Array.from(selectedPaths)[0];
@@ -724,15 +733,6 @@ export function FileExplorer() {
     },
     [navigate]
   );
-
-  const {
-    selectedPaths,
-    focusedIndex,
-    setSelectedPaths,
-    setFocusedIndex,
-    clearSelection,
-    handleSelect,
-  } = useFileExplorerSelection(filteredEntries);
 
   const handleSetBrowseMode = useCallback((mode: 'local' | 'online') => {
     setBrowseMode(mode);
