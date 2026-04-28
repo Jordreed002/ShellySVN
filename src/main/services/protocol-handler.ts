@@ -9,6 +9,7 @@ export interface DeepLink {
   params: Record<string, string>;
   path?: string;
   url?: string;
+  requiresConfirmation?: boolean;
 }
 
 /**
@@ -24,6 +25,23 @@ export type DeepLinkAction =
   | 'update'
   | 'blame'
   | 'info';
+
+const SUPPORTED_ACTIONS = new Set<DeepLinkAction>([
+  'checkout',
+  'export',
+  'open',
+  'log',
+  'diff',
+  'commit',
+  'update',
+  'blame',
+  'info',
+]);
+
+const MUTATING_ACTIONS = new Set<DeepLinkAction>(['checkout', 'export', 'commit', 'update']);
+const MAX_DEEP_LINK_LENGTH = 4096;
+const MAX_PARAM_LENGTH = 2048;
+const ALLOWED_REPOSITORY_PROTOCOLS = new Set(['http:', 'https:', 'svn:', 'svn+ssh:']);
 
 /**
  * Deep link handler callback
@@ -47,40 +65,63 @@ const handlers: Map<string, DeepLinkHandler[]> = new Map();
  * - shellysvn://info?path=/path
  */
 export function parseDeepLink(url: string): DeepLink | null {
-  // Check protocol
-  if (!url.startsWith('shellysvn://')) {
+  if (!url.startsWith('shellysvn://') || url.length > MAX_DEEP_LINK_LENGTH) {
     return null;
   }
 
   try {
-    // Remove protocol
-    const withoutProtocol = url.replace('shellysvn://', '');
+    const parsed = new URL(url);
+    const action = parsed.hostname.toLowerCase() as DeepLinkAction;
 
-    // Split action and query string
-    const [action, queryString] = withoutProtocol.split('?');
-
-    if (!action) {
+    if (!SUPPORTED_ACTIONS.has(action)) {
       return null;
     }
 
-    // Parse query parameters
     const params: Record<string, string> = {};
-    if (queryString) {
-      const searchParams = new URLSearchParams(queryString);
-      for (const [key, value] of searchParams) {
-        params[key] = decodeURIComponent(value);
+    for (const [key, value] of parsed.searchParams) {
+      if (key.length > 64 || value.length > MAX_PARAM_LENGTH || value.includes('\0')) {
+        return null;
       }
+      params[key] = value;
+    }
+
+    if ((action === 'checkout' || action === 'export') && !isAllowedRepositoryUrl(params.url)) {
+      return null;
+    }
+
+    if (requiresPath(action) && !isValidDeepLinkPath(params.path)) {
+      return null;
     }
 
     return {
-      action: action.toLowerCase(),
+      action,
       params,
       path: params.path,
       url: params.url,
+      requiresConfirmation: MUTATING_ACTIONS.has(action),
     };
   } catch (error) {
     console.error('Failed to parse deep link:', error);
     return null;
+  }
+}
+
+function requiresPath(action: DeepLinkAction): boolean {
+  return action !== 'checkout' && action !== 'info';
+}
+
+function isValidDeepLinkPath(path?: string): boolean {
+  return typeof path === 'string' && path.length > 0 && path.length <= MAX_PARAM_LENGTH && !path.includes('\0');
+}
+
+function isAllowedRepositoryUrl(url?: string): boolean {
+  if (!url || url.length > MAX_PARAM_LENGTH) return false;
+
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_REPOSITORY_PROTOCOLS.has(parsed.protocol);
+  } catch {
+    return false;
   }
 }
 

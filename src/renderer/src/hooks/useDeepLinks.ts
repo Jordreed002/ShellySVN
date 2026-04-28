@@ -8,6 +8,7 @@ export interface DeepLink {
   params: Record<string, string>;
   path?: string;
   url?: string;
+  requiresConfirmation?: boolean;
 }
 
 /**

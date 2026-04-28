@@ -325,6 +325,7 @@ const api: ElectronAPI = {
         params: Record<string, string>;
         path?: string;
         url?: string;
+        requiresConfirmation?: boolean;
       }) => void
     ) => {
       const handler = (_: unknown, link: unknown) =>

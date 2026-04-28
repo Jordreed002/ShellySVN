@@ -13,6 +13,8 @@
 
 import { app, safeStorage } from 'electron';
 import { readFile, writeFile, access, mkdir } from 'fs/promises';
+import { existsSync, statSync } from 'fs';
+import { spawnSync } from 'child_process';
 import { join } from 'path';
 import type { AppSettings, SvnExecutionContext, ProxySettings } from '@shared/types';
 
@@ -174,6 +176,30 @@ class SettingsManager {
     return item !== null && typeof item === 'object' && !Array.isArray(item);
   }
 
+  private validateSvnClientPath(path: string): void {
+    const trimmedPath = path.trim();
+    if (!trimmedPath) return;
+
+    if (!existsSync(trimmedPath)) {
+      throw new Error('Custom SVN client path does not exist.');
+    }
+
+    const stats = statSync(trimmedPath);
+    if (!stats.isFile()) {
+      throw new Error('Custom SVN client path must point to an executable file.');
+    }
+
+    const version = spawnSync(trimmedPath, ['--version', '--quiet'], {
+      timeout: 3000,
+      windowsHide: true,
+      encoding: 'utf-8',
+    });
+
+    if (version.error || version.status !== 0) {
+      throw new Error('Custom SVN client path did not run `svn --version --quiet` successfully.');
+    }
+  }
+
   /**
    * Save settings to disk
    */
@@ -308,6 +334,11 @@ class SettingsManager {
    */
   async updateSettings(updates: Partial<AppSettings>): Promise<void> {
     await this.loadPromise;
+
+    if (updates.svnClientPath !== undefined) {
+      this.validateSvnClientPath(updates.svnClientPath);
+    }
+
     this.settings = { ...this.settings, ...updates };
     await this.save();
     this.notifyListeners();
@@ -331,7 +362,12 @@ class SettingsManager {
    */
   getSvnClientPath(): string {
     if (this.settings.svnClientPath && this.settings.svnClientPath.trim()) {
-      return this.settings.svnClientPath.trim();
+      try {
+        this.validateSvnClientPath(this.settings.svnClientPath);
+        return this.settings.svnClientPath.trim();
+      } catch (error) {
+        console.warn('[SECURITY] Ignoring invalid custom SVN client path:', (error as Error).message);
+      }
     }
     // Default to system SVN
     return process.platform === 'win32' ? 'svn.exe' : 'svn';
