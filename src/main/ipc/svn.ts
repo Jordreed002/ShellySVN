@@ -6,7 +6,6 @@ import type {
   SvnBlameResult,
   SvnChangelistResult,
   SvnDiffResult,
-  SvnExecutionContext,
   SvnExternal,
   SvnInfoResult,
   SvnListResult,
@@ -15,12 +14,12 @@ import type {
   SvnStatusResult,
 } from '@shared/types';
 
-import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import {
   cancelCheckout,
   checkout,
   checkoutWithProgress,
 } from '../services/svn-checkout';
+import { commit } from '../services/svn-commit';
 import { getBlame, getDiff, getDiffStreaming, getLog } from '../services/svn-history';
 import {
   forceLock,
@@ -74,54 +73,6 @@ import {
   updateItem as updateWorkingCopyItem,
   updateToRevision,
 } from '../services/svn-working-copy';
-import { runSvnText } from '../services/svn-executor';
-import debug from '../utils/debug';
-import { getStore } from './store';
-
-/**
- * Helper to get hooks for a working copy from store
- */
-async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
-  try {
-    const store = await getStore();
-    const stored = await store.get<Record<string, HookScript[]>>('shellysvn:hook-scripts');
-    if (stored && stored[workingCopyPath]) {
-      return stored[workingCopyPath];
-    }
-  } catch (error) {
-    // Intentionally graceful: Hook retrieval failure should not break SVN operations.
-    // Store may be unavailable during app shutdown or if settings file is corrupted.
-    debug.error('[SVN] Failed to get hooks (continuing without hooks):', error);
-  }
-  return [];
-}
-
-/**
- * Execute SVN command with settings-aware context
- *
- * This function now automatically applies global settings (proxy, SSL, timeout)
- * from the settings manager, while still allowing per-operation overrides.
- *
- * @param args - SVN command arguments
- * @param cwd - Working directory for the command
- * @param operationContext - Optional context overrides (proxy, SSL, timeout)
- * @param trustSslFailures - If true, bypass SSL verification for this operation (for working copy ops)
- * @param credentials - Optional username/password for authentication
- */
-async function executeSvn(
-  args: string[],
-  cwd?: string,
-  operationContext?: Partial<SvnExecutionContext>,
-  trustSslFailures: boolean = false,
-  credentials?: { username: string; password: string }
-): Promise<string> {
-  return runSvnText(args, {
-    cwd,
-    operationContext,
-    trustSslFailures,
-    credentials,
-  });
-}
 
 export function registerSvnHandlers(): void {
   // SVN Status
@@ -189,56 +140,7 @@ export function registerSvnHandlers(): void {
 
   // SVN Commit
   ipcMain.handle('svn:commit', async (_, paths: string[], message: string) => {
-    const workingCopyPath = paths[0];
-
-    // Fetch hooks for this working copy
-    const hooks = await getHooksForWorkingCopy(workingCopyPath);
-
-    // Execute start-commit hooks
-    const startResult = await executeHooksForType(hooks, 'start-commit', {
-      workingCopyPath,
-      files: paths,
-      message,
-    });
-    if (!startResult.allSucceeded) {
-      return {
-        success: false,
-        error: startResult.error || 'Start-commit hook blocked the operation',
-      };
-    }
-
-    // Execute pre-commit hooks
-    const preResult = await executeHooksForType(hooks, 'pre-commit', {
-      workingCopyPath,
-      files: paths,
-      message,
-    });
-    if (!preResult.allSucceeded) {
-      return {
-        success: false,
-        error: preResult.error || 'Pre-commit hook blocked the operation',
-      };
-    }
-
-    // Execute SVN commit
-    const output = await executeSvn(['commit', '-m', message, ...paths]);
-    const match = output.match(/Committed revision (\d+)\./);
-    const result = {
-      success: true,
-      revision: match ? parseInt(match[1], 10) : 0,
-    };
-
-    // After successful commit, execute post-commit hooks (async, don't wait)
-    if (result.success) {
-      executeHooksForType(hooks, 'post-commit', {
-        workingCopyPath,
-        files: paths,
-        message,
-        revision: result.revision,
-      }).catch((err) => debug.error('[SVN] Post-commit hook error:', err));
-    }
-
-    return result;
+    return commit(paths, message);
   });
 
   // SVN Revert
