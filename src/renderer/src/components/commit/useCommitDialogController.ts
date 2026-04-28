@@ -8,6 +8,7 @@ import { useCommitRules } from '@renderer/hooks/useCommitRules';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { buildPathAutocompleteOptions } from '@renderer/utils/commitAutocomplete';
+import { getCommitWarnings } from '@renderer/utils/commitWarnings';
 import { validateCommitRules } from '@renderer/utils/commitRules';
 import { extractIssueLinks } from '@renderer/utils/issueTracker';
 import {
@@ -26,6 +27,14 @@ export interface CommitFile {
   status: SvnStatusChar;
   isDirectory: boolean;
   selected: boolean;
+  propsStatus?: SvnStatusChar;
+  revision?: number;
+  switched?: boolean;
+  lock?: {
+    owner: string;
+    comment: string;
+    date: string;
+  };
 }
 
 type CommitDialogSubmit = (
@@ -101,11 +110,19 @@ export function useCommitDialogController({
   useEffect(() => {
     if (statusData?.entries) {
       const commitFiles = statusData.entries
-        .filter((entry) => COMMITABLE_STATUSES.includes(entry.status))
+        .filter(
+          (entry) =>
+            COMMITABLE_STATUSES.includes(entry.status) ||
+            (entry.propsStatus !== undefined && COMMITABLE_STATUSES.includes(entry.propsStatus))
+        )
         .map((entry) => ({
           path: entry.path,
           status: entry.status,
           isDirectory: entry.isDirectory,
+          propsStatus: entry.propsStatus,
+          revision: entry.revision,
+          switched: entry.switched,
+          lock: entry.lock,
           selected: entry.status !== '?',
         }));
       setFiles(commitFiles);
@@ -202,6 +219,10 @@ export function useCommitDialogController({
 
   const selectedFiles = files.filter((file) => file.selected);
   const selectedCount = selectedFiles.length;
+  const commitWarnings = useMemo(
+    () => getCommitWarnings(files, statusData?.entries ?? files),
+    [files, statusData?.entries]
+  );
   const ruleErrors = useMemo(
     () => (message.trim() ? validateCommitRules(message, rules) : []),
     [message, rules]
@@ -350,13 +371,17 @@ export function useCommitDialogController({
     showRules,
     setShowRules,
     validationWarnings,
+    commitWarnings,
     textareaRef,
     history,
     templates,
     issueTrackerConfig,
     updateIssueTrackerConfig,
     rules,
+    updateRules,
     isLoadingStatus,
+    files,
+    refetch,
     aiSuggestions,
     templateRecommendations,
     autocompleteOptions,

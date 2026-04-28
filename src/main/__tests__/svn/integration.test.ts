@@ -49,7 +49,7 @@ describe('SVN Parsing Functions Integration', () => {
 
       expect(result.entries).toHaveLength(1);
       expect(result.entries[0].path).toBe('src/file.ts');
-      expect(result.entries[0].status).toBe('modified');
+      expect(result.entries[0].status).toBe('M');
       expect(result.entries[0].revision).toBe(1234);
       expect(result.entries[0].author).toBe('developer');
     });
@@ -83,9 +83,9 @@ describe('SVN Parsing Functions Integration', () => {
       const result = parseSvnStatusXml(xml, '/test');
 
       expect(result.entries).toHaveLength(3);
-      expect(result.entries[0].status).toBe('added');
-      expect(result.entries[1].status).toBe('deleted');
-      expect(result.entries[2].status).toBe('modified');
+      expect(result.entries[0].status).toBe('A');
+      expect(result.entries[1].status).toBe('D');
+      expect(result.entries[2].status).toBe('M');
     });
   });
 

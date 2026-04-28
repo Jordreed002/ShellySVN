@@ -67,12 +67,16 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     showRules,
     setShowRules,
     validationWarnings,
+    commitWarnings,
     history,
     templates,
     issueTrackerConfig,
     updateIssueTrackerConfig,
     rules,
+    updateRules,
     isLoadingStatus,
+    files,
+    refetch,
     aiSuggestions,
     templateRecommendations,
     autocompleteOptions,
@@ -604,6 +608,28 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       <ul className="list-disc list-inside">
                         {validationWarnings.map((warning, i) => (
                           <li key={i}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {commitWarnings.length > 0 && (
+                    <div className="mt-2 flex items-start gap-2 text-xs text-warning">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <ul className="list-disc list-inside">
+                        {commitWarnings.map((warning) => (
+                          <li
+                            key={warning.id}
+                            className={
+                              warning.severity === 'danger'
+                                ? 'text-error'
+                                : warning.severity === 'info'
+                                  ? 'text-text-muted'
+                                  : undefined
+                            }
+                          >
+                            {warning.message}
+                          </li>
                         ))}
                       </ul>
                     </div>

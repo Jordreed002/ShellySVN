@@ -45,7 +45,7 @@ describe('SVN Status XML Parser', () => {
 
       expect(result.entries).toHaveLength(1);
       expect(result.entries[0].path).toBe('src/file.ts');
-      expect(result.entries[0].status).toBe('modified');
+      expect(result.entries[0].status).toBe('M');
       expect(result.entries[0].revision).toBe(1234);
       expect(result.entries[0].author).toBe('johndoe');
     });
@@ -84,9 +84,9 @@ describe('SVN Status XML Parser', () => {
       const result = parseSvnStatusXml(xml, '/test/path');
 
       expect(result.entries).toHaveLength(3);
-      expect(result.entries[0].status).toBe('added');
-      expect(result.entries[1].status).toBe('deleted');
-      expect(result.entries[2].status).toBe('modified');
+      expect(result.entries[0].status).toBe('A');
+      expect(result.entries[1].status).toBe('D');
+      expect(result.entries[2].status).toBe('M');
     });
 
     it('should handle unversioned files', () => {
@@ -103,7 +103,7 @@ describe('SVN Status XML Parser', () => {
       const result = parseSvnStatusXml(xml, '/test/path');
 
       expect(result.entries).toHaveLength(1);
-      expect(result.entries[0].status).toBe('unversioned');
+      expect(result.entries[0].status).toBe('?');
       expect(result.entries[0].revision).toBeUndefined();
     });
 
@@ -149,7 +149,30 @@ describe('SVN Status XML Parser', () => {
       const result = parseSvnStatusXml(xml, '/test/path');
 
       expect(result.entries).toHaveLength(1);
-      expect(result.entries[0].status).toBe('conflicted');
+      expect(result.entries[0].status).toBe('C');
+    });
+
+    it('should parse property and switched status metadata', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<status>
+  <target path=".">
+    <entry path="branch/file.txt">
+      <wc-status item="normal" props="modified" switched="true">
+        <commit revision="42">
+          <author>developer</author>
+          <date>2024-01-15T10:30:00.000000Z</date>
+        </commit>
+      </wc-status>
+    </entry>
+  </target>
+</status>`;
+
+      const result = parseSvnStatusXml(xml, '/test/path');
+
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].status).toBe(' ');
+      expect(result.entries[0].propsStatus).toBe('M');
+      expect(result.entries[0].switched).toBe(true);
     });
 
     it('should parse locked files', () => {
