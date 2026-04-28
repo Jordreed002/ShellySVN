@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import {
   X,
   Upload,
@@ -18,9 +19,12 @@ import {
 } from 'lucide-react';
 import { AutoCompleteInput } from './AutoCompleteInput';
 import { CommitTemplateManager } from './CommitTemplateManager';
-import { EnhancedDiffViewer } from './EnhancedDiffViewer';
 import type { SvnStatusChar } from '@shared/types';
 import { useCommitDialogController } from '../commit/useCommitDialogController';
+
+const EnhancedDiffViewer = lazy(() =>
+  import('./EnhancedDiffViewer').then((m) => ({ default: m.EnhancedDiffViewer }))
+);
 
 interface CommitDialogProps {
   isOpen: boolean;
@@ -45,6 +49,15 @@ const STATUS_CONFIG: Record<SvnStatusChar, { label: string; color: string }> = {
   '!': { label: 'Missing', color: 'text-error' },
   '~': { label: 'Obstructed', color: 'text-warning' },
 };
+
+function DiffPreviewLoader() {
+  return (
+    <div className="flex-1 flex items-center justify-center text-text-muted bg-bg-primary">
+      <Loader2 className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
+      <span className="sr-only">Loading diff preview...</span>
+    </div>
+  );
+}
 
 export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: CommitDialogProps) {
   const {
@@ -736,13 +749,15 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 >
                   {selectedDiffFile ? (
                     diffData?.files && diffData.files.length > 0 ? (
-                      <EnhancedDiffViewer
-                        diff={diffData}
-                        filePath={selectedDiffFile}
-                        mode={diffViewMode}
-                        onModeChange={setDiffViewMode}
-                        className="h-full"
-                      />
+                      <Suspense fallback={<DiffPreviewLoader />}>
+                        <EnhancedDiffViewer
+                          diff={diffData}
+                          filePath={selectedDiffFile}
+                          mode={diffViewMode}
+                          onModeChange={setDiffViewMode}
+                          className="h-full"
+                        />
+                      </Suspense>
                     ) : (
                       <div className="flex-1 flex items-center justify-center text-text-muted bg-bg-primary">
                         <div className="text-center">

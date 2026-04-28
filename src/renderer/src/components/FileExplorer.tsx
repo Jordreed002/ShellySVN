@@ -33,9 +33,9 @@ import {
 } from './files/useFileExplorerSelection';
 
 // Lazy load heavy dialog components for better initial bundle size
-const CommitDialog = lazy(() =>
-  import('./ui/CommitDialog').then((m) => ({ default: m.CommitDialog }))
-);
+const loadCommitDialog = () =>
+  import('./ui/CommitDialog').then((m) => ({ default: m.CommitDialog }));
+const CommitDialog = lazy(loadCommitDialog);
 const DiffViewer = lazy(() => import('./ui/DiffViewer').then((m) => ({ default: m.DiffViewer })));
 const LogViewer = lazy(() => import('./ui/LogViewer').then((m) => ({ default: m.LogViewer })));
 const SettingsDialog = lazy(() =>
@@ -1075,6 +1075,12 @@ export function FileExplorer() {
   );
 
   const hasChanges = entries.some((e) => ['M', 'A', 'D', 'C'].includes(e.status));
+
+  useEffect(() => {
+    if (hasChanges) {
+      void loadCommitDialog();
+    }
+  }, [hasChanges]);
 
   const isLoading = isLoadingFiles;
   const isFetching =
