@@ -146,10 +146,11 @@ These tasks track the important parity work needed for ShellySVN to become the p
 - [x] Add issue ID field or message parser in commit dialog.
 - [x] Add optional required issue ID warnings.
 - [x] Add issue links in commit and log views.
-- [ ] Add issue links in blame view.
+- [x] Add issue links in blame view.
 - [ ] Add issue ID column in revision log.
 - [x] Support configurable issue regex and URL templates.
-- [ ] Investigate compatibility with common TortoiseSVN `bugtraq:` project properties.
+- [x] Add initial compatibility with common TortoiseSVN `bugtraq:` project properties.
+- [ ] Add inherited-folder discovery for TortoiseSVN `bugtraq:` properties on nested paths.
 
 ### Release Quality
 

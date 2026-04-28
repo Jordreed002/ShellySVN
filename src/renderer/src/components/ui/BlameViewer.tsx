@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, User, Search, Loader2 } from 'lucide-react';
+import { X, User, Search, Loader2, ExternalLink } from 'lucide-react';
+import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
+import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
 
 interface BlameViewerProps {
   isOpen: boolean;
@@ -29,6 +31,8 @@ export function BlameViewer({
 }: BlameViewerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightRevision, setHighlightRevision] = useState<number | null>(null);
+  const [configPath, setConfigPath] = useState(filePath);
+  const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath);
 
   // Fetch blame data
   const {
@@ -54,15 +58,6 @@ export function BlameViewer({
     enabled: isOpen && !!filePath,
   });
 
-  // Filter lines by search
-  const filteredLines = blameData?.filter(
-    (line) =>
-      searchQuery === '' ||
-      line.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      line.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      line.revision.toString().includes(searchQuery)
-  );
-
   // Get unique authors for legend
   const authors = blameData
     ? [...new Set(blameData.map((l) => l.author))].map((author) => ({
@@ -76,13 +71,75 @@ export function BlameViewer({
     ? [...new Set(blameData.map((l) => l.revision))].toSorted((a, b) => b - a)
     : [];
 
+  const { data: logData } = useQuery({
+    queryKey: ['svn:log:blame-issues', filePath, revisions.join(','), issueTrackerConfig],
+    queryFn: () => window.api.svn.log(filePath, Math.max(200, revisions.length)),
+    enabled: isOpen && !!filePath && issueTrackerConfig.enabled && revisions.length > 0,
+  });
+
+  const revisionIssueLinks = useMemo(() => {
+    const issueMap = new Map<number, IssueLink[]>();
+
+    for (const entry of logData?.entries || []) {
+      const links = extractIssueLinks(entry.message, issueTrackerConfig);
+      if (links.length > 0) {
+        issueMap.set(entry.revision, links);
+      }
+    }
+
+    return issueMap;
+  }, [logData, issueTrackerConfig]);
+
+  // Filter lines by search
+  const filteredLines = blameData?.filter((line) => {
+    if (searchQuery === '') return true;
+
+    const normalizedQuery = searchQuery.toLowerCase();
+    const issueIds = revisionIssueLinks
+      .get(line.revision)
+      ?.map((issue) => issue.id.toLowerCase())
+      .join(' ');
+
+    return (
+      line.content.toLowerCase().includes(normalizedQuery) ||
+      line.author.toLowerCase().includes(normalizedQuery) ||
+      line.revision.toString().includes(searchQuery) ||
+      Boolean(issueIds?.includes(normalizedQuery))
+    );
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveConfigPath() {
+      if (!isOpen || !filePath) return;
+
+      try {
+        const context = await window.api.svn.getWorkingCopyContext(filePath);
+        if (!cancelled) {
+          setConfigPath(context?.workingCopyRoot || filePath);
+        }
+      } catch {
+        if (!cancelled) {
+          setConfigPath(filePath);
+        }
+      }
+    }
+
+    resolveConfigPath();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, filePath]);
+
   if (!isOpen) return null;
 
   const filename = filePath.split(/[/\\]/).pop() || filePath;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[900px] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="modal w-[1000px] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -102,7 +159,7 @@ export function BlameViewer({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search content, author, or revision..."
+              placeholder="Search content, author, revision, or issue..."
               className="input pl-8"
             />
           </div>
@@ -141,41 +198,49 @@ export function BlameViewer({
                 <tr className="text-left text-xs text-text-muted">
                   <th className="px-2 py-1 w-12 border-b border-border">Line</th>
                   <th className="px-2 py-1 w-16 border-b border-border">Rev</th>
+                  <th className="px-2 py-1 w-28 border-b border-border">Issues</th>
                   <th className="px-2 py-1 w-24 border-b border-border">Author</th>
                   <th className="px-2 py-1 w-32 border-b border-border">Date</th>
                   <th className="px-2 py-1 border-b border-border">Content</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredLines.map((line) => (
-                  <tr
-                    key={line.lineNumber}
-                    className={`hover:bg-bg-tertiary cursor-pointer ${
-                      highlightRevision === line.revision ? 'bg-accent/20' : ''
-                    }`}
-                    onClick={() =>
-                      setHighlightRevision(
-                        highlightRevision === line.revision ? null : line.revision
-                      )
-                    }
-                  >
-                    <td className="px-2 py-0.5 text-text-faint border-r border-border">
-                      {line.lineNumber}
-                    </td>
-                    <td className="px-2 py-0.5 text-accent border-r border-border">
-                      r{line.revision}
-                    </td>
-                    <td
-                      className={`px-2 py-0.5 border-r border-border ${getAuthorColor(line.author).replace('bg-', 'text-')}`}
+                {filteredLines.map((line) => {
+                  const issueLinks = revisionIssueLinks.get(line.revision) || [];
+
+                  return (
+                    <tr
+                      key={line.lineNumber}
+                      className={`hover:bg-bg-tertiary cursor-pointer ${
+                        highlightRevision === line.revision ? 'bg-accent/20' : ''
+                      }`}
+                      onClick={() =>
+                        setHighlightRevision(
+                          highlightRevision === line.revision ? null : line.revision
+                        )
+                      }
                     >
-                      {line.author}
-                    </td>
-                    <td className="px-2 py-0.5 text-text-faint border-r border-border">
-                      {new Date(line.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-2 py-0.5 whitespace-pre">{line.content}</td>
-                  </tr>
-                ))}
+                      <td className="px-2 py-0.5 text-text-faint border-r border-border">
+                        {line.lineNumber}
+                      </td>
+                      <td className="px-2 py-0.5 text-accent border-r border-border">
+                        r{line.revision}
+                      </td>
+                      <td className="px-2 py-0.5 border-r border-border">
+                        <IssueLinkList issues={issueLinks} onOpen={openIssueUrl} />
+                      </td>
+                      <td
+                        className={`px-2 py-0.5 border-r border-border ${getAuthorColor(line.author).replace('bg-', 'text-')}`}
+                      >
+                        {line.author}
+                      </td>
+                      <td className="px-2 py-0.5 text-text-faint border-r border-border">
+                        {new Date(line.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-2 py-0.5 whitespace-pre">{line.content}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -192,6 +257,52 @@ export function BlameViewer({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function openIssueUrl(url?: string) {
+  if (!url) return;
+  void window.api.app.openExternal(url);
+}
+
+function IssueLinkList({
+  issues,
+  onOpen,
+}: {
+  issues: IssueLink[];
+  onOpen: (url?: string) => void;
+}) {
+  if (issues.length === 0) {
+    return <span className="text-text-faint">-</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {issues.slice(0, 2).map((issue) =>
+        issue.url ? (
+          <button
+            key={issue.id}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen(issue.url);
+            }}
+            className="inline-flex items-center gap-1 rounded border border-border bg-bg-secondary px-1.5 py-0.5 text-xs text-accent hover:bg-bg-tertiary"
+            title={issue.url}
+          >
+            {issue.id}
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </button>
+        ) : (
+          <span
+            key={issue.id}
+            className="rounded border border-border bg-bg-secondary px-1.5 py-0.5 text-xs text-text-secondary"
+          >
+            {issue.id}
+          </span>
+        )
+      )}
     </div>
   );
 }

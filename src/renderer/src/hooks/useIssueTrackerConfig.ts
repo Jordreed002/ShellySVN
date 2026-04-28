@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   DEFAULT_ISSUE_TRACKER_CONFIG,
+  issueTrackerConfigFromBugtraqProperties,
   normalizeIssueTrackerConfig,
   type IssueTrackerConfig,
 } from '@renderer/utils/issueTracker';
@@ -26,9 +27,18 @@ export function useIssueTrackerConfig(workingCopyPath: string) {
       setIsLoading(true);
       try {
         const stored = (await window.api.store.get<IssueTrackerStore>(STORAGE_KEY)) || {};
-        if (!cancelled) {
+        if (cancelled) return;
+
+        if (Object.prototype.hasOwnProperty.call(stored, workingCopyPath)) {
           setConfig(normalizeIssueTrackerConfig(stored[workingCopyPath]));
+          return;
         }
+
+        const properties = await window.api.svn.proplist(workingCopyPath);
+        if (cancelled) return;
+
+        const bugtraqConfig = issueTrackerConfigFromBugtraqProperties(properties);
+        setConfig(bugtraqConfig || DEFAULT_ISSUE_TRACKER_CONFIG);
       } catch (error) {
         debug.error('Failed to load issue tracker config:', error);
         if (!cancelled) {

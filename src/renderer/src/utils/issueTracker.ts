@@ -15,6 +15,11 @@ export interface IssueLink {
   url?: string;
 }
 
+export interface SvnProperty {
+  name: string;
+  value: string;
+}
+
 export function normalizeIssueTrackerConfig(
   config?: Partial<IssueTrackerConfig> | null
 ): IssueTrackerConfig {
@@ -38,7 +43,7 @@ export function extractIssueIds(message: string, pattern: string): string[] {
 
 export function isValidIssuePattern(pattern: string): boolean {
   try {
-    new RegExp(pattern);
+    RegExp(pattern);
     return true;
   } catch {
     return false;
@@ -64,4 +69,38 @@ export function extractIssueLinks(
     id,
     url: buildIssueUrl(id, config.issueUrlTemplate),
   }));
+}
+
+export function issueTrackerConfigFromBugtraqProperties(
+  properties: SvnProperty[]
+): IssueTrackerConfig | null {
+  const propertyMap = new Map(
+    properties.map((property) => [property.name.toLowerCase(), property.value.trim()])
+  );
+  const bugtraqUrl = propertyMap.get('bugtraq:url') || '';
+  const bugtraqLogRegex = propertyMap.get('bugtraq:logregex') || '';
+  const bugtraqNumber = propertyMap.get('bugtraq:number')?.toLowerCase() === 'true';
+
+  if (!bugtraqUrl && !bugtraqLogRegex && !bugtraqNumber) {
+    return null;
+  }
+
+  return normalizeIssueTrackerConfig({
+    enabled: true,
+    issueIdPattern: getBugtraqIssuePattern(bugtraqLogRegex, bugtraqNumber),
+    issueUrlTemplate: bugtraqUrl.replace(/%BUGID%/gi, '{id}'),
+  });
+}
+
+function getBugtraqIssuePattern(logRegex: string, numericOnly: boolean): string {
+  const regexLines = logRegex
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (regexLines.length > 0) {
+    return regexLines.at(-1) || DEFAULT_ISSUE_TRACKER_CONFIG.issueIdPattern;
+  }
+
+  return numericOnly ? '\\d+' : DEFAULT_ISSUE_TRACKER_CONFIG.issueIdPattern;
 }

@@ -3,6 +3,7 @@ import {
   buildIssueUrl,
   extractIssueIds,
   extractIssueLinks,
+  issueTrackerConfigFromBugtraqProperties,
   normalizeIssueTrackerConfig,
 } from '../issueTracker';
 
@@ -37,5 +38,26 @@ describe('issueTracker', () => {
     expect(extractIssueLinks('SVN-123 Fix status cache', config)).toEqual([
       { id: 'SVN-123', url: 'https://tracker.local/browse/SVN-123' },
     ]);
+  });
+
+  it('derives tracker settings from common TortoiseSVN bugtraq properties', () => {
+    expect(
+      issueTrackerConfigFromBugtraqProperties([
+        { name: 'bugtraq:url', value: 'https://tracker.local/browse/%BUGID%' },
+        { name: 'bugtraq:logregex', value: '([A-Z]+-\\d+)' },
+      ])
+    ).toEqual({
+      enabled: true,
+      issueIdPattern: '([A-Z]+-\\d+)',
+      issueUrlTemplate: 'https://tracker.local/browse/{id}',
+    });
+  });
+
+  it('uses the issue extraction regex from two-line bugtraq logregex values', () => {
+    expect(
+      issueTrackerConfigFromBugtraqProperties([
+        { name: 'bugtraq:logregex', value: 'Issues?:?\\s*(.*)\n[A-Z]+-\\d+' },
+      ])?.issueIdPattern
+    ).toBe('[A-Z]+-\\d+');
   });
 });
