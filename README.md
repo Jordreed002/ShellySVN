@@ -182,7 +182,7 @@ bun run engine:build:all    # Compile for all platforms
 
 ## Architecture
 
-ShellySVN uses a unique **multi-process architecture** for maximum performance:
+ShellySVN uses Electron process isolation for the desktop app and a separate Bun-based logic engine for headless CLI use.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -200,8 +200,8 @@ ShellySVN uses a unique **multi-process architecture** for maximum performance:
 │              Logic Engine (shelly-engine)                    │
 │                    Compiled Bun Binary                       │
 │                                                              │
-│  - SVN command execution via Bun.spawn()                     │
-│  - XML → JSON parsing (fast-xml-parser)                      │
+│  - Headless CLI SVN command execution                        │
+│  - XML to JSON parsing (fast-xml-parser)                     │
 │  - Structured JSON output to stdout                          │
 └────────────────────────┬────────────────────────────────────┘
                          │ Bun.spawn()
@@ -228,9 +228,9 @@ ShellySVN/
 │   │   ├── hooks/      # React hooks
 │   │   ├── routes/     # TanStack Router pages
 │   │   └── styles/     # Tailwind CSS
-│   └── shared/         # Shared types (IPC contracts)
 ├── packages/
 │   └── logic-engine/   # Compiled Bun binary for SVN ops
+│   └── shared/         # Shared types, IPC contracts, utilities
 ├── build/              # Electron-builder resources
 ├── binaries/           # Platform-specific SVN binaries
 ├── out/                # Build output
