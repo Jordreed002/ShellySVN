@@ -16,7 +16,7 @@ Execution order is defined in `fix-plan.md`.
 - [x] Add a `verify` script for typecheck, lint, unit tests, and build.
 - [x] Add or update CI to run `bun run typecheck`, `bun run lint`, unit tests, and `bun run build`.
 - [ ] Triage all skipped tests and decide which should be fixed, moved to a Node environment, or deleted.
-- [ ] Add a CI check that fails when skipped tests increase without an explicit allowlist update.
+- [x] Add a CI check that fails when skipped tests increase without an explicit allowlist update.
 
 ---
 

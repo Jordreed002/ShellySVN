@@ -87,6 +87,9 @@ jobs:
       - name: Run unit tests
         run: bun run test:coverage
 
+      - name: Check skipped-test baseline
+        run: bun run test:skips
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
