@@ -123,6 +123,24 @@ export interface WebhookDelivery {
 const STORAGE_KEY = 'shellysvn-webhooks';
 const DELIVERIES_KEY = 'shellysvn-webhook-deliveries';
 
+function getWebhookSecretRealm(id: string): string {
+  return `webhook:${id}`;
+}
+
+function stripWebhookSecret(webhook: WebhookConfig): WebhookConfig {
+  const { secret: _secret, ...safeWebhook } = webhook;
+  return safeWebhook;
+}
+
+function isValidWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Hook for managing commit notification webhooks
  */
@@ -142,7 +160,21 @@ export function useWebhooks() {
         window.api.store.get<WebhookDelivery[]>(DELIVERIES_KEY),
       ]);
 
-      if (storedWebhooks) setWebhooks(storedWebhooks);
+      if (storedWebhooks) {
+        const migratedWebhooks = await Promise.all(
+          storedWebhooks.map(async (webhook) => {
+            if (webhook.secret) {
+              await window.api.auth.set(getWebhookSecretRealm(webhook.id), 'webhook', webhook.secret);
+            }
+            return stripWebhookSecret(webhook);
+          })
+        );
+
+        setWebhooks(migratedWebhooks);
+        if (storedWebhooks.some((webhook) => webhook.secret)) {
+          await saveWebhooks(migratedWebhooks);
+        }
+      }
       if (storedDeliveries) setDeliveries(storedDeliveries);
     } catch (error) {
       console.error('Failed to load webhooks:', error);
@@ -192,18 +224,25 @@ export function useWebhooks() {
         id: `webhook-${Date.now()}`,
         name,
         url,
-        secret: options.secret,
         events,
         enabled: true,
         repositoryPath: options.repositoryPath,
         createdAt: Date.now(),
       };
 
-      const newWebhooks = [...webhooks, webhook];
+      if (!isValidWebhookUrl(url)) {
+        throw new Error('Webhook URL must use http or https.');
+      }
+
+      if (options.secret) {
+        await window.api.auth.set(getWebhookSecretRealm(webhook.id), 'webhook', options.secret);
+      }
+
+      const newWebhooks = [...webhooks, stripWebhookSecret(webhook)];
       setWebhooks(newWebhooks);
       await saveWebhooks(newWebhooks);
 
-      return webhook;
+      return stripWebhookSecret(webhook);
     },
     [webhooks, saveWebhooks]
   );
@@ -213,7 +252,22 @@ export function useWebhooks() {
    */
   const updateWebhook = useCallback(
     async (id: string, updates: Partial<WebhookConfig>): Promise<void> => {
-      const newWebhooks = webhooks.map((w) => (w.id === id ? { ...w, ...updates } : w));
+      if (updates.url && !isValidWebhookUrl(updates.url)) {
+        throw new Error('Webhook URL must use http or https.');
+      }
+
+      if (updates.secret !== undefined) {
+        if (updates.secret) {
+          await window.api.auth.set(getWebhookSecretRealm(id), 'webhook', updates.secret);
+        } else {
+          await window.api.auth.delete(getWebhookSecretRealm(id));
+        }
+      }
+
+      const { secret: _secret, ...safeUpdates } = updates;
+      const newWebhooks = webhooks.map((w) =>
+        w.id === id ? stripWebhookSecret({ ...w, ...safeUpdates }) : w
+      );
       setWebhooks(newWebhooks);
       await saveWebhooks(newWebhooks);
     },
@@ -228,6 +282,7 @@ export function useWebhooks() {
       const newWebhooks = webhooks.filter((w) => w.id !== id);
       setWebhooks(newWebhooks);
       await saveWebhooks(newWebhooks);
+      await window.api.auth.delete(getWebhookSecretRealm(id));
 
       // Also remove related deliveries
       const newDeliveries = deliveries.filter((d) => d.webhookId !== id);
@@ -309,9 +364,15 @@ export function useWebhooks() {
           'X-ShellySVN-Timestamp': String(payload.timestamp),
         };
 
+        if (!isValidWebhookUrl(webhook.url)) {
+          throw new Error('Webhook URL must use http or https.');
+        }
+
+        const storedSecret = await window.api.auth.get(getWebhookSecretRealm(webhook.id));
+
         // Generate proper HMAC-SHA256 signature if secret is set
-        if (webhook.secret) {
-          const signature = await generateHmacSignature(webhook.secret, payloadString);
+        if (storedSecret?.password) {
+          const signature = await generateHmacSignature(storedSecret.password, payloadString);
           headers['X-ShellySVN-Signature-256'] = signature;
         }
 
