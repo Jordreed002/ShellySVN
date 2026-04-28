@@ -34,9 +34,11 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
     setError(null);
 
     try {
-      // For now, use the existing update handler
-      // In a full implementation, we'd pass depth and other options
-      const result = await window.api.svn.update(path);
+      const result = await window.api.svn.update(path, depth, {
+        revision,
+        ignoreExternals,
+        force,
+      });
 
       if (result.success) {
         setSuccess({ revision: result.revision, filesUpdated: 0 });

@@ -50,8 +50,8 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('svn:diff', path, revision) as Promise<SvnDiffResult>,
     diffStreaming: (path, revision?) =>
       ipcRenderer.invoke('svn:diffStreaming', path, revision) as Promise<SvnDiffResult>,
-    update: (path, depth?) =>
-      ipcRenderer.invoke('svn:update', path, depth) as Promise<{
+    update: (path, depth?, options?) =>
+      ipcRenderer.invoke('svn:update', path, depth, options) as Promise<{
         success: boolean;
         revision: number;
         error?: string;

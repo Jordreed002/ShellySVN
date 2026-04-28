@@ -20,6 +20,7 @@ import type {
   SvnPatchResult,
   SvnShelveListResult,
   SvnStatusResult,
+  UpdateOptions,
 } from '@shared/types';
 
 import { getAuthCache } from '../auth-cache';
@@ -805,7 +806,12 @@ export function registerSvnHandlers(): void {
   // SVN Update
   ipcMain.handle(
     'svn:update',
-    async (_, path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity') => {
+    async (
+      _,
+      path: string,
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: UpdateOptions
+    ) => {
       // Validate that the path is a working copy before attempting update
       try {
         await executeSvn(['info', '--xml', path], path, undefined, true);
@@ -833,7 +839,13 @@ export function registerSvnHandlers(): void {
       // Execute SVN update
       try {
         const args = ['update'];
+        const revision = options?.revision?.trim();
+        if (revision && revision.toUpperCase() !== 'HEAD') {
+          args.push('-r', revision);
+        }
         if (depth) args.push('--depth', depth);
+        if (options?.ignoreExternals) args.push('--ignore-externals');
+        if (options?.force) args.push('--force');
         args.push(path);
 
         const output = await executeSvn(args, undefined, undefined, true);

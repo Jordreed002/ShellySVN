@@ -185,7 +185,11 @@ export type SvnChannels = {
   'svn:status': (path: string) => SvnStatusResult;
   'svn:log': (path: string, limit?: number, startRev?: number, endRev?: number) => SvnLogResult;
   'svn:info': (path: string) => SvnInfoResult;
-  'svn:update': (path: string) => { success: boolean; revision: number };
+  'svn:update': (
+    path: string,
+    depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+    options?: UpdateOptions
+  ) => { success: boolean; revision: number };
   'svn:commit': (paths: string[], message: string) => { success: boolean; revision: number };
   'svn:revert': (paths: string[]) => { success: boolean };
   'svn:add': (paths: string[]) => { success: boolean };
@@ -369,6 +373,15 @@ export interface CheckoutOptions {
   credentials?: AuthCredential;
   /** Specific paths to checkout (sparse checkout) */
   sparsePaths?: string[];
+}
+
+export interface UpdateOptions {
+  /** Target revision. HEAD or empty means latest. */
+  revision?: string;
+  /** Ignore externals during update. */
+  ignoreExternals?: boolean;
+  /** Force update, allowing obstructions to be replaced. */
+  force?: boolean;
 }
 
 /**
@@ -627,7 +640,8 @@ export interface ElectronAPI {
     diffStreaming: (path: string, revision?: string) => Promise<SvnDiffResult>;
     update: (
       path: string,
-      depth?: 'empty' | 'files' | 'immediates' | 'infinity'
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+      options?: UpdateOptions
     ) => Promise<{ success: boolean; revision: number; error?: string }>;
     updateItem: (path: string) => Promise<{ success: boolean; revision: number; error?: string }>;
     updateToRevision: (
