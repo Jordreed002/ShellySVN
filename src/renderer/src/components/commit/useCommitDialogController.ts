@@ -7,10 +7,12 @@ import {
 import { useCommitRules } from '@renderer/hooks/useCommitRules';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
+import { buildPathAutocompleteOptions } from '@renderer/utils/commitAutocomplete';
 import { validateCommitRules } from '@renderer/utils/commitRules';
 import { extractIssueLinks } from '@renderer/utils/issueTracker';
 import {
   analyzeFiles,
+  getAutocompleteSuggestions,
   getTemplatesWithRecommendations,
   validateCommitMessage,
   type TemplateRecommendation,
@@ -131,6 +133,11 @@ export function useCommitDialogController({
 
   const autocompleteOptions = useMemo((): AutocompleteOption[] => {
     const options: AutocompleteOption[] = [];
+    const selectedFilesList = files.filter((file) => file.selected);
+    const selectedFileSummaries = selectedFilesList.map((file) => ({
+      path: file.path,
+      status: file.status,
+    }));
 
     for (const suggestion of aiSuggestions.slice(0, 3)) {
       const fullMessage = `${suggestion.prefix}: ${suggestion.description}`;
@@ -142,6 +149,23 @@ export function useCommitDialogController({
       });
     }
 
+    const keywordSuggestions = getAutocompleteSuggestions(
+      message,
+      selectedFileSummaries,
+      history.map((historyItem) => historyItem.message)
+    );
+
+    for (const suggestion of keywordSuggestions.slice(0, 5)) {
+      options.push({
+        value: suggestion,
+        label: suggestion,
+        description: 'Commit keyword',
+        category: 'Keywords',
+      });
+    }
+
+    options.push(...buildPathAutocompleteOptions(message, selectedFileSummaries));
+
     for (const historyItem of history.slice(0, 5)) {
       options.push({
         value: historyItem.message,
@@ -152,8 +176,13 @@ export function useCommitDialogController({
       });
     }
 
-    return options;
-  }, [aiSuggestions, history]);
+    const seenValues = new Set<string>();
+    return options.filter((option) => {
+      if (seenValues.has(option.value)) return false;
+      seenValues.add(option.value);
+      return true;
+    });
+  }, [aiSuggestions, files, history, message]);
 
   const { data: diffData } = useQuery({
     queryKey: ['svn:diff', selectedDiffFile],
