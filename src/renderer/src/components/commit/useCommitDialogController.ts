@@ -25,8 +25,10 @@ export interface CommitFile {
   status: SvnStatusChar;
   isDirectory: boolean;
   selected: boolean;
+  committable: boolean;
   propsStatus?: SvnStatusChar;
   revision?: number;
+  changelist?: string;
   switched?: boolean;
   lock?: {
     owner: string;
@@ -48,6 +50,14 @@ interface UseCommitDialogControllerOptions {
 }
 
 const COMMITABLE_STATUSES: SvnStatusChar[] = ['M', 'A', 'D', 'R', 'C', '?'];
+const DISPLAY_ONLY_STATUSES: SvnStatusChar[] = ['!', '~', 'X'];
+
+function canCommitStatus(status: SvnStatusChar, propsStatus?: SvnStatusChar): boolean {
+  return (
+    COMMITABLE_STATUSES.includes(status) ||
+    (propsStatus !== undefined && COMMITABLE_STATUSES.includes(propsStatus))
+  );
+}
 
 const openIssue = (url?: string) => {
   if (!url) return;
@@ -68,7 +78,9 @@ export function useCommitDialogController({
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
-  const [fileFilter, setFileFilter] = useState<'all' | 'modified' | 'added' | 'deleted'>('all');
+  const [fileFilter, setFileFilter] = useState<
+    'all' | 'modified' | 'added' | 'deleted' | 'changelist' | 'external'
+  >('all');
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -111,19 +123,24 @@ export function useCommitDialogController({
       const commitFiles = statusData.entries
         .filter(
           (entry) =>
-            COMMITABLE_STATUSES.includes(entry.status) ||
-            (entry.propsStatus !== undefined && COMMITABLE_STATUSES.includes(entry.propsStatus))
+            canCommitStatus(entry.status, entry.propsStatus) ||
+            DISPLAY_ONLY_STATUSES.includes(entry.status)
         )
-        .map((entry) => ({
-          path: entry.path,
-          status: entry.status,
-          isDirectory: entry.isDirectory,
-          propsStatus: entry.propsStatus,
-          revision: entry.revision,
-          switched: entry.switched,
-          lock: entry.lock,
-          selected: entry.status !== '?',
-        }));
+        .map((entry) => {
+          const committable = canCommitStatus(entry.status, entry.propsStatus);
+          return {
+            path: entry.path,
+            status: entry.status,
+            isDirectory: entry.isDirectory,
+            committable,
+            propsStatus: entry.propsStatus,
+            revision: entry.revision,
+            changelist: entry.changelist,
+            switched: entry.switched,
+            lock: entry.lock,
+            selected: committable && entry.status !== '?',
+          };
+        });
       setFiles(commitFiles);
     }
   }, [statusData]);
@@ -208,16 +225,19 @@ export function useCommitDialogController({
 
   const filteredFiles = useMemo(() => {
     if (fileFilter === 'all') return files;
-    const filterMap: Record<string, SvnStatusChar[]> = {
+    if (fileFilter === 'changelist') return files.filter((file) => file.changelist);
+    const filterMap: Record<Exclude<typeof fileFilter, 'all' | 'changelist'>, SvnStatusChar[]> = {
       modified: ['M', 'R'],
       added: ['A', '?'],
-      deleted: ['D'],
+      deleted: ['D', '!'],
+      external: ['X'],
     };
     return files.filter((file) => filterMap[fileFilter]?.includes(file.status));
   }, [files, fileFilter]);
 
-  const selectedFiles = files.filter((file) => file.selected);
+  const selectedFiles = files.filter((file) => file.selected && file.committable);
   const selectedCount = selectedFiles.length;
+  const committableCount = files.filter((file) => file.committable).length;
   const commitWarnings = useMemo(
     () => getCommitWarnings(files, statusData?.entries ?? files),
     [files, statusData?.entries]
@@ -261,12 +281,14 @@ export function useCommitDialogController({
 
   const handleToggleFile = (path: string) => {
     setFiles((previous) =>
-      previous.map((file) => (file.path === path ? { ...file, selected: !file.selected } : file))
+      previous.map((file) =>
+        file.path === path && file.committable ? { ...file, selected: !file.selected } : file
+      )
     );
   };
 
   const handleSelectAll = () => {
-    setFiles((previous) => previous.map((file) => ({ ...file, selected: true })));
+    setFiles((previous) => previous.map((file) => ({ ...file, selected: file.committable })));
   };
 
   const handleDeselectAll = () => {
@@ -406,6 +428,7 @@ export function useCommitDialogController({
     diffData,
     filteredFiles,
     selectedCount,
+    committableCount,
     ruleErrors,
     issueLinks,
     modalRef,

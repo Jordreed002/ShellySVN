@@ -78,7 +78,6 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     rules,
     updateRules,
     isLoadingStatus,
-    files,
     refetch,
     aiSuggestions,
     templateRecommendations,
@@ -86,6 +85,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     diffData,
     filteredFiles,
     selectedCount,
+    committableCount,
     ruleErrors,
     issueLinks,
     modalRef,
@@ -182,6 +182,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       <option value="modified">Modified</option>
                       <option value="added">Added/Unversioned</option>
                       <option value="deleted">Deleted</option>
+                      <option value="changelist">Changelist</option>
+                      <option value="external">Externals</option>
                     </select>
                     <button
                       type="button"
@@ -221,7 +223,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     Select none
                   </button>
                   <span className="text-text-faint ml-auto" aria-live="polite" aria-atomic="true">
-                    {selectedCount}/{files.length} selected
+                    {selectedCount}/{committableCount} selected
                   </span>
                 </div>
 
@@ -266,9 +268,11 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           <input
                             type="checkbox"
                             checked={file.selected}
+                            disabled={!file.committable}
                             onChange={() => handleToggleFile(file.path)}
                             onClick={(e) => e.stopPropagation()}
                             className="checkbox"
+                            title={file.committable ? undefined : 'Not committable from this working copy'}
                             aria-label={`${file.selected ? 'Deselect' : 'Select'} ${filename}`}
                           />
                           <span
@@ -281,6 +285,27 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           <span className="flex-1 text-sm truncate text-text" title={file.path}>
                             {filename}
                           </span>
+                          {file.propsStatus && (
+                            <span
+                              className="text-[10px] rounded border border-border px-1 text-text-muted"
+                              title="Property status"
+                            >
+                              P:{file.propsStatus}
+                            </span>
+                          )}
+                          {file.changelist && (
+                            <span
+                              className="max-w-[90px] truncate text-[10px] rounded border border-border px-1 text-text-muted"
+                              title={`Changelist: ${file.changelist}`}
+                            >
+                              {file.changelist}
+                            </span>
+                          )}
+                          {!file.committable && (
+                            <span className="text-[10px] text-text-faint" title="Display only">
+                              Display only
+                            </span>
+                          )}
                           {file.status !== '?' && file.status !== 'A' && (
                             <button
                               type="button"

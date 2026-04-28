@@ -56,6 +56,23 @@ function mapPropsStatus(status?: string): SvnStatusResult['entries'][0]['propsSt
   return mapped === ' ' ? undefined : mapped;
 }
 
+type StatusXmlEntry = {
+  '@_path': string;
+  'wc-status'?: {
+    '@_item': string;
+    '@_props'?: string;
+    '@_revision'?: string;
+    '@_switched'?: boolean | string;
+    commit?: { '@_revision': string; author?: string; date?: string };
+    lock?: { owner?: string; comment?: string; creationdate?: string };
+  };
+};
+
+function asArray<T>(value: T | T[] | undefined): T[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
 export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResult {
   const entries: SvnStatusResult['entries'] = [];
 
@@ -63,40 +80,33 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
     const parsed = xmlParser.parse(xml) as {
       status?: {
         target?: {
-          entry?:
-            | Array<{
-                '@_path': string;
-                'wc-status'?: {
-                  '@_item': string;
-                  '@_props'?: string;
-                  '@_revision'?: string;
-                  '@_switched'?: boolean | string;
-                  commit?: { '@_revision': string; author?: string; date?: string };
-                  lock?: { owner?: string; comment?: string; creationdate?: string };
-                };
-              }>
-            | {
-                '@_path': string;
-                'wc-status'?: {
-                  '@_item': string;
-                  '@_props'?: string;
-                  '@_revision'?: string;
-                  '@_switched'?: boolean | string;
-                  commit?: { '@_revision': string; author?: string; date?: string };
-                  lock?: { owner?: string; comment?: string; creationdate?: string };
-                };
-              };
+          entry?: StatusXmlEntry[] | StatusXmlEntry;
+          changelist?:
+            | Array<{ '@_name'?: string; entry?: StatusXmlEntry[] | StatusXmlEntry }>
+            | { '@_name'?: string; entry?: StatusXmlEntry[] | StatusXmlEntry };
         };
       };
     };
 
-    const entryList = parsed.status?.target?.entry;
-    if (!entryList) {
+    const target = parsed.status?.target;
+    if (!target) {
       return { path: basePath, entries: [], revision: 0 };
     }
 
-    const entriesArray = Array.isArray(entryList) ? entryList : [entryList];
-    for (const entry of entriesArray) {
+    const entriesArray = [
+      ...asArray(target.entry).map((entry) => ({ entry })),
+      ...asArray(target.changelist).flatMap((changelist) =>
+        asArray(changelist.entry).map((entry) => ({
+          entry,
+          changelist: changelist['@_name'],
+        }))
+      ),
+    ];
+    if (entriesArray.length === 0) {
+      return { path: basePath, entries: [], revision: 0 };
+    }
+
+    for (const { entry, changelist } of entriesArray) {
       const wcStatus = entry['wc-status'];
       if (!wcStatus) continue;
 
@@ -110,6 +120,7 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
         date: wcStatus.commit?.date,
         isDirectory: false,
         propsStatus: mapPropsStatus(wcStatus['@_props']),
+        changelist,
         switched: parseBooleanAttribute(wcStatus['@_switched']),
         lock: wcStatus.lock
           ? {

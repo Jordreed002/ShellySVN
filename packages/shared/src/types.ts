@@ -29,6 +29,7 @@ export interface SvnStatusEntry {
   date?: string;
   isDirectory: boolean;
   propsStatus?: SvnStatusChar;
+  changelist?: string;
   switched?: boolean;
   lock?: {
     owner: string;

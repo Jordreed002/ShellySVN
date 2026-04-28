@@ -175,6 +175,31 @@ describe('SVN Status XML Parser', () => {
       expect(result.entries[0].switched).toBe(true);
     });
 
+    it('should parse changelist status groups', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<status>
+  <target path=".">
+    <changelist name="release">
+      <entry path="release-notes.md">
+        <wc-status item="modified">
+          <commit revision="42">
+            <author>developer</author>
+            <date>2024-01-15T10:30:00.000000Z</date>
+          </commit>
+        </wc-status>
+      </entry>
+    </changelist>
+  </target>
+</status>`;
+
+      const result = parseSvnStatusXml(xml, '/test/path');
+
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].path).toBe('release-notes.md');
+      expect(result.entries[0].status).toBe('M');
+      expect(result.entries[0].changelist).toBe('release');
+    });
+
     it('should parse locked files', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <status>

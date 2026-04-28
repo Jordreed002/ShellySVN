@@ -101,7 +101,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 
 ### Commit Workflow
 
-- [ ] Upgrade commit dialog file selection to clearly handle versioned, unversioned, missing, deleted, changelist, externals, and nested working-copy items.
+- [x] Upgrade commit dialog file selection to clearly handle versioned, unversioned, missing, deleted, changelist, externals, and nested working-copy items.
 - [x] Add per-project minimum commit message length rules.
 - [x] Add required issue ID validation before commit.
 - [x] Add commit message spellcheck.
