@@ -77,36 +77,36 @@ export function CertificateManagerDialog({ isOpen, onClose }: CertificateManager
                 {selectedCertificate ? (
                   <div className="p-3 space-y-3">
                     <div>
-                      <label className="text-xs text-text-muted">Name</label>
+                      <div className="text-xs text-text-muted">Name</div>
                       <p className="text-sm">{selectedCertificate.name}</p>
                     </div>
                     <div>
-                      <label className="text-xs text-text-muted">Path</label>
+                      <div className="text-xs text-text-muted">Path</div>
                       <p className="text-sm font-mono text-xs break-all">
                         {selectedCertificate.path}
                       </p>
                     </div>
                     {selectedCertificate.realmPattern && (
                       <div>
-                        <label className="text-xs text-text-muted">Realm Pattern</label>
+                        <div className="text-xs text-text-muted">Realm Pattern</div>
                         <p className="text-sm">{selectedCertificate.realmPattern}</p>
                       </div>
                     )}
                     <div>
-                      <label className="text-xs text-text-muted">Passphrase</label>
+                      <div className="text-xs text-text-muted">Passphrase</div>
                       <p className="text-sm">
                         {selectedCertificate.hasPassphrase ? 'Required' : 'Not required'}
                       </p>
                     </div>
                     <div>
-                      <label className="text-xs text-text-muted">Created</label>
+                      <div className="text-xs text-text-muted">Created</div>
                       <p className="text-sm">
                         {new Date(selectedCertificate.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                     {selectedCertificate.lastUsedAt && (
                       <div>
-                        <label className="text-xs text-text-muted">Last Used</label>
+                        <div className="text-xs text-text-muted">Last Used</div>
                         <p className="text-sm">
                           {new Date(selectedCertificate.lastUsedAt).toLocaleDateString()}
                         </p>

@@ -124,9 +124,9 @@ export function ChangelistDialog({
               {/* Existing changelists */}
               {changelistData?.changelists && changelistData.changelists.length > 0 && (
                 <div>
-                  <label className="text-sm font-medium text-text-secondary mb-2 block">
+                  <div className="text-sm font-medium text-text-secondary mb-2">
                     Existing Changelists
-                  </label>
+                  </div>
                   <div className="space-y-2">
                     {changelistData.changelists.map((cl) => (
                       <div
@@ -184,7 +184,6 @@ export function ChangelistDialog({
                       onChange={(e) => setNewChangelistName(e.target.value)}
                       placeholder="Changelist name (e.g., 'feature-x')"
                       className="input"
-                      autoFocus
                     />
                     <p className="text-xs text-text-faint">
                       Changelists are local only - they help you organize your changes for

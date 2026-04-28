@@ -128,6 +128,18 @@ export function AutoCompleteInput({
     [onChange, minChars]
   );
 
+  // Handle suggestion selection
+  const handleSelect = useCallback(
+    (option: AutocompleteOption) => {
+      onChange(option.value);
+      setIsOpen(false);
+      setIsNavigating(false);
+      onSuggestionSelect?.(option.value);
+      inputRef.current?.focus();
+    },
+    [onChange, onSuggestionSelect]
+  );
+
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -180,19 +192,7 @@ export function AutoCompleteInput({
           break;
       }
     },
-    [isOpen, filteredSuggestions, highlightedIndex, value.length, minChars]
-  );
-
-  // Handle suggestion selection
-  const handleSelect = useCallback(
-    (option: AutocompleteOption) => {
-      onChange(option.value);
-      setIsOpen(false);
-      setIsNavigating(false);
-      onSuggestionSelect?.(option.value);
-      inputRef.current?.focus();
-    },
-    [onChange, onSuggestionSelect]
+    [isOpen, filteredSuggestions, highlightedIndex, value.length, minChars, handleSelect]
   );
 
   // Handle mouse enter on suggestion
@@ -224,6 +224,7 @@ export function AutoCompleteInput({
         placeholder={placeholder}
         disabled={disabled}
         className={`input resize-none ${inputClassName}`}
+        role="combobox"
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         aria-autocomplete="list"
@@ -482,6 +483,7 @@ export function AutoCompleteTextInput({
         placeholder={placeholder}
         disabled={disabled}
         className={`input ${inputClassName}`}
+        role="combobox"
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         aria-autocomplete="list"

@@ -222,7 +222,7 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                   </p>
                 </div>
               ) : (
-                plugins.map((plugin, index) => {
+                plugins.map((plugin) => {
                   const status = getPluginStatus(plugin);
                   const isSelected = selectedPluginId === plugin.manifest.id;
 
@@ -237,8 +237,6 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                       `}
                       role="option"
                       aria-selected={isSelected}
-                      aria-posinset={index + 1}
-                      aria-setsize={plugins.length}
                     >
                       <div
                         className={`w-2 h-2 rounded-full flex-shrink-0 ${status.color}`}

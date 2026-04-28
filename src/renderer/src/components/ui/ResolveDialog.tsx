@@ -258,9 +258,9 @@ export function ResolveDialog({
 
             {/* Resolution Options */}
             <div>
-              <label className="text-sm font-medium text-text-secondary mb-2 block">
+              <div className="text-sm font-medium text-text-secondary mb-2">
                 Choose resolution method:
-              </label>
+              </div>
               <div className="space-y-2">
                 {RESOLUTION_OPTIONS.map((option) => (
                   <button

@@ -270,7 +270,7 @@ export function LockManagementDialog({
                   <p className="text-sm">No locked files in this working copy</p>
                 </div>
               ) : (
-                locks.map((lock, index) => {
+                locks.map((lock) => {
                   const filename = lock.path.split(/[/\\]/).pop() || lock.path;
                   const isSelected = selectedLock?.path === lock.path;
 
@@ -285,8 +285,6 @@ export function LockManagementDialog({
                       `}
                       role="option"
                       aria-selected={isSelected}
-                      aria-posinset={index + 1}
-                      aria-setsize={locks.length}
                     >
                       <Lock className="w-4 h-4 text-warning flex-shrink-0" aria-hidden="true" />
                       <div className="flex-1 min-w-0">

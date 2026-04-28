@@ -20,6 +20,15 @@ export interface ProgressDialogProps {
   estimatedTimeRemaining?: number;
 }
 
+const truncatePath = (path: string, maxLength = 50): string => {
+  if (path.length <= maxLength) return path;
+  const fileName = path.split(/[/\\]/).pop() || path;
+  if (fileName.length >= maxLength) return '...' + fileName.slice(-maxLength + 3);
+  const remaining = maxLength - fileName.length - 3;
+  const start = path.slice(0, Math.max(0, remaining));
+  return `${start}...${fileName}`;
+};
+
 export function ProgressDialog({
   isOpen,
   title,
@@ -42,16 +51,6 @@ export function ProgressDialog({
   const isCancelled = status === 'cancelled';
   const hasError = status === 'error';
   const isRunning = status === 'running';
-
-  // Truncate file path for display
-  const truncatePath = (path: string, maxLength = 50): string => {
-    if (path.length <= maxLength) return path;
-    const fileName = path.split(/[/\\]/).pop() || path;
-    if (fileName.length >= maxLength) return '...' + fileName.slice(-maxLength + 3);
-    const remaining = maxLength - fileName.length - 3;
-    const start = path.slice(0, Math.max(0, remaining));
-    return `${start}...${fileName}`;
-  };
 
   const handleClose = () => {
     if (!isRunning && onClose) {
@@ -165,9 +164,9 @@ export function ProgressDialog({
           {/* Current file */}
           {currentFile && isRunning && (
             <div className="space-y-1">
-              <label className="text-xs font-medium text-text-muted uppercase tracking-wide">
+              <div className="text-xs font-medium text-text-muted uppercase tracking-wide">
                 Current File
-              </label>
+              </div>
               <div className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary rounded-md">
                 <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />
                 <span

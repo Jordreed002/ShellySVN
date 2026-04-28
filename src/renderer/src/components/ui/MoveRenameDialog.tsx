@@ -97,17 +97,20 @@ export function MoveRenameDialog({
 
           {/* Destination input */}
           <div>
-            <label className="text-sm font-medium text-text-secondary mb-1.5 block">
+            <label
+              htmlFor="move-rename-destination"
+              className="text-sm font-medium text-text-secondary mb-1.5 block"
+            >
               Destination
             </label>
             <div className="flex gap-2">
               <input
+                id="move-rename-destination"
                 type="text"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
                 placeholder={mode === 'rename' ? 'Enter new name...' : 'Enter destination path...'}
                 className="input flex-1"
-                autoFocus
               />
               <button onClick={handleBrowse} className="btn btn-secondary" title="Browse">
                 {isDirectory ? (

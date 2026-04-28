@@ -221,17 +221,33 @@ export function SparseCheckoutDialog({
           <form onSubmit={handleSubmit}>
             <div className="modal-body space-y-6">
               <div>
-                <label className="block text-sm font-medium text-text mb-2">Repository URL</label>
-                <input type="text" value={repoUrl} readOnly className="input bg-bg-tertiary" />
+                <label htmlFor="sparse-repo-url" className="block text-sm font-medium text-text mb-2">
+                  Repository URL
+                </label>
+                <input
+                  id="sparse-repo-url"
+                  type="text"
+                  value={repoUrl}
+                  readOnly
+                  className="input bg-bg-tertiary"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text mb-2">Target Path</label>
-                <input type="text" value={targetPath} readOnly className="input bg-bg-tertiary" />
+                <label htmlFor="sparse-target-path" className="block text-sm font-medium text-text mb-2">
+                  Target Path
+                </label>
+                <input
+                  id="sparse-target-path"
+                  type="text"
+                  value={targetPath}
+                  readOnly
+                  className="input bg-bg-tertiary"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text mb-2">Initial Depth</label>
+                <div className="block text-sm font-medium text-text mb-2">Initial Depth</div>
                 <div className="grid grid-cols-2 gap-2">
                   {DEPTH_OPTIONS.map((opt) => (
                     <button
@@ -256,7 +272,7 @@ export function SparseCheckoutDialog({
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-text">Include Paths</label>
+                  <div className="text-sm font-medium text-text">Include Paths</div>
                   <div className="flex gap-2">
                     <button
                       type="button"
