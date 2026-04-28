@@ -33,18 +33,18 @@ export default defineConfig({
       ],
       all: true,
       thresholds: {
-        // Target thresholds for Phase 1
-        lines: 25,
-        functions: 20,
-        branches: 25,
-        statements: 25,
+        // Current global baseline after the Phase 1-3 module extraction work.
+        lines: 50,
+        functions: 40,
+        branches: 55,
+        statements: 50,
       },
       perFile: true,
       watermarks: {
-        lines: [20, 50],
-        functions: [20, 50],
-        branches: [20, 50],
-        statements: [20, 50],
+        lines: [50, 80],
+        functions: [40, 75],
+        branches: [55, 80],
+        statements: [50, 80],
       },
     },
     testTimeout: 10000,
