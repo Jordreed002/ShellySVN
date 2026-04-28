@@ -28,7 +28,7 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [limit, setLimit] = useState(50);
   const [configPath, setConfigPath] = useState(path);
   const listRef = useRef<HTMLDivElement>(null);
-  const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath);
+  const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, path);
   const selectedIssueLinks = useMemo(
     () => (selectedEntry ? extractIssueLinks(selectedEntry.message, issueTrackerConfig) : []),
     [selectedEntry, issueTrackerConfig]

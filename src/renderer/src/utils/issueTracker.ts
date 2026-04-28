@@ -92,6 +92,42 @@ export function issueTrackerConfigFromBugtraqProperties(
   });
 }
 
+export function getInheritedPropertyLookupPaths(
+  targetPath: string,
+  workingCopyRoot: string
+): string[] {
+  const rootPath = trimTrailingSeparators(workingCopyRoot);
+  const firstPath = trimTrailingSeparators(targetPath || rootPath);
+
+  if (!firstPath) return [];
+  if (!rootPath) return [firstPath];
+
+  const rootKey = normalizePathKey(rootPath);
+  const lookupPaths: string[] = [];
+  let currentPath = firstPath;
+
+  for (let depth = 0; depth < 100 && currentPath; depth++) {
+    const currentKey = normalizePathKey(currentPath);
+    const isInsideRoot = currentKey === rootKey || currentKey.startsWith(rootKey + '/');
+
+    if (isInsideRoot && !lookupPaths.some((path) => normalizePathKey(path) === currentKey)) {
+      lookupPaths.push(currentPath);
+    }
+
+    if (currentKey === rootKey) break;
+
+    const parentPath = getParentPath(currentPath);
+    if (!parentPath || parentPath === currentPath) break;
+    currentPath = parentPath;
+  }
+
+  if (!lookupPaths.some((path) => normalizePathKey(path) === rootKey)) {
+    lookupPaths.push(rootPath);
+  }
+
+  return lookupPaths;
+}
+
 function getBugtraqIssuePattern(logRegex: string, numericOnly: boolean): string {
   const regexLines = logRegex
     .split(/\r?\n/)
@@ -103,4 +139,20 @@ function getBugtraqIssuePattern(logRegex: string, numericOnly: boolean): string 
   }
 
   return numericOnly ? '\\d+' : DEFAULT_ISSUE_TRACKER_CONFIG.issueIdPattern;
+}
+
+function normalizePathKey(path: string): string {
+  return trimTrailingSeparators(path).replace(/\\/g, '/').toLowerCase();
+}
+
+function trimTrailingSeparators(path: string): string {
+  return path.trim().replace(/[\\/]+$/, '');
+}
+
+function getParentPath(path: string): string | null {
+  const trimmedPath = trimTrailingSeparators(path);
+  const separatorIndex = Math.max(trimmedPath.lastIndexOf('/'), trimmedPath.lastIndexOf('\\'));
+
+  if (separatorIndex <= 0) return null;
+  return trimmedPath.slice(0, separatorIndex);
 }

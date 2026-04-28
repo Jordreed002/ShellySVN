@@ -151,7 +151,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 - [x] Add issue ID column in revision log.
 - [x] Support configurable issue regex and URL templates.
 - [x] Add initial compatibility with common TortoiseSVN `bugtraq:` project properties.
-- [ ] Add inherited-folder discovery for TortoiseSVN `bugtraq:` properties on nested paths.
+- [x] Add inherited-folder discovery for TortoiseSVN `bugtraq:` properties on nested paths.
 
 ### Release Quality
 

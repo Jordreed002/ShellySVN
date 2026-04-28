@@ -3,6 +3,7 @@ import {
   buildIssueUrl,
   extractIssueIds,
   extractIssueLinks,
+  getInheritedPropertyLookupPaths,
   issueTrackerConfigFromBugtraqProperties,
   normalizeIssueTrackerConfig,
 } from '../issueTracker';
@@ -59,5 +60,19 @@ describe('issueTracker', () => {
         { name: 'bugtraq:logregex', value: 'Issues?:?\\s*(.*)\n[A-Z]+-\\d+' },
       ])?.issueIdPattern
     ).toBe('[A-Z]+-\\d+');
+  });
+
+  it('builds nested property lookup paths from target to working copy root', () => {
+    expect(getInheritedPropertyLookupPaths('/repo/trunk/src/file.ts', '/repo/trunk')).toEqual([
+      '/repo/trunk/src/file.ts',
+      '/repo/trunk/src',
+      '/repo/trunk',
+    ]);
+  });
+
+  it('builds nested property lookup paths for Windows paths', () => {
+    expect(
+      getInheritedPropertyLookupPaths('C:\\repo\\trunk\\src\\file.ts', 'C:\\repo\\trunk')
+    ).toEqual(['C:\\repo\\trunk\\src\\file.ts', 'C:\\repo\\trunk\\src', 'C:\\repo\\trunk']);
   });
 });

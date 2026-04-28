@@ -32,7 +32,7 @@ export function BlameViewer({
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightRevision, setHighlightRevision] = useState<number | null>(null);
   const [configPath, setConfigPath] = useState(filePath);
-  const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath);
+  const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, filePath);
 
   // Fetch blame data
   const {

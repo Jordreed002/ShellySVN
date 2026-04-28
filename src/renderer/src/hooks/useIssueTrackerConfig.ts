@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   DEFAULT_ISSUE_TRACKER_CONFIG,
+  getInheritedPropertyLookupPaths,
   issueTrackerConfigFromBugtraqProperties,
   normalizeIssueTrackerConfig,
   type IssueTrackerConfig,
@@ -11,7 +12,7 @@ const STORAGE_KEY = 'shellysvn:issue-trackers';
 
 type IssueTrackerStore = Record<string, IssueTrackerConfig>;
 
-export function useIssueTrackerConfig(workingCopyPath: string) {
+export function useIssueTrackerConfig(workingCopyPath: string, lookupPath = workingCopyPath) {
   const [config, setConfig] = useState<IssueTrackerConfig>(DEFAULT_ISSUE_TRACKER_CONFIG);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -34,10 +35,10 @@ export function useIssueTrackerConfig(workingCopyPath: string) {
           return;
         }
 
-        const properties = await window.api.svn.proplist(workingCopyPath);
+        const bugtraqConfig = await loadInheritedBugtraqConfig(lookupPath, workingCopyPath, () =>
+          cancelled
+        );
         if (cancelled) return;
-
-        const bugtraqConfig = issueTrackerConfigFromBugtraqProperties(properties);
         setConfig(bugtraqConfig || DEFAULT_ISSUE_TRACKER_CONFIG);
       } catch (error) {
         debug.error('Failed to load issue tracker config:', error);
@@ -56,7 +57,7 @@ export function useIssueTrackerConfig(workingCopyPath: string) {
     return () => {
       cancelled = true;
     };
-  }, [workingCopyPath]);
+  }, [workingCopyPath, lookupPath]);
 
   const updateConfig = useCallback(
     async (updates: Partial<IssueTrackerConfig>) => {
@@ -75,4 +76,26 @@ export function useIssueTrackerConfig(workingCopyPath: string) {
   );
 
   return { config, updateConfig, isLoading };
+}
+
+async function loadInheritedBugtraqConfig(
+  lookupPath: string,
+  workingCopyPath: string,
+  isCancelled: () => boolean
+): Promise<IssueTrackerConfig | null> {
+  for (const propertyPath of getInheritedPropertyLookupPaths(lookupPath, workingCopyPath)) {
+    if (isCancelled()) return null;
+
+    try {
+      const properties = await window.api.svn.proplist(propertyPath);
+      const bugtraqConfig = issueTrackerConfigFromBugtraqProperties(properties);
+      if (bugtraqConfig) {
+        return bugtraqConfig;
+      }
+    } catch (error) {
+      debug.log('Skipping inherited bugtraq property lookup:', propertyPath, error);
+    }
+  }
+
+  return null;
 }

@@ -68,8 +68,9 @@ export function useCommitDialogController({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { history, addMessage } = useCommitMessageHistory();
   const { templates, applyTemplate } = useCommitTemplates();
+  const issueTrackerLookupPath = files.find((file) => file.selected)?.path || workingCopyPath;
   const { config: issueTrackerConfig, updateConfig: updateIssueTrackerConfig } =
-    useIssueTrackerConfig(workingCopyPath);
+    useIssueTrackerConfig(workingCopyPath, issueTrackerLookupPath);
   const { rules, updateRules } = useCommitRules(workingCopyPath, issueTrackerConfig);
 
   const modalRef = useFocusTrap({
