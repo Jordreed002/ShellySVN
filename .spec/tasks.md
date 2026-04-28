@@ -11,10 +11,10 @@ Execution order is defined in `fix-plan.md`.
 ## Immediate
 
 - [ ] Reinstall dependencies from `bun.lock` and confirm `node_modules/.bin` contains `oxlint`, `vitest`, and other declared tool binaries.
-- [ ] Run `bun run build` after dependency repair and record the result.
-- [ ] Add a `test` or `test:unit` script that runs the local Vitest dependency instead of using an unpinned `bunx vitest`.
-- [ ] Add a `verify` script for typecheck, lint, unit tests, and build.
-- [ ] Add or update CI to run `bun run typecheck`, `bun run lint`, unit tests, and `bun run build`.
+- [x] Run `bun run build` after dependency repair and record the result.
+- [x] Add a `test` or `test:unit` script that runs the local Vitest dependency instead of using an unpinned `bunx vitest`.
+- [x] Add a `verify` script for typecheck, lint, unit tests, and build.
+- [x] Add or update CI to run `bun run typecheck`, `bun run lint`, unit tests, and `bun run build`.
 - [ ] Triage all skipped tests and decide which should be fixed, moved to a Node environment, or deleted.
 - [ ] Add a CI check that fails when skipped tests increase without an explicit allowlist update.
 
@@ -22,16 +22,16 @@ Execution order is defined in `fix-plan.md`.
 
 ## Security
 
-- [ ] Add a command-argument redaction helper for SVN debug logs.
-- [ ] Update `executeSvn()` logging to use redacted args.
-- [ ] Add tests proving `--password` and other sensitive flags are never logged.
-- [ ] Prevent `AuthCache` from writing plaintext credentials when `safeStorage` is unavailable.
-- [ ] Prevent `SettingsManager` from writing plaintext proxy passwords when `safeStorage` is unavailable.
-- [ ] Reuse the same external URL scheme validation in `setWindowOpenHandler`.
-- [ ] Consolidate SVN SSL trust handling into one helper.
-- [ ] Remove default support for `other` SSL trust failures unless there is a dedicated user-confirmed path.
-- [ ] Replace current path validation with resolve-against-allowed-root validation.
-- [ ] Add validation tests for Windows absolute paths, drive-relative paths, UNC paths, parent traversal, symlinks, and non-existent targets.
+- [x] Add a command-argument redaction helper for SVN debug logs.
+- [x] Update `executeSvn()` logging to use redacted args.
+- [x] Add tests proving `--password` and other sensitive flags are never logged.
+- [x] Prevent `AuthCache` from writing plaintext credentials when `safeStorage` is unavailable.
+- [x] Prevent `SettingsManager` from writing plaintext proxy passwords when `safeStorage` is unavailable.
+- [x] Reuse the same external URL scheme validation in `setWindowOpenHandler`.
+- [x] Consolidate SVN SSL trust handling into one helper.
+- [x] Remove default support for `other` SSL trust failures unless there is a dedicated user-confirmed path.
+- [x] Replace current path validation with resolve-against-allowed-root validation.
+- [x] Add validation tests for Windows absolute paths, drive-relative paths, UNC paths, parent traversal, symlinks, and non-existent targets.
 - [x] Scope `fs:writeFile` to app/plugin-owned directories or explicit user-approved paths.
 - [x] Scope `fs:copyFile`, `fs:watch`, and recursive folder-size operations to approved roots.
 - [x] Validate custom SVN binary paths before saving and before spawning.

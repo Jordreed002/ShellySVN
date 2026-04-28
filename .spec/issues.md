@@ -12,6 +12,8 @@ This file tracks concrete defects and risks found during project review.
 
 **Location:** `src/main/ipc/svn.ts`
 
+**Status:** Resolved in code. SVN command logging now uses a shared redaction helper and tests cover secret CLI argument redaction.
+
 `executeSvn()` appends `--username` and `--password` to the argument list, then logs the full command with `finalArgs.join(' ')`. This can expose SVN credentials in application logs.
 
 **Impact:** Credential disclosure through debug output or collected logs.
@@ -23,6 +25,8 @@ This file tracks concrete defects and risks found during project review.
 ### 2. Credentials may be persisted in plaintext when Electron safeStorage is unavailable
 
 **Location:** `src/main/auth-cache.ts`, `src/main/settings-manager.ts`
+
+**Status:** Resolved in code. Auth credentials skip disk persistence when encryption is unavailable, and plaintext proxy passwords are dropped instead of saved.
 
 `AuthCache` logs that credentials will be "stored in memory only" when encryption is unavailable, but `set()` still stores the raw password and `save()` writes the credential cache to disk. `SettingsManager` has the same pattern for proxy passwords: if encryption is unavailable, it returns the original value and persists it.
 
@@ -36,6 +40,8 @@ This file tracks concrete defects and risks found during project review.
 
 **Location:** `src/main/index.ts`
 
+**Status:** Resolved in code. `setWindowOpenHandler()` now routes through the same validated external URL helper as `app:openExternal`.
+
 `app:openExternal` validates schemes, but `mainWindow.webContents.setWindowOpenHandler()` directly calls `shell.openExternal(details.url)` for any URL.
 
 **Impact:** A malicious or compromised renderer path could attempt to open unsafe schemes through `window.open()`.
@@ -47,6 +53,8 @@ This file tracks concrete defects and risks found during project review.
 ### 4. Production build fails on current checkout
 
 **Command:** `bun run build`
+
+**Status:** Resolved in code and verified. `bun run verify` now runs typecheck, lint, skipped-test guard, unit tests, and `bun run build`; the production build passes.
 
 The renderer build fails to resolve `react-syntax-highlighter` from `src/renderer/src/components/ui/CodeHighlighter.tsx`.
 
@@ -63,6 +71,8 @@ The renderer build fails to resolve `react-syntax-highlighter` from `src/rendere
 ### 5. SSL certificate bypass rules are inconsistent
 
 **Location:** `src/main/ipc/svn.ts`
+
+**Status:** Resolved in code. SVN SSL trust failures are normalized through the shared allow-list and `other` is excluded.
 
 The shared SSL bypass allow-list excludes `other`, but some SVN handlers still pass `other` through `--trust-server-cert-failures`.
 
@@ -156,6 +166,8 @@ The global CSS imports Google Fonts, but the Content Security Policy only allows
 
 - `bun run lint`
 - `bunx vitest run`
+
+**Status:** Resolved in project scripts. `test`, `test:unit`, and `verify` now use the local project dependencies through Bun scripts.
 
 `bun run lint` fails because `oxlint` is unavailable in `node_modules/.bin`. Running Vitest through `bunx` resolves a temporary/latest installation and fails to load local `vitest/config`.
 
@@ -287,6 +299,8 @@ The local `binaries/win32-x64/shelly-engine.exe` and `binaries/win32-x64/svn/svn
 
 **Location:** `.github/workflows/ci.yml`
 
+**Status:** Resolved in CI. The lint/typecheck job runs both `bun run typecheck` and `bun run lint`.
+
 The `lint-and-typecheck` job runs `bun run typecheck` but does not run `bun run lint`.
 
 **Impact:** Lint regressions are not caught in CI despite the job name implying they are.
@@ -298,6 +312,8 @@ The `lint-and-typecheck` job runs `bun run typecheck` but does not run `bun run 
 ### 23. Unit tests are run through unpinned `bunx vitest`
 
 **Location:** `.github/workflows/ci.yml`, `package.json`
+
+**Status:** Resolved in project scripts and CI. Unit and coverage tests now run through local package scripts backed by the lockfile.
 
 CI uses `bunx vitest run --coverage`, and `package.json` has no first-class unit test script.
 
