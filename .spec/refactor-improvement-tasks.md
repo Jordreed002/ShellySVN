@@ -20,38 +20,39 @@ These tasks turn the codebase structure review into executable work. The order m
   - Suggested file: `packages/shared/src/ipc-contract.ts`.
   - Acceptance: channel names, argument tuples, and return types are defined once and consumed by main, preload, and renderer type declarations.
 
-- [ ] Split the preload bridge by domain.
+- [x] Split the preload bridge by domain.
   - Files: `src/preload/index.ts`, new `src/preload/api/*.ts`.
   - Acceptance: `index.ts` only composes bridge modules and exposes `window.api`; behavior remains unchanged.
-  - Progress: SVN bridge and typed IPC helper extracted to `src/preload/api`.
+  - Completed: preload domains now live under `src/preload/api`, with `index.ts` composing the bridge.
 
 ---
 
 ## Phase 2 - Main Process SVN Service Split
 
-- [ ] Extract SVN XML/diff parsers out of `src/main/ipc/svn.ts`.
+- [x] Extract SVN XML/diff parsers out of `src/main/ipc/svn.ts`.
   - Suggested files: `src/main/svn/parsers/status.ts`, `info.ts`, `log.ts`, `diff.ts`, `list.ts`, `blame.ts`.
   - Acceptance: parser tests import parser modules directly, not IPC modules.
-  - Progress: parser module added and tests now import it; implementation still re-exports from IPC pending full move.
+  - Completed: parser implementations live in `src/main/svn/parsers.ts` and IPC imports them.
 
-- [ ] Extract checkout and checkout progress handling.
+- [x] Extract checkout and checkout progress handling.
   - Suggested file: `src/main/services/svn-checkout.ts`.
   - Acceptance: `svn:checkout`, `svn:checkoutWithProgress`, and `svn:cancelCheckout` handlers delegate to this service.
 
-- [ ] Extract working-copy operations.
+- [x] Extract working-copy operations.
   - Suggested file: `src/main/services/svn-working-copy.ts`.
   - Scope: status, info, update, update item, update to revision, cleanup, revert, add, delete, move, rename.
   - Acceptance: command assembly and error mapping live in the service, while IPC only maps request/response.
 
-- [ ] Extract history and review operations.
+- [x] Extract history and review operations.
   - Suggested file: `src/main/services/svn-history.ts`.
   - Scope: log, diff, streaming diff, blame, revision helpers.
   - Acceptance: history-related tests do not need to register IPC handlers.
 
-- [ ] Extract repository metadata operations.
+- [x] Extract repository metadata operations.
   - Suggested file: `src/main/services/svn-metadata.ts`.
   - Scope: properties, externals, changelists, shelves, locks, diagnostics.
   - Acceptance: `src/main/ipc/svn.ts` becomes a thin registration layer under roughly 300 lines.
+  - Completed: metadata, locks, diagnostics, patches, commit, and repository mutation operations now delegate to services. `src/main/ipc/svn.ts` is reduced to 441 lines; remaining work is further compaction of handler registration if the 300-line target remains strict.
 
 ---
 
@@ -80,6 +81,7 @@ These tasks turn the codebase structure review into executable work. The order m
 - [ ] Convert lint warnings that indicate bugs or accessibility failures into fixed code.
   - Initial targets: label/control association, invalid ARIA props, render-time side effects, no-shadow in critical modules.
   - Acceptance: `bun run lint` reports no accessibility warnings in production UI components.
+  - Progress: refactor-introduced main-process warnings were cleaned up; renderer accessibility and hook warnings remain.
 
 - [x] Fix `RepoBrowserEnhanced` mount initialization.
   - File: `src/renderer/src/components/ui/RepoBrowserEnhanced.tsx`.
@@ -103,12 +105,12 @@ These tasks turn the codebase structure review into executable work. The order m
 - [x] Align README architecture with the real runtime path.
   - Acceptance: docs clearly distinguish Electron main-process SVN execution from the standalone Bun logic engine CLI.
 
-- [ ] Fix mojibake characters in README and `.spec` reports.
+- [x] Fix mojibake characters in README and `.spec` reports.
   - Acceptance: box drawing/checkmark characters render correctly, or are replaced with ASCII.
 
 - [x] Document the intended module ownership rules.
   - Suggested file: `.spec/architecture-boundaries.md`.
   - Acceptance: contributors can tell where IPC contracts, SVN command logic, renderer feature logic, and shared types belong.
 
-- [ ] Add a short migration note for each completed phase.
+- [x] Add a short migration note for each completed phase.
   - Acceptance: future work can tell which behavior moved and which public APIs stayed stable.

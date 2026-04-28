@@ -185,56 +185,56 @@ bun run engine:build:all    # Compile for all platforms
 ShellySVN uses Electron process isolation for the desktop app and a separate Bun-based logic engine for headless CLI use.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Electron Main Process                     │
-│                      (Node.js runtime)                       │
-│                                                              │
-│  - Window management                                         │
-│  - IPC coordination                                          │
-│  - Native dialogs                                            │
-│  - Settings storage                                          │
-└────────────────────────┬────────────────────────────────────┘
-                         │ child_process.spawn()
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Logic Engine (shelly-engine)                    │
-│                    Compiled Bun Binary                       │
-│                                                              │
-│  - Headless CLI SVN command execution                        │
-│  - XML to JSON parsing (fast-xml-parser)                     │
-│  - Structured JSON output to stdout                          │
-└────────────────────────┬────────────────────────────────────┘
-                         │ Bun.spawn()
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Bundled SVN Binary                         │
-│                                                              │
-│  - Portable, self-contained                                  │
-│  - No system dependencies                                    │
-│  - Cross-platform binaries                                   │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    Electron Main Process                     |
+|                      (Node.js runtime)                       |
+|                                                             |
+|  - Window management                                        |
+|  - IPC coordination                                         |
+|  - Native dialogs                                           |
+|  - Settings storage                                         |
++------------------------+------------------------------------+
+                         | child_process.spawn()
+                         v
++-------------------------------------------------------------+
+|              Logic Engine (shelly-engine)                   |
+|                    Compiled Bun Binary                      |
+|                                                             |
+|  - Headless CLI SVN command execution                       |
+|  - XML to JSON parsing (fast-xml-parser)                    |
+|  - Structured JSON output to stdout                         |
++------------------------+------------------------------------+
+                         | Bun.spawn()
+                         v
++-------------------------------------------------------------+
+|                   Bundled SVN Binary                        |
+|                                                             |
+|  - Portable, self-contained                                 |
+|  - No system dependencies                                   |
+|  - Cross-platform binaries                                  |
++-------------------------------------------------------------+
 ```
 
 ### Project Structure
 
 ```
 ShellySVN/
-├── src/
-│   ├── main/           # Electron main process
-│   ├── preload/        # Preload scripts (IPC bridge)
-│   ├── renderer/       # React frontend
-│   │   ├── components/ # UI components
-│   │   │   └── ui/     # Reusable dialogs & controls
-│   │   ├── hooks/      # React hooks
-│   │   ├── routes/     # TanStack Router pages
-│   │   └── styles/     # Tailwind CSS
-├── packages/
-│   └── logic-engine/   # Compiled Bun binary for SVN ops
-│   └── shared/         # Shared types, IPC contracts, utilities
-├── build/              # Electron-builder resources
-├── binaries/           # Platform-specific SVN binaries
-├── out/                # Build output
-└── release/            # Packaged installers
+|-- src/
+|   |-- main/           # Electron main process
+|   |-- preload/        # Preload scripts (IPC bridge)
+|   |-- renderer/       # React frontend
+|   |   |-- components/ # UI components
+|   |   |   `-- ui/     # Reusable dialogs & controls
+|   |   |-- hooks/      # React hooks
+|   |   |-- routes/     # TanStack Router pages
+|   |   `-- styles/     # Tailwind CSS
+|-- packages/
+|   |-- logic-engine/   # Compiled Bun binary for SVN ops
+|   `-- shared/         # Shared types, IPC contracts, utilities
+|-- build/              # Electron-builder resources
+|-- binaries/           # Platform-specific SVN binaries
+|-- out/                # Build output
+`-- release/            # Packaged installers
 ```
 
 ### Technology Choices
