@@ -596,6 +596,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     disabled={isSubmitting}
                     inputClassName="h-28 text-sm"
                     showCategories={true}
+                    spellCheck={true}
+                    textareaRef={textareaRef}
                     minChars={0}
                     aria-label="Commit message"
                     id="commit-message"

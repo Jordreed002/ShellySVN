@@ -104,7 +104,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 - [ ] Upgrade commit dialog file selection to clearly handle versioned, unversioned, missing, deleted, changelist, externals, and nested working-copy items.
 - [x] Add per-project minimum commit message length rules.
 - [x] Add required issue ID validation before commit.
-- [ ] Add commit message spellcheck.
+- [x] Add commit message spellcheck.
 - [x] Add commit message path and keyword autocomplete.
 - [ ] Add commit template and history management that works in packaged builds.
 - [x] Add commit dialog warnings for mixed revisions, switched paths, locks, and externals.

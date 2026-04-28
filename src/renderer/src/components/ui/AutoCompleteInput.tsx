@@ -20,6 +20,8 @@ interface AutoCompleteInputProps {
   maxHeight?: number;
   minChars?: number;
   showCategories?: boolean;
+  spellCheck?: boolean;
+  textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
   'aria-label'?: string;
   'aria-describedby'?: string;
   id?: string;
@@ -37,6 +39,8 @@ export function AutoCompleteInput({
   maxHeight = 200,
   minChars = 0,
   showCategories = false,
+  spellCheck,
+  textareaRef,
   'aria-label': ariaLabel,
   'aria-describedby': ariaDescribedBy,
   id,
@@ -47,6 +51,16 @@ export function AutoCompleteInput({
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+
+  const setInputRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      inputRef.current = node;
+      if (textareaRef) {
+        textareaRef.current = node;
+      }
+    },
+    [textareaRef]
+  );
 
   // Filter suggestions based on input
   const filteredSuggestions = useMemo(() => {
@@ -214,7 +228,7 @@ export function AutoCompleteInput({
   return (
     <div className={`relative ${className}`}>
       <textarea
-        ref={inputRef}
+        ref={setInputRef}
         id={id}
         value={value}
         onChange={handleChange}
@@ -223,6 +237,7 @@ export function AutoCompleteInput({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
+        spellCheck={spellCheck}
         className={`input resize-none ${inputClassName}`}
         role="combobox"
         aria-label={ariaLabel}
