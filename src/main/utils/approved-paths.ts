@@ -14,7 +14,7 @@ function isInsideRoot(root: string, candidate: string): boolean {
 export function approvePathForIpc(path: string): string {
   const normalized = normalizePath(path);
   approvedRoots.add(normalized);
-  return normalized;
+  return path;
 }
 
 export function clearApprovedPathsForTests(): void {
