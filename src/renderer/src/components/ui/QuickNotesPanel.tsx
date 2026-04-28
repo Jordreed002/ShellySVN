@@ -22,6 +22,19 @@ export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPane
   const [newNoteText, setNewNoteText] = useState('');
   const [filter, setFilter] = useState<'all' | 'pinned' | 'current'>('all');
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Load notes from storage
   useEffect(() => {
     const loadNotes = async () => {
@@ -104,14 +117,14 @@ export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPane
   if (!isOpen) return null;
 
   return (
-    <div className="fixed right-0 top-0 bottom-0 w-80 bg-bg-secondary border-l border-border z-50 flex flex-col">
+    <div className="fixed right-0 top-8 bottom-0 w-80 bg-bg-secondary border-l border-border z-50 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border">
         <div className="flex items-center gap-2">
           <StickyNote className="w-4 h-4 text-accent" />
           <span className="font-medium text-text">Quick Notes</span>
         </div>
-        <button onClick={onClose} className="btn-icon-sm">
+        <button onClick={onClose} className="btn-icon-sm" aria-label="Close quick notes">
           <X className="w-4 h-4" />
         </button>
       </div>
