@@ -51,6 +51,15 @@ import {
 import { getDiagnostics } from '../services/svn-diagnostics';
 import { applyPatch, createPatch } from '../services/svn-patch';
 import {
+  copyRepositoryItem,
+  exportRepository,
+  importRepository,
+  mergeRepositoryRange,
+  relocateWorkingCopy,
+  resolveConflict,
+  switchWorkingCopy,
+} from '../services/svn-repository-ops';
+import {
   add as addWorkingCopyItems,
   cleanup as cleanupWorkingCopy,
   getWorkingCopyContext,
@@ -86,14 +95,6 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
   }
   return [];
 }
-
-/**
- * SSL failure types that can be bypassed
- * SECURITY: 'other' is excluded as it's too broad and may bypass security checks
- * Valid values per SVN: unknown-ca, cn-mismatch, expired, not-yet-valid, other
- */
-const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
-const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
 
 /**
  * Execute SVN command with settings-aware context
@@ -294,42 +295,12 @@ export function registerSvnHandlers(): void {
 
   // SVN Export
   ipcMain.handle('svn:export', async (_, url: string, path: string, revision?: string) => {
-    const args = [
-      'export',
-      '--non-interactive',
-      '--trust-server-cert-failures',
-      DEFAULT_SSL_FAILURES,
-      url,
-      path,
-    ];
-    if (revision) args.push('-r', revision);
-    const output = await executeSvn(args);
-    const match = output.match(/Exported revision (\d+)\./);
-    return {
-      success: true,
-      revision: match ? parseInt(match[1], 10) : 0,
-      output,
-    };
+    return exportRepository(url, path, revision);
   });
 
   // SVN Import
   ipcMain.handle('svn:import', async (_, path: string, url: string, message: string) => {
-    const output = await executeSvn([
-      'import',
-      '-m',
-      message,
-      '--non-interactive',
-      '--trust-server-cert-failures',
-      DEFAULT_SSL_FAILURES,
-      path,
-      url,
-    ]);
-    const match = output.match(/Committed revision (\d+)\./);
-    return {
-      success: true,
-      revision: match ? parseInt(match[1], 10) : 0,
-      output,
-    };
+    return importRepository(path, url, message);
   });
 
   // SVN Lock
@@ -370,33 +341,18 @@ export function registerSvnHandlers(): void {
       path: string,
       resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict'
     ) => {
-      await executeSvn(['resolve', '--accept', resolution, path]);
-      return { success: true };
+      return resolveConflict(path, resolution);
     }
   );
 
   // SVN Switch
   ipcMain.handle('svn:switch', async (_, path: string, url: string, revision?: string) => {
-    const args = ['switch', url, path];
-    if (revision) args.push('-r', revision);
-    const output = await executeSvn(args);
-    const match = output.match(/Updated to revision (\d+)\./);
-    return {
-      success: true,
-      revision: match ? parseInt(match[1], 10) : 0,
-      output,
-    };
+    return switchWorkingCopy(path, url, revision);
   });
 
   // SVN Copy (Branch/Tag)
   ipcMain.handle('svn:copy', async (_, src: string, dst: string, message: string) => {
-    const output = await executeSvn(['copy', '-m', message, src, dst]);
-    const match = output.match(/Committed revision (\d+)\./);
-    return {
-      success: true,
-      revision: match ? parseInt(match[1], 10) : 0,
-      output,
-    };
+    return copyRepositoryItem(src, dst, message);
   });
 
   // SVN Merge
@@ -409,24 +365,13 @@ export function registerSvnHandlers(): void {
       revisions?: string[],
       ranges?: Array<{ start: number; end: number }>
     ) => {
-      const args = ['merge', source, target];
-      if (revisions && revisions.length > 0) {
-        args.push('-c', revisions.join(','));
-      }
-      if (ranges && ranges.length > 0) {
-        for (const range of ranges) {
-          args.push('-r', `${range.start}:${range.end}`);
-        }
-      }
-      const output = await executeSvn(args);
-      return { success: true, output };
+      return mergeRepositoryRange(source, target, revisions, ranges);
     }
   );
 
   // SVN Relocate
   ipcMain.handle('svn:relocate', async (_, from: string, to: string, path: string) => {
-    const output = await executeSvn(['relocate', from, to, path]);
-    return { success: true, output };
+    return relocateWorkingCopy(from, to, path);
   });
 
   // SVN Changelist - Add to changelist
