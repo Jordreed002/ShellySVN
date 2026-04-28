@@ -29,6 +29,7 @@ import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getSettingsManager } from '../settings-manager';
 import debug from '../utils/debug';
 import { redactArgs } from '../utils/redaction';
+import { parseSvnBlameEntriesXml, parseSvnListEntriesXml } from '../utils/svn-xml';
 import { getStore } from './store';
 
 /**
@@ -2326,29 +2327,7 @@ export function registerSvnHandlers(): void {
 // ============================================
 
 export function parseSvnBlameXml(xml: string, path: string): SvnBlameResult {
-  const lines: SvnBlameResult['lines'] = [];
-
-  // SVN blame XML format:
-  // <blame><target path="..."><entry line-number="1">...
-  const entryMatches = xml.matchAll(/<entry[^>]*line-number="(\d+)"[^>]*>([\s\S]*?)<\/entry>/g);
-
-  for (const match of entryMatches) {
-    const lineNumber = parseInt(match[1], 10);
-    const content = match[2];
-
-    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/);
-    const authorMatch = content.match(/<author>([^<]+)<\/author>/);
-    const dateMatch = content.match(/<date>([^<]+)<\/date>/);
-    const textMatch = content.match(/<text>([^<]*)<\/text>/);
-
-    lines.push({
-      lineNumber,
-      revision: revMatch ? parseInt(revMatch[1], 10) : 0,
-      author: authorMatch?.[1] || 'unknown',
-      date: dateMatch?.[1] || '',
-      content: textMatch?.[1] || '',
-    });
-  }
+  const lines = parseSvnBlameEntriesXml(xml);
 
   const revisions = lines.map((l) => l.revision).filter((r) => r > 0);
 
@@ -2363,33 +2342,19 @@ export function parseSvnBlameXml(xml: string, path: string): SvnBlameResult {
 export function parseSvnListXml(xml: string, baseUrl: string): SvnListResult {
   const entries: SvnListResult['entries'] = [];
 
-  // SVN list XML format:
-  // <lists><list path="..."><entry kind="file">...
-  const entryMatches = xml.matchAll(/<entry[^>]*kind="([^"]*)"[^>]*>([\s\S]*?)<\/entry>/g);
-
-  for (const match of entryMatches) {
-    const kind = match[1];
-    const content = match[2];
-
-    const nameMatch = content.match(/<name>([^<]+)<\/name>/);
-    const sizeMatch = content.match(/<size>(\d+)<\/size>/);
-    const revMatch = content.match(/<commit[^>]*revision="(\d+)"/);
-    const authorMatch = content.match(/<author>([^<]+)<\/author>/);
-    const dateMatch = content.match(/<date>([^<]+)<\/date>/);
-
-    const name = nameMatch?.[1] || '';
+  for (const entry of parseSvnListEntriesXml(xml)) {
     // Remove trailing slash from directory names for URL building
-    const cleanName = name.replace(/\/$/, '');
+    const cleanName = entry.name.replace(/\/$/, '');
 
     entries.push({
-      name,
+      name: entry.name,
       path: baseUrl + '/' + cleanName,
       url: baseUrl + '/' + cleanName,
-      kind: kind as 'file' | 'dir',
-      size: sizeMatch ? parseInt(sizeMatch[1], 10) : undefined,
-      revision: revMatch ? parseInt(revMatch[1], 10) : 0,
-      author: authorMatch?.[1] || '',
-      date: dateMatch?.[1] || '',
+      kind: entry.kind,
+      size: entry.size,
+      revision: entry.revision,
+      author: entry.author,
+      date: entry.date,
     });
   }
 

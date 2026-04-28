@@ -219,7 +219,7 @@ The app has several independent SVN spawning paths. Some use `executeSvn()` with
 
 **Location:** `src/main/ipc/svn.ts`, `src/main/ipc/fs.ts`, `src/main/ipc/monitor.ts`, `packages/logic-engine/src/svn/client.ts`
 
-**Status:** Partially resolved in code. `fs.ts` and `monitor.ts` now parse SVN status/info XML through shared `fast-xml-parser` helpers with fixture coverage. Regex-based parsing remains in several `svn.ts` helpers and the logic-engine client.
+**Status:** Partially resolved in code. `fs.ts`, `monitor.ts`, and the exported SVN list/blame parsers now parse SVN XML through shared `fast-xml-parser` helpers with fixture coverage. Regex-based parsing remains in changelist, shelve, property, and logic-engine parsing paths.
 
 Some SVN XML parsers use `fast-xml-parser`, while list, blame, changelist, shelve, properties, filesystem status, and monitor parsing use regex matching.
 

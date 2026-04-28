@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSvnInfoSummaryXml, parseSvnStatusEntriesXml } from '../svn-xml';
+import {
+  parseSvnBlameEntriesXml,
+  parseSvnInfoSummaryXml,
+  parseSvnListEntriesXml,
+  parseSvnStatusEntriesXml,
+} from '../svn-xml';
 
 describe('SVN XML parser helpers', () => {
   it('parses status entries with decoded XML entities and commit metadata', () => {
@@ -54,5 +59,57 @@ describe('SVN XML parser helpers', () => {
       revision: 1234,
     });
     expect(parseSvnInfoSummaryXml('not xml')).toBeNull();
+  });
+
+  it('parses blame entries with decoded entities and preserves leading text whitespace', () => {
+    const lines = parseSvnBlameEntriesXml(`<?xml version="1.0" encoding="UTF-8"?>
+<blame>
+  <target path="src/file.ts">
+    <entry line-number="7">
+      <commit revision="42">
+        <author>alice</author>
+        <date>2024-01-15T10:30:00.000000Z</date>
+      </commit>
+      <text>  const label = "A&amp;B";</text>
+    </entry>
+  </target>
+</blame>`);
+
+    expect(lines).toEqual([
+      {
+        lineNumber: 7,
+        revision: 42,
+        author: 'alice',
+        date: '2024-01-15T10:30:00.000000Z',
+        content: '  const label = "A&B";',
+      },
+    ]);
+  });
+
+  it('parses list entries with decoded names and optional file sizes', () => {
+    const entries = parseSvnListEntriesXml(`<?xml version="1.0" encoding="UTF-8"?>
+<lists>
+  <list path="https://example.com/svn/repo/trunk">
+    <entry kind="file">
+      <name>A&amp;B.txt</name>
+      <size>2048</size>
+      <commit revision="1234">
+        <author>developer</author>
+        <date>2024-01-15T10:30:00.000000Z</date>
+      </commit>
+    </entry>
+  </list>
+</lists>`);
+
+    expect(entries).toEqual([
+      {
+        name: 'A&B.txt',
+        kind: 'file',
+        size: 2048,
+        revision: 1234,
+        author: 'developer',
+        date: '2024-01-15T10:30:00.000000Z',
+      },
+    ]);
   });
 });

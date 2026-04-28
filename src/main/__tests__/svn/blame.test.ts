@@ -144,7 +144,7 @@ describe('SVN Blame Parser', () => {
       expect(result.lines[0].content).toBe('');
     });
 
-    it('should preserve XML entities in content (not decoded by regex parser)', () => {
+    it('should decode XML entities in content', () => {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <blame>
   <target path="test.ts">
@@ -160,9 +160,8 @@ describe('SVN Blame Parser', () => {
 
       const result = parseSvnBlameXml(xml, 'test.ts');
 
-      // Note: The blame parser uses regex parsing, not XML parser,
-      // so XML entities are NOT automatically decoded
-      expect(result.lines[0].content).toContain('&amp;');
+      expect(result.lines[0].content).toContain('&');
+      expect(result.lines[0].content).not.toContain('&amp;');
     });
 
     it('should handle missing author gracefully', () => {

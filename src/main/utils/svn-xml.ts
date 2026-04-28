@@ -5,7 +5,7 @@ const svnXmlParser = new XMLParser({
   attributeNamePrefix: '@_',
   textNodeName: '#text',
   parseAttributeValue: true,
-  trimValues: true,
+  trimValues: false,
   parseTagValue: false,
   allowBooleanAttributes: true,
 });
@@ -22,11 +22,39 @@ export interface SvnInfoXmlSummary {
   revision: number;
 }
 
+export interface SvnBlameXmlLine {
+  lineNumber: number;
+  revision: number;
+  author: string;
+  date: string;
+  content: string;
+}
+
+export interface SvnListXmlEntry {
+  name: string;
+  kind: 'file' | 'dir';
+  size?: number;
+  revision: number;
+  author: string;
+  date: string;
+}
+
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (!value) {
     return [];
   }
   return Array.isArray(value) ? value : [value];
+}
+
+function optionalNumber(value: number | string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value === 'number') {
+    return value;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
 }
 
 export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
@@ -103,5 +131,105 @@ export function parseSvnInfoSummaryXml(xml: string): SvnInfoXmlSummary | null {
     };
   } catch {
     return null;
+  }
+}
+
+export function parseSvnBlameEntriesXml(xml: string): SvnBlameXmlLine[] {
+  try {
+    const parsed = svnXmlParser.parse(xml) as {
+      blame?: {
+        target?: {
+          entry?:
+            | Array<{
+                '@_line-number'?: number;
+                commit?: {
+                  '@_revision'?: number;
+                  author?: string;
+                  date?: string;
+                };
+                text?: string;
+              }>
+            | {
+                '@_line-number'?: number;
+                commit?: {
+                  '@_revision'?: number;
+                  author?: string;
+                  date?: string;
+                };
+                text?: string;
+              };
+        };
+      };
+    };
+
+    return asArray(parsed.blame?.target?.entry)
+      .map((entry) => {
+        const lineNumber = entry['@_line-number'];
+        if (typeof lineNumber !== 'number') {
+          return null;
+        }
+
+        return {
+          lineNumber,
+          revision: entry.commit?.['@_revision'] ?? 0,
+          author: entry.commit?.author ?? 'unknown',
+          date: entry.commit?.date ?? '',
+          content: entry.text ?? '',
+        };
+      })
+      .filter((entry): entry is SvnBlameXmlLine => entry !== null);
+  } catch {
+    return [];
+  }
+}
+
+export function parseSvnListEntriesXml(xml: string): SvnListXmlEntry[] {
+  try {
+    const parsed = svnXmlParser.parse(xml) as {
+      lists?: {
+        list?: {
+          entry?:
+            | Array<{
+                '@_kind'?: 'file' | 'dir';
+                name?: string;
+                size?: number | string;
+                commit?: {
+                  '@_revision'?: number;
+                  author?: string;
+                  date?: string;
+                };
+              }>
+            | {
+                '@_kind'?: 'file' | 'dir';
+                name?: string;
+                size?: number | string;
+                commit?: {
+                  '@_revision'?: number;
+                  author?: string;
+                  date?: string;
+                };
+              };
+        };
+      };
+    };
+
+    return asArray(parsed.lists?.list?.entry)
+      .map((entry) => {
+        if (!entry['@_kind'] || entry.name === undefined) {
+          return null;
+        }
+
+        return {
+          name: entry.name,
+          kind: entry['@_kind'],
+          size: optionalNumber(entry.size),
+          revision: entry.commit?.['@_revision'] ?? 0,
+          author: entry.commit?.author ?? '',
+          date: entry.commit?.date ?? '',
+        };
+      })
+      .filter((entry): entry is SvnListXmlEntry => entry !== null);
+  } catch {
+    return [];
   }
 }
