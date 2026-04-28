@@ -1,4 +1,3 @@
-import { join } from 'path';
 import { ipcMain } from 'electron';
 
 import type {
@@ -14,10 +13,8 @@ import type {
   SvnLogResult,
   SvnShelveListResult,
   SvnStatusResult,
-  UpdateOptions,
 } from '@shared/types';
 
-import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import {
   cancelCheckout,
@@ -56,6 +53,7 @@ import { applyPatch, createPatch } from '../services/svn-patch';
 import {
   add as addWorkingCopyItems,
   cleanup as cleanupWorkingCopy,
+  getWorkingCopyContext,
   getInfo,
   getInfoUrl,
   getStatus,
@@ -63,10 +61,12 @@ import {
   remove as removeWorkingCopyItems,
   rename as renameWorkingCopyItem,
   revert as revertWorkingCopyItems,
+  update as updateWorkingCopy,
+  updateItem as updateWorkingCopyItem,
+  updateToRevision,
 } from '../services/svn-working-copy';
 import { runSvnText } from '../services/svn-executor';
 import debug from '../utils/debug';
-import { parseSvnInfoXml } from '../svn/parsers';
 import { getStore } from './store';
 
 /**
@@ -142,49 +142,9 @@ export function registerSvnHandlers(): void {
     return getInfoUrl(url);
   });
 
-  ipcMain.handle(
-    'svn:getWorkingCopyContext',
-    async (
-      _,
-      localPath: string
-    ): Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null> => {
-      const { existsSync } = require('fs');
-      const { dirname, join } = require('path');
-
-      let currentPath = localPath;
-      let attempts = 0;
-      const maxAttempts = 50;
-
-      while (attempts < maxAttempts) {
-        attempts++;
-
-        const svnDir = join(currentPath, '.svn');
-        if (existsSync(svnDir)) {
-          try {
-            const xml = await executeSvn(['info', '--xml', currentPath]);
-            const info = parseSvnInfoXml(xml);
-
-            if (info.workingCopyRoot && info.repositoryRoot && info.url) {
-              const relativePath = localPath.slice(currentPath.length);
-              const constructedUrl = info.url + relativePath.split(/[/\\]/).join('/');
-
-              return {
-                workingCopyRoot: info.workingCopyRoot,
-                repositoryRoot: info.repositoryRoot,
-                url: constructedUrl,
-              };
-            }
-          } catch {}
-        }
-
-        const parent = dirname(currentPath);
-        if (parent === currentPath) break;
-        currentPath = parent;
-      }
-
-      return null;
-    }
-  );
+  ipcMain.handle('svn:getWorkingCopyContext', async (_, localPath: string) => {
+    return getWorkingCopyContext(localPath);
+  });
 
   // SVN Diff
   ipcMain.handle('svn:diff', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
@@ -206,147 +166,13 @@ export function registerSvnHandlers(): void {
       _,
       path: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
-      options?: UpdateOptions
-    ) => {
-      // Validate that the path is a working copy before attempting update
-      try {
-        await executeSvn(['info', '--xml', path], path, undefined, true);
-      } catch (error) {
-        const errorMsg = (error as Error).message || '';
-        debug.error('[SVN] Working copy validation failed for update:', path, errorMsg);
-        return {
-          success: false,
-          error:
-            'Not a valid working copy. The selected path is not under SVN version control. ' +
-            'Make sure you have checked out the repository and the .svn directory exists.',
-        };
-      }
-
-      const hooks = await getHooksForWorkingCopy(path);
-
-      // Pre-update hooks
-      const preResult = await executeHooksForType(hooks, 'pre-update', {
-        workingCopyPath: path,
-      });
-      if (!preResult.allSucceeded) {
-        return { success: false, error: preResult.error || 'Pre-update hook blocked' };
-      }
-
-      // Execute SVN update
-      try {
-        const args = ['update'];
-        const revision = options?.revision?.trim();
-        if (revision && revision.toUpperCase() !== 'HEAD') {
-          args.push('-r', revision);
-        }
-        if (depth) args.push('--depth', depth);
-        if (options?.ignoreExternals) args.push('--ignore-externals');
-        if (options?.force) args.push('--force');
-        args.push(path);
-
-        const output = await executeSvn(args, undefined, undefined, true);
-        const match = output.match(/Updated to revision (\d+)\./);
-        const result = {
-          success: true,
-          revision: match ? parseInt(match[1], 10) : 0,
-        };
-
-        // Post-update hooks (async)
-        executeHooksForType(hooks, 'post-update', {
-          workingCopyPath: path,
-          revision: result.revision,
-        }).catch((err) => debug.error('[SVN] Post-update hook error:', err));
-
-        return result;
-      } catch (error) {
-        const errorMsg = (error as Error).message || '';
-        debug.error('[SVN] Update failed:', path, errorMsg);
-
-        // Provide helpful error messages for common SVN errors
-        if (errorMsg.includes('E155007')) {
-          return {
-            success: false,
-            error: 'Not a working copy. The selected path is not under SVN version control.',
-          };
-        }
-        if (errorMsg.includes('E155004')) {
-          return {
-            success: false,
-            error:
-              'Working copy is locked. Try running "Cleanup" from the toolbar to resolve this issue.',
-          };
-        }
-        if (errorMsg.includes('E155036')) {
-          return {
-            success: false,
-            error:
-              'Working copy format is too old. Please upgrade the working copy using "svn upgrade" in the terminal.',
-          };
-        }
-
-        return { success: false, error: `SVN update failed: ${errorMsg}` };
-      }
-    }
+      options?: Parameters<typeof updateWorkingCopy>[2]
+    ) => updateWorkingCopy(path, depth, options)
   );
 
-  ipcMain.handle(
-    'svn:updateItem',
-    async (
-      _,
-      localPath: string
-    ): Promise<{ success: boolean; revision: number; error?: string }> => {
-      const { existsSync, mkdirSync } = require('fs');
-      const { dirname } = require('path');
-
-      try {
-        const context = await (async () => {
-          let currentPath = localPath;
-          for (let i = 0; i < 50; i++) {
-            const svnDir = join(currentPath, '.svn');
-            if (existsSync(svnDir)) {
-              try {
-                const xml = await executeSvn(['info', '--xml', currentPath]);
-                const info = parseSvnInfoXml(xml);
-                if (info.workingCopyRoot && info.url) {
-                  const relativePath = localPath.slice(currentPath.length);
-                  return {
-                    workingCopyRoot: info.workingCopyRoot,
-                    url: info.url + relativePath.split(/[/\\]/).join('/'),
-                  };
-                }
-              } catch {}
-            }
-            const parent = dirname(currentPath);
-            if (parent === currentPath) break;
-            currentPath = parent;
-          }
-          return null;
-        })();
-
-        if (!context) {
-          return { success: false, revision: 0, error: 'Not inside a working copy' };
-        }
-
-        if (!existsSync(localPath)) {
-          mkdirSync(localPath, { recursive: true });
-        }
-
-        const output = await executeSvn(['update', '--depth', 'infinity', localPath]);
-        const match = output.match(/Updated to revision (\d+)\./);
-
-        return {
-          success: true,
-          revision: match ? parseInt(match[1], 10) : 0,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          revision: 0,
-          error: (error as Error)?.message || 'Update failed',
-        };
-      }
-    }
-  );
+  ipcMain.handle('svn:updateItem', async (_, localPath: string) => {
+    return updateWorkingCopyItem(localPath);
+  });
 
   ipcMain.handle(
     'svn:updateToRevision',
@@ -357,139 +183,7 @@ export function registerSvnHandlers(): void {
       localPath: string,
       depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity',
       setDepthSticky: boolean = false
-    ): Promise<{ success: boolean; revision: number; error?: string }> => {
-      const { relative, join } = require('path');
-      const { existsSync } = require('fs');
-
-      try {
-        const relativePath = relative(workingCopyRoot, localPath);
-
-        debug.log('[updateToRevision] workingCopyRoot:', workingCopyRoot);
-        debug.log('[updateToRevision] repoUrl:', repoUrl);
-        debug.log('[updateToRevision] localPath:', localPath);
-        debug.log('[updateToRevision] relativePath:', relativePath);
-        debug.log('[updateToRevision] depth:', depth);
-        debug.log('[updateToRevision] setDepthSticky:', setDepthSticky);
-
-        // Get credentials from auth cache for this repository
-        // Use findForUrl to match credentials stored for the repository root
-        // even when we're accessing a subdirectory URL
-        const authCache = getAuthCache();
-        const credentialMatch = repoUrl ? authCache.findForUrl(repoUrl) : null;
-        const credentials = credentialMatch
-          ? { username: credentialMatch.username, password: credentialMatch.password }
-          : null;
-        if (credentials) {
-          debug.log(
-            '[updateToRevision] Using cached credentials for realm:',
-            credentialMatch?.realm
-          );
-        }
-
-        const pathParts = relativePath.split(/[/\\]/).filter((p) => p.length > 0);
-
-        // Step 1: Ensure all parent directories exist and are "opened" to see children
-        // In sparse checkouts, a directory can exist on disk but be at depth-empty,
-        // meaning it doesn't know about its children. We need to update parent dirs
-        // to at least 'immediates' depth so SVN can see and add their children.
-        for (let i = 0; i < pathParts.length - 1; i++) {
-          const partialPath = pathParts.slice(0, i + 1).join('/');
-          const fullPath = join(workingCopyRoot, partialPath);
-
-          if (!existsSync(fullPath)) {
-            // Parent doesn't exist - create it with --depth immediates so it can have children
-            debug.log(
-              '[updateToRevision] Creating parent with --set-depth immediates:',
-              partialPath
-            );
-            await executeSvn(
-              ['update', '--set-depth', 'immediates', partialPath],
-              workingCopyRoot,
-              undefined,
-              true,
-              credentials || undefined
-            );
-          } else {
-            // Parent exists - but might be at depth-empty. Update to immediates to "open" it.
-            // This is safe to run even if already at higher depth (it's a no-op in that case)
-            debug.log(
-              '[updateToRevision] Opening parent to see children with --set-depth immediates:',
-              partialPath
-            );
-            try {
-              await executeSvn(
-                ['update', '--set-depth', 'immediates', partialPath],
-                workingCopyRoot,
-                undefined,
-                true,
-                credentials || undefined
-              );
-            } catch (e) {
-              // If this fails, the parent might already be at a sufficient depth - continue anyway
-              debug.log(
-                '[updateToRevision] Parent depth update failed (may already be sufficient):',
-                (e as Error)?.message
-              );
-            }
-          }
-        }
-
-        // Step 2: Ensure the target directory exists (for adding NEW folders)
-        // This is needed when the target doesn't exist locally at all
-        const targetFullPath = join(workingCopyRoot, relativePath);
-        if (!existsSync(targetFullPath)) {
-          debug.log(
-            '[updateToRevision] Target does not exist, fetching with --depth empty first:',
-            relativePath
-          );
-          try {
-            await executeSvn(
-              ['update', '--depth', 'empty', relativePath],
-              workingCopyRoot,
-              undefined,
-              true,
-              credentials || undefined
-            );
-          } catch (e) {
-            // If this fails, we'll try the main update anyway
-            debug.log('[updateToRevision] Initial target fetch failed:', (e as Error)?.message);
-          }
-        }
-
-        // Step 3: Run the final update with the requested depth
-        // --depth and --set-depth are mutually exclusive in SVN
-        // Use --set-depth when sticky (it also applies depth for this update)
-        // Use --depth when not sticky (one-time depth)
-        const args = ['update'];
-        if (setDepthSticky) {
-          args.push('--set-depth', depth);
-        } else {
-          args.push('--depth', depth);
-        }
-        args.push(relativePath);
-
-        debug.log('[updateToRevision] Running svn with args:', args);
-        const output = await executeSvn(
-          args,
-          workingCopyRoot,
-          undefined,
-          true,
-          credentials || undefined
-        );
-        const match = output.match(/Updated to revision (\d+)\./);
-
-        return {
-          success: true,
-          revision: match ? parseInt(match[1], 10) : 0,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          revision: 0,
-          error: (error as Error)?.message || 'Update failed',
-        };
-      }
-    }
+    ) => updateToRevision(workingCopyRoot, repoUrl, localPath, depth, setDepthSticky)
   );
 
   // SVN Commit
