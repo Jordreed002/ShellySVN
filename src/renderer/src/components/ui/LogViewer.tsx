@@ -158,6 +158,10 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
 
             {log && log.entries.length > 0 && (
               <div className="divide-y divide-border">
+                <div className="sticky top-0 z-10 grid grid-cols-[1fr_6rem] gap-2 bg-bg-secondary px-3 py-1.5 text-[10px] font-medium uppercase text-text-faint">
+                  <span>Revision</span>
+                  <span>Issues</span>
+                </div>
                 {log.entries.map((entry) => {
                   const issueLinks = extractIssueLinks(entry.message, issueTrackerConfig);
 
@@ -171,32 +175,27 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                           : 'hover:bg-bg-elevated border-l-2 border-l-transparent'
                       }`}
                     >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm text-accent font-medium">
-                          r{entry.revision}
-                        </span>
-                        <span className="text-xs text-text-muted flex-1 truncate">
-                          {entry.author}
-                        </span>
-                      </div>
-                      <div className="text-xs text-text-secondary line-clamp-2">
-                        {entry.message || (
-                          <span className="italic text-text-faint">No message</span>
-                        )}
-                      </div>
-                      {issueLinks.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {issueLinks.slice(0, 3).map((issue) => (
-                            <span
-                              key={issue.id}
-                              className="rounded border border-border bg-bg-secondary px-1.5 py-0.5 text-[10px] text-accent"
-                            >
-                              {issue.id}
+                      <div className="grid grid-cols-[1fr_6rem] gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono text-sm text-accent font-medium">
+                              r{entry.revision}
                             </span>
-                          ))}
+                            <span className="text-xs text-text-muted flex-1 truncate">
+                              {entry.author}
+                            </span>
+                          </div>
+                          <div className="text-xs text-text-secondary line-clamp-2">
+                            {entry.message || (
+                              <span className="italic text-text-faint">No message</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-text-faint mt-1">
+                            {formatDate(entry.date)}
+                          </div>
                         </div>
-                      )}
-                      <div className="text-xs text-text-faint mt-1">{formatDate(entry.date)}</div>
+                        <IssueSummary issues={issueLinks} />
+                      </div>
                     </div>
                   );
                 })}
@@ -321,6 +320,26 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function IssueSummary({ issues }: { issues: IssueLink[] }) {
+  if (issues.length === 0) {
+    return <div className="pt-0.5 text-xs text-text-faint">-</div>;
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1 pt-0.5">
+      {issues.slice(0, 3).map((issue) => (
+        <span
+          key={issue.id}
+          className="max-w-full truncate rounded border border-border bg-bg-secondary px-1.5 py-0.5 text-[10px] text-accent"
+          title={issue.id}
+        >
+          {issue.id}
+        </span>
+      ))}
     </div>
   );
 }
