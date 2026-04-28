@@ -1,4 +1,4 @@
-import { parseSvnStatusXml, parseSvnLogXml, parseSvnInfoXml } from './parser';
+import { parseSvnStatusXml, parseSvnLogXml, parseSvnInfoXml, parseSvnPropertiesXml } from './parser';
 import type {
   SvnStatusResult,
   SvnLogResult,
@@ -339,13 +339,7 @@ export class SvnClient {
    */
   async proplist(path: string): Promise<{ name: string; value: string }[]> {
     const output = await this.execute(['proplist', '--xml', '-v', path]);
-    // Parse properties from XML
-    const props: { name: string; value: string }[] = [];
-    const matches = output.matchAll(/<property[^>]*name="([^"]+)"[^>]*>([^<]*)<\/property>/g);
-    for (const match of matches) {
-      props.push({ name: match[1], value: match[2] });
-    }
-    return props;
+    return parseSvnPropertiesXml(output);
   }
 
   async propset(path: string, name: string, value: string): Promise<{ success: boolean }> {

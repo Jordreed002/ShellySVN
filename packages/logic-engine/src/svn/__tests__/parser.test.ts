@@ -5,7 +5,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseSvnStatusXml, parseSvnLogXml, parseSvnInfoXml } from '../parser';
+import {
+  parseSvnStatusXml,
+  parseSvnLogXml,
+  parseSvnInfoXml,
+  parseSvnPropertiesXml,
+} from '../parser';
 
 describe('parseSvnStatusXml', () => {
   describe('empty and invalid inputs', () => {
@@ -533,5 +538,28 @@ describe('parseSvnInfoXml', () => {
       expect(result.lastChangedAuthor).toBe('');
       expect(result.lastChangedRevision).toBe(0);
     });
+  });
+});
+
+describe('parseSvnPropertiesXml', () => {
+  it('should parse property values with XML entities', () => {
+    const xml = `<?xml version="1.0"?>
+<properties>
+  <target path="/test/repo">
+    <property name="svn:ignore">*.o
+build &amp; dist</property>
+  </target>
+</properties>`;
+
+    expect(parseSvnPropertiesXml(xml)).toEqual([
+      {
+        name: 'svn:ignore',
+        value: '*.o\nbuild & dist',
+      },
+    ]);
+  });
+
+  it('should handle empty property XML', () => {
+    expect(parseSvnPropertiesXml('<?xml version="1.0"?><properties></properties>')).toEqual([]);
   });
 });

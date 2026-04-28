@@ -29,7 +29,13 @@ import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getSettingsManager } from '../settings-manager';
 import debug from '../utils/debug';
 import { redactArgs } from '../utils/redaction';
-import { parseSvnBlameEntriesXml, parseSvnListEntriesXml } from '../utils/svn-xml';
+import {
+  parseSvnBlameEntriesXml,
+  parseSvnListEntriesXml,
+  parseSvnPropertiesXml,
+  parseSvnShelvesXml,
+  parseSvnStatusEntriesXml,
+} from '../utils/svn-xml';
 import { getStore } from './store';
 
 /**
@@ -1865,14 +1871,9 @@ export function registerSvnHandlers(): void {
       const changelists: Map<string, string[]> = new Map();
       const defaultFiles: string[] = [];
 
-      // Parse changelist info from status XML
-      const entryMatches = xml.matchAll(
-        /<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?(<changelist[^>]*>([^<]*)<\/changelist>)?/g
-      );
-
-      for (const match of entryMatches) {
-        const filePath = match[1];
-        const changelistName = match[3];
+      for (const entry of parseSvnStatusEntriesXml(xml)) {
+        const filePath = entry.path;
+        const changelistName = entry.changelist;
 
         if (changelistName) {
           if (!changelists.has(changelistName)) {
@@ -1907,20 +1908,9 @@ export function registerSvnHandlers(): void {
       // Get all files in this changelist
       const xml = await executeSvn(['status', '--xml', path]);
 
-      // Parse to find files in this changelist
-      const filesToRemove: string[] = [];
-      const entryMatches = xml.matchAll(
-        /<entry[^>]*path="([^"]+)"[^>]*>[\s\S]*?(<changelist[^>]*>([^<]*)<\/changelist>)?/g
-      );
-
-      for (const match of entryMatches) {
-        const filePath = match[1];
-        const changelistName = match[3];
-
-        if (changelistName === name) {
-          filesToRemove.push(filePath);
-        }
-      }
+      const filesToRemove = parseSvnStatusEntriesXml(xml)
+        .filter((entry) => entry.changelist === name)
+        .map((entry) => entry.path);
 
       // Remove all files from the changelist
       if (filesToRemove.length > 0) {
@@ -1950,19 +1940,7 @@ export function registerSvnHandlers(): void {
   ipcMain.handle('svn:shelve:list', async (_, path: string): Promise<SvnShelveListResult> => {
     try {
       const output = await executeSvn(['shelve', '--list', '--xml', path]);
-      // Parse shelves from XML
-      const shelves: SvnShelveListResult['shelves'] = [];
-      const shelfMatches = output.matchAll(
-        /<shelf[^>]*name="([^"]+)"[^>]*>[\s\S]*?<path>([^<]+)<\/path>[\s\S]*?<date>([^<]+)<\/date>/g
-      );
-      for (const match of shelfMatches) {
-        shelves.push({
-          name: match[1],
-          path: match[2],
-          date: match[3],
-        });
-      }
-      return { shelves };
+      return { shelves: parseSvnShelvesXml(output) };
     } catch {
       return { shelves: [] };
     }
@@ -1992,12 +1970,7 @@ export function registerSvnHandlers(): void {
   // SVN Proplist
   ipcMain.handle('svn:proplist', async (_, path: string) => {
     const output = await executeSvn(['proplist', '--xml', '-v', path]);
-    const props: { name: string; value: string }[] = [];
-    const propMatches = output.matchAll(/<property[^>]*name="([^"]+)"[^>]*>([^<]*)<\/property>/g);
-    for (const match of propMatches) {
-      props.push({ name: match[1], value: match[2] });
-    }
-    return props;
+    return parseSvnPropertiesXml(output);
   });
 
   // SVN Propset

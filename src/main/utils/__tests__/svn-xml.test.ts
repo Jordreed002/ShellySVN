@@ -4,6 +4,8 @@ import {
   parseSvnBlameEntriesXml,
   parseSvnInfoSummaryXml,
   parseSvnListEntriesXml,
+  parseSvnPropertiesXml,
+  parseSvnShelvesXml,
   parseSvnStatusEntriesXml,
 } from '../svn-xml';
 
@@ -44,6 +46,24 @@ describe('SVN XML parser helpers', () => {
 
     expect(singleEntry).toEqual([{ path: 'new-file.txt', item: 'unversioned' }]);
     expect(parseSvnStatusEntriesXml('not xml')).toEqual([]);
+  });
+
+  it('parses changelist names from status entries', () => {
+    const entries = parseSvnStatusEntriesXml(`<?xml version="1.0" encoding="UTF-8"?>
+<status>
+  <target path=".">
+    <entry path="src/feature.txt">
+      <wc-status item="modified" />
+      <changelist>release &amp; docs</changelist>
+    </entry>
+  </target>
+</status>`);
+
+    expect(entries[0]).toMatchObject({
+      path: 'src/feature.txt',
+      item: 'modified',
+      changelist: 'release & docs',
+    });
   });
 
   it('parses SVN info summaries and malformed info XML safely', () => {
@@ -109,6 +129,39 @@ describe('SVN XML parser helpers', () => {
         revision: 1234,
         author: 'developer',
         date: '2024-01-15T10:30:00.000000Z',
+      },
+    ]);
+  });
+
+  it('parses shelves and properties with decoded values', () => {
+    const shelves = parseSvnShelvesXml(`<?xml version="1.0" encoding="UTF-8"?>
+<shelves>
+  <shelf name="wip &amp; docs">
+    <path>C:/work/repo</path>
+    <date>2024-01-15T10:30:00.000000Z</date>
+  </shelf>
+</shelves>`);
+
+    expect(shelves).toEqual([
+      {
+        name: 'wip & docs',
+        path: 'C:/work/repo',
+        date: '2024-01-15T10:30:00.000000Z',
+      },
+    ]);
+
+    const properties = parseSvnPropertiesXml(`<?xml version="1.0" encoding="UTF-8"?>
+<properties>
+  <target path=".">
+    <property name="svn:ignore">*.o
+build &amp; dist</property>
+  </target>
+</properties>`);
+
+    expect(properties).toEqual([
+      {
+        name: 'svn:ignore',
+        value: '*.o\nbuild & dist',
       },
     ]);
   });

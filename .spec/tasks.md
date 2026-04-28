@@ -74,7 +74,7 @@ Execution order is defined in `fix-plan.md`.
 - [x] Fix commit template resolvers that rely on renderer-side Node globals.
 - [x] Align auth cache reporting/clearing with the real credential cache file path.
 - [ ] Centralize all SVN process spawning behind one executor service.
-- [ ] Replace regex-based SVN XML parsing with typed parser helpers.
+- [x] Replace regex-based SVN XML parsing with typed parser helpers.
 - [ ] Decide whether `packages/logic-engine` is production architecture or remove it from release documentation.
 - [x] Move webhook delivery to a main-process service with URL validation and timeout handling.
 - [x] Correct shell integration status when native helpers are missing.

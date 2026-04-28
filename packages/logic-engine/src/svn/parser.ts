@@ -16,6 +16,13 @@ const parser = new XMLParser({
   parseAttributeValue: true,
 });
 
+function asArray<T>(value: T | T[] | undefined): T[] {
+  if (!value) {
+    return [];
+  }
+  return Array.isArray(value) ? value : [value];
+}
+
 /**
  * Parse SVN status XML output
  */
@@ -128,4 +135,25 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
     lastChangedDate: String(commit.date || ''),
     workingCopyRoot: info['wc-root-abspath'] ? String(info['wc-root-abspath']) : undefined,
   };
+}
+
+/**
+ * Parse SVN property XML output
+ */
+export function parseSvnPropertiesXml(xml: string): { name: string; value: string }[] {
+  const parsed = parser.parse(xml);
+  const properties = parsed.properties?.target?.property ?? parsed.properties?.property;
+
+  return asArray(properties)
+    .map((property: Record<string, unknown>) => {
+      if (!property.name) {
+        return null;
+      }
+
+      return {
+        name: String(property.name),
+        value: String(property['#text'] ?? ''),
+      };
+    })
+    .filter((property): property is { name: string; value: string } => property !== null);
 }

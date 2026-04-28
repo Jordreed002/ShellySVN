@@ -15,6 +15,7 @@ export interface SvnStatusXmlEntry {
   item: string;
   revision?: number;
   author?: string;
+  changelist?: string;
 }
 
 export interface SvnInfoXmlSummary {
@@ -37,6 +38,17 @@ export interface SvnListXmlEntry {
   revision: number;
   author: string;
   date: string;
+}
+
+export interface SvnShelveXmlEntry {
+  name: string;
+  path: string;
+  date: string;
+}
+
+export interface SvnPropertyXmlEntry {
+  name: string;
+  value: string;
 }
 
 function asArray<T>(value: T | T[] | undefined): T[] {
@@ -73,6 +85,7 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
                     author?: string;
                   };
                 };
+                changelist?: string;
               }>
             | {
                 '@_path'?: string;
@@ -84,6 +97,7 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
                     author?: string;
                   };
                 };
+                changelist?: string;
               };
         };
       };
@@ -101,6 +115,7 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
           item: wcStatus['@_item'],
           revision: wcStatus.commit?.['@_revision'] ?? wcStatus['@_revision'],
           author: wcStatus.commit?.author,
+          changelist: entry.changelist,
         };
       })
       .filter((entry): entry is SvnStatusXmlEntry => entry !== null);
@@ -229,6 +244,88 @@ export function parseSvnListEntriesXml(xml: string): SvnListXmlEntry[] {
         };
       })
       .filter((entry): entry is SvnListXmlEntry => entry !== null);
+  } catch {
+    return [];
+  }
+}
+
+export function parseSvnShelvesXml(xml: string): SvnShelveXmlEntry[] {
+  try {
+    const parsed = svnXmlParser.parse(xml) as {
+      shelves?: {
+        shelf?:
+          | Array<{
+              '@_name'?: string;
+              path?: string;
+              date?: string;
+            }>
+          | {
+              '@_name'?: string;
+              path?: string;
+              date?: string;
+            };
+      };
+    };
+
+    return asArray(parsed.shelves?.shelf)
+      .map((shelf) => {
+        if (!shelf['@_name']) {
+          return null;
+        }
+
+        return {
+          name: shelf['@_name'],
+          path: shelf.path ?? '',
+          date: shelf.date ?? '',
+        };
+      })
+      .filter((shelf): shelf is SvnShelveXmlEntry => shelf !== null);
+  } catch {
+    return [];
+  }
+}
+
+export function parseSvnPropertiesXml(xml: string): SvnPropertyXmlEntry[] {
+  try {
+    const parsed = svnXmlParser.parse(xml) as {
+      properties?: {
+        target?: {
+          property?:
+            | Array<{
+                '@_name'?: string;
+                '#text'?: string;
+              }>
+            | {
+                '@_name'?: string;
+                '#text'?: string;
+              };
+        };
+        property?:
+          | Array<{
+              '@_name'?: string;
+              '#text'?: string;
+            }>
+          | {
+              '@_name'?: string;
+              '#text'?: string;
+            };
+      };
+    };
+
+    const propertyList = parsed.properties?.target?.property ?? parsed.properties?.property;
+
+    return asArray(propertyList)
+      .map((property) => {
+        if (!property['@_name']) {
+          return null;
+        }
+
+        return {
+          name: property['@_name'],
+          value: property['#text'] ?? '',
+        };
+      })
+      .filter((property): property is SvnPropertyXmlEntry => property !== null);
   } catch {
     return [];
   }
