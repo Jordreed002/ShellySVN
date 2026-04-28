@@ -71,6 +71,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     setShowRules,
     validationWarnings,
     commitWarnings,
+    textareaRef,
     history,
     templates,
     issueTrackerConfig,
