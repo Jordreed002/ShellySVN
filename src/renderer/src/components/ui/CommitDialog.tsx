@@ -17,6 +17,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { AutoCompleteInput } from './AutoCompleteInput';
+import { CommitTemplateManager } from './CommitTemplateManager';
 import { EnhancedDiffViewer } from './EnhancedDiffViewer';
 import type { SvnStatusChar } from '@shared/types';
 import { useCommitDialogController } from '../commit/useCommitDialogController';
@@ -58,6 +59,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     setShowTemplates,
     showHistory,
     setShowHistory,
+    showTemplateManager,
+    setShowTemplateManager,
     fileFilter,
     setFileFilter,
     diffViewMode,
@@ -94,6 +97,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     handleDeselectAll,
     handleRevertFile,
     handleTemplateSelect,
+    handleManagedTemplateSelect,
     handleHistorySelect,
     handleApplySuggestion,
     handleApplyRecommendation,
@@ -482,6 +486,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             setShowTemplates(!showTemplates);
                             setShowHistory(false);
                             setShowSuggestions(false);
+                            setShowTemplateManager(false);
                           }}
                           className="btn btn-secondary btn-sm text-xs"
                           aria-expanded={showTemplates}
@@ -536,7 +541,28 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                                 </button>
                               </li>
                             ))}
+                            <li className="border-t border-border">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowTemplates(false);
+                                  setShowTemplateManager(true);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary rounded-b-lg"
+                                role="menuitem"
+                              >
+                                Manage templates
+                              </button>
+                            </li>
                           </ul>
+                        )}
+                        {showTemplateManager && (
+                          <div className="absolute right-0 top-full mt-1 w-[520px] max-h-[420px] overflow-auto bg-bg-elevated border border-border rounded-lg shadow-lg z-20">
+                            <CommitTemplateManager
+                              repositoryPath={workingCopyPath}
+                              onSelectTemplate={handleManagedTemplateSelect}
+                            />
+                          </div>
                         )}
                       </div>
 

@@ -106,7 +106,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 - [x] Add required issue ID validation before commit.
 - [x] Add commit message spellcheck.
 - [x] Add commit message path and keyword autocomplete.
-- [ ] Add commit template and history management that works in packaged builds.
+- [x] Add commit template and history management that works in packaged builds.
 - [x] Add commit dialog warnings for mixed revisions, switched paths, locks, and externals.
 
 ### Update / Status / Working Copy

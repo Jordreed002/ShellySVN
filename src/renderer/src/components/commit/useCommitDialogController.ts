@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  useCommitMessageHistory,
-  useCommitTemplates,
-} from '@renderer/hooks/useCommitMessageHistory';
+import { useCommitMessageHistory } from '@renderer/hooks/useCommitMessageHistory';
+import { setTemplateContext, useCommitTemplates } from '@renderer/hooks/useCommitTemplates';
 import { useCommitRules } from '@renderer/hooks/useCommitRules';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
@@ -69,6 +67,7 @@ export function useCommitDialogController({
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [fileFilter, setFileFilter] = useState<'all' | 'modified' | 'added' | 'deleted'>('all');
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -241,6 +240,7 @@ export function useCommitDialogController({
       setSelectedDiffFile(null);
       setShowTemplates(false);
       setShowHistory(false);
+      setShowTemplateManager(false);
       setShowRules(false);
       setFileFilter('all');
       setDiffViewMode('unified');
@@ -282,8 +282,24 @@ export function useCommitDialogController({
     }
   };
 
-  const handleTemplateSelect = (templateId: string) => {
-    setMessage(applyTemplate(templateId));
+  const handleTemplateSelect = async (templateId: string) => {
+    try {
+      setTemplateContext({
+        path: workingCopyPath,
+        files: selectedFiles.map((file) => file.path),
+      });
+      setMessage(await applyTemplate(templateId));
+      setShowTemplates(false);
+      setShowTemplateManager(false);
+      textareaRef.current?.focus();
+    } catch (templateError) {
+      setError(templateError instanceof Error ? templateError.message : 'Failed to apply template');
+    }
+  };
+
+  const handleManagedTemplateSelect = (template: string) => {
+    setMessage(template);
+    setShowTemplateManager(false);
     setShowTemplates(false);
     textareaRef.current?.focus();
   };
@@ -362,6 +378,8 @@ export function useCommitDialogController({
     setShowTemplates,
     showHistory,
     setShowHistory,
+    showTemplateManager,
+    setShowTemplateManager,
     fileFilter,
     setFileFilter,
     diffViewMode,
@@ -399,6 +417,7 @@ export function useCommitDialogController({
     handleDeselectAll,
     handleRevertFile,
     handleTemplateSelect,
+    handleManagedTemplateSelect,
     handleHistorySelect,
     handleApplySuggestion,
     handleApplyRecommendation,
