@@ -773,14 +773,14 @@ export function FileExplorer() {
 
   // Keyboard navigation
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (diffViewerPath || logViewerPath || actions.commitDialogOpen) return;
 
       // Handle navigation keys
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
 
-        const direction = e.key === 'ArrowDown' ? 1 : -1;
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
         let newIndex = focusedIndex;
 
         if (focusedIndex < 0) {
@@ -790,7 +790,7 @@ export function FileExplorer() {
         }
 
         // Shift+Arrow: extend selection
-        if (e.shiftKey) {
+        if (event.shiftKey) {
           setSelectedPaths((prev) => {
             const next = new Set(prev);
             next.add(filteredEntries[newIndex].path);
@@ -808,19 +808,19 @@ export function FileExplorer() {
       }
 
       // Ctrl+A: select all
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        e.preventDefault();
-        setSelectedPaths(new Set(filteredEntries.map((e) => e.path)));
+      if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+        event.preventDefault();
+        setSelectedPaths(new Set(filteredEntries.map((entry) => entry.path)));
       }
 
       // Escape: clear selection
-      if (e.key === 'Escape') {
+      if (event.key === 'Escape') {
         setSelectedPaths(new Set());
         setFocusedIndex(-1);
       }
 
       // Enter: open folder
-      if (e.key === 'Enter' && focusedIndex >= 0) {
+      if (event.key === 'Enter' && focusedIndex >= 0) {
         const entry = filteredEntries[focusedIndex];
         if (entry.isDirectory) {
           handleNavigateToEntry(entry);
@@ -828,8 +828,8 @@ export function FileExplorer() {
       }
 
       // Delete: delete selected
-      if (e.key === 'Delete' && selectedPaths.size > 0) {
-        e.preventDefault();
+      if (event.key === 'Delete' && selectedPaths.size > 0) {
+        event.preventDefault();
         // Will implement with actions
       }
     };
@@ -844,6 +844,7 @@ export function FileExplorer() {
     diffViewerPath,
     logViewerPath,
     actions.commitDialogOpen,
+    handleNavigateToEntry,
   ]);
 
   // Clear selection when path changes
@@ -1625,11 +1626,11 @@ export function FileExplorer() {
 
               // The path in ignoreEntry is the full path to the file/dir
               // svn:ignore is set on the parent directory
-              const parentPath = ignoreEntry.path.split(/[/\\]/).slice(0, -1).join('/') || '.';
+              const ignoreParentPath = ignoreEntry.path.split(/[/\\]/).slice(0, -1).join('/') || '.';
 
               try {
                 // Get existing svn:ignore patterns
-                const existingProps = await window.api.svn.proplist(parentPath);
+                const existingProps = await window.api.svn.proplist(ignoreParentPath);
                 const existingIgnore = existingProps.find(p => p.name === 'svn:ignore');
                 const existingPatterns = existingIgnore?.value
                   ? existingIgnore.value.split('\n').filter(p => p.trim())
@@ -1639,12 +1640,12 @@ export function FileExplorer() {
                 const mergedPatterns = [...new Set([...existingPatterns, ...patterns])];
 
                 // Set the updated svn:ignore property
-                await window.api.svn.propset(parentPath, 'svn:ignore', mergedPatterns.join('\n'));
+                await window.api.svn.propset(ignoreParentPath, 'svn:ignore', mergedPatterns.join('\n'));
 
                 setIgnoreEntry(null);
                 queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-              } catch (error) {
-                console.error('Failed to set svn:ignore:', error);
+              } catch (setIgnoreError) {
+                console.error('Failed to set svn:ignore:', setIgnoreError);
               }
             }}
           />
