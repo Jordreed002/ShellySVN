@@ -49,12 +49,17 @@
       "name": "@shellysvn/logic-engine",
       "version": "0.1.0",
       "dependencies": {
+        "@shellysvn/shared": "workspace:*",
         "fast-xml-parser": "^4.5.0",
       },
       "devDependencies": {
         "@types/bun": "^1.1.14",
         "typescript": "^5.7.2",
       },
+    },
+    "packages/shared": {
+      "name": "@shellysvn/shared",
+      "version": "0.1.0",
     },
   },
   "packages": {
@@ -373,6 +378,8 @@
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.57.1", "", { "os": "win32", "cpu": "x64" }, "sha512-mxRFDdHIWRxg3UfIIAwCm6NzvxG0jDX/wBN6KsQFTvKFqqg9vTrWUE68qEjHt19A5wwx5X5aUi2zuZT7YR0jrA=="],
 
     "@shellysvn/logic-engine": ["@shellysvn/logic-engine@workspace:packages/logic-engine"],
+
+    "@shellysvn/shared": ["@shellysvn/shared@workspace:packages/shared"],
 
     "@sindresorhus/is": ["@sindresorhus/is@4.6.0", "", {}, "sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw=="],
 

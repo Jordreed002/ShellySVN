@@ -14,7 +14,7 @@ import type {
   SvnLogPath,
   SvnInfoResult,
   SvnStatusChar,
-} from './types';
+} from '@shellysvn/shared';
 
 /**
  * Parser error class for specific XML parsing errors

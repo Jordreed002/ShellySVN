@@ -7,7 +7,7 @@ import type {
   SvnLogPath,
   SvnInfoResult,
   SvnStatusChar,
-} from './types';
+} from '@shellysvn/shared';
 
 const parser = new XMLParser({
   ignoreAttributes: false,

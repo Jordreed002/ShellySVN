@@ -6,7 +6,7 @@ import type {
   SvnDiffResult,
   SvnBlameResult,
   SvnListResult,
-} from './types';
+} from '@shellysvn/shared';
 
 export class SvnClient {
   constructor(private svnPath: string) {}

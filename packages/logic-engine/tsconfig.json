@@ -11,6 +11,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@shellysvn/shared": ["../shared/src/types.ts"],
+      "@shellysvn/shared/*": ["../shared/src/*"],
       "@svn/*": ["./src/svn/*"],
       "@utils/*": ["./src/utils/*"]
     }
