@@ -1,6 +1,5 @@
 import { join } from 'path';
 import { ipcMain } from 'electron';
-import { XMLParser } from 'fast-xml-parser';
 
 import type {
   CheckoutOptions,
@@ -12,7 +11,6 @@ import type {
   SvnExternal,
   SvnInfoResult,
   SvnListResult,
-  SvnLockInfo,
   SvnLogResult,
   SvnPatchResult,
   SvnShelveListResult,
@@ -28,6 +26,14 @@ import {
   checkoutWithProgress,
 } from '../services/svn-checkout';
 import { getBlame, getDiff, getDiffStreaming, getLog } from '../services/svn-history';
+import {
+  forceLock,
+  forceUnlock,
+  getLockInfo,
+  listLocks,
+  lock as lockWorkingCopyItem,
+  unlock as unlockWorkingCopyItem,
+} from '../services/svn-locks';
 import {
   changelistAdd,
   changelistCreate,
@@ -80,20 +86,6 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
   }
   return [];
 }
-
-/**
- * XML parser configuration
- * Always validate and parse attributes for proper XML handling
- */
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-  textNodeName: '#text',
-  parseAttributeValue: true,
-  trimValues: true,
-  parseTagValue: false,
-  allowBooleanAttributes: true,
-});
 
 /**
  * SSL failure types that can be bypassed
@@ -648,192 +640,32 @@ export function registerSvnHandlers(): void {
 
   // SVN Lock
   ipcMain.handle('svn:lock', async (_, path: string, message?: string) => {
-    // Get parent directory as working copy path
-    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path;
-    const hooks = await getHooksForWorkingCopy(workingCopyPath);
-
-    // Pre-lock hooks
-    const preResult = await executeHooksForType(hooks, 'pre-lock', {
-      workingCopyPath,
-      files: [path],
-      message,
-    });
-    if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-lock hook blocked' };
-    }
-
-    const args = ['lock'];
-    if (message) args.push('-m', message);
-    args.push(path);
-    const output = await executeSvn(args);
-    return { success: true, output };
+    return lockWorkingCopyItem(path, message);
   });
 
   // SVN Unlock
   ipcMain.handle('svn:unlock', async (_, path: string, force?: boolean) => {
-    // Get parent directory as working copy path
-    const workingCopyPath = path.substring(0, path.lastIndexOf('/')) || path;
-    const hooks = await getHooksForWorkingCopy(workingCopyPath);
-
-    // Pre-unlock hooks
-    const preResult = await executeHooksForType(hooks, 'pre-unlock', {
-      workingCopyPath,
-      files: [path],
-    });
-    if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' };
-    }
-
-    const args = ['unlock'];
-    if (force) args.push('--force');
-    args.push(path);
-    const output = await executeSvn(args);
-    return { success: true, output };
+    return unlockWorkingCopyItem(path, force);
   });
 
   // SVN Lock Info - Get detailed lock information for a file
-  ipcMain.handle('svn:lockInfo', async (_, path: string): Promise<SvnLockInfo | null> => {
-    try {
-      const xml = await executeSvn(['info', '--xml', path]);
-      const info = parseSvnInfoXml(xml);
-      return info.lock || null;
-    } catch (error) {
-      debug.error('[SVN] Lock info error:', error);
-      return null;
-    }
+  ipcMain.handle('svn:lockInfo', async (_, path: string) => {
+    return getLockInfo(path);
   });
 
   // SVN Force Lock (Steal Lock) - Lock a file even if locked by another user
   ipcMain.handle('svn:lockForce', async (_, path: string, message?: string) => {
-    // Get parent directory as working copy path (handle both Unix and Windows path separators)
-    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path;
-    const hooks = await getHooksForWorkingCopy(workingCopyPath);
-
-    // Pre-lock hooks
-    const preResult = await executeHooksForType(hooks, 'pre-lock', {
-      workingCopyPath,
-      files: [path],
-      message,
-      force: true,
-    });
-    if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-lock hook blocked' };
-    }
-
-    try {
-      const args = ['lock', '--force'];
-      if (message) args.push('-m', message);
-      args.push(path);
-      await executeSvn(args);
-
-      // Get lock info after successful lock
-      const xml = await executeSvn(['info', '--xml', path]);
-      const info = parseSvnInfoXml(xml);
-
-      return { success: true, lock: info.lock };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      debug.error('[SVN] Force lock error:', errorMessage);
-      return { success: false, error: errorMessage };
-    }
+    return forceLock(path, message);
   });
 
   // SVN Force Unlock (Break Lock) - Unlock a file locked by another user
   ipcMain.handle('svn:unlockForce', async (_, path: string) => {
-    // Get parent directory as working copy path (handle both Unix and Windows path separators)
-    const lastSepIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-    const workingCopyPath = lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path;
-    const hooks = await getHooksForWorkingCopy(workingCopyPath);
-
-    // Pre-unlock hooks
-    const preResult = await executeHooksForType(hooks, 'pre-unlock', {
-      workingCopyPath,
-      files: [path],
-      force: true,
-    });
-    if (!preResult.allSucceeded) {
-      return { success: false, error: preResult.error || 'Pre-unlock hook blocked' };
-    }
-
-    try {
-      const args = ['unlock', '--force', path];
-      await executeSvn(args);
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      debug.error('[SVN] Force unlock error:', errorMessage);
-      return { success: false, error: errorMessage };
-    }
+    return forceUnlock(path);
   });
 
   // SVN Lock List - List all locks in a working copy
-  ipcMain.handle('svn:lockList', async (_, path: string): Promise<SvnLockInfo[]> => {
-    try {
-      // Use svn status --xml to find locked files
-      const xml = await executeSvn(['status', '--xml', path]);
-      const locks: SvnLockInfo[] = [];
-
-      const parsed = xmlParser.parse(xml) as {
-        status?: {
-          target?: {
-            entry?:
-              | Array<{
-                  '@_path': string;
-                  'wc-status'?: {
-                    '@_item': string;
-                    lock?: {
-                      owner?: string;
-                      comment?: string;
-                      creationdate?: string;
-                      token?: string;
-                    };
-                  };
-                }>
-              | {
-                  '@_path': string;
-                  'wc-status'?: {
-                    '@_item': string;
-                    lock?: {
-                      owner?: string;
-                      comment?: string;
-                      creationdate?: string;
-                      token?: string;
-                    };
-                  };
-                };
-          };
-        };
-      };
-
-      const target = parsed.status?.target;
-      if (!target) return [];
-
-      const entries = target.entry;
-      if (!entries) return [];
-
-      const entriesArray = Array.isArray(entries) ? entries : [entries];
-
-      for (const entry of entriesArray) {
-        if (!entry || typeof entry !== 'object') continue;
-
-        const wcStatus = entry['wc-status'];
-        if (wcStatus?.lock) {
-          locks.push({
-            path: entry['@_path'] || '',
-            owner: wcStatus.lock.owner || '',
-            comment: wcStatus.lock.comment || '',
-            date: wcStatus.lock['creationdate'] || '',
-            token: wcStatus.lock.token,
-          });
-        }
-      }
-
-      return locks;
-    } catch (error) {
-      debug.error('[SVN] Lock list error:', error);
-      return [];
-    }
+  ipcMain.handle('svn:lockList', async (_, path: string) => {
+    return listLocks(path);
   });
 
   // SVN Resolve
