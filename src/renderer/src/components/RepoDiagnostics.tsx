@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   RefreshCw,
   X,
@@ -11,9 +11,12 @@ import {
   Folder,
   Server,
   Loader,
+  Copy,
+  MonitorCog,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { RepoDiagnostics } from '@shared/types';
+import { redactDiagnosticText } from './ErrorBoundary/redaction';
 
 interface RepoDiagnosticsProps {
   workingCopyPath: string;
@@ -21,13 +24,56 @@ interface RepoDiagnosticsProps {
   onAuthenticate?: () => void;
 }
 
+export function buildDiagnosticsReport(
+  diagnostics: RepoDiagnostics,
+  workingCopyPath: string
+): string {
+  return redactDiagnosticText(
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        app: {
+          svnClientPath: diagnostics.svnClientPath,
+          svnVersion: diagnostics.svnVersion,
+          svnVersionError: diagnostics.svnVersionError,
+          encryptionAvailable: diagnostics.encryptionAvailable,
+          isPackaged: diagnostics.isPackaged,
+          resourcesPath: diagnostics.resourcesPath,
+          resourceStatus: diagnostics.resourceStatus,
+        },
+        workingCopy: {
+          requestedPath: workingCopyPath,
+          isValidWorkingCopy: diagnostics.isValidWorkingCopy,
+          workingCopyRoot: diagnostics.workingCopyRoot,
+        },
+        repository: {
+          repositoryRoot: diagnostics.repositoryRoot,
+          repositoryUrl: diagnostics.repositoryUrl,
+          repositoryUuid: diagnostics.repositoryUuid,
+        },
+        authentication: {
+          hasCredentials: diagnostics.hasCredentials,
+          credentialRealm: diagnostics.credentialRealm,
+          credentialUsernamePresent: Boolean(diagnostics.credentialUsername),
+        },
+        connection: {
+          status: diagnostics.connectionStatus,
+          error: diagnostics.connectionError,
+        },
+      },
+      null,
+      2
+    )
+  );
+}
+
 export function RepoDiagnosticsPanel({
   workingCopyPath,
   onClose,
   onAuthenticate,
 }: RepoDiagnosticsProps) {
-  const _queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const {
     data: diagnostics,
@@ -44,6 +90,19 @@ export function RepoDiagnosticsPanel({
     setIsRefreshing(true);
     await refetch();
     setIsRefreshing(false);
+  };
+
+  const handleCopyDiagnostics = async () => {
+    if (!diagnostics) return;
+
+    try {
+      await navigator.clipboard.writeText(buildDiagnosticsReport(diagnostics, workingCopyPath));
+      setCopyStatus('copied');
+      window.setTimeout(() => setCopyStatus('idle'), 2000);
+    } catch {
+      setCopyStatus('failed');
+      window.setTimeout(() => setCopyStatus('idle'), 3000);
+    }
   };
 
   // Handle keyboard shortcuts
@@ -110,6 +169,18 @@ export function RepoDiagnosticsPanel({
           </h2>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleCopyDiagnostics}
+              disabled={!diagnostics}
+              className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+              title="Copy redacted diagnostics"
+            >
+              {copyStatus === 'copied' ? (
+                <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+              ) : (
+                <Copy className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              )}
+            </button>
+            <button
               onClick={handleRefresh}
               disabled={isLoading || isRefreshing}
               className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
@@ -145,6 +216,67 @@ export function RepoDiagnosticsPanel({
             </div>
           ) : diagnostics ? (
             <>
+              {/* App Diagnostics */}
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <MonitorCog className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">App Diagnostics</h3>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-500">SVN client:</span>
+                    <p className="text-gray-700 dark:text-gray-300 font-mono text-xs break-all">
+                      {diagnostics.svnClientPath}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-500">SVN version</span>
+                      <p className="text-gray-700 dark:text-gray-300 text-xs">
+                        {diagnostics.svnVersion || 'Unavailable'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-500">Encryption</span>
+                      <p
+                        className={
+                          diagnostics.encryptionAvailable
+                            ? 'text-green-600 dark:text-green-400 text-xs'
+                            : 'text-yellow-600 dark:text-yellow-400 text-xs'
+                        }
+                      >
+                        {diagnostics.encryptionAvailable ? 'Available' : 'Unavailable'}
+                      </p>
+                    </div>
+                  </div>
+                  {diagnostics.svnVersionError && (
+                    <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                      {diagnostics.svnVersionError}
+                    </p>
+                  )}
+                  <div className="space-y-1">
+                    {diagnostics.resourceStatus.map((resource) => (
+                      <div
+                        key={`${resource.source}:${resource.path}`}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span className="text-gray-600 dark:text-gray-400">{resource.name}</span>
+                        <span
+                          className={
+                            resource.exists && resource.isFile
+                              ? 'text-green-600 dark:text-green-400 text-xs'
+                              : 'text-yellow-600 dark:text-yellow-400 text-xs'
+                          }
+                          title={resource.path}
+                        >
+                          {resource.exists && resource.isFile ? 'Present' : 'Missing'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               {/* Working Copy Status */}
               <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
@@ -273,17 +405,22 @@ export function RepoDiagnosticsPanel({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          {diagnostics && !diagnostics.hasCredentials && onAuthenticate && (
-            <button
-              onClick={() => {
-                onAuthenticate();
-                onClose();
-              }}
-              className="px-4 py-2 bg-accent text-white rounded hover:bg-accent/90 text-sm font-medium"
-            >
-              Authenticate
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {copyStatus === 'failed' && (
+              <span className="text-xs text-red-600 dark:text-red-400">Copy failed</span>
+            )}
+            {diagnostics && !diagnostics.hasCredentials && onAuthenticate && (
+              <button
+                onClick={() => {
+                  onAuthenticate();
+                  onClose();
+                }}
+                className="px-4 py-2 bg-accent text-white rounded hover:bg-accent/90 text-sm font-medium"
+              >
+                Authenticate
+              </button>
+            )}
+          </div>
           <div className="flex-1" />
           <button
             onClick={onClose}

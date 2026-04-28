@@ -65,8 +65,8 @@ Execution order is defined in `fix-plan.md`.
 
 ## Backlog
 
-- [ ] Add an app diagnostics panel for SVN binary path, SVN version, encryption availability, and packaged resource status.
-- [ ] Add a redacted diagnostic export for bug reports.
+- [x] Add an app diagnostics panel for SVN binary path, SVN version, encryption availability, and packaged resource status.
+- [x] Add a redacted diagnostic export for bug reports.
 - [ ] Add packaged-app smoke tests per target platform.
 - [ ] Add cancellation and progress reporting to more long-running SVN operations.
 - [x] Replace production `confirm()` / `alert()` usage with app-owned dialogs.

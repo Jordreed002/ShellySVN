@@ -1,8 +1,9 @@
 import { spawn } from 'child_process';
+import { existsSync as fsExistsSync, statSync as fsStatSync } from 'fs';
 import { writeFile, mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from 'path';
-import { ipcMain } from 'electron';
+import { isAbsolute, join } from 'path';
+import { app, ipcMain } from 'electron';
 import { XMLParser } from 'fast-xml-parser';
 
 import type {
@@ -77,6 +78,68 @@ const xmlParser = new XMLParser({
  */
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
+
+function getCurrentBinaryTarget(): string {
+  return `${process.platform}-${process.arch}`;
+}
+
+function getBinaryNames(): { engine: string; svn: string } {
+  const executableExtension = process.platform === 'win32' ? '.exe' : '';
+  return {
+    engine: `shelly-engine${executableExtension}`,
+    svn: `svn${executableExtension}`,
+  };
+}
+
+function getFileStatus(
+  name: string,
+  filePath: string,
+  source: RepoDiagnostics['resourceStatus'][number]['source']
+): RepoDiagnostics['resourceStatus'][number] {
+  try {
+    if (!fsExistsSync(filePath)) {
+      return { name, path: filePath, source, exists: false, isFile: false };
+    }
+
+    const stats = fsStatSync(filePath);
+    return {
+      name,
+      path: filePath,
+      source,
+      exists: true,
+      isFile: stats.isFile(),
+      sizeBytes: stats.size,
+    };
+  } catch (error) {
+    return {
+      name,
+      path: filePath,
+      source,
+      exists: false,
+      isFile: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function getDiagnosticResourceStatus(svnClientPath: string): RepoDiagnostics['resourceStatus'] {
+  const names = getBinaryNames();
+  const resourceBasePath = app.isPackaged
+    ? join(process.resourcesPath, 'binaries')
+    : join(process.cwd(), 'binaries', getCurrentBinaryTarget());
+
+  const resourceSource = app.isPackaged ? 'packaged-resource' : 'workspace-resource';
+  const statuses: RepoDiagnostics['resourceStatus'] = [
+    getFileStatus('logic engine', join(resourceBasePath, names.engine), resourceSource),
+    getFileStatus('bundled SVN client', join(resourceBasePath, 'svn', names.svn), resourceSource),
+  ];
+
+  if (isAbsolute(svnClientPath)) {
+    statuses.unshift(getFileStatus('configured SVN client', svnClientPath, 'configured-client'));
+  }
+
+  return statuses;
+}
 
 function normalizeSslFailures(failures?: string[]): string {
   const mapped = new Set<(typeof ALLOWED_SSL_FAILURES)[number]>();
@@ -2183,9 +2246,18 @@ export function registerSvnHandlers(): void {
     'svn:diagnostics',
     async (_, workingCopyPath: string): Promise<RepoDiagnostics> => {
       const authCache = getAuthCache();
+      const settingsManager = getSettingsManager();
+      const svnClientPath = settingsManager.getSvnClientPath();
 
       // Default result structure
       const result: RepoDiagnostics = {
+        svnClientPath,
+        svnVersion: null,
+        svnVersionError: undefined,
+        encryptionAvailable: authCache.isEncryptionAvailable(),
+        isPackaged: app.isPackaged,
+        resourcesPath: process.resourcesPath || null,
+        resourceStatus: getDiagnosticResourceStatus(svnClientPath),
         isValidWorkingCopy: false,
         workingCopyRoot: null,
         repositoryRoot: null,
@@ -2197,6 +2269,13 @@ export function registerSvnHandlers(): void {
         connectionStatus: 'unknown',
         connectionError: undefined,
       };
+
+      try {
+        result.svnVersion = (await executeSvn(['--version', '--quiet'])).trim() || null;
+      } catch (error) {
+        result.svnVersionError = error instanceof Error ? error.message : String(error);
+        debug.error('[diagnostics] Failed to get SVN version:', result.svnVersionError);
+      }
 
       try {
         // Step 1: Check if this is a valid working copy and get info

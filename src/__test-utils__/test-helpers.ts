@@ -318,6 +318,12 @@ function createMockElectronAPI() {
         remove: vi.fn().mockResolvedValue({ success: true }),
       },
       diagnostics: vi.fn().mockResolvedValue({
+        svnClientPath: 'svn',
+        svnVersion: '1.14.0',
+        encryptionAvailable: true,
+        isPackaged: false,
+        resourcesPath: null,
+        resourceStatus: [],
         isValidWorkingCopy: true,
         workingCopyRoot: '/test/repo',
         repositoryRoot: 'https://svn.example.com/repo',

@@ -870,7 +870,26 @@ export interface ElectronAPI {
 // Repository Diagnostics Types
 // ============================================
 
+export interface DiagnosticResourceStatus {
+  name: string;
+  path: string;
+  source: 'configured-client' | 'packaged-resource' | 'workspace-resource';
+  exists: boolean;
+  isFile: boolean;
+  sizeBytes?: number;
+  error?: string;
+}
+
 export interface RepoDiagnostics {
+  // App/runtime info
+  svnClientPath: string;
+  svnVersion: string | null;
+  svnVersionError?: string;
+  encryptionAvailable: boolean;
+  isPackaged: boolean;
+  resourcesPath: string | null;
+  resourceStatus: DiagnosticResourceStatus[];
+
   // Working copy info
   isValidWorkingCopy: boolean;
   workingCopyRoot: string | null;
