@@ -30,6 +30,17 @@ import {
   checkoutWithProgress,
 } from '../services/svn-checkout';
 import { getBlame, getDiff, getDiffStreaming, getLog } from '../services/svn-history';
+import {
+  add as addWorkingCopyItems,
+  cleanup as cleanupWorkingCopy,
+  getInfo,
+  getInfoUrl,
+  getStatus,
+  move as moveWorkingCopyItem,
+  remove as removeWorkingCopyItems,
+  rename as renameWorkingCopyItem,
+  revert as revertWorkingCopyItems,
+} from '../services/svn-working-copy';
 import { runSvn, runSvnText } from '../services/svn-executor';
 import debug from '../utils/debug';
 import {
@@ -204,14 +215,7 @@ async function executeSvn(
 export function registerSvnHandlers(): void {
   // SVN Status
   ipcMain.handle('svn:status', async (_, path: string): Promise<SvnStatusResult> => {
-    try {
-      const xml = await executeSvn(['status', '--xml', path]);
-      return parseSvnStatusXml(xml, path);
-    } catch (error) {
-      debug.error('[SVN] Status error:', error);
-      // Return empty result instead of throwing
-      return { path, entries: [], revision: 0 };
-    }
+    return getStatus(path);
   });
 
   // SVN Log
@@ -221,31 +225,11 @@ export function registerSvnHandlers(): void {
 
   // SVN Info
   ipcMain.handle('svn:info', async (_, path: string): Promise<SvnInfoResult> => {
-    try {
-      const xml = await executeSvn(['info', '--xml', path]);
-      return parseSvnInfoXml(xml);
-    } catch (error) {
-      debug.error('[SVN] Info error:', error);
-      throw error;
-    }
+    return getInfo(path);
   });
 
   ipcMain.handle('svn:infoUrl', async (_, url: string): Promise<SvnInfoResult> => {
-    try {
-      const args = [
-        'info',
-        '--xml',
-        '--non-interactive',
-        '--trust-server-cert-failures',
-        DEFAULT_SSL_FAILURES,
-        url,
-      ];
-      const xml = await executeSvn(args);
-      return parseSvnInfoXml(xml);
-    } catch (error) {
-      debug.error('[SVN] Info URL error:', error);
-      throw error;
-    }
+    return getInfoUrl(url);
   });
 
   ipcMain.handle(
@@ -654,26 +638,22 @@ export function registerSvnHandlers(): void {
 
   // SVN Revert
   ipcMain.handle('svn:revert', async (_, paths: string[]) => {
-    await executeSvn(['revert', ...paths]);
-    return { success: true };
+    return revertWorkingCopyItems(paths);
   });
 
   // SVN Add
   ipcMain.handle('svn:add', async (_, paths: string[]) => {
-    await executeSvn(['add', ...paths]);
-    return { success: true };
+    return addWorkingCopyItems(paths);
   });
 
   // SVN Delete
   ipcMain.handle('svn:delete', async (_, paths: string[]) => {
-    await executeSvn(['delete', ...paths]);
-    return { success: true };
+    return removeWorkingCopyItems(paths);
   });
 
   // SVN Cleanup
   ipcMain.handle('svn:cleanup', async (_, path: string) => {
-    await executeSvn(['cleanup', path]);
-    return { success: true };
+    return cleanupWorkingCopy(path);
   });
 
   // SVN Checkout
@@ -1079,14 +1059,12 @@ export function registerSvnHandlers(): void {
 
   // SVN Move
   ipcMain.handle('svn:move', async (_, src: string, dst: string) => {
-    const output = await executeSvn(['move', src, dst]);
-    return { success: true, output };
+    return moveWorkingCopyItem(src, dst);
   });
 
   // SVN Rename
   ipcMain.handle('svn:rename', async (_, src: string, dst: string) => {
-    const output = await executeSvn(['move', src, dst]); // svn rename is an alias for move
-    return { success: true, output };
+    return renameWorkingCopyItem(src, dst);
   });
 
   // SVN Shelve - List shelves
