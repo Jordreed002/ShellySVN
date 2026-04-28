@@ -94,6 +94,13 @@ describe('validatePath', () => {
     it('should reject absolute paths by default', () => {
       expect(() => validatePath('/etc/passwd')).toThrow('Absolute paths not allowed');
       expect(() => validatePath('/home/user/file.txt')).toThrow('Absolute paths not allowed');
+      expect(() => validatePath('C:\\Windows\\System32\\drivers\\etc\\hosts')).toThrow(
+        'Absolute paths not allowed'
+      );
+      expect(() => validatePath('C:Windows\\System32')).toThrow('Absolute paths not allowed');
+      expect(() => validatePath('\\\\server\\share\\file.txt')).toThrow(
+        'Absolute paths not allowed'
+      );
     });
 
     it('should reject absolute paths even if they had .. in the original', () => {

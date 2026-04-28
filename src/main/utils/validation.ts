@@ -5,7 +5,7 @@
  * to prevent path traversal, injection, and other security issues.
  */
 
-import { normalize } from 'path';
+import { isAbsolute, normalize, win32 } from 'path';
 import { existsSync, statSync } from 'node:fs';
 import { MAX_COMMIT_MESSAGE_LENGTH } from '@shared/constants';
 
@@ -56,13 +56,19 @@ export function validatePath(path: unknown, options: PathValidationOptions = {})
   // Normalize path
   const normalizedPath = normalize(path);
 
+  const normalizedParts = normalizedPath.split(/[/\\]+/);
+
   // Check for path traversal attempts
-  if (normalizedPath.includes('..')) {
+  if (normalizedParts.includes('..')) {
     throw new InputValidationError('Path traversal not allowed', 'path');
   }
 
   // Check absolute path restriction
-  if (!options.allowAbsolute && path.startsWith('/')) {
+  const isWindowsDriveRelative = /^[a-zA-Z]:($|[^\\/])/.test(path);
+  if (
+    !options.allowAbsolute &&
+    (isAbsolute(path) || win32.isAbsolute(path) || isWindowsDriveRelative)
+  ) {
     throw new InputValidationError('Absolute paths not allowed', 'path');
   }
 
