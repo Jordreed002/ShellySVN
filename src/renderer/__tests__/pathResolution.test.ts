@@ -5,6 +5,9 @@ import {
   isUrlInRepository,
 } from '../src/utils/pathResolution';
 
+const platformPath = (path: string): string =>
+  process.platform === 'win32' ? path.replace(/\//g, '\\') : path;
+
 describe('getRelativePath', () => {
   describe('basic functionality', () => {
     it('returns relative path for nested paths', () => {
@@ -78,12 +81,12 @@ describe('resolveRemoteUrlToLocalPath', () => {
         workingCopyRoot,
         repositoryRoot
       );
-      expect(result).toBe('/Users/user/project/trunk/src/file.ts');
+      expect(result).toBe(platformPath('/Users/user/project/trunk/src/file.ts'));
     });
 
     it('resolves root URL to working copy root', () => {
       const result = resolveRemoteUrlToLocalPath(repositoryRoot, workingCopyRoot, repositoryRoot);
-      expect(result).toBe(workingCopyRoot);
+      expect(result).toBe(platformPath(workingCopyRoot));
     });
 
     it('resolves nested directory URL', () => {
@@ -92,7 +95,7 @@ describe('resolveRemoteUrlToLocalPath', () => {
         workingCopyRoot,
         repositoryRoot
       );
-      expect(result).toBe('/Users/user/project/branches/feature/src/components/Button.tsx');
+      expect(result).toBe(platformPath('/Users/user/project/branches/feature/src/components/Button.tsx'));
     });
   });
 
@@ -142,7 +145,7 @@ describe('resolveRemoteUrlToLocalPath', () => {
         workingCopyRoot,
         'https://svn.example.com/repo/'
       );
-      expect(result).toBe('/Users/user/project/trunk/file.ts');
+      expect(result).toBe(platformPath('/Users/user/project/trunk/file.ts'));
     });
 
     it('handles working copy root with trailing slash', () => {
@@ -151,7 +154,7 @@ describe('resolveRemoteUrlToLocalPath', () => {
         '/Users/user/project/',
         repositoryRoot
       );
-      expect(result).toBe('/Users/user/project/trunk/file.ts');
+      expect(result).toBe(platformPath('/Users/user/project/trunk/file.ts'));
     });
 
     it('handles file at root of repository', () => {
@@ -160,7 +163,7 @@ describe('resolveRemoteUrlToLocalPath', () => {
         workingCopyRoot,
         repositoryRoot
       );
-      expect(result).toBe('/Users/user/project/readme.md');
+      expect(result).toBe(platformPath('/Users/user/project/readme.md'));
     });
   });
 

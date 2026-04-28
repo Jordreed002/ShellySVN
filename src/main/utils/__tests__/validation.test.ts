@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { normalize } from 'node:path';
 
 // Mock node:fs module with actual mock functions
 // Store mock state globally so the mock functions can access it
@@ -239,7 +240,7 @@ describe('validatePath', () => {
 
       // This path doesn't have .. after normalization
       const result = validatePath('./path/to/file', { allowAbsolute: true });
-      expect(result).toBe('path/to/file');
+      expect(result).toBe(normalize('path/to/file'));
     });
   });
 });
