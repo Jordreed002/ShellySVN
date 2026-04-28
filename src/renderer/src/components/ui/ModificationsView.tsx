@@ -11,6 +11,7 @@ import {
   ArrowDown,
   X,
   Filter,
+  Cloud,
 } from 'lucide-react';
 import type { SvnStatusChar, SvnStatusEntry } from '@shared/types';
 import { StatusIcon, StatusDot } from './StatusIcon';
@@ -20,18 +21,26 @@ interface ModificationsViewProps {
   onClose?: () => void;
 }
 
-type ModificationFilter = 'all' | 'modified' | 'added' | 'deleted' | 'conflicted' | 'unversioned';
+type ModificationFilter =
+  | 'all'
+  | 'modified'
+  | 'added'
+  | 'deleted'
+  | 'conflicted'
+  | 'unversioned'
+  | 'remote';
 
 export function ModificationsView({ path, onClose }: ModificationsViewProps) {
   const queryClient = useQueryClient();
   const parentRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<ModificationFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [includeRemote, setIncludeRemote] = useState(false);
 
   // Get SVN status for the path
-  const { data: statusData, isLoading } = useQuery({
-    queryKey: ['svn:status', path],
-    queryFn: () => window.api.svn.status(path),
+  const { data: statusData, isLoading, isFetching } = useQuery({
+    queryKey: ['svn:status', path, includeRemote],
+    queryFn: () => (includeRemote ? window.api.svn.statusRemote(path) : window.api.svn.status(path)),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -42,8 +51,10 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
     let entries = statusData.entries;
 
     // Filter by status
-    if (filter !== 'all') {
-      const statusMap: Record<ModificationFilter, SvnStatusChar[]> = {
+    if (filter === 'remote') {
+      entries = entries.filter((e) => e.remoteStatus && e.remoteStatus !== ' ');
+    } else if (filter !== 'all') {
+      const statusMap: Record<Exclude<ModificationFilter, 'remote'>, SvnStatusChar[]> = {
         all: ['M', 'A', 'D', 'C', 'R', '?', '!'],
         modified: ['M', 'R'],
         added: ['A'],
@@ -73,7 +84,7 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
   // Stats
   const stats = useMemo(() => {
     if (!statusData?.entries)
-      return { modified: 0, added: 0, deleted: 0, conflicted: 0, unversioned: 0 };
+      return { modified: 0, added: 0, deleted: 0, conflicted: 0, unversioned: 0, remote: 0 };
 
     return {
       modified: statusData.entries.filter((e) => ['M', 'R'].includes(e.status)).length,
@@ -81,11 +92,20 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
       deleted: statusData.entries.filter((e) => e.status === 'D').length,
       conflicted: statusData.entries.filter((e) => e.status === 'C').length,
       unversioned: statusData.entries.filter((e) => e.status === '?').length,
+      remote: statusData.entries.filter((e) => e.remoteStatus && e.remoteStatus !== ' ').length,
     };
   }, [statusData]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['svn:status', path] });
+  };
+
+  const handleCheckRemote = () => {
+    if (includeRemote) {
+      handleRefresh();
+      return;
+    }
+    setIncludeRemote(true);
   };
 
   return (
@@ -97,8 +117,12 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
           <span className="text-sm text-text-faint">{path}</span>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleCheckRemote} className="btn btn-secondary" disabled={isFetching}>
+            <Cloud className="w-4 h-4" />
+            Check repository
+          </button>
           <button onClick={handleRefresh} className="btn btn-secondary" disabled={isLoading}>
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
           </button>
           {onClose && (
@@ -160,6 +184,16 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
           Unversioned ({stats.unversioned})
         </button>
 
+        {statusData?.remoteChecked && (
+          <button
+            onClick={() => setFilter('remote')}
+            className={`btn-sm ${filter === 'remote' ? 'text-info bg-info/20' : 'btn-secondary'}`}
+          >
+            <Cloud className="w-3 h-3" />
+            Remote ({stats.remote})
+          </button>
+        )}
+
         <div className="flex-1" />
 
         <input
@@ -181,7 +215,11 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
           <div className="flex flex-col items-center justify-center h-32 text-center">
             <CheckCircle className="w-8 h-8 text-success mb-2" />
             <p className="text-text-secondary">
-              {filter === 'all' ? 'No modifications found' : `No ${filter} files`}
+              {filter === 'all' && statusData?.remoteChecked
+                ? 'No local or repository modifications found'
+                : filter === 'all'
+                  ? 'No modifications found'
+                  : `No ${filter} files`}
             </p>
           </div>
         ) : (
@@ -209,7 +247,10 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
 
       {/* Status Bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary border-t border-border text-sm text-text-secondary">
-        <span>{filteredEntries.length} items</span>
+        <span>
+          {filteredEntries.length} items
+          {statusData?.remoteChecked ? ' after repository check' : ''}
+        </span>
         {stats.conflicted > 0 && (
           <span className="text-svn-conflict">
             {stats.conflicted} conflict{stats.conflicted > 1 ? 's' : ''} need resolution
@@ -244,6 +285,13 @@ function ModificationRow({ entry, style }: { entry: SvnStatusEntry; style: React
 
       {/* Status badge */}
       <StatusIcon status={entry.status} size="sm" />
+
+      {entry.remoteStatus && entry.remoteStatus !== ' ' && (
+        <span className="inline-flex items-center gap-1 text-xs text-info bg-info/10 px-2 py-0.5 rounded">
+          <Cloud className="w-3 h-3" />
+          Remote {entry.remoteStatus}
+        </span>
+      )}
 
       {/* Date */}
       {entry.date && (

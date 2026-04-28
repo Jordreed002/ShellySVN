@@ -70,6 +70,18 @@ export async function getStatus(path: string): Promise<SvnStatusResult> {
   }
 }
 
+export async function getRemoteStatus(path: string): Promise<SvnStatusResult> {
+  try {
+    const xml = await runSvnText(['status', '--xml', '--show-updates', path], {
+      trustSslFailures: true,
+    });
+    return { ...parseSvnStatusXml(xml, path), remoteChecked: true };
+  } catch (error) {
+    debug.error('[SVN] Remote status error:', error);
+    return { path, entries: [], revision: 0, remoteChecked: true };
+  }
+}
+
 export async function getInfo(path: string): Promise<SvnInfoResult> {
   try {
     const xml = await runSvnText(['info', '--xml', path]);

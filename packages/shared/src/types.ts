@@ -29,6 +29,11 @@ export interface SvnStatusEntry {
   date?: string;
   isDirectory: boolean;
   propsStatus?: SvnStatusChar;
+  remoteStatus?: SvnStatusChar;
+  remotePropsStatus?: SvnStatusChar;
+  remoteRevision?: number;
+  remoteAuthor?: string;
+  remoteDate?: string;
   changelist?: string;
   switched?: boolean;
   lock?: {
@@ -42,6 +47,8 @@ export interface SvnStatusResult {
   path: string;
   entries: SvnStatusEntry[];
   revision: number;
+  /** Set when the status result includes repository-side update information */
+  remoteChecked?: boolean;
   /** Set when XML parsing failed - entries may be incomplete or empty */
   parseError?: string;
 }
@@ -185,6 +192,7 @@ export interface DirectoryInfo {
 
 export type SvnChannels = {
   'svn:status': (path: string) => SvnStatusResult;
+  'svn:statusRemote': (path: string) => SvnStatusResult;
   'svn:log': (path: string, limit?: number, startRev?: number, endRev?: number) => SvnLogResult;
   'svn:info': (path: string) => SvnInfoResult;
   'svn:update': (
@@ -627,6 +635,7 @@ export interface WebhookDeliverResult {
 export interface ElectronAPI {
   svn: {
     status: (path: string) => Promise<SvnStatusResult>;
+    statusRemote: (path: string) => Promise<SvnStatusResult>;
     log: (
       path: string,
       limit?: number,

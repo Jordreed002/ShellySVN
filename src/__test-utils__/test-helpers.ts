@@ -244,6 +244,9 @@ function createMockElectronAPI() {
   return {
     svn: {
       status: vi.fn().mockResolvedValue({ path: '/test/repo', entries: [], revision: 1 }),
+      statusRemote: vi
+        .fn()
+        .mockResolvedValue({ path: '/test/repo', entries: [], revision: 1, remoteChecked: true }),
       log: vi.fn().mockResolvedValue({ entries: [], startRevision: 0, endRevision: 0 }),
       info: vi.fn().mockResolvedValue({
         path: '/test/repo',

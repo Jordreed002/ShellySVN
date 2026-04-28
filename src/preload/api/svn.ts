@@ -23,6 +23,7 @@ export function createSvnApi(
 ): ElectronAPI['svn'] {
   return {
     status: (path) => invokeIpc('svn:status', path),
+    statusRemote: (path) => invokeIpc('svn:statusRemote', path),
     log: (path, limit?, startRev?, endRev?) =>
       invokeIpc('svn:log', path, limit, startRev, endRev),
     info: (path) => invokeIpc('svn:info', path),
@@ -160,4 +161,3 @@ export function createSvnApi(
     diagnostics: (workingCopyPath) => invokeIpc('svn:diagnostics', workingCopyPath),
   };
 }
-

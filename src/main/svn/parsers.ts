@@ -9,6 +9,7 @@ import type {
   SvnListResult,
   SvnLockInfo,
   SvnLogResult,
+  SvnStatusChar,
   SvnStatusResult,
 } from '@shared/types';
 import {
@@ -27,7 +28,8 @@ const xmlParser = new XMLParser({
   allowBooleanAttributes: true,
 });
 
-const SVN_STATUS_MAP: Record<string, SvnStatusResult['entries'][0]['status']> = {
+const SVN_STATUS_MAP: Record<string, SvnStatusChar> = {
+  none: ' ',
   normal: ' ',
   added: 'A',
   conflicted: 'C',
@@ -42,7 +44,7 @@ const SVN_STATUS_MAP: Record<string, SvnStatusResult['entries'][0]['status']> = 
   incomplete: '!',
 };
 
-function mapSvnStatus(status?: string): SvnStatusResult['entries'][0]['status'] {
+function mapSvnStatus(status?: string): SvnStatusChar {
   if (!status) return ' ';
   return SVN_STATUS_MAP[status] ?? ' ';
 }
@@ -56,6 +58,8 @@ function mapPropsStatus(status?: string): SvnStatusResult['entries'][0]['propsSt
   return mapped === ' ' ? undefined : mapped;
 }
 
+type StatusCommitXml = { '@_revision': string; author?: string; date?: string };
+
 type StatusXmlEntry = {
   '@_path': string;
   'wc-status'?: {
@@ -63,8 +67,13 @@ type StatusXmlEntry = {
     '@_props'?: string;
     '@_revision'?: string;
     '@_switched'?: boolean | string;
-    commit?: { '@_revision': string; author?: string; date?: string };
+    commit?: StatusCommitXml;
     lock?: { owner?: string; comment?: string; creationdate?: string };
+  };
+  'repos-status'?: {
+    '@_item': string;
+    '@_props'?: string;
+    commit?: StatusCommitXml;
   };
 };
 
@@ -109,6 +118,7 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
     for (const { entry, changelist } of entriesArray) {
       const wcStatus = entry['wc-status'];
       if (!wcStatus) continue;
+      const reposStatus = entry['repos-status'];
 
       entries.push({
         path: entry['@_path'] || '',
@@ -120,6 +130,13 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
         date: wcStatus.commit?.date,
         isDirectory: false,
         propsStatus: mapPropsStatus(wcStatus['@_props']),
+        remoteStatus: reposStatus ? mapSvnStatus(reposStatus['@_item']) : undefined,
+        remotePropsStatus: reposStatus ? mapPropsStatus(reposStatus['@_props']) : undefined,
+        remoteRevision: reposStatus?.commit?.['@_revision']
+          ? parseInt(reposStatus.commit['@_revision'], 10)
+          : undefined,
+        remoteAuthor: reposStatus?.commit?.author,
+        remoteDate: reposStatus?.commit?.date,
         changelist,
         switched: parseBooleanAttribute(wcStatus['@_switched']),
         lock: wcStatus.lock
@@ -141,7 +158,12 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
     };
   }
 
-  return { path: basePath, entries, revision: 0 };
+  return {
+    path: basePath,
+    entries,
+    revision: 0,
+    remoteChecked: entries.some((entry) => entry.remoteStatus !== undefined),
+  };
 }
 
 export function parseSvnInfoXml(xml: string): SvnInfoResult {

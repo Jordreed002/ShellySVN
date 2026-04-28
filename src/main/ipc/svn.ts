@@ -64,6 +64,7 @@ import {
   getWorkingCopyContext,
   getInfo,
   getInfoUrl,
+  getRemoteStatus,
   getStatus,
   move as moveWorkingCopyItem,
   remove as removeWorkingCopyItems,
@@ -78,6 +79,10 @@ export function registerSvnHandlers(): void {
   // SVN Status
   ipcMain.handle('svn:status', async (_, path: string): Promise<SvnStatusResult> => {
     return getStatus(path);
+  });
+
+  ipcMain.handle('svn:statusRemote', async (_, path: string): Promise<SvnStatusResult> => {
+    return getRemoteStatus(path);
   });
 
   // SVN Log

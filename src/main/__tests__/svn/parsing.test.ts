@@ -227,6 +227,38 @@ describe('SVN Status XML Parser', () => {
       expect(result.entries[0].lock?.owner).toBe('lockowner');
       expect(result.entries[0].lock?.comment).toBe('Lock comment');
     });
+
+    it('should parse repository status from update checks', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<status>
+  <target path=".">
+    <entry path="src/outdated.ts">
+      <wc-status item="normal">
+        <commit revision="41">
+          <author>localdev</author>
+          <date>2024-01-14T10:30:00.000000Z</date>
+        </commit>
+      </wc-status>
+      <repos-status item="modified" props="modified">
+        <commit revision="42">
+          <author>remotedev</author>
+          <date>2024-01-15T10:30:00.000000Z</date>
+        </commit>
+      </repos-status>
+    </entry>
+  </target>
+</status>`;
+
+      const result = parseSvnStatusXml(xml, '/test/path');
+
+      expect(result.remoteChecked).toBe(true);
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].status).toBe(' ');
+      expect(result.entries[0].remoteStatus).toBe('M');
+      expect(result.entries[0].remotePropsStatus).toBe('M');
+      expect(result.entries[0].remoteRevision).toBe(42);
+      expect(result.entries[0].remoteAuthor).toBe('remotedev');
+    });
   });
 });
 

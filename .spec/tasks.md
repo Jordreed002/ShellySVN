@@ -116,7 +116,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 - [ ] Add commit progress events and cancellation.
 - [ ] Add merge progress events and cancellation.
 - [ ] Add export/import progress events and cancellation.
-- [ ] Add explicit local-vs-remote status checks.
+- [x] Add explicit local-vs-remote status checks.
 - [ ] Add working-copy upgrade detection and guided upgrade flow.
 - [ ] Improve sparse checkout, externals, nested working-copy, and switched-path status display.
 - [ ] Add bounded background repository browser prefetch/caching.
