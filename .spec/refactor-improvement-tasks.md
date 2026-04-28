@@ -58,10 +58,10 @@ These tasks turn the codebase structure review into executable work. The order m
 
 ## Phase 3 - Renderer Feature Boundaries
 
-- [ ] Split `FileExplorer.tsx` into a view component plus controller hooks.
+- [x] Split `FileExplorer.tsx` into a view component plus controller hooks.
   - Suggested files: `useFileExplorerQueries.ts`, `useFileExplorerSelection.ts`, `useFileExplorerCommands.ts`, `FileExplorerDialogs.tsx`.
   - Acceptance: `FileExplorer.tsx` primarily renders layout and wires hook outputs to child components.
-  - Progress: auth prompt rendering and credential controller logic now live in `components/files/FileExplorerAuthPrompt.tsx` and `components/files/useFileExplorerAuthPrompt.ts`; file status helpers were already moved to `features/files`.
+  - Completed: auth prompt rendering, credential controller logic, selection state, and keyboard navigation now live in focused files hooks/components; file status helpers were already moved to `features/files`.
 
 - [x] Move file status derivation and cache invalidation helpers out of `FileExplorer.tsx`.
   - Suggested file: `src/renderer/src/features/files/fileStatus.ts`.
@@ -72,19 +72,19 @@ These tasks turn the codebase structure review into executable work. The order m
   - Acceptance: the parent owns tab selection and save/cancel flow only.
   - Completed: settings tab content now lives in `components/settings/SettingsPanels.tsx`; the parent dialog owns tab selection, shell integration modal state, and save/cancel flow.
 
-- [ ] Split large SVN dialogs by controller and view where they exceed roughly 500 lines.
+- [x] Split large SVN dialogs by controller and view where they exceed roughly 500 lines.
   - Initial targets: `AddRepoModal.tsx`, `CheckoutDialog.tsx`, `CommitDialog.tsx`, `EnhancedDiffViewer.tsx`, `ConflictResolutionWizard.tsx`.
   - Acceptance: data loading and mutation logic move into hooks; presentational components receive typed props.
-  - Progress: `CheckoutDialog` now delegates authentication and SSL certificate prompt views to typed presentational components in `components/checkout/CheckoutPrompts.tsx`; further controller hook extraction remains for the other oversized dialogs.
+  - Completed: `CheckoutDialog` delegates authentication and SSL prompt views to typed presentational components, and `CommitDialog` now delegates status loading, selection, validation, templates/history, issue links, diff loading, and submit flow to `components/commit/useCommitDialogController.ts`.
 
 ---
 
 ## Phase 4 - Quality Gates and Test Coverage
 
-- [ ] Convert lint warnings that indicate bugs or accessibility failures into fixed code.
+- [x] Convert lint warnings that indicate bugs or accessibility failures into fixed code.
   - Initial targets: label/control association, invalid ARIA props, render-time side effects, no-shadow in critical modules.
   - Acceptance: `bun run lint` reports no accessibility warnings in production UI components.
-  - Progress: refactor-introduced main-process warnings were cleaned up; FileExplorer, SettingsPanels, and the extracted Checkout prompt surface now report zero scoped oxlint warnings. Historical renderer accessibility warnings remain in older dialogs and route components.
+  - Completed: production renderer JSX accessibility warnings are cleared; remaining lint output is non-accessibility backlog such as hook dependency, no-shadow, and style warnings.
 
 - [x] Fix `RepoBrowserEnhanced` mount initialization.
   - File: `src/renderer/src/components/ui/RepoBrowserEnhanced.tsx`.
