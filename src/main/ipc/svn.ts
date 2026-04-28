@@ -31,6 +31,24 @@ import {
 } from '../services/svn-checkout';
 import { getBlame, getDiff, getDiffStreaming, getLog } from '../services/svn-history';
 import {
+  changelistAdd,
+  changelistCreate,
+  changelistDelete,
+  changelistList,
+  changelistRemove,
+  externalsAdd,
+  externalsList,
+  externalsRemove,
+  listRepository,
+  propdel,
+  proplist,
+  propset,
+  shelveApply,
+  shelveDelete,
+  shelveList,
+  shelveSave,
+} from '../services/svn-metadata';
+import {
   add as addWorkingCopyItems,
   cleanup as cleanupWorkingCopy,
   getInfo,
@@ -43,17 +61,7 @@ import {
 } from '../services/svn-working-copy';
 import { runSvn, runSvnText } from '../services/svn-executor';
 import debug from '../utils/debug';
-import {
-  parseSvnPropertiesXml,
-  parseSvnShelvesXml,
-  parseSvnStatusEntriesXml,
-} from '../utils/svn-xml';
-import {
-  parseSvnExternals,
-  parseSvnInfoXml,
-  parseSvnListXml,
-  parseSvnStatusXml,
-} from '../svn/parsers';
+import { parseSvnInfoXml } from '../svn/parsers';
 import { getStore } from './store';
 
 /**
@@ -987,74 +995,27 @@ export function registerSvnHandlers(): void {
 
   // SVN Changelist - Add to changelist
   ipcMain.handle('svn:changelist:add', async (_, paths: string[], changelist: string) => {
-    await executeSvn(['changelist', changelist, ...paths]);
-    return { success: true };
+    return changelistAdd(paths, changelist);
   });
 
   // SVN Changelist - Remove from changelist
   ipcMain.handle('svn:changelist:remove', async (_, paths: string[]) => {
-    await executeSvn(['changelist', '--remove', ...paths]);
-    return { success: true };
+    return changelistRemove(paths);
   });
 
   // SVN Changelist - List changelists
   ipcMain.handle('svn:changelist:list', async (_, path: string): Promise<SvnChangelistResult> => {
-    try {
-      const xml = await executeSvn(['status', '--xml', path]);
-      const changelists: Map<string, string[]> = new Map();
-      const defaultFiles: string[] = [];
-
-      for (const entry of parseSvnStatusEntriesXml(xml)) {
-        const filePath = entry.path;
-        const changelistName = entry.changelist;
-
-        if (changelistName) {
-          if (!changelists.has(changelistName)) {
-            changelists.set(changelistName, []);
-          }
-          changelists.get(changelistName)!.push(filePath);
-        } else {
-          defaultFiles.push(filePath);
-        }
-      }
-
-      return {
-        changelists: Array.from(changelists.entries()).map(([name, files]) => ({ name, files })),
-        defaultFiles,
-      };
-    } catch {
-      return { changelists: [], defaultFiles: [] };
-    }
+    return changelistList(path);
   });
 
   // SVN Changelist - Create new changelist
   ipcMain.handle('svn:changelist:create', async (_, _name: string, _comment?: string) => {
-    // Changelists are created implicitly when files are added to them
-    // This handler exists for consistency but doesn't need to do anything
-    // The UI should use changelist.add to add files, which creates the changelist automatically
-    return { success: true };
+    return changelistCreate();
   });
 
   // SVN Changelist - Delete changelist (remove all files from it)
   ipcMain.handle('svn:changelist:delete', async (_, name: string, path: string) => {
-    try {
-      // Get all files in this changelist
-      const xml = await executeSvn(['status', '--xml', path]);
-
-      const filesToRemove = parseSvnStatusEntriesXml(xml)
-        .filter((entry) => entry.changelist === name)
-        .map((entry) => entry.path);
-
-      // Remove all files from the changelist
-      if (filesToRemove.length > 0) {
-        await executeSvn(['changelist', '--remove', ...filesToRemove]);
-      }
-
-      return { success: true };
-    } catch (error) {
-      debug.error('[SVN] Changelist delete error:', error);
-      return { success: false };
-    }
+    return changelistDelete(name, path);
   });
 
   // SVN Move
@@ -1069,51 +1030,37 @@ export function registerSvnHandlers(): void {
 
   // SVN Shelve - List shelves
   ipcMain.handle('svn:shelve:list', async (_, path: string): Promise<SvnShelveListResult> => {
-    try {
-      const output = await executeSvn(['shelve', '--list', '--xml', path]);
-      return { shelves: parseSvnShelvesXml(output) };
-    } catch {
-      return { shelves: [] };
-    }
+    return shelveList(path);
   });
 
   // SVN Shelve - Save
   ipcMain.handle('svn:shelve:save', async (_, name: string, path: string, message?: string) => {
-    const args = ['shelve', name];
-    if (message) args.push('-m', message);
-    args.push(path);
-    await executeSvn(args);
-    return { success: true };
+    return shelveSave(name, path, message);
   });
 
   // SVN Shelve - Apply
   ipcMain.handle('svn:shelve:apply', async (_, name: string, path: string) => {
-    await executeSvn(['unshelve', name, path]);
-    return { success: true };
+    return shelveApply(name, path);
   });
 
   // SVN Shelve - Delete
   ipcMain.handle('svn:shelve:delete', async (_, name: string, path: string) => {
-    await executeSvn(['shelve', '--delete', name, path]);
-    return { success: true };
+    return shelveDelete(name, path);
   });
 
   // SVN Proplist
   ipcMain.handle('svn:proplist', async (_, path: string) => {
-    const output = await executeSvn(['proplist', '--xml', '-v', path]);
-    return parseSvnPropertiesXml(output);
+    return proplist(path);
   });
 
   // SVN Propset
   ipcMain.handle('svn:propset', async (_, path: string, name: string, value: string) => {
-    await executeSvn(['propset', name, value, path]);
-    return { success: true };
+    return propset(path, name, value);
   });
 
   // SVN Propdel
   ipcMain.handle('svn:propdel', async (_, path: string, name: string) => {
-    await executeSvn(['propdel', name, path]);
-    return { success: true };
+    return propdel(path, name);
   });
 
   // ============================================
@@ -1145,21 +1092,7 @@ export function registerSvnHandlers(): void {
       depth?: 'empty' | 'immediates' | 'infinity',
       credentials?: { username: string; password: string }
     ): Promise<SvnListResult> => {
-      const args = [
-        'list',
-        '--xml',
-        '--non-interactive',
-        '--trust-server-cert-failures',
-        DEFAULT_SSL_FAILURES,
-      ];
-      if (revision) args.push('-r', revision);
-      if (depth) args.push('--depth', depth);
-      if (credentials?.username) args.push('--username', credentials.username);
-      if (credentials?.password) args.push('--password', credentials.password);
-      args.push(url);
-
-      const xml = await executeSvn(args);
-      return parseSvnListXml(xml, url);
+      return listRepository(url, revision, depth, credentials);
     }
   );
 
@@ -1224,13 +1157,7 @@ export function registerSvnHandlers(): void {
   // ============================================
 
   ipcMain.handle('svn:externals:list', async (_, path: string): Promise<SvnExternal[]> => {
-    try {
-      const output = await executeSvn(['propget', 'svn:externals', '-R', path]);
-      return parseSvnExternals(output, path);
-    } catch (error) {
-      debug.error('[SVN] Externals list error:', error);
-      return [];
-    }
+    return externalsList(path);
   });
 
   ipcMain.handle(
@@ -1240,57 +1167,14 @@ export function registerSvnHandlers(): void {
       workingCopyPath: string,
       external: Omit<SvnExternal, 'name'> & { name?: string }
     ): Promise<{ success: boolean }> => {
-      try {
-        // Get current externals
-        let current = '';
-        try {
-          current = await executeSvn(['propget', 'svn:externals', workingCopyPath]);
-        } catch {
-          // No existing externals
-        }
-
-        // Build external definition string
-        const extName = external.name || external.path.split('/').pop() || 'external';
-        let extDef = '';
-        if (external.revision) {
-          extDef = `-r${external.revision} `;
-        }
-        extDef += `${external.url} ${extName}`;
-
-        // Append new external
-        const newValue = current.trim() ? `${current.trim()}\n${extDef}` : extDef;
-
-        await executeSvn(['propset', 'svn:externals', newValue, workingCopyPath]);
-        return { success: true };
-      } catch (error) {
-        debug.error('[SVN] Externals add error:', error);
-        return { success: false };
-      }
+      return externalsAdd(workingCopyPath, external);
     }
   );
 
   ipcMain.handle(
     'svn:externals:remove',
     async (_, workingCopyPath: string, externalPath: string): Promise<{ success: boolean }> => {
-      try {
-        const current = await executeSvn(['propget', 'svn:externals', workingCopyPath]);
-        const lines = current.split('\n').filter((l) => {
-          // Check if this line contains the external path or name
-          const parts = l.trim().split(/\s+/);
-          const name = parts[parts.length - 1];
-          return name !== externalPath && !l.includes(externalPath);
-        });
-
-        if (lines.length > 0 && lines.some((l) => l.trim())) {
-          await executeSvn(['propset', 'svn:externals', lines.join('\n'), workingCopyPath]);
-        } else {
-          await executeSvn(['propdel', 'svn:externals', workingCopyPath]);
-        }
-        return { success: true };
-      } catch (error) {
-        debug.error('[SVN] Externals remove error:', error);
-        return { success: false };
-      }
+      return externalsRemove(workingCopyPath, externalPath);
     }
   );
 
