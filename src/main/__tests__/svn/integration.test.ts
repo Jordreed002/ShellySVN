@@ -1,5 +1,5 @@
 /**
- * Integration tests for SVN parsing functions from svn.ts
+ * Integration tests for SVN parsing functions.
  *
  * These tests directly test the exported parsing functions to ensure
  * actual coverage of the production code.
@@ -13,7 +13,7 @@ import {
   parseSvnDiff,
   parseSvnListXml,
   parseSvnBlameXml,
-} from '@main/ipc/svn';
+} from '@main/svn/parsers';
 
 describe('SVN Parsing Functions Integration', () => {
   describe('parseSvnStatusXml', () => {

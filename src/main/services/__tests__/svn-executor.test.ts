@@ -54,6 +54,11 @@ vi.mock('../../settings-manager', () => ({
 }));
 
 vi.mock('../../utils/debug', () => ({
+  debug: {
+    log: mockState.debugLog,
+    warn: mockState.debugWarn,
+    error: mockState.debugError,
+  },
   default: {
     log: mockState.debugLog,
     warn: mockState.debugWarn,
