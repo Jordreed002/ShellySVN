@@ -169,6 +169,10 @@ bun run build:win           # Windows x64
 bun run build:mac           # macOS (current arch)
 bun run build:mac-universal # macOS universal binary
 
+# Packaging first verifies bundled SVN and shelly-engine binaries.
+# Placeholder, missing, or non-executable binaries fail before electron-builder runs.
+bun run verify:binaries win32-x64
+
 # Build logic engine only
 bun run engine:dev          # Run engine directly
 bun run engine:build:all    # Compile for all platforms

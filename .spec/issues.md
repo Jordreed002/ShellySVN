@@ -265,6 +265,8 @@ Webhook delivery uses browser `fetch()` directly. The renderer CSP does not defi
 
 **Location:** `binaries/`
 
+**Status:** Resolved in packaging scripts. Distribution scripts now run `verify:binaries` before `electron-builder` and fail on missing, placeholder-sized, or non-executable SVN / `shelly-engine` binaries.
+
 The local `binaries/win32-x64/shelly-engine.exe` and `binaries/win32-x64/svn/svn.exe` files are 12-byte placeholders. Other platform binary directories are empty in this checkout.
 
 **Impact:** Local packaging can produce an app with invalid bundled binaries unless CI-provided artifacts are present.

@@ -50,8 +50,8 @@ Execution order is defined in `fix-plan.md`.
 - [x] Re-run the production build and confirm the TanStack Router warning is gone or intentionally documented.
 - [x] Bundle renderer fonts locally or remove the remote Google Fonts import.
 - [x] Verify the production CSP against the built renderer assets.
-- [ ] Add a prepackage binary verification script for bundled SVN and `shelly-engine`.
-- [ ] Fail packaging if bundled binaries are missing, tiny placeholders, non-executable, or fail `--version`.
+- [x] Add a prepackage binary verification script for bundled SVN and `shelly-engine`.
+- [x] Fail packaging if bundled binaries are missing, tiny placeholders, non-executable, or fail `--version`.
 
 ---
 

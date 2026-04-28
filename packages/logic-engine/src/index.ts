@@ -18,6 +18,11 @@ const args = process.argv.slice(2);
 const command = args[0];
 const subCommand = args[1];
 
+if (command === '--version' || command === '-v' || command === 'version') {
+  console.log('ShellySVN Logic Engine 0.1.0');
+  process.exit(0);
+}
+
 // Initialize SVN client with path to bundled SVN binary
 const svnPath = getBinaryPath('svn');
 const svnClient = new SvnClient(svnPath);
