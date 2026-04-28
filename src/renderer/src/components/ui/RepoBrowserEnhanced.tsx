@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Folder,
   FolderOpen,
@@ -319,10 +319,9 @@ export function RepoBrowserEnhanced({
 
   const [selectedNode, setSelectedNode] = useState<RepoBrowserNode | null>(null);
 
-  // Initialize on mount
-  useState(() => {
+  useEffect(() => {
     initialize();
-  });
+  }, [initialize]);
 
   const formatSize = (bytes?: number): string => {
     if (!bytes) return '-';
