@@ -198,14 +198,14 @@
 
 ## P2 - Performance and Large Repository Readiness
 
-- [ ] Define target repository sizes for parity testing: file count, folder depth, log length, diff size, and binary size.
+- [x] Define target repository sizes for parity testing: file count, folder depth, log length, diff size, and binary size.
 - [ ] Add large working-copy status benchmarks.
 - [ ] Add large repository browser lazy-loading benchmarks.
 - [ ] Add large log history pagination and filtering benchmarks.
 - [ ] Verify virtualized lists remain stable during selection, filtering, context menus, and refresh.
 - [ ] Ensure folder-size scans and status scans do not block rendering.
 - [ ] Verify background scanning does not block active SVN operations.
-- [ ] Add regression budgets for renderer bundle size, app shell startup time, and common route load time.
+- [x] Add regression budgets for renderer bundle size, app shell startup time, and common route load time.
 - [ ] Verify normal operation does not depend on remote assets.
 
 ## P2 - CLI, Logic Engine, and Architecture Decisions
