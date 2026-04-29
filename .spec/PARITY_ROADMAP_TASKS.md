@@ -114,7 +114,7 @@
 - [x] Verify switch flow for whole working copies and nested switched paths.
 - [x] Verify relocate flow for repository root URL changes.
 - [ ] Verify merge wizard supports revision ranges, dry-run preview, merge output, progress, cancellation, and conflict summary.
-- [ ] Decide whether reintegrate-style guidance is needed for supported SVN versions.
+- [x] Decide whether reintegrate-style guidance is needed for supported SVN versions.
 - [ ] Add post-merge status refresh and clear conflict reporting.
 - [ ] Ensure branch, tag, switch, merge, and relocate are reachable from app navigation and relevant context menus.
 
@@ -142,7 +142,7 @@
 - [ ] Verify lock, unlock, force lock, force unlock, and lock list workflows.
 - [ ] Add lock owner and stale-lock handling in file explorer and dialogs.
 - [ ] Verify shelve, unshelve/apply, list, and delete workflows with the minimum supported SVN version.
-- [ ] Decide the minimum acceptable SVN version for sparse checkout, shelving, and other advanced features.
+- [x] Decide the minimum acceptable SVN version for sparse checkout, shelving, and other advanced features.
 - [ ] Add repository diagnostics for unsupported or mismatched SVN versions.
 
 ## P1 - Issue Tracker Integration

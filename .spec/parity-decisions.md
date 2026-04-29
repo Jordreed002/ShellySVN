@@ -123,3 +123,21 @@ Implications:
 
 - Track these as deferred or wishlist items.
 - Do not block the parity milestone on them.
+
+---
+
+## Decision 7: Advanced SVN Features Require SVN 1.14.x
+
+Shelving, sparse checkout, and other advanced workflows are supported against SVN 1.14.x. Older working-copy formats should be detected and routed through the guided upgrade flow before advanced operations are offered.
+
+Rationale:
+
+- The app defaults to working-copy format `1.14`.
+- The welcome and settings surfaces already position ShellySVN around bundled SVN 1.14.x behavior.
+- SVN 1.14 is the stable LTS-era baseline available in current local verification.
+
+Implications:
+
+- Sparse checkout, shelving, and diagnostics should treat SVN versions below 1.14 as unsupported for replacement-readiness claims.
+- Diagnostics should clearly report the active SVN binary and version before advanced SVN workflow failures are escalated.
+- Reintegrate-style merge guidance is not required as a dedicated flow for the 1.14 baseline; merge guidance should focus on revision ranges, dry-run preview, conflict summary, and post-merge review.

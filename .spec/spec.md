@@ -514,7 +514,7 @@ A release candidate should not ship until:
 4. Should `svn+ssh` support include SSH key management, or should it rely entirely on the user's existing SSH agent/config?
 5. Is the plugin system intended for untrusted third-party plugins, or only trusted local automation?
 6. Should hook scripts be treated as trusted user scripts with broad permissions, or should they be sandboxed/permissioned?
-7. What is the minimum acceptable SVN version for all advanced features, especially shelve/unshelve and sparse checkout?
+7. What is the minimum acceptable SVN version for all advanced features, especially shelve/unshelve and sparse checkout? Answer: SVN 1.14.x is the minimum baseline for advanced workflows; older working copies should use the guided upgrade flow before advanced operations are offered.
 8. Should the app support multiple windows/workspaces, or enforce single-window behavior?
 9. What level of offline behavior is required beyond bundled static assets and local working-copy operations?
 10. Should Linux packaging be considered first-class for the initial release, or remain roadmap until Windows/macOS stabilize? Answer for parity work: Linux packaging can continue where available, but Linux shell parity remains deferred until Windows/macOS stabilize.
