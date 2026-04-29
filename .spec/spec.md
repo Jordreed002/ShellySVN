@@ -11,6 +11,7 @@ Related tracking files:
 - `issues.md` - known defects and risks
 - `tasks.md` - actionable implementation work
 - `wish-list.md` - future improvements
+- `parity-decisions.md` - TortoiseSVN replacement scope and platform decisions
 
 ---
 
@@ -259,6 +260,8 @@ The app must support:
 
 ShellySVN must become a credible replacement for TortoiseSVN on Windows while also being a first-class macOS SVN client. The goal is not exact feature cloning. The goal is platform-native workflow parity for the SVN actions users perform every day.
 
+Replacement readiness is release-blocking for Windows x64, macOS x64, and macOS arm64. Linux remains package-supported where builds are available, but Linux file-manager parity is deferred until Windows/macOS replacement-critical workflows are reliable.
+
 Requirements:
 
 - Provide Windows Explorer integration for common SVN commands and status overlays.
@@ -269,6 +272,7 @@ Requirements:
 - Provide issue tracker integration with configurable issue parsing and links.
 - Provide cancellation and progress for long-running update, commit, checkout, merge, export, and import operations.
 - Avoid copying Windows-only behavior when macOS has a better native pattern.
+- Treat file-manager integration as a native launcher and status surface; keep complex workflows in the standalone app.
 
 ### Local Filesystem
 
@@ -434,6 +438,8 @@ The package metadata describes support for:
 - macOS arm64
 - Linux x64
 
+For the TortoiseSVN replacement milestone, Windows x64, macOS x64, and macOS arm64 are release-blocking. Linux x64 remains a supported packaging target where binaries are available, but Linux shell integration parity is not release-blocking.
+
 ### Packaging Requirements
 
 - `bun run build` must pass before packaging.
@@ -502,7 +508,7 @@ A release candidate should not ship until:
 
 ## 12. Open Questions
 
-1. Which platforms are release-blocking for version `0.1.0`: Windows only, Windows plus macOS, or Windows/macOS/Linux?
+1. Which platforms are release-blocking for version `0.1.0`: Windows only, Windows plus macOS, or Windows/macOS/Linux? Answer for TortoiseSVN replacement readiness: Windows x64, macOS x64, and macOS arm64 are release-blocking; Linux parity is deferred.
 2. Should bundled SVN be the default client, or should the system SVN remain the default when available?
 3. Should persistent credentials be disabled completely when platform encryption is unavailable, or should users be allowed to opt into plaintext storage with a warning?
 4. Should `svn+ssh` support include SSH key management, or should it rely entirely on the user's existing SSH agent/config?
@@ -511,10 +517,11 @@ A release candidate should not ship until:
 7. What is the minimum acceptable SVN version for all advanced features, especially shelve/unshelve and sparse checkout?
 8. Should the app support multiple windows/workspaces, or enforce single-window behavior?
 9. What level of offline behavior is required beyond bundled static assets and local working-copy operations?
-10. Should Linux packaging be considered first-class for the initial release, or remain roadmap until Windows/macOS stabilize?
+10. Should Linux packaging be considered first-class for the initial release, or remain roadmap until Windows/macOS stabilize? Answer for parity work: Linux packaging can continue where available, but Linux shell parity remains deferred until Windows/macOS stabilize.
 
 ---
 
 ## 13. Change Log
 
 - 2026-04-28: Initial draft generated from README, package metadata, current architecture, and project review findings.
+- 2026-04-29: Recorded TortoiseSVN parity platform decisions and Linux parity deferral.

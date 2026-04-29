@@ -284,12 +284,13 @@ We welcome contributions! Here's how to get started:
 
 ## Roadmap
 
-- [ ] Linux support
-- [ ] Git integration (hybrid repos)
-- [ ] Merge conflict resolution UI
-- [ ] Visual diff for images
+- [ ] Windows Explorer and macOS Finder integration hardening
+- [ ] Packaged app smoke tests for Windows and macOS release targets
+- [ ] Merge conflict resolution hardening
+- [ ] Image diff verification and polish
 - [x] Repository browser with remote browsing
-- [ ] Plugin/extension system
+- [ ] Linux packaging smoke tests where release artifacts are produced
+- [ ] Plugin/extension system decision
 - [ ] Dark/light theme customization
 
 ---

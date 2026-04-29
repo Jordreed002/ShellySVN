@@ -20,10 +20,10 @@
 - [x] Mark each parity item as `complete`, `partial`, `missing`, `out of scope`, or `needs manual verification`.
 - [x] Map every implemented parity feature to renderer entry point, preload API, main IPC handler, service method, and tests.
 - [x] Identify README claims that are not implemented, not reachable, or not covered by verification.
-- [ ] Document platform-specific decisions where ShellySVN intentionally differs from TortoiseSVN.
-- [ ] Define which platforms are release-blocking for the next release: Windows, macOS, and/or Linux.
-- [ ] Decide whether Linux parity is best-effort until Windows/macOS workflows stabilize.
-- [ ] Keep `.spec/spec.md`, `.spec/tortoisesvn-parity-roadmap.md`, `.spec/tasks.md`, and README roadmap entries synchronized as parity decisions change.
+- [x] Document platform-specific decisions where ShellySVN intentionally differs from TortoiseSVN.
+- [x] Define which platforms are release-blocking for the next release: Windows, macOS, and/or Linux.
+- [x] Decide whether Linux parity is best-effort until Windows/macOS workflows stabilize.
+- [x] Keep `.spec/spec.md`, `.spec/tortoisesvn-parity-roadmap.md`, `.spec/tasks.md`, and README roadmap entries synchronized as parity decisions change.
 
 ## P0 - File Manager Integration
 
@@ -92,7 +92,7 @@
 - [ ] Validate external executable paths before saving settings and before spawning tools.
 - [ ] Verify patch creation for selected files and whole working copies.
 - [ ] Verify patch apply dry-run output, reject-file visibility, and binary-safe failure messaging.
-- [ ] Decide the Office/document diff strategy: supported integration, external-tool handoff, or explicit non-goal.
+- [x] Decide the Office/document diff strategy: supported integration, external-tool handoff, or explicit non-goal.
 
 ## P1 - History, Blame, Revision Graph, and Review
 
@@ -235,15 +235,15 @@
 
 ## Deferred or Explicitly Out of Scope
 
-- [ ] Keep Git integration out of the parity roadmap unless the product spec changes.
+- [x] Keep Git integration out of the parity roadmap unless the product spec changes.
 - [ ] Decide whether a plugin/extension system is required before 1.0.
-- [ ] Decide whether Linux shell integration is best-effort or a future first-class target.
+- [x] Decide whether Linux shell integration is best-effort or a future first-class target.
 - [ ] Decide whether full TortoiseMerge-style editing is in scope or whether external merge tools remain preferred.
-- [ ] Keep server-side repository administration tools out of scope unless explicitly added to the product spec.
-- [ ] Decide whether group policy deployment controls are needed for enterprise parity.
-- [ ] Decide whether built-in SubWCRev equivalent is useful before 1.0.
-- [ ] Decide whether legacy TortoiseSVN command URL compatibility is useful before 1.0.
-- [ ] Decide whether full TortoiseSVN settings compatibility is useful before 1.0.
+- [x] Keep server-side repository administration tools out of scope unless explicitly added to the product spec.
+- [x] Decide whether group policy deployment controls are needed for enterprise parity.
+- [x] Decide whether built-in SubWCRev equivalent is useful before 1.0.
+- [x] Decide whether legacy TortoiseSVN command URL compatibility is useful before 1.0.
+- [x] Decide whether full TortoiseSVN settings compatibility is useful before 1.0.
 
 ---
 

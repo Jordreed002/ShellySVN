@@ -89,6 +89,8 @@ Execution order is defined in `fix-plan.md`.
 
 These tasks track the important parity work needed for ShellySVN to become the preferred SVN client on Windows and macOS. Details and non-goals are in `tortoisesvn-parity-roadmap.md`.
 
+Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, and macOS arm64 are release-blocking for replacement readiness; Linux shell parity is deferred; Office/document diff defaults to external-tool handoff; Git integration and server administration are outside the parity roadmap.
+
 ### File Manager Integration
 
 - [ ] Add Windows Explorer context menu commands for checkout, update, commit, diff, log, revert, cleanup, resolve, lock/unlock, branch/tag, switch, merge, and properties.
@@ -130,7 +132,7 @@ These tasks track the important parity work needed for ShellySVN to become the p
 - [ ] Harden three-way conflict editor save/revert behavior.
 - [ ] Improve image diff workflows for common asset formats.
 - [ ] Add patch apply dry-run output and reject-file visibility.
-- [ ] Decide and document Office/document diff support strategy.
+- [x] Decide and document Office/document diff support strategy.
 
 ### History / Review / Analytics
 
@@ -159,5 +161,6 @@ These tasks track the important parity work needed for ShellySVN to become the p
 - [ ] Add packaged-app smoke tests for Windows.
 - [ ] Add packaged-app smoke tests for macOS Intel.
 - [ ] Add packaged-app smoke tests for macOS Apple Silicon.
+- [ ] Add Linux packaged-app smoke tests where Linux release artifacts are produced.
 - [ ] Add shell/Finder integration smoke tests where platform automation permits.
 - [ ] Continue reducing skipped test baseline after each restored test cluster.
