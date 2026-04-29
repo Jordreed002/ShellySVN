@@ -106,4 +106,32 @@ describe('svn-progress', () => {
       })
     );
   });
+
+  it('redacts secret-looking progress errors before sending them to the renderer', async () => {
+    const send = vi.fn();
+    mockState.runSvn.mockRejectedValue(new Error('commit failed password=hunter2 token=abc123'));
+
+    const result = await runSvnOperationWithProgress(
+      { sender: { send } } as never,
+      'commit-2',
+      'commit',
+      ['commit', '-m', 'message', 'src/file.ts']
+    );
+
+    expect(result).toEqual({
+      success: false,
+      revision: 0,
+      error: 'commit failed password=[REDACTED] token=[REDACTED]',
+    });
+    expect(send).toHaveBeenCalledWith(
+      'svn:operation:progress',
+      expect.objectContaining({
+        operationId: 'commit-2',
+        operation: 'commit',
+        status: 'error',
+        error: 'commit failed password=[REDACTED] token=[REDACTED]',
+      })
+    );
+    expect(JSON.stringify(send.mock.calls)).not.toContain('hunter2');
+  });
 });

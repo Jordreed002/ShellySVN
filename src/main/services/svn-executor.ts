@@ -6,7 +6,7 @@ import { join } from 'path';
 import type { SvnExecutionContext } from '@shared/types';
 import { getSettingsManager } from '../settings-manager';
 import { debug } from '../utils/debug';
-import { redactArgs } from '../utils/redaction';
+import { redactArgs, redactValue } from '../utils/redaction';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
@@ -224,7 +224,7 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
       if (code === 0) {
         resolve({ stdout, stderr, code, stdoutTruncated, stderrTruncated });
       } else {
-        reject(new Error(stderr || `SVN exited with code ${code}`));
+        reject(new Error((redactValue(stderr) as string) || `SVN exited with code ${code}`));
       }
     });
 

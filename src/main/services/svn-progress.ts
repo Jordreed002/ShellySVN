@@ -1,5 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import type { CheckoutProgress, SvnOperationProgress } from '@shared/types';
+import { redactValue } from '../utils/redaction';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, type RunSvnOptions } from './svn-executor';
 
 const activeOperations = new Map<string, AbortController>();
@@ -90,7 +91,8 @@ export async function runSvnOperationWithProgress(
 
     return { success: true, revision, output: result.stdout };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error || '');
+    const rawMessage = error instanceof Error ? error.message : String(error || '');
+    const message = redactValue(rawMessage) as string;
     const cancelled = message.toLowerCase().includes('cancelled');
     sendProgress({
       status: cancelled ? 'cancelled' : 'error',

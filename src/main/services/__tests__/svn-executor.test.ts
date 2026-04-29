@@ -116,6 +116,16 @@ describe('svn-executor', () => {
     expect(mockState.debugLog.mock.calls.join('\n')).not.toContain('secret-value');
   });
 
+  it('redacts secret-looking stderr before returning command failures', async () => {
+    const { proc, promise } = await startSvn(['commit']);
+
+    proc.stderr.emit('data', Buffer.from('svn failed password=hunter2 token=abc123'));
+    proc.emit('close', 1);
+
+    await expect(promise).rejects.toThrow('password=[REDACTED] token=[REDACTED]');
+    await expect(promise).rejects.not.toThrow('hunter2');
+  });
+
   it('cleans up temporary proxy config after successful commands', async () => {
     mockState.getSvnExecutionContext.mockReturnValue({
       proxySettings: {
