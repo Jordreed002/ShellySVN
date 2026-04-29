@@ -180,7 +180,7 @@
 - [ ] Verify all settings panels persist and survive missing or migrated fields.
 - [ ] Add migration tests for existing settings stores across app versions.
 - [x] Decide whether persistent credentials are disabled when encryption is unavailable or allowed only through explicit opt-in.
-- [ ] Replace browser-native `prompt()` and `confirm()` flows with accessible app dialogs where any remain.
+- [x] Replace browser-native `prompt()` and `confirm()` flows with accessible app dialogs where any remain.
 
 ## P2 - UX, Navigation, and Accessibility
 
@@ -217,7 +217,7 @@
 - [x] Add CLI authentication and config handling decisions.
 - [ ] Add cross-platform compiled binary smoke tests.
 - [ ] Ensure app and CLI share parsing logic instead of duplicating SVN output handling.
-- [ ] Keep Electron main, preload, renderer, and shared contracts clearly separated.
+- [x] Keep Electron main, preload, renderer, and shared contracts clearly separated.
 - [ ] Add IPC validation tests for security-sensitive paths, including Windows path cases.
 
 ## P2 - Packaging, CI, and Release Hardening
