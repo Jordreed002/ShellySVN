@@ -83,7 +83,7 @@
 
 ## P1 - Diff, Merge, Patch, and File Review
 
-- [ ] Verify unified diff rendering for added, deleted, modified, renamed, copied, property-only, and binary files.
+- [x] Verify unified diff rendering for added, deleted, modified, renamed, copied, property-only, and binary files.
 - [x] Add reliable side-by-side text diff mode or record a product decision to defer it.
 - [ ] Verify large diffs do not block the renderer.
 - [ ] Verify syntax highlighting does not break very large files or unknown languages.
