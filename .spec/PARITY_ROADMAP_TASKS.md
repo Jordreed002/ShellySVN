@@ -224,7 +224,7 @@
 
 - [x] Make `bun run verify` the standard local parity gate.
 - [x] Ensure required local verification includes typecheck, lint, unit tests, build, and targeted E2E tests for touched workflows.
-- [ ] Add clean-install CI verification from lockfile.
+- [x] Add clean-install CI verification from lockfile.
 - [ ] Add packaged-app smoke tests for Windows x64, macOS x64, macOS arm64, and Linux x64 where release-supported.
 - [ ] Verify bundled SVN and shelly-engine binaries are present and executable in each package.
 - [x] Document macOS signing and notarization requirements before public distribution.
