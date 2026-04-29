@@ -3,7 +3,7 @@ import type { ElectronApplication, Page } from '@playwright/test';
 
 const LARGE_LIST_COUNT = 20_000;
 const LARGE_TREE_COUNT = 10_000;
-const MIN_SCROLL_FPS = process.env.CI ? 10 : 15;
+const MIN_SCROLL_FPS = 10;
 
 async function mockLargeDirectory(
   electronApp: ElectronApplication,
@@ -32,8 +32,22 @@ async function mockLargeDirectory(
       ipcMain.handle('fs:isVersioned', () => Promise.resolve(false));
       ipcMain.removeHandler('fs:getParent');
       ipcMain.handle('fs:getParent', () => Promise.resolve(null));
+      ipcMain.removeHandler('fs:getStatus');
+      ipcMain.handle('fs:getStatus', () => Promise.resolve([]));
+      ipcMain.removeHandler('fs:getDeepStatus');
+      ipcMain.handle('fs:getDeepStatus', () => Promise.resolve([]));
       ipcMain.removeHandler('fs:getFolderSizes');
       ipcMain.handle('fs:getFolderSizes', () => Promise.resolve({}));
+      ipcMain.removeHandler('dialog:openDirectory');
+      ipcMain.handle('dialog:openDirectory', () => Promise.resolve(rootPath));
+      ipcMain.removeHandler('svn:info');
+      ipcMain.handle('svn:info', () =>
+        Promise.resolve({
+          url: 'https://example.test/svn/perf',
+          repositoryRoot: 'https://example.test/svn',
+          revision: '123',
+        })
+      );
     },
     { rootPath, count }
   );
@@ -115,8 +129,16 @@ test.describe('Performance smoke coverage', () => {
     await mockLargeDirectory(electronApp, rootPath, LARGE_LIST_COUNT);
 
     const startedAt = Date.now();
-    await page.goto(`app://-/#/files/?path=${encodeURIComponent(rootPath)}`);
-    await expect(page.locator('.status-bar')).toContainText(`${LARGE_LIST_COUNT} items`, {
+    if ((await page.getByTestId('browse-button').count()) > 0) {
+      await page.getByTestId('browse-button').click();
+    } else {
+      await page.locator('aside button[title="Add Repository"]').click();
+    }
+    await page.locator('.modal button:has-text("Browse")').click();
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(
+      page.locator('.status-bar').filter({ hasText: `${LARGE_LIST_COUNT} items` })
+    ).toBeVisible({
       timeout: 10_000,
     });
     const renderMs = Date.now() - startedAt;

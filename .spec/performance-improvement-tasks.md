@@ -119,7 +119,7 @@ Baseline checks from the review:
   - Files: `tests/e2e/`, `tests/playwright.config.ts`, or a dedicated benchmark script.
   - Problem: current sparse checkout perf tests mock `@tanstack/react-virtual`, so they do not measure Chromium layout, scroll, memory, or real virtualization behavior.
   - Acceptance: automated benchmark opens the built app or dev app, renders a large list/tree fixture, scrolls it, and records render time, FPS, and DOM node count.
-  - Verification: `tests/e2e/performance.spec.ts` launches Electron with mocked 20k-file and 10k-tree fixtures, scrolls both virtualized surfaces, logs render/FPS/DOM metrics, and asserts loose CI-safe thresholds. Runtime verification is currently blocked by the existing Playwright/Electron launcher mismatch: the installed Electron package path is `electron@33.4.11`, but the executable reports `v20.18.3` and rejects Playwright's `--remote-debugging-port=0` flag; the pre-existing `tests/e2e/app-launch.spec.ts` fails the same way before test code runs.
+  - Verification: `tests/e2e/performance.spec.ts` launches Electron with mocked 20k-file and 10k-tree fixtures, scrolls both virtualized surfaces, logs render/FPS/DOM metrics, and asserts loose CI-safe thresholds.
 
 - [x] Expose performance dashboard only when useful.
   - Files: `src/renderer/src/hooks/usePerformanceMonitor.ts`, `src/renderer/src/components/ui/PerformanceDashboard.tsx`, relevant settings/UI entry point.

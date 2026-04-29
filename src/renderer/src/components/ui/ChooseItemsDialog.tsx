@@ -350,7 +350,10 @@ export function ChooseItemsDialog({
     <>
       {/* Main Dialog */}
       <div className="modal-overlay" onClick={onCancel}>
-        <div className="modal w-[700px] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal w-[700px] h-[80vh] max-h-[80vh] flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Header */}
           <div className="modal-header">
             <h2 className="modal-title">
@@ -363,7 +366,7 @@ export function ChooseItemsDialog({
           </div>
 
           {/* Body */}
-          <div className="modal-body flex flex-col min-h-0">
+          <div className="modal-body flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* Search Bar */}
             <div className="mb-3">
               <div className="relative">
@@ -386,7 +389,7 @@ export function ChooseItemsDialog({
             </div>
 
             {/* Tree Container */}
-            <div className="flex-1 min-h-[300px] border border-border rounded overflow-hidden">
+            <div className="flex-1 min-h-0 border border-border rounded overflow-hidden">
               {isLoading && roots.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-text-muted">
                   <Loader2 className="w-6 h-6 animate-spin mr-2" />
@@ -538,7 +541,10 @@ export function ChooseItemsDialog({
                 </p>
 
                 <div>
-                  <label htmlFor="choose-items-auth-username" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label
+                    htmlFor="choose-items-auth-username"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2"
+                  >
                     <User className="w-4 h-4" />
                     Username <span className="text-error">*</span>
                   </label>
@@ -554,7 +560,10 @@ export function ChooseItemsDialog({
                 </div>
 
                 <div>
-                  <label htmlFor="choose-items-auth-password" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label
+                    htmlFor="choose-items-auth-password"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2"
+                  >
                     <Key className="w-4 h-4" />
                     Password
                   </label>

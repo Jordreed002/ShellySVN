@@ -28,12 +28,13 @@ export const test = base.extend<ElectronTestFixtures>({
   electronApp: async ({}, use) => {
     // Path to the built Electron main process
     const mainPath = join(process.cwd(), 'out', 'main', 'index.js');
+    const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...env } = process.env;
 
     // Launch the Electron app
     const electronApp = await electron.launch({
       args: [mainPath],
       env: {
-        ...process.env,
+        ...env,
         NODE_ENV: 'test',
       },
     });
@@ -76,6 +77,14 @@ export const test = base.extend<ElectronTestFixtures>({
 
     // Additional wait for React to hydrate
     await page.waitForTimeout(1000);
+
+    const closeTutorialButton = page.getByLabel('Close tutorial');
+    if (
+      (await closeTutorialButton.count()) > 0 &&
+      (await closeTutorialButton.first().isVisible())
+    ) {
+      await closeTutorialButton.first().click();
+    }
 
     // Capture console logs from renderer
     page.on('console', (msg) => {
