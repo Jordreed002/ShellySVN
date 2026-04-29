@@ -231,7 +231,7 @@
 - [ ] Add crash recovery tests for interrupted SVN operations.
 - [ ] Resolve or quarantine known unit test infrastructure failures from prior audits.
 - [ ] Enforce skipped-test rules: new skips require a linked issue or task, and skipped count should trend down.
-- [ ] Ensure README setup instructions are accurate and free of encoding corruption before release.
+- [x] Ensure README setup instructions are accurate and free of encoding corruption before release.
 
 ## Deferred or Explicitly Out of Scope
 
