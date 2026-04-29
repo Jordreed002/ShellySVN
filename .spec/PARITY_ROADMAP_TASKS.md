@@ -206,7 +206,7 @@
 - [ ] Ensure folder-size scans and status scans do not block rendering.
 - [ ] Verify background scanning does not block active SVN operations.
 - [x] Add regression budgets for renderer bundle size, app shell startup time, and common route load time.
-- [ ] Verify normal operation does not depend on remote assets.
+- [x] Verify normal operation does not depend on remote assets.
 
 ## P2 - CLI, Logic Engine, and Architecture Decisions
 
