@@ -29,9 +29,13 @@ function createWrapper() {
 
 describe('useSvnActions risky action confirmations', () => {
   const svnApi = {
+    update: vi.fn().mockResolvedValue({ success: true }),
+    commit: vi.fn().mockResolvedValue({ success: true, revision: 42 }),
     revert: vi.fn().mockResolvedValue({ success: true }),
+    add: vi.fn().mockResolvedValue({ success: true }),
     delete: vi.fn().mockResolvedValue({ success: true }),
     cleanup: vi.fn().mockResolvedValue({ success: true }),
+    lock: vi.fn().mockResolvedValue({ success: true }),
     resolve: vi.fn().mockResolvedValue({ success: true }),
     unlock: vi.fn().mockResolvedValue({ success: true }),
   };
@@ -104,5 +108,30 @@ describe('useSvnActions risky action confirmations', () => {
 
     expect(mockConfirmAppAction).not.toHaveBeenCalled();
     expect(svnApi.delete).toHaveBeenCalledWith(['C:\\wc\\file.txt']);
+  });
+
+  it('returns a structured failure when SVN actions throw', async () => {
+    svnApi.update.mockRejectedValueOnce(new Error('svn update failed'));
+    const { result } = renderHook(() => useSvnActions(), { wrapper: createWrapper() });
+
+    let response: Awaited<ReturnType<typeof result.current.update>> | undefined;
+    await act(async () => {
+      response = await result.current.update('C:\\wc');
+    });
+
+    expect(response).toEqual({ success: false, message: 'svn update failed' });
+    expect(result.current.lastError).toBe('svn update failed');
+  });
+
+  it('returns a structured failure when SVN reports unsuccessful results', async () => {
+    svnApi.commit.mockResolvedValueOnce({ success: false });
+    const { result } = renderHook(() => useSvnActions(), { wrapper: createWrapper() });
+
+    let response: Awaited<ReturnType<typeof result.current.commit>> | undefined;
+    await act(async () => {
+      response = await result.current.commit(['C:\\wc\\file.txt'], 'message');
+    });
+
+    expect(response).toEqual({ success: false, message: 'Commit failed' });
   });
 });
