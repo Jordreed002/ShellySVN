@@ -172,16 +172,6 @@ export function useCommitDialogController({
       status: file.status,
     }));
 
-    for (const suggestion of aiSuggestions.slice(0, 3)) {
-      const fullMessage = `${suggestion.prefix}: ${suggestion.description}`;
-      options.push({
-        value: fullMessage,
-        label: `${suggestion.prefix}: ${suggestion.description}`,
-        description: `${Math.round(suggestion.confidence * 100)}% confidence`,
-        category: 'AI Suggestions',
-      });
-    }
-
     const keywordSuggestions = getAutocompleteSuggestions(
       message,
       selectedFileSummaries,
@@ -215,7 +205,7 @@ export function useCommitDialogController({
       seenValues.add(option.value);
       return true;
     });
-  }, [aiSuggestions, files, history, message]);
+  }, [files, history, message]);
 
   const { data: diffData } = useQuery({
     queryKey: ['svn:diff', selectedDiffFile],

@@ -19,6 +19,7 @@ interface AutoCompleteInputProps {
   inputClassName?: string;
   maxHeight?: number;
   minChars?: number;
+  openOnFocus?: boolean;
   showCategories?: boolean;
   spellCheck?: boolean;
   textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
@@ -38,6 +39,7 @@ export function AutoCompleteInput({
   inputClassName = '',
   maxHeight = 200,
   minChars = 0,
+  openOnFocus = true,
   showCategories = false,
   spellCheck,
   textareaRef,
@@ -111,10 +113,12 @@ export function AutoCompleteInput({
 
   // Handle input focus
   const handleFocus = useCallback(() => {
+    if (!openOnFocus) return;
+
     if (value.length >= minChars && filteredSuggestions.length > 0) {
       setIsOpen(true);
     }
-  }, [value.length, minChars, filteredSuggestions.length]);
+  }, [openOnFocus, value.length, minChars, filteredSuggestions.length]);
 
   // Handle input blur
   const handleBlur = useCallback((_e: React.FocusEvent) => {

@@ -663,7 +663,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     showCategories={true}
                     spellCheck={true}
                     textareaRef={textareaRef}
-                    minChars={0}
+                    minChars={1}
+                    openOnFocus={false}
                     aria-label="Commit message"
                     id="commit-message"
                   />
