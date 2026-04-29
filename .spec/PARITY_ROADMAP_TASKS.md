@@ -1,0 +1,256 @@
+# ShellySVN TortoiseSVN Parity Task List
+
+> Created: 2026-04-29
+> Tightened against: `.spec/spec.md` and `.spec/tortoisesvn-parity-roadmap.md`
+> Goal: Make ShellySVN a credible TortoiseSVN replacement on Windows and a first-class SVN client on macOS, without cloning Windows-only behavior where a platform-native workflow is better.
+
+---
+
+## Status Key
+
+- `[ ]` Not started
+- `[~]` Partial or needs verification
+- `[x]` Implemented and verified
+
+---
+
+## P0 - Baseline, Scope, and Release Bar
+
+- [x] Build a feature parity matrix covering ShellySVN, TortoiseSVN-style workflows, SVN CLI capability, and explicit non-goals.
+- [x] Mark each parity item as `complete`, `partial`, `missing`, `out of scope`, or `needs manual verification`.
+- [ ] Map every implemented parity feature to renderer entry point, preload API, main IPC handler, service method, and tests.
+- [ ] Identify README claims that are not implemented, not reachable, or not covered by verification.
+- [ ] Document platform-specific decisions where ShellySVN intentionally differs from TortoiseSVN.
+- [ ] Define which platforms are release-blocking for the next release: Windows, macOS, and/or Linux.
+- [ ] Decide whether Linux parity is best-effort until Windows/macOS workflows stabilize.
+- [ ] Keep `.spec/spec.md`, `.spec/tortoisesvn-parity-roadmap.md`, `.spec/tasks.md`, and README roadmap entries synchronized as parity decisions change.
+
+## P0 - File Manager Integration
+
+- [ ] Implement or verify Windows Explorer context menu commands for common working-copy actions.
+- [ ] Implement or verify Windows Explorer overlays for normal, modified, added, conflicted, locked, ignored, unversioned, missing, and external items.
+- [ ] Implement or verify macOS Finder Sync context menu commands for common working-copy actions.
+- [ ] Implement or verify macOS Finder badges for the status set Finder supports.
+- [ ] Add platform-appropriate fallback behavior when overlays, badges, or context menus are unavailable.
+- [ ] Add shell/Finder integration health diagnostics with repair actions.
+- [ ] Add installer/package checks that validate Windows shell helper registration.
+- [ ] Add installer/package checks that validate macOS Finder Sync registration and required permissions.
+- [ ] Verify file-manager actions can hand off complex workflows to the standalone app with the correct selected paths.
+- [ ] Add packaged-build smoke tests for shell/Finder integration on release targets.
+
+## P0 - Core Working Copy Workflows
+
+- [ ] Verify open-working-copy flow detects root, repository URL, revision, and status summary.
+- [ ] Verify status rendering for versioned, modified, unversioned, ignored, missing, deleted, conflicted, locked, external, switched, nested, obstructed, replaced, and remote-only items.
+- [ ] Add explicit "check repository" remote-status action and distinguish local status from repository status.
+- [ ] Add bounded-concurrency background status refresh with cancellation.
+- [ ] Verify checkout supports URL, destination path, revision, depth, credentials, SSL trust, progress, and cancellation.
+- [ ] Verify update supports revision, depth, ignore externals, force, progress, and cancellation.
+- [ ] Verify revert, cleanup, resolve, add, delete, move, copy, and rename from toolbar, context menu, and command palette.
+- [ ] Ensure revert, cleanup, delete, resolve, relocate, and other risky actions explain consequences before running when confirmations are enabled.
+- [ ] Add drag/drop or app-native move/copy workflows for reorganizing versioned files.
+- [ ] Add working-copy upgrade detection, guided upgrade flow, and tests.
+- [ ] Ensure failed SVN commands return success, failure, canceled, or partial states without crashing the app.
+
+## P0 - Commit Workflow Parity
+
+- [ ] Verify commit dialog selection parity for versioned, unversioned, missing, deleted, changelist, external, and nested working-copy items.
+- [ ] Support grouping and filtering changed files by status, changelist, and path.
+- [ ] Verify selective file inclusion and exclusion, including multi-select behavior.
+- [ ] Add commit message templates create, edit, apply, and delete coverage.
+- [ ] Add commit message history persistence, keyboard selection, and clearing behavior.
+- [ ] Add commit message minimum length validation.
+- [ ] Strip unsafe null bytes from commit messages before invoking SVN.
+- [ ] Add required issue ID validation and warning behavior.
+- [ ] Add commit message spellcheck decision and implementation task if in scope.
+- [ ] Add path, filename, and keyword autocomplete in the commit message editor.
+- [ ] Run configured hooks in the expected order and surface hook output when enabled.
+- [ ] Ensure commit credentials and command-line secrets are never logged or exposed in renderer logs.
+- [ ] Add commit success reporting with committed revision and post-commit status refresh.
+
+## P0 - Conflict Resolution
+
+- [ ] Verify text conflict detection from status, update, merge, and commit-blocking flows.
+- [ ] Verify tree conflict detection and display.
+- [ ] Verify lock conflict detection and recovery paths.
+- [ ] Add guided resolve coverage for `base`, `mine-full`, `theirs-full`, `mine-conflict`, and `theirs-conflict`.
+- [ ] Prevent marking unresolved conflicts as resolved unless the user explicitly confirms.
+- [ ] Verify three-way merge editor loads base, mine, theirs, and merged files correctly.
+- [ ] Add safe save, revert, and unsaved-change behavior for the merge editor.
+- [ ] Verify external merge tool launch with configured executable paths and missing-tool errors.
+- [ ] Ensure resolved files refresh status immediately after resolution.
+- [ ] Add conflict-resolution E2E coverage from file explorer, update/merge results, and conflict dialogs.
+
+## P1 - Diff, Merge, Patch, and File Review
+
+- [ ] Verify unified diff rendering for added, deleted, modified, renamed, copied, property-only, and binary files.
+- [ ] Add reliable side-by-side text diff mode or record a product decision to defer it.
+- [ ] Verify large diffs do not block the renderer.
+- [ ] Verify syntax highlighting does not break very large files or unknown languages.
+- [ ] Verify image diff behavior for common asset formats and document supported formats.
+- [ ] Add external diff and merge tool configuration with per-extension overrides.
+- [ ] Validate external executable paths before saving settings and before spawning tools.
+- [ ] Verify patch creation for selected files and whole working copies.
+- [ ] Verify patch apply dry-run output, reject-file visibility, and binary-safe failure messaging.
+- [ ] Decide the Office/document diff strategy: supported integration, external-tool handoff, or explicit non-goal.
+
+## P1 - History, Blame, Revision Graph, and Review
+
+- [ ] Verify revision log filtering by author, message, path, revision range, date range, and issue ID.
+- [ ] Add changed-path filtering, pagination, and search coverage in log/history views.
+- [ ] Add issue ID column and issue links in revision log and commit views.
+- [ ] Verify log cache behavior for large repositories, including invalidation and manual cache management.
+- [ ] Add branch/tag comparison workflow.
+- [ ] Add merge-tracking log view.
+- [ ] Verify blame view shows line-level revision, author, date, and log-message context.
+- [ ] Verify revision graph clearly shows branches, tags, copies, and merges.
+- [ ] Add revision graph export coverage.
+- [ ] Add project statistics for commits over time, authors, file churn, and branch/tag activity, or defer explicitly.
+
+## P1 - Branching, Tagging, Switching, Merging, and Relocation
+
+- [ ] Verify branch/tag creation from source URL and working-copy path.
+- [ ] Add branch/tag wizard validation for invalid URLs, existing targets, missing messages, and unsafe paths.
+- [ ] Verify switch flow for whole working copies and nested switched paths.
+- [ ] Verify relocate flow for repository root URL changes.
+- [ ] Verify merge wizard supports revision ranges, dry-run preview, merge output, progress, cancellation, and conflict summary.
+- [ ] Decide whether reintegrate-style guidance is needed for supported SVN versions.
+- [ ] Add post-merge status refresh and clear conflict reporting.
+- [ ] Ensure branch, tag, switch, merge, and relocate are reachable from app navigation and relevant context menus.
+
+## P1 - Repository Browser and Sparse Checkout
+
+- [ ] Verify remote browsing for `http`, `https`, `svn`, and `svn+ssh` URLs where SVN supports them.
+- [ ] Verify repository browser auth with anonymous access, username/password, cached credentials, SSL trust, and SSH-backed repositories.
+- [ ] Add repository browser revision selector.
+- [ ] Add repository browser prefetch/caching for faster navigation.
+- [ ] Add remote create folder support with commit message.
+- [ ] Add remote delete support with confirmation and commit message.
+- [ ] Add remote rename/move support with confirmation and commit message.
+- [ ] Add remote copy support for branch/tag-style repository operations.
+- [ ] Verify lazy loading, search, auth prompts, and error recovery in E2E tests.
+- [ ] Verify sparse checkout selection, deselection, subtree behavior, and remote-only display.
+- [ ] Verify "add to working copy" for files, folders, and mixed-depth parents.
+- [ ] Verify individual remote-only item update into the working copy.
+
+## P1 - Properties, Externals, Locks, Shelving, and Advanced SVN
+
+- [ ] Verify properties viewer supports add, edit, delete, and refresh.
+- [ ] Add common property helpers for `svn:ignore`, `svn:externals`, `svn:keywords`, `svn:eol-style`, and `svn:mime-type`.
+- [ ] Verify externals manager can list, add, edit, remove, and update externals.
+- [ ] Ensure commit and status flows handle externals clearly.
+- [ ] Verify lock, unlock, force lock, force unlock, and lock list workflows.
+- [ ] Add lock owner and stale-lock handling in file explorer and dialogs.
+- [ ] Verify shelve, unshelve/apply, list, and delete workflows with the minimum supported SVN version.
+- [ ] Decide the minimum acceptable SVN version for sparse checkout, shelving, and other advanced features.
+- [ ] Add repository diagnostics for unsupported or mismatched SVN versions.
+
+## P1 - Issue Tracker Integration
+
+- [ ] Add per-project issue tracker configuration.
+- [ ] Support configurable issue regex and URL templates.
+- [ ] Support commit dialog issue ID field or message parsing.
+- [ ] Add required issue ID warnings before commit.
+- [ ] Add issue links in log, commit, and history views.
+- [ ] Add issue ID column in revision log.
+- [ ] Evaluate compatibility with common SVN project properties where practical.
+- [ ] Add tests for issue parsing, URL generation, validation, and display.
+
+## P1 - Authentication, Network, SSL, and Security
+
+- [ ] Verify per-realm SVN credentials across all SVN operations.
+- [ ] Add session-only credential behavior where persistent storage is not desired.
+- [ ] Add credential edit, delete, and clear flows from settings.
+- [ ] Ensure persistent plaintext credential storage never occurs silently.
+- [ ] Verify encryption availability is shown clearly on Windows, macOS, and Linux.
+- [ ] Verify proxy settings apply to checkout, update, commit, repo browser, log, externals, and sparse checkout.
+- [ ] Verify connection timeout applies consistently to SVN command paths.
+- [ ] Centralize SSL trust handling with explicit temporary and permanent trust decisions.
+- [ ] Avoid broad SSL bypass unless each failure class is separately confirmed.
+- [ ] Verify client certificate configuration and failure messaging.
+- [ ] Decide whether `svn+ssh` key management is in scope or relies on user SSH agent/config.
+- [ ] Ensure logs, diagnostics, errors, snapshots, and support exports redact credentials, tokens, proxy passwords, and secret-bearing URLs.
+
+## P1 - Settings, Diagnostics, and Supportability
+
+- [ ] Validate custom SVN binary paths before saving and before use.
+- [ ] Add diagnostics for SVN path, SVN version, bundled binaries, encryption availability, shell/Finder integration, and working-copy health.
+- [ ] Add redacted diagnostic export for support.
+- [ ] Add cache management coverage for log cache and app cache.
+- [ ] Verify all settings panels persist and survive missing or migrated fields.
+- [ ] Add migration tests for existing settings stores across app versions.
+- [ ] Decide whether persistent credentials are disabled when encryption is unavailable or allowed only through explicit opt-in.
+- [ ] Replace browser-native `prompt()` and `confirm()` flows with accessible app dialogs where any remain.
+
+## P2 - UX, Navigation, and Accessibility
+
+- [ ] Verify command palette includes every reachable user command and respects disabled states.
+- [ ] Add context menu parity matrix for file explorer, repository browser, history, diff, project monitor, and shell/Finder surfaces.
+- [ ] Add keyboard shortcut coverage for file explorer, commit, update, diff, log, conflict, and dialog actions.
+- [ ] Verify bookmarks, recent repositories, recent paths, and startup actions.
+- [ ] Add onboarding coverage for first-run, skipped tutorial, resumed tutorial, and completed tutorial states.
+- [ ] Add empty, loading, error, and offline states for primary routes.
+- [ ] Ensure core workflows are keyboard accessible.
+- [ ] Verify modal dialogs trap focus and restore focus on close.
+- [ ] Make status and progress changes screen-reader friendly.
+- [ ] Verify contrast and ARIA labeling for primary workflows.
+- [ ] Decide whether multi-language UI is in scope before 1.0.
+
+## P2 - Performance and Large Repository Readiness
+
+- [ ] Define target repository sizes for parity testing: file count, folder depth, log length, diff size, and binary size.
+- [ ] Add large working-copy status benchmarks.
+- [ ] Add large repository browser lazy-loading benchmarks.
+- [ ] Add large log history pagination and filtering benchmarks.
+- [ ] Verify virtualized lists remain stable during selection, filtering, context menus, and refresh.
+- [ ] Ensure folder-size scans and status scans do not block rendering.
+- [ ] Verify background scanning does not block active SVN operations.
+- [ ] Add regression budgets for renderer bundle size, app shell startup time, and common route load time.
+- [ ] Verify normal operation does not depend on remote assets.
+
+## P2 - CLI, Logic Engine, and Architecture Decisions
+
+- [ ] Decide whether SVN execution is centralized in the Electron main process, the logic-engine binary, or a clearly split model.
+- [ ] Define which desktop operations should also exist in `shellysvn-cli` or `shelly-engine`.
+- [ ] Add CLI parity tasks for status, info, log, diff, checkout, update, commit, revert, cleanup, export, and diagnostics.
+- [ ] Add structured JSON output contracts for CLI commands.
+- [ ] Add CLI authentication and config handling decisions.
+- [ ] Add cross-platform compiled binary smoke tests.
+- [ ] Ensure app and CLI share parsing logic instead of duplicating SVN output handling.
+- [ ] Keep Electron main, preload, renderer, and shared contracts clearly separated.
+- [ ] Add IPC validation tests for security-sensitive paths, including Windows path cases.
+
+## P2 - Packaging, CI, and Release Hardening
+
+- [ ] Make `bun run verify` the standard local parity gate.
+- [ ] Ensure required local verification includes typecheck, lint, unit tests, build, and targeted E2E tests for touched workflows.
+- [ ] Add clean-install CI verification from lockfile.
+- [ ] Add packaged-app smoke tests for Windows x64, macOS x64, macOS arm64, and Linux x64 where release-supported.
+- [ ] Verify bundled SVN and shelly-engine binaries are present and executable in each package.
+- [ ] Document macOS signing and notarization requirements before public distribution.
+- [ ] Add crash recovery tests for interrupted SVN operations.
+- [ ] Resolve or quarantine known unit test infrastructure failures from prior audits.
+- [ ] Enforce skipped-test rules: new skips require a linked issue or task, and skipped count should trend down.
+- [ ] Ensure README setup instructions are accurate and free of encoding corruption before release.
+
+## Deferred or Explicitly Out of Scope
+
+- [ ] Keep Git integration out of the parity roadmap unless the product spec changes.
+- [ ] Decide whether a plugin/extension system is required before 1.0.
+- [ ] Decide whether Linux shell integration is best-effort or a future first-class target.
+- [ ] Decide whether full TortoiseMerge-style editing is in scope or whether external merge tools remain preferred.
+- [ ] Keep server-side repository administration tools out of scope unless explicitly added to the product spec.
+- [ ] Decide whether group policy deployment controls are needed for enterprise parity.
+- [ ] Decide whether built-in SubWCRev equivalent is useful before 1.0.
+- [ ] Decide whether legacy TortoiseSVN command URL compatibility is useful before 1.0.
+- [ ] Decide whether full TortoiseSVN settings compatibility is useful before 1.0.
+
+---
+
+## Suggested Execution Order
+
+1. Complete the parity baseline matrix and resolve open scope questions from `.spec/spec.md`.
+2. Stabilize P0 file-manager integration, core working-copy flows, commit, and conflict resolution.
+3. Fill P1 replacement-critical gaps: diff/merge, history/review, repo browser, advanced SVN, issue tracking, auth, and diagnostics.
+4. Add packaged Windows and macOS verification before claiming TortoiseSVN replacement readiness.
+5. Use P2 items to raise polish, performance, CLI coverage, and release confidence after replacement-critical workflows are reliable.
