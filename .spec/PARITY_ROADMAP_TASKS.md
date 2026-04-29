@@ -60,7 +60,7 @@
 - [ ] Add commit message templates create, edit, apply, and delete coverage.
 - [ ] Add commit message history persistence, keyboard selection, and clearing behavior.
 - [ ] Add commit message minimum length validation.
-- [ ] Strip unsafe null bytes from commit messages before invoking SVN.
+- [x] Strip unsafe null bytes from commit messages before invoking SVN.
 - [ ] Add required issue ID validation and warning behavior.
 - [ ] Add commit message spellcheck decision and implementation task if in scope.
 - [ ] Add path, filename, and keyword autocomplete in the commit message editor.

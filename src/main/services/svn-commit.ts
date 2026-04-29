@@ -18,17 +18,22 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
   return [];
 }
 
+function sanitizeCommitMessage(message: string): string {
+  return message.replace(/\0/g, '');
+}
+
 export async function commit(
   paths: string[],
   message: string
 ): Promise<{ success: boolean; revision?: number; error?: string }> {
   const workingCopyPath = paths[0];
+  const cleanMessage = sanitizeCommitMessage(message);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
   const startResult = await executeHooksForType(hooks, 'start-commit', {
     workingCopyPath,
     files: paths,
-    message,
+    message: cleanMessage,
   });
   if (!startResult.allSucceeded) {
     return {
@@ -40,7 +45,7 @@ export async function commit(
   const preResult = await executeHooksForType(hooks, 'pre-commit', {
     workingCopyPath,
     files: paths,
-    message,
+    message: cleanMessage,
   });
   if (!preResult.allSucceeded) {
     return {
@@ -49,7 +54,7 @@ export async function commit(
     };
   }
 
-  const output = await runSvnText(['commit', '-m', message, ...paths]);
+  const output = await runSvnText(['commit', '-m', cleanMessage, ...paths]);
   const match = output.match(/Committed revision (\d+)\./);
   const result = {
     success: true,
@@ -59,7 +64,7 @@ export async function commit(
   executeHooksForType(hooks, 'post-commit', {
     workingCopyPath,
     files: paths,
-    message,
+    message: cleanMessage,
     revision: result.revision,
   }).catch((err) => debug.error('[SVN] Post-commit hook error:', err));
 
@@ -73,12 +78,13 @@ export async function commitWithProgress(
   message: string
 ): Promise<{ success: boolean; revision: number; error?: string; output?: string }> {
   const workingCopyPath = paths[0];
+  const cleanMessage = sanitizeCommitMessage(message);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
   const startResult = await executeHooksForType(hooks, 'start-commit', {
     workingCopyPath,
     files: paths,
-    message,
+    message: cleanMessage,
   });
   if (!startResult.allSucceeded) {
     return {
@@ -91,7 +97,7 @@ export async function commitWithProgress(
   const preResult = await executeHooksForType(hooks, 'pre-commit', {
     workingCopyPath,
     files: paths,
-    message,
+    message: cleanMessage,
   });
   if (!preResult.allSucceeded) {
     return {
@@ -104,7 +110,7 @@ export async function commitWithProgress(
   const result = await runSvnOperationWithProgress(event, operationId, 'commit', [
     'commit',
     '-m',
-    message,
+    cleanMessage,
     ...paths,
   ]);
 
@@ -112,7 +118,7 @@ export async function commitWithProgress(
     executeHooksForType(hooks, 'post-commit', {
       workingCopyPath,
       files: paths,
-      message,
+      message: cleanMessage,
       revision: result.revision,
     }).catch((err) => debug.error('[SVN] Post-commit hook error:', err));
   }
