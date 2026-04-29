@@ -47,7 +47,7 @@
 - [x] Verify checkout supports URL, destination path, revision, depth, credentials, SSL trust, progress, and cancellation.
 - [x] Verify update supports revision, depth, ignore externals, force, progress, and cancellation.
 - [ ] Verify revert, cleanup, resolve, add, delete, move, copy, and rename from toolbar, context menu, and command palette.
-- [ ] Ensure revert, cleanup, delete, resolve, relocate, and other risky actions explain consequences before running when confirmations are enabled.
+- [x] Ensure revert, cleanup, delete, resolve, relocate, and other risky actions explain consequences before running when confirmations are enabled.
 - [ ] Add drag/drop or app-native move/copy workflows for reorganizing versioned files.
 - [x] Add working-copy upgrade detection, guided upgrade flow, and tests.
 - [ ] Ensure failed SVN commands return success, failure, canceled, or partial states without crashing the app.

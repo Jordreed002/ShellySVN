@@ -55,6 +55,22 @@ export function useSvnActions() {
     [updateOverlayIfEnabled, settings.integration?.shellExtensionEnabled, settings.integration?.iconOverlaysEnabled]
   );
 
+  const confirmRiskyAction = useCallback(
+    async (message: string, detail: string, confirmLabel: string): Promise<boolean> => {
+      if (settings.confirmDestructiveOps === false) {
+        return true;
+      }
+
+      return confirmAppAction({
+        type: 'warning',
+        message,
+        detail,
+        confirmLabel,
+      });
+    },
+    [settings.confirmDestructiveOps]
+  );
+
   /**
    * Invalidate all status caches for a path and its parents
    */
@@ -166,6 +182,15 @@ export function useSvnActions() {
    */
   const revert = useCallback(
     async (paths: string[]): Promise<SvnActionResult> => {
+      const confirmed = await confirmRiskyAction(
+        paths.length === 1 ? `Revert "${paths[0]}"?` : `Revert ${paths.length} selected items?`,
+        'Revert discards local changes and cannot be undone by ShellySVN.',
+        'Revert'
+      );
+      if (!confirmed) {
+        return { success: false, message: 'Revert cancelled' };
+      }
+
       setIsUpdating(true);
       setLastError(null);
 
@@ -191,7 +216,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlaysIfEnabled]
+    [confirmRiskyAction, invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -232,6 +257,15 @@ export function useSvnActions() {
    */
   const del = useCallback(
     async (paths: string[]): Promise<SvnActionResult> => {
+      const confirmed = await confirmRiskyAction(
+        paths.length === 1 ? `Delete "${paths[0]}"?` : `Delete ${paths.length} selected items?`,
+        'Delete removes unversioned files from disk and schedules versioned files for SVN deletion.',
+        'Delete'
+      );
+      if (!confirmed) {
+        return { success: false, message: 'Delete cancelled' };
+      }
+
       setIsUpdating(true);
       setLastError(null);
 
@@ -257,7 +291,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlaysIfEnabled]
+    [confirmRiskyAction, invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -265,6 +299,15 @@ export function useSvnActions() {
    */
   const cleanup = useCallback(
     async (path: string): Promise<SvnActionResult> => {
+      const confirmed = await confirmRiskyAction(
+        `Run cleanup on "${path}"?`,
+        'Cleanup may release locks and alter the working-copy administrative state.',
+        'Cleanup'
+      );
+      if (!confirmed) {
+        return { success: false, message: 'Cleanup cancelled' };
+      }
+
       setIsUpdating(true);
       setLastError(null);
 
@@ -285,7 +328,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus]
+    [confirmRiskyAction, invalidateStatus]
   );
 
   /**
@@ -323,6 +366,17 @@ export function useSvnActions() {
    */
   const unlock = useCallback(
     async (path: string, force?: boolean): Promise<SvnActionResult> => {
+      if (force) {
+        const confirmed = await confirmRiskyAction(
+          `Force unlock "${path}"?`,
+          'Force unlock removes a lock even when another user owns it.',
+          'Force Unlock'
+        );
+        if (!confirmed) {
+          return { success: false, message: 'Unlock cancelled' };
+        }
+      }
+
       setIsUpdating(true);
       setLastError(null);
 
@@ -345,7 +399,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlayIfEnabled]
+    [confirmRiskyAction, invalidateStatus, updateOverlayIfEnabled]
   );
 
   /**
@@ -356,6 +410,15 @@ export function useSvnActions() {
       path: string,
       resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict'
     ): Promise<SvnActionResult> => {
+      const confirmed = await confirmRiskyAction(
+        `Mark conflict resolved for "${path}"?`,
+        'Resolve records your selected conflict outcome in SVN. Review the file before continuing.',
+        'Resolve'
+      );
+      if (!confirmed) {
+        return { success: false, message: 'Resolve cancelled' };
+      }
+
       setIsUpdating(true);
       setLastError(null);
 
@@ -380,7 +443,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlayIfEnabled]
+    [confirmRiskyAction, invalidateStatus, updateOverlayIfEnabled]
   );
 
   const clearError = useCallback(() => {
@@ -513,21 +576,8 @@ export function useFileExplorerActions(
   const handleDeleteSelected = useCallback(async () => {
     const paths = getSelectedPaths();
     if (paths.length > 0) {
-      const message =
-        paths.length === 1
-          ? `Are you sure you want to delete "${paths[0]}"?`
-          : `Are you sure you want to delete ${paths.length} selected files?`;
-
-      if (
-        await confirmAppAction({
-          type: 'warning',
-          message,
-          confirmLabel: 'Delete',
-        })
-      ) {
-        await svnActions.delete(paths);
-        onRefresh();
-      }
+      const result = await svnActions.delete(paths);
+      if (result.success) onRefresh();
     }
   }, [getSelectedPaths, svnActions, onRefresh]);
 

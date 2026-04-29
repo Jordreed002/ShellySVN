@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, ArrowRightLeft, AlertCircle, CheckCircle, Loader2, Info } from 'lucide-react';
+import { useSettings } from '../../hooks/useSettings';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface RelocateDialogProps {
   isOpen: boolean;
@@ -22,6 +24,7 @@ export function RelocateDialog({
   const [isRelocating, setIsRelocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const { settings } = useSettings();
 
   // Get current repository info
   const { data: repoInfo } = useQuery({
@@ -44,6 +47,19 @@ export function RelocateDialog({
     if (!fromUrl.trim() || !toUrl.trim()) {
       setError('Both URLs are required');
       return;
+    }
+
+    if (settings.confirmDestructiveOps !== false) {
+      const confirmed = await confirmAppAction({
+        type: 'warning',
+        message: 'Relocate this working copy?',
+        detail:
+          'Relocate changes the repository URL recorded in this working copy. Use it only when the repository has moved.',
+        confirmLabel: 'Relocate',
+      });
+      if (!confirmed) {
+        return;
+      }
     }
 
     setIsRelocating(true);
