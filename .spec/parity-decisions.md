@@ -187,3 +187,9 @@ Project statistics for commits over time, authors, file churn, and branch/tag ac
 ## Decision 14: Side-by-Side Diff Can Defer Behind Reliable Unified Diff
 
 A built-in side-by-side text diff mode is desirable, but replacement readiness should not block on it if unified diff, binary/image handling, and external diff-tool handoff are reliable. Side-by-side diff may ship later or be delegated to configured external tools for the current milestone.
+
+## Decision 15: Commit Message Spellcheck Uses Platform Defaults
+
+Commit message spellcheck is in scope only where the Electron text editing surface provides it through platform/browser defaults. ShellySVN should not add a custom dictionary, language management, or third-party spellcheck engine before 1.0.
+
+Replacement readiness requires that spellcheck, if enabled by the runtime, does not block commit validation, issue ID parsing, templates, history, autocomplete, hooks, or keyboard navigation. A later localization or editor-quality project may revisit explicit spellcheck controls.
