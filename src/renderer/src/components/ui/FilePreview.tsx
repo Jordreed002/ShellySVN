@@ -113,10 +113,24 @@ export const FilePreview = memo(function FilePreview({
 
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveFilePath(null);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveFilePath(filePath);
+    }, 120);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [filePath, isOpen]);
 
   const fileType = useMemo(() => {
-    if (!filePath) return null;
-    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    if (!activeFilePath) return null;
+    const ext = activeFilePath.split('.').pop()?.toLowerCase() || '';
 
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp'].includes(ext)) {
       return 'image';
@@ -155,13 +169,13 @@ export const FilePreview = memo(function FilePreview({
       return 'text';
     }
     return 'unknown';
-  }, [filePath]);
+  }, [activeFilePath]);
 
   // Get syntax highlighting language
   const language = useMemo(() => {
-    if (!filePath || (fileType !== 'code' && fileType !== 'config')) return 'text';
-    return detectLanguage(filePath);
-  }, [filePath, fileType]);
+    if (!activeFilePath || (fileType !== 'code' && fileType !== 'config')) return 'text';
+    return detectLanguage(activeFilePath);
+  }, [activeFilePath, fileType]);
 
   // Reset state when file changes
   useEffect(() => {
@@ -171,7 +185,7 @@ export const FilePreview = memo(function FilePreview({
     setDiffContent(null);
     setDiffError(null);
     setError(null);
-  }, [filePath]);
+  }, [activeFilePath]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -183,7 +197,7 @@ export const FilePreview = memo(function FilePreview({
   }, []);
 
   useEffect(() => {
-    if (!filePath || !isOpen || fileType === 'image' || fileType === 'binary') {
+    if (!activeFilePath || !isOpen || fileType === 'image' || fileType === 'binary') {
       setContent(null);
       return;
     }
@@ -194,7 +208,7 @@ export const FilePreview = memo(function FilePreview({
       setIsLoading(true);
       setError(null);
       try {
-        const result = await window.api.fs.readFile(filePath);
+        const result = await window.api.fs.readFile(activeFilePath);
         if (cancelled) return;
         if (result.success && result.content) {
           setContent(result.content);
@@ -216,16 +230,16 @@ export const FilePreview = memo(function FilePreview({
     return () => {
       cancelled = true;
     };
-  }, [filePath, isOpen, fileType]);
+  }, [activeFilePath, isOpen, fileType]);
 
   // Load diff when requested
   const loadDiff = useCallback(async () => {
-    if (!filePath || isDiffLoading) return;
+    if (!activeFilePath || isDiffLoading) return;
 
     setIsDiffLoading(true);
     setDiffError(null);
     try {
-      const result = await window.api.svn.diff(filePath);
+      const result = await window.api.svn.diff(activeFilePath);
       if (result && result.files && result.files.length > 0) {
         // Format diff content for display
         const diffText = result.files
@@ -256,7 +270,7 @@ export const FilePreview = memo(function FilePreview({
     } finally {
       setIsDiffLoading(false);
     }
-  }, [filePath, isDiffLoading]);
+  }, [activeFilePath, isDiffLoading]);
 
   const handleCopy = async () => {
     const textToCopy = showDiff && diffContent ? diffContent : content;
@@ -288,12 +302,12 @@ export const FilePreview = memo(function FilePreview({
   };
 
   const handleOpenFullDiff = () => {
-    if (filePath && onDiff) {
-      onDiff(filePath);
+    if (activeFilePath && onDiff) {
+      onDiff(activeFilePath);
     }
   };
 
-  const filename = filePath ? filePath.split(/[/\\]/).pop() || filePath : 'Preview';
+  const filename = activeFilePath ? activeFilePath.split(/[/\\]/).pop() || activeFilePath : 'Preview';
 
   // Memoize truncated content for performance
   const displayContent = useMemo(() => {
@@ -329,34 +343,31 @@ export const FilePreview = memo(function FilePreview({
     };
   }, [imageZoom, imageRotation]);
 
+  if (!isOpen) {
+    return onOpen ? (
+      <button
+        onClick={onOpen}
+        className="absolute right-0 top-1/2 z-30 -translate-y-1/2 p-2 bg-bg-tertiary border border-border rounded-l hover:bg-bg-elevated transition-fast"
+        title="Open preview panel"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    ) : null;
+  }
+
   return (
     <div
       className={`
-        flex flex-col bg-bg-secondary border-l border-border
-        transition-[width] duration-150 ease-out overflow-hidden
-        will-change-[width] h-full min-h-0 flex-shrink-0
-        ${isOpen ? 'w-80' : 'w-0'}
+        absolute right-0 top-0 bottom-0 z-20 w-80
+        flex flex-col bg-bg-secondary border-l border-border shadow-xl
+        transition-transform duration-150 ease-out overflow-hidden
+        will-change-transform min-h-0
+        translate-x-0
         ${className}
       `}
     >
-      {/* Collapsed state - show toggle button */}
-      {!isOpen && onOpen && (
-        <button
-          onClick={onOpen}
-          className="absolute right-0 top-1/2 -translate-y-1/2 p-2 bg-bg-tertiary border border-border rounded-l hover:bg-bg-elevated transition-fast"
-          title="Open preview panel"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      )}
-
       {/* Header */}
-      <div
-        className={`
-        flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border
-        ${isOpen ? 'opacity-100' : 'opacity-0'}
-      `}
-      >
+      <div className="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
           {fileType === 'image' && <FileImage className="w-4 h-4 text-accent flex-shrink-0" />}
           {fileType === 'code' && <FileCode className="w-4 h-4 text-accent flex-shrink-0" />}
@@ -436,7 +447,7 @@ export const FilePreview = memo(function FilePreview({
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {!filePath ? (
+        {!activeFilePath ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <File className="w-12 h-12 text-text-muted mb-3" />
             <p className="text-sm text-text-muted">Select a file to preview</p>
@@ -467,7 +478,7 @@ export const FilePreview = memo(function FilePreview({
             className="flex items-center justify-center h-full p-4 overflow-auto"
           >
             <img
-              src={`file://${filePath}`}
+              src={`file://${activeFilePath}`}
               alt={filename}
               style={imageStyle}
               className="rounded transition-transform duration-200"
@@ -504,7 +515,9 @@ export const FilePreview = memo(function FilePreview({
 
       {/* Footer */}
       <div className="px-4 py-2 bg-bg-tertiary border-t border-border text-xs text-text-muted truncate">
-        {showDiff ? `Diff: ${filePath || 'No file selected'}` : filePath || 'No file selected'}
+        {showDiff
+          ? `Diff: ${activeFilePath || 'No file selected'}`
+          : activeFilePath || 'No file selected'}
       </div>
     </div>
   );

@@ -17,6 +17,24 @@ interface QuickNotesPanelProps {
 
 const STORAGE_KEY = 'shellysvn:quick-notes';
 
+function formatNoteDate(timestamp: number) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diffDays === 1) {
+    return 'Yesterday';
+  }
+  if (diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  }
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPanelProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNoteText, setNewNoteText] = useState('');
@@ -89,23 +107,6 @@ export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPane
       return b.timestamp - a.timestamp;
     });
     await saveNotes(newNotes);
-  };
-
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
   };
 
   const filteredNotes = notes.filter((note) => {
@@ -228,7 +229,7 @@ export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPane
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs text-text-muted">{formatDate(note.timestamp)}</span>
+                  <span className="text-xs text-text-muted">{formatNoteDate(note.timestamp)}</span>
                   {note.path && (
                     <>
                       <span className="text-xs text-text-faint">•</span>

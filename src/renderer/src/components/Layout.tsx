@@ -283,11 +283,13 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       {/* Quick Notes Panel */}
-      <QuickNotesPanel
-        isOpen={showNotes}
-        currentPath={currentPath}
-        onClose={() => setShowNotes(false)}
-      />
+      {showNotes && (
+        <QuickNotesPanel
+          isOpen={showNotes}
+          currentPath={currentPath}
+          onClose={() => setShowNotes(false)}
+        />
+      )}
 
       {/* Performance Dashboard */}
       {showPerformanceDashboard && (

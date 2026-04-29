@@ -1097,7 +1097,7 @@ export function FileExplorer() {
   }
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="h-full flex overflow-hidden relative">
       {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
         {/* Breadcrumb Header */}
