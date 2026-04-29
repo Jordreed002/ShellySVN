@@ -169,13 +169,13 @@
 - [ ] Avoid broad SSL bypass unless each failure class is separately confirmed.
 - [ ] Verify client certificate configuration and failure messaging.
 - [ ] Decide whether `svn+ssh` key management is in scope or relies on user SSH agent/config.
-- [ ] Ensure logs, diagnostics, errors, snapshots, and support exports redact credentials, tokens, proxy passwords, and secret-bearing URLs.
+- [x] Ensure logs, diagnostics, errors, snapshots, and support exports redact credentials, tokens, proxy passwords, and secret-bearing URLs.
 
 ## P1 - Settings, Diagnostics, and Supportability
 
 - [ ] Validate custom SVN binary paths before saving and before use.
 - [x] Add diagnostics for SVN path, SVN version, bundled binaries, encryption availability, shell/Finder integration, and working-copy health.
-- [ ] Add redacted diagnostic export for support.
+- [x] Add redacted diagnostic export for support.
 - [ ] Add cache management coverage for log cache and app cache.
 - [ ] Verify all settings panels persist and survive missing or migrated fields.
 - [ ] Add migration tests for existing settings stores across app versions.

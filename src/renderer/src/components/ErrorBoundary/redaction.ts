@@ -1,7 +1,7 @@
 const SECRET_KEY_PATTERN =
   /(password|passwd|pwd|secret|token|credential|authorization|username|http-proxy-password)/gi;
 
-const WINDOWS_HOME_PATTERN = /[A-Z]:\\Users\\[^\\\s]+/gi;
+const WINDOWS_HOME_PATTERN = /[A-Z]:(?:\\\\|\\)Users(?:\\\\|\\)[^\\\s"]+/gi;
 const POSIX_HOME_PATTERN = /\/Users\/[^/\s]+|\/home\/[^/\s]+/g;
 const URL_CREDENTIAL_PATTERN = /([a-z][a-z0-9+.-]*:\/\/)([^:@/\s]+):([^@/\s]+)@/gi;
 
