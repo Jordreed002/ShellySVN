@@ -10,6 +10,7 @@ import { redactArgs } from '../utils/redaction';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
+export const DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES = 1024 * 1024;
 
 export interface RunSvnOptions {
   cwd?: string;
@@ -20,12 +21,50 @@ export interface RunSvnOptions {
   signal?: AbortSignal;
   onStdout?: (chunk: string) => void;
   onStderr?: (chunk: string) => void;
+  maxStdoutBytes?: number;
+  maxStderrBytes?: number;
 }
 
 export interface RunSvnResult {
   stdout: string;
   stderr: string;
   code: number | null;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+}
+
+function appendCappedOutput(
+  currentOutput: string,
+  chunk: string,
+  maxBytes: number | undefined
+): { output: string; truncated: boolean } {
+  if (maxBytes === undefined || maxBytes < 0) {
+    return { output: currentOutput + chunk, truncated: false };
+  }
+
+  const currentBytes = Buffer.byteLength(currentOutput, 'utf8');
+  if (currentBytes >= maxBytes) {
+    return { output: currentOutput, truncated: chunk.length > 0 };
+  }
+
+  const remainingBytes = maxBytes - currentBytes;
+  const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+  if (chunkBytes <= remainingBytes) {
+    return { output: currentOutput + chunk, truncated: false };
+  }
+
+  let output = currentOutput;
+  let usedBytes = 0;
+  for (const char of chunk) {
+    const charBytes = Buffer.byteLength(char, 'utf8');
+    if (usedBytes + charBytes > remainingBytes) {
+      break;
+    }
+    output += char;
+    usedBytes += charBytes;
+  }
+
+  return { output, truncated: true };
 }
 
 async function createTempSvnConfig(
@@ -123,6 +162,8 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
 
     let stdout = '';
     let stderr = '';
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
     let timeoutId: NodeJS.Timeout | null = null;
     let settled = false;
 
@@ -153,13 +194,17 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
 
     proc.stdout.on('data', (data) => {
       const chunk = data.toString();
-      stdout += chunk;
+      const capped = appendCappedOutput(stdout, chunk, options.maxStdoutBytes);
+      stdout = capped.output;
+      stdoutTruncated = stdoutTruncated || capped.truncated;
       options.onStdout?.(chunk);
     });
 
     proc.stderr.on('data', (data) => {
       const chunk = data.toString();
-      stderr += chunk;
+      const capped = appendCappedOutput(stderr, chunk, options.maxStderrBytes);
+      stderr = capped.output;
+      stderrTruncated = stderrTruncated || capped.truncated;
       options.onStderr?.(chunk);
     });
 
@@ -177,7 +222,7 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
       debug.log(`[SVN] Exit code: ${code}`);
 
       if (code === 0) {
-        resolve({ stdout, stderr, code });
+        resolve({ stdout, stderr, code, stdoutTruncated, stderrTruncated });
       } else {
         reject(new Error(stderr || `SVN exited with code ${code}`));
       }

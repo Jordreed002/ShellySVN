@@ -105,7 +105,7 @@ Baseline checks from the review:
   - Acceptance: commit, merge, export/import, and deep status operations either expose progress/cancel or explicitly document why they cannot.
   - Verification: focused service tests and renderer flow tests for cancellation.
 
-- [ ] Stream or cap large SVN command output where possible.
+- [x] Stream or cap large SVN command output where possible.
   - Files: `src/main/services/svn-executor.ts`, SVN service callers.
   - Problem: `runSvn` accumulates full stdout/stderr strings for all operations, which can increase memory pressure for large logs/diffs/status output.
   - Acceptance: callers that can process chunks use streaming callbacks or explicit output caps.

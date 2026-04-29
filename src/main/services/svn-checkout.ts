@@ -1,6 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import type { CheckoutOptions, SvnExecutionContext } from '@shared/types';
-import { runSvn, runSvnText } from './svn-executor';
+import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 import { debug } from '../utils/debug';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
@@ -77,6 +77,11 @@ function parseCheckoutProgress(line: string): {
   return { action: null, path: null };
 }
 
+function parseCheckoutRevision(output: string): number {
+  const match = output.match(/Checked out revision (\d+)\./);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
 export async function checkout(
   url: string,
   path: string,
@@ -89,10 +94,9 @@ export async function checkout(
 
   try {
     const output = await runSvnText(args, { operationContext });
-    const match = output.match(/Checked out revision (\d+)\./);
     return {
       success: true,
-      revision: match ? parseInt(match[1], 10) : 0,
+      revision: parseCheckoutRevision(output),
       output,
     };
   } catch (error) {
@@ -122,6 +126,8 @@ export async function checkoutWithProgress(
   const progressThrottleMs = 500;
   let filesProcessed = 0;
   let currentPath = '';
+  let streamedRevision = 0;
+  let revisionBuffer = '';
 
   try {
     const result = await runSvn(args, {
@@ -131,7 +137,12 @@ export async function checkoutWithProgress(
       trustedSslFailures: options?.trustSsl ? normalizeSslFailures(options.sslFailures) : undefined,
       credentials: options?.credentials,
       signal: controller.signal,
+      maxStdoutBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+      maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
       onStdout: (chunk) => {
+        revisionBuffer = (revisionBuffer + chunk).slice(-2000);
+        streamedRevision = parseCheckoutRevision(revisionBuffer) || streamedRevision;
+
         for (const line of chunk.split('\n')) {
           const progress = parseCheckoutProgress(line);
           if (progress.action && progress.path) {
@@ -162,10 +173,9 @@ export async function checkoutWithProgress(
       });
     }
 
-    const match = result.stdout.match(/Checked out revision (\d+)\./);
     return {
       success: true,
-      revision: match ? parseInt(match[1], 10) : 0,
+      revision: streamedRevision || parseCheckoutRevision(result.stdout),
       output: result.stdout,
       filesProcessed,
     };

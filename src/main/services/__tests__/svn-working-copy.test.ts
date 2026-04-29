@@ -18,6 +18,7 @@ vi.mock('fs/promises', async () => {
 });
 
 vi.mock('../svn-executor', () => ({
+  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
   runSvn: mockState.runSvn,
   runSvnText: mockState.runSvnText,
 }));
@@ -142,8 +143,14 @@ describe('svn-working-copy update progress', () => {
     const send = vi.fn();
     mockState.runSvn.mockImplementation(
       async (_args: string[], options: { onStdout?: (chunk: string) => void }) => {
-      options.onStdout?.('U    src/file.ts\nA    src/new.ts\n');
-      return { stdout: 'Updated to revision 99.\n', stderr: '', code: 0 };
+        options.onStdout?.('U    src/file.ts\nA    src/new.ts\n');
+        return {
+          stdout: 'Updated to revision 99.\n',
+          stderr: '',
+          code: 0,
+          stdoutTruncated: false,
+          stderrTruncated: false,
+        };
       }
     );
 
@@ -164,6 +171,8 @@ describe('svn-working-copy update progress', () => {
       ['update', '--depth', 'infinity', '/wc'],
       expect.objectContaining({
         trustSslFailures: true,
+        maxStdoutBytes: 1024 * 1024,
+        maxStderrBytes: 1024 * 1024,
       })
     );
     expect(send).toHaveBeenCalledWith(
@@ -173,6 +182,42 @@ describe('svn-working-copy update progress', () => {
         status: 'completed',
         filesProcessed: 2,
         revision: 99,
+      })
+    );
+  });
+
+  it('uses streamed revision when stored update output is capped', async () => {
+    const send = vi.fn();
+    mockState.runSvn.mockImplementation(
+      async (_args: string[], options: { onStdout?: (chunk: string) => void }) => {
+        options.onStdout?.('U    src/file.ts\n');
+        options.onStdout?.('Updated to rev');
+        options.onStdout?.('ision 123.\n');
+        return {
+          stdout: 'U    src/file.ts\n',
+          stderr: '',
+          code: 0,
+          stdoutTruncated: true,
+          stderrTruncated: false,
+        };
+      }
+    );
+
+    const result = await updateWithProgress(
+      { sender: { send } } as never,
+      'update-2',
+      '/wc',
+      undefined,
+      undefined
+    );
+
+    expect(result.revision).toBe(123);
+    expect(send).toHaveBeenCalledWith(
+      'svn:update:progress',
+      expect.objectContaining({
+        updateId: 'update-2',
+        status: 'completed',
+        revision: 123,
       })
     );
   });

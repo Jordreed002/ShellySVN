@@ -66,12 +66,22 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
-import { runSvnText } from '../svn-executor';
+import { runSvn, runSvnText } from '../svn-executor';
 
 async function startSvn(args: string[], options = {}) {
   const proc = createMockProcess();
   mockState.spawn.mockReturnValueOnce(proc);
   const promise = runSvnText(args, options);
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  return { proc, promise };
+}
+
+async function startSvnResult(args: string[], options = {}) {
+  const proc = createMockProcess();
+  mockState.spawn.mockReturnValueOnce(proc);
+  const promise = runSvn(args, options);
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
@@ -150,5 +160,39 @@ describe('svn-executor', () => {
 
     await expect(promise).rejects.toThrow('SVN operation cancelled');
     expect(proc.kill).toHaveBeenCalled();
+  });
+
+  it('caps stored stdout while still streaming full chunks to callbacks', async () => {
+    const onStdout = vi.fn();
+    const { proc, promise } = await startSvnResult(['log'], {
+      maxStdoutBytes: 5,
+      onStdout,
+    });
+
+    proc.stdout.emit('data', Buffer.from('hello'));
+    proc.stdout.emit('data', Buffer.from(' world'));
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toMatchObject({
+      stdout: 'hello',
+      stdoutTruncated: true,
+      stderrTruncated: false,
+    });
+    expect(onStdout).toHaveBeenCalledWith('hello');
+    expect(onStdout).toHaveBeenCalledWith(' world');
+  });
+
+  it('caps stderr without splitting multi-byte characters', async () => {
+    const { proc, promise } = await startSvnResult(['status'], {
+      maxStderrBytes: 5,
+    });
+
+    proc.stderr.emit('data', Buffer.from('abc😀def'));
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toMatchObject({
+      stderr: 'abc',
+      stderrTruncated: true,
+    });
   });
 });

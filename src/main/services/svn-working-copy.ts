@@ -15,7 +15,7 @@ import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { parseSvnInfoXml, parseSvnStatusXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
-import { runSvn, runSvnText } from './svn-executor';
+import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 
 const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');
 const activeUpdates = new Map<string, AbortController>();
@@ -272,6 +272,8 @@ export async function updateWithProgress(
   let filesProcessed = 0;
   let currentFile = '';
   let lastProgressTime = 0;
+  let streamedRevision = 0;
+  let revisionBuffer = '';
   const progressThrottleMs = 250;
 
   const sendProgress = (progress: CheckoutProgress) => {
@@ -282,7 +284,12 @@ export async function updateWithProgress(
     const result = await runSvn(buildUpdateArgs(path, depth, options), {
       trustSslFailures: true,
       signal: controller.signal,
+      maxStdoutBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+      maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
       onStdout: (chunk) => {
+        revisionBuffer = (revisionBuffer + chunk).slice(-2000);
+        streamedRevision = parseUpdatedRevision(revisionBuffer) || streamedRevision;
+
         for (const line of chunk.split(/\r?\n/)) {
           const parsed = parseSvnProgressLine(line);
           if (!parsed.path) continue;
@@ -302,7 +309,7 @@ export async function updateWithProgress(
       },
     });
 
-    const revision = parseUpdatedRevision(result.stdout);
+    const revision = streamedRevision || parseUpdatedRevision(result.stdout);
     sendProgress({
       status: 'completed',
       currentFile,
