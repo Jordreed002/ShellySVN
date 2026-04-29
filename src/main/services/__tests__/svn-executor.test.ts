@@ -172,6 +172,25 @@ describe('svn-executor', () => {
     expect(proc.kill).toHaveBeenCalled();
   });
 
+  it('kills the SVN process when the configured connection timeout elapses', async () => {
+    vi.useFakeTimers();
+    mockState.getSvnExecutionContext.mockReturnValue({
+      proxySettings: { enabled: false },
+      connectionTimeout: 2,
+      sslVerify: true,
+      clientCertificatePath: '',
+    });
+    const { proc, promise } = await startSvn(['status']);
+
+    const assertion = expect(promise).rejects.toThrow(
+      'SVN operation timed out after 2 seconds'
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await assertion;
+    expect(proc.kill).toHaveBeenCalled();
+  });
+
   it('caps stored stdout while still streaming full chunks to callbacks', async () => {
     const onStdout = vi.fn();
     const { proc, promise } = await startSvnResult(['log'], {
