@@ -16,7 +16,7 @@ import { app, ipcMain } from 'electron';
 import { join } from 'path';
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import type { SvnStatusChar } from '@shared/types';
+import type { ShellIntegrationStatus, SvnStatusChar } from '@shared/types';
 import debug from '../utils/debug';
 
 // Icon overlay status mapping
@@ -83,6 +83,74 @@ export class ShellIntegrationManager {
     return '';
   }
 
+  getStatus(): ShellIntegrationStatus {
+    const helperExists = this.helperPath ? existsSync(this.helperPath) : false;
+    const platform = this.isWindows
+      ? 'windows'
+      : this.isMac
+        ? 'macos'
+        : process.platform === 'linux'
+          ? 'linux'
+          : 'unsupported';
+    const supported = this.isWindows || this.isMac;
+    const registered = this.isRegistered && helperExists;
+    const missingHelperMessage = this.isWindows
+      ? 'Windows shell helper is missing. Explorer context menus and overlays are unavailable until the native helper is installed.'
+      : this.isMac
+        ? 'macOS Finder Sync helper is missing. Finder context menus and badges are unavailable until the app extension is installed.'
+        : 'Native file manager integration is not supported on this platform yet.';
+
+    const repairActions: string[] = [];
+    const limitations: string[] = [];
+
+    if (!supported) {
+      repairActions.push('Use ShellySVN app actions from the file explorer, command palette, and toolbar.');
+      limitations.push('Linux file manager integration is deferred until Windows and macOS parity is stable.');
+    } else if (!helperExists) {
+      repairActions.push(
+        this.isWindows
+          ? 'Install a packaged build that includes ShellySVNShellHelper.exe.'
+          : 'Install a packaged build that includes the ShellySVN Finder Sync extension.'
+      );
+      repairActions.push('Run packaged-app diagnostics after installing the native helper.');
+      limitations.push('The standalone app remains fully usable for commit, update, diff, log, merge, and conflict workflows.');
+    } else if (!registered) {
+      repairActions.push(
+        this.isWindows
+          ? 'Register the Windows shell helper from Settings > Integration.'
+          : 'Enable the Finder Sync extension in macOS System Settings, then register from ShellySVN.'
+      );
+    }
+
+    if (this.isWindows) {
+      limitations.push('Explorer may require restart or sign-out before overlay changes appear.');
+    }
+
+    if (this.isMac) {
+      limitations.push('Finder Sync badge availability depends on macOS extension permissions.');
+    }
+
+    return {
+      platform,
+      supported,
+      registered,
+      helperPath: this.helperPath || null,
+      helperExists,
+      contextMenuAvailable: registered,
+      iconOverlaysAvailable: this.isWindows && registered,
+      finderBadgesAvailable: this.isMac && registered,
+      needsAdmin: this.isWindows && !registered,
+      fallbackAvailable: true,
+      message: registered
+        ? 'Native file manager integration is registered.'
+        : helperExists
+          ? 'Native file manager helper is installed but not registered.'
+          : missingHelperMessage,
+      repairActions,
+      limitations,
+    };
+  }
+
   /**
    * Register shell integration
    */
@@ -97,6 +165,10 @@ export class ShellIntegrationManager {
         await this.registerWindowsShellExtension();
       } else if (this.isMac) {
         await this.registerMacFinderSync();
+      }
+
+      if (!this.getStatus().helperExists) {
+        throw new Error(this.getStatus().message);
       }
 
       this.isRegistered = true;
@@ -186,7 +258,7 @@ export class ShellIntegrationManager {
    * Check if shell integration is currently registered
    */
   getIsRegistered(): boolean {
-    return this.isRegistered;
+    return this.getStatus().registered;
   }
 
   // ========================================
@@ -315,5 +387,10 @@ export function registerShellIntegrationHandlers(): void {
   ipcMain.handle('shell:isRegistered', async () => {
     const shell = getShellIntegration();
     return { registered: shell.getIsRegistered() };
+  });
+
+  ipcMain.handle('shell:getStatus', async () => {
+    const shell = getShellIntegration();
+    return shell.getStatus();
   });
 }

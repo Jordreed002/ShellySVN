@@ -39,6 +39,7 @@ export function createShellApi(invokeIpc: InvokeIpc): ElectronAPI['shell'] {
     register: () => invokeIpc('shell:register'),
     unregister: () => invokeIpc('shell:unregister'),
     isRegistered: () => invokeIpc('shell:isRegistered'),
+    getStatus: () => invokeIpc('shell:getStatus'),
     updateOverlay: (path, status) => invokeIpc('shell:updateOverlay', path, status),
     clearOverlay: (path) => invokeIpc('shell:clearOverlay', path),
     clearAllOverlays: () => invokeIpc('shell:clearAllOverlays'),
@@ -63,4 +64,3 @@ export function createDeepLinkApi(ipcRenderer: IpcRenderer): ElectronAPI['deepLi
     },
   };
 }
-

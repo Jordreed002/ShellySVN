@@ -31,8 +31,8 @@
 - [ ] Implement or verify Windows Explorer overlays for normal, modified, added, conflicted, locked, ignored, unversioned, missing, and external items.
 - [ ] Implement or verify macOS Finder Sync context menu commands for common working-copy actions.
 - [ ] Implement or verify macOS Finder badges for the status set Finder supports.
-- [ ] Add platform-appropriate fallback behavior when overlays, badges, or context menus are unavailable.
-- [ ] Add shell/Finder integration health diagnostics with repair actions.
+- [x] Add platform-appropriate fallback behavior when overlays, badges, or context menus are unavailable.
+- [x] Add shell/Finder integration health diagnostics with repair actions.
 - [ ] Add installer/package checks that validate Windows shell helper registration.
 - [ ] Add installer/package checks that validate macOS Finder Sync registration and required permissions.
 - [ ] Verify file-manager actions can hand off complex workflows to the standalone app with the correct selected paths.

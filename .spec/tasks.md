@@ -97,10 +97,10 @@ Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, a
 - [ ] Add Windows Explorer overlay icons for normal, modified, added, deleted, conflicted, locked, ignored, unversioned, external, and obstructed states.
 - [ ] Add macOS Finder Sync context menu commands for the same common working-copy actions.
 - [ ] Add macOS Finder badge support for the supported SVN status set.
-- [ ] Add shell/Finder integration diagnostics with repair guidance and registration status.
+- [x] Add shell/Finder integration diagnostics with repair guidance and registration status.
 - [ ] Add packaged installer checks for Windows shell extension registration.
 - [ ] Add packaged installer/package checks for macOS Finder Sync registration and permissions.
-- [ ] Define fallback app workflows when overlays or Finder badges are unavailable.
+- [x] Define fallback app workflows when overlays or Finder badges are unavailable.
 
 ### Commit Workflow
 

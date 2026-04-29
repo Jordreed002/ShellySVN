@@ -303,6 +303,22 @@ export interface NotificationOptions {
   silent?: boolean;
 }
 
+export interface ShellIntegrationStatus {
+  platform: 'windows' | 'macos' | 'linux' | 'unsupported';
+  supported: boolean;
+  registered: boolean;
+  helperPath: string | null;
+  helperExists: boolean;
+  contextMenuAvailable: boolean;
+  iconOverlaysAvailable: boolean;
+  finderBadgesAvailable: boolean;
+  needsAdmin: boolean;
+  fallbackAvailable: boolean;
+  message: string;
+  repairActions: string[];
+  limitations: string[];
+}
+
 export interface IntegrationSettings {
   shellExtensionEnabled: boolean;
   contextMenuItems: string[];
@@ -921,6 +937,7 @@ export interface ElectronAPI {
     register: () => Promise<{ success: boolean; error?: string }>;
     unregister: () => Promise<{ success: boolean }>;
     isRegistered: () => Promise<{ registered: boolean }>;
+    getStatus: () => Promise<ShellIntegrationStatus>;
     updateOverlay: (path: string, status: string) => Promise<{ success: boolean }>;
     clearOverlay: (path: string) => Promise<{ success: boolean }>;
     clearAllOverlays: () => Promise<{ success: boolean }>;

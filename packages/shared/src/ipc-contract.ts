@@ -10,6 +10,7 @@ import type {
   MessageDialogOptions,
   NotificationOptions,
   RepoDiagnostics,
+  ShellIntegrationStatus,
   SvnBlameResult,
   SvnChangelistResult,
   SvnDiffResult,
@@ -266,6 +267,7 @@ export interface IpcInvokeContract {
   'shell:register': IpcCall<[], OperationResult>;
   'shell:unregister': IpcCall<[], OperationResult>;
   'shell:isRegistered': IpcCall<[], { registered: boolean }>;
+  'shell:getStatus': IpcCall<[], ShellIntegrationStatus>;
   'shell:updateOverlay': IpcCall<[path: string, status: string], OperationResult>;
   'shell:clearOverlay': IpcCall<[path: string], OperationResult>;
   'shell:clearAllOverlays': IpcCall<[], OperationResult>;
