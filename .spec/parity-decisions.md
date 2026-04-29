@@ -161,3 +161,21 @@ Implications:
 - Settings and diagnostics must clearly show encryption availability.
 - A future explicit opt-in for plaintext persistence would require a separate product/security decision.
 - Tests should keep proving that encryption-unavailable paths do not call persistent writes for credentials or proxy passwords.
+
+---
+
+## Decision 9: SSH Key Management Relies on User SSH Configuration
+
+`svn+ssh` support relies on the user's existing SSH agent, keys, and SSH configuration for the current parity milestone. ShellySVN should surface clear failures from SVN, but it does not need built-in SSH key generation, passphrase prompts, or agent management before 1.0.
+
+## Decision 10: Multi-Language UI Is Deferred
+
+Multi-language UI is not in scope before 1.0. The 1.0 parity milestone should prioritize complete, accessible English workflows and avoid introducing localization infrastructure until the core SVN workflows are stable.
+
+## Decision 11: SVN Execution Uses a Split Model
+
+SVN execution is currently split between Electron main-process services and external/bundled binaries. The supported 1.0 model is: renderer requests go through typed IPC; Electron main owns SVN command orchestration, redaction, credentials, progress, and diagnostics; shelly-engine or CLI binaries can be used for packaged/runtime support where needed, but renderer code must not invoke SVN directly.
+
+## Decision 12: Plugin System Is Post-1.0
+
+A plugin or extension system is not required before 1.0. Existing hook scripts and external tools cover the replacement-critical automation needs. A third-party plugin model would require a separate trust, permissions, signing, and sandboxing design.

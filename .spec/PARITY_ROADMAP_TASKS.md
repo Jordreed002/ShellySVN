@@ -168,7 +168,7 @@
 - [ ] Centralize SSL trust handling with explicit temporary and permanent trust decisions.
 - [ ] Avoid broad SSL bypass unless each failure class is separately confirmed.
 - [ ] Verify client certificate configuration and failure messaging.
-- [ ] Decide whether `svn+ssh` key management is in scope or relies on user SSH agent/config.
+- [x] Decide whether `svn+ssh` key management is in scope or relies on user SSH agent/config.
 - [x] Ensure logs, diagnostics, errors, snapshots, and support exports redact credentials, tokens, proxy passwords, and secret-bearing URLs.
 
 ## P1 - Settings, Diagnostics, and Supportability
@@ -194,7 +194,7 @@
 - [ ] Verify modal dialogs trap focus and restore focus on close.
 - [ ] Make status and progress changes screen-reader friendly.
 - [ ] Verify contrast and ARIA labeling for primary workflows.
-- [ ] Decide whether multi-language UI is in scope before 1.0.
+- [x] Decide whether multi-language UI is in scope before 1.0.
 
 ## P2 - Performance and Large Repository Readiness
 
@@ -210,7 +210,7 @@
 
 ## P2 - CLI, Logic Engine, and Architecture Decisions
 
-- [ ] Decide whether SVN execution is centralized in the Electron main process, the logic-engine binary, or a clearly split model.
+- [x] Decide whether SVN execution is centralized in the Electron main process, the logic-engine binary, or a clearly split model.
 - [ ] Define which desktop operations should also exist in `shellysvn-cli` or `shelly-engine`.
 - [ ] Add CLI parity tasks for status, info, log, diff, checkout, update, commit, revert, cleanup, export, and diagnostics.
 - [ ] Add structured JSON output contracts for CLI commands.
@@ -236,7 +236,7 @@
 ## Deferred or Explicitly Out of Scope
 
 - [x] Keep Git integration out of the parity roadmap unless the product spec changes.
-- [ ] Decide whether a plugin/extension system is required before 1.0.
+- [x] Decide whether a plugin/extension system is required before 1.0.
 - [x] Decide whether Linux shell integration is best-effort or a future first-class target.
 - [x] Decide whether full TortoiseMerge-style editing is in scope or whether external merge tools remain preferred.
 - [x] Keep server-side repository administration tools out of scope unless explicitly added to the product spec.
