@@ -681,7 +681,8 @@ export interface ElectronAPI {
       path: string,
       limit?: number,
       startRev?: number,
-      endRev?: number
+      endRev?: number,
+      useMergeHistory?: boolean
     ) => Promise<SvnLogResult>;
     info: (path: string) => Promise<SvnInfoResult>;
     infoUrl: (url: string) => Promise<SvnInfoResult>;

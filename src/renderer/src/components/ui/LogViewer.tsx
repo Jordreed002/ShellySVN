@@ -11,6 +11,7 @@ import {
   Filter,
   Search,
   RotateCcw,
+  GitMerge,
 } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { useCachedLog } from '@renderer/hooks/useLogCache';
@@ -41,10 +42,11 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [configPath, setConfigPath] = useState(path);
   const [filters, setFilters] = useState<LogFilterState>(EMPTY_LOG_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showMergeHistory, setShowMergeHistory] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, path);
   const { cachedLog, cacheInfo, hasCachedData, isRefreshing, refreshLog, clearCache } =
-    useCachedLog(isOpen ? path : null, limit);
+    useCachedLog(isOpen ? path : null, limit, showMergeHistory);
   const filteredEntries = useMemo(
     () => filterLogEntries(log?.entries || [], filters, issueTrackerConfig),
     [log, filters, issueTrackerConfig]
@@ -199,6 +201,20 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                 Clear cache
               </button>
             )}
+            <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+              <input
+                type="checkbox"
+                checked={showMergeHistory}
+                onChange={(event) => {
+                  setShowMergeHistory(event.target.checked);
+                  setLog(null);
+                  setSelectedEntry(null);
+                }}
+                disabled={isLoading}
+              />
+              <GitMerge className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
+              Merged revisions
+            </label>
             <button onClick={loadLog} disabled={isLoading} className="btn-icon-sm" title="Refresh">
               <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
             </button>

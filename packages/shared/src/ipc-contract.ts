@@ -49,7 +49,13 @@ export interface IpcInvokeContract {
     { success: boolean; output?: string; error?: string }
   >;
   'svn:log': IpcCall<
-    [path: string, limit?: number, startRev?: number, endRev?: number],
+    [
+      path: string,
+      limit?: number,
+      startRev?: number,
+      endRev?: number,
+      useMergeHistory?: boolean,
+    ],
     import('./types').SvnLogResult
   >;
   'svn:info': IpcCall<[path: string], SvnInfoResult>;

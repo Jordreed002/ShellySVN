@@ -98,9 +98,19 @@ export function registerSvnHandlers(): void {
   });
 
   // SVN Log
-  ipcMain.handle('svn:log', async (_, path: string, limit = 100): Promise<SvnLogResult> => {
-    return getLog(path, limit);
-  });
+  ipcMain.handle(
+    'svn:log',
+    async (
+      _,
+      path: string,
+      limit = 100,
+      startRev?: number,
+      endRev?: number,
+      useMergeHistory = false
+    ): Promise<SvnLogResult> => {
+      return getLog(path, limit, startRev, endRev, useMergeHistory);
+    }
+  );
 
   // SVN Info
   ipcMain.handle('svn:info', async (_, path: string): Promise<SvnInfoResult> => {

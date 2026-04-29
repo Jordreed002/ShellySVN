@@ -101,7 +101,7 @@
 - [x] Add issue ID column and issue links in revision log and commit views.
 - [x] Verify log cache behavior for large repositories, including invalidation and manual cache management.
 - [x] Add branch/tag comparison workflow.
-- [ ] Add merge-tracking log view.
+- [x] Add merge-tracking log view.
 - [ ] Verify blame view shows line-level revision, author, date, and log-message context.
 - [ ] Verify revision graph clearly shows branches, tags, copies, and merges.
 - [ ] Add revision graph export coverage.

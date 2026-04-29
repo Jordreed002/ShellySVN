@@ -9,6 +9,7 @@ import { LogViewer } from '../src/components/ui/LogViewer';
 const logCacheMocks = vi.hoisted(() => ({
   refreshLog: vi.fn(),
   clearCache: vi.fn(),
+  useCachedLog: vi.fn(),
 }));
 
 vi.mock('@renderer/hooks/useIssueTrackerConfig', () => ({
@@ -22,14 +23,7 @@ vi.mock('@renderer/hooks/useIssueTrackerConfig', () => ({
 }));
 
 vi.mock('@renderer/hooks/useLogCache', () => ({
-  useCachedLog: () => ({
-    cachedLog: null,
-    cacheInfo: null,
-    hasCachedData: false,
-    isRefreshing: false,
-    refreshLog: logCacheMocks.refreshLog,
-    clearCache: logCacheMocks.clearCache,
-  }),
+  useCachedLog: logCacheMocks.useCachedLog,
 }));
 
 function makeLog(entries: SvnLogEntry[]): SvnLogResult {
@@ -53,6 +47,14 @@ function makeEntry(revision: number, path: string, message = `Change ${revision}
 describe('LogViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    logCacheMocks.useCachedLog.mockReturnValue({
+      cachedLog: null,
+      cacheInfo: null,
+      hasCachedData: false,
+      isRefreshing: false,
+      refreshLog: logCacheMocks.refreshLog,
+      clearCache: logCacheMocks.clearCache,
+    });
     window.api = {
       svn: {
         getWorkingCopyContext: vi.fn().mockResolvedValue({ workingCopyRoot: 'C:/repo' }),
@@ -115,5 +117,20 @@ describe('LogViewer', () => {
     expect(screen.getByText(/Showing 1-1 of 1 matching revisions/)).toBeInTheDocument();
 
     expect(screen.getByText(/Refactor shell integration/)).toBeInTheDocument();
+  });
+
+  it('reloads log data with merge tracking enabled', async () => {
+    logCacheMocks.refreshLog.mockResolvedValue(makeLog([makeEntry(300, '/trunk/src/app.ts')]));
+
+    render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />);
+
+    await screen.findByText('r300');
+    expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, false);
+
+    fireEvent.click(screen.getByLabelText('Merged revisions'));
+
+    await waitFor(() => {
+      expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, true);
+    });
   });
 });

@@ -4,9 +4,24 @@ import { parseDiffStreaming } from '../utils/diff-parser';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
-export async function getLog(path: string, limit = 100): Promise<SvnLogResult> {
+export async function getLog(
+  path: string,
+  limit = 100,
+  startRev?: number,
+  endRev?: number,
+  useMergeHistory = false
+): Promise<SvnLogResult> {
   try {
-    const xml = await runSvnText(['log', '--xml', '-l', String(limit), path]);
+    const args = ['log', '--xml', '-l', String(limit)];
+    if (startRev !== undefined && endRev !== undefined) {
+      args.push('-r', `${startRev}:${endRev}`);
+    }
+    if (useMergeHistory) {
+      args.push('--use-merge-history');
+    }
+    args.push(path);
+
+    const xml = await runSvnText(args);
     return parseSvnLogXml(xml);
   } catch (error) {
     debug.error('[SVN] Log error:', error);

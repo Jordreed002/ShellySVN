@@ -133,9 +133,26 @@ describe('useLogCache', () => {
       refreshed = await result.current.refreshLog();
     });
 
-    expect(svnApi.log).toHaveBeenCalledWith('C:/repo', 200);
+    expect(svnApi.log).toHaveBeenCalledWith('C:/repo', 200, undefined, undefined, false);
     expect(refreshed).toBe(cachedLog);
     expect(result.current.isOffline).toBe(true);
+  });
+
+  it('keeps merge-tracking history in a separate cache entry', async () => {
+    svnApi.log.mockResolvedValue(makeLog(2, 700));
+
+    const { result } = renderHook(() => useCachedLog('C:/repo', 200, true));
+
+    await act(async () => {
+      await result.current.refreshLog();
+    });
+
+    expect(svnApi.log).toHaveBeenCalledWith('C:/repo', 200, undefined, undefined, true);
+    expect(store['C:/repo']).toBeUndefined();
+    expect(store['C:/repo::merge-history']).toMatchObject({
+      path: 'C:/repo',
+      revision: 700,
+    });
   });
 
   it('supports manual cache clearing for one path and all paths', async () => {

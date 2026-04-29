@@ -20,28 +20,29 @@ interface LogCacheStore {
 /**
  * Hook for managing log caching
  */
-export function useLogCache(path: string | null) {
+export function useLogCache(path: string | null, cacheScope = 'default') {
   const [cachedLog, setCachedLog] = useState<CachedLog | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const cachePath = path ? getLogCachePath(path, cacheScope) : null;
 
   // Load cached log from storage
   useEffect(() => {
     const loadCache = async () => {
-      if (!path) {
+      if (!path || !cachePath) {
         setCachedLog(null);
         return;
       }
 
       try {
         const store = await window.api.store.get<LogCacheStore>(LOG_CACHE_KEY);
-        if (store && store[path]) {
-          const cached = store[path];
+        if (store && store[cachePath]) {
+          const cached = store[cachePath];
           // Check if cache is still valid
           if (Date.now() - cached.cachedAt < MAX_CACHE_AGE) {
             setCachedLog(cached);
           } else {
             // Remove expired cache
-            delete store[path];
+            delete store[cachePath];
             await window.api.store.set(LOG_CACHE_KEY, store);
             setCachedLog(null);
           }
@@ -54,17 +55,17 @@ export function useLogCache(path: string | null) {
     };
 
     loadCache();
-  }, [path]);
+  }, [cachePath, path]);
 
   // Save log to cache
   const saveToCache = useCallback(
     async (logData: SvnLogResult) => {
-      if (!path || !logData.entries.length) return;
+      if (!path || !cachePath || !logData.entries.length) return;
 
       try {
         const store = (await window.api.store.get<LogCacheStore>(LOG_CACHE_KEY)) || {};
 
-        store[path] = {
+        store[cachePath] = {
           path,
           data: logData,
           cachedAt: Date.now(),
@@ -72,29 +73,29 @@ export function useLogCache(path: string | null) {
         };
 
         await window.api.store.set(LOG_CACHE_KEY, store);
-        setCachedLog(store[path]);
+        setCachedLog(store[cachePath]);
       } catch (err) {
         debug.error('Failed to cache log:', err);
       }
     },
-    [path]
+    [cachePath, path]
   );
 
   // Clear cache for current path
   const clearCache = useCallback(async () => {
-    if (!path) return;
+    if (!path || !cachePath) return;
 
     try {
       const store = await window.api.store.get<LogCacheStore>(LOG_CACHE_KEY);
-      if (store && store[path]) {
-        delete store[path];
+      if (store && store[cachePath]) {
+        delete store[cachePath];
         await window.api.store.set(LOG_CACHE_KEY, store);
         setCachedLog(null);
       }
     } catch (err) {
       debug.error('Failed to clear cache:', err);
     }
-  }, [path]);
+  }, [cachePath, path]);
 
   // Clear all caches
   const clearAllCaches = useCallback(async () => {
@@ -141,7 +142,7 @@ export function useLogCache(path: string | null) {
 /**
  * Fetches log with cache fallback for offline support
  */
-export function useCachedLog(path: string | null, limit: number = 100) {
+export function useCachedLog(path: string | null, limit: number = 100, useMergeHistory = false) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const {
     cachedLog,
@@ -152,7 +153,7 @@ export function useCachedLog(path: string | null, limit: number = 100) {
     saveToCache,
     setIsOffline,
     clearCache,
-  } = useLogCache(path);
+  } = useLogCache(path, useMergeHistory ? 'merge-history' : 'default');
 
   // Fetch fresh log data
   const refreshLog = useCallback(async (): Promise<SvnLogResult | null> => {
@@ -162,7 +163,7 @@ export function useCachedLog(path: string | null, limit: number = 100) {
     setIsOffline(false);
 
     try {
-      const result = await window.api.svn.log(path, limit);
+      const result = await window.api.svn.log(path, limit, undefined, undefined, useMergeHistory);
       await saveToCache(result);
       setIsRefreshing(false);
       return result;
@@ -181,7 +182,7 @@ export function useCachedLog(path: string | null, limit: number = 100) {
 
       throw err;
     }
-  }, [path, limit, saveToCache, setIsOffline, hasCachedData, cachedLog]);
+  }, [path, limit, useMergeHistory, saveToCache, setIsOffline, hasCachedData, cachedLog]);
 
   return {
     refreshLog,
@@ -193,4 +194,8 @@ export function useCachedLog(path: string | null, limit: number = 100) {
     isRefreshing,
     clearCache,
   };
+}
+
+function getLogCachePath(path: string, cacheScope: string): string {
+  return cacheScope === 'default' ? path : `${path}::${cacheScope}`;
 }

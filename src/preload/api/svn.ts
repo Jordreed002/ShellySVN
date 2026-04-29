@@ -62,7 +62,8 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     statusRemote: (path) => invokeIpc('svn:statusRemote', path),
     workingCopyUpgradeStatus: (path) => invokeIpc('svn:workingCopyUpgradeStatus', path),
     upgradeWorkingCopy: (path) => invokeIpc('svn:upgradeWorkingCopy', path),
-    log: (path, limit?, startRev?, endRev?) => invokeIpc('svn:log', path, limit, startRev, endRev),
+    log: (path, limit?, startRev?, endRev?, useMergeHistory?) =>
+      invokeIpc('svn:log', path, limit, startRev, endRev, useMergeHistory),
     info: (path) => invokeIpc('svn:info', path),
     infoUrl: (url) => invokeIpc('svn:infoUrl', url),
     getWorkingCopyContext: (path) => invokeIpc('svn:getWorkingCopyContext', path),
