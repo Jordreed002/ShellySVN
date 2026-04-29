@@ -23,6 +23,10 @@ import {
   validateExternalToolSetting,
 } from './utils/external-tool-validation';
 
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
+};
+
 // Default settings (must match renderer defaults)
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
@@ -337,7 +341,7 @@ class SettingsManager {
   /**
    * Update settings
    */
-  async updateSettings(updates: Partial<AppSettings>): Promise<void> {
+  async updateSettings(updates: DeepPartial<AppSettings>): Promise<void> {
     await this.loadPromise;
 
     if (updates.svnClientPath !== undefined) {
@@ -358,7 +362,10 @@ class SettingsManager {
       );
     }
 
-    this.settings = { ...this.settings, ...updates };
+    this.settings = this.mergeDeep(
+      this.settings as unknown as Record<string, unknown>,
+      updates as unknown as Partial<Record<string, unknown>>
+    ) as unknown as AppSettings;
     await this.save();
     this.notifyListeners();
   }

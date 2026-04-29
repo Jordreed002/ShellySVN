@@ -177,8 +177,8 @@
 - [x] Add diagnostics for SVN path, SVN version, bundled binaries, encryption availability, shell/Finder integration, and working-copy health.
 - [x] Add redacted diagnostic export for support.
 - [x] Add cache management coverage for log cache and app cache.
-- [ ] Verify all settings panels persist and survive missing or migrated fields.
-- [ ] Add migration tests for existing settings stores across app versions.
+- [x] Verify all settings panels persist and survive missing or migrated fields.
+- [x] Add migration tests for existing settings stores across app versions.
 - [x] Decide whether persistent credentials are disabled when encryption is unavailable or allowed only through explicit opt-in.
 - [x] Replace browser-native `prompt()` and `confirm()` flows with accessible app dialogs where any remain.
 
