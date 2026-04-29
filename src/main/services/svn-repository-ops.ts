@@ -124,13 +124,60 @@ export async function copyRepositoryItem(
   src: string,
   dst: string,
   message: string
-): Promise<{ success: boolean; revision: number; output: string }> {
-  const output = await runSvnText(['copy', '-m', message, src, dst]);
+): Promise<{ success: boolean; revision: number; output?: string; error?: string }> {
+  const validationError = await validateCopyTarget(src, dst, message);
+  if (validationError) {
+    return { success: false, revision: 0, error: validationError };
+  }
+
+  const output = await runSvnText(['copy', '-m', message.trim().replace(/\0/g, ''), src, dst]);
   return {
     success: true,
     revision: parseCommittedRevision(output),
     output,
   };
+}
+
+async function validateCopyTarget(src: string, dst: string, message: string): Promise<string | null> {
+  if (!message.trim()) {
+    return 'Branch/tag creation requires a log message.';
+  }
+
+  if (hasUnsafePathText(src) || hasUnsafePathText(dst)) {
+    return 'Branch/tag source and destination must not contain control characters.';
+  }
+
+  if (!isValidSvnTarget(src)) {
+    return 'Branch/tag source must be a valid SVN URL or working-copy path.';
+  }
+
+  if (!isValidSvnUrl(dst)) {
+    return 'Branch/tag destination must be a valid SVN URL.';
+  }
+
+  try {
+    await runSvnText(['list', dst]);
+    return 'Branch/tag destination already exists.';
+  } catch {
+    return null;
+  }
+}
+
+function hasUnsafePathText(value: string): boolean {
+  return /[\0\r\n]/.test(value);
+}
+
+function isValidSvnTarget(value: string): boolean {
+  return isValidSvnUrl(value) || /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('/') || value.startsWith('\\\\');
+}
+
+function isValidSvnUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:', 'svn:', 'svn+ssh:', 'file:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
 }
 
 export async function mergeRepositoryRange(
