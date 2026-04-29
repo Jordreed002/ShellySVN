@@ -59,11 +59,11 @@
 - [ ] Verify selective file inclusion and exclusion, including multi-select behavior.
 - [ ] Add commit message templates create, edit, apply, and delete coverage.
 - [ ] Add commit message history persistence, keyboard selection, and clearing behavior.
-- [ ] Add commit message minimum length validation.
+- [x] Add commit message minimum length validation.
 - [x] Strip unsafe null bytes from commit messages before invoking SVN.
-- [ ] Add required issue ID validation and warning behavior.
+- [x] Add required issue ID validation and warning behavior.
 - [ ] Add commit message spellcheck decision and implementation task if in scope.
-- [ ] Add path, filename, and keyword autocomplete in the commit message editor.
+- [x] Add path, filename, and keyword autocomplete in the commit message editor.
 - [ ] Run configured hooks in the expected order and surface hook output when enabled.
 - [ ] Ensure commit credentials and command-line secrets are never logged or exposed in renderer logs.
 - [ ] Add commit success reporting with committed revision and post-commit status refresh.
@@ -147,14 +147,14 @@
 
 ## P1 - Issue Tracker Integration
 
-- [ ] Add per-project issue tracker configuration.
-- [ ] Support configurable issue regex and URL templates.
-- [ ] Support commit dialog issue ID field or message parsing.
-- [ ] Add required issue ID warnings before commit.
+- [x] Add per-project issue tracker configuration.
+- [x] Support configurable issue regex and URL templates.
+- [x] Support commit dialog issue ID field or message parsing.
+- [x] Add required issue ID warnings before commit.
 - [ ] Add issue links in log, commit, and history views.
 - [ ] Add issue ID column in revision log.
 - [ ] Evaluate compatibility with common SVN project properties where practical.
-- [ ] Add tests for issue parsing, URL generation, validation, and display.
+- [x] Add tests for issue parsing, URL generation, validation, and display.
 
 ## P1 - Authentication, Network, SSL, and Security
 
