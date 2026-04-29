@@ -162,6 +162,26 @@ describe('svn-executor', () => {
     });
   });
 
+  it('passes configured client certificates and surfaces certificate failures', async () => {
+    mockState.getSvnExecutionContext.mockReturnValue({
+      proxySettings: { enabled: false },
+      connectionTimeout: 0,
+      sslVerify: true,
+      clientCertificatePath: ' C:\\certs\\client.p12 ',
+    });
+    const { proc, promise } = await startSvn(['list', 'https://repo.example.com/svn']);
+
+    proc.stderr.emit('data', Buffer.from('svn: E230001: client certificate load failed'));
+    proc.emit('close', 1);
+
+    await expect(promise).rejects.toThrow('client certificate load failed');
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      'custom-svn',
+      expect.arrayContaining(['--certificate', 'C:\\certs\\client.p12']),
+      expect.any(Object)
+    );
+  });
+
   it('kills the SVN process when the operation is aborted', async () => {
     const controller = new AbortController();
     const { proc, promise } = await startSvn(['checkout'], { signal: controller.signal });
