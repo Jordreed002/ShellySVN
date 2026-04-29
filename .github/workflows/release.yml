@@ -261,6 +261,9 @@ jobs:
           chmod +x binaries/darwin-${{ matrix.arch }}/shelly-engine
           chmod +x binaries/darwin-${{ matrix.arch }}/svn/svn
 
+      - name: Verify bundled binaries
+        run: bun run verify:binaries darwin-${{ matrix.arch }}
+
       - name: Cache Electron build output
         uses: actions/cache@v4
         with:
@@ -346,6 +349,9 @@ jobs:
         with:
           name: shelly-engine-win32-x64
           path: binaries/win32-x64
+
+      - name: Verify bundled binaries
+        run: bun run verify:binaries win32-x64
 
       - name: Cache Electron build output
         uses: actions/cache@v4
@@ -437,6 +443,9 @@ jobs:
         run: |
           chmod +x binaries/linux-x64/shelly-engine || true
           chmod +x binaries/linux-x64/svn/svn || true
+
+      - name: Verify bundled binaries
+        run: bun run verify:binaries linux-x64
 
       - name: Cache Electron build output
         uses: actions/cache@v4
