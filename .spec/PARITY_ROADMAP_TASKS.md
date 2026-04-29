@@ -153,7 +153,7 @@
 - [x] Add required issue ID warnings before commit.
 - [x] Add issue links in log, commit, and history views.
 - [x] Add issue ID column in revision log.
-- [ ] Evaluate compatibility with common SVN project properties where practical.
+- [x] Evaluate compatibility with common SVN project properties where practical.
 - [x] Add tests for issue parsing, URL generation, validation, and display.
 
 ## P1 - Authentication, Network, SSL, and Security
