@@ -44,7 +44,7 @@
 - [ ] Verify status rendering for versioned, modified, unversioned, ignored, missing, deleted, conflicted, locked, external, switched, nested, obstructed, replaced, and remote-only items.
 - [x] Add explicit "check repository" remote-status action and distinguish local status from repository status.
 - [ ] Add bounded-concurrency background status refresh with cancellation.
-- [ ] Verify checkout supports URL, destination path, revision, depth, credentials, SSL trust, progress, and cancellation.
+- [x] Verify checkout supports URL, destination path, revision, depth, credentials, SSL trust, progress, and cancellation.
 - [x] Verify update supports revision, depth, ignore externals, force, progress, and cancellation.
 - [ ] Verify revert, cleanup, resolve, add, delete, move, copy, and rename from toolbar, context menu, and command palette.
 - [ ] Ensure revert, cleanup, delete, resolve, relocate, and other risky actions explain consequences before running when confirmations are enabled.

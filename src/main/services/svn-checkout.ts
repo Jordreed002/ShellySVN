@@ -51,17 +51,6 @@ function buildCheckoutArgs(
     options.sparsePaths.forEach((p) => args.push(p));
   }
 
-  if (options?.trustSsl) {
-    args.push('--trust-server-cert-failures', normalizeSslFailures(options.sslFailures));
-  }
-
-  if (options?.credentials) {
-    args.push('--username', options.credentials.username);
-    if (options.credentials.password) {
-      args.push('--password', options.credentials.password);
-    }
-  }
-
   args.push(url, path);
   return args;
 }
@@ -93,7 +82,12 @@ export async function checkout(
   const operationContext: Partial<SvnExecutionContext> = {};
 
   try {
-    const output = await runSvnText(args, { operationContext });
+    const output = await runSvnText(args, {
+      operationContext,
+      trustSslFailures: options?.trustSsl,
+      trustedSslFailures: options?.trustSsl ? normalizeSslFailures(options.sslFailures) : undefined,
+      credentials: options?.credentials,
+    });
     return {
       success: true,
       revision: parseCheckoutRevision(output),
