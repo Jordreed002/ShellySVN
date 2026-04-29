@@ -17,6 +17,11 @@ import { existsSync, statSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join } from 'path';
 import type { AppSettings, SvnExecutionContext, ProxySettings } from '@shared/types';
+import {
+  KNOWN_DIFF_TOOL_ALIASES,
+  KNOWN_MERGE_TOOL_ALIASES,
+  validateExternalToolSetting,
+} from './utils/external-tool-validation';
 
 // Default settings (must match renderer defaults)
 const DEFAULT_SETTINGS: AppSettings = {
@@ -337,6 +342,20 @@ class SettingsManager {
 
     if (updates.svnClientPath !== undefined) {
       this.validateSvnClientPath(updates.svnClientPath);
+    }
+    if (updates.diffMerge?.externalDiffTool !== undefined) {
+      validateExternalToolSetting(
+        updates.diffMerge.externalDiffTool,
+        'External diff tool',
+        KNOWN_DIFF_TOOL_ALIASES
+      );
+    }
+    if (updates.diffMerge?.externalMergeTool !== undefined) {
+      validateExternalToolSetting(
+        updates.diffMerge.externalMergeTool,
+        'External merge tool',
+        KNOWN_MERGE_TOOL_ALIASES
+      );
     }
 
     this.settings = { ...this.settings, ...updates };

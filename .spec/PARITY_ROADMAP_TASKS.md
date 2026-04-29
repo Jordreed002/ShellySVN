@@ -89,7 +89,7 @@
 - [ ] Verify syntax highlighting does not break very large files or unknown languages.
 - [ ] Verify image diff behavior for common asset formats and document supported formats.
 - [ ] Add external diff and merge tool configuration with per-extension overrides.
-- [ ] Validate external executable paths before saving settings and before spawning tools.
+- [x] Validate external executable paths before saving settings and before spawning tools.
 - [x] Verify patch creation for selected files and whole working copies.
 - [x] Verify patch apply dry-run output, reject-file visibility, and binary-safe failure messaging.
 - [x] Decide the Office/document diff strategy: supported integration, external-tool handoff, or explicit non-goal.
