@@ -84,7 +84,7 @@
 ## P1 - Diff, Merge, Patch, and File Review
 
 - [ ] Verify unified diff rendering for added, deleted, modified, renamed, copied, property-only, and binary files.
-- [ ] Add reliable side-by-side text diff mode or record a product decision to defer it.
+- [x] Add reliable side-by-side text diff mode or record a product decision to defer it.
 - [ ] Verify large diffs do not block the renderer.
 - [ ] Verify syntax highlighting does not break very large files or unknown languages.
 - [ ] Verify image diff behavior for common asset formats and document supported formats.
@@ -105,7 +105,7 @@
 - [ ] Verify blame view shows line-level revision, author, date, and log-message context.
 - [ ] Verify revision graph clearly shows branches, tags, copies, and merges.
 - [ ] Add revision graph export coverage.
-- [ ] Add project statistics for commits over time, authors, file churn, and branch/tag activity, or defer explicitly.
+- [x] Add project statistics for commits over time, authors, file churn, and branch/tag activity, or defer explicitly.
 
 ## P1 - Branching, Tagging, Switching, Merging, and Relocation
 

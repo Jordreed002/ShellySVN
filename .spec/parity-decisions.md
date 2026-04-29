@@ -179,3 +179,11 @@ SVN execution is currently split between Electron main-process services and exte
 ## Decision 12: Plugin System Is Post-1.0
 
 A plugin or extension system is not required before 1.0. Existing hook scripts and external tools cover the replacement-critical automation needs. A third-party plugin model would require a separate trust, permissions, signing, and sandboxing design.
+
+## Decision 13: Project Statistics Are Post-Replacement
+
+Project statistics for commits over time, authors, file churn, and branch/tag activity are useful reporting features, but they are not replacement-critical for the TortoiseSVN parity milestone. They should remain deferred until log/history scalability work is complete.
+
+## Decision 14: Side-by-Side Diff Can Defer Behind Reliable Unified Diff
+
+A built-in side-by-side text diff mode is desirable, but replacement readiness should not block on it if unified diff, binary/image handling, and external diff-tool handoff are reliable. Side-by-side diff may ship later or be delegated to configured external tools for the current milestone.
