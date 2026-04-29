@@ -211,10 +211,10 @@
 ## P2 - CLI, Logic Engine, and Architecture Decisions
 
 - [x] Decide whether SVN execution is centralized in the Electron main process, the logic-engine binary, or a clearly split model.
-- [ ] Define which desktop operations should also exist in `shellysvn-cli` or `shelly-engine`.
-- [ ] Add CLI parity tasks for status, info, log, diff, checkout, update, commit, revert, cleanup, export, and diagnostics.
-- [ ] Add structured JSON output contracts for CLI commands.
-- [ ] Add CLI authentication and config handling decisions.
+- [x] Define which desktop operations should also exist in `shellysvn-cli` or `shelly-engine`.
+- [x] Add CLI parity tasks for status, info, log, diff, checkout, update, commit, revert, cleanup, export, and diagnostics.
+- [x] Add structured JSON output contracts for CLI commands.
+- [x] Add CLI authentication and config handling decisions.
 - [ ] Add cross-platform compiled binary smoke tests.
 - [ ] Ensure app and CLI share parsing logic instead of duplicating SVN output handling.
 - [ ] Keep Electron main, preload, renderer, and shared contracts clearly separated.
