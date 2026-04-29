@@ -58,7 +58,7 @@
 - [x] Support grouping and filtering changed files by status, changelist, and path.
 - [x] Verify selective file inclusion and exclusion, including multi-select behavior.
 - [x] Add commit message templates create, edit, apply, and delete coverage.
-- [ ] Add commit message history persistence, keyboard selection, and clearing behavior.
+- [x] Add commit message history persistence, keyboard selection, and clearing behavior.
 - [x] Add commit message minimum length validation.
 - [x] Strip unsafe null bytes from commit messages before invoking SVN.
 - [x] Add required issue ID validation and warning behavior.
