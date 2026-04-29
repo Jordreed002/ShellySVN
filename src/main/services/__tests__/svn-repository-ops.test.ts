@@ -14,7 +14,7 @@ vi.mock('../svn-progress', () => ({
   runSvnOperationWithProgress: vi.fn(),
 }));
 
-import { copyRepositoryItem } from '../svn-repository-ops';
+import { copyRepositoryItem, relocateWorkingCopy, switchWorkingCopy } from '../svn-repository-ops';
 
 describe('svn-repository-ops copyRepositoryItem', () => {
   beforeEach(() => {
@@ -87,5 +87,48 @@ describe('svn-repository-ops copyRepositoryItem', () => {
       error: 'Branch/tag destination already exists.',
     });
     expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['copy']));
+  });
+});
+
+describe('svn-repository-ops switch and relocate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('switches a whole working copy to a URL and optional revision', async () => {
+    mockState.runSvnText.mockResolvedValue('Updated to revision 77.');
+
+    const result = await switchWorkingCopy('C:\\wc', 'https://example.test/svn/repo/branches/a', '77');
+
+    expect(result).toEqual({
+      success: true,
+      revision: 77,
+      output: 'Updated to revision 77.',
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'switch',
+      'https://example.test/svn/repo/branches/a',
+      'C:\\wc',
+      '-r',
+      '77',
+    ]);
+  });
+
+  it('relocates a working copy between repository root URLs', async () => {
+    mockState.runSvnText.mockResolvedValue('Relocated C:\\wc');
+
+    const result = await relocateWorkingCopy(
+      'https://old.example.test/svn/repo',
+      'https://new.example.test/svn/repo',
+      'C:\\wc'
+    );
+
+    expect(result).toEqual({ success: true, output: 'Relocated C:\\wc' });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'relocate',
+      'https://old.example.test/svn/repo',
+      'https://new.example.test/svn/repo',
+      'C:\\wc',
+    ]);
   });
 });
