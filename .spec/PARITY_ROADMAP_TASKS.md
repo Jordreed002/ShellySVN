@@ -141,7 +141,7 @@
 - [ ] Ensure commit and status flows handle externals clearly.
 - [ ] Verify lock, unlock, force lock, force unlock, and lock list workflows.
 - [ ] Add lock owner and stale-lock handling in file explorer and dialogs.
-- [ ] Verify shelve, unshelve/apply, list, and delete workflows with the minimum supported SVN version.
+- [x] Verify shelve, unshelve/apply, list, and delete workflows with the minimum supported SVN version.
 - [x] Decide the minimum acceptable SVN version for sparse checkout, shelving, and other advanced features.
 - [x] Add repository diagnostics for unsupported or mismatched SVN versions.
 
