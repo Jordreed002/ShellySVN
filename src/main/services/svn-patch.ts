@@ -32,7 +32,7 @@ export async function applyPatch(
     const rejectsMatch = output.match(/(\d+)\s+rejects?/i);
 
     return {
-      success: !output.includes('FAILED') && !output.includes('rejected'),
+      success: !/(failed|reject(?:ed|s)?)/i.test(output),
       filesPatched: filesPatchedMatch ? parseInt(filesPatchedMatch[1], 10) : 0,
       rejects: rejectsMatch ? parseInt(rejectsMatch[1], 10) : 0,
       output,
