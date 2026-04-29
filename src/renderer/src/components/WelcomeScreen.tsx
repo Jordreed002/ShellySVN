@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { lazy, Suspense, useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useSettings } from '@renderer/hooks/useSettings';
 import {
@@ -12,8 +12,13 @@ import {
   FileEdit,
   Turtle,
 } from 'lucide-react';
-import { AddRepoModal } from './ui/AddRepoModal';
-import { ImportDialog } from './ui/ImportDialog';
+
+const AddRepoModal = lazy(() =>
+  import('./ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
+);
+const ImportDialog = lazy(() =>
+  import('./ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
+);
 
 // Shell/Turtle SVG Logo for ShellySVN
 function ShellLogo({ className = '' }: { className?: string }) {
@@ -271,23 +276,28 @@ export function WelcomeScreen() {
       </div>
 
       {/* Unified Modal */}
-      <AddRepoModal
-        isOpen={isAddRepoModalOpen}
-        onClose={() => setIsAddRepoModalOpen(false)}
-        onOpenRepo={handleOpenWorkingCopy}
-        onImport={() => {
-          setIsAddRepoModalOpen(false);
-          setIsImportDialogOpen(true);
-        }}
-        recentRepos={recentRepos}
-        initialTab={addRepoModalTab}
-      />
+      {isAddRepoModalOpen && (
+        <Suspense fallback={null}>
+          <AddRepoModal
+            isOpen={isAddRepoModalOpen}
+            onClose={() => setIsAddRepoModalOpen(false)}
+            onOpenRepo={handleOpenWorkingCopy}
+            onImport={() => {
+              setIsAddRepoModalOpen(false);
+              setIsImportDialogOpen(true);
+            }}
+            recentRepos={recentRepos}
+            initialTab={addRepoModalTab}
+          />
+        </Suspense>
+      )}
 
       {/* Import Dialog */}
-      <ImportDialog
-        isOpen={isImportDialogOpen}
-        onClose={() => setIsImportDialogOpen(false)}
-      />
+      {isImportDialogOpen && (
+        <Suspense fallback={null}>
+          <ImportDialog isOpen={isImportDialogOpen} onClose={() => setIsImportDialogOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

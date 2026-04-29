@@ -132,7 +132,7 @@ Baseline checks from the review:
   - Problem: renderer build has large chunks, but there is no repeatable bundle report.
   - Acceptance: a script produces a bundle size report and identifies top modules in the initial renderer chunks.
   - Verification: `bun run analyze:bundle` writes `reports/bundle/renderer-bundle-report.{json,md}`.
-  - Current result: the initial renderer entry is about 1.0 MiB raw / 197 KiB gzip; top app modules are settings panels, add-repository modal, and plugin manager, so those are the next dynamic-import candidates.
+  - Current result: after lazy-loading modal and diagnostics overlays, the initial renderer entry is about 698 KiB raw / 145 KiB gzip, down from about 1.0 MiB raw / 197 KiB gzip.
 
 ---
 

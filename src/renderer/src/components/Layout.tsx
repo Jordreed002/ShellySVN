@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { lazy, ReactNode, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { GitBranch, Minus, Square, StickyNote, X } from 'lucide-react';
 
@@ -8,12 +8,19 @@ import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { Sidebar } from './Sidebar';
 import { OnboardingTutorial, useOnboarding } from './tutorial';
-import { CommandPalette } from './ui/CommandPalette';
 import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog';
-import { PerformanceDashboard } from './ui/PerformanceDashboard';
-import { PluginManagerDialog } from './ui/PluginManagerDialog';
 import { QuickNotesPanel } from './ui/QuickNotesPanel';
 import { StatusBar } from './ui/StatusBar';
+
+const CommandPalette = lazy(() =>
+  import('./ui/CommandPalette').then((m) => ({ default: m.CommandPalette }))
+);
+const PerformanceDashboard = lazy(() =>
+  import('./ui/PerformanceDashboard').then((m) => ({ default: m.PerformanceDashboard }))
+);
+const PluginManagerDialog = lazy(() =>
+  import('./ui/PluginManagerDialog').then((m) => ({ default: m.PluginManagerDialog }))
+);
 
 /**
  * Common search params shared across routes
@@ -67,7 +74,7 @@ export function Layout({ children }: LayoutProps) {
 
       if (e.ctrlKey && e.shiftKey && e.key === 'P') {
         e.preventDefault();
-        setShowPerformanceDashboard(prev => !prev);
+        setShowPerformanceDashboard((prev) => !prev);
         return;
       }
 
@@ -179,97 +186,101 @@ export function Layout({ children }: LayoutProps) {
         onSkip={() => setForceShowTutorial(false)}
       />
 
-      <CommandPalette
-        isOpen={showCommandPalette}
-        onClose={() => setShowCommandPalette(false)}
-        currentPath={currentPath}
-        recentPaths={settings.recentPaths}
-        bookmarks={settings.bookmarks}
-        onGoToPath={handleGoToPath}
-        onOpenSettings={() => {
-          setShowCommandPalette(false);
-        }}
-        onShowShortcuts={() => {
-          setShowCommandPalette(false);
-          setShowShortcuts(true);
-        }}
-        onShowNotes={() => {
-          setShowCommandPalette(false);
-          setShowNotes(true);
-        }}
-        onBranchTag={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG));
-          setShowCommandPalette(false);
-        }}
-        onSwitch={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.SWITCH));
-          setShowCommandPalette(false);
-        }}
-        onMerge={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.MERGE));
-          setShowCommandPalette(false);
-        }}
-        onRelocate={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.RELOCATE));
-          setShowCommandPalette(false);
-        }}
-        onBlame={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.BLAME));
-          setShowCommandPalette(false);
-        }}
-        onProperties={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.PROPERTIES));
-          setShowCommandPalette(false);
-        }}
-        onChangelist={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.CHANGELIST));
-          setShowCommandPalette(false);
-        }}
-        onShelve={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.SHELVE));
-          setShowCommandPalette(false);
-        }}
-        onUnshelve={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNSHELVE));
-          setShowCommandPalette(false);
-        }}
-        onLock={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.LOCK));
-          setShowCommandPalette(false);
-        }}
-        onUnlock={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNLOCK));
-          setShowCommandPalette(false);
-        }}
-        onExport={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.EXPORT));
-          setShowCommandPalette(false);
-        }}
-        onImport={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.IMPORT));
-          setShowCommandPalette(false);
-        }}
-        onRepoBrowser={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.REPO_BROWSER));
-          setShowCommandPalette(false);
-        }}
-        onRevisionGraph={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.REVISION_GRAPH));
-          setShowCommandPalette(false);
-        }}
-        onCreatePatch={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.CREATE_PATCH));
-          setShowCommandPalette(false);
-        }}
-        onApplyPatch={() => {
-          window.dispatchEvent(new CustomEvent(SVN_EVENTS.APPLY_PATCH));
-          setShowCommandPalette(false);
-        }}
-        onManagePlugins={() => {
-          setShowCommandPalette(false);
-          setShowPluginManager(true);
-        }}
-      />
+      {showCommandPalette && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            isOpen={showCommandPalette}
+            onClose={() => setShowCommandPalette(false)}
+            currentPath={currentPath}
+            recentPaths={settings.recentPaths}
+            bookmarks={settings.bookmarks}
+            onGoToPath={handleGoToPath}
+            onOpenSettings={() => {
+              setShowCommandPalette(false);
+            }}
+            onShowShortcuts={() => {
+              setShowCommandPalette(false);
+              setShowShortcuts(true);
+            }}
+            onShowNotes={() => {
+              setShowCommandPalette(false);
+              setShowNotes(true);
+            }}
+            onBranchTag={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG));
+              setShowCommandPalette(false);
+            }}
+            onSwitch={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.SWITCH));
+              setShowCommandPalette(false);
+            }}
+            onMerge={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.MERGE));
+              setShowCommandPalette(false);
+            }}
+            onRelocate={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.RELOCATE));
+              setShowCommandPalette(false);
+            }}
+            onBlame={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.BLAME));
+              setShowCommandPalette(false);
+            }}
+            onProperties={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.PROPERTIES));
+              setShowCommandPalette(false);
+            }}
+            onChangelist={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.CHANGELIST));
+              setShowCommandPalette(false);
+            }}
+            onShelve={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.SHELVE));
+              setShowCommandPalette(false);
+            }}
+            onUnshelve={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNSHELVE));
+              setShowCommandPalette(false);
+            }}
+            onLock={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.LOCK));
+              setShowCommandPalette(false);
+            }}
+            onUnlock={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNLOCK));
+              setShowCommandPalette(false);
+            }}
+            onExport={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.EXPORT));
+              setShowCommandPalette(false);
+            }}
+            onImport={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.IMPORT));
+              setShowCommandPalette(false);
+            }}
+            onRepoBrowser={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.REPO_BROWSER));
+              setShowCommandPalette(false);
+            }}
+            onRevisionGraph={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.REVISION_GRAPH));
+              setShowCommandPalette(false);
+            }}
+            onCreatePatch={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.CREATE_PATCH));
+              setShowCommandPalette(false);
+            }}
+            onApplyPatch={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.APPLY_PATCH));
+              setShowCommandPalette(false);
+            }}
+            onManagePlugins={() => {
+              setShowCommandPalette(false);
+              setShowPluginManager(true);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Quick Notes Panel */}
       <QuickNotesPanel
@@ -280,20 +291,26 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Performance Dashboard */}
       {showPerformanceDashboard && (
-        <div className="fixed bottom-4 right-4 z-50 w-[480px]">
-          <PerformanceDashboard
-            visible={showPerformanceDashboard}
-            onClose={() => setShowPerformanceDashboard(false)}
-            detailed
-          />
-        </div>
+        <Suspense fallback={null}>
+          <div className="fixed bottom-4 right-4 z-50 w-[480px]">
+            <PerformanceDashboard
+              visible={showPerformanceDashboard}
+              onClose={() => setShowPerformanceDashboard(false)}
+              detailed
+            />
+          </div>
+        </Suspense>
       )}
 
       {/* Plugin Manager Dialog */}
-      <PluginManagerDialog
-        isOpen={showPluginManager}
-        onClose={() => setShowPluginManager(false)}
-      />
+      {showPluginManager && (
+        <Suspense fallback={null}>
+          <PluginManagerDialog
+            isOpen={showPluginManager}
+            onClose={() => setShowPluginManager(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

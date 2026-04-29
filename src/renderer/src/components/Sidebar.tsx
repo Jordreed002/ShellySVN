@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
@@ -26,13 +26,21 @@ import {
 
 import { useSettings } from '@renderer/hooks/useSettings';
 
-import { AddRepoModal } from './ui/AddRepoModal';
 import { BookmarksManager } from './ui/BookmarksManager';
 import { CertificateManagerDialog } from './ui/CertificateManagerDialog';
 import { ImportDialog } from './ui/ImportDialog';
-import { PluginManagerDialog } from './ui/PluginManagerDialog';
-import { SettingsDialog, type SettingsTab } from './ui/SettingsDialog';
+import type { SettingsTab } from './ui/SettingsDialog';
 import { StatusDot } from './ui/StatusIcon';
+
+const AddRepoModal = lazy(() =>
+  import('./ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
+);
+const PluginManagerDialog = lazy(() =>
+  import('./ui/PluginManagerDialog').then((m) => ({ default: m.PluginManagerDialog }))
+);
+const SettingsDialog = lazy(() =>
+  import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }))
+);
 
 interface QuickAccessItem {
   name: string;
@@ -616,26 +624,34 @@ export function Sidebar() {
       </aside>
 
       {/* Add Repo Modal */}
-      <AddRepoModal
-        isOpen={isAddRepoModalOpen}
-        onClose={() => setIsAddRepoModalOpen(false)}
-        onOpenRepo={(path) => {
-          setIsAddRepoModalOpen(false);
-          handleOpenRepo(path);
-        }}
-        onImport={() => {
-          setIsAddRepoModalOpen(false);
-          setIsImportDialogOpen(true);
-        }}
-        recentRepos={recentRepos}
-      />
+      {isAddRepoModalOpen && (
+        <Suspense fallback={null}>
+          <AddRepoModal
+            isOpen={isAddRepoModalOpen}
+            onClose={() => setIsAddRepoModalOpen(false)}
+            onOpenRepo={(path) => {
+              setIsAddRepoModalOpen(false);
+              handleOpenRepo(path);
+            }}
+            onImport={() => {
+              setIsAddRepoModalOpen(false);
+              setIsImportDialogOpen(true);
+            }}
+            recentRepos={recentRepos}
+          />
+        </Suspense>
+      )}
 
       {/* Settings Dialog */}
-      <SettingsDialog
-        isOpen={isSettingsDialogOpen}
-        onClose={() => setIsSettingsDialogOpen(false)}
-        initialTab={settingsTab}
-      />
+      {isSettingsDialogOpen && (
+        <Suspense fallback={null}>
+          <SettingsDialog
+            isOpen={isSettingsDialogOpen}
+            onClose={() => setIsSettingsDialogOpen(false)}
+            initialTab={settingsTab}
+          />
+        </Suspense>
+      )}
 
       {/* Bookmarks Manager */}
       <BookmarksManager
@@ -654,10 +670,14 @@ export function Sidebar() {
       />
 
       {/* Plugin Manager Dialog */}
-      <PluginManagerDialog
-        isOpen={isPluginManagerOpen}
-        onClose={() => setIsPluginManagerOpen(false)}
-      />
+      {isPluginManagerOpen && (
+        <Suspense fallback={null}>
+          <PluginManagerDialog
+            isOpen={isPluginManagerOpen}
+            onClose={() => setIsPluginManagerOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Certificate Manager Dialog */}
       <CertificateManagerDialog
