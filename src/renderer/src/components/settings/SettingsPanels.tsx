@@ -13,6 +13,7 @@ import {
   Loader2,
   Monitor,
   Moon,
+  Pencil,
   Play,
   RotateCcw,
   Shield,
@@ -1355,6 +1356,10 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
   const [credentials, setCredentials] = useState<AuthListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEncryptionAvailable, setIsEncryptionAvailable] = useState<boolean | null>(null);
+  const [editingRealm, setEditingRealm] = useState<string | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const platform = window.electron?.process?.platform;
 
   useEffect(() => {
@@ -1384,6 +1389,11 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
       await window.api.auth.delete(realm);
       const list = await window.api.auth.list();
       setCredentials(list);
+      if (editingRealm === realm) {
+        setEditingRealm(null);
+        setEditUsername('');
+        setEditPassword('');
+      }
     } catch {
       setCredentials([]);
     }
@@ -1395,6 +1405,34 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
       setCredentials([]);
     } catch {
       setCredentials([]);
+    }
+  };
+
+  const handleStartEdit = (credential: AuthListEntry) => {
+    setEditingRealm(credential.realm);
+    setEditUsername(credential.username);
+    setEditPassword('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRealm(null);
+    setEditUsername('');
+    setEditPassword('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRealm || !editUsername.trim() || !editPassword) return;
+
+    setIsSavingEdit(true);
+    try {
+      await window.api.auth.set(editingRealm, editUsername.trim(), editPassword);
+      const list = await window.api.auth.list();
+      setCredentials(list);
+      handleCancelEdit();
+    } catch {
+      setCredentials([]);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -1449,19 +1487,76 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
             {credentials.map((cred) => (
               <div
                 key={cred.realm}
-                className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border group"
+                className="p-3 rounded-lg bg-bg-tertiary border border-border group"
               >
-                <div className="flex-1 min-w-0 mr-4">
-                  <p className="text-sm font-medium text-text truncate">{cred.username}</p>
-                  <p className="text-xs text-text-muted truncate">{cred.realm}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(cred.realm)}
-                  className="btn-icon-sm opacity-0 group-hover:opacity-100 text-error hover:bg-error/10 transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {editingRealm === cred.realm ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-text-muted truncate">{cred.realm}</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={editUsername}
+                        onChange={(e) => setEditUsername(e.target.value)}
+                        className="input text-sm"
+                        aria-label={`Username for ${cred.realm}`}
+                      />
+                      <input
+                        type="password"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        className="input text-sm"
+                        placeholder="New password"
+                        aria-label={`New password for ${cred.realm}`}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="btn-icon-sm text-text-muted hover:bg-bg-secondary"
+                        aria-label={`Cancel editing ${cred.realm}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEdit}
+                        disabled={isSavingEdit || !editUsername.trim() || !editPassword}
+                        className="btn-icon-sm text-success hover:bg-success/10 disabled:opacity-50"
+                        aria-label={`Save credentials for ${cred.realm}`}
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0 mr-4">
+                      <p className="text-sm font-medium text-text truncate">{cred.username}</p>
+                      <p className="text-xs text-text-muted truncate">{cred.realm}</p>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all">
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(cred)}
+                        className="btn-icon-sm text-text-muted hover:bg-bg-secondary"
+                        aria-label={`Edit credentials for ${cred.realm}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(cred.realm)}
+                        className="btn-icon-sm text-error hover:bg-error/10"
+                        aria-label={`Delete credentials for ${cred.realm}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
