@@ -81,6 +81,7 @@ Execution order is defined in `fix-plan.md`.
 - [ ] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
   First boundary identified and started by extracting `src/main/services/svn-executor.ts`.
 - [ ] Execute the refactor and codebase improvement backlog in `refactor-improvement-tasks.md`.
+- [ ] Execute the performance improvement backlog in `performance-improvement-tasks.md`.
 
 ---
 

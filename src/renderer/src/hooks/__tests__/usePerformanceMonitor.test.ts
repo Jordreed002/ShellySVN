@@ -49,6 +49,36 @@ describe('usePerformanceMonitor', () => {
       expect(result.current.thresholds.maxMemoryMB).toBe(1024);
       expect(result.current.thresholds.minFps).toBe(DEFAULT_THRESHOLDS.minFps);
     });
+
+    it('should not schedule FPS or memory sampling by default', () => {
+      const requestAnimationFrameSpy = vi
+        .spyOn(window, 'requestAnimationFrame')
+        .mockReturnValue(1);
+      const setIntervalSpy = vi.spyOn(window, 'setInterval');
+
+      renderHook(() => usePerformanceMonitor());
+
+      expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+      expect(setIntervalSpy).not.toHaveBeenCalled();
+
+      requestAnimationFrameSpy.mockRestore();
+      setIntervalSpy.mockRestore();
+    });
+
+    it('should schedule sampling when FPS and memory monitoring are requested', () => {
+      const requestAnimationFrameSpy = vi
+        .spyOn(window, 'requestAnimationFrame')
+        .mockReturnValue(1);
+      const setIntervalSpy = vi.spyOn(window, 'setInterval');
+
+      renderHook(() => usePerformanceMonitor({ fps: true, memory: true }));
+
+      expect(requestAnimationFrameSpy).toHaveBeenCalled();
+      expect(setIntervalSpy).toHaveBeenCalled();
+
+      requestAnimationFrameSpy.mockRestore();
+      setIntervalSpy.mockRestore();
+    });
   });
 
   describe('startMetric / endMetric', () => {

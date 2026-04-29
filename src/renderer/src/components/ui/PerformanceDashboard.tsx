@@ -83,6 +83,8 @@ export function PerformanceDashboard({
     thresholds: activeThresholds,
   } = usePerformanceMonitor({
     thresholds,
+    memory: true,
+    fps: true,
     onAlert: (alert) => {
       console.log(`[Performance ${alert.type.toUpperCase()}] ${alert.message}`);
     },

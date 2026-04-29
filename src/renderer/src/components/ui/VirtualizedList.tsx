@@ -211,24 +211,72 @@ export interface TreeNode {
 
 type TriState = boolean | 'indeterminate';
 
-function getAllDescendantPaths(node: TreeNode): string[] {
-  const paths: string[] = [];
-  if (node.children) {
-    for (const child of node.children) {
-      paths.push(child.path);
-      paths.push(...getAllDescendantPaths(child));
-    }
-  }
-  return paths;
+interface FlattenedTreeNode {
+  node: TreeNode;
+  depth: number;
 }
 
-function getTriState(node: TreeNode, selectedKeys: Set<string>): TriState {
-  if (!node.children || node.children.length === 0) {
+interface TreeSelectionMetadata {
+  descendantPaths: string[];
+}
+
+interface TreeViewModel {
+  flattenedNodes: FlattenedTreeNode[];
+  selectionMetadata: Map<string, TreeSelectionMetadata>;
+}
+
+function buildTreeViewModel(nodes: TreeNode[], expandedPaths: Set<string>): TreeViewModel {
+  const flattenedNodes: FlattenedTreeNode[] = [];
+  const selectionMetadata = new Map<string, TreeSelectionMetadata>();
+
+  const visit = (node: TreeNode, depth: number, includeInFlattenedRows: boolean): string[] => {
+    if (includeInFlattenedRows) {
+      flattenedNodes.push({ node, depth });
+    }
+
+    const descendantPaths: string[] = [];
+    if (node.children) {
+      for (const child of node.children) {
+        descendantPaths.push(child.path);
+        const childIsVisible = includeInFlattenedRows && expandedPaths.has(node.path);
+        descendantPaths.push(...visit(child, depth + 1, childIsVisible));
+      }
+    }
+
+    selectionMetadata.set(node.path, { descendantPaths });
+    return descendantPaths;
+  };
+
+  for (const node of nodes) {
+    visit(node, 0, true);
+  }
+
+  return { flattenedNodes, selectionMetadata };
+}
+
+function getDescendantPaths(
+  node: TreeNode,
+  selectionMetadata: Map<string, TreeSelectionMetadata>
+): string[] {
+  return selectionMetadata.get(node.path)?.descendantPaths ?? [];
+}
+
+function getTriState(
+  node: TreeNode,
+  selectedKeys: Set<string>,
+  selectionMetadata: Map<string, TreeSelectionMetadata>
+): TriState {
+  const descendantPaths = getDescendantPaths(node, selectionMetadata);
+  if (descendantPaths.length === 0) {
     return selectedKeys.has(node.path);
   }
 
-  const descendantPaths = getAllDescendantPaths(node);
-  const selectedCount = descendantPaths.filter((p) => selectedKeys.has(p)).length;
+  let selectedCount = 0;
+  for (const path of descendantPaths) {
+    if (selectedKeys.has(path)) {
+      selectedCount++;
+    }
+  }
 
   if (selectedCount === 0) {
     return false;
@@ -237,6 +285,18 @@ function getTriState(node: TreeNode, selectedKeys: Set<string>): TriState {
     return true;
   }
   return 'indeterminate';
+}
+
+function getSelectionStates(
+  flattenedNodes: FlattenedTreeNode[],
+  selectedKeys: Set<string>,
+  selectionMetadata: Map<string, TreeSelectionMetadata>
+): Map<string, TriState> {
+  const selectionStates = new Map<string, TriState>();
+  for (const { node } of flattenedNodes) {
+    selectionStates.set(node.path, getTriState(node, selectedKeys, selectionMetadata));
+  }
+  return selectionStates;
 }
 
 /**
@@ -255,22 +315,21 @@ export function VirtualizedTree({
 }: VirtualizedTreeProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const flattenedNodes = useMemo(() => {
-    const result: { node: TreeNode; depth: number }[] = [];
+  const { flattenedNodes, selectionMetadata } = useMemo(
+    () => buildTreeViewModel(nodes, expandedPaths),
+    [nodes, expandedPaths]
+  );
 
-    const flatten = (items: TreeNode[], depth: number) => {
-      for (const item of items) {
-        result.push({ node: item, depth });
-
-        if (expandedPaths.has(item.path) && item.children) {
-          flatten(item.children, depth + 1);
-        }
-      }
-    };
-
-    flatten(nodes, 0);
-    return result;
-  }, [nodes, expandedPaths]);
+  const checkboxSelectionStates = useMemo(() => {
+    if (!checkboxSelection) {
+      return undefined;
+    }
+    return getSelectionStates(
+      flattenedNodes,
+      checkboxSelection.selectedKeys,
+      selectionMetadata
+    );
+  }, [checkboxSelection, flattenedNodes, selectionMetadata]);
 
   const rowVirtualizer = useVirtualizer({
     count: flattenedNodes.length,
@@ -287,23 +346,24 @@ export function VirtualizedTree({
 
       const { selectedKeys, onSelectionChange } = checkboxSelection;
       const newSelection = new Set(selectedKeys);
-      const triState = getTriState(node, selectedKeys);
+      const descendantPaths = getDescendantPaths(node, selectionMetadata);
+      const triState = getTriState(node, selectedKeys, selectionMetadata);
 
       if (triState === true || triState === 'indeterminate') {
         newSelection.delete(node.path);
-        for (const p of getAllDescendantPaths(node)) {
+        for (const p of descendantPaths) {
           newSelection.delete(p);
         }
       } else {
         newSelection.add(node.path);
-        for (const p of getAllDescendantPaths(node)) {
+        for (const p of descendantPaths) {
           newSelection.add(p);
         }
       }
 
       onSelectionChange(newSelection);
     },
-    [checkboxSelection]
+    [checkboxSelection, selectionMetadata]
   );
 
   return (
@@ -324,9 +384,7 @@ export function VirtualizedTree({
           const isExpanded = expandedPaths.has(node.path);
           const isLoading = loadingPaths.has(node.path);
           const isSelected = selectedPath === node.path;
-          const checkboxState = checkboxSelection
-            ? getTriState(node, checkboxSelection.selectedKeys)
-            : undefined;
+          const checkboxState = checkboxSelectionStates?.get(node.path);
 
           return (
             <div

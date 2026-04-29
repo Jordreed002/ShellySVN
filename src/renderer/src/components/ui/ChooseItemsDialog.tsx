@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, useDeferredValue } from 'react';
 import {
   X,
   Search,
@@ -44,6 +44,25 @@ interface ChooseItemsDialogProps {
 interface FileSizeInfo {
   totalSize: number;
   fileCount: number;
+}
+
+export function countSelectedFiles(nodes: LazyTreeNode[], selectedPaths: Set<string>): number {
+  let count = 0;
+
+  const countFiles = (nodeList: LazyTreeNode[], parentSelected: boolean) => {
+    for (const node of nodeList) {
+      const isSelected = selectedPaths.has(node.path) || parentSelected;
+      if (node.kind === 'file' && isSelected) {
+        count++;
+      }
+      if (node.children.length > 0) {
+        countFiles(node.children, isSelected);
+      }
+    }
+  };
+
+  countFiles(nodes, false);
+  return count;
 }
 
 /**
@@ -126,6 +145,7 @@ export function ChooseItemsDialog({
   const [authError, setAuthError] = useState<string | null>(null);
   const [classifiedError, setClassifiedError] = useState<SparseCheckoutError | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const [activeCredentials, setActiveCredentials] = useState<AuthCredential | undefined>(() => {
     if (credentials) return credentials;
@@ -148,13 +168,13 @@ export function ChooseItemsDialog({
 
   // Filter tree based on search
   const { filteredNodes, matchedPaths } = useMemo(
-    () => filterTreeNodes(treeNodes, searchQuery),
-    [treeNodes, searchQuery]
+    () => filterTreeNodes(treeNodes, deferredSearchQuery),
+    [treeNodes, deferredSearchQuery]
   );
 
   // Auto-expand matching paths when searching
   useEffect(() => {
-    if (searchQuery.trim() && matchedPaths.size > 0) {
+    if (deferredSearchQuery.trim() && matchedPaths.size > 0) {
       const parentPaths = new Set<string>();
       matchedPaths.forEach((path) => {
         const parts = path.split('/');
@@ -168,33 +188,17 @@ export function ChooseItemsDialog({
         return new Set([...prev, ...parentPaths]);
       });
     }
-  }, [searchQuery, matchedPaths]);
+  }, [deferredSearchQuery, matchedPaths]);
 
   // Calculate selection stats
   const selectionStats = useMemo(() => {
     const stats: FileSizeInfo = { totalSize: 0, fileCount: 0 };
-
-    // Count files in selection
-    const countFiles = (nodeList: LazyTreeNode[], parentSelected: boolean): number => {
-      let count = 0;
-      for (const node of nodeList) {
-        const isSelected = selectedPaths.has(node.path) || parentSelected;
-        if (node.kind === 'file' && isSelected) {
-          count++;
-        }
-        if (node.children && node.children.length > 0) {
-          count += countFiles(node.children, isSelected);
-        }
-      }
-      return count;
-    };
-
-    stats.fileCount = countFiles(Array.from(nodes.values()), false);
+    stats.fileCount = countSelectedFiles(roots, selectedPaths);
     // Size estimation is approximate - actual size depends on file sizes from SVN info
     // For now, we'll show item count only as size would require additional API calls
 
     return stats;
-  }, [selectedPaths, nodes]);
+  }, [selectedPaths, roots]);
 
   // Handle node expand toggle
   const handleToggleExpand = useCallback(

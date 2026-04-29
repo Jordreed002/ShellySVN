@@ -1,7 +1,16 @@
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useRef, useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
+import {
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  lazy,
+  Suspense,
+  useDeferredValue,
+} from 'react';
 import {
   RefreshCw,
   FolderX,
@@ -25,6 +34,7 @@ import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
+import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
 import { FileExplorerAuthPrompt } from './files/FileExplorerAuthPrompt';
 import { useFileExplorerAuthPrompt } from './files/useFileExplorerAuthPrompt';
 import {
@@ -155,6 +165,7 @@ export function FileExplorer() {
   const [onlinePath, setOnlinePath] = useState<string>('');
   const [showRemoteItems, setShowRemoteItems] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [diffViewerPath, setDiffViewerPath] = useState<string | null>(null);
   const [logViewerPath, setLogViewerPath] = useState<string | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -541,71 +552,21 @@ export function FileExplorer() {
     hasActiveFilters,
   } = useFileFilters(entries);
 
+  const ignoreRegexes = useMemo(
+    () => compileIgnorePatterns(settings?.globalIgnorePatterns ?? []),
+    [settings?.globalIgnorePatterns]
+  );
+
   // Apply search and sorting
   const filteredEntries = useMemo(() => {
-    let result = typeFilteredEntries;
-
-    // Apply global ignore patterns from settings
-    if (settings?.globalIgnorePatterns && settings.globalIgnorePatterns.length > 0) {
-      const ignoreRegexes = settings.globalIgnorePatterns.map((pattern) => {
-        // Convert glob pattern to regex
-        const regexPattern = pattern
-          .replace(/\./g, '\\.')
-          .replace(/\*/g, '.*')
-          .replace(/\?/g, '.')
-          .replace(/\//g, '[/\\\\]');
-        return new RegExp(regexPattern, 'i');
-      });
-
-      result = result.filter((entry) => {
-        const filename = entry.path.split(/[/\\]/).pop() || '';
-        // Don't filter directories, only files
-        if (entry.isDirectory) return true;
-        return !ignoreRegexes.some((regex) => regex.test(filename));
-      });
-    }
-
-    // Apply search filter
-    if (searchQuery) {
-      result = result.filter((entry) =>
-        entry.path.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Apply sorting
-    result = [...result].toSorted((a, b) => {
-      // Always sort folders first
-      if (a.isDirectory && !b.isDirectory) return -1;
-      if (!a.isDirectory && b.isDirectory) return 1;
-
-      let comparison = 0;
-      switch (sortColumn) {
-        case 'name': {
-          const aName = a.path.split(/[/\\]/).pop() || '';
-          const bName = b.path.split(/[/\\]/).pop() || '';
-          comparison = aName.localeCompare(bName);
-          break;
-        }
-        case 'status':
-          comparison = (a.status || ' ').localeCompare(b.status || ' ');
-          break;
-        case 'revision':
-          comparison = (a.revision || 0) - (b.revision || 0);
-          break;
-        case 'author':
-          comparison = (a.author || '').localeCompare(b.author || '');
-          break;
-        case 'date':
-          comparison = (a.date || '').localeCompare(b.date || '');
-          break;
-        default:
-          comparison = 0;
-      }
-      return sortDirection === 'asc' ? comparison : -comparison;
+    return filterAndSortEntries({
+      entries: typeFilteredEntries,
+      searchQuery: deferredSearchQuery,
+      ignoreRegexes,
+      sortColumn,
+      sortDirection,
     });
-
-    return result;
-  }, [typeFilteredEntries, searchQuery, sortColumn, sortDirection, settings?.globalIgnorePatterns]);
+  }, [typeFilteredEntries, deferredSearchQuery, ignoreRegexes, sortColumn, sortDirection]);
 
   // Sort handler
   const handleSort = useCallback(

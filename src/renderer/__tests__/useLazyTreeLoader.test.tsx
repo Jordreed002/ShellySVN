@@ -1,20 +1,12 @@
 /**
  * Tests for useLazyTreeLoader hook
  *
- * NOTE: These tests are temporarily skipped due to jsdom/React compatibility issues.
- * The error "Right-hand side of 'instanceof' is not an object" occurs when React
- * tries to access DOM APIs that aren't properly mocked in jsdom.
- *
- * TODO: Either:
- * 1. Configure jsdom properly for React 18 testing
- * 2. Move to @testing-library/react-hooks which handles this better
- * 3. Use happy-dom instead of jsdom
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
 import { useLazyTreeLoader } from '../src/hooks/useLazyTreeLoader';
 import type { SvnListResult, ElectronAPI } from '@shared/types';
@@ -25,18 +17,53 @@ const mockSvnList = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // Set up window.api mock
-  (globalThis as any).window = {
-    api: {
+  Object.defineProperty(window, 'api', {
+    configurable: true,
+    value: {
       svn: {
         list: mockSvnList,
       },
     } as Partial<ElectronAPI>,
-  };
+  });
+
+  Object.defineProperty(window, 'electron', {
+    configurable: true,
+    value: {
+      api: {
+        svn: {
+          list: mockSvnList,
+        },
+      } as Partial<ElectronAPI>,
+    },
+  });
 });
 
 // Create a wrapper with QueryClient
-function createWrapper() {
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+        staleTime: 0,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  });
+}
+
+function createWrapper(queryClient = createTestQueryClient()) {
+  return {
+    queryClient,
+    wrapper: function Wrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    },
+  };
+}
+
+function createLegacyWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -76,8 +103,7 @@ function createMockListResult(path: string, entries: Array<{ name: string; kind:
   };
 }
 
-// Skip entire describe block due to jsdom/React compatibility issues
-describe.skip('useLazyTreeLoader', () => {
+describe('useLazyTreeLoader', () => {
   describe('initialization', () => {
     it('should initialize with loading state when fetching', async () => {
       // Create a promise that we can resolve manually
@@ -88,7 +114,7 @@ describe.skip('useLazyTreeLoader', () => {
       mockSvnList.mockReturnValue(pendingPromise);
 
       const { result } = renderHook(() => useLazyTreeLoader('https://svn.example.com/repo/trunk'), {
-        wrapper: createWrapper(),
+        wrapper: createLegacyWrapper(),
       });
 
       // Initially loading
@@ -106,7 +132,7 @@ describe.skip('useLazyTreeLoader', () => {
 
     it('should initialize with empty state when no URL provided', async () => {
       const { result } = renderHook(() => useLazyTreeLoader(''), {
-        wrapper: createWrapper(),
+        wrapper: createLegacyWrapper(),
       });
 
       expect(result.current.isLoading).toBe(false);
@@ -127,7 +153,7 @@ describe.skip('useLazyTreeLoader', () => {
 
       const { result } = renderHook(
         () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
-        { wrapper: createWrapper() }
+        { wrapper: createLegacyWrapper() }
       );
 
       await waitFor(() => {
@@ -141,11 +167,149 @@ describe.skip('useLazyTreeLoader', () => {
       expect(srcNode?.name).toBe('src');
       expect(srcNode?.kind).toBe('dir');
       expect(srcNode?.hasChildren).toBe(true);
+      expect(srcNode?.isLoaded).toBe(false);
 
       const readmeNode = result.current.nodes.get('https://svn.example.com/repo/trunk/README.md');
       expect(readmeNode?.name).toBe('README.md');
       expect(readmeNode?.kind).toBe('file');
       expect(readmeNode?.hasChildren).toBe(false);
+      expect(readmeNode?.isLoaded).toBe(true);
+    });
+
+    it('should fetch children when expanding an unloaded directory', async () => {
+      mockSvnList
+        .mockResolvedValueOnce(
+          createMockListResult('https://svn.example.com/repo/trunk', [
+            { name: 'src', kind: 'dir' },
+          ])
+        )
+        .mockResolvedValueOnce(
+          createMockListResult('https://svn.example.com/repo/trunk/src', [
+            { name: 'index.ts', kind: 'file' },
+          ])
+        );
+
+      const { queryClient, wrapper } = createWrapper();
+      const { result } = renderHook(() => useLazyTreeLoader('https://svn.example.com/repo/trunk'), {
+        wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      await act(async () => {
+        await result.current.loadNode('https://svn.example.com/repo/trunk/src');
+      });
+
+      await waitFor(() => {
+        expect(result.current.nodes.get('https://svn.example.com/repo/trunk/src')?.isLoaded).toBe(
+          true
+        );
+      });
+
+      expect(mockSvnList).toHaveBeenNthCalledWith(
+        2,
+        'https://svn.example.com/repo/trunk/src',
+        undefined,
+        'immediates',
+        undefined
+      );
+      expect(
+        queryClient.getQueryData(['svn:tree', 'https://svn.example.com/repo/trunk', undefined])
+      ).toBeDefined();
+      expect(result.current.nodes.get('https://svn.example.com/repo/trunk/src/index.ts')).toMatchObject({
+        name: 'index.ts',
+        kind: 'file',
+      });
+    });
+
+    it('should update the authenticated root cache key when loading children', async () => {
+      const credentials = { username: 'alice', password: 'secret' };
+      mockSvnList
+        .mockResolvedValueOnce(
+          createMockListResult('https://svn.example.com/repo/trunk', [
+            { name: 'src', kind: 'dir' },
+          ])
+        )
+        .mockResolvedValueOnce(
+          createMockListResult('https://svn.example.com/repo/trunk/src', [
+            { name: 'secure.ts', kind: 'file' },
+          ])
+        );
+
+      const { queryClient, wrapper } = createWrapper();
+      const { result } = renderHook(
+        () => useLazyTreeLoader('https://svn.example.com/repo/trunk', credentials),
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      await act(async () => {
+        await result.current.loadNode('https://svn.example.com/repo/trunk/src');
+      });
+
+      await waitFor(() => {
+        expect(result.current.nodes.get('https://svn.example.com/repo/trunk/src/secure.ts')).toBeDefined();
+      });
+
+      const authenticatedCache = queryClient.getQueryData<{
+        nodes: Array<{ path: string; children: Array<{ name: string }> }>;
+      }>(['svn:tree', 'https://svn.example.com/repo/trunk', 'alice']);
+      const unauthenticatedCache = queryClient.getQueryData([
+        'svn:tree',
+        'https://svn.example.com/repo/trunk',
+        undefined,
+      ]);
+
+      expect(authenticatedCache?.nodes[0].children).toEqual([
+        expect.objectContaining({ name: 'secure.ts' }),
+      ]);
+      expect(unauthenticatedCache).toBeUndefined();
+    });
+
+    it('should not mutate the previous cached tree when inserting children', async () => {
+      mockSvnList
+        .mockResolvedValueOnce(
+          createMockListResult('https://svn.example.com/repo/trunk', [
+            { name: 'src', kind: 'dir' },
+          ])
+        )
+        .mockResolvedValueOnce(
+          createMockListResult('https://svn.example.com/repo/trunk/src', [
+            { name: 'immutable.ts', kind: 'file' },
+          ])
+        );
+
+      const { queryClient, wrapper } = createWrapper();
+      const { result } = renderHook(() => useLazyTreeLoader('https://svn.example.com/repo/trunk'), {
+        wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const beforeData = queryClient.getQueryData<{
+        nodes: Array<{ path: string; children: unknown[] }>;
+      }>(['svn:tree', 'https://svn.example.com/repo/trunk', undefined]);
+      const beforeParent = beforeData?.nodes[0];
+
+      await act(async () => {
+        await result.current.loadNode('https://svn.example.com/repo/trunk/src');
+      });
+
+      const afterData = queryClient.getQueryData<{
+        nodes: Array<{ path: string; children: unknown[] }>;
+      }>(['svn:tree', 'https://svn.example.com/repo/trunk', undefined]);
+
+      expect(beforeData?.nodes[0]).toBe(beforeParent);
+      expect(beforeParent?.children).toEqual([]);
+      expect(afterData?.nodes[0]).not.toBe(beforeParent);
+      expect(afterData?.nodes[0].children).toHaveLength(1);
     });
 
     it('should handle empty repository', async () => {
@@ -155,7 +319,7 @@ describe.skip('useLazyTreeLoader', () => {
 
       const { result } = renderHook(
         () => useLazyTreeLoader('https://svn.example.com/repo/empty'),
-        { wrapper: createWrapper() }
+        { wrapper: createLegacyWrapper() }
       );
 
       await waitFor(() => {
@@ -171,7 +335,7 @@ describe.skip('useLazyTreeLoader', () => {
 
       const { result } = renderHook(
         () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
-        { wrapper: createWrapper() }
+        { wrapper: createLegacyWrapper() }
       );
 
       await waitFor(() => {
@@ -192,7 +356,7 @@ describe.skip('useLazyTreeLoader', () => {
 
       const { result } = renderHook(
         () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
-        { wrapper: createWrapper() }
+        { wrapper: createLegacyWrapper() }
       );
 
       await waitFor(() => {
@@ -220,7 +384,7 @@ describe.skip('useLazyTreeLoader', () => {
 
       const { result } = renderHook(
         () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
-        { wrapper: createWrapper() }
+        { wrapper: createLegacyWrapper() }
       );
 
       await waitFor(() => {
@@ -242,7 +406,7 @@ describe.skip('useLazyTreeLoader', () => {
 
       const { result } = renderHook(
         () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
-        { wrapper: createWrapper() }
+        { wrapper: createLegacyWrapper() }
       );
 
       await waitFor(() => {
@@ -261,7 +425,7 @@ describe.skip('useLazyTreeLoader', () => {
 
       const { result } = renderHook(
         () => useLazyTreeLoader('https://svn.example.com/repo/trunk'),
-        { wrapper: createWrapper() }
+        { wrapper: createLegacyWrapper() }
       );
 
       await waitFor(() => {

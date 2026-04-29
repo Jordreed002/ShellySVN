@@ -15,6 +15,10 @@ interface SvnTreeCacheData {
 const TREE_CACHE_STALE_TIME = 5 * 60 * 1000; // 5 minutes staleTime as required
 const TREE_CACHE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
+function getTreeQueryKey(rootUrl: string, credentials?: AuthCredential) {
+  return ['svn:tree', rootUrl, credentials?.username] as const;
+}
+
 function svnListToLazyTreeNode(result: SvnListResult): LazyTreeNode[] {
   const nodes: LazyTreeNode[] = [];
 
@@ -30,7 +34,7 @@ function svnListToLazyTreeNode(result: SvnListResult): LazyTreeNode[] {
       name,
       kind: isDirectory ? 'dir' : 'file',
       isLoading: false,
-      isLoaded: true,
+      isLoaded: !isDirectory,
       children: [],
       hasChildren,
       status: undefined,
@@ -55,6 +59,36 @@ function findNodeInTree(nodes: LazyTreeNode[], path: string): LazyTreeNode | nul
   return null;
 }
 
+function updateNodeInTree(
+  nodes: LazyTreeNode[],
+  path: string,
+  update: (node: LazyTreeNode) => LazyTreeNode
+): LazyTreeNode[] {
+  let changed = false;
+
+  const updatedNodes = nodes.map((node) => {
+    if (node.path === path) {
+      changed = true;
+      return update(node);
+    }
+
+    if (node.children.length > 0) {
+      const updatedChildren = updateNodeInTree(node.children, path, update);
+      if (updatedChildren !== node.children) {
+        changed = true;
+        return {
+          ...node,
+          children: updatedChildren,
+        };
+      }
+    }
+
+    return node;
+  });
+
+  return changed ? updatedNodes : nodes;
+}
+
 function getRootNodes(tree: LazyTreeNode[]): LazyTreeNode[] {
   return tree.filter((node) => {
     const parentPath = node.path.includes('/')
@@ -77,7 +111,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
   const [nodeErrors, setNodeErrors] = useState<Map<string, string>>(new Map());
 
   // Query key for the root tree
-  const rootQueryKey = ['svn:tree', rootUrl, credentials?.username];
+  const rootQueryKey = getTreeQueryKey(rootUrl, credentials);
 
   // Query to fetch the root directory children
   const {
@@ -155,17 +189,15 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
     },
     onSuccess: (data) => {
       // Update the tree with loaded children
-      queryClient.setQueryData<SvnTreeCacheData | undefined>(['svn:tree', rootUrl], (oldData) => {
+      queryClient.setQueryData<SvnTreeCacheData | undefined>(rootQueryKey, (oldData) => {
         if (!oldData) return oldData;
 
-        const updatedNodes = [...oldData.nodes];
-        const parentNode = findNodeInTree(updatedNodes, data.path);
-
-        if (parentNode) {
-          parentNode.children = data.nodes;
-          parentNode.isLoaded = true;
-          parentNode.isLoading = false;
-        }
+        const updatedNodes = updateNodeInTree(oldData.nodes, data.path, (node) => ({
+          ...node,
+          children: data.nodes,
+          isLoaded: true,
+          isLoading: false,
+        }));
 
         return {
           ...oldData,
@@ -180,15 +212,13 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
       );
 
       // Update loading state
-      queryClient.setQueryData<SvnTreeCacheData | undefined>(['svn:tree', rootUrl], (oldData) => {
+      queryClient.setQueryData<SvnTreeCacheData | undefined>(rootQueryKey, (oldData) => {
         if (!oldData) return oldData;
 
-        const updatedNodes = [...oldData.nodes];
-        const parentNode = findNodeInTree(updatedNodes, variables.path);
-
-        if (parentNode) {
-          parentNode.isLoading = false;
-        }
+        const updatedNodes = updateNodeInTree(oldData.nodes, variables.path, (node) => ({
+          ...node,
+          isLoading: false,
+        }));
 
         return {
           ...oldData,
@@ -312,7 +342,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
     invalidateTree: () => queryClient.invalidateQueries({ queryKey: rootQueryKey }),
     prefetchNode: (path: string, nodeCredentials?: AuthCredential) => {
       queryClient.prefetchQuery({
-        queryKey: ['svn:tree', path, nodeCredentials?.username],
+        queryKey: getTreeQueryKey(path, nodeCredentials),
         queryFn: async () => {
           const result = await window.api.svn.list(
             path,

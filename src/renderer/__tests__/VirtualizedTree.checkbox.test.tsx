@@ -40,6 +40,21 @@ const createTestTree = (): TreeNode[] => [
   },
 ];
 
+const createWideTree = (childCount: number): TreeNode[] => [
+  {
+    id: 'root',
+    name: 'root',
+    path: '/root',
+    isDirectory: true,
+    children: Array.from({ length: childCount }, (_, index) => ({
+      id: `file-${index}`,
+      name: `file-${index}.ts`,
+      path: `/root/file-${index}.ts`,
+      isDirectory: false,
+    })),
+  },
+];
+
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: vi.fn(({ count, estimateSize }) => ({
     getVirtualItems: () =>
@@ -157,6 +172,36 @@ describe('VirtualizedTree Checkbox Selection', () => {
       expect(newSelection.has('/root/lib/file3.ts')).toBe(true);
       expect(newSelection.has('/root/README.md')).toBe(true);
       expect(newSelection.size).toBe(7);
+    });
+
+    it('selecting a collapsed large parent selects loaded descendants efficiently', () => {
+      const onSelectionChange = vi.fn();
+      const selectedKeys = new Set<string>();
+      const childCount = 10000;
+
+      render(
+        <div style={{ height: '400px', width: '600px' }}>
+          <VirtualizedTree
+            nodes={createWideTree(childCount)}
+            expandedPaths={new Set()}
+            checkboxSelection={{
+              selectedKeys,
+              onSelectionChange,
+            }}
+          />
+        </div>
+      );
+
+      const checkbox = screen.getByRole('checkbox');
+      const start = performance.now();
+      fireEvent.click(checkbox);
+      const durationMs = performance.now() - start;
+
+      expect(onSelectionChange).toHaveBeenCalled();
+      const newSelection = onSelectionChange.mock.calls[0][0];
+      expect(newSelection.size).toBe(childCount + 1);
+      expect(newSelection.has('/root/file-9999.ts')).toBe(true);
+      expect(durationMs).toBeLessThan(200);
     });
   });
 

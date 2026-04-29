@@ -110,6 +110,10 @@ export const DEFAULT_THRESHOLDS: PerformanceThresholds = {
 export interface PerformanceMonitorOptions {
   /** Whether to enable monitoring */
   enabled?: boolean;
+  /** Whether to sample frame rate with requestAnimationFrame */
+  fps?: boolean;
+  /** Whether to sample JS heap memory on an interval */
+  memory?: boolean;
   /** Custom thresholds */
   thresholds?: Partial<PerformanceThresholds>;
   /** Sample interval for FPS monitoring (ms) */
@@ -189,6 +193,8 @@ export interface PerformanceSummary {
 export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
   const {
     enabled = true,
+    fps: monitorFps = false,
+    memory: monitorMemory = false,
     thresholds = {},
     fpsSampleInterval = 1000,
     memorySampleInterval = 2000,
@@ -593,8 +599,12 @@ export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
   // Start/stop monitoring based on enabled flag
   useEffect(() => {
     if (enabled) {
-      measureFps();
-      startMemoryMonitoring();
+      if (monitorFps) {
+        measureFps();
+      }
+      if (monitorMemory) {
+        startMemoryMonitoring();
+      }
     }
 
     return () => {
@@ -605,7 +615,7 @@ export function usePerformanceMonitor(options: PerformanceMonitorOptions = {}) {
         clearInterval(memoryIntervalRef.current);
       }
     };
-  }, [enabled, measureFps, startMemoryMonitoring]);
+  }, [enabled, monitorFps, monitorMemory, measureFps, startMemoryMonitoring]);
 
   return {
     // Core metrics functions
