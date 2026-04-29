@@ -23,6 +23,8 @@ import {
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
 import type { SvnLogResult, SvnLogEntry } from '@shared/types';
 
+const LOG_PAGE_SIZE = 25;
+
 interface LogViewerProps {
   isOpen: boolean;
   path: string;
@@ -38,6 +40,7 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [limit, setLimit] = useState(50);
   const [configPath, setConfigPath] = useState(path);
   const [filters, setFilters] = useState<LogFilterState>(EMPTY_LOG_FILTERS);
+  const [currentPage, setCurrentPage] = useState(1);
   const listRef = useRef<HTMLDivElement>(null);
   const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, path);
   const { cachedLog, cacheInfo, hasCachedData, isRefreshing, refreshLog, clearCache } =
@@ -47,6 +50,9 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     [log, filters, issueTrackerConfig]
   );
   const activeFilterCount = countActiveLogFilters(filters);
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / LOG_PAGE_SIZE));
+  const pageStartIndex = (currentPage - 1) * LOG_PAGE_SIZE;
+  const pagedEntries = filteredEntries.slice(pageStartIndex, pageStartIndex + LOG_PAGE_SIZE);
   const selectedIssueLinks = useMemo(
     () => (selectedEntry ? extractIssueLinks(selectedEntry.message, issueTrackerConfig) : []),
     [selectedEntry, issueTrackerConfig]
@@ -95,6 +101,17 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
       setSelectedEntry(null);
     }
   }, [filteredEntries, selectedEntry]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    listRef.current?.scrollTo?.({ top: 0 });
+  }, [filters, log]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -309,7 +326,7 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                   <span>Revision</span>
                   <span>Issues</span>
                 </div>
-                {filteredEntries.map((entry) => {
+                {pagedEntries.map((entry) => {
                   const issueLinks = extractIssueLinks(entry.message, issueTrackerConfig);
 
                   return (
@@ -463,8 +480,37 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
         {/* Footer */}
         {log && log.entries.length > 0 && (
           <div className="flex-shrink-0 px-4 py-2 bg-bg-secondary border-t border-border text-sm text-text-secondary">
-            Showing {filteredEntries.length} of {log.entries.length} revisions (r
-            {log.startRevision} - r{log.endRevision})
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                Showing {filteredEntries.length === 0 ? 0 : pageStartIndex + 1}-
+                {Math.min(pageStartIndex + LOG_PAGE_SIZE, filteredEntries.length)} of{' '}
+                {filteredEntries.length} matching revisions ({log.entries.length} loaded, r
+                {log.startRevision} - r{log.endRevision})
+              </span>
+              {filteredEntries.length > LOG_PAGE_SIZE && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm text-xs"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs text-text-muted">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm text-xs"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

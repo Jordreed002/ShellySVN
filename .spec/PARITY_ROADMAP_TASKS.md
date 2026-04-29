@@ -97,7 +97,7 @@
 ## P1 - History, Blame, Revision Graph, and Review
 
 - [x] Verify revision log filtering by author, message, path, revision range, date range, and issue ID.
-- [ ] Add changed-path filtering, pagination, and search coverage in log/history views.
+- [x] Add changed-path filtering, pagination, and search coverage in log/history views.
 - [x] Add issue ID column and issue links in revision log and commit views.
 - [ ] Verify log cache behavior for large repositories, including invalidation and manual cache management.
 - [ ] Add branch/tag comparison workflow.
