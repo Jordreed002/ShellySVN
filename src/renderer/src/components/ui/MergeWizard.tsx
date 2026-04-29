@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
+import type { SvnMergeOptions, SvnOperationProgress } from '@shared/types';
 
 interface MergeWizardProps {
   isOpen: boolean;
@@ -27,6 +28,39 @@ interface MergeOptions {
   ignoreAncestry: boolean;
   allowMixedRevisions: boolean;
   onlyRecordMerge: boolean;
+}
+
+export function parseMergeRevisionInput(input: string): {
+  revisions?: string[];
+  ranges?: Array<{ start: number; end: number }>;
+} {
+  const revisions: string[] = [];
+  const ranges: Array<{ start: number; end: number }> = [];
+
+  for (const part of input
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)) {
+    const rangeMatch = part.match(/^(\d+)\s*[-:]\s*(\d+)$/);
+    if (rangeMatch) {
+      ranges.push({ start: Number(rangeMatch[1]), end: Number(rangeMatch[2]) });
+    } else {
+      revisions.push(part);
+    }
+  }
+
+  return {
+    revisions: revisions.length > 0 ? revisions : undefined,
+    ranges: ranges.length > 0 ? ranges : undefined,
+  };
+}
+
+function summarizeConflicts(output = ''): string[] {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^C\s+/.test(line))
+    .map((line) => line.replace(/^C\s+/, '').trim());
 }
 
 const MERGE_TYPE_OPTIONS = [
@@ -67,6 +101,10 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   const [isMerging, setIsMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [mergeOutput, setMergeOutput] = useState('');
+  const [conflicts, setConflicts] = useState<string[]>([]);
+  const [progress, setProgress] = useState<SvnOperationProgress | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -83,11 +121,15 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
       setError(null);
       setSuccess(false);
       setIsMerging(false);
+      setMergeOutput('');
+      setConflicts([]);
+      setProgress(null);
+      setIsPreviewing(false);
     }
   }, [isOpen]);
 
   const handleNext = () => {
-    if (page === 1 && !options.sourceUrl.trim()) {
+    if (page === 2 && !options.sourceUrl.trim()) {
       setError('Please enter a source URL');
       return;
     }
@@ -99,31 +141,79 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
     setPage((p) => Math.max(p - 1, 1) as MergePage);
   };
 
+  const buildMergeOptions = (dryRun = false): SvnMergeOptions => ({
+    dryRun,
+    depth: options.depth,
+    ignoreAncestry: options.ignoreAncestry,
+    allowMixedRevisions: options.allowMixedRevisions,
+    onlyRecordMerge: options.onlyRecordMerge,
+  });
+
+  const handlePreview = async () => {
+    setIsPreviewing(true);
+    setError(null);
+    setMergeOutput('');
+    setConflicts([]);
+
+    try {
+      const { revisions, ranges } = parseMergeRevisionInput(options.revisions);
+      const result = await window.api.svn.merge(
+        options.sourceUrl,
+        targetPath,
+        revisions,
+        ranges,
+        buildMergeOptions(true)
+      );
+
+      const output = result.output || '';
+      setMergeOutput(output);
+      setConflicts(summarizeConflicts(output));
+      if (!result.success) {
+        setError('Dry-run preview failed');
+      }
+    } catch (err) {
+      setError((err as Error).message || 'Dry-run preview failed');
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
   const handleMerge = async () => {
     setIsMerging(true);
     setError(null);
+    setMergeOutput('');
+    setConflicts([]);
+    setProgress(null);
 
     try {
-      // Parse revisions
-      const revisions = options.revisions
-        ? options.revisions
-            .split(',')
-            .map((r) => r.trim())
-            .filter(Boolean)
-        : undefined;
-
-      const result = await window.api.svn.merge(options.sourceUrl, targetPath, revisions);
+      const { revisions, ranges } = parseMergeRevisionInput(options.revisions);
+      const result = await window.api.svn.mergeWithProgress(
+        options.sourceUrl,
+        targetPath,
+        setProgress,
+        revisions,
+        ranges,
+        buildMergeOptions(false)
+      );
+      const output = result.output || '';
+      setMergeOutput(output);
+      setConflicts(summarizeConflicts(output));
 
       if (result.success) {
         setSuccess(true);
       } else {
-        setError('Merge failed');
+        setError(result.error || 'Merge failed');
       }
     } catch (err) {
       setError((err as Error).message || 'Merge failed');
     } finally {
       setIsMerging(false);
     }
+  };
+
+  const handleCancelMerge = async () => {
+    await window.api.svn.cancelOperation();
+    setIsMerging(false);
   };
 
   const handleClose = () => {
@@ -179,6 +269,25 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
               <p className="text-text-secondary mb-6">
                 The merge has been completed. Review the changes and commit when ready.
               </p>
+              {conflicts.length > 0 && (
+                <div className="mb-4 w-full rounded border border-warning/30 bg-warning/10 p-3 text-left">
+                  <div className="mb-2 text-sm font-medium text-warning">
+                    Conflicts detected ({conflicts.length})
+                  </div>
+                  <ul className="space-y-1 text-xs text-warning">
+                    {conflicts.map((conflict) => (
+                      <li key={conflict} className="font-mono">
+                        {conflict}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {mergeOutput && (
+                <pre className="mb-4 max-h-40 w-full overflow-auto rounded bg-bg-secondary p-3 text-left text-xs text-text-secondary">
+                  {mergeOutput}
+                </pre>
+              )}
               <button onClick={handleClose} className="btn btn-primary">
                 Done
               </button>
@@ -331,6 +440,47 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                       </p>
                     </div>
                   </div>
+
+                  {progress && (
+                    <div className="rounded border border-border bg-bg-secondary p-3 text-sm text-text-secondary">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span>Merge progress</span>
+                        <span>{progress.percentage ?? 0}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded bg-bg-tertiary">
+                        <div
+                          className="h-full bg-accent transition-all"
+                          style={{ width: `${progress.percentage ?? 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {conflicts.length > 0 && (
+                    <div className="rounded border border-warning/30 bg-warning/10 p-3">
+                      <div className="mb-2 text-sm font-medium text-warning">
+                        Conflicts detected ({conflicts.length})
+                      </div>
+                      <ul className="space-y-1 text-xs text-warning">
+                        {conflicts.map((conflict) => (
+                          <li key={conflict} className="font-mono">
+                            {conflict}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {mergeOutput && (
+                    <div>
+                      <div className="mb-1.5 text-sm font-medium text-text-secondary">
+                        Merge output
+                      </div>
+                      <pre className="max-h-44 overflow-auto rounded bg-bg-tertiary p-3 text-xs text-text-secondary">
+                        {mergeOutput}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -367,24 +517,33 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                   <ChevronRight className="w-4 h-4" />
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleMerge}
-                  className="btn btn-primary"
-                  disabled={isMerging}
-                >
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePreview}
+                    className="btn btn-secondary"
+                    disabled={isMerging || isPreviewing}
+                  >
+                    {isPreviewing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Previewing...
+                      </>
+                    ) : (
+                      'Dry-run Preview'
+                    )}
+                  </button>
                   {isMerging ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Merging...
-                    </>
+                    <button type="button" onClick={handleCancelMerge} className="btn btn-secondary">
+                      Cancel Merge
+                    </button>
                   ) : (
-                    <>
+                    <button type="button" onClick={handleMerge} className="btn btn-primary">
                       <GitMerge className="w-4 h-4" />
                       Merge
-                    </>
+                    </button>
                   )}
-                </button>
+                </div>
               )}
             </div>
           </>

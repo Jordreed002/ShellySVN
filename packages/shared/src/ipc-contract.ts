@@ -144,7 +144,13 @@ export interface IpcInvokeContract {
   'svn:switch': IpcCall<[path: string, url: string, revision?: string], RevisionResult>;
   'svn:copy': IpcCall<[src: string, dst: string, message: string], RevisionResult>;
   'svn:merge': IpcCall<
-    [source: string, target: string, revisions?: string[], ranges?: string[]],
+    [
+      source: string,
+      target: string,
+      revisions?: string[],
+      ranges?: Array<{ start: number; end: number }>,
+      options?: import('./types').SvnMergeOptions,
+    ],
     OperationResult
   >;
   'svn:mergeWithProgress': IpcCall<
@@ -154,6 +160,7 @@ export interface IpcInvokeContract {
       target: string,
       revisions?: string[],
       ranges?: Array<{ start: number; end: number }>,
+      options?: import('./types').SvnMergeOptions,
     ],
     OperationResult
   >;

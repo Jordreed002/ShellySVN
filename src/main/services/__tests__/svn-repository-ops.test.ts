@@ -16,6 +16,7 @@ vi.mock('../svn-progress', () => ({
 
 import {
   copyRepositoryItem,
+  mergeRepositoryRange,
   relocateWorkingCopy,
   resolveConflict,
   switchWorkingCopy,
@@ -133,6 +134,46 @@ describe('svn-repository-ops switch and relocate', () => {
       'relocate',
       'https://old.example.test/svn/repo',
       'https://new.example.test/svn/repo',
+      'C:\\wc',
+    ]);
+  });
+});
+
+describe('svn-repository-ops mergeRepositoryRange', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.runSvnText.mockResolvedValue('C src/conflict.txt\nU src/app.ts');
+  });
+
+  it('supports ranges, dry-run preview, and merge options', async () => {
+    const result = await mergeRepositoryRange(
+      'https://example.test/svn/repo/branches/feature',
+      'C:\\wc',
+      ['155'],
+      [{ start: 100, end: 150 }],
+      {
+        dryRun: true,
+        depth: 'infinity',
+        ignoreAncestry: true,
+        allowMixedRevisions: true,
+        onlyRecordMerge: true,
+      }
+    );
+
+    expect(result).toEqual({ success: true, output: 'C src/conflict.txt\nU src/app.ts' });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'merge',
+      '--dry-run',
+      '--depth',
+      'infinity',
+      '--ignore-ancestry',
+      '--allow-mixed-revisions',
+      '--record-only',
+      '-c',
+      '155',
+      '-r',
+      '100:150',
+      'https://example.test/svn/repo/branches/feature',
       'C:\\wc',
     ]);
   });

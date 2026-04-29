@@ -202,11 +202,11 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     resolve: (path, resolution) => ipcRenderer.invoke('svn:resolve', path, resolution),
     switch: (path, url, revision?) => ipcRenderer.invoke('svn:switch', path, url, revision),
     copy: (src, dst, message) => ipcRenderer.invoke('svn:copy', src, dst, message),
-    merge: (source, target, revisions?, ranges?) =>
-      ipcRenderer.invoke('svn:merge', source, target, revisions, ranges),
-    mergeWithProgress: (source, target, onProgress, revisions?, ranges?) =>
+    merge: (source, target, revisions?, ranges?, options?) =>
+      ipcRenderer.invoke('svn:merge', source, target, revisions, ranges, options),
+    mergeWithProgress: (source, target, onProgress, revisions?, ranges?, options?) =>
       invokeWithOperationProgress(ipcRenderer, 'merge', onProgress, (operationId) =>
-        invokeIpc('svn:mergeWithProgress', operationId, source, target, revisions, ranges)
+        invokeIpc('svn:mergeWithProgress', operationId, source, target, revisions, ranges, options)
       ),
     relocate: (from, to, path) => ipcRenderer.invoke('svn:relocate', from, to, path),
     changelist: {

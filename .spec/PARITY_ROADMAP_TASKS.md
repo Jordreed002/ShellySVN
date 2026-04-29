@@ -113,7 +113,7 @@
 - [x] Add branch/tag wizard validation for invalid URLs, existing targets, missing messages, and unsafe paths.
 - [x] Verify switch flow for whole working copies and nested switched paths.
 - [x] Verify relocate flow for repository root URL changes.
-- [ ] Verify merge wizard supports revision ranges, dry-run preview, merge output, progress, cancellation, and conflict summary.
+- [x] Verify merge wizard supports revision ranges, dry-run preview, merge output, progress, cancellation, and conflict summary.
 - [x] Decide whether reintegrate-style guidance is needed for supported SVN versions.
 - [ ] Add post-merge status refresh and clear conflict reporting.
 - [ ] Ensure branch, tag, switch, merge, and relocate are reachable from app navigation and relevant context menus.

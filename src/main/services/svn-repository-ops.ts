@@ -1,4 +1,5 @@
 import type { IpcMainInvokeEvent } from 'electron';
+import type { SvnMergeOptions } from '@shared/types';
 import { runSvnText } from './svn-executor';
 import { runSvnOperationWithProgress } from './svn-progress';
 
@@ -184,17 +185,10 @@ export async function mergeRepositoryRange(
   source: string,
   target: string,
   revisions?: string[],
-  ranges?: Array<{ start: number; end: number }>
+  ranges?: Array<{ start: number; end: number }>,
+  options?: SvnMergeOptions
 ): Promise<{ success: boolean; output: string }> {
-  const args = ['merge', source, target];
-  if (revisions && revisions.length > 0) {
-    args.push('-c', revisions.join(','));
-  }
-  if (ranges && ranges.length > 0) {
-    for (const range of ranges) {
-      args.push('-r', `${range.start}:${range.end}`);
-    }
-  }
+  const args = buildMergeArgs(source, target, revisions, ranges, options);
   const output = await runSvnText(args);
   return { success: true, output };
 }
@@ -205,9 +199,39 @@ export async function mergeRepositoryRangeWithProgress(
   source: string,
   target: string,
   revisions?: string[],
-  ranges?: Array<{ start: number; end: number }>
+  ranges?: Array<{ start: number; end: number }>,
+  options?: SvnMergeOptions
 ): Promise<{ success: boolean; output?: string; error?: string }> {
-  const args = ['merge', source, target];
+  const args = buildMergeArgs(source, target, revisions, ranges, options);
+  const result = await runSvnOperationWithProgress(event, operationId, 'merge', args);
+  return result.success
+    ? { success: true, output: result.output }
+    : { success: false, error: result.error };
+}
+
+function buildMergeArgs(
+  source: string,
+  target: string,
+  revisions?: string[],
+  ranges?: Array<{ start: number; end: number }>,
+  options?: SvnMergeOptions
+): string[] {
+  const args = ['merge'];
+  if (options?.dryRun) {
+    args.push('--dry-run');
+  }
+  if (options?.depth) {
+    args.push('--depth', options.depth);
+  }
+  if (options?.ignoreAncestry) {
+    args.push('--ignore-ancestry');
+  }
+  if (options?.allowMixedRevisions) {
+    args.push('--allow-mixed-revisions');
+  }
+  if (options?.onlyRecordMerge) {
+    args.push('--record-only');
+  }
   if (revisions && revisions.length > 0) {
     args.push('-c', revisions.join(','));
   }
@@ -216,11 +240,8 @@ export async function mergeRepositoryRangeWithProgress(
       args.push('-r', `${range.start}:${range.end}`);
     }
   }
-
-  const result = await runSvnOperationWithProgress(event, operationId, 'merge', args);
-  return result.success
-    ? { success: true, output: result.output }
-    : { success: false, error: result.error };
+  args.push(source, target);
+  return args;
 }
 
 export async function relocateWorkingCopy(

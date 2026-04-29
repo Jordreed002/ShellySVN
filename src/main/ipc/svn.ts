@@ -339,9 +339,10 @@ export function registerSvnHandlers(): void {
       source: string,
       target: string,
       revisions?: string[],
-      ranges?: Array<{ start: number; end: number }>
+      ranges?: Array<{ start: number; end: number }>,
+      options?: Parameters<typeof mergeRepositoryRange>[4]
     ) => {
-      return mergeRepositoryRange(source, target, revisions, ranges);
+      return mergeRepositoryRange(source, target, revisions, ranges, options);
     }
   );
 
@@ -353,7 +354,8 @@ export function registerSvnHandlers(): void {
       source: string,
       target: string,
       revisions?: string[],
-      ranges?: Array<{ start: number; end: number }>
+      ranges?: Array<{ start: number; end: number }>,
+      options?: Parameters<typeof mergeRepositoryRangeWithProgress>[6]
     ) => {
       return mergeRepositoryRangeWithProgress(
         event,
@@ -361,7 +363,8 @@ export function registerSvnHandlers(): void {
         source,
         target,
         revisions,
-        ranges
+        ranges,
+        options
       );
     }
   );

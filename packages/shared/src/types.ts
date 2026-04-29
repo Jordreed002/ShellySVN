@@ -455,6 +455,14 @@ export interface SvnOperationProgress extends CheckoutProgress {
   operation: 'commit' | 'export' | 'import' | 'merge';
 }
 
+export interface SvnMergeOptions {
+  dryRun?: boolean;
+  depth?: 'empty' | 'files' | 'immediates' | 'infinity';
+  ignoreAncestry?: boolean;
+  allowMixedRevisions?: boolean;
+  onlyRecordMerge?: boolean;
+}
+
 // ============================================
 // Auth Types
 // ============================================
@@ -785,14 +793,16 @@ export interface ElectronAPI {
       source: string,
       target: string,
       revisions?: string[],
-      ranges?: Array<{ start: number; end: number }>
+      ranges?: Array<{ start: number; end: number }>,
+      options?: SvnMergeOptions
     ) => Promise<{ success: boolean; output?: string }>;
     mergeWithProgress: (
       source: string,
       target: string,
       onProgress: (progress: SvnOperationProgress) => void,
       revisions?: string[],
-      ranges?: Array<{ start: number; end: number }>
+      ranges?: Array<{ start: number; end: number }>,
+      options?: SvnMergeOptions
     ) => Promise<{ success: boolean; error?: string; output?: string }>;
     relocate: (
       from: string,
