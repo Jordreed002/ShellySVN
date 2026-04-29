@@ -638,56 +638,70 @@ const SideBySideHunk = memo(function SideBySideHunk({
 }: SideBySideHunkProps) {
   // Build paired lines for side-by-side view
   const pairedLines = useMemo(() => {
-    const pairs: Array<{
+    type PairedLine = {
       oldLine: SvnDiffLine | null;
       newLine: SvnDiffLine | null;
       oldIndex: number;
       newIndex: number;
-    }> = [];
+    };
 
-    let oldIndex = 0;
-    let newIndex = 0;
+    const pairs: PairedLine[] = [];
     const lines = hunk.lines;
 
-    while (oldIndex < lines.length || newIndex < lines.length) {
-      const oldLine = lines[oldIndex];
-      const newLine = lines[newIndex];
+    let lineIndex = 0;
 
-      // Handle context lines (appear in both)
-      if (oldLine?.type === 'context' || oldLine?.type === 'hunk') {
+    while (lineIndex < lines.length) {
+      const line = lines[lineIndex];
+
+      if (line.type === 'context' || line.type === 'hunk') {
         pairs.push({
-          oldLine,
-          newLine: oldLine,
-          oldIndex,
-          newIndex: oldIndex,
+          oldLine: line,
+          newLine: line,
+          oldIndex: lineIndex,
+          newIndex: lineIndex,
         });
-        oldIndex++;
-        newIndex++;
+        lineIndex++;
+        continue;
       }
-      // Handle removed lines (left side only)
-      else if (oldLine?.type === 'removed') {
-        pairs.push({
-          oldLine,
-          newLine: null,
-          oldIndex,
-          newIndex: -1,
-        });
-        oldIndex++;
+
+      if (line.type === 'removed') {
+        const removedLines: Array<{ line: SvnDiffLine; index: number }> = [];
+        const addedLines: Array<{ line: SvnDiffLine; index: number }> = [];
+
+        while (lines[lineIndex]?.type === 'removed') {
+          removedLines.push({ line: lines[lineIndex], index: lineIndex });
+          lineIndex++;
+        }
+
+        while (lines[lineIndex]?.type === 'added') {
+          addedLines.push({ line: lines[lineIndex], index: lineIndex });
+          lineIndex++;
+        }
+
+        const rowCount = Math.max(removedLines.length, addedLines.length);
+        for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+          pairs.push({
+            oldLine: removedLines[rowIndex]?.line ?? null,
+            newLine: addedLines[rowIndex]?.line ?? null,
+            oldIndex: removedLines[rowIndex]?.index ?? -1,
+            newIndex: addedLines[rowIndex]?.index ?? -1,
+          });
+        }
+        continue;
       }
-      // Handle added lines (right side only)
-      else if (newLine?.type === 'added') {
+
+      if (line.type === 'added') {
         pairs.push({
           oldLine: null,
-          newLine,
+          newLine: line,
           oldIndex: -1,
-          newIndex,
+          newIndex: lineIndex,
         });
-        newIndex++;
-      } else {
-        // Fallback - just advance both
-        if (oldIndex < lines.length) oldIndex++;
-        if (newIndex < lines.length) newIndex++;
+        lineIndex++;
+        continue;
       }
+
+      lineIndex++;
     }
 
     return pairs;
@@ -707,17 +721,30 @@ const SideBySideHunk = memo(function SideBySideHunk({
           <div className="bg-bg-secondary/50 px-2 py-1 text-xs text-text-muted border-b border-border text-center">
             Original
           </div>
-          {pairedLines.map((_pair, _idx) => (
+          {pairedLines.map((pair, idx) => (
             <SideBySideLine
-              key={`${lineIndex}-${'new'}`}
-              line={newLine}
-              side="new"
-              lineIndex={lineIndex}
+              key={`old-${idx}`}
+              line={pair.oldLine}
+              side="old"
+              lineIndex={pair.oldIndex}
               language={language}
               showLineNumbers={showLineNumbers}
               searchQuery={searchQuery}
-              isMatch={isMatch}
-              isCurrentMatch={isCurrentMatch}
+              isMatch={
+                pair.oldIndex >= 0 &&
+                searchMatches.some(
+                  (m) =>
+                    m.fileIndex === fileIndex &&
+                    m.hunkIndex === hunkIndex &&
+                    m.lineIndex === pair.oldIndex
+                )
+              }
+              isCurrentMatch={
+                pair.oldIndex >= 0 &&
+                searchMatches[currentMatchIndex]?.fileIndex === fileIndex &&
+                searchMatches[currentMatchIndex]?.hunkIndex === hunkIndex &&
+                searchMatches[currentMatchIndex]?.lineIndex === pair.oldIndex
+              }
               highlightStyle={highlightStyle}
               onCopyLine={onCopyLine}
               copiedLine={copiedLine}
