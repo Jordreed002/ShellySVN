@@ -103,6 +103,8 @@ Implications:
 - The diff roadmap should focus on reliable unified/side-by-side text diff, image diff, and external diff tool configuration.
 - README should not imply built-in Office/document diff support.
 
+Full TortoiseMerge-style editing is also not a replacement-critical built-in requirement for the current milestone. ShellySVN should provide clear external merge-tool launch, missing-tool errors, and post-merge review/resolve flows while keeping the built-in merge editor focused on safe, understandable conflict review.
+
 ---
 
 ## Decision 6: Advanced TortoiseSVN Compatibility Is Deferred

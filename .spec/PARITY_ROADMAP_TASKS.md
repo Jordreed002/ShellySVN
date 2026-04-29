@@ -238,7 +238,7 @@
 - [x] Keep Git integration out of the parity roadmap unless the product spec changes.
 - [ ] Decide whether a plugin/extension system is required before 1.0.
 - [x] Decide whether Linux shell integration is best-effort or a future first-class target.
-- [ ] Decide whether full TortoiseMerge-style editing is in scope or whether external merge tools remain preferred.
+- [x] Decide whether full TortoiseMerge-style editing is in scope or whether external merge tools remain preferred.
 - [x] Keep server-side repository administration tools out of scope unless explicitly added to the product spec.
 - [x] Decide whether group policy deployment controls are needed for enterprise parity.
 - [x] Decide whether built-in SubWCRev equivalent is useful before 1.0.
