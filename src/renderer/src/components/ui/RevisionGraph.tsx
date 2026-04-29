@@ -29,6 +29,8 @@ interface GraphNode {
   isCopySource?: boolean;
   isDeleted?: boolean;
   isHead?: boolean;
+  isMerge?: boolean;
+  mergeSources?: string[];
   copyFromPath?: string;
   copyFromRev?: number;
 }
@@ -37,6 +39,7 @@ interface GraphEdge {
   from: number;
   to: number;
   isCopy?: boolean;
+  isMerge?: boolean;
   color?: string;
 }
 
@@ -108,6 +111,27 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
       return 'trunk';
     };
 
+    const detectBranchReferences = (
+      message: string,
+      paths: { path: string; action: string; copyFromPath?: string; copyFromRev?: number }[],
+      currentBranch: string
+    ): string[] => {
+      const references = new Set<string>();
+      const branchPattern = /\b(?:trunk|branches\/[^/\s,;:)]+|tags\/[^/\s,;:)]+)/g;
+      const text = [message, ...paths.map((p) => [p.path, p.copyFromPath].filter(Boolean).join(' '))]
+        .join(' ')
+        .replaceAll('\\', '/');
+
+      for (const match of text.matchAll(branchPattern)) {
+        const branch = match[0];
+        if (branch !== currentBranch) {
+          references.add(branch);
+        }
+      }
+
+      return Array.from(references);
+    };
+
     // Assign branches to columns
     let nextColumn = 0;
     const getBranchColumn = (branchName: string): number => {
@@ -138,6 +162,9 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
           copyFromRev = p.copyFromRev;
         }
       }
+      const mergeSources = /merge/i.test(entry.message)
+        ? detectBranchReferences(entry.message, entry.paths, branch)
+        : [];
 
       nodes.push({
         revision: entry.revision,
@@ -148,6 +175,8 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
         x: branchInfo?.x || 100,
         y: index * 60 + 50,
         isHead: index === 0,
+        isMerge: mergeSources.length > 0,
+        mergeSources,
         copyFromPath,
         copyFromRev,
       });
@@ -181,6 +210,22 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
             isCopy: true,
             color: branchInfo?.color,
           });
+        }
+      }
+
+      if (node.isMerge) {
+        for (const sourceBranch of node.mergeSources || []) {
+          const sourceNode = nodes.find(
+            (candidate) => candidate.branch === sourceBranch && candidate.revision < node.revision
+          );
+          if (sourceNode) {
+            edges.push({
+              from: sourceNode.revision,
+              to: node.revision,
+              isMerge: true,
+              color: branchInfo?.color,
+            });
+          }
         }
       }
     }
@@ -497,7 +542,7 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
                         stroke={edge.color || 'currentColor'}
                         strokeWidth={edge.isCopy ? 2 : 2}
                         fill="none"
-                        strokeDasharray={edge.isCopy ? '4,4' : undefined}
+                        strokeDasharray={edge.isMerge ? '2,3' : edge.isCopy ? '4,4' : undefined}
                         opacity={isFiltered ? 0.2 : 0.8}
                         className="text-border"
                       />
@@ -546,6 +591,15 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
                         />
                       )}
 
+                      {node.isMerge && (
+                        <path
+                          d={`M ${node.x} ${node.y - 14} L ${node.x + 6} ${node.y - 8} L ${node.x} ${node.y - 2} L ${node.x - 6} ${node.y - 8} Z`}
+                          fill="var(--bg-primary)"
+                          stroke={branchInfo?.color}
+                          strokeWidth={1.5}
+                        />
+                      )}
+
                       {/* Revision label */}
                       <text
                         x={node.x + 15}
@@ -585,6 +639,11 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
                   <p className="text-xs text-info mb-1">
                     Branched from r{selectedNode.copyFromRev}
                     {selectedNode.copyFromPath && ` (${selectedNode.copyFromPath})`}
+                  </p>
+                )}
+                {selectedNode.isMerge && (
+                  <p className="text-xs text-info mb-1">
+                    Merge from {selectedNode.mergeSources?.join(', ')}
                   </p>
                 )}
                 <p className="text-sm text-text line-clamp-2">

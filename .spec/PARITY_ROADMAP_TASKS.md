@@ -103,8 +103,8 @@
 - [x] Add branch/tag comparison workflow.
 - [x] Add merge-tracking log view.
 - [x] Verify blame view shows line-level revision, author, date, and log-message context.
-- [ ] Verify revision graph clearly shows branches, tags, copies, and merges.
-- [ ] Add revision graph export coverage.
+- [x] Verify revision graph clearly shows branches, tags, copies, and merges.
+- [x] Add revision graph export coverage.
 - [x] Add project statistics for commits over time, authors, file churn, and branch/tag activity, or defer explicitly.
 
 ## P1 - Branching, Tagging, Switching, Merging, and Relocation
