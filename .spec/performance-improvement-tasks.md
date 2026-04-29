@@ -127,11 +127,12 @@ Baseline checks from the review:
   - Acceptance: FPS/memory monitoring is opt-in or scoped to diagnostics/performance views, while operation timing remains lightweight.
   - Verification: unit test confirms inactive monitoring does not schedule RAF or intervals.
 
-- [ ] Add bundle analysis to the build workflow.
+- [x] Add bundle analysis to the build workflow.
   - Files: `package.json`, Vite/Electron build config.
   - Problem: renderer build has large chunks, but there is no repeatable bundle report.
   - Acceptance: a script produces a bundle size report and identifies top modules in the initial renderer chunks.
-  - Verification: run the report and document whether more dynamic imports are needed.
+  - Verification: `bun run analyze:bundle` writes `reports/bundle/renderer-bundle-report.{json,md}`.
+  - Current result: the initial renderer entry is about 1.0 MiB raw / 197 KiB gzip; top app modules are settings panels, add-repository modal, and plugin manager, so those are the next dynamic-import candidates.
 
 ---
 

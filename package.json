@@ -29,6 +29,7 @@
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
+    "analyze:bundle": "node scripts/analyze-bundle.mjs",
     "typecheck": "tsc --noEmit",
     "test": "bun run test:unit",
     "test:unit": "vitest run",
