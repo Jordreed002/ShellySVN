@@ -102,6 +102,22 @@ describe('AuthCache', () => {
       expect(cache.isEncryptionAvailable()).toBe(false);
     });
 
+    it('should keep credentials memory-only when encryption is unavailable', async () => {
+      mockIsEncryptionAvailable.mockReturnValue(false);
+
+      const cache = new AuthCache('/test/user-data');
+      await cache.ready();
+
+      cache.set('https://svn.example.com', 'testuser', 'testpass');
+      await vi.runAllTimersAsync();
+
+      expect(cache.get('https://svn.example.com')).toEqual({
+        username: 'testuser',
+        password: 'testpass',
+      });
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
     // Note: Requires Node.js environment for fs/promises mocking
     it.skip('should load existing credentials on init', async () => {
       const existingData = {

@@ -141,3 +141,21 @@ Implications:
 - Sparse checkout, shelving, and diagnostics should treat SVN versions below 1.14 as unsupported for replacement-readiness claims.
 - Diagnostics should clearly report the active SVN binary and version before advanced SVN workflow failures are escalated.
 - Reintegrate-style merge guidance is not required as a dedicated flow for the 1.14 baseline; merge guidance should focus on revision ranges, dry-run preview, conflict summary, and post-merge review.
+
+---
+
+## Decision 8: Persistent Credentials Require Encryption
+
+Persistent SVN credentials and proxy passwords are disabled when OS-backed encryption is unavailable. Session use may keep credentials in memory, but plaintext credentials must not be written to disk silently.
+
+Rationale:
+
+- SVN credentials, proxy passwords, and repository URLs are high-sensitivity data.
+- Users should not need to understand platform secure-storage failure modes to avoid plaintext credential persistence.
+- Memory-only behavior preserves short-term usability without creating durable plaintext secrets.
+
+Implications:
+
+- Settings and diagnostics must clearly show encryption availability.
+- A future explicit opt-in for plaintext persistence would require a separate product/security decision.
+- Tests should keep proving that encryption-unavailable paths do not call persistent writes for credentials or proxy passwords.
