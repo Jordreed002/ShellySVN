@@ -143,7 +143,7 @@
 - [ ] Add lock owner and stale-lock handling in file explorer and dialogs.
 - [ ] Verify shelve, unshelve/apply, list, and delete workflows with the minimum supported SVN version.
 - [x] Decide the minimum acceptable SVN version for sparse checkout, shelving, and other advanced features.
-- [ ] Add repository diagnostics for unsupported or mismatched SVN versions.
+- [x] Add repository diagnostics for unsupported or mismatched SVN versions.
 
 ## P1 - Issue Tracker Integration
 
@@ -174,7 +174,7 @@
 ## P1 - Settings, Diagnostics, and Supportability
 
 - [ ] Validate custom SVN binary paths before saving and before use.
-- [ ] Add diagnostics for SVN path, SVN version, bundled binaries, encryption availability, shell/Finder integration, and working-copy health.
+- [x] Add diagnostics for SVN path, SVN version, bundled binaries, encryption availability, shell/Finder integration, and working-copy health.
 - [ ] Add redacted diagnostic export for support.
 - [ ] Add cache management coverage for log cache and app cache.
 - [ ] Verify all settings panels persist and survive missing or migrated fields.

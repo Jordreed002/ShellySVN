@@ -8,6 +8,8 @@ import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
+const MINIMUM_SVN_VERSION = '1.14';
+
 function getCurrentBinaryTarget(): string {
   return `${process.platform}-${process.arch}`;
 }
@@ -70,6 +72,16 @@ function getDiagnosticResourceStatus(svnClientPath: string): RepoDiagnostics['re
   return statuses;
 }
 
+function isSvnVersionSupported(version: string | null): boolean | null {
+  if (!version) return null;
+  const match = version.match(/^(\d+)\.(\d+)/);
+  if (!match) return null;
+
+  const major = Number.parseInt(match[1], 10);
+  const minor = Number.parseInt(match[2], 10);
+  return major > 1 || (major === 1 && minor >= 14);
+}
+
 export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagnostics> {
   const authCache = getAuthCache();
   const settingsManager = getSettingsManager();
@@ -79,6 +91,9 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
     svnClientPath,
     svnVersion: null,
     svnVersionError: undefined,
+    minimumSvnVersion: MINIMUM_SVN_VERSION,
+    svnVersionSupported: null,
+    svnVersionWarning: undefined,
     encryptionAvailable: authCache.isEncryptionAvailable(),
     isPackaged: app.isPackaged,
     resourcesPath: process.resourcesPath || null,
@@ -97,6 +112,10 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
 
   try {
     result.svnVersion = (await runSvnText(['--version', '--quiet'])).trim() || null;
+    result.svnVersionSupported = isSvnVersionSupported(result.svnVersion);
+    if (result.svnVersionSupported === false) {
+      result.svnVersionWarning = `SVN ${MINIMUM_SVN_VERSION}.x or newer is required for advanced workflows.`;
+    }
   } catch (error) {
     result.svnVersionError = error instanceof Error ? error.message : String(error);
     debug.error('[diagnostics] Failed to get SVN version:', result.svnVersionError);

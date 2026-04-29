@@ -35,6 +35,9 @@ export function buildDiagnosticsReport(
         app: {
           svnClientPath: diagnostics.svnClientPath,
           svnVersion: diagnostics.svnVersion,
+          minimumSvnVersion: diagnostics.minimumSvnVersion,
+          svnVersionSupported: diagnostics.svnVersionSupported,
+          svnVersionWarning: diagnostics.svnVersionWarning,
           svnVersionError: diagnostics.svnVersionError,
           encryptionAvailable: diagnostics.encryptionAvailable,
           isPackaged: diagnostics.isPackaged,
@@ -237,6 +240,12 @@ export function RepoDiagnosticsPanel({
                       </p>
                     </div>
                     <div>
+                      <span className="text-gray-500 dark:text-gray-500">Advanced baseline</span>
+                      <p className="text-gray-700 dark:text-gray-300 text-xs">
+                        SVN {diagnostics.minimumSvnVersion}.x+
+                      </p>
+                    </div>
+                    <div>
                       <span className="text-gray-500 dark:text-gray-500">Encryption</span>
                       <p
                         className={
@@ -252,6 +261,11 @@ export function RepoDiagnosticsPanel({
                   {diagnostics.svnVersionError && (
                     <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">
                       {diagnostics.svnVersionError}
+                    </p>
+                  )}
+                  {diagnostics.svnVersionWarning && (
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded">
+                      {diagnostics.svnVersionWarning}
                     </p>
                   )}
                   <div className="space-y-1">

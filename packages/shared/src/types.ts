@@ -977,6 +977,9 @@ export interface RepoDiagnostics {
   svnClientPath: string;
   svnVersion: string | null;
   svnVersionError?: string;
+  minimumSvnVersion: string;
+  svnVersionSupported: boolean | null;
+  svnVersionWarning?: string;
   encryptionAvailable: boolean;
   isPackaged: boolean;
   resourcesPath: string | null;
