@@ -37,6 +37,7 @@ const DEFAULT_PROXY_SETTINGS: ProxySettings = {
 const DEFAULT_DIFF_MERGE_SETTINGS: DiffMergeSettings = {
   externalDiffTool: '',
   externalMergeTool: '',
+  externalToolOverrides: [],
   diffOnDoubleClick: true,
   ignoreWhitespace: false,
   ignoreEol: false,

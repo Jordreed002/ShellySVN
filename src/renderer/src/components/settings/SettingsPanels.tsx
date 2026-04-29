@@ -543,6 +543,8 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
 // ============================================
 
 export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
+  const toolOverrides = settings.diffMerge.externalToolOverrides ?? [];
+
   const handleBrowseDiffTool = async () => {
     const path = await window.api.dialog.openFile([
       { name: 'Executables', extensions: ['exe', 'app', 'sh'] },
@@ -606,6 +608,53 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
           <p className="text-xs text-text-muted">
             Used for three-way merging during conflict resolution
           </p>
+        </div>
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="Per-Extension Tools"
+        description="Override diff or merge tools for specific file extensions"
+      >
+        <div className="space-y-3">
+          {toolOverrides.map((override, index) => (
+            <div key={index} className="grid grid-cols-[96px_1fr_1fr_auto] gap-2 items-center">
+              <input
+                type="text"
+                value={override.extension}
+                onChange={(e) => updateToolOverride(index, 'extension', e.target.value)}
+                placeholder="ts"
+                className="input"
+                aria-label={`Extension override ${index + 1}`}
+              />
+              <input
+                type="text"
+                value={override.diffTool}
+                onChange={(e) => updateToolOverride(index, 'diffTool', e.target.value)}
+                placeholder="Diff tool override"
+                className="input"
+                aria-label={`Diff tool override ${index + 1}`}
+              />
+              <input
+                type="text"
+                value={override.mergeTool}
+                onChange={(e) => updateToolOverride(index, 'mergeTool', e.target.value)}
+                placeholder="Merge tool override"
+                className="input"
+                aria-label={`Merge tool override ${index + 1}`}
+              />
+              <button
+                type="button"
+                onClick={() => removeToolOverride(index)}
+                className="btn-icon-sm text-error hover:bg-error/10"
+                aria-label={`Remove tool override ${index + 1}`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button type="button" onClick={addToolOverride} className="btn btn-secondary btn-sm">
+            Add Extension Override
+          </button>
         </div>
       </SettingsGroup>
 
@@ -1397,6 +1446,32 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
     } catch {
       setCredentials([]);
     }
+  };
+
+  const updateToolOverride = (
+    index: number,
+    key: 'extension' | 'diffTool' | 'mergeTool',
+    value: string
+  ) => {
+    const next = toolOverrides.map((override, overrideIndex) =>
+      overrideIndex === index ? { ...override, [key]: value } : override
+    );
+    onChangeNested('diffMerge', 'externalToolOverrides', next);
+  };
+
+  const addToolOverride = () => {
+    onChangeNested('diffMerge', 'externalToolOverrides', [
+      ...toolOverrides,
+      { extension: '', diffTool: '', mergeTool: '' },
+    ]);
+  };
+
+  const removeToolOverride = (index: number) => {
+    onChangeNested(
+      'diffMerge',
+      'externalToolOverrides',
+      toolOverrides.filter((_, overrideIndex) => overrideIndex !== index)
+    );
   };
 
   const handleClearAll = async () => {

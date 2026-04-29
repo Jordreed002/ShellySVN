@@ -85,6 +85,7 @@ describe('SettingsManager migration and persistence', () => {
       ignoreWhitespace: true,
       externalDiffTool: '',
       externalMergeTool: '',
+      externalToolOverrides: [],
       contextLines: 3,
     });
     expect(settings.dialogs).toMatchObject({
@@ -110,6 +111,7 @@ describe('SettingsManager migration and persistence', () => {
     expect(settings.diffMerge.ignoreWhitespace).toBe(true);
     expect(settings.diffMerge.externalDiffTool).toBe('');
     expect(settings.diffMerge.externalMergeTool).toBe('');
+    expect(settings.diffMerge.externalToolOverrides).toEqual([]);
     expect(settings.diffMerge.contextLines).toBe(3);
     expect(mockWriteFile).toHaveBeenCalled();
   });

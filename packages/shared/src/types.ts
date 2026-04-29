@@ -275,10 +275,17 @@ export interface ProxySettings {
 export interface DiffMergeSettings {
   externalDiffTool: string;
   externalMergeTool: string;
+  externalToolOverrides: ExternalToolOverride[];
   diffOnDoubleClick: boolean;
   ignoreWhitespace: boolean;
   ignoreEol: boolean;
   contextLines: number;
+}
+
+export interface ExternalToolOverride {
+  extension: string;
+  diffTool: string;
+  mergeTool: string;
 }
 
 export interface DialogSettings {

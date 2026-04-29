@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   diffMerge: {
     externalDiffTool: '',
     externalMergeTool: '',
+    externalToolOverrides: [],
     diffOnDoubleClick: true,
     ignoreWhitespace: false,
     ignoreEol: false,
@@ -360,6 +361,24 @@ class SettingsManager {
         'External merge tool',
         KNOWN_MERGE_TOOL_ALIASES
       );
+    }
+    if (updates.diffMerge?.externalToolOverrides !== undefined) {
+      for (const override of updates.diffMerge.externalToolOverrides) {
+        if (override.diffTool !== undefined) {
+          validateExternalToolSetting(
+            override.diffTool,
+            `Diff tool override for ${override.extension || 'extension'}`,
+            KNOWN_DIFF_TOOL_ALIASES
+          );
+        }
+        if (override.mergeTool !== undefined) {
+          validateExternalToolSetting(
+            override.mergeTool,
+            `Merge tool override for ${override.extension || 'extension'}`,
+            KNOWN_MERGE_TOOL_ALIASES
+          );
+        }
+      }
     }
 
     this.settings = this.mergeDeep(

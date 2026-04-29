@@ -92,6 +92,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   diffMerge: {
     externalDiffTool: '',
     externalMergeTool: '',
+    externalToolOverrides: [],
     diffOnDoubleClick: true,
     ignoreWhitespace: false,
     ignoreEol: false,

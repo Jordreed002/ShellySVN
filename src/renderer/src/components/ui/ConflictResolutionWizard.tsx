@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ThreeWayMergeEditor } from './ThreeWayMergeEditor';
 import { useSettings } from '@renderer/hooks/useSettings';
+import { resolveExternalToolForPath } from '@renderer/utils/externalToolOverrides';
 
 interface ConflictWizardProps {
   isOpen: boolean;
@@ -56,10 +57,6 @@ export function ConflictResolutionWizard({
   const [isLaunchingExternalTool, setIsLaunchingExternalTool] = useState(false);
   const [externalToolError, setExternalToolError] = useState<string | null>(null);
 
-  // Check if external merge tool is configured
-  const hasExternalMergeTool =
-    settings.diffMerge.externalMergeTool && settings.diffMerge.externalMergeTool.trim() !== '';
-
   // Initialize conflict files
   useEffect(() => {
     if (isOpen && conflictPaths.length > 0) {
@@ -77,6 +74,10 @@ export function ConflictResolutionWizard({
 
   // Get current conflict file
   const currentFile = conflictFiles[currentIndex];
+  const externalMergeTool = currentFile
+    ? resolveExternalToolForPath(settings.diffMerge, currentFile.path, 'merge')
+    : '';
+  const hasExternalMergeTool = externalMergeTool !== '';
 
   // Statistics
   const stats = {
@@ -247,7 +248,7 @@ export function ConflictResolutionWizard({
       }
 
       const result = await window.api.external.openMergeTool(
-        settings.diffMerge.externalMergeTool,
+        externalMergeTool,
         basePath,
         minePath,
         theirsPath,
@@ -628,7 +629,7 @@ export function ConflictResolutionWizard({
                   <div className="bg-bg-tertiary rounded-lg p-3">
                     <h5 className="text-sm font-medium text-text mb-2">External Merge Tool</h5>
                     <p className="text-xs text-text-secondary mb-3">
-                      Launch {settings.diffMerge.externalMergeTool} to visually resolve conflicts.
+                      Launch {externalMergeTool} to visually resolve conflicts.
                     </p>
                     <div className="flex items-center gap-2">
                       <button

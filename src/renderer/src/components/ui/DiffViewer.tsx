@@ -3,6 +3,7 @@ import { X, FileText, AlertTriangle, Loader, Image as ImageIcon, ExternalLink } 
 import type { SvnDiffResult, SvnDiffLine } from '@shared/types';
 import { isImageFile } from './image-utils';
 import { useSettings } from '@renderer/hooks/useSettings';
+import { resolveExternalToolForPath } from '@renderer/utils/externalToolOverrides';
 
 // Lazy load ImageDiffViewer - only loaded when viewing image files
 const ImageDiffViewer = lazy(() =>
@@ -28,8 +29,8 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
   const isImage = isImageFile(filePath);
 
   // Check if external diff tool is configured
-  const hasExternalDiffTool =
-    settings.diffMerge.externalDiffTool && settings.diffMerge.externalDiffTool.trim() !== '';
+  const externalDiffTool = resolveExternalToolForPath(settings.diffMerge, filePath, 'diff');
+  const hasExternalDiffTool = externalDiffTool !== '';
 
   // Open in external diff tool
   const handleOpenExternal = async () => {
@@ -48,7 +49,7 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
 
       // Open external diff tool with BASE (left) vs working copy (right)
       const result = await window.api.external.openDiffTool(
-        settings.diffMerge.externalDiffTool,
+        externalDiffTool,
         basePath,
         filePath
       );
@@ -141,7 +142,7 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
                 onClick={handleOpenExternal}
                 disabled={isOpeningExternal || isLoading}
                 className="btn btn-secondary text-sm"
-                title={`Open in ${settings.diffMerge.externalDiffTool}`}
+                title={`Open in ${externalDiffTool}`}
               >
                 {isOpeningExternal ? (
                   <Loader className="w-4 h-4 animate-spin" />

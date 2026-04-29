@@ -88,7 +88,7 @@
 - [x] Verify large diffs do not block the renderer.
 - [x] Verify syntax highlighting does not break very large files or unknown languages.
 - [x] Verify image diff behavior for common asset formats and document supported formats.
-- [ ] Add external diff and merge tool configuration with per-extension overrides.
+- [x] Add external diff and merge tool configuration with per-extension overrides.
 - [x] Validate external executable paths before saving settings and before spawning tools.
 - [x] Verify patch creation for selected files and whole working copies.
 - [x] Verify patch apply dry-run output, reject-file visibility, and binary-safe failure messaging.

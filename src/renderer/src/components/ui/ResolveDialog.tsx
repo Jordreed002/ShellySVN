@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, AlertTriangle, CheckCircle, Loader2, FileText, GitMerge, Wrench } from 'lucide-react';
 import { useSettings } from '@renderer/hooks/useSettings';
+import { resolveExternalToolForPath } from '@renderer/utils/externalToolOverrides';
 
 interface ResolveDialogProps {
   isOpen: boolean;
@@ -76,8 +77,8 @@ export function ResolveDialog({
   const [externalToolUsed, setExternalToolUsed] = useState(false);
 
   const { settings } = useSettings();
-  const hasExternalMergeTool =
-    settings.diffMerge.externalMergeTool && settings.diffMerge.externalMergeTool.trim() !== '';
+  const externalMergeTool = resolveExternalToolForPath(settings.diffMerge, filePath, 'merge');
+  const hasExternalMergeTool = externalMergeTool !== '';
 
   useEffect(() => {
     if (isOpen) {
@@ -168,7 +169,7 @@ export function ResolveDialog({
       if (!theirsPath) theirsPath = filePath + '.rTHEIRS';
 
       const result = await window.api.external.openMergeTool(
-        settings.diffMerge.externalMergeTool,
+        externalMergeTool,
         basePath,
         minePath,
         theirsPath,
@@ -298,7 +299,7 @@ export function ResolveDialog({
               <div className="bg-bg-tertiary rounded-lg p-3">
                 <h5 className="text-sm font-medium text-text mb-2">External Merge Tool</h5>
                 <p className="text-xs text-text-secondary mb-3">
-                  Launch {settings.diffMerge.externalMergeTool} to visually resolve conflicts.
+                  Launch {externalMergeTool} to visually resolve conflicts.
                 </p>
                 <div className="flex items-center gap-2">
                   <button
