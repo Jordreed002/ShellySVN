@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from 'fs';
 import { rm } from 'fs/promises';
-import { dirname, join, relative } from 'path';
+import { dirname, join, normalize, relative } from 'path';
 import type { IpcMainInvokeEvent } from 'electron';
 
 import type {
@@ -90,7 +90,7 @@ export async function getWorkingCopyContext(
         if (info.workingCopyRoot && info.repositoryRoot && info.url) {
           const relativePath = localPath.slice(currentPath.length);
           return {
-            workingCopyRoot: info.workingCopyRoot,
+            workingCopyRoot: normalize(info.workingCopyRoot),
             repositoryRoot: info.repositoryRoot,
             url: info.url + relativePath.split(/[/\\]/).join('/'),
           };

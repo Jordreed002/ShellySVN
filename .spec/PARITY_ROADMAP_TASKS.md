@@ -40,7 +40,7 @@
 
 ## P0 - Core Working Copy Workflows
 
-- [ ] Verify open-working-copy flow detects root, repository URL, revision, and status summary.
+- [x] Verify open-working-copy flow detects root, repository URL, revision, and status summary.
 - [ ] Verify status rendering for versioned, modified, unversioned, ignored, missing, deleted, conflicted, locked, external, switched, nested, obstructed, replaced, and remote-only items.
 - [ ] Add explicit "check repository" remote-status action and distinguish local status from repository status.
 - [ ] Add bounded-concurrency background status refresh with cancellation.

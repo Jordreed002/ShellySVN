@@ -177,6 +177,7 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
           repository?: { root?: string; uuid?: string };
           commit?: { '@_revision'?: string; author?: string; date?: string };
           lock?: { owner?: string; comment?: string; creationdate?: string; token?: string };
+          'wc-info'?: { 'wcroot-abspath'?: string };
           'wcroot-abspath'?: string;
         };
       };
@@ -198,6 +199,7 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
       };
     }
 
+    const workingCopyRoot = entry['wc-info']?.['wcroot-abspath'] || entry['wcroot-abspath'];
     const lockInfo: SvnLockInfo | undefined = entry.lock
       ? {
           path: entry['@_path'] || '',
@@ -220,7 +222,7 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
         ? parseInt(entry.commit['@_revision'], 10)
         : 0,
       lastChangedDate: entry.commit?.date || '',
-      workingCopyRoot: entry['wcroot-abspath'] || undefined,
+      workingCopyRoot: workingCopyRoot || undefined,
       lock: lockInfo,
     };
   } catch (error) {
