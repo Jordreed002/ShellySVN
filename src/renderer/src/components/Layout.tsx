@@ -210,6 +210,10 @@ export function Layout({ children }: LayoutProps) {
               window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG));
               setShowCommandPalette(false);
             }}
+            onTag={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG));
+              setShowCommandPalette(false);
+            }}
             onBranchTagCompare={() => {
               window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG_COMPARE));
               setShowCommandPalette(false);

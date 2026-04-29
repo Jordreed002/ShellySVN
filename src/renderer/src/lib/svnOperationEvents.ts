@@ -4,6 +4,7 @@
  */
 export const SVN_EVENTS = {
   BRANCH_TAG: 'svn:branch-tag',
+  TAG: 'svn:tag',
   BRANCH_TAG_COMPARE: 'svn:branch-tag-compare',
   SWITCH: 'svn:switch',
   MERGE: 'svn:merge',

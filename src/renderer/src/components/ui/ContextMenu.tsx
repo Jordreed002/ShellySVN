@@ -229,6 +229,7 @@ export function getSvnContextMenuItems(
     onProperties?: () => void;
     onAddToIgnore?: () => void;
     onBranchTag?: () => void;
+    onTag?: () => void;
     onSwitch?: () => void;
     onMerge?: () => void;
     onExport?: () => void;
@@ -409,10 +410,19 @@ export function getSvnContextMenuItems(
     // === Branch/Tag ===
     if (actions.onBranchTag) {
       items.push({
-        id: 'branch-tag',
-        label: 'Branch/Tag...',
+        id: 'branch',
+        label: 'Create Branch...',
         icon: GitBranch,
         onClick: actions.onBranchTag,
+      });
+    }
+
+    if (actions.onTag) {
+      items.push({
+        id: 'tag',
+        label: 'Create Tag...',
+        icon: GitBranch,
+        onClick: actions.onTag,
       });
     }
 

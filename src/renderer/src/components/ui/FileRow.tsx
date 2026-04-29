@@ -54,6 +54,11 @@ export interface FileRowActions {
   onBlame?: (entry: SvnStatusEntry) => void;
   onShelve?: (entry: SvnStatusEntry) => void;
   onChangelist?: (entry: SvnStatusEntry) => void;
+  onBranchTag?: (entry: SvnStatusEntry) => void;
+  onTag?: (entry: SvnStatusEntry) => void;
+  onSwitch?: (entry: SvnStatusEntry) => void;
+  onMerge?: (entry: SvnStatusEntry) => void;
+  onRelocate?: (entry: SvnStatusEntry) => void;
 }
 
 // File type to icon mapping
@@ -256,6 +261,11 @@ export const FileRow = memo(function FileRow({
     onImport: actions.onImport ? () => actions.onImport!(entry) : undefined,
     onRepoBrowser: actions.onRepoBrowser ? () => actions.onRepoBrowser!(entry) : undefined,
     onRevisionGraph: actions.onRevisionGraph ? () => actions.onRevisionGraph!(entry) : undefined,
+    onBranchTag: actions.onBranchTag ? () => actions.onBranchTag!(entry) : undefined,
+    onTag: actions.onTag ? () => actions.onTag!(entry) : undefined,
+    onSwitch: actions.onSwitch ? () => actions.onSwitch!(entry) : undefined,
+    onMerge: actions.onMerge ? () => actions.onMerge!(entry) : undefined,
+    onRelocate: actions.onRelocate ? () => actions.onRelocate!(entry) : undefined,
     onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
     onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
   }, isWorkingCopyRoot);

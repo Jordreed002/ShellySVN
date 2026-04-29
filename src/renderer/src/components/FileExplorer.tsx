@@ -620,6 +620,12 @@ export function FileExplorer() {
         setBranchTagMode('branch');
       }
     };
+    const handleTag = () => {
+      if (path) {
+        setBranchTagPath(path);
+        setBranchTagMode('tag');
+      }
+    };
     const handleBranchTagCompare = () => {
       if (path) setBranchTagCompareOpen(true);
     };
@@ -694,6 +700,7 @@ export function FileExplorer() {
     };
 
     window.addEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
+    window.addEventListener(SVN_EVENTS.TAG, handleTag);
     window.addEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
     window.addEventListener(SVN_EVENTS.SWITCH, handleSwitch);
     window.addEventListener(SVN_EVENTS.MERGE, handleMerge);
@@ -714,6 +721,7 @@ export function FileExplorer() {
 
     return () => {
       window.removeEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
+      window.removeEventListener(SVN_EVENTS.TAG, handleTag);
       window.removeEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
       window.removeEventListener(SVN_EVENTS.SWITCH, handleSwitch);
       window.removeEventListener(SVN_EVENTS.MERGE, handleMerge);
@@ -843,6 +851,10 @@ export function FileExplorer() {
       onBranchTag: (entry: SvnStatusEntry) => {
         setBranchTagPath(entry.path);
         setBranchTagMode('branch');
+      },
+      onTag: (entry: SvnStatusEntry) => {
+        setBranchTagPath(entry.path);
+        setBranchTagMode('tag');
       },
       onSwitch: (entry: SvnStatusEntry) => setSwitchPath(entry.path),
       onMerge: (entry: SvnStatusEntry) => setMergePath(entry.path),

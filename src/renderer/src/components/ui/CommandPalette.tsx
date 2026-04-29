@@ -67,6 +67,7 @@ interface CommandPaletteProps {
   onGoToPath?: (path: string) => void;
   // New SVN operations callbacks
   onBranchTag?: () => void;
+  onTag?: () => void;
   onBranchTagCompare?: () => void;
   onSwitch?: () => void;
   onMerge?: () => void;
@@ -112,6 +113,7 @@ export function CommandPalette({
   onAddBookmark,
   onGoToPath,
   onBranchTag,
+  onTag,
   onBranchTagCompare,
   onSwitch,
   onMerge,
@@ -210,13 +212,25 @@ export function CommandPalette({
     if (onBranchTag) {
       items.push({
         id: 'branch-tag',
-        title: 'Branch/Tag...',
-        description: 'Create branch or tag in repository',
+        title: 'Create Branch...',
+        description: 'Create a branch in repository',
         icon: GitBranch,
         shortcut: 'Ctrl+Shift+B',
         category: 'SVN',
         action: onBranchTag,
-        keywords: ['branch', 'tag'],
+        keywords: ['branch'],
+      });
+    }
+
+    if (onTag) {
+      items.push({
+        id: 'tag',
+        title: 'Create Tag...',
+        description: 'Create a tag in repository',
+        icon: GitBranch,
+        category: 'SVN',
+        action: onTag,
+        keywords: ['tag', 'release'],
       });
     }
 
@@ -589,6 +603,7 @@ export function CommandPalette({
     onAddBookmark,
     onGoToPath,
     onBranchTag,
+    onTag,
     onBranchTagCompare,
     onSwitch,
     onMerge,
@@ -674,7 +689,7 @@ export function CommandPalette({
     if (listRef.current) {
       const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
       if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest' });
+        selectedElement.scrollIntoView?.({ block: 'nearest' });
       }
     }
   }, [selectedIndex]);
