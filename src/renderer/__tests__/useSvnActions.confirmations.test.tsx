@@ -151,4 +151,29 @@ describe('useSvnActions risky action confirmations', () => {
     expect(response).toEqual({ success: true, revision: 123 });
     expect(onRefresh).toHaveBeenCalled();
   });
+
+  it('refreshes file explorer status after resolving a selected conflict', async () => {
+    const onRefresh = vi.fn();
+    const { result } = renderHook(
+      () =>
+        useFileExplorerActions(
+          'C:\\wc',
+          {
+            path: 'C:\\wc\\conflict.txt',
+            name: 'conflict.txt',
+            status: 'C',
+            isDirectory: false,
+          },
+          onRefresh
+        ),
+      { wrapper: createWrapper() }
+    );
+
+    await act(async () => {
+      await result.current.handleResolveSelected('mine-full');
+    });
+
+    expect(svnApi.resolve).toHaveBeenCalledWith('C:\\wc\\conflict.txt', 'mine-full');
+    expect(onRefresh).toHaveBeenCalled();
+  });
 });
