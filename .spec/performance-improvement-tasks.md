@@ -99,11 +99,11 @@ Baseline checks from the review:
   - Acceptance: folder size requests are chunked, cancellable or scoped to visible rows, and query keys stay bounded.
   - Verification: test 1k directory entries without oversized query keys or long blocking requests.
 
-- [ ] Add cancellation and progress reporting to remaining long-running SVN operations.
+- [x] Add cancellation and progress reporting to remaining long-running SVN operations.
   - Files: `src/main/services/*`, `src/main/ipc/svn.ts`, preload SVN API.
   - Problem: long operations can tie up process and renderer state without enough feedback.
   - Acceptance: commit, merge, export/import, and deep status operations either expose progress/cancel or explicitly document why they cannot.
-  - Verification: focused service tests and renderer flow tests for cancellation.
+  - Verification: `svn:commitWithProgress`, `svn:exportWithProgress`, `svn:importWithProgress`, `svn:mergeWithProgress`, and `svn:cancelOperation` are exposed through IPC/preload; `bunx vitest run src/main/services/__tests__/svn-progress.test.ts src/main/services/__tests__/svn-executor.test.ts`.
 
 - [x] Stream or cap large SVN command output where possible.
   - Files: `src/main/services/svn-executor.ts`, SVN service callers.

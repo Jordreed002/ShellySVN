@@ -1,4 +1,6 @@
+import type { IpcMainInvokeEvent } from 'electron';
 import { runSvnText } from './svn-executor';
+import { runSvnOperationWithProgress } from './svn-progress';
 
 const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');
 
@@ -35,6 +37,25 @@ export async function exportRepository(
   };
 }
 
+export async function exportRepositoryWithProgress(
+  event: IpcMainInvokeEvent,
+  operationId: string,
+  url: string,
+  path: string,
+  revision?: string
+): Promise<{ success: boolean; revision: number; output?: string; error?: string }> {
+  const args = [
+    'export',
+    '--non-interactive',
+    '--trust-server-cert-failures',
+    DEFAULT_SSL_FAILURES,
+    url,
+    path,
+  ];
+  if (revision) args.push('-r', revision);
+  return runSvnOperationWithProgress(event, operationId, 'export', args);
+}
+
 export async function importRepository(
   path: string,
   url: string,
@@ -55,6 +76,25 @@ export async function importRepository(
     revision: parseCommittedRevision(output),
     output,
   };
+}
+
+export async function importRepositoryWithProgress(
+  event: IpcMainInvokeEvent,
+  operationId: string,
+  path: string,
+  url: string,
+  message: string
+): Promise<{ success: boolean; revision: number; output?: string; error?: string }> {
+  return runSvnOperationWithProgress(event, operationId, 'import', [
+    'import',
+    '-m',
+    message,
+    '--non-interactive',
+    '--trust-server-cert-failures',
+    DEFAULT_SSL_FAILURES,
+    path,
+    url,
+  ]);
 }
 
 export async function resolveConflict(
@@ -110,6 +150,30 @@ export async function mergeRepositoryRange(
   }
   const output = await runSvnText(args);
   return { success: true, output };
+}
+
+export async function mergeRepositoryRangeWithProgress(
+  event: IpcMainInvokeEvent,
+  operationId: string,
+  source: string,
+  target: string,
+  revisions?: string[],
+  ranges?: Array<{ start: number; end: number }>
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  const args = ['merge', source, target];
+  if (revisions && revisions.length > 0) {
+    args.push('-c', revisions.join(','));
+  }
+  if (ranges && ranges.length > 0) {
+    for (const range of ranges) {
+      args.push('-r', `${range.start}:${range.end}`);
+    }
+  }
+
+  const result = await runSvnOperationWithProgress(event, operationId, 'merge', args);
+  return result.success
+    ? { success: true, output: result.output }
+    : { success: false, error: result.error };
 }
 
 export async function relocateWorkingCopy(

@@ -18,6 +18,7 @@ import type {
   SvnListResult,
   SvnLockInfo,
   SvnLockResult,
+  SvnOperationProgress,
   SvnPatchResult,
   SvnShelveListResult,
   SvnUnlockResult,
@@ -46,7 +47,10 @@ export interface IpcInvokeContract {
     [path: string],
     { success: boolean; output?: string; error?: string }
   >;
-  'svn:log': IpcCall<[path: string, limit?: number, startRev?: number, endRev?: number], import('./types').SvnLogResult>;
+  'svn:log': IpcCall<
+    [path: string, limit?: number, startRev?: number, endRev?: number],
+    import('./types').SvnLogResult
+  >;
   'svn:info': IpcCall<[path: string], SvnInfoResult>;
   'svn:infoUrl': IpcCall<[url: string], SvnInfoResult>;
   'svn:getWorkingCopyContext': IpcCall<
@@ -81,6 +85,11 @@ export interface IpcInvokeContract {
     RevisionResult
   >;
   'svn:commit': IpcCall<[paths: string[], message: string], RevisionResult>;
+  'svn:commitWithProgress': IpcCall<
+    [operationId: string, paths: string[], message: string],
+    RevisionResult
+  >;
+  'svn:cancelOperation': IpcCall<[operationId: string], OperationResult>;
   'svn:revert': IpcCall<[paths: string[]], OperationResult>;
   'svn:add': IpcCall<[paths: string[]], OperationResult>;
   'svn:delete': IpcCall<[paths: string[]], OperationResult>;
@@ -114,11 +123,32 @@ export interface IpcInvokeContract {
   >;
   'svn:cancelCheckout': IpcCall<[checkoutId: string], OperationResult>;
   'svn:export': IpcCall<[url: string, path: string, revision?: string], RevisionResult>;
+  'svn:exportWithProgress': IpcCall<
+    [operationId: string, url: string, path: string, revision?: string],
+    RevisionResult
+  >;
   'svn:import': IpcCall<[path: string, url: string, message: string], RevisionResult>;
+  'svn:importWithProgress': IpcCall<
+    [operationId: string, path: string, url: string, message: string],
+    RevisionResult
+  >;
   'svn:resolve': IpcCall<[path: string, resolution: string], OperationResult>;
   'svn:switch': IpcCall<[path: string, url: string, revision?: string], RevisionResult>;
   'svn:copy': IpcCall<[src: string, dst: string, message: string], RevisionResult>;
-  'svn:merge': IpcCall<[source: string, target: string, revisions?: string[], ranges?: string[]], OperationResult>;
+  'svn:merge': IpcCall<
+    [source: string, target: string, revisions?: string[], ranges?: string[]],
+    OperationResult
+  >;
+  'svn:mergeWithProgress': IpcCall<
+    [
+      operationId: string,
+      source: string,
+      target: string,
+      revisions?: string[],
+      ranges?: Array<{ start: number; end: number }>,
+    ],
+    OperationResult
+  >;
   'svn:relocate': IpcCall<[from: string, to: string, path: string], OperationResult>;
   'svn:move': IpcCall<[src: string, dst: string], OperationResult>;
   'svn:rename': IpcCall<[src: string, dst: string], OperationResult>;
@@ -134,13 +164,27 @@ export interface IpcInvokeContract {
   'svn:proplist': IpcCall<[path: string], { name: string; value: string }[]>;
   'svn:propset': IpcCall<[path: string, name: string, value: string], OperationResult>;
   'svn:propdel': IpcCall<[path: string, name: string], OperationResult>;
-  'svn:blame': IpcCall<[path: string, startRevision?: number, endRevision?: number], SvnBlameResult>;
+  'svn:blame': IpcCall<
+    [path: string, startRevision?: number, endRevision?: number],
+    SvnBlameResult
+  >;
   'svn:list': IpcCall<
-    [url: string, revision?: string, depth?: 'empty' | 'immediates' | 'infinity', credentials?: AuthCredential],
+    [
+      url: string,
+      revision?: string,
+      depth?: 'empty' | 'immediates' | 'infinity',
+      credentials?: AuthCredential,
+    ],
     SvnListResult
   >;
-  'svn:patch:create': IpcCall<[paths: string[], outputPath: string], { success: boolean; output: string }>;
-  'svn:patch:apply': IpcCall<[patchPath: string, targetPath: string, dryRun?: boolean], SvnPatchResult>;
+  'svn:patch:create': IpcCall<
+    [paths: string[], outputPath: string],
+    { success: boolean; output: string }
+  >;
+  'svn:patch:apply': IpcCall<
+    [patchPath: string, targetPath: string, dryRun?: boolean],
+    SvnPatchResult
+  >;
   'svn:externals:list': IpcCall<[path: string], SvnExternal[]>;
   'svn:externals:add': IpcCall<[workingCopyPath: string, external: SvnExternal], OperationResult>;
   'svn:externals:remove': IpcCall<[workingCopyPath: string, externalPath: string], OperationResult>;
@@ -162,7 +206,10 @@ export interface IpcInvokeContract {
   'fs:cancelScan': IpcCall<[path: string], OperationResult>;
   'fs:isVersioned': IpcCall<[path: string], boolean>;
   'fs:readFile': IpcCall<[path: string], { success: boolean; content?: string; error?: string }>;
-  'fs:readImageAsBase64': IpcCall<[path: string], { success: boolean; data?: string; error?: string }>;
+  'fs:readImageAsBase64': IpcCall<
+    [path: string],
+    { success: boolean; data?: string; error?: string }
+  >;
   'fs:getFolderSizes': IpcCall<[folderPaths: string[]], Record<string, number>>;
   'fs:copyFile': IpcCall<[source: string, target: string], OperationResult>;
   'fs:writeFile': IpcCall<[path: string, content: string], OperationResult>;
@@ -206,7 +253,10 @@ export interface IpcInvokeContract {
   'monitor:stopMonitoring': IpcCall<[], OperationResult>;
 
   'external:openDiffTool': IpcCall<[tool: string, left: string, right: string], OperationResult>;
-  'external:openMergeTool': IpcCall<[tool: string, base: string, mine: string, theirs: string, merged: string], OperationResult>;
+  'external:openMergeTool': IpcCall<
+    [tool: string, base: string, mine: string, theirs: string, merged: string],
+    OperationResult
+  >;
   'external:openFolder': IpcCall<[path: string], OperationResult>;
   'external:openFile': IpcCall<[path: string], OperationResult>;
 
@@ -228,6 +278,7 @@ export type IpcInvokeResult<C extends IpcInvokeChannel> = IpcInvokeContract[C]['
 export type IpcEventContract = {
   'svn:checkout:progress': CheckoutProgress & { checkoutId?: string };
   'svn:update:progress': CheckoutProgress & { updateId?: string };
+  'svn:operation:progress': SvnOperationProgress;
   'fs:watch:change': { path: string; eventType: string; changedPath: string };
   'deep-link': {
     action: string;

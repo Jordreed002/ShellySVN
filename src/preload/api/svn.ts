@@ -9,6 +9,7 @@ import type {
   SvnListResult,
   SvnLockInfo,
   SvnLockResult,
+  SvnOperationProgress,
   SvnPatchResult,
   SvnShelveListResult,
   SvnUnlockResult,
@@ -17,18 +18,51 @@ import { createOperationId, type InvokeIpc } from './ipc';
 
 let activeCheckoutId: string | null = null;
 let activeUpdateId: string | null = null;
+let activeOperationId: string | null = null;
 
-export function createSvnApi(
+function invokeWithOperationProgress<T>(
   ipcRenderer: IpcRenderer,
-  invokeIpc: InvokeIpc
-): ElectronAPI['svn'] {
+  operationPrefix: string,
+  onProgress: (progress: SvnOperationProgress) => void,
+  invoke: (operationId: string) => Promise<T>
+): Promise<T> {
+  const operationId = createOperationId(operationPrefix);
+  activeOperationId = operationId;
+
+  const handler = (_: unknown, progress: unknown) => {
+    const operationProgress = progress as SvnOperationProgress;
+    if (operationProgress.operationId === operationId) {
+      onProgress(operationProgress);
+    }
+  };
+
+  ipcRenderer.on('svn:operation:progress', handler);
+
+  return invoke(operationId).then(
+    (result) => {
+      ipcRenderer.removeListener('svn:operation:progress', handler);
+      if (activeOperationId === operationId) {
+        activeOperationId = null;
+      }
+      return result;
+    },
+    (error) => {
+      ipcRenderer.removeListener('svn:operation:progress', handler);
+      if (activeOperationId === operationId) {
+        activeOperationId = null;
+      }
+      throw error;
+    }
+  );
+}
+
+export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): ElectronAPI['svn'] {
   return {
     status: (path) => invokeIpc('svn:status', path),
     statusRemote: (path) => invokeIpc('svn:statusRemote', path),
     workingCopyUpgradeStatus: (path) => invokeIpc('svn:workingCopyUpgradeStatus', path),
     upgradeWorkingCopy: (path) => invokeIpc('svn:upgradeWorkingCopy', path),
-    log: (path, limit?, startRev?, endRev?) =>
-      invokeIpc('svn:log', path, limit, startRev, endRev),
+    log: (path, limit?, startRev?, endRev?) => invokeIpc('svn:log', path, limit, startRev, endRev),
     info: (path) => invokeIpc('svn:info', path),
     infoUrl: (url) => invokeIpc('svn:infoUrl', url),
     getWorkingCopyContext: (path) => invokeIpc('svn:getWorkingCopyContext', path),
@@ -77,6 +111,16 @@ export function createSvnApi(
     updateToRevision: (workingCopyRoot, url, localPath, depth?, setDepthSticky?) =>
       invokeIpc('svn:updateToRevision', workingCopyRoot, url, localPath, depth, setDepthSticky),
     commit: (paths, message) => invokeIpc('svn:commit', paths, message),
+    commitWithProgress: (paths, message, onProgress) =>
+      invokeWithOperationProgress(ipcRenderer, 'commit', onProgress, (operationId) =>
+        invokeIpc('svn:commitWithProgress', operationId, paths, message)
+      ),
+    cancelOperation: () => {
+      if (!activeOperationId) {
+        return Promise.resolve({ success: false, error: 'No active SVN operation' });
+      }
+      return invokeIpc('svn:cancelOperation', activeOperationId);
+    },
     revert: (paths) => invokeIpc('svn:revert', paths),
     add: (paths) => invokeIpc('svn:add', paths),
     delete: (paths) => invokeIpc('svn:delete', paths),
@@ -144,12 +188,24 @@ export function createSvnApi(
       return invokeIpc('svn:cancelCheckout', activeCheckoutId);
     },
     export: (url, path, revision?) => invokeIpc('svn:export', url, path, revision),
+    exportWithProgress: (url, path, onProgress, revision?) =>
+      invokeWithOperationProgress(ipcRenderer, 'export', onProgress, (operationId) =>
+        invokeIpc('svn:exportWithProgress', operationId, url, path, revision)
+      ),
     import: (path, url, message) => invokeIpc('svn:import', path, url, message),
+    importWithProgress: (path, url, message, onProgress) =>
+      invokeWithOperationProgress(ipcRenderer, 'import', onProgress, (operationId) =>
+        invokeIpc('svn:importWithProgress', operationId, path, url, message)
+      ),
     resolve: (path, resolution) => ipcRenderer.invoke('svn:resolve', path, resolution),
     switch: (path, url, revision?) => ipcRenderer.invoke('svn:switch', path, url, revision),
     copy: (src, dst, message) => ipcRenderer.invoke('svn:copy', src, dst, message),
     merge: (source, target, revisions?, ranges?) =>
       ipcRenderer.invoke('svn:merge', source, target, revisions, ranges),
+    mergeWithProgress: (source, target, onProgress, revisions?, ranges?) =>
+      invokeWithOperationProgress(ipcRenderer, 'merge', onProgress, (operationId) =>
+        invokeIpc('svn:mergeWithProgress', operationId, source, target, revisions, ranges)
+      ),
     relocate: (from, to, path) => ipcRenderer.invoke('svn:relocate', from, to, path),
     changelist: {
       add: (paths, changelist) => ipcRenderer.invoke('svn:changelist:add', paths, changelist),

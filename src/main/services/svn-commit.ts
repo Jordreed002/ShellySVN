@@ -1,7 +1,9 @@
+import type { IpcMainInvokeEvent } from 'electron';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
+import { runSvnOperationWithProgress } from './svn-progress';
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
   try {
@@ -60,6 +62,60 @@ export async function commit(
     message,
     revision: result.revision,
   }).catch((err) => debug.error('[SVN] Post-commit hook error:', err));
+
+  return result;
+}
+
+export async function commitWithProgress(
+  event: IpcMainInvokeEvent,
+  operationId: string,
+  paths: string[],
+  message: string
+): Promise<{ success: boolean; revision: number; error?: string; output?: string }> {
+  const workingCopyPath = paths[0];
+  const hooks = await getHooksForWorkingCopy(workingCopyPath);
+
+  const startResult = await executeHooksForType(hooks, 'start-commit', {
+    workingCopyPath,
+    files: paths,
+    message,
+  });
+  if (!startResult.allSucceeded) {
+    return {
+      success: false,
+      revision: 0,
+      error: startResult.error || 'Start-commit hook blocked the operation',
+    };
+  }
+
+  const preResult = await executeHooksForType(hooks, 'pre-commit', {
+    workingCopyPath,
+    files: paths,
+    message,
+  });
+  if (!preResult.allSucceeded) {
+    return {
+      success: false,
+      revision: 0,
+      error: preResult.error || 'Pre-commit hook blocked the operation',
+    };
+  }
+
+  const result = await runSvnOperationWithProgress(event, operationId, 'commit', [
+    'commit',
+    '-m',
+    message,
+    ...paths,
+  ]);
+
+  if (result.success) {
+    executeHooksForType(hooks, 'post-commit', {
+      workingCopyPath,
+      files: paths,
+      message,
+      revision: result.revision,
+    }).catch((err) => debug.error('[SVN] Post-commit hook error:', err));
+  }
 
   return result;
 }

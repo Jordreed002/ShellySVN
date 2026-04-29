@@ -14,12 +14,8 @@ import type {
   SvnStatusResult,
 } from '@shared/types';
 
-import {
-  cancelCheckout,
-  checkout,
-  checkoutWithProgress,
-} from '../services/svn-checkout';
-import { commit } from '../services/svn-commit';
+import { cancelCheckout, checkout, checkoutWithProgress } from '../services/svn-checkout';
+import { commit, commitWithProgress } from '../services/svn-commit';
 import { getBlame, getDiff, getDiffStreaming, getLog } from '../services/svn-history';
 import {
   forceLock,
@@ -52,12 +48,16 @@ import { applyPatch, createPatch } from '../services/svn-patch';
 import {
   copyRepositoryItem,
   exportRepository,
+  exportRepositoryWithProgress,
   importRepository,
+  importRepositoryWithProgress,
   mergeRepositoryRange,
+  mergeRepositoryRangeWithProgress,
   relocateWorkingCopy,
   resolveConflict,
   switchWorkingCopy,
 } from '../services/svn-repository-ops';
+import { cancelSvnOperation } from '../services/svn-progress';
 import {
   add as addWorkingCopyItems,
   cancelUpdate,
@@ -175,6 +175,17 @@ export function registerSvnHandlers(): void {
     return commit(paths, message);
   });
 
+  ipcMain.handle(
+    'svn:commitWithProgress',
+    async (event, operationId: string, paths: string[], message: string) => {
+      return commitWithProgress(event, operationId, paths, message);
+    }
+  );
+
+  ipcMain.handle('svn:cancelOperation', async (_, operationId: string) => {
+    return cancelSvnOperation(operationId);
+  });
+
   // SVN Revert
   ipcMain.handle('svn:revert', async (_, paths: string[]) => {
     return revertWorkingCopyItems(paths);
@@ -232,10 +243,24 @@ export function registerSvnHandlers(): void {
     return exportRepository(url, path, revision);
   });
 
+  ipcMain.handle(
+    'svn:exportWithProgress',
+    async (event, operationId: string, url: string, path: string, revision?: string) => {
+      return exportRepositoryWithProgress(event, operationId, url, path, revision);
+    }
+  );
+
   // SVN Import
   ipcMain.handle('svn:import', async (_, path: string, url: string, message: string) => {
     return importRepository(path, url, message);
   });
+
+  ipcMain.handle(
+    'svn:importWithProgress',
+    async (event, operationId: string, path: string, url: string, message: string) => {
+      return importRepositoryWithProgress(event, operationId, path, url, message);
+    }
+  );
 
   // SVN Lock
   ipcMain.handle('svn:lock', async (_, path: string, message?: string) => {
@@ -300,6 +325,27 @@ export function registerSvnHandlers(): void {
       ranges?: Array<{ start: number; end: number }>
     ) => {
       return mergeRepositoryRange(source, target, revisions, ranges);
+    }
+  );
+
+  ipcMain.handle(
+    'svn:mergeWithProgress',
+    async (
+      event,
+      operationId: string,
+      source: string,
+      target: string,
+      revisions?: string[],
+      ranges?: Array<{ start: number; end: number }>
+    ) => {
+      return mergeRepositoryRangeWithProgress(
+        event,
+        operationId,
+        source,
+        target,
+        revisions,
+        ranges
+      );
     }
   );
 
@@ -470,4 +516,3 @@ export function registerSvnHandlers(): void {
     }
   );
 }
-

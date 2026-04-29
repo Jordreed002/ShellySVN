@@ -427,6 +427,11 @@ export interface CheckoutProgress {
   revision?: number;
 }
 
+export interface SvnOperationProgress extends CheckoutProgress {
+  operationId: string;
+  operation: 'commit' | 'export' | 'import' | 'merge';
+}
+
 // ============================================
 // Auth Types
 // ============================================
@@ -646,7 +651,9 @@ export interface ElectronAPI {
     status: (path: string) => Promise<SvnStatusResult>;
     statusRemote: (path: string) => Promise<SvnStatusResult>;
     workingCopyUpgradeStatus: (path: string) => Promise<WorkingCopyUpgradeStatus>;
-    upgradeWorkingCopy: (path: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+    upgradeWorkingCopy: (
+      path: string
+    ) => Promise<{ success: boolean; output?: string; error?: string }>;
     log: (
       path: string,
       limit?: number,
@@ -681,6 +688,12 @@ export interface ElectronAPI {
       setDepthSticky?: boolean
     ) => Promise<{ success: boolean; revision: number; error?: string }>;
     commit: (paths: string[], message: string) => Promise<{ success: boolean; revision: number }>;
+    commitWithProgress: (
+      paths: string[],
+      message: string,
+      onProgress: (progress: SvnOperationProgress) => void
+    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
+    cancelOperation: () => Promise<{ success: boolean; error?: string }>;
     revert: (paths: string[]) => Promise<{ success: boolean }>;
     add: (paths: string[]) => Promise<{ success: boolean }>;
     delete: (paths: string[]) => Promise<{ success: boolean }>;
@@ -712,11 +725,23 @@ export interface ElectronAPI {
       path: string,
       revision?: string
     ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    exportWithProgress: (
+      url: string,
+      path: string,
+      onProgress: (progress: SvnOperationProgress) => void,
+      revision?: string
+    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
     import: (
       path: string,
       url: string,
       message: string
     ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    importWithProgress: (
+      path: string,
+      url: string,
+      message: string,
+      onProgress: (progress: SvnOperationProgress) => void
+    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
     resolve: (
       path: string,
       resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict'
@@ -737,6 +762,13 @@ export interface ElectronAPI {
       revisions?: string[],
       ranges?: Array<{ start: number; end: number }>
     ) => Promise<{ success: boolean; output?: string }>;
+    mergeWithProgress: (
+      source: string,
+      target: string,
+      onProgress: (progress: SvnOperationProgress) => void,
+      revisions?: string[],
+      ranges?: Array<{ start: number; end: number }>
+    ) => Promise<{ success: boolean; error?: string; output?: string }>;
     relocate: (
       from: string,
       to: string,
