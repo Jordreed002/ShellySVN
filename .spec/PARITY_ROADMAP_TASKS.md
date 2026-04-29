@@ -96,9 +96,9 @@
 
 ## P1 - History, Blame, Revision Graph, and Review
 
-- [ ] Verify revision log filtering by author, message, path, revision range, date range, and issue ID.
+- [x] Verify revision log filtering by author, message, path, revision range, date range, and issue ID.
 - [ ] Add changed-path filtering, pagination, and search coverage in log/history views.
-- [ ] Add issue ID column and issue links in revision log and commit views.
+- [x] Add issue ID column and issue links in revision log and commit views.
 - [ ] Verify log cache behavior for large repositories, including invalidation and manual cache management.
 - [ ] Add branch/tag comparison workflow.
 - [ ] Add merge-tracking log view.
@@ -151,8 +151,8 @@
 - [x] Support configurable issue regex and URL templates.
 - [x] Support commit dialog issue ID field or message parsing.
 - [x] Add required issue ID warnings before commit.
-- [ ] Add issue links in log, commit, and history views.
-- [ ] Add issue ID column in revision log.
+- [x] Add issue links in log, commit, and history views.
+- [x] Add issue ID column in revision log.
 - [ ] Evaluate compatibility with common SVN project properties where practical.
 - [x] Add tests for issue parsing, URL generation, validation, and display.
 
