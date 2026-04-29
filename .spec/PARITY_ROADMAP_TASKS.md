@@ -87,7 +87,7 @@
 - [x] Add reliable side-by-side text diff mode or record a product decision to defer it.
 - [x] Verify large diffs do not block the renderer.
 - [x] Verify syntax highlighting does not break very large files or unknown languages.
-- [ ] Verify image diff behavior for common asset formats and document supported formats.
+- [x] Verify image diff behavior for common asset formats and document supported formats.
 - [ ] Add external diff and merge tool configuration with per-extension overrides.
 - [x] Validate external executable paths before saving settings and before spawning tools.
 - [x] Verify patch creation for selected files and whole working copies.
