@@ -22,6 +22,11 @@ interface BlameLine {
   mergedFrom?: string;
 }
 
+interface RevisionContext {
+  message: string;
+  issues: IssueLink[];
+}
+
 export function BlameViewer({
   isOpen,
   onClose,
@@ -72,22 +77,22 @@ export function BlameViewer({
     : [];
 
   const { data: logData } = useQuery({
-    queryKey: ['svn:log:blame-issues', filePath, revisions.join(','), issueTrackerConfig],
+    queryKey: ['svn:log:blame-context', filePath, revisions.join(','), issueTrackerConfig],
     queryFn: () => window.api.svn.log(filePath, Math.max(200, revisions.length)),
-    enabled: isOpen && !!filePath && issueTrackerConfig.enabled && revisions.length > 0,
+    enabled: isOpen && !!filePath && revisions.length > 0,
   });
 
-  const revisionIssueLinks = useMemo(() => {
-    const issueMap = new Map<number, IssueLink[]>();
+  const revisionContext = useMemo(() => {
+    const contextMap = new Map<number, RevisionContext>();
 
     for (const entry of logData?.entries || []) {
-      const links = extractIssueLinks(entry.message, issueTrackerConfig);
-      if (links.length > 0) {
-        issueMap.set(entry.revision, links);
-      }
+      contextMap.set(entry.revision, {
+        message: entry.message,
+        issues: extractIssueLinks(entry.message, issueTrackerConfig),
+      });
     }
 
-    return issueMap;
+    return contextMap;
   }, [logData, issueTrackerConfig]);
 
   // Filter lines by search
@@ -95,18 +100,23 @@ export function BlameViewer({
     if (searchQuery === '') return true;
 
     const normalizedQuery = searchQuery.toLowerCase();
-    const issueIds = revisionIssueLinks
-      .get(line.revision)
-      ?.map((issue) => issue.id.toLowerCase())
-      .join(' ');
+    const context = revisionContext.get(line.revision);
+    const issueIds = context?.issues.map((issue) => issue.id.toLowerCase()).join(' ');
+    const message = context?.message.toLowerCase();
 
     return (
       line.content.toLowerCase().includes(normalizedQuery) ||
       line.author.toLowerCase().includes(normalizedQuery) ||
       line.revision.toString().includes(searchQuery) ||
-      Boolean(issueIds?.includes(normalizedQuery))
+      Boolean(issueIds?.includes(normalizedQuery)) ||
+      Boolean(message?.includes(normalizedQuery))
     );
   });
+
+  const hasRevisionMessages = useMemo(
+    () => Array.from(revisionContext.values()).some((context) => context.message.trim()),
+    [revisionContext]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +169,7 @@ export function BlameViewer({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search content, author, revision, or issue..."
+              placeholder="Search content, author, revision, message, or issue..."
               className="input pl-8"
             />
           </div>
@@ -201,12 +211,14 @@ export function BlameViewer({
                   <th className="px-2 py-1 w-28 border-b border-border">Issues</th>
                   <th className="px-2 py-1 w-24 border-b border-border">Author</th>
                   <th className="px-2 py-1 w-32 border-b border-border">Date</th>
+                  <th className="px-2 py-1 w-56 border-b border-border">Message</th>
                   <th className="px-2 py-1 border-b border-border">Content</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLines.map((line) => {
-                  const issueLinks = revisionIssueLinks.get(line.revision) || [];
+                  const context = revisionContext.get(line.revision);
+                  const issueLinks = context?.issues || [];
 
                   return (
                     <tr
@@ -236,6 +248,16 @@ export function BlameViewer({
                       </td>
                       <td className="px-2 py-0.5 text-text-faint border-r border-border">
                         {new Date(line.date).toLocaleDateString()}
+                      </td>
+                      <td
+                        className="max-w-56 truncate px-2 py-0.5 text-text-secondary border-r border-border"
+                        title={context?.message || 'No log message available'}
+                      >
+                        {context?.message?.trim() || (
+                          <span className="italic text-text-faint">
+                            {hasRevisionMessages ? 'No message' : 'Loading...'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-2 py-0.5 whitespace-pre">{line.content}</td>
                     </tr>

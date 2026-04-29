@@ -102,7 +102,7 @@
 - [x] Verify log cache behavior for large repositories, including invalidation and manual cache management.
 - [x] Add branch/tag comparison workflow.
 - [x] Add merge-tracking log view.
-- [ ] Verify blame view shows line-level revision, author, date, and log-message context.
+- [x] Verify blame view shows line-level revision, author, date, and log-message context.
 - [ ] Verify revision graph clearly shows branches, tags, copies, and merges.
 - [ ] Add revision graph export coverage.
 - [x] Add project statistics for commits over time, authors, file churn, and branch/tag activity, or defer explicitly.
