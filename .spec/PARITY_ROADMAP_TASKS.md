@@ -218,7 +218,7 @@
 - [ ] Add cross-platform compiled binary smoke tests.
 - [ ] Ensure app and CLI share parsing logic instead of duplicating SVN output handling.
 - [x] Keep Electron main, preload, renderer, and shared contracts clearly separated.
-- [ ] Add IPC validation tests for security-sensitive paths, including Windows path cases.
+- [x] Add IPC validation tests for security-sensitive paths, including Windows path cases.
 
 ## P2 - Packaging, CI, and Release Hardening
 

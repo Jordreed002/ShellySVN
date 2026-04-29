@@ -300,6 +300,20 @@ describe('FS IPC Handlers', () => {
       expect(result.error).toContain('Absolute');
     });
 
+    it('should reject Windows absolute, drive-relative, and UNC paths', async () => {
+      const handler = handlers.get('fs:readFile');
+
+      for (const path of ['C:\\Windows\\win.ini', 'C:Windows\\win.ini', '\\\\server\\share\\file.txt']) {
+        const result = (await handler!({}, path)) as {
+          success: boolean;
+          error?: string;
+        };
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Absolute');
+      }
+    });
+
     it('should reject path traversal in original path', async () => {
       const handler = handlers.get('fs:readFile');
       // This path normalizes to /secrets.txt but contains .. in original
@@ -365,6 +379,21 @@ describe('FS IPC Handlers', () => {
         success: boolean;
         error?: string;
       };
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('selected through ShellySVN');
+      expect(mockState.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('should reject Windows writes outside approved roots', async () => {
+      approvePathForIpc('C:\\workspace');
+
+      const handler = handlers.get('fs:writeFile');
+      const result = (await handler!(
+        {},
+        'C:\\Windows\\System32\\drivers\\etc\\hosts',
+        'content'
+      )) as { success: boolean; error?: string };
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('selected through ShellySVN');
@@ -488,6 +517,20 @@ describe('FS IPC Handlers', () => {
       const result = (await handler!({ sender }, '/test/path')) as { success: boolean };
 
       expect(result.success).toBe(true);
+    });
+
+    it('should reject Windows watch paths outside approved roots', async () => {
+      approvePathForIpc('C:\\workspace');
+
+      const handler = handlers.get('fs:watch');
+      const result = (await handler!(
+        { sender: { send: vi.fn() } },
+        'C:\\Windows\\System32'
+      )) as { success: boolean; error?: string };
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('selected through ShellySVN');
+      expect(mockState.chokidarWatch).not.toHaveBeenCalled();
     });
   });
 
