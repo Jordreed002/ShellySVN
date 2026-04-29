@@ -135,8 +135,8 @@
 
 ## P1 - Properties, Externals, Locks, Shelving, and Advanced SVN
 
-- [ ] Verify properties viewer supports add, edit, delete, and refresh.
-- [ ] Add common property helpers for `svn:ignore`, `svn:externals`, `svn:keywords`, `svn:eol-style`, and `svn:mime-type`.
+- [x] Verify properties viewer supports add, edit, delete, and refresh.
+- [x] Add common property helpers for `svn:ignore`, `svn:externals`, `svn:keywords`, `svn:eol-style`, and `svn:mime-type`.
 - [ ] Verify externals manager can list, add, edit, remove, and update externals.
 - [ ] Ensure commit and status flows handle externals clearly.
 - [ ] Verify lock, unlock, force lock, force unlock, and lock list workflows.

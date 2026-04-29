@@ -16,7 +16,7 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
-import { shelveApply, shelveDelete, shelveList, shelveSave } from '../svn-metadata';
+import { propdel, proplist, propset, shelveApply, shelveDelete, shelveList, shelveSave } from '../svn-metadata';
 
 describe('svn-metadata shelving', () => {
   beforeEach(() => {
@@ -54,5 +54,39 @@ describe('svn-metadata shelving', () => {
     ]);
     expect(mockState.runSvnText).toHaveBeenCalledWith(['unshelve', 'work', 'C:\\wc']);
     expect(mockState.runSvnText).toHaveBeenCalledWith(['shelve', '--delete', 'work', 'C:\\wc']);
+  });
+});
+
+describe('svn-metadata properties', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('lists, sets, and deletes common SVN properties', async () => {
+    mockState.runSvnText.mockResolvedValueOnce(`<?xml version="1.0" encoding="UTF-8"?>
+<properties>
+  <target path="C:/wc">
+    <property name="svn:ignore">dist</property>
+    <property name="svn:mime-type">text/plain</property>
+  </target>
+</properties>`);
+
+    await expect(proplist('C:\\wc')).resolves.toEqual([
+      { name: 'svn:ignore', value: 'dist' },
+      { name: 'svn:mime-type', value: 'text/plain' },
+    ]);
+    await expect(propset('C:\\wc', 'svn:eol-style', 'native')).resolves.toEqual({
+      success: true,
+    });
+    await expect(propdel('C:\\wc', 'svn:keywords')).resolves.toEqual({ success: true });
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['proplist', '--xml', '-v', 'C:\\wc']);
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'propset',
+      'svn:eol-style',
+      'native',
+      'C:\\wc',
+    ]);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['propdel', 'svn:keywords', 'C:\\wc']);
   });
 });
