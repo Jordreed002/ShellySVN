@@ -67,6 +67,7 @@ interface CommandPaletteProps {
   onGoToPath?: (path: string) => void;
   // New SVN operations callbacks
   onBranchTag?: () => void;
+  onBranchTagCompare?: () => void;
   onSwitch?: () => void;
   onMerge?: () => void;
   onRelocate?: () => void;
@@ -111,6 +112,7 @@ export function CommandPalette({
   onAddBookmark,
   onGoToPath,
   onBranchTag,
+  onBranchTagCompare,
   onSwitch,
   onMerge,
   onRelocate,
@@ -215,6 +217,18 @@ export function CommandPalette({
         category: 'SVN',
         action: onBranchTag,
         keywords: ['branch', 'tag'],
+      });
+    }
+
+    if (onBranchTagCompare) {
+      items.push({
+        id: 'branch-tag-compare',
+        title: 'Compare Branches/Tags...',
+        description: 'Compare two repository URLs',
+        icon: GitCompare,
+        category: 'SVN',
+        action: onBranchTagCompare,
+        keywords: ['branch', 'tag', 'compare', 'diff'],
       });
     }
 
@@ -575,6 +589,7 @@ export function CommandPalette({
     onAddBookmark,
     onGoToPath,
     onBranchTag,
+    onBranchTagCompare,
     onSwitch,
     onMerge,
     onRelocate,

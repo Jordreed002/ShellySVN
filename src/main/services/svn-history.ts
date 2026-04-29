@@ -30,6 +30,16 @@ export async function getDiff(path: string, revision?: string): Promise<SvnDiffR
   }
 }
 
+export async function getUrlDiff(leftUrl: string, rightUrl: string): Promise<SvnDiffResult> {
+  try {
+    const output = await runSvnText(['diff', leftUrl, rightUrl]);
+    return parseSvnDiff(output);
+  } catch (error) {
+    debug.error('[SVN] URL diff error:', error);
+    return { files: [], hasChanges: false, rawDiff: (error as Error).message };
+  }
+}
+
 export async function getDiffStreaming(path: string, revision?: string): Promise<SvnDiffResult> {
   try {
     const args = ['diff'];

@@ -60,6 +60,9 @@ const RepoDiagnosticsPanel = lazy(() =>
 const BranchTagDialog = lazy(() =>
   import('./ui/BranchTagDialog').then((m) => ({ default: m.BranchTagDialog }))
 );
+const BranchTagCompareDialog = lazy(() =>
+  import('./ui/BranchTagCompareDialog').then((m) => ({ default: m.BranchTagCompareDialog }))
+);
 const SwitchDialog = lazy(() =>
   import('./ui/SwitchDialog').then((m) => ({ default: m.SwitchDialog }))
 );
@@ -177,6 +180,7 @@ export function FileExplorer() {
   // Dialog state for context menu actions
   const [branchTagPath, setBranchTagPath] = useState<string | null>(null);
   const [branchTagMode, setBranchTagMode] = useState<'branch' | 'tag'>('branch');
+  const [branchTagCompareOpen, setBranchTagCompareOpen] = useState(false);
   const [switchPath, setSwitchPath] = useState<string | null>(null);
   const [mergePath, setMergePath] = useState<string | null>(null);
   const [relocatePath, setRelocatePath] = useState<string | null>(null);
@@ -616,6 +620,9 @@ export function FileExplorer() {
         setBranchTagMode('branch');
       }
     };
+    const handleBranchTagCompare = () => {
+      if (path) setBranchTagCompareOpen(true);
+    };
     const handleSwitch = () => {
       if (path) setSwitchPath(path);
     };
@@ -687,6 +694,7 @@ export function FileExplorer() {
     };
 
     window.addEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
+    window.addEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
     window.addEventListener(SVN_EVENTS.SWITCH, handleSwitch);
     window.addEventListener(SVN_EVENTS.MERGE, handleMerge);
     window.addEventListener(SVN_EVENTS.RELOCATE, handleRelocate);
@@ -706,6 +714,7 @@ export function FileExplorer() {
 
     return () => {
       window.removeEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
+      window.removeEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
       window.removeEventListener(SVN_EVENTS.SWITCH, handleSwitch);
       window.removeEventListener(SVN_EVENTS.MERGE, handleMerge);
       window.removeEventListener(SVN_EVENTS.RELOCATE, handleRelocate);
@@ -1428,6 +1437,16 @@ export function FileExplorer() {
               setBranchTagPath(null);
               queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
             }}
+          />
+        </Suspense>
+      )}
+
+      {branchTagCompareOpen && (
+        <Suspense fallback={<DialogLoader />}>
+          <BranchTagCompareDialog
+            isOpen={branchTagCompareOpen}
+            onClose={() => setBranchTagCompareOpen(false)}
+            sourceUrl={svnInfo?.url}
           />
         </Suspense>
       )}

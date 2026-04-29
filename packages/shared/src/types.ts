@@ -689,6 +689,7 @@ export interface ElectronAPI {
       path: string
     ) => Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>;
     diff: (path: string, revision?: string) => Promise<SvnDiffResult>;
+    diffUrls: (leftUrl: string, rightUrl: string) => Promise<SvnDiffResult>;
     diffStreaming: (path: string, revision?: string) => Promise<SvnDiffResult>;
     update: (
       path: string,

@@ -26,6 +26,7 @@ export { ModificationsView } from './ModificationsView';
 export { ResolveDialog } from './ResolveDialog';
 export { ConflictResolutionWizard } from './ConflictResolutionWizard';
 export { BranchTagDialog } from './BranchTagDialog';
+export { BranchTagCompareDialog } from './BranchTagCompareDialog';
 export { SwitchDialog } from './SwitchDialog';
 export { MergeWizard } from './MergeWizard';
 export { PropertiesDialog } from './PropertiesDialog';

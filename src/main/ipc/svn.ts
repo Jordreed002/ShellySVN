@@ -16,7 +16,7 @@ import type {
 
 import { cancelCheckout, checkout, checkoutWithProgress } from '../services/svn-checkout';
 import { commit, commitWithProgress } from '../services/svn-commit';
-import { getBlame, getDiff, getDiffStreaming, getLog } from '../services/svn-history';
+import { getBlame, getDiff, getDiffStreaming, getLog, getUrlDiff } from '../services/svn-history';
 import {
   forceLock,
   forceUnlock,
@@ -119,6 +119,13 @@ export function registerSvnHandlers(): void {
   ipcMain.handle('svn:diff', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
     return getDiff(path, revision);
   });
+
+  ipcMain.handle(
+    'svn:diffUrls',
+    async (_, leftUrl: string, rightUrl: string): Promise<SvnDiffResult> => {
+      return getUrlDiff(leftUrl, rightUrl);
+    }
+  );
 
   // SVN Streaming Diff - Memory-efficient diff parsing for large files
   ipcMain.handle(

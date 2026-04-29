@@ -67,6 +67,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     infoUrl: (url) => invokeIpc('svn:infoUrl', url),
     getWorkingCopyContext: (path) => invokeIpc('svn:getWorkingCopyContext', path),
     diff: (path, revision?) => invokeIpc('svn:diff', path, revision),
+    diffUrls: (leftUrl, rightUrl) => invokeIpc('svn:diffUrls', leftUrl, rightUrl),
     diffStreaming: (path, revision?) => invokeIpc('svn:diffStreaming', path, revision),
     update: (path, depth?, options?) => invokeIpc('svn:update', path, depth, options),
     updateWithProgress: (path, onProgress, depth?, options?) => {

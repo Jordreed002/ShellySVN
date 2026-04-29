@@ -59,6 +59,7 @@ export interface IpcInvokeContract {
     { workingCopyRoot: string; repositoryRoot: string; url: string } | null
   >;
   'svn:diff': IpcCall<[path: string, revision?: string], SvnDiffResult>;
+  'svn:diffUrls': IpcCall<[leftUrl: string, rightUrl: string], SvnDiffResult>;
   'svn:diffStreaming': IpcCall<[path: string, revision?: string], SvnDiffResult>;
   'svn:update': IpcCall<
     [path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', options?: UpdateOptions],
