@@ -25,6 +25,7 @@ type ElectronTestFixtures = {
  */
 export const test = base.extend<ElectronTestFixtures>({
   // Launch Electron app once per worker
+  // oxlint-disable-next-line no-empty-pattern
   electronApp: async ({}, use) => {
     // Path to the built Electron main process
     const mainPath = join(process.cwd(), 'out', 'main', 'index.js');

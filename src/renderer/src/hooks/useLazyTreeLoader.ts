@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { AuthCredential, LazyTreeLoaderState, LazyTreeNode, SvnListResult } from '@shared/types';
+import type {
+  AuthCredential,
+  LazyTreeLoaderState,
+  LazyTreeNode,
+  SvnListResult,
+} from '@shared/types';
 
 /**
  * Cached tree data structure for TanStack Query
@@ -44,19 +49,6 @@ function svnListToLazyTreeNode(result: SvnListResult): LazyTreeNode[] {
   }
 
   return nodes;
-}
-
-function findNodeInTree(nodes: LazyTreeNode[], path: string): LazyTreeNode | null {
-  for (const node of nodes) {
-    if (node.path === path) {
-      return node;
-    }
-    if (node.hasChildren) {
-      const found = findNodeInTree(node.children, path);
-      if (found) return found;
-    }
-  }
-  return null;
 }
 
 function updateNodeInTree(

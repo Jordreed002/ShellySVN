@@ -7,17 +7,17 @@ const MIN_SCROLL_FPS = 10;
 
 async function mockLargeDirectory(
   electronApp: ElectronApplication,
-  rootPath: string,
-  count: number
+  directoryRootPath: string,
+  fileCount: number
 ) {
   await electronApp.evaluate(
-    ({ ipcMain }, { rootPath, count }) => {
-      const files = Array.from({ length: count }, (_, index) => {
+    ({ ipcMain }, payload) => {
+      const files = Array.from({ length: payload.fileCount }, (_, index) => {
         const suffix = String(index).padStart(5, '0');
         const isDirectory = index % 10 === 0;
         return {
           name: `${isDirectory ? 'folder' : 'file'}-${suffix}${isDirectory ? '' : '.ts'}`,
-          path: `${rootPath}\\${isDirectory ? 'folder' : 'file'}-${suffix}${isDirectory ? '' : '.ts'}`,
+          path: `${payload.directoryRootPath}\\${isDirectory ? 'folder' : 'file'}-${suffix}${isDirectory ? '' : '.ts'}`,
           isDirectory,
           size: isDirectory ? 0 : 1024 + index,
           modifiedTime: '2026-04-29T00:00:00.000Z',
@@ -26,7 +26,7 @@ async function mockLargeDirectory(
 
       ipcMain.removeHandler('fs:listDirectory');
       ipcMain.handle('fs:listDirectory', (_event, path: string) =>
-        Promise.resolve(path === rootPath ? files : [])
+        Promise.resolve(path === payload.directoryRootPath ? files : [])
       );
       ipcMain.removeHandler('fs:isVersioned');
       ipcMain.handle('fs:isVersioned', () => Promise.resolve(false));
@@ -39,7 +39,7 @@ async function mockLargeDirectory(
       ipcMain.removeHandler('fs:getFolderSizes');
       ipcMain.handle('fs:getFolderSizes', () => Promise.resolve({}));
       ipcMain.removeHandler('dialog:openDirectory');
-      ipcMain.handle('dialog:openDirectory', () => Promise.resolve(rootPath));
+      ipcMain.handle('dialog:openDirectory', () => Promise.resolve(payload.directoryRootPath));
       ipcMain.removeHandler('svn:info');
       ipcMain.handle('svn:info', () =>
         Promise.resolve({
@@ -49,16 +49,16 @@ async function mockLargeDirectory(
         })
       );
     },
-    { rootPath, count }
+    { directoryRootPath, fileCount }
   );
 }
 
-async function mockLargeRepositoryTree(electronApp: ElectronApplication, count: number) {
+async function mockLargeRepositoryTree(electronApp: ElectronApplication, treeEntryCount: number) {
   await electronApp.evaluate(
-    ({ ipcMain }, { count }) => {
+    ({ ipcMain }, payload) => {
       ipcMain.removeHandler('svn:list');
       ipcMain.handle('svn:list', (_event, url: string) => {
-        const entries = Array.from({ length: count }, (_, index) => {
+        const entries = Array.from({ length: payload.treeEntryCount }, (_, index) => {
           const suffix = String(index).padStart(5, '0');
           const isDirectory = index % 4 === 0;
           return {
@@ -75,7 +75,7 @@ async function mockLargeRepositoryTree(electronApp: ElectronApplication, count: 
         return Promise.resolve({ path: url, entries });
       });
     },
-    { count }
+    { treeEntryCount }
   );
 }
 
@@ -178,31 +178,34 @@ test.describe('Performance smoke coverage', () => {
 
     const startedAt = Date.now();
     await page.locator('button:has-text("Choose items")').click();
-    const dialog = page.locator('.modal:has(h2.modal-title:has-text("Choose Items"))');
-    await expect(dialog).toContainText('dir-00000', { timeout: 10_000 });
+    const chooseItemsDialog = page.locator('.modal:has(h2.modal-title:has-text("Choose Items"))');
+    await expect(chooseItemsDialog).toContainText('dir-00000', { timeout: 10_000 });
     const renderMs = Date.now() - startedAt;
 
-    const visibleCheckboxes = await dialog.locator('input[type="checkbox"]').count();
+    const visibleCheckboxes = await chooseItemsDialog.locator('input[type="checkbox"]').count();
     const scroll = await page.evaluate(async () => {
-      const dialog = Array.from(document.querySelectorAll<HTMLElement>('.modal')).find((modal) =>
-        modal.textContent?.includes('Choose Items')
+      const dialogElement = Array.from(document.querySelectorAll<HTMLElement>('.modal')).find(
+        (modal) => modal.textContent?.includes('Choose Items')
       );
-      const scroller = Array.from(dialog?.querySelectorAll<HTMLElement>('div') ?? []).find(
-        (element) =>
-          element.querySelector('input[type="checkbox"]') &&
-          getComputedStyle(element).overflowY === 'auto'
+      const scroller = Array.from(dialogElement?.querySelectorAll<HTMLElement>('div') ?? []).find(
+        (element) => {
+          return (
+            element.querySelector('input[type="checkbox"]') &&
+            getComputedStyle(element).overflowY === 'auto'
+          );
+        }
       );
       if (!scroller) throw new Error('Tree scroller not found');
 
       const frameIntervals: number[] = [];
       let lastFrame = performance.now();
-      const startedAt = lastFrame;
+      const scrollStartedAt = lastFrame;
 
       await new Promise<void>((resolve) => {
         const step = (now: number) => {
           frameIntervals.push(now - lastFrame);
           lastFrame = now;
-          const elapsed = now - startedAt;
+          const elapsed = now - scrollStartedAt;
           scroller.scrollTop = Math.min(
             scroller.scrollHeight - scroller.clientHeight,
             (elapsed / 600) * (scroller.scrollHeight - scroller.clientHeight)
