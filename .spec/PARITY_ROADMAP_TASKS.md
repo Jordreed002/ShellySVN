@@ -115,7 +115,7 @@
 - [x] Verify relocate flow for repository root URL changes.
 - [x] Verify merge wizard supports revision ranges, dry-run preview, merge output, progress, cancellation, and conflict summary.
 - [x] Decide whether reintegrate-style guidance is needed for supported SVN versions.
-- [ ] Add post-merge status refresh and clear conflict reporting.
+- [x] Add post-merge status refresh and clear conflict reporting.
 - [ ] Ensure branch, tag, switch, merge, and relocate are reachable from app navigation and relevant context menus.
 
 ## P1 - Repository Browser and Sparse Checkout

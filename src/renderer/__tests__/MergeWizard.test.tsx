@@ -34,7 +34,7 @@ describe('MergeWizard', () => {
         filesProcessed: 1,
         percentage: 50,
       });
-      return { success: true, output: 'U src/app.ts' };
+      return { success: true, output: 'C src/conflict.txt\nU src/app.ts' };
     });
     svnApi.cancelOperation.mockResolvedValue({ success: true });
 
@@ -73,7 +73,7 @@ describe('MergeWizard', () => {
     expect(screen.getByText(/U src\/app.ts/)).toBeInTheDocument();
   });
 
-  it('runs merge with progress and completes with output', async () => {
+  it('runs merge with progress, reports conflicts, and completes for post-merge refresh', async () => {
     const onComplete = vi.fn();
     render(<MergeWizard isOpen={true} onClose={vi.fn()} targetPath="C:/repo" onComplete={onComplete} />);
 
@@ -84,6 +84,11 @@ describe('MergeWizard', () => {
       expect(svnApi.mergeWithProgress).toHaveBeenCalled();
     });
     expect(await screen.findByText('Merge Complete')).toBeInTheDocument();
+    expect(screen.getByText('Conflicts detected (1)')).toBeInTheDocument();
+    expect(screen.getByText('src/conflict.txt')).toBeInTheDocument();
     expect(screen.getByText(/U src\/app.ts/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /done/i }));
+
+    expect(onComplete).toHaveBeenCalled();
   });
 });
