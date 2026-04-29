@@ -173,7 +173,7 @@
 
 ## P1 - Settings, Diagnostics, and Supportability
 
-- [ ] Validate custom SVN binary paths before saving and before use.
+- [x] Validate custom SVN binary paths before saving and before use.
 - [x] Add diagnostics for SVN path, SVN version, bundled binaries, encryption availability, shell/Finder integration, and working-copy health.
 - [x] Add redacted diagnostic export for support.
 - [ ] Add cache management coverage for log cache and app cache.
