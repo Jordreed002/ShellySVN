@@ -186,6 +186,36 @@ describe('svn-working-copy update progress', () => {
     );
   });
 
+  it('passes revision, depth, ignore-externals, and force options to svn update', async () => {
+    const send = vi.fn();
+    mockState.runSvn.mockResolvedValue({
+      stdout: 'Updated to revision 42.\n',
+      stderr: '',
+      code: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+    await updateWithProgress(
+      { sender: { send } } as never,
+      'update-options',
+      '/wc',
+      'files',
+      {
+        revision: '42',
+        ignoreExternals: true,
+        force: true,
+      }
+    );
+
+    expect(mockState.runSvn).toHaveBeenCalledWith(
+      ['update', '-r', '42', '--depth', 'files', '--ignore-externals', '--force', '/wc'],
+      expect.objectContaining({
+        trustSslFailures: true,
+      })
+    );
+  });
+
   it('uses streamed revision when stored update output is capped', async () => {
     const send = vi.fn();
     mockState.runSvn.mockImplementation(
