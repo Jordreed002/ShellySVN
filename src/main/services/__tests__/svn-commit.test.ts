@@ -80,4 +80,52 @@ describe('svn-commit', () => {
       'C:\\wc\\file.txt',
     ]);
   });
+
+  it('runs start, pre, svn, and post commit in order', async () => {
+    const hooks = [
+      { id: 'start', name: 'Start', type: 'start-commit', enabled: true },
+      { id: 'pre', name: 'Pre', type: 'pre-commit', enabled: true },
+      { id: 'post', name: 'Post', type: 'post-commit', enabled: true },
+    ];
+    const store = {
+      get: vi.fn().mockResolvedValue({ 'C:\\wc\\file.txt': hooks }),
+    };
+    mockState.getStore.mockResolvedValue(store);
+    const order: string[] = [];
+
+    mockState.executeHooksForType.mockImplementation(async (_hooks, type) => {
+      order.push(type);
+      return { allSucceeded: true };
+    });
+    mockState.runSvnText.mockImplementation(async () => {
+      order.push('svn');
+      return 'Committed revision 124.';
+    });
+
+    const result = await commit(['C:\\wc\\file.txt'], 'ordered commit');
+
+    expect(result).toEqual({ success: true, revision: 124 });
+    expect(order).toEqual(['start-commit', 'pre-commit', 'svn', 'post-commit']);
+    expect(mockState.executeHooksForType).toHaveBeenNthCalledWith(
+      1,
+      hooks,
+      'start-commit',
+      expect.objectContaining({ workingCopyPath: 'C:\\wc\\file.txt' })
+    );
+  });
+
+  it('returns blocking hook output before invoking svn', async () => {
+    mockState.executeHooksForType.mockResolvedValueOnce({
+      allSucceeded: false,
+      error: 'Hook rejected commit: run formatter',
+    });
+
+    const result = await commit(['C:\\wc\\file.txt'], 'blocked commit');
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Hook rejected commit: run formatter',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
 });

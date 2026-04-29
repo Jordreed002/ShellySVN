@@ -64,7 +64,7 @@
 - [x] Add required issue ID validation and warning behavior.
 - [ ] Add commit message spellcheck decision and implementation task if in scope.
 - [x] Add path, filename, and keyword autocomplete in the commit message editor.
-- [ ] Run configured hooks in the expected order and surface hook output when enabled.
+- [x] Run configured hooks in the expected order and surface hook output when enabled.
 - [ ] Ensure commit credentials and command-line secrets are never logged or exposed in renderer logs.
 - [ ] Add commit success reporting with committed revision and post-commit status refresh.
 
