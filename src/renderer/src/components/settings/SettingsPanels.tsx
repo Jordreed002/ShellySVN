@@ -1323,10 +1323,39 @@ interface AuthSettingsProps {
   isOpen: boolean;
 }
 
+export function getCredentialEncryptionStatusCopy(
+  encryptionAvailable: boolean,
+  platform: NodeJS.Platform | undefined
+): string {
+  const platformName =
+    platform === 'win32'
+      ? 'Windows'
+      : platform === 'darwin'
+        ? 'macOS'
+        : platform === 'linux'
+          ? 'Linux'
+          : 'this platform';
+
+  if (encryptionAvailable) {
+    const secureStore =
+      platform === 'win32'
+        ? 'Windows secure storage'
+        : platform === 'darwin'
+          ? 'macOS Keychain'
+          : platform === 'linux'
+            ? 'Linux secret service'
+            : 'the platform secure store';
+    return `${secureStore} is available. Persistent SVN credentials are encrypted before they are saved.`;
+  }
+
+  return `Credential encryption is unavailable on ${platformName}. SVN credentials stay memory-only and are not saved persistently.`;
+}
+
 export function AuthSettings({ isOpen }: AuthSettingsProps) {
   const [credentials, setCredentials] = useState<AuthListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEncryptionAvailable, setIsEncryptionAvailable] = useState<boolean | null>(null);
+  const platform = window.electron?.process?.platform;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1383,7 +1412,7 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-success" />
             <p className="text-sm text-success">
-              Credentials are encrypted using system keychain
+              {getCredentialEncryptionStatusCopy(true, platform)}
             </p>
           </div>
         </div>
@@ -1392,7 +1421,7 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-warning" />
             <p className="text-sm text-warning">
-              Credential encryption unavailable - credentials stored in plaintext
+              {getCredentialEncryptionStatusCopy(false, platform)}
             </p>
           </div>
         </div>

@@ -162,7 +162,7 @@
 - [x] Add session-only credential behavior where persistent storage is not desired.
 - [ ] Add credential edit, delete, and clear flows from settings.
 - [x] Ensure persistent plaintext credential storage never occurs silently.
-- [ ] Verify encryption availability is shown clearly on Windows, macOS, and Linux.
+- [x] Verify encryption availability is shown clearly on Windows, macOS, and Linux.
 - [ ] Verify proxy settings apply to checkout, update, commit, repo browser, log, externals, and sparse checkout.
 - [x] Verify connection timeout applies consistently to SVN command paths.
 - [ ] Centralize SSL trust handling with explicit temporary and permanent trust decisions.
