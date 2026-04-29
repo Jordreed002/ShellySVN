@@ -93,7 +93,7 @@ Baseline checks from the review:
 
 ## Phase 4 - Expensive Background Work
 
-- [ ] Bound folder-size requests.
+- [x] Bound folder-size requests.
   - Files: `src/renderer/src/hooks/useFolderSizes.ts`, main-process folder-size IPC implementation.
   - Problem: all visible folder paths are joined into one large query key and requested in one batch.
   - Acceptance: folder size requests are chunked, cancellable or scoped to visible rows, and query keys stay bounded.
