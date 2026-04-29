@@ -19,7 +19,7 @@
 - [x] Build a feature parity matrix covering ShellySVN, TortoiseSVN-style workflows, SVN CLI capability, and explicit non-goals.
 - [x] Mark each parity item as `complete`, `partial`, `missing`, `out of scope`, or `needs manual verification`.
 - [x] Map every implemented parity feature to renderer entry point, preload API, main IPC handler, service method, and tests.
-- [ ] Identify README claims that are not implemented, not reachable, or not covered by verification.
+- [x] Identify README claims that are not implemented, not reachable, or not covered by verification.
 - [ ] Document platform-specific decisions where ShellySVN intentionally differs from TortoiseSVN.
 - [ ] Define which platforms are release-blocking for the next release: Windows, macOS, and/or Linux.
 - [ ] Decide whether Linux parity is best-effort until Windows/macOS workflows stabilize.
