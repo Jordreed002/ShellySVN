@@ -73,7 +73,7 @@
 - [ ] Verify text conflict detection from status, update, merge, and commit-blocking flows.
 - [ ] Verify tree conflict detection and display.
 - [ ] Verify lock conflict detection and recovery paths.
-- [ ] Add guided resolve coverage for `base`, `mine-full`, `theirs-full`, `mine-conflict`, and `theirs-conflict`.
+- [x] Add guided resolve coverage for `base`, `mine-full`, `theirs-full`, `mine-conflict`, and `theirs-conflict`.
 - [x] Prevent marking unresolved conflicts as resolved unless the user explicitly confirms.
 - [ ] Verify three-way merge editor loads base, mine, theirs, and merged files correctly.
 - [ ] Add safe save, revert, and unsaved-change behavior for the merge editor.

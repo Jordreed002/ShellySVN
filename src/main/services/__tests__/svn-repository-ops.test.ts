@@ -14,7 +14,12 @@ vi.mock('../svn-progress', () => ({
   runSvnOperationWithProgress: vi.fn(),
 }));
 
-import { copyRepositoryItem, relocateWorkingCopy, switchWorkingCopy } from '../svn-repository-ops';
+import {
+  copyRepositoryItem,
+  relocateWorkingCopy,
+  resolveConflict,
+  switchWorkingCopy,
+} from '../svn-repository-ops';
 
 describe('svn-repository-ops copyRepositoryItem', () => {
   beforeEach(() => {
@@ -131,4 +136,27 @@ describe('svn-repository-ops switch and relocate', () => {
       'C:\\wc',
     ]);
   });
+});
+
+describe('svn-repository-ops resolveConflict', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.runSvnText.mockResolvedValue('');
+  });
+
+  it.each(['base', 'mine-full', 'theirs-full', 'mine-conflict', 'theirs-conflict'] as const)(
+    'runs guided resolve with --accept %s',
+    async (resolution) => {
+      await expect(resolveConflict('C:\\wc\\conflict.txt', resolution)).resolves.toEqual({
+        success: true,
+      });
+
+      expect(mockState.runSvnText).toHaveBeenCalledWith([
+        'resolve',
+        '--accept',
+        resolution,
+        'C:\\wc\\conflict.txt',
+      ]);
+    }
+  );
 });
