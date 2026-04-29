@@ -44,6 +44,8 @@ vi.mock('../../utils/debug', () => ({
 }));
 
 import {
+  getRemoteStatus,
+  getStatus,
   getWorkingCopyUpgradeStatus,
   remove,
   updateWithProgress,
@@ -94,6 +96,44 @@ describe('svn-working-copy remove', () => {
     });
     expect(mockState.runSvnText).not.toHaveBeenCalledWith(
       expect.arrayContaining(['delete'])
+    );
+  });
+});
+
+describe('svn-working-copy status', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('gets local status without repository update checks', async () => {
+    mockState.runSvnText.mockResolvedValue(statusXml('/wc/file.txt', 'modified'));
+
+    const result = await getStatus('/wc');
+
+    expect(result.remoteChecked).toBe(false);
+    expect(result.entries[0].status).toBe('M');
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['status', '--xml', '/wc']);
+  });
+
+  it('gets remote status with explicit repository update checks', async () => {
+    mockState.runSvnText.mockResolvedValue(`<?xml version="1.0" encoding="UTF-8"?>
+<status>
+  <target path="/wc">
+    <entry path="/wc/file.txt">
+      <wc-status item="normal" props="none" />
+      <repos-status item="modified" props="none" />
+    </entry>
+  </target>
+</status>`);
+
+    const result = await getRemoteStatus('/wc');
+
+    expect(result.remoteChecked).toBe(true);
+    expect(result.entries[0].status).toBe(' ');
+    expect(result.entries[0].remoteStatus).toBe('M');
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['status', '--xml', '--show-updates', '/wc'],
+      { trustSslFailures: true }
     );
   });
 });

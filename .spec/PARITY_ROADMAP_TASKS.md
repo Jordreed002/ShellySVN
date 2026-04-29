@@ -42,7 +42,7 @@
 
 - [x] Verify open-working-copy flow detects root, repository URL, revision, and status summary.
 - [ ] Verify status rendering for versioned, modified, unversioned, ignored, missing, deleted, conflicted, locked, external, switched, nested, obstructed, replaced, and remote-only items.
-- [ ] Add explicit "check repository" remote-status action and distinguish local status from repository status.
+- [x] Add explicit "check repository" remote-status action and distinguish local status from repository status.
 - [ ] Add bounded-concurrency background status refresh with cancellation.
 - [ ] Verify checkout supports URL, destination path, revision, depth, credentials, SSL trust, progress, and cancellation.
 - [x] Verify update supports revision, depth, ignore externals, force, progress, and cancellation.
