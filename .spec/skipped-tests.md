@@ -2,7 +2,7 @@
 
 Generated: 2026-04-28
 
-Current baseline: 27 skipped tests. The CI guard in `scripts/check-skipped-tests.mjs` fails if this count increases.
+Current baseline: 26 skipped tests. The CI guard in `scripts/check-skipped-tests.mjs` fails if this count increases or if skips are added outside this inventory.
 
 ## Decisions
 
@@ -13,7 +13,6 @@ Current baseline: 27 skipped tests. The CI guard in `scripts/check-skipped-tests
 | External tool execution | `src/main/ipc/__tests__/external.test.ts` | 1 | Replace broad fs mock with scoped temporary executable fixtures. |
 | Sparse checkout renderer flows | `src/renderer/__tests__/CheckoutDialog.sparse.test.tsx`, `src/renderer/__tests__/UpdateToRevisionDialog.sparse.test.tsx`, `src/renderer/__tests__/integration/sparse-checkout.test.tsx`, `src/renderer/__tests__/ChooseItemsDialog.test.tsx`, `src/renderer/__tests__/RepoBrowser.add-to-wc.test.tsx` | 8 | Rebuild around stable dialog/test helpers and mocked IPC; prioritize after sparse checkout behavior is frozen. |
 | Progress UI and hooks | `src/renderer/__tests__/ProgressIndicator.test.tsx` | 2 | Unskip after replacing timer-sensitive assertions with deterministic fake timers and accessibility queries. |
-| Lazy tree loader hook | `src/renderer/__tests__/useLazyTreeLoader.test.tsx` | 1 | Rework as hook-only tests with controlled async tree data. |
 | Commit history and templates | `src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts`, `src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts` | 2 | Re-enable after store and preload mocks match current app metadata APIs. |
 | E2E file and SVN operations | `tests/e2e/file-operations.spec.ts`, `tests/e2e/svn-operations.spec.ts` | 5 | Keep conditional skips until CI has a disposable SVN repository fixture and platform-stable filesystem paths. |
 

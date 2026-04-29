@@ -2,8 +2,22 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOTS = ['src', 'packages', 'tests'];
-const BASELINE_SKIPS = 27;
+const BASELINE_SKIPS = 26;
 const SKIP_PATTERN = /\b(?:describe|it|test)\.skip\b/g;
+const APPROVED_SKIP_COUNTS = new Map([
+  ['src/main/__tests__/auth-cache.test.ts', 4],
+  ['src/main/ipc/__tests__/external.test.ts', 1],
+  ['src/main/utils/__tests__/validation.test.ts', 4],
+  ['src/renderer/__tests__/CheckoutDialog.sparse.test.tsx', 2],
+  ['src/renderer/__tests__/ChooseItemsDialog.test.tsx', 1],
+  ['src/renderer/__tests__/ProgressIndicator.test.tsx', 2],
+  ['src/renderer/__tests__/RepoBrowser.add-to-wc.test.tsx', 1],
+  ['src/renderer/__tests__/UpdateToRevisionDialog.sparse.test.tsx', 3],
+  ['src/renderer/__tests__/integration/sparse-checkout.test.tsx', 1],
+  ['src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts', 2],
+  ['tests/e2e/file-operations.spec.ts', 3],
+  ['tests/e2e/svn-operations.spec.ts', 2],
+]);
 
 function walk(dir) {
   const files = [];
@@ -24,6 +38,7 @@ function walk(dir) {
 }
 
 const matches = [];
+const countsByFile = new Map();
 
 for (const root of ROOTS) {
   for (const file of walk(root)) {
@@ -35,8 +50,29 @@ for (const root of ROOTS) {
       for (let i = 0; i < count; i++) {
         matches.push(`${file}:${index + 1}`);
       }
+      if (count > 0) {
+        const normalizedFile = file.replaceAll('\\', '/');
+        countsByFile.set(normalizedFile, (countsByFile.get(normalizedFile) ?? 0) + count);
+      }
     });
   }
+}
+
+const inventoryViolations = [];
+for (const [file, count] of countsByFile) {
+  const approved = APPROVED_SKIP_COUNTS.get(file) ?? 0;
+  if (count > approved) {
+    inventoryViolations.push(`${file}: ${count} skips found, ${approved} approved`);
+  }
+}
+
+if (inventoryViolations.length > 0) {
+  console.error(
+    'Skipped tests were added outside the approved triage inventory in .spec/skipped-tests.md.'
+  );
+  console.error('Update the task/issue inventory before adding skips.');
+  console.error(inventoryViolations.join('\n'));
+  process.exit(1);
 }
 
 if (matches.length > BASELINE_SKIPS) {
