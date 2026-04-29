@@ -54,10 +54,10 @@
 
 ## P0 - Commit Workflow Parity
 
-- [ ] Verify commit dialog selection parity for versioned, unversioned, missing, deleted, changelist, external, and nested working-copy items.
-- [ ] Support grouping and filtering changed files by status, changelist, and path.
-- [ ] Verify selective file inclusion and exclusion, including multi-select behavior.
-- [ ] Add commit message templates create, edit, apply, and delete coverage.
+- [x] Verify commit dialog selection parity for versioned, unversioned, missing, deleted, changelist, external, and nested working-copy items.
+- [x] Support grouping and filtering changed files by status, changelist, and path.
+- [x] Verify selective file inclusion and exclusion, including multi-select behavior.
+- [x] Add commit message templates create, edit, apply, and delete coverage.
 - [ ] Add commit message history persistence, keyboard selection, and clearing behavior.
 - [x] Add commit message minimum length validation.
 - [x] Strip unsafe null bytes from commit messages before invoking SVN.
