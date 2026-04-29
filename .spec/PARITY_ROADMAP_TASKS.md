@@ -139,8 +139,8 @@
 - [x] Add common property helpers for `svn:ignore`, `svn:externals`, `svn:keywords`, `svn:eol-style`, and `svn:mime-type`.
 - [ ] Verify externals manager can list, add, edit, remove, and update externals.
 - [ ] Ensure commit and status flows handle externals clearly.
-- [ ] Verify lock, unlock, force lock, force unlock, and lock list workflows.
-- [ ] Add lock owner and stale-lock handling in file explorer and dialogs.
+- [x] Verify lock, unlock, force lock, force unlock, and lock list workflows.
+- [x] Add lock owner and stale-lock handling in file explorer and dialogs.
 - [x] Verify shelve, unshelve/apply, list, and delete workflows with the minimum supported SVN version.
 - [x] Decide the minimum acceptable SVN version for sparse checkout, shelving, and other advanced features.
 - [x] Add repository diagnostics for unsupported or mismatched SVN versions.
