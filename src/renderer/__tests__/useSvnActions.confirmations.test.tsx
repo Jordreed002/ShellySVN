@@ -15,7 +15,7 @@ vi.mock('../src/utils/dialogs', () => ({
   promptAppInput: vi.fn(),
 }));
 
-import { useSvnActions } from '../src/hooks/useSvnActions';
+import { useFileExplorerActions, useSvnActions } from '../src/hooks/useSvnActions';
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -133,5 +133,22 @@ describe('useSvnActions risky action confirmations', () => {
     });
 
     expect(response).toEqual({ success: false, message: 'Commit failed' });
+  });
+
+  it('reports committed revision and refreshes status after successful file explorer commits', async () => {
+    svnApi.commit.mockResolvedValueOnce({ success: true, revision: 123 });
+    const onRefresh = vi.fn();
+    const { result } = renderHook(
+      () => useFileExplorerActions('C:\\wc', null, onRefresh, new Set()),
+      { wrapper: createWrapper() }
+    );
+
+    let response: Awaited<ReturnType<typeof result.current.handleSubmitCommit>> | undefined;
+    await act(async () => {
+      response = await result.current.handleSubmitCommit(['C:\\wc\\file.txt'], 'message');
+    });
+
+    expect(response).toEqual({ success: true, revision: 123 });
+    expect(onRefresh).toHaveBeenCalled();
   });
 });

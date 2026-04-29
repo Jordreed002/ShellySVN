@@ -66,7 +66,7 @@
 - [x] Add path, filename, and keyword autocomplete in the commit message editor.
 - [x] Run configured hooks in the expected order and surface hook output when enabled.
 - [x] Ensure commit credentials and command-line secrets are never logged or exposed in renderer logs.
-- [ ] Add commit success reporting with committed revision and post-commit status refresh.
+- [x] Add commit success reporting with committed revision and post-commit status refresh.
 
 ## P0 - Conflict Resolution
 
