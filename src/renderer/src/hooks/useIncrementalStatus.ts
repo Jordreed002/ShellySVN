@@ -365,6 +365,23 @@ export function getStatusDisplay(status: SvnStatusChar): {
   color: string;
   label: string;
 } {
+  const display: Record<SvnStatusChar, { icon: string; color: string; label: string }> = {
+    ' ': { icon: ' ', color: 'text-green-600', label: 'Normal' },
+    A: { icon: '+', color: 'text-green-500', label: 'Added' },
+    C: { icon: '!', color: 'text-red-500', label: 'Conflicted' },
+    D: { icon: '-', color: 'text-red-400', label: 'Deleted' },
+    I: { icon: 'i', color: 'text-gray-400', label: 'Ignored' },
+    M: { icon: 'M', color: 'text-yellow-500', label: 'Modified' },
+    R: { icon: 'R', color: 'text-blue-500', label: 'Replaced' },
+    X: { icon: 'X', color: 'text-purple-500', label: 'External' },
+    '?': { icon: '?', color: 'text-gray-500', label: 'Unversioned' },
+    '!': { icon: '!', color: 'text-red-600', label: 'Missing' },
+    '~': { icon: '~', color: 'text-orange-500', label: 'Obstructed' },
+    O: { icon: 'O', color: 'text-info', label: 'Remote Only' },
+  };
+
+  return display[status] ?? display[' '];
+
   switch (status) {
     case 'A':
       return { icon: '➕', color: 'text-green-500', label: 'Added' };
