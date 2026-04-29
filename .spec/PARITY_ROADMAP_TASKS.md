@@ -227,7 +227,7 @@
 - [ ] Add clean-install CI verification from lockfile.
 - [ ] Add packaged-app smoke tests for Windows x64, macOS x64, macOS arm64, and Linux x64 where release-supported.
 - [ ] Verify bundled SVN and shelly-engine binaries are present and executable in each package.
-- [ ] Document macOS signing and notarization requirements before public distribution.
+- [x] Document macOS signing and notarization requirements before public distribution.
 - [ ] Add crash recovery tests for interrupted SVN operations.
 - [x] Resolve or quarantine known unit test infrastructure failures from prior audits.
 - [x] Enforce skipped-test rules: new skips require a linked issue or task, and skipped count should trend down.
