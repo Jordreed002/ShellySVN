@@ -788,7 +788,7 @@ export interface ElectronAPI {
       src: string,
       dst: string,
       message: string
-    ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    ) => Promise<{ success: boolean; revision: number; output?: string; error?: string }>;
     remoteCreateFolder: (
       parentUrl: string,
       folderName: string,

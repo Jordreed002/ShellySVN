@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Trash2,
   Edit3,
+  Copy,
 } from 'lucide-react';
 import { CheckoutDialog } from '@renderer/components/ui/CheckoutDialog';
 import { useWorkingCopyContext } from '@renderer/hooks/useWorkingCopyContext';
@@ -83,6 +84,11 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const [moveMessage, setMoveMessage] = useState('');
   const [isMovingRemote, setIsMovingRemote] = useState(false);
   const [moveRemoteError, setMoveRemoteError] = useState<string | null>(null);
+  const [copyTarget, setCopyTarget] = useState<RepoNode | null>(null);
+  const [copyDestinationUrl, setCopyDestinationUrl] = useState('');
+  const [copyMessage, setCopyMessage] = useState('');
+  const [isCopyingRemote, setIsCopyingRemote] = useState(false);
+  const [copyRemoteError, setCopyRemoteError] = useState<string | null>(null);
 
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authRealm, setAuthRealm] = useState<string>('');
@@ -424,6 +430,51 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     queryClient,
     refetch,
   ]);
+
+  const handleOpenRemoteCopy = useCallback((entry: RepoNode) => {
+    setCopyTarget(entry);
+    setCopyDestinationUrl(`${entry.url}-copy`);
+    setCopyMessage('');
+    setCopyRemoteError(null);
+  }, []);
+
+  const handleCloseRemoteCopy = useCallback(() => {
+    if (isCopyingRemote) return;
+    setCopyTarget(null);
+    setCopyRemoteError(null);
+  }, [isCopyingRemote]);
+
+  const handleCopyRemoteItem = useCallback(async () => {
+    if (!copyTarget) return;
+    const trimmedDestination = copyDestinationUrl.trim();
+    const trimmedMessage = copyMessage.trim();
+    if (!trimmedDestination || !trimmedMessage) {
+      setCopyRemoteError('Destination URL and commit message are required.');
+      return;
+    }
+
+    setIsCopyingRemote(true);
+    setCopyRemoteError(null);
+
+    try {
+      const result = await window.api.svn.copy(copyTarget.url, trimmedDestination, trimmedMessage);
+
+      if (!result.success) {
+        setCopyRemoteError(result.error || 'Failed to copy remote item.');
+        return;
+      }
+
+      setCopyTarget(null);
+      setCopyDestinationUrl('');
+      setCopyMessage('');
+      await queryClient.invalidateQueries({ queryKey: listQueryKey });
+      refetch();
+    } catch (error) {
+      setCopyRemoteError((error as Error)?.message || 'Failed to copy remote item.');
+    } finally {
+      setIsCopyingRemote(false);
+    }
+  }, [copyDestinationUrl, copyMessage, copyTarget, listQueryKey, queryClient, refetch]);
 
   const handleConnect = useCallback(async () => {
     if (!isValidUrl) return;
@@ -876,6 +927,14 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                     <Edit3 className="w-4 h-4" />
                     Move/Rename
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRemoteCopy(selectedNode)}
+                    className="w-full btn btn-ghost text-sm"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Copy
+                  </button>
                 </div>
               </div>
             )}
@@ -1143,6 +1202,91 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
               >
                 {isMovingRemote ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Move
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {copyTarget && (
+        <div className="modal-overlay" onClick={handleCloseRemoteCopy}>
+          <div className="modal w-[480px]" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                <Copy className="w-5 h-5 text-accent" />
+                Copy Remote Item
+              </h2>
+              <button
+                type="button"
+                onClick={handleCloseRemoteCopy}
+                className="btn-icon-sm"
+                disabled={isCopyingRemote}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="modal-body space-y-4">
+              <div>
+                <div className="block text-sm font-medium text-text mb-1.5">Source URL</div>
+                <div className="px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-muted break-all">
+                  {copyTarget.url}
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="repo-browser-copy-destination"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
+                  Destination URL
+                </label>
+                <input
+                  id="repo-browser-copy-destination"
+                  type="text"
+                  value={copyDestinationUrl}
+                  onChange={(event) => setCopyDestinationUrl(event.target.value)}
+                  className="input"
+                  disabled={isCopyingRemote}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="repo-browser-copy-message"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
+                  Commit message
+                </label>
+                <textarea
+                  id="repo-browser-copy-message"
+                  value={copyMessage}
+                  onChange={(event) => setCopyMessage(event.target.value)}
+                  className="input min-h-24 resize-y"
+                  disabled={isCopyingRemote}
+                />
+              </div>
+              {copyRemoteError && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-error/20 rounded text-sm text-error">
+                  <AlertCircle className="w-4 h-4" />
+                  {copyRemoteError}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={handleCloseRemoteCopy}
+                className="btn btn-ghost"
+                disabled={isCopyingRemote}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyRemoteItem}
+                disabled={isCopyingRemote || !copyDestinationUrl.trim() || !copyMessage.trim()}
+                className="btn btn-primary"
+              >
+                {isCopyingRemote ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Copy
               </button>
             </div>
           </div>
