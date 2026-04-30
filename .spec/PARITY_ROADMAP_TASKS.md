@@ -122,7 +122,7 @@
 
 - [x] Verify remote browsing for `http`, `https`, `svn`, and `svn+ssh` URLs where SVN supports them.
 - [x] Verify repository browser auth with anonymous access, username/password, cached credentials, SSL trust, and SSH-backed repositories.
-- [ ] Add repository browser revision selector.
+- [x] Add repository browser revision selector.
 - [ ] Add repository browser prefetch/caching for faster navigation.
 - [ ] Add remote create folder support with commit message.
 - [ ] Add remote delete support with confirmation and commit message.

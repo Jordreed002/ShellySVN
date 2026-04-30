@@ -29,6 +29,7 @@ import {
   loadRepoBrowserCredentials,
   type RepoBrowserCredentials,
 } from './-repoBrowserAuth';
+import { normalizeRepoBrowserRevision } from './-repoBrowserRevision';
 
 interface RepoNode {
   name: string;
@@ -54,6 +55,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const navigate = useNavigate();
 
   const [repoUrl, setRepoUrl] = useState(search.url || '');
+  const [revision, setRevision] = useState('HEAD');
   const [currentPath, setCurrentPath] = useState('/');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -106,16 +108,18 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     return `${repoUrl.replace(/\/$/, '')}${currentPath}`;
   }, [repoUrl, currentPath]);
 
+  const selectedRevision = useMemo(() => normalizeRepoBrowserRevision(revision), [revision]);
+
   const {
     data: directoryData,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['repo-browser', currentUrl, credentials],
+    queryKey: ['repo-browser', currentUrl, selectedRevision, credentials],
     queryFn: async () => {
       const result = await window.api.svn.list(
         currentUrl,
-        'HEAD',
+        selectedRevision,
         'immediates',
         credentials || undefined
       );
@@ -232,7 +236,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setCredentials(creds);
 
     try {
-      await window.api.svn.list(repoUrl, 'HEAD', 'immediates', creds || undefined);
+      await window.api.svn.list(repoUrl, selectedRevision, 'immediates', creds || undefined);
       setIsConnected(true);
       refetch();
     } catch (err) {
@@ -243,7 +247,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
         setConnectionError(errorMsg);
       }
     }
-  }, [isValidUrl, repoUrl, refetch]);
+  }, [isValidUrl, repoUrl, refetch, selectedRevision]);
 
   const handleAuthSubmit = useCallback(async () => {
     if (!username) return;
@@ -254,7 +258,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setConnectionError(null);
 
     try {
-      await window.api.svn.list(currentUrl, 'HEAD', 'immediates', creds);
+      await window.api.svn.list(currentUrl, selectedRevision, 'immediates', creds);
       setIsConnected(true);
       refetch();
     } catch (err) {
@@ -265,7 +269,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
         setConnectionError(errorMsg);
       }
     }
-  }, [username, password, currentUrl, refetch]);
+  }, [username, password, currentUrl, refetch, selectedRevision]);
 
   const handleAddToWorkingCopy = useCallback(
     async (entry: RepoNode) => {
@@ -361,6 +365,19 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
           onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
           placeholder="Enter repository URL (https://, svn://, svn+ssh://)"
           className="flex-1 px-3 py-1.5 text-sm bg-bg-tertiary border border-border rounded-md text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+        />
+        <label htmlFor="repo-browser-revision" className="sr-only">
+          Revision
+        </label>
+        <input
+          id="repo-browser-revision"
+          type="text"
+          value={revision}
+          onChange={(e) => setRevision(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+          placeholder="HEAD"
+          className="w-28 px-3 py-1.5 text-sm bg-bg-tertiary border border-border rounded-md text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+          aria-label="Revision"
         />
         <button
           onClick={handleConnect}
