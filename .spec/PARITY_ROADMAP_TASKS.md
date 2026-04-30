@@ -203,7 +203,7 @@
 - [x] Add large repository browser lazy-loading benchmarks.
 - [x] Add large log history pagination and filtering benchmarks.
 - [x] Verify virtualized lists remain stable during selection, filtering, context menus, and refresh.
-- [ ] Ensure folder-size scans and status scans do not block rendering.
+- [x] Ensure folder-size scans and status scans do not block rendering.
 - [ ] Verify background scanning does not block active SVN operations.
 - [x] Add regression budgets for renderer bundle size, app shell startup time, and common route load time.
 - [x] Verify normal operation does not depend on remote assets.
