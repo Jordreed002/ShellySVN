@@ -193,7 +193,7 @@
 - [ ] Ensure core workflows are keyboard accessible.
 - [x] Verify modal dialogs trap focus and restore focus on close.
 - [x] Make status and progress changes screen-reader friendly.
-- [ ] Verify contrast and ARIA labeling for primary workflows.
+- [x] Verify contrast and ARIA labeling for primary workflows.
 - [x] Decide whether multi-language UI is in scope before 1.0.
 
 ## P2 - Performance and Large Repository Readiness

@@ -425,8 +425,9 @@ export function Toolbar({
           onClick={onShowNotes}
           className="btn btn-ghost"
           title="Quick Notes"
+          aria-label="Open quick notes"
         >
-          <StickyNote className="w-4 h-4" />
+          <StickyNote className="w-4 h-4" aria-hidden="true" />
           <span className="hidden xl:inline">Notes</span>
         </button>
       )}
