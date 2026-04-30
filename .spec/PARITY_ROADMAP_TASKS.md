@@ -75,7 +75,7 @@
 - [x] Verify lock conflict detection and recovery paths.
 - [x] Add guided resolve coverage for `base`, `mine-full`, `theirs-full`, `mine-conflict`, and `theirs-conflict`.
 - [x] Prevent marking unresolved conflicts as resolved unless the user explicitly confirms.
-- [ ] Verify three-way merge editor loads base, mine, theirs, and merged files correctly.
+- [x] Verify three-way merge editor loads base, mine, theirs, and merged files correctly.
 - [ ] Add safe save, revert, and unsaved-change behavior for the merge editor.
 - [ ] Verify external merge tool launch with configured executable paths and missing-tool errors.
 - [x] Ensure resolved files refresh status immediately after resolution.

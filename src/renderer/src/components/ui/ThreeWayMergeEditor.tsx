@@ -23,6 +23,7 @@ interface ThreeWayMergeEditorProps {
   mineContent: string;
   theirsContent: string;
   baseContent: string;
+  mergedContent?: string;
   onClose: () => void;
   onSave: (mergedContent: string) => Promise<void>;
 }
@@ -52,6 +53,7 @@ export function ThreeWayMergeEditor({
   mineContent,
   theirsContent,
   baseContent,
+  mergedContent: initialMergedContent,
   onClose,
   onSave,
 }: ThreeWayMergeEditorProps) {
@@ -67,11 +69,16 @@ export function ThreeWayMergeEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Parse conflict markers from mine content (SVN conflict format)
+  // Parse conflict markers from merged content (SVN conflict format).
   useEffect(() => {
-    if (!mineContent) return;
+    const conflictSource = initialMergedContent ?? mineContent;
+    if (!conflictSource) return;
 
-    const lines = mineContent.split('\n');
+    const lines = conflictSource.split('\n');
+    const explicitMineLines = mineContent && mineContent !== conflictSource ? mineContent.split('\n') : null;
+    const explicitTheirsLines =
+      theirsContent && theirsContent !== conflictSource ? theirsContent.split('\n') : null;
+    const explicitBaseLines = baseContent ? baseContent.split('\n') : null;
     const parsedConflicts: ConflictRegion[] = [];
     let currentConflict: Partial<ConflictRegion> | null = null;
     let inMineSection = false;
@@ -114,9 +121,9 @@ export function ThreeWayMergeEditor({
             id: currentConflict.id!,
             startLine: conflictStartLine,
             endLine: i,
-            mineContent: mineLines,
-            theirsContent: theirsLines,
-            baseContent: baseLines,
+            mineContent: explicitMineLines ?? mineLines,
+            theirsContent: explicitTheirsLines ?? theirsLines,
+            baseContent: explicitBaseLines ?? baseLines,
             resolved: false,
             resolution: null,
           });
@@ -136,11 +143,12 @@ export function ThreeWayMergeEditor({
     }
 
     setConflicts(parsedConflicts);
-  }, [mineContent, theirsContent, baseContent]);
+  }, [mineContent, theirsContent, baseContent, initialMergedContent]);
 
   // Build merged content based on resolutions
   const buildMergedContent = useCallback(() => {
-    const lines = mineContent.split('\n');
+    const conflictSource = initialMergedContent ?? mineContent;
+    const lines = conflictSource.split('\n');
     const result: string[] = [];
     let skipUntil = -1;
 
@@ -196,7 +204,7 @@ export function ThreeWayMergeEditor({
     }
 
     return result.join('\n');
-  }, [mineContent, conflicts]);
+  }, [mineContent, conflicts, initialMergedContent]);
 
   // Update merged content when conflicts change
   useEffect(() => {

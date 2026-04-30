@@ -39,6 +39,87 @@ interface ConflictFile {
 
 type WizardStep = 'overview' | 'select' | 'resolve' | 'review' | 'complete';
 
+interface MergeEditorContents {
+  baseContent: string;
+  mineContent: string;
+  theirsContent: string;
+  mergedContent: string;
+}
+
+interface ConflictArtifactPaths {
+  basePath: string;
+  minePath: string;
+  theirsPath: string;
+  mergedPath: string;
+}
+
+function getDirectoryAndBaseName(filePath: string): { dirPath: string; baseName: string; sep: string } {
+  const lastSepIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+  return {
+    dirPath: lastSepIndex >= 0 ? filePath.substring(0, lastSepIndex) : filePath,
+    baseName: lastSepIndex >= 0 ? filePath.substring(lastSepIndex + 1) : filePath,
+    sep: filePath.includes('\\') ? '\\' : '/',
+  };
+}
+
+export async function resolveConflictArtifactPaths(filePath: string): Promise<ConflictArtifactPaths> {
+  const { dirPath, baseName, sep } = getDirectoryAndBaseName(filePath);
+  const dirFiles = await window.api.fs.listDirectory(dirPath);
+  const conflictFiles = dirFiles
+    .filter((file) => file.name.startsWith(`${baseName}.`))
+    .map((file) => file.name);
+  const revisionPattern = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.r(\\d+)$`);
+  const revisionFiles = conflictFiles
+    .filter((name) => revisionPattern.test(name))
+    .map((name) => ({
+      name,
+      revision: parseInt(revisionPattern.exec(name)![1], 10),
+    }))
+    .toSorted((a, b) => a.revision - b.revision);
+
+  const basePath =
+    revisionFiles.length > 0 ? `${dirPath}${sep}${revisionFiles[0].name}` : `${filePath}.rBASE`;
+  const theirsPath =
+    revisionFiles.length > 0
+      ? `${dirPath}${sep}${revisionFiles[revisionFiles.length - 1].name}`
+      : `${filePath}.rTHEIRS`;
+  const minePath = conflictFiles.includes(`${baseName}.mine`)
+    ? `${dirPath}${sep}${baseName}.mine`
+    : `${filePath}.mine`;
+
+  return {
+    basePath,
+    minePath,
+    theirsPath,
+    mergedPath: filePath,
+  };
+}
+
+async function readConflictFile(path: string): Promise<string> {
+  const result = await window.api.fs.readFile(path);
+  if (!result.success) {
+    throw new Error(result.error || `Failed to read ${path}`);
+  }
+  return result.content ?? '';
+}
+
+export async function loadMergeEditorContents(filePath: string): Promise<MergeEditorContents> {
+  const paths = await resolveConflictArtifactPaths(filePath);
+  const [baseContent, mineContent, theirsContent, mergedContent] = await Promise.all([
+    readConflictFile(paths.basePath),
+    readConflictFile(paths.minePath),
+    readConflictFile(paths.theirsPath),
+    readConflictFile(paths.mergedPath),
+  ]);
+
+  return {
+    baseContent,
+    mineContent,
+    theirsContent,
+    mergedContent,
+  };
+}
+
 export function ConflictResolutionWizard({
   isOpen,
   onClose,
@@ -56,6 +137,9 @@ export function ConflictResolutionWizard({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLaunchingExternalTool, setIsLaunchingExternalTool] = useState(false);
   const [externalToolError, setExternalToolError] = useState<string | null>(null);
+  const [mergeEditorContents, setMergeEditorContents] = useState<MergeEditorContents | null>(null);
+  const [mergeEditorError, setMergeEditorError] = useState<string | null>(null);
+  const [isLoadingMergeEditor, setIsLoadingMergeEditor] = useState(false);
 
   // Initialize conflict files
   useEffect(() => {
@@ -160,8 +244,20 @@ export function ConflictResolutionWizard({
   };
 
   // Open merge editor
-  const handleOpenMergeEditor = () => {
-    setShowMergeEditor(true);
+  const handleOpenMergeEditor = async () => {
+    if (!currentFile) return;
+
+    setIsLoadingMergeEditor(true);
+    setMergeEditorError(null);
+
+    try {
+      setMergeEditorContents(await loadMergeEditorContents(currentFile.path));
+      setShowMergeEditor(true);
+    } catch (err) {
+      setMergeEditorError((err as Error).message || 'Failed to load merge editor files');
+    } finally {
+      setIsLoadingMergeEditor(false);
+    }
   };
 
   // Open external merge tool
@@ -660,8 +756,16 @@ export function ConflictResolutionWizard({
                 )}
 
                 {/* Built-in merge option */}
-                <button onClick={handleOpenMergeEditor} className="btn btn-secondary w-full">
-                  <Eye className="w-4 h-4" />
+                <button
+                  onClick={handleOpenMergeEditor}
+                  disabled={isLoadingMergeEditor}
+                  className="btn btn-secondary w-full"
+                >
+                  {isLoadingMergeEditor ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                   Open Built-in Merge Editor
                 </button>
 
@@ -676,6 +780,13 @@ export function ConflictResolutionWizard({
                 <div className="bg-error/10 border border-error/30 rounded-lg p-3 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-error mt-0.5" />
                   <div className="text-sm text-error">{externalToolError}</div>
+                </div>
+              )}
+
+              {mergeEditorError && (
+                <div className="bg-error/10 border border-error/30 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-error mt-0.5" />
+                  <div className="text-sm text-error">{mergeEditorError}</div>
                 </div>
               )}
 
@@ -796,13 +907,14 @@ export function ConflictResolutionWizard({
         </div>
 
         {/* Merge Editor Overlay */}
-        {showMergeEditor && currentFile && (
+        {showMergeEditor && currentFile && mergeEditorContents && (
           <ThreeWayMergeEditor
             isOpen={showMergeEditor}
             filePath={currentFile.path}
-            mineContent="" // Would load actual content
-            theirsContent=""
-            baseContent=""
+            mineContent={mergeEditorContents.mineContent}
+            theirsContent={mergeEditorContents.theirsContent}
+            baseContent={mergeEditorContents.baseContent}
+            mergedContent={mergeEditorContents.mergedContent}
             onClose={() => setShowMergeEditor(false)}
             onSave={handleMergeEditorSave}
           />
