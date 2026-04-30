@@ -371,9 +371,12 @@ export function ConflictResolutionWizard({
 
   // Handle merge editor save
   const handleMergeEditorSave = async (content: string) => {
-    // Write the merged content back to the file
-    // This would need a file write API
-    console.log('Merged content saved:', content.length, 'bytes');
+    if (!currentFile) return;
+
+    const result = await window.api.fs.writeFile(currentFile.path, content);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to save merged content');
+    }
 
     // Mark as resolved
     await handleResolve('merged');

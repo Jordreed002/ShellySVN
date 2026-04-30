@@ -1,10 +1,16 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadMergeEditorContents } from '../src/components/ui/ConflictResolutionWizard';
 import { ThreeWayMergeEditor } from '../src/components/ui/ThreeWayMergeEditor';
+
+const mockConfirmAppAction = vi.hoisted(() => vi.fn());
+
+vi.mock('../src/utils/dialogs', () => ({
+  confirmAppAction: (options: unknown) => mockConfirmAppAction(options),
+}));
 
 vi.mock('../src/hooks/useSettings', () => ({
   useSettings: () => ({
@@ -90,5 +96,48 @@ describe('three-way merge editor loading', () => {
     expect(screen.getAllByText('mine-only line').length).toBeGreaterThan(0);
     expect(screen.getAllByText('theirs-only line').length).toBeGreaterThan(0);
     expect(screen.getByText('Choose resolution from left panels')).toBeInTheDocument();
+  });
+
+  it('prompts before discarding unsaved changes and keeps failed saves open', async () => {
+    mockConfirmAppAction.mockResolvedValue(false);
+    const onClose = vi.fn();
+    const onSave = vi.fn().mockRejectedValue(new Error('disk is full'));
+
+    render(
+      <ThreeWayMergeEditor
+        isOpen
+        filePath="C:/wc/src/app.ts"
+        baseContent="base line"
+        mineContent="mine line"
+        theirsContent="theirs line"
+        mergedContent={['<<<<<<< .mine', 'mine line', '=======', 'theirs line', '>>>>>>> .r14'].join(
+          '\n'
+        )}
+        onClose={onClose}
+        onSave={onSave}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /use mine/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+    await waitFor(() => {
+      expect(mockConfirmAppAction).toHaveBeenCalledWith(
+        expect.objectContaining({ confirmLabel: 'Discard' })
+      );
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /save merged file/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('disk is full');
+    expect(onClose).not.toHaveBeenCalled();
+
+    mockConfirmAppAction.mockResolvedValue(true);
+    fireEvent.click(screen.getByRole('button', { name: /revert changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Choose resolution from left panels')).toBeInTheDocument();
+    });
   });
 });

@@ -65,19 +65,21 @@ export function ThreeWayMergeEditor({
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [editingConflictId, setEditingConflictId] = useState<string | null>(null);
   const [customEditContent, setCustomEditContent] = useState<string>('');
+  const [lastSavedContent, setLastSavedContent] = useState(initialMergedContent ?? mineContent);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sourceContent = initialMergedContent ?? mineContent;
 
   // Parse conflict markers from merged content (SVN conflict format).
   useEffect(() => {
-    const conflictSource = initialMergedContent ?? mineContent;
-    if (!conflictSource) return;
+    if (!sourceContent) return;
 
-    const lines = conflictSource.split('\n');
-    const explicitMineLines = mineContent && mineContent !== conflictSource ? mineContent.split('\n') : null;
+    const lines = sourceContent.split('\n');
+    const explicitMineLines = mineContent && mineContent !== sourceContent ? mineContent.split('\n') : null;
     const explicitTheirsLines =
-      theirsContent && theirsContent !== conflictSource ? theirsContent.split('\n') : null;
+      theirsContent && theirsContent !== sourceContent ? theirsContent.split('\n') : null;
     const explicitBaseLines = baseContent ? baseContent.split('\n') : null;
     const parsedConflicts: ConflictRegion[] = [];
     let currentConflict: Partial<ConflictRegion> | null = null;
@@ -143,12 +145,11 @@ export function ThreeWayMergeEditor({
     }
 
     setConflicts(parsedConflicts);
-  }, [mineContent, theirsContent, baseContent, initialMergedContent]);
+  }, [mineContent, theirsContent, baseContent, sourceContent]);
 
   // Build merged content based on resolutions
   const buildMergedContent = useCallback(() => {
-    const conflictSource = initialMergedContent ?? mineContent;
-    const lines = conflictSource.split('\n');
+    const lines = sourceContent.split('\n');
     const result: string[] = [];
     let skipUntil = -1;
 
@@ -204,7 +205,12 @@ export function ThreeWayMergeEditor({
     }
 
     return result.join('\n');
-  }, [mineContent, conflicts, initialMergedContent]);
+  }, [sourceContent, conflicts]);
+
+  useEffect(() => {
+    setLastSavedContent(sourceContent);
+    setSaveError(null);
+  }, [sourceContent]);
 
   // Update merged content when conflicts change
   useEffect(() => {
@@ -285,10 +291,44 @@ export function ThreeWayMergeEditor({
         customContent: undefined,
       }))
     );
+    setEditingConflictId(null);
+    setSaveError(null);
+  };
+
+  const hasUnsavedChanges = mergedContent !== lastSavedContent;
+
+  const requestClose = useCallback(async () => {
+    if (isSaving) return;
+
+    if (hasUnsavedChanges) {
+      const discard = await confirmAppAction({
+        type: 'warning',
+        message: 'Discard unsaved merge changes?',
+        confirmLabel: 'Discard',
+      });
+      if (!discard) return;
+    }
+
+    onClose();
+  }, [hasUnsavedChanges, isSaving, onClose]);
+
+  const handleRevertChanges = async () => {
+    if (!hasUnsavedChanges) return;
+
+    const revert = await confirmAppAction({
+      type: 'warning',
+      message: 'Revert all unsaved merge changes?',
+      confirmLabel: 'Revert',
+    });
+    if (!revert) return;
+
+    handleResetAll();
   };
 
   // Save
   const handleSave = async () => {
+    if (isSaving) return;
+
     const unresolvedCount = conflicts.filter((c) => !c.resolved).length;
     if (unresolvedCount > 0) {
       const proceed = await confirmAppAction({
@@ -300,11 +340,13 @@ export function ThreeWayMergeEditor({
     }
 
     setIsSaving(true);
+    setSaveError(null);
     try {
       await onSave(mergedContent);
+      setLastSavedContent(mergedContent);
       onClose();
     } catch (err) {
-      console.error('Failed to save merged content:', err);
+      setSaveError((err as Error).message || 'Failed to save merged content');
     } finally {
       setIsSaving(false);
     }
@@ -319,7 +361,7 @@ export function ThreeWayMergeEditor({
         if (editingConflictId) {
           setEditingConflictId(null);
         } else {
-          onClose();
+          void requestClose();
         }
       }
 
@@ -342,7 +384,7 @@ export function ThreeWayMergeEditor({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, editingConflictId, onClose]);
+  }, [isOpen, editingConflictId, requestClose]);
 
   // Statistics
   const resolvedCount = conflicts.filter((c) => c.resolved).length;
@@ -354,7 +396,7 @@ export function ThreeWayMergeEditor({
   const fileName = filePath.split(/[/\\]/).pop() || filePath;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => void requestClose()}>
       <div
         ref={containerRef}
         className="modal w-[1400px] max-w-[98vw] h-[92vh] flex flex-col"
@@ -394,7 +436,7 @@ export function ThreeWayMergeEditor({
               {showLineNumbers ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
 
-            <button onClick={onClose} className="btn-icon-sm">
+            <button onClick={() => void requestClose()} disabled={isSaving} className="btn-icon-sm">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -656,13 +698,29 @@ export function ThreeWayMergeEditor({
         {/* Footer */}
         <div className="flex-shrink-0 px-4 py-3 bg-bg-secondary border-t border-border flex items-center justify-between">
           <div className="text-sm text-text-muted">
-            <span>Shortcuts: </span>
-            <span className="text-text-secondary">F3</span> next conflict,
-            <span className="text-text-secondary"> Shift+F3</span> previous,
-            <span className="text-text-secondary"> Ctrl+S</span> save
+            {saveError ? (
+              <span className="text-error" role="alert">
+                {saveError}
+              </span>
+            ) : (
+              <>
+                <span>Shortcuts: </span>
+                <span className="text-text-secondary">F3</span> next conflict,
+                <span className="text-text-secondary"> Shift+F3</span> previous,
+                <span className="text-text-secondary"> Ctrl+S</span> save
+              </>
+            )}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={onClose} className="btn btn-secondary">
+            <button
+              onClick={() => void handleRevertChanges()}
+              disabled={!hasUnsavedChanges || isSaving}
+              className="btn btn-secondary"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Revert Changes
+            </button>
+            <button onClick={() => void requestClose()} disabled={isSaving} className="btn btn-secondary">
               Cancel
             </button>
             <button onClick={handleSave} disabled={isSaving} className="btn btn-primary">
