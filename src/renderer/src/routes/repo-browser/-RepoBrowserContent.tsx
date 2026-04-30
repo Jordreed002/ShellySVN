@@ -67,6 +67,11 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const [selectedNode, setSelectedNode] = useState<RepoNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderMessage, setNewFolderMessage] = useState('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [createFolderError, setCreateFolderError] = useState<string | null>(null);
 
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authRealm, setAuthRealm] = useState<string>('');
@@ -244,6 +249,64 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleOpenCreateFolder = useCallback(() => {
+    setNewFolderName('');
+    setNewFolderMessage('');
+    setCreateFolderError(null);
+    setIsCreateFolderOpen(true);
+  }, []);
+
+  const handleCloseCreateFolder = useCallback(() => {
+    if (isCreatingFolder) return;
+    setIsCreateFolderOpen(false);
+    setCreateFolderError(null);
+  }, [isCreatingFolder]);
+
+  const handleCreateRemoteFolder = useCallback(async () => {
+    const trimmedName = newFolderName.trim();
+    const trimmedMessage = newFolderMessage.trim();
+    if (!trimmedName || !trimmedMessage) {
+      setCreateFolderError('Folder name and commit message are required.');
+      return;
+    }
+
+    setIsCreatingFolder(true);
+    setCreateFolderError(null);
+
+    try {
+      const result = await window.api.svn.remoteCreateFolder(
+        currentUrl,
+        trimmedName,
+        trimmedMessage,
+        credentials || undefined
+      );
+
+      if (!result.success) {
+        setCreateFolderError(result.error || 'Failed to create remote folder.');
+        return;
+      }
+
+      setIsCreateFolderOpen(false);
+      setNewFolderName('');
+      setNewFolderMessage('');
+      setSelectedNode(null);
+      await queryClient.invalidateQueries({ queryKey: listQueryKey });
+      refetch();
+    } catch (error) {
+      setCreateFolderError((error as Error)?.message || 'Failed to create remote folder.');
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  }, [
+    credentials,
+    currentUrl,
+    listQueryKey,
+    newFolderMessage,
+    newFolderName,
+    queryClient,
+    refetch,
+  ]);
 
   const handleConnect = useCallback(async () => {
     if (!isValidUrl) return;
@@ -440,6 +503,15 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
             </button>
             <button onClick={handleRefresh} className="btn-icon-sm" title="Refresh">
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={handleOpenCreateFolder}
+              disabled={!isConnected || !currentUrl}
+              className="btn-icon-sm"
+              title="New Folder"
+              aria-label="New Folder"
+            >
+              <PlusCircle className="w-4 h-4" />
             </button>
 
             <div className="flex-1 flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded border border-border text-sm">
@@ -701,6 +773,91 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
         initialUrl={selectedNode?.url || repoUrl}
         onComplete={handleCloseCheckout}
       />
+
+      {isCreateFolderOpen && (
+        <div className="modal-overlay" onClick={handleCloseCreateFolder}>
+          <div className="modal w-[440px]" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                <PlusCircle className="w-5 h-5 text-accent" />
+                New Remote Folder
+              </h2>
+              <button
+                type="button"
+                onClick={handleCloseCreateFolder}
+                className="btn-icon-sm"
+                disabled={isCreatingFolder}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="modal-body space-y-4">
+              <div>
+                <div className="block text-sm font-medium text-text mb-1.5">Parent URL</div>
+                <div className="px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-muted break-all">
+                  {currentUrl}
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="repo-browser-folder-name"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
+                  Folder name
+                </label>
+                <input
+                  id="repo-browser-folder-name"
+                  type="text"
+                  value={newFolderName}
+                  onChange={(event) => setNewFolderName(event.target.value)}
+                  className="input"
+                  disabled={isCreatingFolder}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="repo-browser-folder-message"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
+                  Commit message
+                </label>
+                <textarea
+                  id="repo-browser-folder-message"
+                  value={newFolderMessage}
+                  onChange={(event) => setNewFolderMessage(event.target.value)}
+                  className="input min-h-24 resize-y"
+                  disabled={isCreatingFolder}
+                />
+              </div>
+              {createFolderError && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-error/20 rounded text-sm text-error">
+                  <AlertCircle className="w-4 h-4" />
+                  {createFolderError}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={handleCloseCreateFolder}
+                className="btn btn-ghost"
+                disabled={isCreatingFolder}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateRemoteFolder}
+                disabled={isCreatingFolder || !newFolderName.trim() || !newFolderMessage.trim()}
+                className="btn btn-primary"
+              >
+                {isCreatingFolder ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAuthPrompt && (
         <div className="modal-overlay" onClick={handleCloseAuthPrompt}>

@@ -139,6 +139,38 @@ export async function copyRepositoryItem(
   };
 }
 
+export async function createRemoteFolder(
+  parentUrl: string,
+  folderName: string,
+  message: string,
+  credentials?: { username: string; password: string }
+): Promise<{ success: boolean; revision: number; output?: string; error?: string }> {
+  const validationError = validateRemoteFolder(parentUrl, folderName, message);
+  if (validationError) {
+    return { success: false, revision: 0, error: validationError };
+  }
+
+  const targetUrl = buildRemoteChildUrl(parentUrl, folderName.trim());
+  const args = [
+    'mkdir',
+    '-m',
+    message.trim().replace(/\0/g, ''),
+    '--non-interactive',
+    '--trust-server-cert-failures',
+    DEFAULT_SSL_FAILURES,
+  ];
+  if (credentials?.username) args.push('--username', credentials.username);
+  if (credentials?.password) args.push('--password', credentials.password);
+  args.push(targetUrl);
+
+  const output = await runSvnText(args);
+  return {
+    success: true,
+    revision: parseCommittedRevision(output),
+    output,
+  };
+}
+
 async function validateCopyTarget(src: string, dst: string, message: string): Promise<string | null> {
   if (!message.trim()) {
     return 'Branch/tag creation requires a log message.';
@@ -179,6 +211,31 @@ function isValidSvnUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function validateRemoteFolder(parentUrl: string, folderName: string, message: string): string | null {
+  if (!isValidSvnUrl(parentUrl)) {
+    return 'Remote folder parent must be a valid SVN URL.';
+  }
+
+  if (!folderName.trim()) {
+    return 'Remote folder name is required.';
+  }
+
+  if (hasUnsafePathText(folderName) || folderName.includes('/') || folderName.includes('\\')) {
+    return 'Remote folder name must be a single path segment without control characters.';
+  }
+
+  if (!message.trim()) {
+    return 'Remote folder creation requires a log message.';
+  }
+
+  return null;
+}
+
+function buildRemoteChildUrl(parentUrl: string, folderName: string): string {
+  const separator = parentUrl.endsWith('/') ? '' : '/';
+  return `${parentUrl}${separator}${encodeURIComponent(folderName)}`;
 }
 
 export async function mergeRepositoryRange(

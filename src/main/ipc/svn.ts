@@ -47,6 +47,7 @@ import { getDiagnostics } from '../services/svn-diagnostics';
 import { applyPatch, createPatch } from '../services/svn-patch';
 import {
   copyRepositoryItem,
+  createRemoteFolder,
   exportRepository,
   exportRepositoryWithProgress,
   importRepository,
@@ -330,6 +331,20 @@ export function registerSvnHandlers(): void {
   ipcMain.handle('svn:copy', async (_, src: string, dst: string, message: string) => {
     return copyRepositoryItem(src, dst, message);
   });
+
+  // SVN Remote Folder Create
+  ipcMain.handle(
+    'svn:remoteCreateFolder',
+    async (
+      _,
+      parentUrl: string,
+      folderName: string,
+      message: string,
+      credentials?: { username: string; password: string }
+    ) => {
+      return createRemoteFolder(parentUrl, folderName, message, credentials);
+    }
+  );
 
   // SVN Merge
   ipcMain.handle(

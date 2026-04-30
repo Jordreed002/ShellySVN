@@ -16,6 +16,7 @@ vi.mock('../svn-progress', () => ({
 
 import {
   copyRepositoryItem,
+  createRemoteFolder,
   mergeRepositoryRange,
   relocateWorkingCopy,
   resolveConflict,
@@ -93,6 +94,61 @@ describe('svn-repository-ops copyRepositoryItem', () => {
       error: 'Branch/tag destination already exists.',
     });
     expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['copy']));
+  });
+});
+
+describe('svn-repository-ops createRemoteFolder', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.runSvnText.mockResolvedValue('Committed revision 56.');
+  });
+
+  it('creates a remote folder with commit message, SSL trust, and credentials', async () => {
+    const result = await createRemoteFolder(
+      'https://example.test/svn/repo/trunk',
+      'Feature Folder',
+      'Add feature folder',
+      { username: 'alice', password: 'secret' }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      revision: 56,
+      output: 'Committed revision 56.',
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'mkdir',
+      '-m',
+      'Add feature folder',
+      '--non-interactive',
+      '--trust-server-cert-failures',
+      'unknown-ca,cn-mismatch,expired,not-yet-valid',
+      '--username',
+      'alice',
+      '--password',
+      'secret',
+      'https://example.test/svn/repo/trunk/Feature%20Folder',
+    ]);
+  });
+
+  it('rejects invalid parent URLs, folder names, and missing messages', async () => {
+    await expect(createRemoteFolder('not a url', 'src', 'msg')).resolves.toMatchObject({
+      success: false,
+      error: 'Remote folder parent must be a valid SVN URL.',
+    });
+    await expect(
+      createRemoteFolder('https://example.test/svn/repo', 'nested/folder', 'msg')
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Remote folder name must be a single path segment without control characters.',
+    });
+    await expect(
+      createRemoteFolder('https://example.test/svn/repo', 'src', '   ')
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Remote folder creation requires a log message.',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
   });
 });
 

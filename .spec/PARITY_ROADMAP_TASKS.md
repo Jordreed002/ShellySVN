@@ -124,7 +124,7 @@
 - [x] Verify repository browser auth with anonymous access, username/password, cached credentials, SSL trust, and SSH-backed repositories.
 - [x] Add repository browser revision selector.
 - [x] Add repository browser prefetch/caching for faster navigation.
-- [ ] Add remote create folder support with commit message.
+- [x] Add remote create folder support with commit message.
 - [ ] Add remote delete support with confirmation and commit message.
 - [ ] Add remote rename/move support with confirmation and commit message.
 - [ ] Add remote copy support for branch/tag-style repository operations.
