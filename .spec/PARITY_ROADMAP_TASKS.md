@@ -202,7 +202,7 @@
 - [x] Add large working-copy status benchmarks.
 - [x] Add large repository browser lazy-loading benchmarks.
 - [x] Add large log history pagination and filtering benchmarks.
-- [ ] Verify virtualized lists remain stable during selection, filtering, context menus, and refresh.
+- [x] Verify virtualized lists remain stable during selection, filtering, context menus, and refresh.
 - [ ] Ensure folder-size scans and status scans do not block rendering.
 - [ ] Verify background scanning does not block active SVN operations.
 - [x] Add regression budgets for renderer bundle size, app shell startup time, and common route load time.
