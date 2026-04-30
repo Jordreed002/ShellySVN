@@ -173,6 +173,55 @@ describe('svn-executor', () => {
     });
   });
 
+  it('applies proxy config to checkout, update, commit, repo browser, log, externals, and sparse update commands', async () => {
+    mockState.getSvnExecutionContext.mockReturnValue({
+      proxySettings: {
+        enabled: true,
+        host: 'proxy.example.com',
+        port: 8080,
+        username: 'proxy-user',
+        password: 'proxy-pass',
+        bypassForLocal: false,
+      },
+      connectionTimeout: 0,
+      sslVerify: true,
+      clientCertificatePath: '',
+    });
+
+    const representativeCommands = [
+      ['checkout', 'https://svn.example.com/repo/trunk', 'C:\\wc'],
+      ['update', 'C:\\wc'],
+      ['commit', '-m', 'message', 'C:\\wc\\file.txt'],
+      ['list', '--xml', 'https://svn.example.com/repo/trunk'],
+      ['log', '--xml', 'https://svn.example.com/repo/trunk'],
+      ['propget', 'svn:externals', 'C:\\wc'],
+      ['update', '--depth', 'empty', 'src/module'],
+    ];
+
+    for (const args of representativeCommands) {
+      mockState.spawn.mockClear();
+      const { proc, promise } = await startSvn(args);
+
+      while (mockState.spawn.mock.calls.length === 0) {
+        await Promise.resolve();
+      }
+      proc.emit('close', 0);
+
+      await expect(promise).resolves.toBe('');
+      expect(mockState.spawn).toHaveBeenCalledWith(
+        'custom-svn',
+        expect.arrayContaining(['--config-dir', 'C:\\temp\\svn-config-123']),
+        expect.any(Object)
+      );
+    }
+
+    expect(mockState.writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('servers'),
+      expect.stringContaining('http-proxy-username = proxy-user'),
+      { mode: 0o600 }
+    );
+  });
+
   it('passes configured client certificates and surfaces certificate failures', async () => {
     mockState.getSvnExecutionContext.mockReturnValue({
       proxySettings: { enabled: false },
