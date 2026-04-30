@@ -33,10 +33,10 @@
 - [x] Implement or verify macOS Finder badges for the status set Finder supports.
 - [x] Add platform-appropriate fallback behavior when overlays, badges, or context menus are unavailable.
 - [x] Add shell/Finder integration health diagnostics with repair actions.
-- [ ] Add installer/package checks that validate Windows shell helper registration.
-- [ ] Add installer/package checks that validate macOS Finder Sync registration and required permissions.
+- [x] Add installer/package checks that validate Windows shell helper registration.
+- [x] Add installer/package checks that validate macOS Finder Sync registration and required permissions.
 - [x] Verify file-manager actions can hand off complex workflows to the standalone app with the correct selected paths.
-- [ ] Add packaged-build smoke tests for shell/Finder integration on release targets.
+- [x] Add packaged-build smoke tests for shell/Finder integration on release targets.
 
 ## P0 - Core Working Copy Workflows
 
