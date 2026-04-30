@@ -199,7 +199,7 @@
 ## P2 - Performance and Large Repository Readiness
 
 - [x] Define target repository sizes for parity testing: file count, folder depth, log length, diff size, and binary size.
-- [ ] Add large working-copy status benchmarks.
+- [x] Add large working-copy status benchmarks.
 - [ ] Add large repository browser lazy-loading benchmarks.
 - [ ] Add large log history pagination and filtering benchmarks.
 - [ ] Verify virtualized lists remain stable during selection, filtering, context menus, and refresh.
