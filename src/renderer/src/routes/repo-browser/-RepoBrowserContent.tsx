@@ -24,6 +24,11 @@ import {
 import { CheckoutDialog } from '@renderer/components/ui/CheckoutDialog';
 import { useWorkingCopyContext } from '@renderer/hooks/useWorkingCopyContext';
 import { resolveRemoteUrlToLocalPath } from '@renderer/utils/pathResolution';
+import {
+  isRepoBrowserAuthError,
+  loadRepoBrowserCredentials,
+  type RepoBrowserCredentials,
+} from './-repoBrowserAuth';
 
 interface RepoNode {
   name: string;
@@ -34,11 +39,6 @@ interface RepoNode {
   revision: number;
   author: string;
   date: string;
-}
-
-function getRealmFromUrl(url: string): string {
-  const match = url.match(/^(https?:\/\/[^/]+)/);
-  return match ? match[1] : url;
 }
 
 // Module-level constant for default props to avoid new instances on every render
@@ -65,10 +65,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const [authRealm, setAuthRealm] = useState<string>('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [credentials, setCredentials] = useState<{
-    username: string;
-    password: string;
-  } | null>(null);
+  const [credentials, setCredentials] = useState<RepoBrowserCredentials | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -229,22 +226,8 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setHistoryIndex(0);
     setShowAuthPrompt(false);
     setConnectionError(null);
-    setAuthRealm(repoUrl);
-
-    const realm = getRealmFromUrl(repoUrl);
-    let creds: { username: string; password: string } | null = null;
-
-    try {
-      const storedCreds = await window.api.auth.get(realm);
-      if (storedCreds) {
-        creds = {
-          username: storedCreds.username,
-          password: storedCreds.password,
-        };
-      }
-    } catch {
-      setCredentials(null);
-    }
+    const { realm, credentials: creds } = await loadRepoBrowserCredentials(repoUrl, window.api.auth);
+    setAuthRealm(realm);
 
     setCredentials(creds);
 
@@ -254,11 +237,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       refetch();
     } catch (err) {
       const errorMsg = (err as Error)?.message || '';
-      if (
-        errorMsg.includes('credentials') ||
-        errorMsg.includes('Authentication') ||
-        errorMsg.includes('E215004')
-      ) {
+      if (isRepoBrowserAuthError(err)) {
         setShowAuthPrompt(true);
       } else {
         setConnectionError(errorMsg);
@@ -280,11 +259,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       refetch();
     } catch (err) {
       const errorMsg = (err as Error)?.message || '';
-      if (
-        errorMsg.includes('credentials') ||
-        errorMsg.includes('Authentication') ||
-        errorMsg.includes('E215004')
-      ) {
+      if (isRepoBrowserAuthError(err)) {
         setShowAuthPrompt(true);
       } else {
         setConnectionError(errorMsg);
