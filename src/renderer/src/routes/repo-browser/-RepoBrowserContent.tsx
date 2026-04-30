@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Folder,
   FileText,
@@ -29,6 +29,10 @@ import {
   loadRepoBrowserCredentials,
   type RepoBrowserCredentials,
 } from './-repoBrowserAuth';
+import {
+  getRepoBrowserListQueryKey,
+  REPO_BROWSER_LIST_STALE_TIME_MS,
+} from './-repoBrowserCache';
 import { normalizeRepoBrowserRevision } from './-repoBrowserRevision';
 
 interface RepoNode {
@@ -53,6 +57,7 @@ interface RepoBrowserContentProps {
 export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPTY_PROPS) {
   const search = useSearch({ from: '/repo-browser/' });
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [repoUrl, setRepoUrl] = useState(search.url || '');
   const [revision, setRevision] = useState('HEAD');
@@ -109,13 +114,17 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   }, [repoUrl, currentPath]);
 
   const selectedRevision = useMemo(() => normalizeRepoBrowserRevision(revision), [revision]);
+  const listQueryKey = useMemo(
+    () => getRepoBrowserListQueryKey(currentUrl, selectedRevision, credentials),
+    [currentUrl, selectedRevision, credentials]
+  );
 
   const {
     data: directoryData,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['repo-browser', currentUrl, selectedRevision, credentials],
+    queryKey: listQueryKey,
     queryFn: async () => {
       const result = await window.api.svn.list(
         currentUrl,
@@ -126,7 +135,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       return result;
     },
     enabled: isConnected && Boolean(isValidUrl) && !showAuthPrompt,
-    staleTime: 60000,
+    staleTime: REPO_BROWSER_LIST_STALE_TIME_MS,
     retry: false,
   });
 
@@ -216,6 +225,20 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       }
     },
     [navigateToPath]
+  );
+
+  const prefetchDirectory = useCallback(
+    (node: RepoNode) => {
+      if (node.kind !== 'dir') return;
+
+      queryClient.prefetchQuery({
+        queryKey: getRepoBrowserListQueryKey(node.url, selectedRevision, credentials),
+        queryFn: () =>
+          window.api.svn.list(node.url, selectedRevision, 'immediates', credentials || undefined),
+        staleTime: REPO_BROWSER_LIST_STALE_TIME_MS,
+      });
+    },
+    [credentials, queryClient, selectedRevision]
   );
 
   const handleRefresh = useCallback(() => {
@@ -500,6 +523,14 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                         }`}
                         onClick={() => handleSelectNode(entry)}
                         onDoubleClick={() => handleBrowse(entry)}
+                        onMouseEnter={() => prefetchDirectory(entry)}
+                        onFocus={() => prefetchDirectory(entry)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            handleBrowse(entry);
+                          }
+                        }}
+                        tabIndex={0}
                       >
                         <td className="px-4 py-2">
                           {entry.kind === 'dir' ? (
