@@ -70,7 +70,7 @@
 
 ## P0 - Conflict Resolution
 
-- [ ] Verify text conflict detection from status, update, merge, and commit-blocking flows.
+- [x] Verify text conflict detection from status, update, merge, and commit-blocking flows.
 - [ ] Verify tree conflict detection and display.
 - [ ] Verify lock conflict detection and recovery paths.
 - [x] Add guided resolve coverage for `base`, `mine-full`, `theirs-full`, `mine-conflict`, and `theirs-conflict`.

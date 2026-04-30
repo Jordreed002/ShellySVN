@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
+import { getTextConflictPathsFromSvnOutput } from '@renderer/utils/conflictDetection';
 import type { SvnMergeOptions, SvnOperationProgress } from '@shared/types';
 
 interface MergeWizardProps {
@@ -53,14 +54,6 @@ export function parseMergeRevisionInput(input: string): {
     revisions: revisions.length > 0 ? revisions : undefined,
     ranges: ranges.length > 0 ? ranges : undefined,
   };
-}
-
-function summarizeConflicts(output = ''): string[] {
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => /^C\s+/.test(line))
-    .map((line) => line.replace(/^C\s+/, '').trim());
 }
 
 const MERGE_TYPE_OPTIONS = [
@@ -167,7 +160,7 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
 
       const output = result.output || '';
       setMergeOutput(output);
-      setConflicts(summarizeConflicts(output));
+      setConflicts(getTextConflictPathsFromSvnOutput(output));
       if (!result.success) {
         setError('Dry-run preview failed');
       }
@@ -197,7 +190,7 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
       );
       const output = result.output || '';
       setMergeOutput(output);
-      setConflicts(summarizeConflicts(output));
+      setConflicts(getTextConflictPathsFromSvnOutput(output));
 
       if (result.success) {
         setSuccess(true);
