@@ -187,7 +187,7 @@
 - [x] Verify command palette includes every reachable user command and respects disabled states.
 - [ ] Add context menu parity matrix for file explorer, repository browser, history, diff, project monitor, and shell/Finder surfaces.
 - [x] Add keyboard shortcut coverage for file explorer, commit, update, diff, log, conflict, and dialog actions.
-- [ ] Verify bookmarks, recent repositories, recent paths, and startup actions.
+- [x] Verify bookmarks, recent repositories, recent paths, and startup actions.
 - [ ] Add onboarding coverage for first-run, skipped tutorial, resumed tutorial, and completed tutorial states.
 - [ ] Add empty, loading, error, and offline states for primary routes.
 - [ ] Ensure core workflows are keyboard accessible.
