@@ -216,7 +216,7 @@
 - [x] Add structured JSON output contracts for CLI commands.
 - [x] Add CLI authentication and config handling decisions.
 - [ ] Add cross-platform compiled binary smoke tests.
-- [ ] Ensure app and CLI share parsing logic instead of duplicating SVN output handling.
+- [x] Ensure app and CLI share parsing logic instead of duplicating SVN output handling.
 - [x] Keep Electron main, preload, renderer, and shared contracts clearly separated.
 - [x] Add IPC validation tests for security-sensitive paths, including Windows path cases.
 
