@@ -206,6 +206,38 @@ export function Layout({ children }: LayoutProps) {
               setShowCommandPalette(false);
               setShowNotes(true);
             }}
+            onRevert={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.REVERT));
+              setShowCommandPalette(false);
+            }}
+            onAdd={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.ADD));
+              setShowCommandPalette(false);
+            }}
+            onDelete={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.DELETE));
+              setShowCommandPalette(false);
+            }}
+            onCleanup={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.CLEANUP));
+              setShowCommandPalette(false);
+            }}
+            onResolve={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.RESOLVE));
+              setShowCommandPalette(false);
+            }}
+            onMove={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.MOVE));
+              setShowCommandPalette(false);
+            }}
+            onCopy={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.COPY));
+              setShowCommandPalette(false);
+            }}
+            onRename={() => {
+              window.dispatchEvent(new CustomEvent(SVN_EVENTS.RENAME));
+              setShowCommandPalette(false);
+            }}
             onBranchTag={() => {
               window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG));
               setShowCommandPalette(false);

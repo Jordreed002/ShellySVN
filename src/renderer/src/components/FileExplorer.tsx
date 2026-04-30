@@ -114,6 +114,9 @@ const ImportDialog = lazy(() =>
 const ResolveDialog = lazy(() =>
   import('./ui/ResolveDialog').then((m) => ({ default: m.ResolveDialog }))
 );
+const MoveRenameDialog = lazy(() =>
+  import('./ui/MoveRenameDialog').then((m) => ({ default: m.MoveRenameDialog }))
+);
 
 // Loading fallback for lazy components
 function DialogLoader() {
@@ -197,6 +200,10 @@ export function FileExplorer() {
   const [repoBrowserUrl, setRepoBrowserUrl] = useState<string | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [resolveEntry, setResolveEntry] = useState<SvnStatusEntry | null>(null);
+  const [moveRenameTarget, setMoveRenameTarget] = useState<{
+    path: string;
+    mode: 'move' | 'rename';
+  } | null>(null);
 
   const authPrompt = useFileExplorerAuthPrompt();
 
@@ -700,7 +707,64 @@ export function FileExplorer() {
         setApplyPatchPath(targetPath);
       }
     };
+    const handleRevert = () => {
+      void actions.handleRevertSelected();
+    };
+    const handleAdd = () => {
+      void actions.handleAddSelected();
+    };
+    const handleDelete = () => {
+      void actions.handleDeleteSelected();
+    };
+    const handleCleanup = () => {
+      const targetPath = selectedEntry?.path || path;
+      if (targetPath) {
+        void actions.cleanup(targetPath);
+      }
+    };
+    const handleResolve = () => {
+      if (selectedEntry?.status === 'C') {
+        setResolveEntry(selectedEntry);
+      }
+    };
+    const handleMove = () => {
+      if (selectedEntry) {
+        setMoveRenameTarget({ path: selectedEntry.path, mode: 'move' });
+      }
+    };
+    const handleCopy = async () => {
+      if (!selectedEntry) return;
+      const destination = await promptAppInput({
+        title: 'Copy item',
+        message: 'Destination path:',
+        confirmLabel: 'Copy',
+      });
+      if (!destination) return;
+      const result = await window.api.svn.copy(
+        selectedEntry.path,
+        destination,
+        `Copy ${selectedEntry.path}`
+      );
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+      }
+    };
+    const handleRename = () => {
+      if (selectedEntry) {
+        setMoveRenameTarget({ path: selectedEntry.path, mode: 'rename' });
+      }
+    };
 
+    window.addEventListener(SVN_EVENTS.REVERT, handleRevert);
+    window.addEventListener(SVN_EVENTS.ADD, handleAdd);
+    window.addEventListener(SVN_EVENTS.DELETE, handleDelete);
+    window.addEventListener(SVN_EVENTS.CLEANUP, handleCleanup);
+    window.addEventListener(SVN_EVENTS.RESOLVE, handleResolve);
+    window.addEventListener(SVN_EVENTS.MOVE, handleMove);
+    window.addEventListener(SVN_EVENTS.COPY, handleCopy);
+    window.addEventListener(SVN_EVENTS.RENAME, handleRename);
     window.addEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
     window.addEventListener(SVN_EVENTS.TAG, handleTag);
     window.addEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
@@ -722,6 +786,14 @@ export function FileExplorer() {
     window.addEventListener(SVN_EVENTS.APPLY_PATCH, handleApplyPatch);
 
     return () => {
+      window.removeEventListener(SVN_EVENTS.REVERT, handleRevert);
+      window.removeEventListener(SVN_EVENTS.ADD, handleAdd);
+      window.removeEventListener(SVN_EVENTS.DELETE, handleDelete);
+      window.removeEventListener(SVN_EVENTS.CLEANUP, handleCleanup);
+      window.removeEventListener(SVN_EVENTS.RESOLVE, handleResolve);
+      window.removeEventListener(SVN_EVENTS.MOVE, handleMove);
+      window.removeEventListener(SVN_EVENTS.COPY, handleCopy);
+      window.removeEventListener(SVN_EVENTS.RENAME, handleRename);
       window.removeEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
       window.removeEventListener(SVN_EVENTS.TAG, handleTag);
       window.removeEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
@@ -742,7 +814,7 @@ export function FileExplorer() {
       window.removeEventListener(SVN_EVENTS.CREATE_PATCH, handleCreatePatch);
       window.removeEventListener(SVN_EVENTS.APPLY_PATCH, handleApplyPatch);
     };
-  }, [path, selectedEntry]);
+  }, [actions, path, queryClient, selectedEntry]);
 
   // Virtualizer
   const virtualizer = useVirtualizer({
@@ -831,6 +903,26 @@ export function FileExplorer() {
       },
       onDelete: async () => {
         if (selectedEntry) await actions.handleDeleteSelected();
+      },
+      onMove: (entry: SvnStatusEntry) => {
+        setMoveRenameTarget({ path: entry.path, mode: 'move' });
+      },
+      onCopy: async (entry: SvnStatusEntry) => {
+        const destination = await promptAppInput({
+          title: 'Copy item',
+          message: 'Destination path:',
+          confirmLabel: 'Copy',
+        });
+        if (!destination) return;
+        const result = await window.api.svn.copy(entry.path, destination, `Copy ${entry.path}`);
+        if (result.success) {
+          queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+        }
+      },
+      onRename: (entry: SvnStatusEntry) => {
+        setMoveRenameTarget({ path: entry.path, mode: 'rename' });
       },
       onShowLog: (entry: SvnStatusEntry) => setLogViewerPath(entry.path),
       onDiff: (entry: SvnStatusEntry) => setDiffViewerPath(entry.path),
@@ -1176,6 +1268,38 @@ export function FileExplorer() {
           onRevert={actions.handleRevertSelected}
           onAdd={actions.handleAddSelected}
           onDelete={actions.handleDeleteSelected}
+          onCleanup={() => {
+            const targetPath = selectedEntry?.path || path;
+            if (targetPath) void actions.cleanup(targetPath);
+          }}
+          onResolve={() => {
+            if (selectedEntry?.status === 'C') setResolveEntry(selectedEntry);
+          }}
+          onMove={() => {
+            if (selectedEntry) setMoveRenameTarget({ path: selectedEntry.path, mode: 'move' });
+          }}
+          onCopy={async () => {
+            if (!selectedEntry) return;
+            const destination = await promptAppInput({
+              title: 'Copy item',
+              message: 'Destination path:',
+              confirmLabel: 'Copy',
+            });
+            if (!destination) return;
+            const result = await window.api.svn.copy(
+              selectedEntry.path,
+              destination,
+              `Copy ${selectedEntry.path}`
+            );
+            if (result.success) {
+              queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+            }
+          }}
+          onRename={() => {
+            if (selectedEntry) setMoveRenameTarget({ path: selectedEntry.path, mode: 'rename' });
+          }}
           isUpdating={isFetching}
           hasChanges={hasChanges}
           hasSelection={selectedPaths.size > 0}
@@ -1665,6 +1789,23 @@ export function FileExplorer() {
             isOpen={!!repoBrowserUrl}
             repoUrl={repoBrowserUrl}
             onClose={() => setRepoBrowserUrl(null)}
+          />
+        </Suspense>
+      )}
+
+      {/* Move/Rename Dialog */}
+      {moveRenameTarget && (
+        <Suspense fallback={<DialogLoader />}>
+          <MoveRenameDialog
+            isOpen={!!moveRenameTarget}
+            sourcePath={moveRenameTarget.path}
+            mode={moveRenameTarget.mode}
+            onClose={() => setMoveRenameTarget(null)}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+            }}
           />
         </Suspense>
       )}

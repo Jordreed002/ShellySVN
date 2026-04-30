@@ -33,6 +33,13 @@ import {
   FileInput,
   FileOutput,
   Network,
+  Plus,
+  Trash2,
+  Wrench,
+  CheckCircle2,
+  Move,
+  Copy,
+  Pencil,
 } from 'lucide-react';
 
 interface CommandItem {
@@ -54,6 +61,13 @@ interface CommandPaletteProps {
   onCommit?: () => void;
   onUpdate?: () => void;
   onRevert?: () => void;
+  onAdd?: () => void;
+  onDelete?: () => void;
+  onCleanup?: () => void;
+  onResolve?: () => void;
+  onMove?: () => void;
+  onCopy?: () => void;
+  onRename?: () => void;
   onShowLog?: () => void;
   onRefresh?: () => void;
   onOpenSettings?: () => void;
@@ -101,6 +115,13 @@ export function CommandPalette({
   onCommit,
   onUpdate,
   onRevert,
+  onAdd,
+  onDelete,
+  onCleanup,
+  onResolve,
+  onMove,
+  onCopy,
+  onRename,
   onShowLog,
   onRefresh,
   onOpenSettings,
@@ -181,6 +202,90 @@ export function CommandPalette({
         category: 'SVN',
         action: onRevert,
         keywords: ['svn', 'undo', 'discard'],
+      });
+    }
+
+    if (onAdd) {
+      items.push({
+        id: 'add',
+        title: 'Add to Version Control',
+        description: 'Schedule selected files for addition',
+        icon: Plus,
+        category: 'SVN',
+        action: onAdd,
+        keywords: ['svn', 'add', 'version'],
+      });
+    }
+
+    if (onDelete) {
+      items.push({
+        id: 'delete',
+        title: 'Delete Selected',
+        description: 'Delete or schedule selected files for deletion',
+        icon: Trash2,
+        category: 'SVN',
+        action: onDelete,
+        keywords: ['svn', 'delete', 'remove'],
+      });
+    }
+
+    if (onCleanup) {
+      items.push({
+        id: 'cleanup',
+        title: 'Cleanup Working Copy',
+        description: 'Run SVN cleanup on the selected directory',
+        icon: Wrench,
+        category: 'SVN',
+        action: onCleanup,
+        keywords: ['svn', 'cleanup', 'lock'],
+      });
+    }
+
+    if (onResolve) {
+      items.push({
+        id: 'resolve',
+        title: 'Resolve Conflict',
+        description: 'Open conflict resolution for the selected item',
+        icon: CheckCircle2,
+        category: 'SVN',
+        action: onResolve,
+        keywords: ['svn', 'resolve', 'conflict'],
+      });
+    }
+
+    if (onMove) {
+      items.push({
+        id: 'move',
+        title: 'Move...',
+        description: 'Move selected item while preserving history',
+        icon: Move,
+        category: 'SVN',
+        action: onMove,
+        keywords: ['svn', 'move'],
+      });
+    }
+
+    if (onCopy) {
+      items.push({
+        id: 'copy',
+        title: 'Copy...',
+        description: 'Copy selected item while preserving history',
+        icon: Copy,
+        category: 'SVN',
+        action: onCopy,
+        keywords: ['svn', 'copy'],
+      });
+    }
+
+    if (onRename) {
+      items.push({
+        id: 'rename',
+        title: 'Rename...',
+        description: 'Rename selected item while preserving history',
+        icon: Pencil,
+        category: 'SVN',
+        action: onRename,
+        keywords: ['svn', 'rename'],
       });
     }
 
@@ -591,6 +696,13 @@ export function CommandPalette({
     onCommit,
     onUpdate,
     onRevert,
+    onAdd,
+    onDelete,
+    onCleanup,
+    onResolve,
+    onMove,
+    onCopy,
+    onRename,
     onShowLog,
     onRefresh,
     onOpenSettings,

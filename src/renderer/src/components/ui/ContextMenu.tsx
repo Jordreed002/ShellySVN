@@ -26,6 +26,8 @@ import {
   ClipboardList,
   Shield,
   Archive,
+  Move,
+  Pencil,
 } from 'lucide-react';
 import type { SvnStatusChar } from '@shared/types';
 
@@ -216,6 +218,9 @@ export function getSvnContextMenuItems(
     onRevert?: () => void;
     onAdd?: () => void;
     onDelete?: () => void;
+    onMove?: () => void;
+    onCopy?: () => void;
+    onRename?: () => void;
     onResolve?: () => void;
     onGetLock?: () => void;
     onReleaseLock?: () => void;
@@ -363,6 +368,35 @@ export function getSvnContextMenuItems(
       danger: true,
       onClick: actions.onDelete,
     });
+  }
+
+  if (isVersioned) {
+    if (actions.onMove) {
+      items.push({
+        id: 'move',
+        label: 'Move...',
+        icon: Move,
+        onClick: actions.onMove,
+      });
+    }
+
+    if (actions.onCopy) {
+      items.push({
+        id: 'copy',
+        label: 'Copy...',
+        icon: Copy,
+        onClick: actions.onCopy,
+      });
+    }
+
+    if (actions.onRename) {
+      items.push({
+        id: 'rename',
+        label: 'Rename...',
+        icon: Pencil,
+        onClick: actions.onRename,
+      });
+    }
   }
 
   // === Lock/Unlock ===

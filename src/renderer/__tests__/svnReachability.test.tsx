@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CommandPalette } from '../src/components/ui/CommandPalette';
 import { getSvnContextMenuItems } from '../src/components/ui/ContextMenu';
+import { Toolbar } from '../src/components/ui/Toolbar';
 
 describe('SVN workflow reachability', () => {
   it('lists every callback-backed user command in the command palette', () => {
@@ -15,6 +16,13 @@ describe('SVN workflow reachability', () => {
       onCommit: vi.fn(),
       onUpdate: vi.fn(),
       onRevert: vi.fn(),
+      onAdd: vi.fn(),
+      onDelete: vi.fn(),
+      onCleanup: vi.fn(),
+      onResolve: vi.fn(),
+      onMove: vi.fn(),
+      onCopy: vi.fn(),
+      onRename: vi.fn(),
       onShowLog: vi.fn(),
       onRefresh: vi.fn(),
       onOpenSettings: vi.fn(),
@@ -56,6 +64,13 @@ describe('SVN workflow reachability', () => {
       'Commit Changes',
       'Update Working Copy',
       'Revert Changes',
+      'Add to Version Control',
+      'Delete Selected',
+      'Cleanup Working Copy',
+      'Resolve Conflict',
+      'Move...',
+      'Copy...',
+      'Rename...',
       'Show Log',
       'Quick Commit',
       'Create Branch...',
@@ -146,5 +161,67 @@ describe('SVN workflow reachability', () => {
     expect(labels).toContain('Switch...');
     expect(labels).toContain('Merge...');
     expect(labels).toContain('Relocate...');
+  });
+
+  it('exposes common working-copy actions from toolbar controls', () => {
+    render(
+      <Toolbar
+        onUpdate={vi.fn()}
+        onCommit={vi.fn()}
+        onRevert={vi.fn()}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onCleanup={vi.fn()}
+        onResolve={vi.fn()}
+        onMove={vi.fn()}
+        onCopy={vi.fn()}
+        onRename={vi.fn()}
+        hasChanges
+        hasSelection
+        isVersioned
+      />
+    );
+
+    [
+      'Update working copy from repository',
+      'Commit changes',
+      'Revert selected files to last committed version',
+      'Add selected files to version control',
+      'Delete selected files',
+      'Cleanup selected working copy path',
+      'Resolve selected conflict',
+      'Move selected item',
+      'Copy selected item',
+      'Rename selected item',
+    ].forEach((name) => {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    });
+  });
+
+  it('exposes common working-copy actions from context menus', () => {
+    const modifiedFileLabels = getSvnContextMenuItems('M', false, {
+      onRevert: vi.fn(),
+      onDelete: vi.fn(),
+      onMove: vi.fn(),
+      onCopy: vi.fn(),
+      onRename: vi.fn(),
+    }).map((item) => item.label);
+    const unversionedLabels = getSvnContextMenuItems('?', false, {
+      onAdd: vi.fn(),
+      onDelete: vi.fn(),
+    }).map((item) => item.label);
+    const conflictedLabels = getSvnContextMenuItems('C', false, {
+      onResolve: vi.fn(),
+    }).map((item) => item.label);
+    const directoryLabels = getSvnContextMenuItems(' ', true, {
+      onCleanup: vi.fn(),
+    }).map((item) => item.label);
+
+    expect(modifiedFileLabels).toEqual(
+      expect.arrayContaining(['Revert', 'Delete (versioned)', 'Move...', 'Copy...', 'Rename...'])
+    );
+    expect(unversionedLabels).toEqual(expect.arrayContaining(['Add to Revision', 'Delete']));
+    expect(conflictedLabels).toContain('Resolve...');
+    expect(directoryLabels).toContain('Cleanup...');
   });
 });

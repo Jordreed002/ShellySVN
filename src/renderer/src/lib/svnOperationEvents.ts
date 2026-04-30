@@ -22,6 +22,14 @@ export const SVN_EVENTS = {
   APPLY_PATCH: 'svn:apply-patch',
   LOCK: 'svn:lock',
   UNLOCK: 'svn:unlock',
+  REVERT: 'svn:revert',
+  ADD: 'svn:add',
+  DELETE: 'svn:delete',
+  CLEANUP: 'svn:cleanup',
+  RESOLVE: 'svn:resolve',
+  MOVE: 'svn:move',
+  COPY: 'svn:copy',
+  RENAME: 'svn:rename',
 } as const;
 
 export type SvnEventName = (typeof SVN_EVENTS)[keyof typeof SVN_EVENTS];

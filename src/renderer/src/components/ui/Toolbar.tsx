@@ -21,6 +21,11 @@ import {
   Cloud,
   Stethoscope,
   StickyNote,
+  Wrench,
+  CheckCircle2,
+  Move,
+  Copy,
+  Pencil,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
@@ -31,6 +36,11 @@ interface ToolbarProps {
   onRevert?: () => void;
   onAdd?: () => void;
   onDelete?: () => void;
+  onCleanup?: () => void;
+  onResolve?: () => void;
+  onMove?: () => void;
+  onCopy?: () => void;
+  onRename?: () => void;
   onSettings?: () => void;
   onDiagnostics?: () => void;
   isUpdating?: boolean;
@@ -67,6 +77,11 @@ export function Toolbar({
   onRevert,
   onAdd,
   onDelete,
+  onCleanup,
+  onResolve,
+  onMove,
+  onCopy,
+  onRename,
   onSettings,
   onDiagnostics,
   isUpdating = false,
@@ -262,6 +277,71 @@ export function Toolbar({
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />
             </button>
+
+            {onCleanup && (
+              <button
+                onClick={onCleanup}
+                disabled={!hasSelection}
+                className="btn-icon-sm"
+                title="Cleanup selected"
+                aria-label="Cleanup selected working copy path"
+                aria-disabled={!hasSelection}
+              >
+                <Wrench className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+
+            {onResolve && (
+              <button
+                onClick={onResolve}
+                disabled={!hasSelection}
+                className="btn-icon-sm"
+                title="Resolve selected"
+                aria-label="Resolve selected conflict"
+                aria-disabled={!hasSelection}
+              >
+                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+
+            {onMove && (
+              <button
+                onClick={onMove}
+                disabled={!hasSelection}
+                className="btn-icon-sm"
+                title="Move selected"
+                aria-label="Move selected item"
+                aria-disabled={!hasSelection}
+              >
+                <Move className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+
+            {onCopy && (
+              <button
+                onClick={onCopy}
+                disabled={!hasSelection}
+                className="btn-icon-sm"
+                title="Copy selected"
+                aria-label="Copy selected item"
+                aria-disabled={!hasSelection}
+              >
+                <Copy className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+
+            {onRename && (
+              <button
+                onClick={onRename}
+                disabled={!hasSelection}
+                className="btn-icon-sm"
+                title="Rename selected"
+                aria-label="Rename selected item"
+                aria-disabled={!hasSelection}
+              >
+                <Pencil className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </>
       )}
