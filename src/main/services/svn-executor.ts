@@ -5,6 +5,7 @@ import { join } from 'path';
 
 import type { SvnExecutionContext } from '@shared/types';
 import { getSettingsManager } from '../settings-manager';
+import { getAuthCache } from '../auth-cache';
 import { debug } from '../utils/debug';
 import { redactArgs, redactValue } from '../utils/redaction';
 
@@ -106,6 +107,35 @@ async function cleanupTempSvnConfig(configDir: string): Promise<void> {
   }
 }
 
+function getRepositoryUrlArgs(args: string[]): string[] {
+  return args.filter((arg) => /^https?:\/\//i.test(arg));
+}
+
+async function getCachedCredentialsForArgs(
+  args: string[]
+): Promise<{ username: string; password: string; realm: string } | null> {
+  const urls = getRepositoryUrlArgs(args);
+  if (urls.length === 0) {
+    return null;
+  }
+
+  try {
+    const cache = getAuthCache();
+    await cache.ready();
+
+    for (const url of urls) {
+      const match = cache.findForUrl(url);
+      if (match) {
+        return match;
+      }
+    }
+  } catch (error) {
+    debug.warn('[SVN] Failed to look up cached credentials:', error);
+  }
+
+  return null;
+}
+
 export async function runSvn(args: string[], options: RunSvnOptions = {}): Promise<RunSvnResult> {
   const settingsManager = getSettingsManager();
   const globalContext = settingsManager.getSvnExecutionContext();
@@ -119,6 +149,9 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
   };
 
   const tempConfigDir = await createTempSvnConfig(context.proxySettings);
+  const cachedCredentials =
+    options.credentials === undefined ? await getCachedCredentialsForArgs(args) : null;
+  const credentials = options.credentials ?? cachedCredentials ?? undefined;
 
   return new Promise((resolve, reject) => {
     const svnCommand = settingsManager.getSvnClientPath();
@@ -139,11 +172,11 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
       debug.warn(`[SECURITY] SSL verification bypassed for: ${options.cwd || process.cwd()}`);
     }
 
-    if (options.credentials?.username) {
-      finalArgs.push('--username', options.credentials.username);
+    if (credentials?.username) {
+      finalArgs.push('--username', credentials.username);
     }
-    if (options.credentials?.password) {
-      finalArgs.push('--password', options.credentials.password);
+    if (credentials?.password) {
+      finalArgs.push('--password', credentials.password);
     }
 
     if (context.clientCertificatePath && context.clientCertificatePath.trim()) {

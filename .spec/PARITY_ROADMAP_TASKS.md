@@ -158,7 +158,7 @@
 
 ## P1 - Authentication, Network, SSL, and Security
 
-- [ ] Verify per-realm SVN credentials across all SVN operations.
+- [x] Verify per-realm SVN credentials across all SVN operations.
 - [x] Add session-only credential behavior where persistent storage is not desired.
 - [x] Add credential edit, delete, and clear flows from settings.
 - [x] Ensure persistent plaintext credential storage never occurs silently.

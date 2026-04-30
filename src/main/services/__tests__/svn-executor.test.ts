@@ -16,6 +16,8 @@ const mockState = vi.hoisted(() => ({
   debugLog: vi.fn(),
   debugWarn: vi.fn(),
   debugError: vi.fn(),
+  authReady: vi.fn().mockResolvedValue(undefined),
+  authFindForUrl: vi.fn(),
 }));
 
 function createMockProcess() {
@@ -66,6 +68,13 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
+vi.mock('../../auth-cache', () => ({
+  getAuthCache: () => ({
+    ready: mockState.authReady,
+    findForUrl: mockState.authFindForUrl,
+  }),
+}));
+
 import { runSvn, runSvnText } from '../svn-executor';
 
 async function startSvn(args: string[], options = {}) {
@@ -99,6 +108,8 @@ describe('svn-executor', () => {
       sslVerify: true,
       clientCertificatePath: '',
     });
+    mockState.authReady.mockResolvedValue(undefined);
+    mockState.authFindForUrl.mockReturnValue(null);
   });
 
   it('uses the configured SVN client path and redacts credentials in logs', async () => {
@@ -178,6 +189,53 @@ describe('svn-executor', () => {
     expect(mockState.spawn).toHaveBeenCalledWith(
       'custom-svn',
       expect.arrayContaining(['--certificate', 'C:\\certs\\client.p12']),
+      expect.any(Object)
+    );
+  });
+
+  it('applies cached per-realm credentials to URL-based SVN commands', async () => {
+    mockState.authFindForUrl.mockImplementation((url: string) =>
+      url.startsWith('https://svn.example.com/project')
+        ? { realm: 'https://svn.example.com/project', username: 'alice', password: 'secret' }
+        : null
+    );
+    const { proc, promise } = await startSvn([
+      'log',
+      '--xml',
+      'https://svn.example.com/project/trunk',
+    ]);
+
+    proc.stdout.emit('data', Buffer.from('<log />'));
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('<log />');
+    expect(mockState.authFindForUrl).toHaveBeenCalledWith(
+      'https://svn.example.com/project/trunk'
+    );
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      'custom-svn',
+      expect.arrayContaining(['--username', 'alice', '--password', 'secret']),
+      expect.any(Object)
+    );
+  });
+
+  it('keeps explicit credentials ahead of cached realm credentials', async () => {
+    mockState.authFindForUrl.mockReturnValue({
+      realm: 'https://svn.example.com',
+      username: 'cached',
+      password: 'cached-pass',
+    });
+    const { proc, promise } = await startSvn(['list', 'https://svn.example.com/repo'], {
+      credentials: { username: 'explicit', password: 'explicit-pass' },
+    });
+
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    expect(mockState.authFindForUrl).not.toHaveBeenCalled();
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      'custom-svn',
+      expect.arrayContaining(['--username', 'explicit', '--password', 'explicit-pass']),
       expect.any(Object)
     );
   });
