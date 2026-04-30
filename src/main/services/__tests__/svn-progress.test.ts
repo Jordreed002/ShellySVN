@@ -107,6 +107,59 @@ describe('svn-progress', () => {
     );
   });
 
+  it('clears interrupted operations so a retry can reuse the operation id', async () => {
+    const send = vi.fn();
+    mockState.runSvn
+      .mockRejectedValueOnce(new Error('process crashed unexpectedly'))
+      .mockResolvedValueOnce({
+        stdout: 'Updated to revision 88.',
+        stderr: '',
+        code: 0,
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      });
+
+    await expect(
+      runSvnOperationWithProgress(
+        { sender: { send } } as never,
+        'update-1',
+        'update',
+        ['update', 'C:\\wc']
+      )
+    ).resolves.toEqual({
+      success: false,
+      revision: 0,
+      error: 'process crashed unexpectedly',
+    });
+
+    expect(cancelSvnOperation('update-1')).toEqual({
+      success: false,
+      error: 'No active SVN operation found with that ID',
+    });
+
+    await expect(
+      runSvnOperationWithProgress(
+        { sender: { send } } as never,
+        'update-1',
+        'update',
+        ['update', 'C:\\wc']
+      )
+    ).resolves.toEqual({
+      success: true,
+      revision: 88,
+      output: 'Updated to revision 88.',
+    });
+    expect(send).toHaveBeenCalledWith(
+      'svn:operation:progress',
+      expect.objectContaining({
+        operationId: 'update-1',
+        operation: 'update',
+        status: 'completed',
+        revision: 88,
+      })
+    );
+  });
+
   it('redacts secret-looking progress errors before sending them to the renderer', async () => {
     const send = vi.fn();
     mockState.runSvn.mockRejectedValue(new Error('commit failed password=hunter2 token=abc123'));
