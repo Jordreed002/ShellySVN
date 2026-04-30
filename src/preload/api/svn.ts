@@ -258,8 +258,16 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
         ipcRenderer.invoke('svn:externals:add', workingCopyPath, external) as Promise<{
           success: boolean;
         }>,
+      edit: (workingCopyPath, externalPath, external) =>
+        ipcRenderer.invoke('svn:externals:edit', workingCopyPath, externalPath, external) as Promise<{
+          success: boolean;
+        }>,
       remove: (workingCopyPath, externalPath) =>
         ipcRenderer.invoke('svn:externals:remove', workingCopyPath, externalPath) as Promise<{
+          success: boolean;
+        }>,
+      update: (workingCopyPath, externalPath?) =>
+        ipcRenderer.invoke('svn:externals:update', workingCopyPath, externalPath) as Promise<{
           success: boolean;
         }>,
     },

@@ -215,6 +215,11 @@ export interface IpcInvokeContract {
   'svn:externals:list': IpcCall<[path: string], SvnExternal[]>;
   'svn:externals:add': IpcCall<[workingCopyPath: string, external: SvnExternal], OperationResult>;
   'svn:externals:remove': IpcCall<[workingCopyPath: string, externalPath: string], OperationResult>;
+  'svn:externals:edit': IpcCall<
+    [workingCopyPath: string, externalPath: string, external: SvnExternal],
+    OperationResult
+  >;
+  'svn:externals:update': IpcCall<[workingCopyPath: string, externalPath?: string], OperationResult>;
   'svn:diagnostics': IpcCall<[workingCopyPath: string], RepoDiagnostics>;
 
   'fs:listDirectory': IpcCall<[path: string], FileInfo[]>;

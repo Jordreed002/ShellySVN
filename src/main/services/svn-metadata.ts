@@ -4,6 +4,7 @@ import type {
   SvnListResult,
   SvnShelveListResult,
 } from '@shared/types';
+import { join } from 'path';
 import { parseSvnExternals, parseSvnListXml } from '../svn/parsers';
 import {
   parseSvnPropertiesXml,
@@ -186,26 +187,79 @@ export async function externalsAdd(
   }
 }
 
+export async function externalsEdit(
+  workingCopyPath: string,
+  externalPath: string,
+  external: Omit<SvnExternal, 'name'> & { name?: string }
+): Promise<{ success: boolean }> {
+  try {
+    const current = await getExistingExternals(workingCopyPath);
+    const lines = removeExternalDefinition(current, externalPath);
+    lines.push(formatExternalDefinition(external));
+    await saveExternals(workingCopyPath, lines);
+    return { success: true };
+  } catch (error) {
+    debug.error('[SVN] Externals edit error:', error);
+    return { success: false };
+  }
+}
+
 export async function externalsRemove(
   workingCopyPath: string,
   externalPath: string
 ): Promise<{ success: boolean }> {
   try {
-    const current = await runSvnText(['propget', 'svn:externals', workingCopyPath]);
-    const lines = current.split('\n').filter((line) => {
-      const parts = line.trim().split(/\s+/);
-      const name = parts[parts.length - 1];
-      return name !== externalPath && !line.includes(externalPath);
-    });
-
-    if (lines.some((line) => line.trim())) {
-      await runSvnText(['propset', 'svn:externals', lines.join('\n'), workingCopyPath]);
-    } else {
-      await runSvnText(['propdel', 'svn:externals', workingCopyPath]);
-    }
+    const current = await getExistingExternals(workingCopyPath);
+    await saveExternals(workingCopyPath, removeExternalDefinition(current, externalPath));
     return { success: true };
   } catch (error) {
     debug.error('[SVN] Externals remove error:', error);
     return { success: false };
+  }
+}
+
+export async function externalsUpdate(
+  workingCopyPath: string,
+  externalPath?: string
+): Promise<{ success: boolean }> {
+  try {
+    await runSvnText(['update', externalPath ? join(workingCopyPath, externalPath) : workingCopyPath]);
+    return { success: true };
+  } catch (error) {
+    debug.error('[SVN] Externals update error:', error);
+    return { success: false };
+  }
+}
+
+async function getExistingExternals(workingCopyPath: string): Promise<string> {
+  try {
+    return await runSvnText(['propget', 'svn:externals', workingCopyPath]);
+  } catch {
+    return '';
+  }
+}
+
+function formatExternalDefinition(external: Omit<SvnExternal, 'name'> & { name?: string }): string {
+  const extName = external.name || external.path.split('/').pop() || 'external';
+  return `${external.revision ? `-r${external.revision} ` : ''}${external.url} ${extName}`;
+}
+
+function removeExternalDefinition(current: string, externalPath: string): string[] {
+  return current
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line) return false;
+      const parts = line.split(/\s+/);
+      const name = parts[parts.length - 1];
+      return name !== externalPath && !line.includes(externalPath);
+    });
+}
+
+async function saveExternals(workingCopyPath: string, lines: string[]): Promise<void> {
+  if (lines.some((line) => line.trim())) {
+    await runSvnText(['propset', 'svn:externals', lines.join('\n'), workingCopyPath]);
+  } else {
+    await runSvnText(['propdel', 'svn:externals', workingCopyPath]);
   }
 }

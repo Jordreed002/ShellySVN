@@ -32,8 +32,10 @@ import {
   changelistList,
   changelistRemove,
   externalsAdd,
+  externalsEdit,
   externalsList,
   externalsRemove,
+  externalsUpdate,
   listRepository,
   propdel,
   proplist,
@@ -566,6 +568,25 @@ export function registerSvnHandlers(): void {
     'svn:externals:remove',
     async (_, workingCopyPath: string, externalPath: string): Promise<{ success: boolean }> => {
       return externalsRemove(workingCopyPath, externalPath);
+    }
+  );
+
+  ipcMain.handle(
+    'svn:externals:edit',
+    async (
+      _,
+      workingCopyPath: string,
+      externalPath: string,
+      external: Omit<SvnExternal, 'name'> & { name?: string }
+    ): Promise<{ success: boolean }> => {
+      return externalsEdit(workingCopyPath, externalPath, external);
+    }
+  );
+
+  ipcMain.handle(
+    'svn:externals:update',
+    async (_, workingCopyPath: string, externalPath?: string): Promise<{ success: boolean }> => {
+      return externalsUpdate(workingCopyPath, externalPath);
     }
   );
 

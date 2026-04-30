@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, ExternalLink, Plus, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { X, ExternalLink, Plus, Trash2, Loader2, RefreshCw, Pencil, Download } from 'lucide-react';
 import { confirmAppAction } from '../../utils/dialogs';
 
 interface ExternalEntry {
@@ -20,6 +20,7 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
   const [externals, setExternals] = useState<ExternalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingExternal, setEditingExternal] = useState<ExternalEntry | null>(null);
   const [newExternal, setNewExternal] = useState<Partial<ExternalEntry>>({
     path: '',
     url: '',
@@ -60,18 +61,47 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
 
     setIsLoading(true);
     try {
-      await window.api.svn.externals.add(workingCopyPath, {
+      const externalPayload = {
         url: newExternal.url,
         path: newExternal.localPath,
         name: newExternal.localPath,
         revision: newExternal.revision ? parseInt(newExternal.revision, 10) : undefined,
-      });
+      };
+
+      if (editingExternal) {
+        await window.api.svn.externals.edit(
+          workingCopyPath,
+          editingExternal.localPath,
+          externalPayload
+        );
+      } else {
+        await window.api.svn.externals.add(workingCopyPath, externalPayload);
+      }
 
       setNewExternal({ path: '', url: '', localPath: '' });
       setIsAdding(false);
+      setEditingExternal(null);
       await loadExternals();
     } catch (err) {
       console.error('Failed to add external:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditExternal = (external: ExternalEntry) => {
+    setEditingExternal(external);
+    setNewExternal({ ...external });
+    setIsAdding(true);
+  };
+
+  const handleUpdateExternal = async (external?: ExternalEntry) => {
+    setIsLoading(true);
+    try {
+      await window.api.svn.externals.update(workingCopyPath, external?.localPath);
+      await loadExternals();
+    } catch (err) {
+      console.error('Failed to update external:', err);
     } finally {
       setIsLoading(false);
     }
@@ -116,6 +146,14 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
               disabled={isLoading}
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => handleUpdateExternal()}
+              className="btn-icon-sm"
+              title="Update all externals"
+              disabled={isLoading}
+            >
+              <Download className="w-4 h-4" />
             </button>
             <button onClick={onClose} className="btn-icon-sm">
               <X className="w-4 h-4" />
@@ -168,6 +206,22 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                         <div className="text-sm text-text-muted truncate mt-1">{external.url}</div>
                       </div>
                       <div className="flex items-center gap-1 ml-4">
+                        <button
+                          onClick={() => handleUpdateExternal(external)}
+                          className="btn-icon-sm text-text-muted hover:text-accent"
+                          title="Update"
+                          disabled={isLoading}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleEditExternal(external)}
+                          className="btn-icon-sm text-text-muted hover:text-accent"
+                          title="Edit"
+                          disabled={isLoading}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => handleRemoveExternal(external)}
                           className="btn-icon-sm text-text-muted hover:text-error"
@@ -231,6 +285,7 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                         <button
                           onClick={() => {
                             setIsAdding(false);
+                            setEditingExternal(null);
                             setNewExternal({ path: '', url: '', localPath: '' });
                           }}
                           className="btn btn-secondary btn-sm"
@@ -245,7 +300,7 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                           {isLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            'Add External'
+                            editingExternal ? 'Save External' : 'Add External'
                           )}
                         </button>
                       </div>

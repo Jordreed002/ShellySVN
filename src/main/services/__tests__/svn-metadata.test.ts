@@ -17,6 +17,9 @@ vi.mock('../../utils/debug', () => ({
 }));
 
 import {
+  externalsEdit,
+  externalsRemove,
+  externalsUpdate,
   listRepository,
   propdel,
   proplist,
@@ -95,6 +98,56 @@ describe('svn-metadata repository browsing', () => {
       'secret',
       'https://svn.example.com/repo/trunk',
     ]);
+  });
+});
+
+describe('svn-metadata externals management', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('edits an existing external definition in svn:externals', async () => {
+    mockState.runSvnText.mockResolvedValueOnce(
+      'https://svn.example.com/lib-old lib\nhttps://svn.example.com/tools tools'
+    );
+
+    await expect(
+      externalsEdit('C:\\wc', 'lib', {
+        path: 'lib',
+        name: 'lib',
+        url: 'https://svn.example.com/lib-new',
+        revision: 123,
+      })
+    ).resolves.toEqual({ success: true });
+
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith([
+      'propset',
+      'svn:externals',
+      'https://svn.example.com/tools tools\n-r123 https://svn.example.com/lib-new lib',
+      'C:\\wc',
+    ]);
+  });
+
+  it('removes the svn:externals property when the last external is removed', async () => {
+    mockState.runSvnText.mockResolvedValueOnce('https://svn.example.com/lib lib');
+
+    await expect(externalsRemove('C:\\wc', 'lib')).resolves.toEqual({ success: true });
+
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith([
+      'propdel',
+      'svn:externals',
+      'C:\\wc',
+    ]);
+  });
+
+  it('updates all externals or a single external working-copy path', async () => {
+    mockState.runSvnText.mockResolvedValue('');
+
+    await expect(externalsUpdate('C:\\wc')).resolves.toEqual({ success: true });
+    await expect(externalsUpdate('C:\\wc', 'lib')).resolves.toEqual({ success: true });
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', 'C:\\wc']);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', 'C:\\wc\\lib']);
   });
 });
 

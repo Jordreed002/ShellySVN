@@ -137,7 +137,7 @@
 
 - [x] Verify properties viewer supports add, edit, delete, and refresh.
 - [x] Add common property helpers for `svn:ignore`, `svn:externals`, `svn:keywords`, `svn:eol-style`, and `svn:mime-type`.
-- [ ] Verify externals manager can list, add, edit, remove, and update externals.
+- [x] Verify externals manager can list, add, edit, remove, and update externals.
 - [ ] Ensure commit and status flows handle externals clearly.
 - [x] Verify lock, unlock, force lock, force unlock, and lock list workflows.
 - [x] Add lock owner and stale-lock handling in file explorer and dialogs.

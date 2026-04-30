@@ -865,7 +865,13 @@ export interface ElectronAPI {
         workingCopyPath: string,
         external: Omit<SvnExternal, 'name'> & { name?: string }
       ) => Promise<{ success: boolean }>;
+      edit: (
+        workingCopyPath: string,
+        externalPath: string,
+        external: Omit<SvnExternal, 'name'> & { name?: string }
+      ) => Promise<{ success: boolean }>;
       remove: (workingCopyPath: string, externalPath: string) => Promise<{ success: boolean }>;
+      update: (workingCopyPath: string, externalPath?: string) => Promise<{ success: boolean }>;
     };
     diagnostics: (workingCopyPath: string) => Promise<RepoDiagnostics>;
   };
