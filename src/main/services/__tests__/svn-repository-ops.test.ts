@@ -105,7 +105,7 @@ describe('svn-repository-ops createRemoteFolder', () => {
     mockState.runSvnText.mockResolvedValue('Committed revision 56.');
   });
 
-  it('creates a remote folder with commit message, SSL trust, and credentials', async () => {
+  it('creates a remote folder with commit message and executor credentials', async () => {
     const result = await createRemoteFolder(
       'https://example.test/svn/repo/trunk',
       'Feature Folder',
@@ -123,14 +123,8 @@ describe('svn-repository-ops createRemoteFolder', () => {
       '-m',
       'Add feature folder',
       '--non-interactive',
-      '--trust-server-cert-failures',
-      'unknown-ca,cn-mismatch,expired,not-yet-valid',
-      '--username',
-      'alice',
-      '--password',
-      'secret',
       'https://example.test/svn/repo/trunk/Feature%20Folder',
-    ]);
+    ], { credentials: { username: 'alice', password: 'secret' } });
   });
 
   it('rejects invalid parent URLs, folder names, and missing messages', async () => {
@@ -176,14 +170,8 @@ describe('svn-repository-ops deleteRemoteItem', () => {
       '-m',
       'Remove old',
       '--non-interactive',
-      '--trust-server-cert-failures',
-      'unknown-ca,cn-mismatch,expired,not-yet-valid',
-      '--username',
-      'alice',
-      '--password',
-      'secret',
       'https://example.test/svn/repo/trunk/old',
-    ]);
+    ], { credentials: { username: 'alice', password: 'secret' } });
   });
 
   it('rejects invalid remote delete targets and missing messages', async () => {
@@ -223,15 +211,9 @@ describe('svn-repository-ops moveRemoteItem', () => {
       '-m',
       'Rename old to new',
       '--non-interactive',
-      '--trust-server-cert-failures',
-      'unknown-ca,cn-mismatch,expired,not-yet-valid',
-      '--username',
-      'alice',
-      '--password',
-      'secret',
       'https://example.test/svn/repo/trunk/old',
       'https://example.test/svn/repo/trunk/new',
-    ]);
+    ], { credentials: { username: 'alice', password: 'secret' } });
   });
 
   it('rejects invalid move destinations and missing messages', async () => {

@@ -17,7 +17,6 @@ import { parseSvnInfoXml, parseSvnStatusXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 
-const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');
 const activeUpdates = new Map<string, AbortController>();
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
@@ -175,14 +174,7 @@ export async function getInfo(path: string): Promise<SvnInfoResult> {
 
 export async function getInfoUrl(url: string): Promise<SvnInfoResult> {
   try {
-    const xml = await runSvnText([
-      'info',
-      '--xml',
-      '--non-interactive',
-      '--trust-server-cert-failures',
-      DEFAULT_SSL_FAILURES,
-      url,
-    ]);
+    const xml = await runSvnText(['info', '--xml', '--non-interactive', url]);
     return parseSvnInfoXml(xml);
   } catch (error) {
     debug.error('[SVN] Info URL error:', error);

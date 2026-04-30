@@ -61,17 +61,15 @@ describe('svn-metadata repository browsing', () => {
       'list',
       '--xml',
       '--non-interactive',
-      '--trust-server-cert-failures',
-      'unknown-ca,cn-mismatch,expired,not-yet-valid',
       '-r',
       'HEAD',
       '--depth',
       'immediates',
       url,
-    ]);
+    ], { credentials: undefined });
   });
 
-  it('passes credentials while preserving noninteractive SSL trust handling', async () => {
+  it('passes credentials through executor options without broad SSL trust flags', async () => {
     mockState.runSvnText.mockResolvedValue(`<?xml version="1.0" encoding="UTF-8"?>
 <lists>
   <list path="https://svn.example.com/repo/trunk" />
@@ -86,18 +84,12 @@ describe('svn-metadata repository browsing', () => {
       'list',
       '--xml',
       '--non-interactive',
-      '--trust-server-cert-failures',
-      'unknown-ca,cn-mismatch,expired,not-yet-valid',
       '-r',
       'HEAD',
       '--depth',
       'immediates',
-      '--username',
-      'alice',
-      '--password',
-      'secret',
       'https://svn.example.com/repo/trunk',
-    ]);
+    ], { credentials: { username: 'alice', password: 'secret' } });
   });
 });
 

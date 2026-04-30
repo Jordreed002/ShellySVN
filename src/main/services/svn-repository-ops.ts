@@ -3,8 +3,6 @@ import type { SvnMergeOptions } from '@shared/types';
 import { runSvnText } from './svn-executor';
 import { runSvnOperationWithProgress } from './svn-progress';
 
-const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');
-
 function parseCommittedRevision(output: string): number {
   const match = output.match(/Committed revision (\d+)\./);
   return match ? parseInt(match[1], 10) : 0;
@@ -20,14 +18,7 @@ export async function exportRepository(
   path: string,
   revision?: string
 ): Promise<{ success: boolean; revision: number; output: string }> {
-  const args = [
-    'export',
-    '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
-    url,
-    path,
-  ];
+  const args = ['export', '--non-interactive', url, path];
   if (revision) args.push('-r', revision);
   const output = await runSvnText(args);
   const match = output.match(/Exported revision (\d+)\./);
@@ -48,8 +39,6 @@ export async function exportRepositoryWithProgress(
   const args = [
     'export',
     '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
     url,
     path,
   ];
@@ -67,8 +56,6 @@ export async function importRepository(
     '-m',
     message,
     '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
     path,
     url,
   ]);
@@ -91,8 +78,6 @@ export async function importRepositoryWithProgress(
     '-m',
     message,
     '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
     path,
     url,
   ]);
@@ -156,14 +141,10 @@ export async function createRemoteFolder(
     '-m',
     message.trim().replace(/\0/g, ''),
     '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
   ];
-  if (credentials?.username) args.push('--username', credentials.username);
-  if (credentials?.password) args.push('--password', credentials.password);
   args.push(targetUrl);
 
-  const output = await runSvnText(args);
+  const output = await runSvnText(args, { credentials });
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -186,14 +167,10 @@ export async function deleteRemoteItem(
     '-m',
     message.trim().replace(/\0/g, ''),
     '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
   ];
-  if (credentials?.username) args.push('--username', credentials.username);
-  if (credentials?.password) args.push('--password', credentials.password);
   args.push(url);
 
-  const output = await runSvnText(args);
+  const output = await runSvnText(args, { credentials });
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -217,14 +194,10 @@ export async function moveRemoteItem(
     '-m',
     message.trim().replace(/\0/g, ''),
     '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
   ];
-  if (credentials?.username) args.push('--username', credentials.username);
-  if (credentials?.password) args.push('--password', credentials.password);
   args.push(srcUrl, dstUrl);
 
-  const output = await runSvnText(args);
+  const output = await runSvnText(args, { credentials });
   return {
     success: true,
     revision: parseCommittedRevision(output),

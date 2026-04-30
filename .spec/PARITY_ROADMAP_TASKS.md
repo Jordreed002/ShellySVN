@@ -165,8 +165,8 @@
 - [x] Verify encryption availability is shown clearly on Windows, macOS, and Linux.
 - [x] Verify proxy settings apply to checkout, update, commit, repo browser, log, externals, and sparse checkout.
 - [x] Verify connection timeout applies consistently to SVN command paths.
-- [ ] Centralize SSL trust handling with explicit temporary and permanent trust decisions.
-- [ ] Avoid broad SSL bypass unless each failure class is separately confirmed.
+- [x] Centralize SSL trust handling with explicit temporary and permanent trust decisions.
+- [x] Avoid broad SSL bypass unless each failure class is separately confirmed.
 - [x] Verify client certificate configuration and failure messaging.
 - [x] Decide whether `svn+ssh` key management is in scope or relies on user SSH agent/config.
 - [x] Ensure logs, diagnostics, errors, snapshots, and support exports redact credentials, tokens, proxy passwords, and secret-bearing URLs.

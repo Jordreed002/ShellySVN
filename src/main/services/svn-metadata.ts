@@ -14,28 +14,18 @@ import {
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
-const DEFAULT_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'].join(',');
-
 export async function listRepository(
   url: string,
   revision?: string,
   depth?: 'empty' | 'immediates' | 'infinity',
   credentials?: { username: string; password: string }
 ): Promise<SvnListResult> {
-  const args = [
-    'list',
-    '--xml',
-    '--non-interactive',
-    '--trust-server-cert-failures',
-    DEFAULT_SSL_FAILURES,
-  ];
+  const args = ['list', '--xml', '--non-interactive'];
   if (revision) args.push('-r', revision);
   if (depth) args.push('--depth', depth);
-  if (credentials?.username) args.push('--username', credentials.username);
-  if (credentials?.password) args.push('--password', credentials.password);
   args.push(url);
 
-  const xml = await runSvnText(args);
+  const xml = await runSvnText(args, { credentials });
   return parseSvnListXml(xml, url);
 }
 

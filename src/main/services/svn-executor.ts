@@ -111,6 +111,20 @@ function getRepositoryUrlArgs(args: string[]): string[] {
   return args.filter((arg) => /^https?:\/\//i.test(arg));
 }
 
+function normalizeTrustedSslFailures(failures?: string): string | undefined {
+  if (!failures?.trim()) {
+    return undefined;
+  }
+
+  const allowed = new Set<string>(ALLOWED_SSL_FAILURES);
+  const normalized = failures
+    .split(',')
+    .map((failure) => failure.trim())
+    .filter((failure) => allowed.has(failure));
+
+  return normalized.length > 0 ? Array.from(new Set(normalized)).join(',') : undefined;
+}
+
 async function getCachedCredentialsForArgs(
   args: string[]
 ): Promise<{ username: string; password: string; realm: string } | null> {
@@ -168,8 +182,16 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
       if (!finalArgs.includes('--non-interactive')) {
         finalArgs.push('--non-interactive');
       }
-      finalArgs.push('--trust-server-cert-failures', options.trustedSslFailures ?? DEFAULT_SSL_FAILURES);
-      debug.warn(`[SECURITY] SSL verification bypassed for: ${options.cwd || process.cwd()}`);
+      const trustedFailures =
+        context.sslVerify === false
+          ? DEFAULT_SSL_FAILURES
+          : normalizeTrustedSslFailures(options.trustedSslFailures);
+      if (trustedFailures) {
+        finalArgs.push('--trust-server-cert-failures', trustedFailures);
+        debug.warn(`[SECURITY] SSL verification bypassed for: ${options.cwd || process.cwd()}`);
+      } else {
+        debug.warn('[SECURITY] SSL trust requested without confirmed failure classes; not bypassing certificate checks.');
+      }
     }
 
     if (credentials?.username) {

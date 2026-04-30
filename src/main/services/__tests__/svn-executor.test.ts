@@ -242,6 +242,37 @@ describe('svn-executor', () => {
     );
   });
 
+  it('only bypasses explicitly confirmed SSL failure classes', async () => {
+    const { proc, promise } = await startSvn(['info', 'https://svn.example.com/repo'], {
+      trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca,other,expired',
+    });
+
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      'custom-svn',
+      expect.arrayContaining(['--trust-server-cert-failures', 'unknown-ca,expired']),
+      expect.any(Object)
+    );
+  });
+
+  it('does not apply broad SSL trust when no failure classes were confirmed', async () => {
+    const { proc, promise } = await startSvn(['info', 'https://svn.example.com/repo'], {
+      trustSslFailures: true,
+    });
+
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    const spawnedArgs = mockState.spawn.mock.calls.at(-1)?.[1] as string[];
+    expect(spawnedArgs).not.toContain('--trust-server-cert-failures');
+    expect(mockState.debugWarn.mock.calls.join('\n')).toContain(
+      'without confirmed failure classes'
+    );
+  });
+
   it('applies cached per-realm credentials to URL-based SVN commands', async () => {
     mockState.authFindForUrl.mockImplementation((url: string) =>
       url.startsWith('https://svn.example.com/project')
