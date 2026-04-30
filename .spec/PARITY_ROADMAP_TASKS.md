@@ -200,7 +200,7 @@
 
 - [x] Define target repository sizes for parity testing: file count, folder depth, log length, diff size, and binary size.
 - [x] Add large working-copy status benchmarks.
-- [ ] Add large repository browser lazy-loading benchmarks.
+- [x] Add large repository browser lazy-loading benchmarks.
 - [ ] Add large log history pagination and filtering benchmarks.
 - [ ] Verify virtualized lists remain stable during selection, filtering, context menus, and refresh.
 - [ ] Ensure folder-size scans and status scans do not block rendering.
