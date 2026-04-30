@@ -89,8 +89,8 @@ const DEFAULT_BINDINGS: ShortcutBinding[] = [
     id: 'commit',
     name: 'Commit',
     category: 'svn-operations',
-    defaultKey: 'Ctrl+K',
-    currentKey: 'Ctrl+K',
+    defaultKey: 'Ctrl+S',
+    currentKey: 'Ctrl+S',
     enabled: true,
   },
   {

@@ -21,6 +21,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['Ctrl', 'A'], description: 'Select all files' },
       { keys: ['Ctrl', 'Click'], description: 'Toggle selection' },
       { keys: ['Shift', 'Click'], description: 'Range select' },
+      { keys: ['Delete'], description: 'Delete selected files' },
       { keys: ['Esc'], description: 'Clear selection' },
     ],
   },
@@ -32,6 +33,15 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['Ctrl', 'R'], description: 'Revert changes' },
       { keys: ['Ctrl', 'L'], description: 'Show log' },
       { keys: ['Ctrl', 'D'], description: 'Show diff' },
+    ],
+  },
+  {
+    title: 'Conflicts',
+    shortcuts: [
+      { keys: ['F3'], description: 'Next conflict' },
+      { keys: ['Shift', 'F3'], description: 'Previous conflict' },
+      { keys: ['Ctrl', 'S'], description: 'Save merge result' },
+      { keys: ['Esc'], description: 'Close conflict editor' },
     ],
   },
   {
@@ -49,6 +59,15 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['Ctrl', ','], description: 'Open settings' },
       { keys: ['Ctrl', 'Shift', 'P'], description: 'Command palette' },
       { keys: ['?'], description: 'Show keyboard shortcuts' },
+    ],
+  },
+  {
+    title: 'Dialogs',
+    shortcuts: [
+      { keys: ['Enter'], description: 'Confirm focused action' },
+      { keys: ['Esc'], description: 'Close dialog' },
+      { keys: ['Tab'], description: 'Move focus forward' },
+      { keys: ['Shift', 'Tab'], description: 'Move focus backward' },
     ],
   },
 ];

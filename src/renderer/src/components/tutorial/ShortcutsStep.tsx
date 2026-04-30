@@ -24,7 +24,7 @@ export function ShortcutsStep({
 
       <div className="grid grid-cols-2 gap-4">
         <ShortcutGroup title="Navigation">
-          <Shortcut keys={['Ctrl', 'P']} description="Command palette" />
+          <Shortcut keys={['Ctrl', 'Shift', 'P']} description="Command palette" />
           <Shortcut keys={['Ctrl', 'F']} description="Search files" />
           <Shortcut keys={['?']} description="Show all shortcuts" />
         </ShortcutGroup>

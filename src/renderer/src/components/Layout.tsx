@@ -66,13 +66,13 @@ export function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setShowCommandPalette(true);
         return;
       }
 
-      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setShowPerformanceDashboard((prev) => !prev);
         return;
