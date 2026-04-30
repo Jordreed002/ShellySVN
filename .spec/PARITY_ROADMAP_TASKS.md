@@ -184,7 +184,7 @@
 
 ## P2 - UX, Navigation, and Accessibility
 
-- [ ] Verify command palette includes every reachable user command and respects disabled states.
+- [x] Verify command palette includes every reachable user command and respects disabled states.
 - [ ] Add context menu parity matrix for file explorer, repository browser, history, diff, project monitor, and shell/Finder surfaces.
 - [ ] Add keyboard shortcut coverage for file explorer, commit, update, diff, log, conflict, and dialog actions.
 - [ ] Verify bookmarks, recent repositories, recent paths, and startup actions.
