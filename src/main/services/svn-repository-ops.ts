@@ -171,6 +171,36 @@ export async function createRemoteFolder(
   };
 }
 
+export async function deleteRemoteItem(
+  url: string,
+  message: string,
+  credentials?: { username: string; password: string }
+): Promise<{ success: boolean; revision: number; output?: string; error?: string }> {
+  const validationError = validateRemoteMutation(url, message, 'Remote delete');
+  if (validationError) {
+    return { success: false, revision: 0, error: validationError };
+  }
+
+  const args = [
+    'delete',
+    '-m',
+    message.trim().replace(/\0/g, ''),
+    '--non-interactive',
+    '--trust-server-cert-failures',
+    DEFAULT_SSL_FAILURES,
+  ];
+  if (credentials?.username) args.push('--username', credentials.username);
+  if (credentials?.password) args.push('--password', credentials.password);
+  args.push(url);
+
+  const output = await runSvnText(args);
+  return {
+    success: true,
+    revision: parseCommittedRevision(output),
+    output,
+  };
+}
+
 async function validateCopyTarget(src: string, dst: string, message: string): Promise<string | null> {
   if (!message.trim()) {
     return 'Branch/tag creation requires a log message.';
@@ -214,8 +244,11 @@ function isValidSvnUrl(value: string): boolean {
 }
 
 function validateRemoteFolder(parentUrl: string, folderName: string, message: string): string | null {
-  if (!isValidSvnUrl(parentUrl)) {
-    return 'Remote folder parent must be a valid SVN URL.';
+  const mutationError = validateRemoteMutation(parentUrl, message, 'Remote folder creation');
+  if (mutationError) {
+    return mutationError === 'Remote folder creation target must be a valid SVN URL.'
+      ? 'Remote folder parent must be a valid SVN URL.'
+      : mutationError;
   }
 
   if (!folderName.trim()) {
@@ -226,8 +259,20 @@ function validateRemoteFolder(parentUrl: string, folderName: string, message: st
     return 'Remote folder name must be a single path segment without control characters.';
   }
 
+  return null;
+}
+
+function validateRemoteMutation(url: string, message: string, operationName: string): string | null {
+  if (!isValidSvnUrl(url)) {
+    return `${operationName} target must be a valid SVN URL.`;
+  }
+
   if (!message.trim()) {
-    return 'Remote folder creation requires a log message.';
+    return `${operationName} requires a log message.`;
+  }
+
+  if (hasUnsafePathText(url)) {
+    return `${operationName} target must not contain control characters.`;
   }
 
   return null;

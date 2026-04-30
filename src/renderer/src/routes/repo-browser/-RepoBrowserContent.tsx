@@ -20,6 +20,7 @@ import {
   Check,
   PlusCircle,
   AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import { CheckoutDialog } from '@renderer/components/ui/CheckoutDialog';
 import { useWorkingCopyContext } from '@renderer/hooks/useWorkingCopyContext';
@@ -72,6 +73,10 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const [newFolderMessage, setNewFolderMessage] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [createFolderError, setCreateFolderError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RepoNode | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState('');
+  const [isDeletingRemote, setIsDeletingRemote] = useState(false);
+  const [deleteRemoteError, setDeleteRemoteError] = useState<string | null>(null);
 
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authRealm, setAuthRealm] = useState<string>('');
@@ -307,6 +312,53 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     queryClient,
     refetch,
   ]);
+
+  const handleOpenRemoteDelete = useCallback((entry: RepoNode) => {
+    setDeleteTarget(entry);
+    setDeleteMessage('');
+    setDeleteRemoteError(null);
+  }, []);
+
+  const handleCloseRemoteDelete = useCallback(() => {
+    if (isDeletingRemote) return;
+    setDeleteTarget(null);
+    setDeleteRemoteError(null);
+  }, [isDeletingRemote]);
+
+  const handleDeleteRemoteItem = useCallback(async () => {
+    if (!deleteTarget) return;
+    const trimmedMessage = deleteMessage.trim();
+    if (!trimmedMessage) {
+      setDeleteRemoteError('Commit message is required.');
+      return;
+    }
+
+    setIsDeletingRemote(true);
+    setDeleteRemoteError(null);
+
+    try {
+      const result = await window.api.svn.remoteDelete(
+        deleteTarget.url,
+        trimmedMessage,
+        credentials || undefined
+      );
+
+      if (!result.success) {
+        setDeleteRemoteError(result.error || 'Failed to delete remote item.');
+        return;
+      }
+
+      setDeleteTarget(null);
+      setDeleteMessage('');
+      setSelectedNode(null);
+      await queryClient.invalidateQueries({ queryKey: listQueryKey });
+      refetch();
+    } catch (error) {
+      setDeleteRemoteError((error as Error)?.message || 'Failed to delete remote item.');
+    } finally {
+      setIsDeletingRemote(false);
+    }
+  }, [credentials, deleteMessage, deleteTarget, listQueryKey, queryClient, refetch]);
 
   const handleConnect = useCallback(async () => {
     if (!isValidUrl) return;
@@ -743,6 +795,14 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                     <ExternalLink className="w-4 h-4" />
                     Open in Browser
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRemoteDelete(selectedNode)}
+                    className="w-full btn btn-ghost text-sm text-error"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
                 </div>
               </div>
             )}
@@ -853,6 +913,78 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
               >
                 {isCreatingFolder ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={handleCloseRemoteDelete}>
+          <div className="modal w-[440px]" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                <Trash2 className="w-5 h-5 text-error" />
+                Delete Remote Item
+              </h2>
+              <button
+                type="button"
+                onClick={handleCloseRemoteDelete}
+                className="btn-icon-sm"
+                disabled={isDeletingRemote}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="modal-body space-y-4">
+              <p className="text-sm text-text-secondary">
+                This will commit a delete directly to the repository.
+              </p>
+              <div>
+                <div className="block text-sm font-medium text-text mb-1.5">Target URL</div>
+                <div className="px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-muted break-all">
+                  {deleteTarget.url}
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="repo-browser-delete-message"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
+                  Commit message
+                </label>
+                <textarea
+                  id="repo-browser-delete-message"
+                  value={deleteMessage}
+                  onChange={(event) => setDeleteMessage(event.target.value)}
+                  className="input min-h-24 resize-y"
+                  disabled={isDeletingRemote}
+                />
+              </div>
+              {deleteRemoteError && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-error/20 rounded text-sm text-error">
+                  <AlertCircle className="w-4 h-4" />
+                  {deleteRemoteError}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={handleCloseRemoteDelete}
+                className="btn btn-ghost"
+                disabled={isDeletingRemote}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRemoteItem}
+                disabled={isDeletingRemote || !deleteMessage.trim()}
+                className="btn btn-primary"
+              >
+                {isDeletingRemote ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Delete
               </button>
             </div>
           </div>

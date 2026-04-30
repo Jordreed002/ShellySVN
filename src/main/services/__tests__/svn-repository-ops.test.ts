@@ -17,6 +17,7 @@ vi.mock('../svn-progress', () => ({
 import {
   copyRepositoryItem,
   createRemoteFolder,
+  deleteRemoteItem,
   mergeRepositoryRange,
   relocateWorkingCopy,
   resolveConflict,
@@ -147,6 +148,51 @@ describe('svn-repository-ops createRemoteFolder', () => {
     ).resolves.toMatchObject({
       success: false,
       error: 'Remote folder creation requires a log message.',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+});
+
+describe('svn-repository-ops deleteRemoteItem', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.runSvnText.mockResolvedValue('Committed revision 57.');
+  });
+
+  it('deletes a remote repository item with commit message and credentials', async () => {
+    const result = await deleteRemoteItem('https://example.test/svn/repo/trunk/old', 'Remove old', {
+      username: 'alice',
+      password: 'secret',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      revision: 57,
+      output: 'Committed revision 57.',
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'delete',
+      '-m',
+      'Remove old',
+      '--non-interactive',
+      '--trust-server-cert-failures',
+      'unknown-ca,cn-mismatch,expired,not-yet-valid',
+      '--username',
+      'alice',
+      '--password',
+      'secret',
+      'https://example.test/svn/repo/trunk/old',
+    ]);
+  });
+
+  it('rejects invalid remote delete targets and missing messages', async () => {
+    await expect(deleteRemoteItem('not a url', 'msg')).resolves.toMatchObject({
+      success: false,
+      error: 'Remote delete target must be a valid SVN URL.',
+    });
+    await expect(deleteRemoteItem('https://example.test/svn/repo/trunk/old', '   ')).resolves.toMatchObject({
+      success: false,
+      error: 'Remote delete requires a log message.',
     });
     expect(mockState.runSvnText).not.toHaveBeenCalled();
   });

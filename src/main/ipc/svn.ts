@@ -48,6 +48,7 @@ import { applyPatch, createPatch } from '../services/svn-patch';
 import {
   copyRepositoryItem,
   createRemoteFolder,
+  deleteRemoteItem,
   exportRepository,
   exportRepositoryWithProgress,
   importRepository,
@@ -343,6 +344,19 @@ export function registerSvnHandlers(): void {
       credentials?: { username: string; password: string }
     ) => {
       return createRemoteFolder(parentUrl, folderName, message, credentials);
+    }
+  );
+
+  // SVN Remote Delete
+  ipcMain.handle(
+    'svn:remoteDelete',
+    async (
+      _,
+      url: string,
+      message: string,
+      credentials?: { username: string; password: string }
+    ) => {
+      return deleteRemoteItem(url, message, credentials);
     }
   );
 

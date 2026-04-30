@@ -147,6 +147,10 @@ export interface IpcInvokeContract {
     [parentUrl: string, folderName: string, message: string, credentials?: AuthCredential],
     RevisionResult
   >;
+  'svn:remoteDelete': IpcCall<
+    [url: string, message: string, credentials?: AuthCredential],
+    RevisionResult
+  >;
   'svn:merge': IpcCall<
     [
       source: string,
