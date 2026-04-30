@@ -242,8 +242,21 @@ export function applySvnStatusToFiles(
   });
 }
 
+export const MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY = 2;
+
+const EMPTY_STATUS_RESULT = { directStatus: {}, allEntries: [] };
+
 // Track active background scans
 const activeScans = new Map<string, AbortController>();
+let activeScanCount = 0;
+
+interface QueuedDeepScan {
+  dirPath: string;
+  controller: AbortController;
+  resolve: (result: { directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }) => void;
+}
+
+const queuedScans: QueuedDeepScan[] = [];
 
 // Track active file watchers
 const activeWatchers = new Map<string, chokidar.FSWatcher>();
@@ -254,12 +267,52 @@ function cancelDeepScan(dirPath: string) {
     controller.abort();
     activeScans.delete(dirPath);
   }
+
+  for (let index = queuedScans.length - 1; index >= 0; index--) {
+    const queued = queuedScans[index];
+    if (queued.dirPath === dirPath) {
+      queuedScans.splice(index, 1);
+      queued.resolve(EMPTY_STATUS_RESULT);
+    }
+  }
+}
+
+function startQueuedScans() {
+  while (activeScanCount < MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY && queuedScans.length > 0) {
+    const queued = queuedScans.shift()!;
+
+    if (queued.controller.signal.aborted) {
+      queued.resolve(EMPTY_STATUS_RESULT);
+      continue;
+    }
+
+    activeScanCount++;
+    void runDeepScan(queued);
+  }
+}
+
+async function runDeepScan(queued: QueuedDeepScan) {
+  try {
+    const stdout = await runSvnText(['status', '--xml', '--depth=infinity', queued.dirPath], {
+      cwd: queued.dirPath,
+      signal: queued.controller.signal,
+    });
+    queued.resolve(parseSvnStatusXml(stdout, queued.dirPath));
+  } catch {
+    queued.resolve(EMPTY_STATUS_RESULT);
+  } finally {
+    activeScanCount = Math.max(0, activeScanCount - 1);
+    if (activeScans.get(queued.dirPath) === queued.controller) {
+      activeScans.delete(queued.dirPath);
+    }
+    startQueuedScans();
+  }
 }
 
 /**
  * Background deep scan for folder aggregation
  */
-async function startDeepScan(dirPath: string): Promise<{
+export async function startDeepScan(dirPath: string): Promise<{
   directStatus: SvnStatusMap;
   allEntries: SvnStatusEntry[];
 }> {
@@ -268,19 +321,22 @@ async function startDeepScan(dirPath: string): Promise<{
   const controller = new AbortController();
   activeScans.set(dirPath, controller);
 
-  try {
-    const stdout = await runSvnText(['status', '--xml', '--depth=infinity', dirPath], {
-      cwd: dirPath,
-      signal: controller.signal,
-    });
-    return parseSvnStatusXml(stdout, dirPath);
-  } catch {
-    return { directStatus: {}, allEntries: [] };
-  } finally {
-    if (activeScans.get(dirPath) === controller) {
-      activeScans.delete(dirPath);
+  const result = new Promise<{ directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }>(
+    (resolve) => {
+      queuedScans.push({ dirPath, controller, resolve });
+      startQueuedScans();
     }
-  }
+  );
+
+  return result;
+}
+
+export function getBackgroundStatusScanStateForTests() {
+  return {
+    activeScanCount,
+    queuedScanCount: queuedScans.length,
+    activePaths: Array.from(activeScans.keys()),
+  };
 }
 
 /**
