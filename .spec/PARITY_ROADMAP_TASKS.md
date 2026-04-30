@@ -120,7 +120,7 @@
 
 ## P1 - Repository Browser and Sparse Checkout
 
-- [ ] Verify remote browsing for `http`, `https`, `svn`, and `svn+ssh` URLs where SVN supports them.
+- [x] Verify remote browsing for `http`, `https`, `svn`, and `svn+ssh` URLs where SVN supports them.
 - [ ] Verify repository browser auth with anonymous access, username/password, cached credentials, SSL trust, and SSH-backed repositories.
 - [ ] Add repository browser revision selector.
 - [ ] Add repository browser prefetch/caching for faster navigation.

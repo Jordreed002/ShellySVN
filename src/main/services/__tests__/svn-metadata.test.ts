@@ -16,7 +16,58 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
-import { propdel, proplist, propset, shelveApply, shelveDelete, shelveList, shelveSave } from '../svn-metadata';
+import {
+  listRepository,
+  propdel,
+  proplist,
+  propset,
+  shelveApply,
+  shelveDelete,
+  shelveList,
+  shelveSave,
+} from '../svn-metadata';
+
+describe('svn-metadata repository browsing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    'http://svn.example.com/repo/trunk',
+    'https://svn.example.com/repo/trunk',
+    'svn://svn.example.com/repo/trunk',
+    'svn+ssh://svn.example.com/repo/trunk',
+  ])('lists remote repositories over supported protocol %s', async (url) => {
+    mockState.runSvnText.mockResolvedValue(`<?xml version="1.0" encoding="UTF-8"?>
+<lists>
+  <list path="${url}">
+    <entry kind="dir">
+      <name>src</name>
+      <commit revision="12">
+        <author>alice</author>
+        <date>2026-04-25T10:00:00.000Z</date>
+      </commit>
+    </entry>
+  </list>
+</lists>`);
+
+    const result = await listRepository(url, 'HEAD', 'immediates');
+
+    expect(result.entries[0]?.name).toBe('src');
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'list',
+      '--xml',
+      '--non-interactive',
+      '--trust-server-cert-failures',
+      'unknown-ca,cn-mismatch,expired,not-yet-valid',
+      '-r',
+      'HEAD',
+      '--depth',
+      'immediates',
+      url,
+    ]);
+  });
+});
 
 describe('svn-metadata shelving', () => {
   beforeEach(() => {
