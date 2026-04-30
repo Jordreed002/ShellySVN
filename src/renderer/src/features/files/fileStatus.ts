@@ -3,6 +3,7 @@ import type { FileInfo, FsStatusResult, SvnStatusChar, SvnStatusEntry } from '@s
 export function fileInfoToEntry(file: FileInfo): SvnStatusEntry {
   return {
     path: file.path,
+    remoteUrl: file.svnStatus?.remoteUrl,
     status: file.svnStatus?.status || ' ',
     revision: file.svnStatus?.revision,
     author: file.svnStatus?.author,
@@ -49,4 +50,3 @@ export function applyDeepStatus(files: FileInfo[], deepStatus: FsStatusResult): 
     return file;
   });
 }
-

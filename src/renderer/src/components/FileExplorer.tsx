@@ -41,6 +41,7 @@ import {
   useFileExplorerKeyboardNavigation,
   useFileExplorerSelection,
 } from './files/useFileExplorerSelection';
+import { resolveRemoteUpdateTarget } from './files/remoteUpdateTarget';
 
 // Lazy load heavy dialog components for better initial bundle size
 const loadCommitDialog = () =>
@@ -433,6 +434,7 @@ export function FileExplorer() {
         modifiedTime: entry.date || '',
         svnStatus: {
           path: onlinePath === '' ? `/${entry.name}` : `${onlinePath}/${entry.name}`,
+          remoteUrl: entry.url,
           status: 'O' as SvnStatusChar,
           revision: entry.revision,
           author: entry.author,
@@ -478,6 +480,7 @@ export function FileExplorer() {
           modifiedTime: entry.date || '',
           svnStatus: {
             path: path ? `${path}${path.includes('\\') ? '\\' : '/'}${entry.name}` : entry.name,
+            remoteUrl: entry.url,
             status: 'O' as SvnStatusChar,
             revision: entry.revision,
             author: entry.author,
@@ -985,29 +988,19 @@ export function FileExplorer() {
       const isRemoteItem = entry.status === 'O';
 
       if ((browseMode === 'online' || isRemoteItem) && effectiveRepoRoot) {
-        const repoRootClean = effectiveRepoRoot.replace(/\/$/, '');
-        const wcUrlClean = (effectiveUrl || '').replace(/\/$/, '');
-        const wcRelativePath = wcUrlClean.startsWith(repoRootClean)
-          ? wcUrlClean.slice(repoRootClean.length)
-          : '';
-
-        const entryRelativePath = entry.path;
-        let relativeDestination: string;
-        if (wcRelativePath && entryRelativePath.startsWith(wcRelativePath)) {
-          relativeDestination = entryRelativePath.slice(wcRelativePath.length);
-        } else {
-          relativeDestination = entryRelativePath;
-        }
-
-        const pathClean = path.replace(/\/$/, '');
-        const localItemPath = pathClean + relativeDestination;
-        const fullUrl = repoRootClean + entryRelativePath;
+        const target = resolveRemoteUpdateTarget({
+          entry,
+          repositoryRoot: effectiveRepoRoot,
+          workingCopyUrl: effectiveUrl,
+          workingCopyRoot: wcRoot,
+          currentPath: path,
+        });
 
         try {
           const result = await window.api.svn.updateToRevision(
             wcRoot,
-            fullUrl,
-            localItemPath,
+            target.repoUrl,
+            target.localPath,
             depth,
             setDepthSticky
           );

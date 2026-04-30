@@ -23,6 +23,7 @@ export type SvnStatusChar =
 
 export interface SvnStatusEntry {
   path: string;
+  remoteUrl?: string;
   status: SvnStatusChar;
   revision?: number;
   author?: string;
