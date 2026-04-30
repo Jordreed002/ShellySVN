@@ -12,16 +12,15 @@ import {
   useDeferredValue,
 } from 'react';
 import {
-  RefreshCw,
   FolderX,
   AlertCircle,
-  Inbox,
   Loader,
   ArrowUp,
   Globe,
 } from 'lucide-react';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
+import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
@@ -1084,9 +1083,12 @@ export function FileExplorer() {
     return (
       <div className="flex-1 flex flex-col">
         <div className="h-[--toolbar-height] bg-bg-secondary border-b border-border animate-pulse" />
-        <div className="flex-1 flex items-center justify-center">
-          <RefreshCw className="w-6 h-6 text-text-muted animate-spin" />
-        </div>
+        <RouteState
+          variant="loading"
+          title="Loading Directory"
+          description="Fetching files and SVN status."
+          className="flex-1"
+        />
       </div>
     );
   }
@@ -1095,17 +1097,13 @@ export function FileExplorer() {
     return (
       <div className="flex-1 flex flex-col">
         <div className="h-[--toolbar-height] bg-bg-secondary border-b border-border" />
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 rounded-2xl bg-error/10 flex items-center justify-center mb-4">
-            <AlertCircle className="w-8 h-8 text-error" />
-          </div>
-          <h3 className="text-lg font-medium text-text mb-2">Error Loading Directory</h3>
-          <p className="text-sm text-text-secondary max-w-sm mb-4">{(error as Error).message}</p>
-          <button onClick={() => refetch()} className="btn btn-secondary">
-            <RefreshCw className="w-4 h-4" />
-            Retry
-          </button>
-        </div>
+        <RouteState
+          variant="error"
+          title="Error Loading Directory"
+          description={(error as Error).message}
+          action={{ label: 'Retry', onClick: () => refetch() }}
+          className="flex-1"
+        />
       </div>
     );
   }
@@ -1257,34 +1255,34 @@ export function FileExplorer() {
           }
         >
           {filteredEntries.length === 0 ? (
-            <div className="empty-state">
-              <Inbox className="empty-state-icon" />
-              <h3 className="empty-state-title">
-                {hasActiveFilters
+            <RouteState
+              variant="empty"
+              title={
+                hasActiveFilters
                   ? 'No Matching Files'
                   : searchQuery
                     ? 'No matching files'
-                    : 'Empty Directory'}
-              </h3>
-              <p className="empty-state-description">
-                {hasActiveFilters
+                    : 'Empty Directory'
+              }
+              description={
+                hasActiveFilters
                   ? 'No files match the current filters. Try adjusting your filter settings.'
                   : searchQuery
                     ? `No files matching "${searchQuery}"`
-                    : 'This directory contains no files'}
-              </p>
-              {hasActiveFilters && (
-                <button
-                  className="btn btn-secondary btn-sm mt-4"
-                  onClick={() => {
-                    setFileTypeFilter('all');
-                    setStatusFilter('all');
-                  }}
-                >
-                  Clear Filters
-                </button>
-              )}
-            </div>
+                    : 'This directory contains no files'
+              }
+              action={
+                hasActiveFilters
+                  ? {
+                      label: 'Clear Filters',
+                      onClick: () => {
+                        setFileTypeFilter('all');
+                        setStatusFilter('all');
+                      },
+                    }
+                  : undefined
+              }
+            />
           ) : (
             <div
               style={{

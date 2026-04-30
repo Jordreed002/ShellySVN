@@ -189,7 +189,7 @@
 - [x] Add keyboard shortcut coverage for file explorer, commit, update, diff, log, conflict, and dialog actions.
 - [x] Verify bookmarks, recent repositories, recent paths, and startup actions.
 - [x] Add onboarding coverage for first-run, skipped tutorial, resumed tutorial, and completed tutorial states.
-- [ ] Add empty, loading, error, and offline states for primary routes.
+- [x] Add empty, loading, error, and offline states for primary routes.
 - [x] Ensure core workflows are keyboard accessible.
 - [x] Verify modal dialogs trap focus and restore focus on close.
 - [x] Make status and progress changes screen-reader friendly.

@@ -26,6 +26,7 @@ import {
   Copy,
 } from 'lucide-react';
 import { CheckoutDialog } from '@renderer/components/ui/CheckoutDialog';
+import { RouteState } from '@renderer/components/ui/RouteState';
 import { useWorkingCopyContext } from '@renderer/hooks/useWorkingCopyContext';
 import { resolveRemoteUrlToLocalPath } from '@renderer/utils/pathResolution';
 import {
@@ -739,27 +740,27 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
           <div className="flex-1 flex overflow-hidden">
             <div className="flex-1 overflow-auto">
               {connectionError && !showAuthPrompt ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                  <div className="w-12 h-12 rounded-full bg-error/20 flex items-center justify-center mb-4">
-                    <X className="w-6 h-6 text-error" />
-                  </div>
-                  <h3 className="text-lg font-medium text-text mb-2">Connection Failed</h3>
-                  <p className="text-sm text-text-secondary max-w-sm">{connectionError}</p>
-                </div>
+                <RouteState
+                  variant="offline"
+                  title="Connection Failed"
+                  description={connectionError}
+                />
               ) : isLoading ? (
-                <div className="flex flex-col items-center justify-center h-full">
-                  <Loader2 className="w-8 h-8 animate-spin text-accent mb-4" />
-                  <span className="text-sm text-text-muted">Loading repository...</span>
-                </div>
+                <RouteState
+                  variant="loading"
+                  title="Loading Repository"
+                  description="Fetching repository entries."
+                />
               ) : entries.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                  <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mb-4">
-                    <Folder className="w-6 h-6 text-text-muted" />
-                  </div>
-                  <p className="text-sm text-text-muted">
-                    {searchQuery ? 'No matching files' : 'Empty directory'}
-                  </p>
-                </div>
+                <RouteState
+                  variant="empty"
+                  title={searchQuery ? 'No Matching Files' : 'Empty Directory'}
+                  description={
+                    searchQuery
+                      ? `No repository entries matching "${searchQuery}"`
+                      : 'This repository directory contains no entries.'
+                  }
+                />
               ) : (
                 <table className="w-full">
                   <thead className="sticky top-0 bg-bg-secondary border-b border-border">
@@ -971,20 +972,17 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       )}
 
       {!isValidUrl && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-          <div className="w-16 h-16 rounded-2xl bg-bg-tertiary flex items-center justify-center mb-4">
-            <Globe className="w-8 h-8 text-text-muted" />
-          </div>
-          <h3 className="text-lg font-medium text-text mb-2">Repository Browser</h3>
-          <p className="text-sm text-text-secondary max-w-sm mb-6">
-            Enter a repository URL above to browse files and folders directly on the server, without
-            needing a working copy.
-          </p>
+        <RouteState
+          variant="empty"
+          title="Repository Browser"
+          description="Enter a repository URL above to browse files and folders directly on the server, without needing a working copy."
+          className="flex-1"
+        >
           <div className="text-xs text-text-muted space-y-1">
             <p>Supports: https://, http://, svn://, svn+ssh://</p>
             <p>Example: https://example.com/svn/repo/trunk</p>
           </div>
-        </div>
+        </RouteState>
       )}
 
       <CheckoutDialog
