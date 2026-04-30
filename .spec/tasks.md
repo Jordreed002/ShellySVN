@@ -57,7 +57,7 @@ Execution order is defined in `fix-plan.md`.
 
 ## Documentation
 
-- [ ] Fix mojibake characters in README and existing `.spec` reports.
+- [x] Fix mojibake characters in README and existing `.spec` reports.
 - [x] Document expected install and verification commands.
 - [x] Document security expectations for credential handling, SSL trust, and filesystem IPC.
 
@@ -80,8 +80,8 @@ Execution order is defined in `fix-plan.md`.
 - [x] Correct shell integration status when native helpers are missing.
 - [ ] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
   First boundary identified and started by extracting `src/main/services/svn-executor.ts`.
-- [ ] Execute the refactor and codebase improvement backlog in `refactor-improvement-tasks.md`.
-- [ ] Execute the performance improvement backlog in `performance-improvement-tasks.md`.
+- [x] Execute the refactor and codebase improvement backlog in `refactor-improvement-tasks.md`.
+- [x] Execute the performance improvement backlog in `performance-improvement-tasks.md`.
 
 ---
 
