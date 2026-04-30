@@ -2,10 +2,10 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOTS = ['src', 'packages', 'tests'];
-const BASELINE_SKIPS = 26;
+const BASELINE_SKIPS = 25;
 const SKIP_PATTERN = /\b(?:describe|it|test)\.skip\b/g;
 const APPROVED_SKIP_COUNTS = new Map([
-  ['src/main/__tests__/auth-cache.test.ts', 4],
+  ['src/main/__tests__/auth-cache.test.ts', 3],
   ['src/main/ipc/__tests__/external.test.ts', 1],
   ['src/main/utils/__tests__/validation.test.ts', 4],
   ['src/renderer/__tests__/CheckoutDialog.sparse.test.tsx', 2],

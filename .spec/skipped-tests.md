@@ -2,13 +2,13 @@
 
 Generated: 2026-04-28
 
-Current baseline: 26 skipped tests. The CI guard in `scripts/check-skipped-tests.mjs` fails if this count increases or if skips are added outside this inventory.
+Current baseline: 25 skipped tests. The CI guard in `scripts/check-skipped-tests.mjs` fails if this count increases or if skips are added outside this inventory.
 
 ## Decisions
 
 | Area | Files | Count | Decision |
 | --- | --- | ---: | --- |
-| Auth cache persistence and concurrency | `src/main/__tests__/auth-cache.test.ts` | 4 | Move to Node-environment tests with real temporary files and mocked `safeStorage`; keep skipped until the test environment is split. |
+| Auth cache persistence and concurrency | `src/main/__tests__/auth-cache.test.ts` | 3 | Move remaining skipped persistence and concurrency tests to Node-environment tests with real temporary files and mocked `safeStorage`; keep skipped until the test environment is split. |
 | Validation filesystem checks | `src/main/utils/__tests__/validation.test.ts` | 4 | Move to Node-environment tests with temp files, directories, and size fixtures. |
 | External tool execution | `src/main/ipc/__tests__/external.test.ts` | 1 | Replace broad fs mock with scoped temporary executable fixtures. |
 | Sparse checkout renderer flows | `src/renderer/__tests__/CheckoutDialog.sparse.test.tsx`, `src/renderer/__tests__/UpdateToRevisionDialog.sparse.test.tsx`, `src/renderer/__tests__/integration/sparse-checkout.test.tsx`, `src/renderer/__tests__/ChooseItemsDialog.test.tsx`, `src/renderer/__tests__/RepoBrowser.add-to-wc.test.tsx` | 8 | Rebuild around stable dialog/test helpers and mocked IPC; prioritize after sparse checkout behavior is frozen. |
