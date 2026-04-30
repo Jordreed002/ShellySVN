@@ -55,6 +55,7 @@ import {
   importRepositoryWithProgress,
   mergeRepositoryRange,
   mergeRepositoryRangeWithProgress,
+  moveRemoteItem,
   relocateWorkingCopy,
   resolveConflict,
   switchWorkingCopy,
@@ -357,6 +358,20 @@ export function registerSvnHandlers(): void {
       credentials?: { username: string; password: string }
     ) => {
       return deleteRemoteItem(url, message, credentials);
+    }
+  );
+
+  // SVN Remote Move/Rename
+  ipcMain.handle(
+    'svn:remoteMove',
+    async (
+      _,
+      srcUrl: string,
+      dstUrl: string,
+      message: string,
+      credentials?: { username: string; password: string }
+    ) => {
+      return moveRemoteItem(srcUrl, dstUrl, message, credentials);
     }
   );
 

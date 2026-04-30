@@ -151,6 +151,10 @@ export interface IpcInvokeContract {
     [url: string, message: string, credentials?: AuthCredential],
     RevisionResult
   >;
+  'svn:remoteMove': IpcCall<
+    [srcUrl: string, dstUrl: string, message: string, credentials?: AuthCredential],
+    RevisionResult
+  >;
   'svn:merge': IpcCall<
     [
       source: string,

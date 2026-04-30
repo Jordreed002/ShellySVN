@@ -19,6 +19,7 @@ import {
   createRemoteFolder,
   deleteRemoteItem,
   mergeRepositoryRange,
+  moveRemoteItem,
   relocateWorkingCopy,
   resolveConflict,
   switchWorkingCopy,
@@ -193,6 +194,68 @@ describe('svn-repository-ops deleteRemoteItem', () => {
     await expect(deleteRemoteItem('https://example.test/svn/repo/trunk/old', '   ')).resolves.toMatchObject({
       success: false,
       error: 'Remote delete requires a log message.',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+});
+
+describe('svn-repository-ops moveRemoteItem', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.runSvnText.mockResolvedValue('Committed revision 58.');
+  });
+
+  it('moves or renames a remote repository item with commit message and credentials', async () => {
+    const result = await moveRemoteItem(
+      'https://example.test/svn/repo/trunk/old',
+      'https://example.test/svn/repo/trunk/new',
+      'Rename old to new',
+      { username: 'alice', password: 'secret' }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      revision: 58,
+      output: 'Committed revision 58.',
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'move',
+      '-m',
+      'Rename old to new',
+      '--non-interactive',
+      '--trust-server-cert-failures',
+      'unknown-ca,cn-mismatch,expired,not-yet-valid',
+      '--username',
+      'alice',
+      '--password',
+      'secret',
+      'https://example.test/svn/repo/trunk/old',
+      'https://example.test/svn/repo/trunk/new',
+    ]);
+  });
+
+  it('rejects invalid move destinations and missing messages', async () => {
+    await expect(
+      moveRemoteItem('https://example.test/svn/repo/trunk/old', 'not a url', 'msg')
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Remote move destination must be a valid SVN URL.',
+    });
+    await expect(
+      moveRemoteItem('https://example.test/svn/repo/trunk/old', 'https://example.test/svn/repo/trunk/new', '   ')
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Remote move requires a log message.',
+    });
+    await expect(
+      moveRemoteItem(
+        'https://example.test/svn/repo/trunk/old',
+        'https://example.test/svn/repo/trunk/old',
+        'msg'
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Remote move destination must be different from the source.',
     });
     expect(mockState.runSvnText).not.toHaveBeenCalled();
   });

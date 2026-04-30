@@ -800,6 +800,12 @@ export interface ElectronAPI {
       message: string,
       credentials?: { username: string; password: string }
     ) => Promise<{ success: boolean; revision: number; output?: string; error?: string }>;
+    remoteMove: (
+      srcUrl: string,
+      dstUrl: string,
+      message: string,
+      credentials?: { username: string; password: string }
+    ) => Promise<{ success: boolean; revision: number; output?: string; error?: string }>;
     merge: (
       source: string,
       target: string,

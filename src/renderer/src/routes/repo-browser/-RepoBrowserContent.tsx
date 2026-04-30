@@ -21,6 +21,7 @@ import {
   PlusCircle,
   AlertCircle,
   Trash2,
+  Edit3,
 } from 'lucide-react';
 import { CheckoutDialog } from '@renderer/components/ui/CheckoutDialog';
 import { useWorkingCopyContext } from '@renderer/hooks/useWorkingCopyContext';
@@ -77,6 +78,11 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const [deleteMessage, setDeleteMessage] = useState('');
   const [isDeletingRemote, setIsDeletingRemote] = useState(false);
   const [deleteRemoteError, setDeleteRemoteError] = useState<string | null>(null);
+  const [moveTarget, setMoveTarget] = useState<RepoNode | null>(null);
+  const [moveDestinationUrl, setMoveDestinationUrl] = useState('');
+  const [moveMessage, setMoveMessage] = useState('');
+  const [isMovingRemote, setIsMovingRemote] = useState(false);
+  const [moveRemoteError, setMoveRemoteError] = useState<string | null>(null);
 
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [authRealm, setAuthRealm] = useState<string>('');
@@ -359,6 +365,65 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       setIsDeletingRemote(false);
     }
   }, [credentials, deleteMessage, deleteTarget, listQueryKey, queryClient, refetch]);
+
+  const handleOpenRemoteMove = useCallback((entry: RepoNode) => {
+    setMoveTarget(entry);
+    setMoveDestinationUrl(entry.url);
+    setMoveMessage('');
+    setMoveRemoteError(null);
+  }, []);
+
+  const handleCloseRemoteMove = useCallback(() => {
+    if (isMovingRemote) return;
+    setMoveTarget(null);
+    setMoveRemoteError(null);
+  }, [isMovingRemote]);
+
+  const handleMoveRemoteItem = useCallback(async () => {
+    if (!moveTarget) return;
+    const trimmedDestination = moveDestinationUrl.trim();
+    const trimmedMessage = moveMessage.trim();
+    if (!trimmedDestination || !trimmedMessage) {
+      setMoveRemoteError('Destination URL and commit message are required.');
+      return;
+    }
+
+    setIsMovingRemote(true);
+    setMoveRemoteError(null);
+
+    try {
+      const result = await window.api.svn.remoteMove(
+        moveTarget.url,
+        trimmedDestination,
+        trimmedMessage,
+        credentials || undefined
+      );
+
+      if (!result.success) {
+        setMoveRemoteError(result.error || 'Failed to move remote item.');
+        return;
+      }
+
+      setMoveTarget(null);
+      setMoveDestinationUrl('');
+      setMoveMessage('');
+      setSelectedNode(null);
+      await queryClient.invalidateQueries({ queryKey: listQueryKey });
+      refetch();
+    } catch (error) {
+      setMoveRemoteError((error as Error)?.message || 'Failed to move remote item.');
+    } finally {
+      setIsMovingRemote(false);
+    }
+  }, [
+    credentials,
+    listQueryKey,
+    moveDestinationUrl,
+    moveMessage,
+    moveTarget,
+    queryClient,
+    refetch,
+  ]);
 
   const handleConnect = useCallback(async () => {
     if (!isValidUrl) return;
@@ -803,6 +868,14 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                     <Trash2 className="w-4 h-4" />
                     Delete
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRemoteMove(selectedNode)}
+                    className="w-full btn btn-ghost text-sm"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    Move/Rename
+                  </button>
                 </div>
               </div>
             )}
@@ -985,6 +1058,91 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
               >
                 {isDeletingRemote ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {moveTarget && (
+        <div className="modal-overlay" onClick={handleCloseRemoteMove}>
+          <div className="modal w-[480px]" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                <Edit3 className="w-5 h-5 text-accent" />
+                Move or Rename Remote Item
+              </h2>
+              <button
+                type="button"
+                onClick={handleCloseRemoteMove}
+                className="btn-icon-sm"
+                disabled={isMovingRemote}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="modal-body space-y-4">
+              <div>
+                <div className="block text-sm font-medium text-text mb-1.5">Source URL</div>
+                <div className="px-3 py-2 bg-bg-tertiary border border-border rounded-md text-sm text-text-muted break-all">
+                  {moveTarget.url}
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="repo-browser-move-destination"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
+                  Destination URL
+                </label>
+                <input
+                  id="repo-browser-move-destination"
+                  type="text"
+                  value={moveDestinationUrl}
+                  onChange={(event) => setMoveDestinationUrl(event.target.value)}
+                  className="input"
+                  disabled={isMovingRemote}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="repo-browser-move-message"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
+                  Commit message
+                </label>
+                <textarea
+                  id="repo-browser-move-message"
+                  value={moveMessage}
+                  onChange={(event) => setMoveMessage(event.target.value)}
+                  className="input min-h-24 resize-y"
+                  disabled={isMovingRemote}
+                />
+              </div>
+              {moveRemoteError && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-error/20 rounded text-sm text-error">
+                  <AlertCircle className="w-4 h-4" />
+                  {moveRemoteError}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={handleCloseRemoteMove}
+                className="btn btn-ghost"
+                disabled={isMovingRemote}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleMoveRemoteItem}
+                disabled={isMovingRemote || !moveDestinationUrl.trim() || !moveMessage.trim()}
+                className="btn btn-primary"
+              >
+                {isMovingRemote ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Move
               </button>
             </div>
           </div>

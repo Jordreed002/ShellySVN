@@ -201,6 +201,37 @@ export async function deleteRemoteItem(
   };
 }
 
+export async function moveRemoteItem(
+  srcUrl: string,
+  dstUrl: string,
+  message: string,
+  credentials?: { username: string; password: string }
+): Promise<{ success: boolean; revision: number; output?: string; error?: string }> {
+  const validationError = validateRemoteMove(srcUrl, dstUrl, message);
+  if (validationError) {
+    return { success: false, revision: 0, error: validationError };
+  }
+
+  const args = [
+    'move',
+    '-m',
+    message.trim().replace(/\0/g, ''),
+    '--non-interactive',
+    '--trust-server-cert-failures',
+    DEFAULT_SSL_FAILURES,
+  ];
+  if (credentials?.username) args.push('--username', credentials.username);
+  if (credentials?.password) args.push('--password', credentials.password);
+  args.push(srcUrl, dstUrl);
+
+  const output = await runSvnText(args);
+  return {
+    success: true,
+    revision: parseCommittedRevision(output),
+    output,
+  };
+}
+
 async function validateCopyTarget(src: string, dst: string, message: string): Promise<string | null> {
   if (!message.trim()) {
     return 'Branch/tag creation requires a log message.';
@@ -273,6 +304,34 @@ function validateRemoteMutation(url: string, message: string, operationName: str
 
   if (hasUnsafePathText(url)) {
     return `${operationName} target must not contain control characters.`;
+  }
+
+  return null;
+}
+
+function validateRemoteMove(srcUrl: string, dstUrl: string, message: string): string | null {
+  if (!message.trim()) {
+    return 'Remote move requires a log message.';
+  }
+
+  if (!isValidSvnUrl(srcUrl)) {
+    return 'Remote move source must be a valid SVN URL.';
+  }
+
+  if (hasUnsafePathText(srcUrl)) {
+    return 'Remote move source must not contain control characters.';
+  }
+
+  if (!isValidSvnUrl(dstUrl)) {
+    return 'Remote move destination must be a valid SVN URL.';
+  }
+
+  if (hasUnsafePathText(dstUrl)) {
+    return 'Remote move destination must not contain control characters.';
+  }
+
+  if (srcUrl === dstUrl) {
+    return 'Remote move destination must be different from the source.';
   }
 
   return null;

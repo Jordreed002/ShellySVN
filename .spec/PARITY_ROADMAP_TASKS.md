@@ -126,7 +126,7 @@
 - [x] Add repository browser prefetch/caching for faster navigation.
 - [x] Add remote create folder support with commit message.
 - [x] Add remote delete support with confirmation and commit message.
-- [ ] Add remote rename/move support with confirmation and commit message.
+- [x] Add remote rename/move support with confirmation and commit message.
 - [ ] Add remote copy support for branch/tag-style repository operations.
 - [ ] Verify lazy loading, search, auth prompts, and error recovery in E2E tests.
 - [ ] Verify sparse checkout selection, deselection, subtree behavior, and remote-only display.

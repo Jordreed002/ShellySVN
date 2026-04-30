@@ -206,6 +206,8 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       ipcRenderer.invoke('svn:remoteCreateFolder', parentUrl, folderName, message, credentials),
     remoteDelete: (url, message, credentials?) =>
       ipcRenderer.invoke('svn:remoteDelete', url, message, credentials),
+    remoteMove: (srcUrl, dstUrl, message, credentials?) =>
+      ipcRenderer.invoke('svn:remoteMove', srcUrl, dstUrl, message, credentials),
     merge: (source, target, revisions?, ranges?, options?) =>
       ipcRenderer.invoke('svn:merge', source, target, revisions, ranges, options),
     mergeWithProgress: (source, target, onProgress, revisions?, ranges?, options?) =>
