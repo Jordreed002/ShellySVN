@@ -130,6 +130,18 @@ export function ProgressIndicator({
   const isComplete = status === 'completed';
   const isCancelled = status === 'cancelled';
   const hasError = status === 'error';
+  const statusText = isRunning
+    ? 'Processing'
+    : isComplete
+      ? 'Complete'
+      : hasError
+        ? 'Error'
+        : 'Cancelled';
+  const progressValue = progress === undefined ? undefined : Math.round(progress);
+  const progressLabel =
+    progressValue === undefined
+      ? `${statusText}. Progress is indeterminate.`
+      : `${statusText}. ${progressValue}% complete.`;
 
   const Icon =
     operationType === 'download' ? Download : operationType === 'upload' ? Upload : Download;
@@ -137,7 +149,13 @@ export function ProgressIndicator({
   // Compact mode
   if (compact) {
     return (
-      <div className={`flex items-center gap-2 ${className}`}>
+      <div
+        className={`flex items-center gap-2 ${className}`}
+        role={hasError ? 'alert' : 'status'}
+        aria-live={hasError ? 'assertive' : 'polite'}
+        aria-atomic="true"
+        aria-label={progressLabel}
+      >
         {isRunning && (
           <>
             <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -166,7 +184,13 @@ export function ProgressIndicator({
   }
 
   return (
-    <div className={`bg-bg-secondary border border-border rounded-lg overflow-hidden ${className}`}>
+    <div
+      className={`bg-bg-secondary border border-border rounded-lg overflow-hidden ${className}`}
+      role={hasError ? 'alert' : 'status'}
+      aria-live={hasError ? 'assertive' : 'polite'}
+      aria-atomic="true"
+      aria-label={progressLabel}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg-tertiary">
         <div className="flex items-center gap-3">
@@ -205,7 +229,14 @@ export function ProgressIndicator({
         {/* Progress bar */}
         {(isRunning || isComplete) && (
           <div className="space-y-1.5">
-            <div className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden">
+            <div
+              className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden"
+              role="progressbar"
+              aria-label="Operation progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressValue}
+            >
               {progress !== undefined ? (
                 <div
                   className={`absolute inset-y-0 left-0 rounded-full transition-all duration-300 ease-out

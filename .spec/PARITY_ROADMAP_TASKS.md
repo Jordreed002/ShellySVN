@@ -192,7 +192,7 @@
 - [ ] Add empty, loading, error, and offline states for primary routes.
 - [ ] Ensure core workflows are keyboard accessible.
 - [x] Verify modal dialogs trap focus and restore focus on close.
-- [ ] Make status and progress changes screen-reader friendly.
+- [x] Make status and progress changes screen-reader friendly.
 - [ ] Verify contrast and ARIA labeling for primary workflows.
 - [x] Decide whether multi-language UI is in scope before 1.0.
 

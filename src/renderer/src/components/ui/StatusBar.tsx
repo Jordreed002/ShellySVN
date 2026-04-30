@@ -14,10 +14,10 @@ export function StatusBar() {
   }
 
   return (
-    <footer className="status-bar">
+    <footer className="status-bar" role="status" aria-live="polite" aria-label="Application status">
       {/* Left side - repository info */}
       <div className="flex items-center gap-4">
-        <div className="activity-indicator">
+        <div className="activity-indicator" aria-label="Application ready">
           <Activity className="w-3 h-3" />
           <span>Ready</span>
         </div>
