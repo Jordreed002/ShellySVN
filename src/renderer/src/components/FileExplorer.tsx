@@ -34,6 +34,11 @@ import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
+import {
+  DraggableFileRow,
+  performSvnOperation,
+  type DragDropOperation,
+} from '../hooks/useDragDrop';
 import { FileExplorerAuthPrompt } from './files/FileExplorerAuthPrompt';
 import { useFileExplorerAuthPrompt } from './files/useFileExplorerAuthPrompt';
 import {
@@ -1140,6 +1145,18 @@ export function FileExplorer() {
     ]
   );
 
+  const handleFileDrop = useCallback(
+    async (sources: string[], target: string, operation: DragDropOperation) => {
+      const success = await performSvnOperation(sources, target, operation);
+      if (success) {
+        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+      }
+    },
+    [path, queryClient]
+  );
+
   const hasChanges = entries.some((e) => ['M', 'A', 'D', 'C'].includes(e.status));
 
   useEffect(() => {
@@ -1422,19 +1439,13 @@ export function FileExplorer() {
               {virtualizer.getVirtualItems().map((virtualRow) => {
                 const entry = filteredEntries[virtualRow.index];
                 return (
-                  <FileRow
+                  <DraggableFileRow
                     key={entry.path}
-                    entry={entry}
-                    isSelected={selectedPaths.has(entry.path)}
-                    onSelect={handleSelect}
-                    onNavigate={handleNavigateToEntry}
-                    actions={fileRowActions}
-                    columnWidths={columnWidths}
-                    compact={settings.compactFileRows}
-                    showThumbnails={settings.showThumbnails}
-                    showFolderSizes={settings.showFolderSizes}
-                    folderSizes={folderSizes}
-                    workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
+                    path={entry.path}
+                    isDirectory={entry.isDirectory}
+                    selectedPaths={selectedPaths}
+                    onDrop={handleFileDrop}
+                    disabled={browseMode === 'online' || entry.status === 'O'}
                     style={
                       settings.fileListHeight === 'fill'
                         ? {
@@ -1447,7 +1458,31 @@ export function FileExplorer() {
                           }
                         : undefined
                     }
-                  />
+                  >
+                    <FileRow
+                      entry={entry}
+                      isSelected={selectedPaths.has(entry.path)}
+                      onSelect={handleSelect}
+                      onNavigate={handleNavigateToEntry}
+                      actions={fileRowActions}
+                      columnWidths={columnWidths}
+                      compact={settings.compactFileRows}
+                      showThumbnails={settings.showThumbnails}
+                      showFolderSizes={settings.showFolderSizes}
+                      folderSizes={folderSizes}
+                      workingCopyRoot={
+                        svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot
+                      }
+                      style={
+                        settings.fileListHeight === 'fill'
+                          ? {
+                              width: '100%',
+                              height: `${virtualRow.size}px`,
+                            }
+                          : undefined
+                      }
+                    />
+                  </DraggableFileRow>
                 );
               })}
             </div>

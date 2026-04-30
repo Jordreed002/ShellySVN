@@ -322,6 +322,7 @@ interface DraggableFileRowProps {
   disabled?: boolean;
   selectedPaths?: Set<string>;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 export function DraggableFileRow({
@@ -332,6 +333,7 @@ export function DraggableFileRow({
   disabled = false,
   selectedPaths,
   className = '',
+  style,
 }: DraggableFileRowProps) {
   const [isOver, setIsOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -394,7 +396,7 @@ export function DraggableFileRow({
       // Filter out self
       const validPaths = sourcePaths.filter((p) => p !== path);
       if (validPaths.length > 0 && onDrop) {
-        const operation = e.ctrlKey || e.metaKey ? 'copy' : 'move';
+        const operation = e.ctrlKey || e.metaKey || e.dataTransfer.dropEffect === 'copy' ? 'copy' : 'move';
         onDrop(validPaths, path, operation);
       }
     }
@@ -408,6 +410,7 @@ export function DraggableFileRow({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      style={style}
       className={`
         ${className}
         ${isOver ? 'bg-accent/20 ring-2 ring-accent ring-inset' : ''}
