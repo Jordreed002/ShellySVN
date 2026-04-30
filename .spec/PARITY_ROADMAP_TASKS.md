@@ -77,7 +77,7 @@
 - [x] Prevent marking unresolved conflicts as resolved unless the user explicitly confirms.
 - [x] Verify three-way merge editor loads base, mine, theirs, and merged files correctly.
 - [x] Add safe save, revert, and unsaved-change behavior for the merge editor.
-- [ ] Verify external merge tool launch with configured executable paths and missing-tool errors.
+- [x] Verify external merge tool launch with configured executable paths and missing-tool errors.
 - [x] Ensure resolved files refresh status immediately after resolution.
 - [ ] Add conflict-resolution E2E coverage from file explorer, update/merge results, and conflict dialogs.
 
