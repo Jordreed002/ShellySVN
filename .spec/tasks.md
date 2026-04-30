@@ -67,6 +67,7 @@ Execution order is defined in `fix-plan.md`.
 
 - [x] Add an app diagnostics panel for SVN binary path, SVN version, encryption availability, and packaged resource status.
 - [x] Add a redacted diagnostic export for bug reports.
+- [ ] Close all public production gates in `production-release-blockers.md`.
 - [x] Add packaged-app smoke tests per target platform.
 - [x] Add cancellation and progress reporting to more long-running SVN operations.
 - [x] Replace production `confirm()` / `alert()` usage with app-owned dialogs.
@@ -78,7 +79,7 @@ Execution order is defined in `fix-plan.md`.
 - [x] Decide whether `packages/logic-engine` is production architecture or remove it from release documentation.
 - [x] Move webhook delivery to a main-process service with URL validation and timeout handling.
 - [x] Correct shell integration status when native helpers are missing.
-- [ ] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
+- [x] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
   First boundary identified and started by extracting `src/main/services/svn-executor.ts`.
 - [x] Execute the refactor and codebase improvement backlog in `refactor-improvement-tasks.md`.
 - [x] Execute the performance improvement backlog in `performance-improvement-tasks.md`.
@@ -121,28 +122,28 @@ Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, a
 - [x] Add export/import progress events and cancellation.
 - [x] Add explicit local-vs-remote status checks.
 - [x] Add working-copy upgrade detection and guided upgrade flow.
-- [ ] Improve sparse checkout, externals, nested working-copy, and switched-path status display.
-- [ ] Add bounded background repository browser prefetch/caching.
+- [x] Improve sparse checkout, externals, nested working-copy, and switched-path status display.
+- [x] Add bounded background repository browser prefetch/caching.
 
 ### Diff / Merge / Conflict Tools
 
-- [ ] Add side-by-side text diff view with inline changes.
+- [x] Add side-by-side text diff view with inline changes.
 - [x] Add per-extension external diff tool configuration.
 - [x] Add per-extension external merge tool configuration.
 - [x] Harden three-way conflict editor save/revert behavior.
-- [ ] Improve image diff workflows for common asset formats.
-- [ ] Add patch apply dry-run output and reject-file visibility.
+- [x] Improve image diff workflows for common asset formats.
+- [x] Add patch apply dry-run output and reject-file visibility.
 - [x] Decide and document Office/document diff support strategy.
 
 ### History / Review / Analytics
 
 - [x] Add revision log filtering by author, message, path, revision range, date range, and issue ID.
 - [x] Add log cache for large repositories.
-- [ ] Add branch/tag comparison.
-- [ ] Improve revision graph branch, tag, copy, and merge visualization.
-- [ ] Add merge-tracking log view.
-- [ ] Improve blame view with line-level log-message context.
-- [ ] Add project statistics for commits over time, authors, file churn, and branch/tag activity.
+- [x] Add branch/tag comparison.
+- [x] Improve revision graph branch, tag, copy, and merge visualization.
+- [x] Add merge-tracking log view.
+- [x] Improve blame view with line-level log-message context.
+- [x] Add project statistics for commits over time, authors, file churn, and branch/tag activity.
 
 ### Issue Tracker Integration
 
@@ -158,9 +159,14 @@ Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, a
 
 ### Release Quality
 
+- [x] Block public release publication when Windows or macOS signing/notarization credentials are missing.
+- [x] Add Windows Authenticode signing validation before publishing release artifacts.
+- [x] Add macOS notarization, stapling, and Gatekeeper validation before publishing release artifacts.
+- [x] Add a disposable real-SVN workflow verifier for release candidates.
+- [ ] Run real-SVN workflow verification against release-candidate toolchains before publishing.
 - [x] Add packaged-app smoke tests for Windows.
 - [x] Add packaged-app smoke tests for macOS Intel.
 - [x] Add packaged-app smoke tests for macOS Apple Silicon.
 - [x] Add Linux packaged-app smoke tests where Linux release artifacts are produced.
 - [x] Add shell/Finder integration smoke tests where platform automation permits.
-- [ ] Continue reducing skipped test baseline after each restored test cluster.
+- [x] Continue reducing skipped test baseline after each restored test cluster.
