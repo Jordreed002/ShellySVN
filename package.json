@@ -38,6 +38,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:remote-assets": "node scripts/check-remote-assets.mjs",
     "verify:binaries": "node scripts/verify-binaries.mjs",
+    "verify:svn-workflows": "node scripts/verify-svn-workflows.mjs",
     "test:e2e": "playwright test --config=tests/playwright.config.ts",
     "test:e2e:ui": "playwright test --config=tests/playwright.config.ts --ui",
     "test:e2e:debug": "playwright test --config=tests/playwright.config.ts --debug",
