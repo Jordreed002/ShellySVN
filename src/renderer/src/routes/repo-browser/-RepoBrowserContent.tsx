@@ -557,8 +557,8 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
 
   const handleAddToWorkingCopy = useCallback(
     async (entry: RepoNode) => {
-      if (!workingCopyContext || entry.kind !== 'dir') {
-        setAddWcError('Cannot add: no working copy context or item is not a directory');
+      if (!workingCopyContext) {
+        setAddWcError('Cannot add: no working copy context');
         return;
       }
 
@@ -582,7 +582,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
           workingCopyContext.workingCopyRoot,
           entry.url,
           resolvedLocalPath,
-          'infinity',
+          entry.kind === 'dir' ? 'infinity' : 'empty',
           true
         );
 
@@ -891,9 +891,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                       Checkout
                     </button>
                   )}
-                  {selectedNode.kind === 'dir' &&
-                    workingCopyContext &&
-                    !isInWorkingCopy(selectedNode) && (
+                  {workingCopyContext && !isInWorkingCopy(selectedNode) && (
                       <button
                         type="button"
                         onClick={() => handleAddToWorkingCopy(selectedNode)}

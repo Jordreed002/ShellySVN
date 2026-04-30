@@ -48,9 +48,11 @@ import {
   getStatus,
   getWorkingCopyUpgradeStatus,
   remove,
+  updateToRevision,
   updateWithProgress,
   upgradeWorkingCopy,
 } from '../svn-working-copy';
+import { getAuthCache } from '../../auth-cache';
 
 const statusXml = (path: string, item: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <status>
@@ -96,6 +98,58 @@ describe('svn-working-copy remove', () => {
     });
     expect(mockState.runSvnText).not.toHaveBeenCalledWith(
       expect.arrayContaining(['delete'])
+    );
+  });
+});
+
+describe('svn-working-copy updateToRevision sparse additions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getAuthCache).mockReturnValue({ findForUrl: vi.fn(() => null) } as never);
+    mockState.runSvnText.mockResolvedValue('Updated to revision 99.');
+  });
+
+  it('opens mixed-depth parents before adding a remote folder to the working copy', async () => {
+    const result = await updateToRevision(
+      'C:\\wc',
+      'https://svn.example.com/repo/trunk/src/features',
+      'C:\\wc\\src\\features',
+      'infinity',
+      true
+    );
+
+    expect(result).toEqual({ success: true, revision: 99 });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['update', '--set-depth', 'immediates', 'src'],
+      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
+    );
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['update', '--depth', 'empty', 'src\\features'],
+      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
+    );
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
+      ['update', '--set-depth', 'infinity', 'src\\features'],
+      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
+    );
+  });
+
+  it('adds a remote file with empty depth after opening mixed-depth parents', async () => {
+    const result = await updateToRevision(
+      'C:\\wc',
+      'https://svn.example.com/repo/trunk/src/index.ts',
+      'C:\\wc\\src\\index.ts',
+      'empty',
+      true
+    );
+
+    expect(result).toEqual({ success: true, revision: 99 });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['update', '--set-depth', 'immediates', 'src'],
+      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
+    );
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
+      ['update', '--set-depth', 'empty', 'src\\index.ts'],
+      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
     );
   });
 });

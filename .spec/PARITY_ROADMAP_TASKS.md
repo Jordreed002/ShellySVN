@@ -130,7 +130,7 @@
 - [x] Add remote copy support for branch/tag-style repository operations.
 - [x] Verify lazy loading, search, auth prompts, and error recovery in E2E tests.
 - [x] Verify sparse checkout selection, deselection, subtree behavior, and remote-only display.
-- [ ] Verify "add to working copy" for files, folders, and mixed-depth parents.
+- [x] Verify "add to working copy" for files, folders, and mixed-depth parents.
 - [ ] Verify individual remote-only item update into the working copy.
 
 ## P1 - Properties, Externals, Locks, Shelving, and Advanced SVN
