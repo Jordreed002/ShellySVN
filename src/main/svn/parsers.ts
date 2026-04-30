@@ -69,6 +69,12 @@ type StatusXmlEntry = {
     '@_switched'?: boolean | string;
     commit?: StatusCommitXml;
     lock?: { owner?: string; comment?: string; creationdate?: string };
+    'tree-conflict'?: {
+      '@_operation'?: string;
+      '@_action'?: string;
+      '@_reason'?: string;
+      '@_type'?: string;
+    };
   };
   'repos-status'?: {
     '@_item': string;
@@ -144,6 +150,14 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
               owner: wcStatus.lock.owner || '',
               comment: wcStatus.lock.comment || '',
               date: wcStatus.lock.creationdate || '',
+            }
+          : undefined,
+        treeConflict: wcStatus['tree-conflict']
+          ? {
+              operation: wcStatus['tree-conflict']['@_operation'],
+              action: wcStatus['tree-conflict']['@_action'],
+              reason: wcStatus['tree-conflict']['@_reason'],
+              type: wcStatus['tree-conflict']['@_type'],
             }
           : undefined,
       });

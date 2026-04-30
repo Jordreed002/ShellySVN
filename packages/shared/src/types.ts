@@ -42,6 +42,12 @@ export interface SvnStatusEntry {
     comment: string;
     date: string;
   };
+  treeConflict?: {
+    operation?: string;
+    action?: string;
+    reason?: string;
+    type?: string;
+  };
 }
 
 export interface SvnStatusResult {
