@@ -10,7 +10,7 @@ Execution order is defined in `fix-plan.md`.
 
 ## Immediate
 
-- [ ] Reinstall dependencies from `bun.lock` and confirm `node_modules/.bin` contains `oxlint`, `vitest`, and other declared tool binaries.
+- [x] Reinstall dependencies from `bun.lock` and confirm `node_modules/.bin` contains `oxlint`, `vitest`, and other declared tool binaries.
 - [x] Run `bun run build` after dependency repair and record the result.
 - [x] Add a `test` or `test:unit` script that runs the local Vitest dependency instead of using an unpinned `bunx vitest`.
 - [x] Add a `verify` script for typecheck, lint, unit tests, and build.
@@ -67,8 +67,8 @@ Execution order is defined in `fix-plan.md`.
 
 - [x] Add an app diagnostics panel for SVN binary path, SVN version, encryption availability, and packaged resource status.
 - [x] Add a redacted diagnostic export for bug reports.
-- [ ] Add packaged-app smoke tests per target platform.
-- [ ] Add cancellation and progress reporting to more long-running SVN operations.
+- [x] Add packaged-app smoke tests per target platform.
+- [x] Add cancellation and progress reporting to more long-running SVN operations.
 - [x] Replace production `confirm()` / `alert()` usage with app-owned dialogs.
 - [x] Replace remaining production `prompt()` usage with an accessible renderer input dialog.
 - [x] Fix commit template resolvers that rely on renderer-side Node globals.
@@ -93,13 +93,13 @@ Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, a
 
 ### File Manager Integration
 
-- [ ] Add Windows Explorer context menu commands for checkout, update, commit, diff, log, revert, cleanup, resolve, lock/unlock, branch/tag, switch, merge, and properties.
-- [ ] Add Windows Explorer overlay icons for normal, modified, added, deleted, conflicted, locked, ignored, unversioned, external, and obstructed states.
-- [ ] Add macOS Finder Sync context menu commands for the same common working-copy actions.
-- [ ] Add macOS Finder badge support for the supported SVN status set.
+- [x] Add Windows Explorer context menu commands for checkout, update, commit, diff, log, revert, cleanup, resolve, lock/unlock, branch/tag, switch, merge, and properties.
+- [x] Add Windows Explorer overlay icons for normal, modified, added, deleted, conflicted, locked, ignored, unversioned, external, and obstructed states.
+- [x] Add macOS Finder Sync context menu commands for the same common working-copy actions.
+- [x] Add macOS Finder badge support for the supported SVN status set.
 - [x] Add shell/Finder integration diagnostics with repair guidance and registration status.
-- [ ] Add packaged installer checks for Windows shell extension registration.
-- [ ] Add packaged installer/package checks for macOS Finder Sync registration and permissions.
+- [x] Add packaged installer checks for Windows shell extension registration.
+- [x] Add packaged installer/package checks for macOS Finder Sync registration and permissions.
 - [x] Define fallback app workflows when overlays or Finder badges are unavailable.
 
 ### Commit Workflow
@@ -116,9 +116,9 @@ Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, a
 
 - [x] Wire Update dialog revision, depth, ignore externals, and force options to SVN.
 - [x] Add update progress events and cancellation.
-- [ ] Add commit progress events and cancellation.
-- [ ] Add merge progress events and cancellation.
-- [ ] Add export/import progress events and cancellation.
+- [x] Add commit progress events and cancellation.
+- [x] Add merge progress events and cancellation.
+- [x] Add export/import progress events and cancellation.
 - [x] Add explicit local-vs-remote status checks.
 - [x] Add working-copy upgrade detection and guided upgrade flow.
 - [ ] Improve sparse checkout, externals, nested working-copy, and switched-path status display.
@@ -127,9 +127,9 @@ Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, a
 ### Diff / Merge / Conflict Tools
 
 - [ ] Add side-by-side text diff view with inline changes.
-- [ ] Add per-extension external diff tool configuration.
-- [ ] Add per-extension external merge tool configuration.
-- [ ] Harden three-way conflict editor save/revert behavior.
+- [x] Add per-extension external diff tool configuration.
+- [x] Add per-extension external merge tool configuration.
+- [x] Harden three-way conflict editor save/revert behavior.
 - [ ] Improve image diff workflows for common asset formats.
 - [ ] Add patch apply dry-run output and reject-file visibility.
 - [x] Decide and document Office/document diff support strategy.
@@ -158,9 +158,9 @@ Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, a
 
 ### Release Quality
 
-- [ ] Add packaged-app smoke tests for Windows.
-- [ ] Add packaged-app smoke tests for macOS Intel.
-- [ ] Add packaged-app smoke tests for macOS Apple Silicon.
-- [ ] Add Linux packaged-app smoke tests where Linux release artifacts are produced.
-- [ ] Add shell/Finder integration smoke tests where platform automation permits.
+- [x] Add packaged-app smoke tests for Windows.
+- [x] Add packaged-app smoke tests for macOS Intel.
+- [x] Add packaged-app smoke tests for macOS Apple Silicon.
+- [x] Add Linux packaged-app smoke tests where Linux release artifacts are produced.
+- [x] Add shell/Finder integration smoke tests where platform automation permits.
 - [ ] Continue reducing skipped test baseline after each restored test cluster.
