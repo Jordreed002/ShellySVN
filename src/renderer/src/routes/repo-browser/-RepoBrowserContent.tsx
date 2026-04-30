@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { SvnListResult } from '@shared/types';
 import {
   Folder,
   FileText,
@@ -47,6 +48,28 @@ interface RepoNode {
   revision: number;
   author: string;
   date: string;
+}
+
+interface RepoBrowserRuntimeOverrides {
+  auth?: {
+    get(realm: string): Promise<RepoBrowserCredentials | null>;
+  };
+  svnList?: (
+    url: string,
+    revision?: string,
+    depth?: 'empty' | 'immediates' | 'infinity',
+    credentials?: RepoBrowserCredentials
+  ) => Promise<SvnListResult>;
+}
+
+function getRepoBrowserRuntime() {
+  const overrides = (window as typeof window & { __repoBrowserE2e?: RepoBrowserRuntimeOverrides })
+    .__repoBrowserE2e;
+
+  return {
+    auth: overrides?.auth ?? window.api.auth,
+    svnList: overrides?.svnList ?? window.api.svn.list,
+  };
 }
 
 // Module-level constant for default props to avoid new instances on every render
@@ -108,7 +131,8 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   // Auto-fill saved credentials when auth prompt appears
   useEffect(() => {
     if (showAuthPrompt && authRealm) {
-      window.api.auth
+      getRepoBrowserRuntime()
+        .auth
         .get(authRealm)
         .then((savedCreds) => {
           if (savedCreds) {
@@ -148,7 +172,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   } = useQuery({
     queryKey: listQueryKey,
     queryFn: async () => {
-      const result = await window.api.svn.list(
+      const result = await getRepoBrowserRuntime().svnList(
         currentUrl,
         selectedRevision,
         'immediates',
@@ -256,7 +280,12 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       queryClient.prefetchQuery({
         queryKey: getRepoBrowserListQueryKey(node.url, selectedRevision, credentials),
         queryFn: () =>
-          window.api.svn.list(node.url, selectedRevision, 'immediates', credentials || undefined),
+          getRepoBrowserRuntime().svnList(
+            node.url,
+            selectedRevision,
+            'immediates',
+            credentials || undefined
+          ),
         staleTime: REPO_BROWSER_LIST_STALE_TIME_MS,
       });
     },
@@ -484,13 +513,14 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setHistoryIndex(0);
     setShowAuthPrompt(false);
     setConnectionError(null);
-    const { realm, credentials: creds } = await loadRepoBrowserCredentials(repoUrl, window.api.auth);
+    const { auth, svnList } = getRepoBrowserRuntime();
+    const { realm, credentials: creds } = await loadRepoBrowserCredentials(repoUrl, auth);
     setAuthRealm(realm);
 
     setCredentials(creds);
 
     try {
-      await window.api.svn.list(repoUrl, selectedRevision, 'immediates', creds || undefined);
+      await svnList(repoUrl, selectedRevision, 'immediates', creds || undefined);
       setIsConnected(true);
       refetch();
     } catch (err) {
@@ -512,7 +542,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setConnectionError(null);
 
     try {
-      await window.api.svn.list(currentUrl, selectedRevision, 'immediates', creds);
+      await getRepoBrowserRuntime().svnList(currentUrl, selectedRevision, 'immediates', creds);
       setIsConnected(true);
       refetch();
     } catch (err) {
