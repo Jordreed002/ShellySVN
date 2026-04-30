@@ -34,6 +34,58 @@ export const OVERLAY_STATUS_MAP: Record<SvnStatusChar, { icon: string; priority:
   '~': { icon: 'obstructed', priority: 3 },
 };
 
+export const WINDOWS_CONTEXT_MENU_COMMANDS = [
+  'checkout',
+  'update',
+  'commit',
+  'diff',
+  'log',
+  'revert',
+  'cleanup',
+  'resolve',
+  'lock',
+  'unlock',
+  'branch-tag',
+  'switch',
+  'merge',
+  'properties',
+] as const;
+
+export const FINDER_CONTEXT_MENU_COMMANDS = [
+  'update',
+  'commit',
+  'diff',
+  'log',
+  'revert',
+  'cleanup',
+  'resolve',
+  'lock',
+  'unlock',
+  'switch',
+  'merge',
+  'properties',
+] as const;
+
+export const FINDER_BADGE_STATUS_MAP: Partial<Record<SvnStatusChar, string>> = {
+  ' ': 'normal',
+  A: 'added',
+  C: 'conflicted',
+  I: 'ignored',
+  M: 'modified',
+  X: 'external',
+  '?': 'unversioned',
+  '!': 'missing',
+};
+
+export function createFileManagerHandoffUrl(command: string, selectedPaths: string[]): string {
+  const params = new URLSearchParams();
+  params.set('command', command);
+  for (const selectedPath of selectedPaths) {
+    params.append('path', selectedPath);
+  }
+  return `shellysvn://file-manager-action?${params.toString()}`;
+}
+
 interface OverlayIcon {
   id: string;
   path: string;
