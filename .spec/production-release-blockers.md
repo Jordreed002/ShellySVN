@@ -17,6 +17,14 @@ This checklist is the release gate for a public production release. A preview or
 - [x] README feature claims are aligned with verified release behavior.
 - [ ] Replacement-critical SVN workflows have real-repository verification: checkout, update, commit, revert, cleanup, resolve, branch/tag, switch, merge, sparse checkout, externals, locks, shelving, repository browser, and diff/patch.
 
+## Real SVN Verification Evidence
+
+- `src/main/services/__tests__/svn-working-copy.real.test.ts` verifies working-copy info, context, modified/missing/unversioned status parsing, and local status behavior against a disposable `svnadmin` repository.
+- `tests/e2e/conflict-resolution.spec.ts` verifies conflict creation and guided resolve behavior against a disposable real SVN repository through the app UI.
+- `src/main/services/__tests__/svn-release-workflows.real.test.ts` verifies service-layer checkout, commit, update, revert, cleanup, locks, patch dry-run/apply, branch/tag creation, switch, and merge against disposable real SVN repositories.
+
+Remaining before this blocker can close: sparse checkout release-candidate execution, externals execution, shelving execution, repository browser execution, and the same workflow verifier run against signed release-candidate toolchains/artifacts.
+
 ## Existing Tracking
 
 - Main task list: `.spec/tasks.md`
