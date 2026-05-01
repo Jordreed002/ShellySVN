@@ -79,7 +79,7 @@
 - [x] Add safe save, revert, and unsaved-change behavior for the merge editor.
 - [x] Verify external merge tool launch with configured executable paths and missing-tool errors.
 - [x] Ensure resolved files refresh status immediately after resolution.
-- [ ] Add conflict-resolution E2E coverage from file explorer, update/merge results, and conflict dialogs.
+- [x] Add conflict-resolution E2E coverage from file explorer, update/merge results, and conflict dialogs.
 
 ## P1 - Diff, Merge, Patch, and File Review
 

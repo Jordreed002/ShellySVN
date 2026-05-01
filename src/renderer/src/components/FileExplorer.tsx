@@ -1854,7 +1854,7 @@ export function FileExplorer() {
             status={resolveEntry.status as 'C' | '?' | '!'}
             onClose={() => setResolveEntry(null)}
             onResolve={async (resolution) => {
-              await actions.resolve(resolveEntry.path, resolution);
+              await actions.handleResolveSelected(resolution);
               setResolveEntry(null);
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             }}
