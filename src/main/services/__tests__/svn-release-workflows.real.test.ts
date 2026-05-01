@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync } from 'child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -33,6 +33,12 @@ vi.mock('../../ipc/store', () => ({
   getStore: mockState.getStore,
 }));
 
+vi.mock('../../auth-cache', () => ({
+  getAuthCache: () => ({
+    findForUrl: vi.fn(() => null),
+  }),
+}));
+
 vi.mock('../../utils/debug', () => ({
   debug: {
     error: vi.fn(),
@@ -44,9 +50,10 @@ vi.mock('../../utils/debug', () => ({
 import { checkout } from '../svn-checkout';
 import { commit } from '../svn-commit';
 import { lock, unlock, getLockInfo } from '../svn-locks';
+import { externalsAdd, externalsList, externalsUpdate, listRepository } from '../svn-metadata';
 import { createPatch, applyPatch } from '../svn-patch';
 import { copyRepositoryItem, mergeRepositoryRange, switchWorkingCopy } from '../svn-repository-ops';
-import { add, cleanup, getStatus, revert, update } from '../svn-working-copy';
+import { add, cleanup, getStatus, revert, update, updateToRevision } from '../svn-working-copy';
 
 function hasSvnToolchain(): boolean {
   try {
@@ -179,5 +186,73 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
     await expect(copyRepositoryItem(trunkUrl, tagUrl, 'create release tag')).resolves.toMatchObject({
       success: true,
     });
+  });
+
+  it('verifies sparse checkout expansion and repository browser listing', async () => {
+    const seedPath = join(tempRoot, 'seed');
+    await expect(checkout(trunkUrl, seedPath)).resolves.toMatchObject({ success: true });
+
+    mkdirSync(join(seedPath, 'src'), { recursive: true });
+    writeFileSync(join(seedPath, 'src', 'app.txt'), 'sparse target\n');
+    writeFileSync(join(seedPath, 'README.md'), 'repo browser target\n');
+    await add([join(seedPath, 'src'), join(seedPath, 'README.md')]);
+    await expect(commit([seedPath], 'seed sparse repository')).resolves.toMatchObject({
+      success: true,
+    });
+
+    const listing = await listRepository(trunkUrl, 'HEAD', 'immediates');
+    expect(listing.entries.map((entry) => entry.name).sort()).toEqual(['README.md', 'src']);
+
+    const sparsePath = join(tempRoot, 'sparse');
+    await expect(checkout(trunkUrl, sparsePath, undefined, 'empty')).resolves.toMatchObject({
+      success: true,
+    });
+    expect(existsSync(join(sparsePath, 'src', 'app.txt'))).toBe(false);
+
+    const sparseUpdate = await updateToRevision(
+      sparsePath,
+      trunkUrl,
+      join(sparsePath, 'src', 'app.txt'),
+      'infinity',
+      true
+    );
+    expect(sparseUpdate.success).toBe(true);
+    expect(readFileSync(join(sparsePath, 'src', 'app.txt'), 'utf-8')).toBe('sparse target\n');
+  });
+
+  it('verifies externals definition, listing, and update against a real repository', async () => {
+    const vendorUrl = `${repoUrl}/vendor`;
+    execFileSync('svn', ['mkdir', '-m', 'create vendor area', vendorUrl], { stdio: 'pipe' });
+
+    const vendorPath = join(tempRoot, 'vendor-wc');
+    await expect(checkout(vendorUrl, vendorPath)).resolves.toMatchObject({ success: true });
+    writeFileSync(join(vendorPath, 'lib.txt'), 'external library\n');
+    await add([join(vendorPath, 'lib.txt')]);
+    await expect(commit([join(vendorPath, 'lib.txt')], 'add external library')).resolves.toMatchObject({
+      success: true,
+    });
+
+    await expect(checkout(trunkUrl, wcPath)).resolves.toMatchObject({ success: true });
+    await expect(
+      externalsAdd(wcPath, {
+        name: 'vendor-lib',
+        path: 'vendor-lib',
+        url: vendorUrl,
+      })
+    ).resolves.toEqual({ success: true });
+
+    const externals = await externalsList(wcPath);
+    expect(externals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'vendor-lib',
+          url: vendorUrl,
+        }),
+      ])
+    );
+
+    await expect(commit([wcPath], 'add vendor external')).resolves.toMatchObject({ success: true });
+    await expect(externalsUpdate(wcPath)).resolves.toEqual({ success: true });
+    expect(readFileSync(join(wcPath, 'vendor-lib', 'lib.txt'), 'utf-8')).toBe('external library\n');
   });
 });

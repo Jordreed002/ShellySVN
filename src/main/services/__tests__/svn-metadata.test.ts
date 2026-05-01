@@ -18,6 +18,7 @@ vi.mock('../../utils/debug', () => ({
 
 import {
   externalsEdit,
+  externalsList,
   externalsRemove,
   externalsUpdate,
   listRepository,
@@ -117,6 +118,21 @@ describe('svn-metadata externals management', () => {
       'svn:externals',
       'https://svn.example.com/tools tools\n-r123 https://svn.example.com/lib-new lib',
       'C:\\wc',
+    ]);
+  });
+
+  it('lists recursive externals when Windows working-copy paths contain hyphens', async () => {
+    mockState.runSvnText.mockResolvedValue(
+      'C:\\Users\\alice\\AppData\\Local\\Temp\\shellysvn-release-workflows-abc123\\wc - https://svn.example.com/vendor vendor-lib'
+    );
+
+    await expect(externalsList('C:\\Users\\alice\\AppData\\Local\\Temp\\shellysvn-release-workflows-abc123\\wc')).resolves.toEqual([
+      {
+        name: 'vendor-lib',
+        path: 'C:\\Users\\alice\\AppData\\Local\\Temp\\shellysvn-release-workflows-abc123\\wc/vendor-lib',
+        revision: undefined,
+        url: 'https://svn.example.com/vendor',
+      },
     ]);
   });
 

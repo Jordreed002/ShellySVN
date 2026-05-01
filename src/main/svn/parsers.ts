@@ -426,10 +426,10 @@ export function parseSvnExternals(output: string, basePath: string): SvnExternal
   let currentPath = basePath;
 
   for (const line of lines) {
-    const pathMatch = line.match(/^(.+?)\s*-\s*(.+)$/);
-    if (pathMatch) {
-      currentPath = pathMatch[1].trim();
-      const parsed = parseExternalDef(pathMatch[2].trim(), currentPath);
+    const recursiveSeparatorIndex = line.lastIndexOf(' - ');
+    if (recursiveSeparatorIndex >= 0) {
+      currentPath = line.slice(0, recursiveSeparatorIndex).trim();
+      const parsed = parseExternalDef(line.slice(recursiveSeparatorIndex + 3).trim(), currentPath);
       if (parsed) externals.push(parsed);
     } else if (line.trim()) {
       const parsed = parseExternalDef(line.trim(), currentPath);

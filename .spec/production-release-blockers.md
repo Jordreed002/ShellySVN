@@ -21,9 +21,9 @@ This checklist is the release gate for a public production release. A preview or
 
 - `src/main/services/__tests__/svn-working-copy.real.test.ts` verifies working-copy info, context, modified/missing/unversioned status parsing, and local status behavior against a disposable `svnadmin` repository.
 - `tests/e2e/conflict-resolution.spec.ts` verifies conflict creation and guided resolve behavior against a disposable real SVN repository through the app UI.
-- `src/main/services/__tests__/svn-release-workflows.real.test.ts` verifies service-layer checkout, commit, update, revert, cleanup, locks, patch dry-run/apply, branch/tag creation, switch, and merge against disposable real SVN repositories.
+- `src/main/services/__tests__/svn-release-workflows.real.test.ts` verifies service-layer checkout, commit, update, revert, cleanup, locks, patch dry-run/apply, branch/tag creation, switch, merge, sparse checkout expansion, repository browser listing, and externals definition/list/update against disposable real SVN repositories.
 
-Remaining before this blocker can close: sparse checkout release-candidate execution, externals execution, shelving execution, repository browser execution, and the same workflow verifier run against signed release-candidate toolchains/artifacts.
+Remaining before this blocker can close: shelving execution with an SVN client that supports shelving, and the same workflow verifier run against signed release-candidate toolchains/artifacts.
 
 ## Existing Tracking
 
