@@ -79,7 +79,7 @@
 - [x] Add safe save, revert, and unsaved-change behavior for the merge editor.
 - [x] Verify external merge tool launch with configured executable paths and missing-tool errors.
 - [x] Ensure resolved files refresh status immediately after resolution.
-- [x] Add conflict-resolution E2E coverage from file explorer, update/merge results, and conflict dialogs.
+- [ ] Add conflict-resolution E2E coverage from file explorer, update/merge results, and conflict dialogs.
 
 ## P1 - Diff, Merge, Patch, and File Review
 
@@ -225,6 +225,12 @@
 - [x] Make `bun run verify` the standard local parity gate.
 - [x] Ensure required local verification includes typecheck, lint, unit tests, build, and targeted E2E tests for touched workflows.
 - [x] Add clean-install CI verification from lockfile.
+- [ ] Close the production release blocker checklist in `.spec/production-release-blockers.md`.
+- [x] Block public release publication when required Windows or macOS signing/notarization secrets are missing.
+- [x] Validate Authenticode signing on Windows release artifacts before publishing.
+- [x] Validate macOS notarization, stapling, and Gatekeeper acceptance before publishing.
+- [x] Add disposable real-SVN workflow verification for release-candidate toolchains.
+- [ ] Run real-SVN workflow verification before publishing release artifacts.
 - [x] Add packaged-app smoke tests for Windows x64, macOS x64, macOS arm64, and Linux x64 where release-supported.
 - [x] Verify bundled SVN and shelly-engine binaries are present and executable in each package.
 - [x] Document macOS signing and notarization requirements before public distribution.
