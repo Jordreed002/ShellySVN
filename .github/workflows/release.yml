@@ -285,28 +285,20 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ env.HAS_MAC_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'false' }}
+        if: ${{ env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false' }}
         run: bunx electron-builder --mac --${{ matrix.arch }} --config
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Block unsigned public macOS release
-        if: ${{ env.HAS_MAC_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'true' }}
+      - name: Warn about unsigned public macOS release
+        if: ${{ env.PUBLIC_RELEASE == 'true' && (env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false') }}
         run: |
-          echo "Public macOS releases require Developer ID signing and notarization credentials."
-          echo "Set MAC_CERTIFICATE_BASE64, MAC_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID."
-          exit 1
-
-      - name: Block incomplete public macOS signing configuration
-        if: ${{ env.HAS_MAC_CERTIFICATE == 'true' && (env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false') && env.PUBLIC_RELEASE == 'true' }}
-        run: |
-          echo "Public macOS releases require signing and notarization credentials."
-          echo "Set MAC_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID."
-          exit 1
+          echo "::warning::Building an unsigned, unnotarized public macOS release because signing credentials are incomplete."
+          echo "::warning::Set MAC_CERTIFICATE_BASE64, MAC_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID before publishing a trusted macOS release."
 
       - name: Build Electron app (signed)
-        if: ${{ env.HAS_MAC_CERTIFICATE == 'true' }}
+        if: ${{ env.HAS_MAC_CERTIFICATE == 'true' && env.HAS_MAC_CERTIFICATE_PASSWORD == 'true' && env.HAS_APPLE_ID == 'true' && env.HAS_APPLE_APP_PASSWORD == 'true' && env.HAS_APPLE_TEAM_ID == 'true' }}
         run: bunx electron-builder --mac --${{ matrix.arch }} --config
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -318,7 +310,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Validate public macOS artifact
-        if: ${{ env.PUBLIC_RELEASE == 'true' }}
+        if: ${{ env.PUBLIC_RELEASE == 'true' && env.HAS_MAC_CERTIFICATE == 'true' && env.HAS_MAC_CERTIFICATE_PASSWORD == 'true' && env.HAS_APPLE_ID == 'true' && env.HAS_APPLE_APP_PASSWORD == 'true' && env.HAS_APPLE_TEAM_ID == 'true' }}
         run: |
           set -euo pipefail
           dmg_path="$(find release -type f -name '*.dmg' | head -n 1)"
@@ -347,7 +339,7 @@ jobs:
           "$app_path/Contents/MacOS/ShellySVN" --smoke-test
 
       - name: Smoke test packaged macOS app
-        if: ${{ env.PUBLIC_RELEASE == 'false' }}
+        if: ${{ env.PUBLIC_RELEASE == 'false' || env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false' }}
         run: |
           set -euo pipefail
           app_path="$(find release -type d -name 'ShellySVN.app' | head -n 1)"
@@ -432,28 +424,20 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ env.HAS_WIN_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'false' }}
+        if: ${{ env.HAS_WIN_CERTIFICATE == 'false' || env.HAS_WIN_CERTIFICATE_PASSWORD == 'false' }}
         run: bunx electron-builder --win --x64 --config
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Block unsigned public Windows release
-        if: ${{ env.HAS_WIN_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'true' }}
+      - name: Warn about unsigned public Windows release
+        if: ${{ env.PUBLIC_RELEASE == 'true' && (env.HAS_WIN_CERTIFICATE == 'false' || env.HAS_WIN_CERTIFICATE_PASSWORD == 'false') }}
         shell: pwsh
         run: |
-          Write-Host "Public Windows releases require an Authenticode signing certificate."
-          Write-Host "Set WIN_CERTIFICATE_BASE64 and WIN_CERTIFICATE_PASSWORD."
-          exit 1
-
-      - name: Block incomplete public Windows signing configuration
-        if: ${{ env.HAS_WIN_CERTIFICATE == 'true' && env.HAS_WIN_CERTIFICATE_PASSWORD == 'false' && env.PUBLIC_RELEASE == 'true' }}
-        shell: pwsh
-        run: |
-          Write-Host "Public Windows releases require WIN_CERTIFICATE_PASSWORD."
-          exit 1
+          Write-Warning "Building an unsigned public Windows release because signing credentials are incomplete."
+          Write-Warning "Set WIN_CERTIFICATE_BASE64 and WIN_CERTIFICATE_PASSWORD before publishing a trusted Windows release."
 
       - name: Build Electron app (signed)
-        if: ${{ env.HAS_WIN_CERTIFICATE == 'true' }}
+        if: ${{ env.HAS_WIN_CERTIFICATE == 'true' && env.HAS_WIN_CERTIFICATE_PASSWORD == 'true' }}
         run: |
           $certPath = Join-Path $env:TEMP "cert.pfx"
           [System.Convert]::FromBase64String($env:WIN_CERT_BASE64) | Set-Content $certPath -AsByteStream
@@ -467,7 +451,7 @@ jobs:
           WIN_CERT_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
 
       - name: Validate public Windows artifact signature
-        if: ${{ env.PUBLIC_RELEASE == 'true' }}
+        if: ${{ env.PUBLIC_RELEASE == 'true' && env.HAS_WIN_CERTIFICATE == 'true' && env.HAS_WIN_CERTIFICATE_PASSWORD == 'true' }}
         shell: pwsh
         run: |
           $artifacts = Get-ChildItem -Path release -Recurse -File -Include *.exe
