@@ -102,10 +102,10 @@ The README broadly matches the implemented app surface, but several claims shoul
 
 ## README Cleanup Tasks
 
-- [ ] Fix mojibake characters in navigation, product copy, command comments, and footer.
-- [ ] Reword "Settings Sync" unless actual cross-device sync exists.
-- [ ] Align logic-engine architecture section with `.spec/adr-logic-engine.md`.
-- [ ] Qualify "zero external dependencies" as a release-artifact claim backed by binary verification.
-- [ ] Replace exact performance claims with benchmark-backed language or link benchmark evidence.
-- [ ] Update roadmap items that are already partially implemented so they describe remaining work.
-- [ ] Keep Git integration out of parity language unless `.spec/spec.md` changes.
+- [x] Fix mojibake characters in navigation, product copy, command comments, and footer.
+- [x] Reword "Settings Sync" unless actual cross-device sync exists.
+- [x] Align logic-engine architecture section with `.spec/adr-logic-engine.md`.
+- [x] Qualify "zero external dependencies" as a release-artifact claim backed by binary verification.
+- [x] Replace exact performance claims with benchmark-backed language or link benchmark evidence.
+- [x] Update roadmap items that are already partially implemented so they describe remaining work.
+- [x] Keep Git integration out of parity language unless `.spec/spec.md` changes.
