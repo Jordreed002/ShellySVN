@@ -294,12 +294,12 @@ Native Windows Explorer and macOS Finder integration is still being hardened. Cu
 
 - [ ] Windows Explorer and macOS Finder integration hardening
 - [x] Packaged app smoke tests for Windows and macOS release targets
-- [ ] Merge conflict resolution hardening
-- [ ] Image diff verification and polish
+- [x] Merge conflict resolution hardening
+- [x] Image diff verification and polish
 - [x] Repository browser with remote browsing
 - [x] Linux packaging smoke tests where release artifacts are produced
-- [ ] Plugin/extension system decision
-- [ ] Dark/light theme customization
+- [x] Plugin/extension system decision
+- [x] Dark/light theme customization
 
 ---
 
