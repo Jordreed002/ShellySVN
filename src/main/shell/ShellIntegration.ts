@@ -16,7 +16,7 @@ import { app, ipcMain } from 'electron';
 import { join } from 'path';
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import type { ShellIntegrationStatus, SvnStatusChar } from '@shared/types';
+import type { ShellIntegrationStatus, SvnStatusChar, SvnStatusEntry } from '@shared/types';
 import debug from '../utils/debug';
 
 // Icon overlay status mapping
@@ -32,6 +32,7 @@ export const OVERLAY_STATUS_MAP: Record<SvnStatusChar, { icon: string; priority:
   '?': { icon: 'unversioned', priority: 1 },
   '!': { icon: 'missing', priority: 9 },
   '~': { icon: 'obstructed', priority: 3 },
+  O: { icon: 'remote-only', priority: 2 },
 };
 
 export const WINDOWS_CONTEXT_MENU_COMMANDS = [
@@ -52,6 +53,7 @@ export const WINDOWS_CONTEXT_MENU_COMMANDS = [
 ] as const;
 
 export const FINDER_CONTEXT_MENU_COMMANDS = [
+  'checkout',
   'update',
   'commit',
   'diff',
@@ -61,10 +63,37 @@ export const FINDER_CONTEXT_MENU_COMMANDS = [
   'resolve',
   'lock',
   'unlock',
+  'branch-tag',
   'switch',
   'merge',
   'properties',
 ] as const;
+
+export type FileManagerPresentationStatus = SvnStatusChar | 'locked';
+
+export const FILE_MANAGER_STATUS_PRESENTATION: Record<
+  FileManagerPresentationStatus,
+  {
+    windowsIcon: string;
+    finderBadge?: string;
+    priority: number;
+    label: string;
+  }
+> = {
+  ' ': { windowsIcon: 'normal', finderBadge: 'normal', priority: 0, label: 'Normal' },
+  A: { windowsIcon: 'added', finderBadge: 'added', priority: 5, label: 'Added' },
+  C: { windowsIcon: 'conflict', finderBadge: 'conflicted', priority: 10, label: 'Conflicted' },
+  D: { windowsIcon: 'deleted', priority: 6, label: 'Deleted' },
+  I: { windowsIcon: 'ignored', finderBadge: 'ignored', priority: 1, label: 'Ignored' },
+  M: { windowsIcon: 'modified', finderBadge: 'modified', priority: 7, label: 'Modified' },
+  R: { windowsIcon: 'replaced', priority: 8, label: 'Replaced' },
+  X: { windowsIcon: 'external', finderBadge: 'external', priority: 2, label: 'External' },
+  '?': { windowsIcon: 'unversioned', finderBadge: 'unversioned', priority: 1, label: 'Unversioned' },
+  '!': { windowsIcon: 'missing', finderBadge: 'missing', priority: 9, label: 'Missing' },
+  '~': { windowsIcon: 'obstructed', priority: 3, label: 'Obstructed' },
+  O: { windowsIcon: 'remote-only', priority: 2, label: 'Remote only' },
+  locked: { windowsIcon: 'locked', finderBadge: 'locked', priority: 4, label: 'Locked' },
+};
 
 export const FINDER_BADGE_STATUS_MAP: Partial<Record<SvnStatusChar, string>> = {
   ' ': 'normal',
@@ -76,6 +105,16 @@ export const FINDER_BADGE_STATUS_MAP: Partial<Record<SvnStatusChar, string>> = {
   '?': 'unversioned',
   '!': 'missing',
 };
+
+export function getFileManagerPresentationStatus(
+  entry: Pick<SvnStatusEntry, 'status' | 'lock'>
+): FileManagerPresentationStatus {
+  if (entry.lock && entry.status === ' ') {
+    return 'locked';
+  }
+
+  return entry.status;
+}
 
 export function createFileManagerHandoffUrl(command: string, selectedPaths: string[]): string {
   const params = new URLSearchParams();

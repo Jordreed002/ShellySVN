@@ -35,8 +35,10 @@ vi.mock('../../utils/debug', () => ({
 
 import {
   createFileManagerHandoffUrl,
+  FILE_MANAGER_STATUS_PRESENTATION,
   FINDER_BADGE_STATUS_MAP,
   FINDER_CONTEXT_MENU_COMMANDS,
+  getFileManagerPresentationStatus,
   OVERLAY_STATUS_MAP,
   ShellIntegrationManager,
   WINDOWS_CONTEXT_MENU_COMMANDS,
@@ -85,7 +87,7 @@ describe('ShellIntegrationManager', () => {
 
   it('defines Windows overlay icons for the full SVN status set', () => {
     expect(Object.keys(OVERLAY_STATUS_MAP).sort()).toEqual(
-      [' ', '!', '?', 'A', 'C', 'D', 'I', 'M', 'R', 'X', '~'].sort()
+      [' ', '!', '?', 'A', 'C', 'D', 'I', 'M', 'O', 'R', 'X', '~'].sort()
     );
     expect(OVERLAY_STATUS_MAP.C.icon).toBe('conflict');
     expect(OVERLAY_STATUS_MAP['!'].icon).toBe('missing');
@@ -94,6 +96,7 @@ describe('ShellIntegrationManager', () => {
 
   it('defines Finder commands and badge statuses supported by Finder Sync', () => {
     expect(FINDER_CONTEXT_MENU_COMMANDS).toEqual([
+      'checkout',
       'update',
       'commit',
       'diff',
@@ -103,6 +106,7 @@ describe('ShellIntegrationManager', () => {
       'resolve',
       'lock',
       'unlock',
+      'branch-tag',
       'switch',
       'merge',
       'properties',
@@ -116,6 +120,28 @@ describe('ShellIntegrationManager', () => {
       '?': 'unversioned',
       '!': 'missing',
     });
+  });
+
+  it('defines file-manager presentation for locked items separately from SVN text status', () => {
+    expect(FILE_MANAGER_STATUS_PRESENTATION.locked).toMatchObject({
+      windowsIcon: 'locked',
+      finderBadge: 'locked',
+      label: 'Locked',
+    });
+
+    expect(
+      getFileManagerPresentationStatus({
+        status: ' ',
+        lock: { owner: 'jordan', comment: 'editing', date: '2026-05-01T10:00:00Z' },
+      })
+    ).toBe('locked');
+
+    expect(
+      getFileManagerPresentationStatus({
+        status: 'M',
+        lock: { owner: 'jordan', comment: 'editing', date: '2026-05-01T10:00:00Z' },
+      })
+    ).toBe('M');
   });
 
   it('creates app handoff URLs with command and selected paths', () => {

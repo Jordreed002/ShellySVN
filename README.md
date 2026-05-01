@@ -290,9 +290,9 @@ We welcome contributions! Here's how to get started:
 
 ## Roadmap
 
-Native Windows Explorer and macOS Finder integration is still being hardened. Current release claims are for the standalone desktop app unless a release note explicitly says native file-manager integration is included.
+Native Windows Explorer and macOS Finder integration contracts are hardened in the app, including common command handoff, status presentation, diagnostics, and packaged-helper checks. Production release claims remain limited to the standalone desktop app until signed native helpers are included in release artifacts.
 
-- [ ] Windows Explorer and macOS Finder integration hardening
+- [x] Windows Explorer and macOS Finder integration hardening
 - [x] Packaged app smoke tests for Windows and macOS release targets
 - [x] Merge conflict resolution hardening
 - [x] Image diff verification and polish
