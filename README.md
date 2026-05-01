@@ -11,7 +11,7 @@
 
 _Inspired by TortoiseSVN, rebuilt for today_
 
-[Features](#features) • [Download](#download) • [Getting Started](#getting-started) • [Architecture](#architecture) • [Contributing](#contributing)
+[Features](#features) | [Download](#download) | [Getting Started](#getting-started) | [Architecture](#architecture) | [Contributing](#contributing)
 
 </div>
 
@@ -19,7 +19,7 @@ _Inspired by TortoiseSVN, rebuilt for today_
 
 ## Overview
 
-ShellySVN is a native desktop application that provides a graphical interface for Subversion (SVN) version control. It's designed to be **fast**, **portable**, and **user-friendly**—bundling everything you need with zero external dependencies.
+ShellySVN is a native desktop application that provides a graphical interface for Subversion (SVN) version control. It's designed to be **fast**, **portable**, and **user-friendly**. Release artifacts are built to include the required SVN and helper binaries after package verification.
 
 ### Why ShellySVN?
 
@@ -27,8 +27,8 @@ ShellySVN is a native desktop application that provides a graphical interface fo
 | ------------------------------- | ------------------------------------------- |
 | Installing SVN tools is tedious | Portable SVN binary bundled with the app    |
 | Other clients feel outdated     | Modern UI with virtualized rendering        |
-| Large repositories lag          | 60fps scrolling with 10,000+ files          |
-| Cross-platform inconsistency    | Native experience on both macOS and Windows |
+| Large repositories lag          | Virtualized rendering for large file lists  |
+| Cross-platform inconsistency    | Desktop app workflows for macOS and Windows |
 
 ---
 
@@ -83,11 +83,11 @@ ShellySVN is a native desktop application that provides a graphical interface fo
 - **Bookmarks** - Quick access to frequent repositories
 - **Project Monitor** - Track multiple working copies at once
 - **Quick Notes** - Annotate commits and revisions
-- **Settings Sync** - Configurable preferences with persistence
+- **Settings Persistence** - Configurable preferences saved locally
 
 ### Performance
 
-- **Virtualized Lists** - TanStack Virtual for smooth 60fps scrolling
+- **Virtualized Lists** - TanStack Virtual for large file and tree views
 - **Lazy Loading** - On-demand SVN status fetching
 - **Background Scanning** - Non-blocking status updates
 - **Cached History** - Fast navigation through commit logs
@@ -182,36 +182,42 @@ bun run engine:build:all    # Compile for all platforms
 
 ## Architecture
 
-ShellySVN uses Electron process isolation for the desktop app and a separate Bun-based logic engine for headless CLI use.
+ShellySVN uses Electron process isolation for the desktop app. The Electron main process is the production SVN backend for desktop workflows. The separate Bun-based logic engine is packaged and verified as a helper/CLI surface, but it is not the primary desktop execution path.
 
 ```
 +-------------------------------------------------------------+
 |                    Electron Main Process                     |
-|                      (Node.js runtime)                       |
+|                Production desktop SVN backend                |
 |                                                             |
 |  - Window management                                        |
 |  - IPC coordination                                         |
 |  - Native dialogs                                           |
 |  - Settings storage                                         |
+|  - SVN execution, credentials, SSL, progress, cancellation  |
 +------------------------+------------------------------------+
                          | child_process.spawn()
                          v
 +-------------------------------------------------------------+
+|                   Bundled SVN Binary                        |
+|                                                             |
+|  - Portable, self-contained release resource                |
+|  - Verified before packaging                                |
++-------------------------------------------------------------+
+
+Optional CLI/helper path:
+
++-------------------------------------------------------------+
 |              Logic Engine (shelly-engine)                   |
 |                    Compiled Bun Binary                      |
 |                                                             |
-|  - Headless CLI SVN command execution                       |
-|  - XML to JSON parsing (fast-xml-parser)                    |
+|  - Headless CLI experimentation and automation              |
 |  - Structured JSON output to stdout                         |
+|  - Not the primary desktop SVN backend                      |
 +------------------------+------------------------------------+
-                         | Bun.spawn()
+                         | spawn SVN
                          v
 +-------------------------------------------------------------+
 |                   Bundled SVN Binary                        |
-|                                                             |
-|  - Portable, self-contained                                 |
-|  - No system dependencies                                   |
-|  - Cross-platform binaries                                  |
 +-------------------------------------------------------------+
 ```
 
@@ -229,7 +235,7 @@ ShellySVN/
 |   |   |-- routes/     # TanStack Router pages
 |   |   `-- styles/     # Tailwind CSS
 |-- packages/
-|   |-- logic-engine/   # Compiled Bun binary for SVN ops
+|   |-- logic-engine/   # Optional compiled Bun CLI/helper engine
 |   `-- shared/         # Shared types, IPC contracts, utilities
 |-- build/              # Electron-builder resources
 |-- binaries/           # Platform-specific SVN binaries
@@ -247,7 +253,7 @@ ShellySVN/
 | Routing           | TanStack Router  | Type-safe, file-based routing                     |
 | State             | Zustand          | Simple, performant, minimal boilerplate           |
 | Data Fetching     | TanStack Query   | Caching, background updates, deduplication        |
-| Virtualization    | TanStack Virtual | Handle massive lists at 60fps                     |
+| Virtualization    | TanStack Virtual | Handle large file and tree views                  |
 | Styling           | Tailwind CSS     | Utility-first, consistent design                  |
 | Icons             | Lucide React     | Beautiful, consistent, tree-shakeable             |
 
@@ -284,12 +290,14 @@ We welcome contributions! Here's how to get started:
 
 ## Roadmap
 
+Native Windows Explorer and macOS Finder integration is still being hardened. Current release claims are for the standalone desktop app unless a release note explicitly says native file-manager integration is included.
+
 - [ ] Windows Explorer and macOS Finder integration hardening
-- [ ] Packaged app smoke tests for Windows and macOS release targets
+- [x] Packaged app smoke tests for Windows and macOS release targets
 - [ ] Merge conflict resolution hardening
 - [ ] Image diff verification and polish
 - [x] Repository browser with remote browsing
-- [ ] Linux packaging smoke tests where release artifacts are produced
+- [x] Linux packaging smoke tests where release artifacts are produced
 - [ ] Plugin/extension system decision
 - [ ] Dark/light theme customization
 
@@ -311,7 +319,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**[Report a Bug](https://github.com/Jordreed002/shellysvn/issues/new?template=bug_report.md)** • **[Request a Feature](https://github.com/Jordreed002/shellysvn/issues/new?template=feature_request.md)**
+**[Report a Bug](https://github.com/Jordreed002/shellysvn/issues/new?template=bug_report.md)** | **[Request a Feature](https://github.com/Jordreed002/shellysvn/issues/new?template=feature_request.md)**
 
 Made with ❤️ by the ShellySVN Team
 

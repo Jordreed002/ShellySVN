@@ -1,4 +1,6 @@
 import { app, BrowserWindow } from 'electron';
+import { spawnSync } from 'child_process';
+import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import { registerSvnHandlers } from './ipc/svn';
@@ -16,6 +18,62 @@ import { registerWebhookHandlers } from './ipc/webhook';
 import { openValidatedExternalUrl } from './utils/external-url';
 
 let mainWindow: BrowserWindow | null = null;
+const isSmokeTest = process.argv.includes('--smoke-test');
+const MIN_PACKAGED_BINARY_SIZE_BYTES = 1024;
+
+function getPackagedBinaryPaths(): { engine: string; svn: string } {
+  const extension = process.platform === 'win32' ? '.exe' : '';
+  const binariesPath = join(process.resourcesPath, 'binaries');
+
+  return {
+    engine: join(binariesPath, `shelly-engine${extension}`),
+    svn: join(binariesPath, 'svn', `svn${extension}`),
+  };
+}
+
+function verifyPackagedExecutable(filePath: string, args: string[], label: string): void {
+  if (!existsSync(filePath)) {
+    throw new Error(`${label} is missing: ${filePath}`);
+  }
+
+  const stats = statSync(filePath);
+  if (!stats.isFile()) {
+    throw new Error(`${label} is not a file: ${filePath}`);
+  }
+  if (stats.size < MIN_PACKAGED_BINARY_SIZE_BYTES) {
+    throw new Error(`${label} is too small (${stats.size} bytes): ${filePath}`);
+  }
+
+  const result = spawnSync(filePath, args, {
+    encoding: 'utf8',
+    timeout: 10000,
+    windowsHide: true,
+  });
+
+  if (result.error) {
+    throw new Error(`${label} failed to execute: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+    throw new Error(`${label} version check failed with exit ${result.status}: ${output}`);
+  }
+}
+
+function runSmokeTest(): number {
+  const rendererPath = join(__dirname, '../renderer/index.html');
+  if (!is.dev && !existsSync(rendererPath)) {
+    throw new Error(`Missing packaged renderer entry: ${rendererPath}`);
+  }
+
+  if (app.isPackaged) {
+    const binaries = getPackagedBinaryPaths();
+    verifyPackagedExecutable(binaries.engine, ['--version'], 'packaged logic engine');
+    verifyPackagedExecutable(binaries.svn, ['--version', '--quiet'], 'packaged SVN client');
+  }
+
+  console.log('[smoke-test] ShellySVN main process initialized successfully.');
+  return 0;
+}
 
 function createWindow(): void {
   // Create the browser window
@@ -101,6 +159,17 @@ app.whenReady().then(() => {
       mainWindow?.webContents.send('deep-link', link);
     });
   });
+
+  if (isSmokeTest) {
+    try {
+      process.exitCode = runSmokeTest();
+    } catch (error) {
+      console.error(`[smoke-test] ${error instanceof Error ? error.message : String(error)}`);
+      process.exitCode = 1;
+    }
+    app.quit();
+    return;
+  }
 
   createWindow();
 

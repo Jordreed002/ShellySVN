@@ -210,6 +210,13 @@ jobs:
     needs: [svn-binaries, logic-engine]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    env:
+      PUBLIC_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.create_release == 'true' }}
+      HAS_MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE_BASE64 != '' }}
+      HAS_MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD != '' }}
+      HAS_APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+      HAS_APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}
+      HAS_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
 
     strategy:
       fail-fast: false
@@ -278,14 +285,28 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ secrets.MAC_CERTIFICATE_BASE64 == '' }}
+        if: ${{ env.HAS_MAC_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'false' }}
         run: bunx electron-builder --mac --${{ matrix.arch }} --config
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Block unsigned public macOS release
+        if: ${{ env.HAS_MAC_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'true' }}
+        run: |
+          echo "Public macOS releases require Developer ID signing and notarization credentials."
+          echo "Set MAC_CERTIFICATE_BASE64, MAC_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID."
+          exit 1
+
+      - name: Block incomplete public macOS signing configuration
+        if: ${{ env.HAS_MAC_CERTIFICATE == 'true' && (env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false') && env.PUBLIC_RELEASE == 'true' }}
+        run: |
+          echo "Public macOS releases require signing and notarization credentials."
+          echo "Set MAC_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID."
+          exit 1
+
       - name: Build Electron app (signed)
-        if: ${{ secrets.MAC_CERTIFICATE_BASE64 != '' }}
+        if: ${{ env.HAS_MAC_CERTIFICATE == 'true' }}
         run: bunx electron-builder --mac --${{ matrix.arch }} --config
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -295,6 +316,46 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Validate public macOS artifact
+        if: ${{ env.PUBLIC_RELEASE == 'true' }}
+        run: |
+          set -euo pipefail
+          dmg_path="$(find release -type f -name '*.dmg' | head -n 1)"
+          if [ -z "$dmg_path" ]; then
+            echo "No macOS DMG found for validation."
+            exit 1
+          fi
+
+          mount_path="$(mktemp -d)"
+          cleanup() {
+            hdiutil detach "$mount_path" -quiet || true
+            rmdir "$mount_path" || true
+          }
+          trap cleanup EXIT
+
+          hdiutil attach "$dmg_path" -nobrowse -quiet -mountpoint "$mount_path"
+          app_path="$(find "$mount_path" -maxdepth 2 -type d -name '*.app' | head -n 1)"
+          if [ -z "$app_path" ]; then
+            echo "No app bundle found in $dmg_path."
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          spctl --assess --type execute --verbose=4 "$app_path"
+          xcrun stapler validate "$dmg_path" || xcrun stapler validate "$app_path"
+          "$app_path/Contents/MacOS/ShellySVN" --smoke-test
+
+      - name: Smoke test packaged macOS app
+        if: ${{ env.PUBLIC_RELEASE == 'false' }}
+        run: |
+          set -euo pipefail
+          app_path="$(find release -type d -name 'ShellySVN.app' | head -n 1)"
+          if [ -z "$app_path" ]; then
+            echo "No packaged macOS app bundle found for smoke testing."
+            exit 1
+          fi
+          "$app_path/Contents/MacOS/ShellySVN" --smoke-test
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -313,6 +374,10 @@ jobs:
     needs: [svn-binaries, logic-engine]
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      PUBLIC_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.create_release == 'true' }}
+      HAS_WIN_CERTIFICATE: ${{ secrets.WIN_CERTIFICATE_BASE64 != '' }}
+      HAS_WIN_CERTIFICATE_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD != '' }}
 
     steps:
       - name: Checkout
@@ -367,22 +432,71 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ secrets.WIN_CERTIFICATE_BASE64 == '' }}
+        if: ${{ env.HAS_WIN_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'false' }}
         run: bunx electron-builder --win --x64 --config
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Block unsigned public Windows release
+        if: ${{ env.HAS_WIN_CERTIFICATE == 'false' && env.PUBLIC_RELEASE == 'true' }}
+        shell: pwsh
+        run: |
+          Write-Host "Public Windows releases require an Authenticode signing certificate."
+          Write-Host "Set WIN_CERTIFICATE_BASE64 and WIN_CERTIFICATE_PASSWORD."
+          exit 1
+
+      - name: Block incomplete public Windows signing configuration
+        if: ${{ env.HAS_WIN_CERTIFICATE == 'true' && env.HAS_WIN_CERTIFICATE_PASSWORD == 'false' && env.PUBLIC_RELEASE == 'true' }}
+        shell: pwsh
+        run: |
+          Write-Host "Public Windows releases require WIN_CERTIFICATE_PASSWORD."
+          exit 1
+
       - name: Build Electron app (signed)
-        if: ${{ secrets.WIN_CERTIFICATE_BASE64 != '' }}
+        if: ${{ env.HAS_WIN_CERTIFICATE == 'true' }}
         run: |
           $certPath = Join-Path $env:TEMP "cert.pfx"
           [System.Convert]::FromBase64String($env:WIN_CERT_BASE64) | Set-Content $certPath -AsByteStream
+          $env:CSC_LINK = $certPath
+          $env:CSC_KEY_PASSWORD = $env:WIN_CERT_PASSWORD
           bunx electron-builder --win --x64 --config
           Remove-Item $certPath -Force -ErrorAction SilentlyContinue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WIN_CERT_BASE64: ${{ secrets.WIN_CERTIFICATE_BASE64 }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
+
+      - name: Validate public Windows artifact signature
+        if: ${{ env.PUBLIC_RELEASE == 'true' }}
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path release -Recurse -File -Include *.exe
+          if (-not $artifacts) {
+            Write-Error "No Windows executable artifacts found for signature validation."
+          }
+
+          foreach ($artifact in $artifacts) {
+            $signature = Get-AuthenticodeSignature -FilePath $artifact.FullName
+            if ($signature.Status -ne 'Valid') {
+              Write-Error "Invalid signature for $($artifact.FullName): $($signature.Status)"
+            }
+            Write-Host "Valid Authenticode signature: $($artifact.FullName)"
+          }
+
+      - name: Smoke test packaged Windows app
+        shell: pwsh
+        run: |
+          $app = Get-ChildItem -Path release -Recurse -File -Filter ShellySVN.exe |
+            Where-Object { $_.FullName -like '*win-unpacked*' } |
+            Select-Object -First 1
+          if (-not $app) {
+            Write-Error "No unpacked ShellySVN.exe found for smoke testing."
+          }
+
+          & $app.FullName --smoke-test
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -465,6 +579,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Smoke test packaged Linux app
+        run: |
+          set -euo pipefail
+          app_path="$(find release -path '*linux-unpacked*' -type f -name 'ShellySVN' | head -n 1)"
+          if [ -z "$app_path" ]; then
+            echo "No unpacked Linux ShellySVN executable found for smoke testing."
+            exit 1
+          fi
+          xvfb-run -a "$app_path" --smoke-test --no-sandbox
+
       - name: Upload artifact (AppImage)
         uses: actions/upload-artifact@v4
         with:
@@ -542,6 +666,9 @@ jobs:
             - **Windows**: Windows 10/11 (64-bit)
             - **macOS**: macOS 10.15 (Catalina) or later
             - **Linux**: glibc 2.17+ (Ubuntu 18.04+, Debian 10+, etc.)
+
+            ### Release Scope
+            This release is for the standalone ShellySVN desktop app. Native Windows Explorer and macOS Finder integration remains release-gated unless called out explicitly in this section.
 
             ### What's Changed
             See [commit history](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details.
