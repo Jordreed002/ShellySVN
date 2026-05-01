@@ -193,3 +193,21 @@ A built-in side-by-side text diff mode is desirable, but replacement readiness s
 Commit message spellcheck is in scope only where the Electron text editing surface provides it through platform/browser defaults. ShellySVN should not add a custom dictionary, language management, or third-party spellcheck engine before 1.0.
 
 Replacement readiness requires that spellcheck, if enabled by the runtime, does not block commit validation, issue ID parsing, templates, history, autocomplete, hooks, or keyboard navigation. A later localization or editor-quality project may revisit explicit spellcheck controls.
+
+---
+
+## Decision 16: Built-In Image Diff Covers Common Web/Desktop Assets
+
+ShellySVN treats `png`, `jpg`, `jpeg`, `gif`, `bmp`, `webp`, `svg`, `ico`, `tiff`, and `tif` as image assets for the built-in image diff viewer. Other binary or design-source formats, including `psd`, should be handed off to configured external tools.
+
+## Decision 17: SVN Project Property Compatibility Is Targeted
+
+ShellySVN supports common SVN properties needed for daily workflows: `svn:ignore`, `svn:externals`, `svn:keywords`, `svn:eol-style`, and `svn:mime-type`.
+
+ShellySVN also supports high-value TortoiseSVN `bugtraq:*` interoperability through issue regexes, URL templates, numeric issue fallback, and inherited property discovery. TortoiseSVN-specific provider COM integration and broad `tsvn:*` UI preference compatibility are not replacement-critical before 1.0.
+
+## Decision 18: Context Menu Parity Uses Platform-Appropriate Surfaces
+
+Common working-copy surfaces should expose update, commit, revert, resolve, add, delete, lock/unlock, show log, diff/preview, blame, properties, branch/tag, switch, merge, cleanup, patch creation/application, open in system file manager, and copy path when their preconditions are met.
+
+Exact right-click parity on every surface is not required if the workflow is clearly available through an equivalent toolbar, details panel, command palette, or platform-native shell/Finder integration.

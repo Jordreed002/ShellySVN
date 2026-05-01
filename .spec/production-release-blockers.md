@@ -29,7 +29,18 @@ Remaining before this blocker can close: shelving execution with an SVN client t
 ## Existing Tracking
 
 - Main task list: `.spec/tasks.md`
-- Parity roadmap: `.spec/PARITY_ROADMAP_TASKS.md`
-- README claim audit: `.spec/readme-parity-audit.md`
-- macOS signing/notarization notes: `.spec/macos-signing-notarization.md`
+- Product scope and parity decisions: `.spec/spec.md` and `.spec/parity-decisions.md`
 - Packaged binary verification script: `scripts/verify-binaries.mjs`
+
+## macOS Signing and Notarization Gate
+
+Public macOS distribution requires Developer ID signing, hardened runtime, notarization, stapling where applicable, Gatekeeper validation, and a clean-machine launch check on both Intel and Apple Silicon.
+
+Before publishing macOS artifacts:
+
+1. Run `bun run verify:binaries darwin-x64 darwin-arm64`.
+2. Build on a macOS host with Developer ID credentials available.
+3. Confirm the app and nested binaries are signed as required by the final package.
+4. Confirm notarization succeeds and the distributed app or DMG is stapled when the workflow does not do it automatically.
+5. Validate with `spctl` and launch the installed app on clean macOS x64 and arm64 machines or VMs.
+6. If Finder Sync is advertised, verify the extension is signed, embedded, notarized, enabled in System Settings, and covered by packaged smoke tests.

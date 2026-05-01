@@ -2,9 +2,9 @@
 
 Generated: 2026-04-28
 
-This file tracks actionable follow-up work from the project review.
+This file tracks actionable follow-up work from the project review and TortoiseSVN replacement roadmap.
 
-Execution order is defined in `fix-plan.md`.
+For release go/no-go status, use `production-release-blockers.md`. For scope decisions and non-goals, use `parity-decisions.md`.
 
 ---
 
@@ -81,14 +81,14 @@ Execution order is defined in `fix-plan.md`.
 - [x] Correct shell integration status when native helpers are missing.
 - [x] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
   First boundary identified and started by extracting `src/main/services/svn-executor.ts`.
-- [x] Execute the refactor and codebase improvement backlog in `refactor-improvement-tasks.md`.
-- [x] Execute the performance improvement backlog in `performance-improvement-tasks.md`.
+- [x] Execute the refactor and codebase improvement backlog from the completed planning audit.
+- [x] Execute the performance improvement backlog from the completed planning audit.
 
 ---
 
 ## TortoiseSVN Replacement Roadmap
 
-These tasks track the important parity work needed for ShellySVN to become the preferred SVN client on Windows and macOS. Details and non-goals are in `tortoisesvn-parity-roadmap.md`.
+These tasks track the important parity work needed for ShellySVN to become the preferred SVN client on Windows and macOS. Details and non-goals are in `spec.md` and `parity-decisions.md`.
 
 Scope decisions are recorded in `parity-decisions.md`: Windows x64, macOS x64, and macOS arm64 are release-blocking for replacement readiness; Linux shell parity is deferred; Office/document diff defaults to external-tool handoff; Git integration and server administration are outside the parity roadmap.
 

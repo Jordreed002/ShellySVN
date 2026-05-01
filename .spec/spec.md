@@ -8,10 +8,11 @@ This document is the living specification for ShellySVN. It describes what the p
 
 Related tracking files:
 
-- `issues.md` - known defects and risks
-- `tasks.md` - actionable implementation work
-- `wish-list.md` - future improvements
+- `README.md` - index of the living `.spec` documents
+- `tasks.md` - actionable implementation work and replacement-readiness tracking
+- `production-release-blockers.md` - public release gate
 - `parity-decisions.md` - TortoiseSVN replacement scope and platform decisions
+- `architecture-boundaries.md` - Electron main/preload/renderer/shared ownership boundaries
 
 ---
 
@@ -484,7 +485,7 @@ For the TortoiseSVN replacement milestone, Windows x64, macOS x64, and macOS arm
 A release candidate should not ship until:
 
 - Production build passes from a clean checkout.
-- Critical and high issues in `issues.md` are resolved or explicitly accepted.
+- Critical and high issues from the task list and production release blocker checklist are resolved or explicitly accepted.
 - No credentials are logged or silently stored in plaintext.
 - External URL validation is consistent across all opening paths.
 - Filesystem IPC permissions are scoped and tested.
