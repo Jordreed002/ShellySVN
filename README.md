@@ -62,7 +62,7 @@ ShellySVN is a native desktop application that provides a graphical interface fo
 
 - **Advanced Features**
   - Changelists support
-  - Shelve/Unshelve (SVN 1.10+)
+  - Shelve/Unshelve where supported by the active SVN binary
   - Properties editor
   - Externals manager
   - Patch creation and application

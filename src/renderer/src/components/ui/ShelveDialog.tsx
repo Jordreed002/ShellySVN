@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Archive, Plus, Trash2, Play, Loader2, Clock } from 'lucide-react';
+import { X, Archive, Plus, Trash2, Play, Loader2, Clock, AlertCircle } from 'lucide-react';
 import { confirmAppAction } from '../../utils/dialogs';
 
 interface ShelveDialogProps {
@@ -62,6 +62,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
   if (!isOpen) return null;
 
   const shelves = shelveData?.shelves || [];
+  const unsupportedReason = shelveData?.unsupportedReason;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -84,8 +85,15 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
             <p>
               Shelving allows you to temporarily save your local changes without committing them.
             </p>
-            <p className="mt-1 text-xs text-info/80">Requires SVN 1.10 or later.</p>
+            <p className="mt-1 text-xs text-info/80">Requires SVN shelving command support.</p>
           </div>
+
+          {unsupportedReason && (
+            <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm text-warning flex gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>{unsupportedReason}</span>
+            </div>
+          )}
 
           {/* Create new shelve */}
           {showCreate ? (
@@ -128,7 +136,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
                 </button>
                 <button
                   onClick={handleCreate}
-                  disabled={!shelveName.trim() || createMutation.isPending}
+                  disabled={!shelveName.trim() || createMutation.isPending || !!unsupportedReason}
                   className="btn btn-primary btn-sm"
                 >
                   {createMutation.isPending ? (
@@ -143,6 +151,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
           ) : (
             <button
               onClick={() => setShowCreate(true)}
+              disabled={!!unsupportedReason}
               className="w-full py-2 border-2 border-dashed border-border rounded-lg text-sm text-text-muted hover:border-accent hover:text-accent transition-fast"
             >
               <Plus className="w-4 h-4 inline mr-1" />

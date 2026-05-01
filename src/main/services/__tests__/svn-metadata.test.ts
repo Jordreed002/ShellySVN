@@ -31,6 +31,10 @@ import {
   shelveSave,
 } from '../svn-metadata';
 
+beforeEach(() => {
+  mockState.runSvnText.mockReset();
+});
+
 describe('svn-metadata repository browsing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -195,6 +199,29 @@ describe('svn-metadata shelving', () => {
     ]);
     expect(mockState.runSvnText).toHaveBeenCalledWith(['unshelve', 'work', 'C:\\wc']);
     expect(mockState.runSvnText).toHaveBeenCalledWith(['shelve', '--delete', 'work', 'C:\\wc']);
+  });
+
+  it('returns structured unsupported results when the active SVN binary lacks shelving commands', async () => {
+    mockState.runSvnText.mockRejectedValue(new Error('"shelve": unknown command.'));
+    const unsupportedReason =
+      'SVN shelving is not available from the active SVN binary. Use an SVN client build with shelve/unshelve support to enable this workflow.';
+
+    await expect(shelveList('C:\\wc')).resolves.toEqual({
+      shelves: [],
+      unsupportedReason,
+    });
+    await expect(shelveSave('work', 'C:\\wc', 'WIP changes')).resolves.toEqual({
+      success: false,
+      error: unsupportedReason,
+    });
+    await expect(shelveApply('work', 'C:\\wc')).resolves.toEqual({
+      success: false,
+      error: unsupportedReason,
+    });
+    await expect(shelveDelete('work', 'C:\\wc')).resolves.toEqual({
+      success: false,
+      error: unsupportedReason,
+    });
   });
 });
 

@@ -566,6 +566,7 @@ export interface SvnShelve {
 
 export interface SvnShelveListResult {
   shelves: SvnShelve[];
+  unsupportedReason?: string;
 }
 
 // ============================================

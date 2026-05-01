@@ -14,6 +14,16 @@ import {
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
+const SHELVING_UNSUPPORTED_MESSAGE =
+  'SVN shelving is not available from the active SVN binary. Use an SVN client build with shelve/unshelve support to enable this workflow.';
+
+function getShelvingUnsupportedReason(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /unknown command/i.test(message) && /\b(?:shelve|unshelve)\b/i.test(message)
+    ? SHELVING_UNSUPPORTED_MESSAGE
+    : null;
+}
+
 export async function listRepository(
   url: string,
   revision?: string,
@@ -97,7 +107,12 @@ export async function shelveList(path: string): Promise<SvnShelveListResult> {
   try {
     const output = await runSvnText(['shelve', '--list', '--xml', path]);
     return { shelves: parseSvnShelvesXml(output) };
-  } catch {
+  } catch (error) {
+    const unsupportedReason = getShelvingUnsupportedReason(error);
+    if (unsupportedReason) {
+      return { shelves: [], unsupportedReason };
+    }
+
     return { shelves: [] };
   }
 }
@@ -106,22 +121,43 @@ export async function shelveSave(
   name: string,
   path: string,
   message?: string
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; error?: string }> {
   const args = ['shelve', name];
   if (message) args.push('-m', message);
   args.push(path);
-  await runSvnText(args);
-  return { success: true };
+  try {
+    await runSvnText(args);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: getShelvingUnsupportedReason(error) || (error as Error).message,
+    };
+  }
 }
 
-export async function shelveApply(name: string, path: string): Promise<{ success: boolean }> {
-  await runSvnText(['unshelve', name, path]);
-  return { success: true };
+export async function shelveApply(name: string, path: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await runSvnText(['unshelve', name, path]);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: getShelvingUnsupportedReason(error) || (error as Error).message,
+    };
+  }
 }
 
-export async function shelveDelete(name: string, path: string): Promise<{ success: boolean }> {
-  await runSvnText(['shelve', '--delete', name, path]);
-  return { success: true };
+export async function shelveDelete(name: string, path: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await runSvnText(['shelve', '--delete', name, path]);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: getShelvingUnsupportedReason(error) || (error as Error).message,
+    };
+  }
 }
 
 export async function proplist(path: string): Promise<{ name: string; value: string }[]> {
