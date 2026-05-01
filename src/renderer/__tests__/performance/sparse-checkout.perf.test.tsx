@@ -33,6 +33,11 @@ const NODE_EXPANSION_TARGET_MS = PERFORMANCE_TARGETS.NODE_EXPANSION_MS;
 const SEARCH_FILTER_TARGET_MS = PERFORMANCE_TARGETS.SEARCH_FILTER_MS;
 const SELECTION_UPDATE_TARGET_MS = PERFORMANCE_TARGETS.SELECTION_UPDATE_MS;
 
+const PERF_BUDGET_MULTIPLIER =
+  process.env.npm_lifecycle_event === 'test:coverage' || process.argv.includes('--coverage')
+    ? 3
+    : 1;
+
 // Test data sizes
 const SMALL_REPO_SIZE = 100;
 const MEDIUM_REPO_SIZE = 1000;
@@ -146,6 +151,10 @@ function measureTime<T>(fn: () => T): { result: T; durationMs: number } {
   return { result, durationMs };
 }
 
+function expectWithinPerfBudget(durationMs: number, budgetMs: number): void {
+  expect(durationMs).toBeLessThan(budgetMs * PERF_BUDGET_MULTIPLIER);
+}
+
 const createMockHookState = (roots: LazyTreeNode[]) => ({
   loadNode: vi.fn().mockImplementation(async () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -192,7 +201,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Initial render (${SMALL_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(INITIAL_RENDER_TARGET_MS);
+      expectWithinPerfBudget(durationMs, INITIAL_RENDER_TARGET_MS);
       expect(screen.getByText('Choose Items to Checkout')).toBeInTheDocument();
     });
 
@@ -205,7 +214,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Initial render (${MEDIUM_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(INITIAL_RENDER_TARGET_MS);
+      expectWithinPerfBudget(durationMs, INITIAL_RENDER_TARGET_MS);
     });
 
     it('should render 10,000+ items within performance target', async () => {
@@ -217,7 +226,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Initial render (${LARGE_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(INITIAL_RENDER_TARGET_MS);
+      expectWithinPerfBudget(durationMs, INITIAL_RENDER_TARGET_MS);
       expect(screen.getByText('Choose Items to Checkout')).toBeInTheDocument();
     });
 
@@ -232,7 +241,7 @@ describe('Sparse Checkout Performance Tests', () => {
       console.log(
         `[PERF] Initial render (${VERY_LARGE_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`
       );
-      expect(durationMs).toBeLessThan(INITIAL_RENDER_TARGET_MS * 2); // Allow 2x for very large
+      expectWithinPerfBudget(durationMs, INITIAL_RENDER_TARGET_MS * 2); // Allow 2x for very large
     });
   });
 
@@ -251,7 +260,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Node expansion (${SMALL_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(NODE_EXPANSION_TARGET_MS);
+      expectWithinPerfBudget(durationMs, NODE_EXPANSION_TARGET_MS);
     });
 
     it('should expand a node within performance target (10,000 items)', async () => {
@@ -267,7 +276,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Node expansion (${LARGE_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(NODE_EXPANSION_TARGET_MS);
+      expectWithinPerfBudget(durationMs, NODE_EXPANSION_TARGET_MS);
     });
   });
 
@@ -285,7 +294,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Search filter (${MEDIUM_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(SEARCH_FILTER_TARGET_MS);
+      expectWithinPerfBudget(durationMs, SEARCH_FILTER_TARGET_MS);
     });
 
     it('should filter 10,000 items within performance target', async () => {
@@ -301,7 +310,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Search filter (${LARGE_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(SEARCH_FILTER_TARGET_MS);
+      expectWithinPerfBudget(durationMs, SEARCH_FILTER_TARGET_MS);
     });
   });
 
@@ -319,7 +328,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Select all (${MEDIUM_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(SELECTION_UPDATE_TARGET_MS);
+      expectWithinPerfBudget(durationMs, SELECTION_UPDATE_TARGET_MS);
     });
 
     it('should select all items within performance target (10,000 items)', async () => {
@@ -335,7 +344,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Select all (${LARGE_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(SELECTION_UPDATE_TARGET_MS * 2); // Allow 2x for large
+      expectWithinPerfBudget(durationMs, SELECTION_UPDATE_TARGET_MS * 2); // Allow 2x for large
       expect(screen.getByText(/items selected/)).toBeInTheDocument();
     });
 
@@ -356,7 +365,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Deselect all (${LARGE_REPO_SIZE} items): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(SELECTION_UPDATE_TARGET_MS);
+      expectWithinPerfBudget(durationMs, SELECTION_UPDATE_TARGET_MS);
     });
   });
 
@@ -480,7 +489,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] Rapid state changes (9 keystrokes): ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(1000); // Should handle rapid changes within 1 second total
+      expectWithinPerfBudget(durationMs, 1000); // Should handle rapid changes within 1 second total
     });
 
     it('should handle rapid selection changes', async () => {
@@ -498,7 +507,7 @@ describe('Sparse Checkout Performance Tests', () => {
       });
 
       console.log(`[PERF] 20 rapid selection toggles: ${durationMs.toFixed(2)}ms`);
-      expect(durationMs).toBeLessThan(2000); // Should handle within 2 seconds
+      expectWithinPerfBudget(durationMs, 2000); // Should handle within 2 seconds
     });
   });
 

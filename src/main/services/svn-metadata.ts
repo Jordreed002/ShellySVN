@@ -249,7 +249,13 @@ export async function externalsUpdate(
   externalPath?: string
 ): Promise<{ success: boolean }> {
   try {
-    await runSvnText(['update', externalPath ? join(workingCopyPath, externalPath) : workingCopyPath]);
+    const targetPath =
+      externalPath && workingCopyPath.includes('\\')
+        ? `${workingCopyPath.replace(/[\\/]+$/, '')}\\${externalPath.replaceAll('/', '\\')}`
+        : externalPath
+          ? join(workingCopyPath, externalPath)
+          : workingCopyPath;
+    await runSvnText(['update', targetPath]);
     return { success: true };
   } catch (error) {
     debug.error('[SVN] Externals update error:', error);

@@ -16,6 +16,11 @@ const PERFORMANCE_TARGETS = {
   REPEATED_REFRESH_MS: 6000,
 };
 
+const PERF_BUDGET_MULTIPLIER =
+  process.env.npm_lifecycle_event === 'test:coverage' || process.argv.includes('--coverage')
+    ? 3
+    : 1;
+
 const STATUS_ITEMS = [
   'normal',
   'modified',
@@ -34,6 +39,10 @@ function measureTime<T>(fn: () => T): { result: T; durationMs: number } {
     result,
     durationMs: performance.now() - startedAt,
   };
+}
+
+function expectWithinPerfBudget(durationMs: number, budgetMs: number): void {
+  expect(durationMs).toBeLessThan(budgetMs * PERF_BUDGET_MULTIPLIER);
 }
 
 function statusEntryXml(index: number, includeRemoteStatus = false): string {
@@ -73,7 +82,7 @@ describe('Working copy status performance benchmarks', () => {
     expect(result.entries).toHaveLength(LARGE_WORKING_COPY_ENTRY_COUNT);
     expect(result.entries.some((entry) => entry.status === 'M')).toBe(true);
     expect(result.entries.some((entry) => entry.lock)).toBe(true);
-    expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.STATUS_XML_PARSE_MS);
+    expectWithinPerfBudget(durationMs, PERFORMANCE_TARGETS.STATUS_XML_PARSE_MS);
   });
 
   it('parses remote status metadata for a large working copy within budget', () => {
@@ -87,7 +96,7 @@ describe('Working copy status performance benchmarks', () => {
     expect(result.parseError).toBeUndefined();
     expect(result.remoteChecked).toBe(true);
     expect(result.entries.filter((entry) => entry.remoteStatus).length).toBeGreaterThan(0);
-    expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.REMOTE_STATUS_XML_PARSE_MS);
+    expectWithinPerfBudget(durationMs, PERFORMANCE_TARGETS.REMOTE_STATUS_XML_PARSE_MS);
   });
 
   it('filters and sorts parsed large status results within budget', () => {
@@ -109,7 +118,7 @@ describe('Working copy status performance benchmarks', () => {
     );
     expect(result.length).toBeGreaterThan(0);
     expect(result.every((entry) => entry.path.includes('module-4'))).toBe(true);
-    expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.FILTER_AND_SORT_MS);
+    expectWithinPerfBudget(durationMs, PERFORMANCE_TARGETS.FILTER_AND_SORT_MS);
   });
 
   it('keeps repeated large status refresh parsing within budget', () => {
@@ -121,6 +130,6 @@ describe('Working copy status performance benchmarks', () => {
 
     console.log(`[PERF] Repeated large status refresh parse: ${durationMs.toFixed(2)}ms`);
     expect(result.every((status) => status.entries.length === 10000)).toBe(true);
-    expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.REPEATED_REFRESH_MS);
+    expectWithinPerfBudget(durationMs, PERFORMANCE_TARGETS.REPEATED_REFRESH_MS);
   });
 });

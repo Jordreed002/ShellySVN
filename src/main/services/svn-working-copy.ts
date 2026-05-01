@@ -74,6 +74,32 @@ function parseSvnProgressLine(line: string): { action: string | null; path: stri
   return { action: match[1].trim() || ' ', path: match[2].trim() };
 }
 
+function isWindowsAbsolutePath(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(path);
+}
+
+function getWorkingCopyRelativePath(workingCopyRoot: string, localPath: string): string {
+  if (isWindowsAbsolutePath(workingCopyRoot) && isWindowsAbsolutePath(localPath)) {
+    const normalizedRoot = workingCopyRoot.replaceAll('/', '\\').replace(/\\+$/, '');
+    const normalizedPath = localPath.replaceAll('/', '\\');
+    const rootPrefix = `${normalizedRoot}\\`;
+
+    if (normalizedPath.toLowerCase().startsWith(rootPrefix.toLowerCase())) {
+      return normalizedPath.slice(rootPrefix.length);
+    }
+  }
+
+  return relative(workingCopyRoot, localPath);
+}
+
+function resolveWorkingCopyPath(workingCopyRoot: string, relativePath: string): string {
+  if (isWindowsAbsolutePath(workingCopyRoot)) {
+    return `${workingCopyRoot.replace(/[\\/]+$/, '')}\\${relativePath.replaceAll('/', '\\')}`;
+  }
+
+  return join(workingCopyRoot, relativePath);
+}
+
 export async function getWorkingCopyContext(
   localPath: string
 ): Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null> {
@@ -375,7 +401,7 @@ export async function updateToRevision(
   setDepthSticky: boolean = false
 ): Promise<{ success: boolean; revision: number; error?: string }> {
   try {
-    const relativePath = relative(workingCopyRoot, localPath);
+    const relativePath = getWorkingCopyRelativePath(workingCopyRoot, localPath);
 
     debug.log('[updateToRevision] workingCopyRoot:', workingCopyRoot);
     debug.log('[updateToRevision] repoUrl:', repoUrl);
@@ -397,7 +423,7 @@ export async function updateToRevision(
 
     for (let i = 0; i < pathParts.length - 1; i++) {
       const partialPath = pathParts.slice(0, i + 1).join('/');
-      const fullPath = join(workingCopyRoot, partialPath);
+      const fullPath = resolveWorkingCopyPath(workingCopyRoot, partialPath);
 
       const parentArgs = ['update', '--set-depth', 'immediates', partialPath];
       if (!existsSync(fullPath)) {
@@ -423,7 +449,7 @@ export async function updateToRevision(
       }
     }
 
-    const targetFullPath = join(workingCopyRoot, relativePath);
+    const targetFullPath = resolveWorkingCopyPath(workingCopyRoot, relativePath);
     if (!existsSync(targetFullPath)) {
       debug.log('[updateToRevision] Target does not exist, fetching with --depth empty first:', relativePath);
       try {

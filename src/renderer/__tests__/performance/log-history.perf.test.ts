@@ -17,6 +17,11 @@ const PERFORMANCE_TARGETS = {
   PAGE_WINDOWING_MS: 150,
 };
 
+const PERF_BUDGET_MULTIPLIER =
+  process.env.npm_lifecycle_event === 'test:coverage' || process.argv.includes('--coverage')
+    ? 3
+    : 1;
+
 const ISSUE_TRACKER_CONFIG = {
   enabled: true,
   issueIdPattern: '[A-Z]+-\\d+',
@@ -30,6 +35,10 @@ function measureTime<T>(fn: () => T): { result: T; durationMs: number } {
     result,
     durationMs: performance.now() - startedAt,
   };
+}
+
+function expectWithinPerfBudget(durationMs: number, budgetMs: number): void {
+  expect(durationMs).toBeLessThan(budgetMs * PERF_BUDGET_MULTIPLIER);
 }
 
 function generateLogEntryXml(index: number): string {
@@ -65,7 +74,7 @@ describe('Large log history performance benchmarks', () => {
     expect(result.startRevision).toBe(200000 - LARGE_LOG_ENTRY_COUNT + 1);
     expect(result.endRevision).toBe(200000);
     expect(result.entries[0].paths).toHaveLength(3);
-    expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.LOG_XML_PARSE_MS);
+    expectWithinPerfBudget(durationMs, PERFORMANCE_TARGETS.LOG_XML_PARSE_MS);
   });
 
   it('filters a large log history with author, message, path, revision, date, and issue filters', () => {
@@ -98,7 +107,7 @@ describe('Large log history performance benchmarks', () => {
           entry.paths.some((path) => path.path.toLowerCase().includes('/trunk/src'))
       )
     ).toBe(true);
-    expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.MULTI_FIELD_FILTER_MS);
+    expectWithinPerfBudget(durationMs, PERFORMANCE_TARGETS.MULTI_FIELD_FILTER_MS);
   });
 
   it('keeps repeated pagination over a large filtered history within budget', () => {
@@ -120,6 +129,6 @@ describe('Large log history performance benchmarks', () => {
     expect(result).toHaveLength(totalPages);
     expect(result[0]).toHaveLength(LOG_PAGE_SIZE);
     expect(result.at(-1)?.length).toBeGreaterThan(0);
-    expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.PAGE_WINDOWING_MS);
+    expectWithinPerfBudget(durationMs, PERFORMANCE_TARGETS.PAGE_WINDOWING_MS);
   });
 });

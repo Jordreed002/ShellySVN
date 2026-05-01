@@ -30,7 +30,19 @@ vi.mock('../../utils/debug', () => ({
 
 import { getInfo, getStatus, getWorkingCopyContext } from '../svn-working-copy';
 
-describe('svn-working-copy real SVN integration', () => {
+function hasSvnToolchain(): boolean {
+  try {
+    execFileSync('svn', ['--version', '--quiet'], { stdio: 'pipe' });
+    execFileSync('svnadmin', ['--version', '--quiet'], { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const describeIfSvn = hasSvnToolchain() ? describe : describe.skip;
+
+describeIfSvn('svn-working-copy real SVN integration', () => {
   let tempRoot = '';
   let repoPath = '';
   let workingCopyPath = '';

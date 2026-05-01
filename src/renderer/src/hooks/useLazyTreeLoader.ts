@@ -81,18 +81,6 @@ function updateNodeInTree(
   return changed ? updatedNodes : nodes;
 }
 
-function getRootNodes(tree: LazyTreeNode[]): LazyTreeNode[] {
-  return tree.filter((node) => {
-    const parentPath = node.path.includes('/')
-      ? node.path.substring(0, node.path.lastIndexOf('/'))
-      : node.path.includes('\\')
-        ? node.path.substring(0, node.path.lastIndexOf('\\'))
-        : '';
-
-    return !tree.some((other) => other.path === parentPath);
-  });
-}
-
 export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential) {
   const queryClient = useQueryClient();
 
@@ -244,7 +232,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
     };
 
     addNodesToMap(rootData.nodes);
-    treeState.roots = getRootNodes(rootData.nodes);
+    treeState.roots = rootData.nodes;
   }
 
   /**

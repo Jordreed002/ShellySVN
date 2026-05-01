@@ -10,6 +10,11 @@ import {
   sortEntries,
 } from '../fileListTransforms';
 
+const PERF_BUDGET_MULTIPLIER =
+  process.env.npm_lifecycle_event === 'test:coverage' || process.argv.includes('--coverage')
+    ? 3
+    : 1;
+
 function entry(
   path: string,
   overrides: Partial<SvnStatusEntry> = {}
@@ -94,6 +99,6 @@ describe('fileListTransforms', () => {
 
     expect(result.length).toBeGreaterThan(0);
     expect(result.every((item) => item.path.toLowerCase().includes('match'))).toBe(true);
-    expect(durationMs).toBeLessThan(300);
+    expect(durationMs).toBeLessThan(300 * PERF_BUDGET_MULTIPLIER);
   });
 });

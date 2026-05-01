@@ -10,6 +10,9 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn(() => ({ data: null, isLoading: false, refetch: vi.fn() })),
+  useQueryClient: vi.fn(() => ({
+    invalidateQueries: vi.fn(),
+  })),
 }));
 
 vi.mock('@renderer/components/ui/CheckoutDialog', () => ({

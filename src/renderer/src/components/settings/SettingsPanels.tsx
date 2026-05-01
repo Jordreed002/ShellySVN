@@ -565,6 +565,32 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
     }
   };
 
+  const updateToolOverride = (
+    index: number,
+    key: 'extension' | 'diffTool' | 'mergeTool',
+    value: string
+  ) => {
+    const next = toolOverrides.map((override, overrideIndex) =>
+      overrideIndex === index ? { ...override, [key]: value } : override
+    );
+    onChangeNested('diffMerge', 'externalToolOverrides', next);
+  };
+
+  const addToolOverride = () => {
+    onChangeNested('diffMerge', 'externalToolOverrides', [
+      ...toolOverrides,
+      { extension: '', diffTool: '', mergeTool: '' },
+    ]);
+  };
+
+  const removeToolOverride = (index: number) => {
+    onChangeNested(
+      'diffMerge',
+      'externalToolOverrides',
+      toolOverrides.filter((_, overrideIndex) => overrideIndex !== index)
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* External Diff Tool */}
@@ -1446,32 +1472,6 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
     } catch {
       setCredentials([]);
     }
-  };
-
-  const updateToolOverride = (
-    index: number,
-    key: 'extension' | 'diffTool' | 'mergeTool',
-    value: string
-  ) => {
-    const next = toolOverrides.map((override, overrideIndex) =>
-      overrideIndex === index ? { ...override, [key]: value } : override
-    );
-    onChangeNested('diffMerge', 'externalToolOverrides', next);
-  };
-
-  const addToolOverride = () => {
-    onChangeNested('diffMerge', 'externalToolOverrides', [
-      ...toolOverrides,
-      { extension: '', diffTool: '', mergeTool: '' },
-    ]);
-  };
-
-  const removeToolOverride = (index: number) => {
-    onChangeNested(
-      'diffMerge',
-      'externalToolOverrides',
-      toolOverrides.filter((_, overrideIndex) => overrideIndex !== index)
-    );
   };
 
   const handleClearAll = async () => {
