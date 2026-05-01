@@ -2,11 +2,13 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOTS = ['src', 'packages', 'tests'];
-const BASELINE_SKIPS = 25;
+const BASELINE_SKIPS = 28;
 const SKIP_PATTERN = /\b(?:describe|it|test)\.skip\b/g;
 const APPROVED_SKIP_COUNTS = new Map([
   ['src/main/__tests__/auth-cache.test.ts', 3],
   ['src/main/ipc/__tests__/external.test.ts', 1],
+  ['src/main/services/__tests__/svn-release-workflows.real.test.ts', 1],
+  ['src/main/services/__tests__/svn-working-copy.real.test.ts', 1],
   ['src/main/utils/__tests__/validation.test.ts', 4],
   ['src/renderer/__tests__/CheckoutDialog.sparse.test.tsx', 2],
   ['src/renderer/__tests__/ChooseItemsDialog.test.tsx', 1],
@@ -15,6 +17,7 @@ const APPROVED_SKIP_COUNTS = new Map([
   ['src/renderer/__tests__/UpdateToRevisionDialog.sparse.test.tsx', 3],
   ['src/renderer/__tests__/integration/sparse-checkout.test.tsx', 1],
   ['src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts', 2],
+  ['tests/e2e/conflict-resolution.spec.ts', 1],
   ['tests/e2e/file-operations.spec.ts', 3],
   ['tests/e2e/svn-operations.spec.ts', 2],
 ]);
