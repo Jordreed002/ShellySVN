@@ -59,7 +59,7 @@ jobs:
     steps:
       - name: Cache SVN binaries
         id: cache-svn
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
           key: svn-${{ matrix.platform }}-${{ matrix.arch }}-${{ env.SVN_VERSION }}
@@ -110,7 +110,7 @@ jobs:
           binaries/linux-x64/svn/svn --version || true
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact-name }}
           path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
@@ -154,7 +154,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Generate cache key from source
         id: cache-key
@@ -164,7 +164,7 @@ jobs:
 
       - name: Cache Logic Engine binary
         id: cache-engine
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
           key: ${{ steps.cache-key.outputs.key }}
@@ -197,7 +197,7 @@ jobs:
           mv packages/logic-engine/dist/shelly-engine${{ matrix.ext }} binaries/${{ matrix.platform }}-${{ matrix.arch }}/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact-name }}
           path: binaries/${{ matrix.platform }}-${{ matrix.arch }}/shelly-engine${{ matrix.ext }}
@@ -229,7 +229,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -239,7 +239,7 @@ jobs:
           bun-version: '1.2.0'
 
       - name: Cache bun dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.bun/install/cache
@@ -252,13 +252,13 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download SVN binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: svn-darwin-${{ matrix.arch }}
           path: binaries/darwin-${{ matrix.arch }}
 
       - name: Download Logic Engine
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: shelly-engine-darwin-${{ matrix.arch }}
           path: binaries/darwin-${{ matrix.arch }}
@@ -272,7 +272,7 @@ jobs:
         run: bun run verify:binaries darwin-${{ matrix.arch }}
 
       - name: Cache Electron build output
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             out
@@ -358,7 +358,7 @@ jobs:
           "$app_path/Contents/MacOS/ShellySVN" --smoke-test
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ShellySVN-macOS-${{ matrix.arch }}
           path: |
@@ -381,7 +381,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -391,7 +391,7 @@ jobs:
           bun-version: '1.2.0'
 
       - name: Cache bun dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.bun/install/cache
@@ -404,13 +404,13 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download SVN binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: svn-win32-x64
           path: binaries/win32-x64
 
       - name: Download Logic Engine
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: shelly-engine-win32-x64
           path: binaries/win32-x64
@@ -419,7 +419,7 @@ jobs:
         run: bun run verify:binaries win32-x64
 
       - name: Cache Electron build output
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             out
@@ -499,7 +499,7 @@ jobs:
           }
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ShellySVN-Windows-x64
           path: |
@@ -519,7 +519,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -529,7 +529,7 @@ jobs:
           bun-version: '1.2.0'
 
       - name: Cache bun dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.bun/install/cache
@@ -542,13 +542,13 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Download SVN binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: svn-linux-x64
           path: binaries/linux-x64
 
       - name: Download Logic Engine
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: shelly-engine-linux-x64
           path: binaries/linux-x64
@@ -562,7 +562,7 @@ jobs:
         run: bun run verify:binaries linux-x64
 
       - name: Cache Electron build output
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             out
@@ -590,7 +590,7 @@ jobs:
           xvfb-run -a "$app_path" --smoke-test --no-sandbox
 
       - name: Upload artifact (AppImage)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ShellySVN-Linux-x64-AppImage
           path: release/**/*.AppImage
@@ -598,7 +598,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload artifact (deb)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ShellySVN-Linux-x64-deb
           path: release/**/*.deb
@@ -606,7 +606,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload artifact (tar.gz)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ShellySVN-Linux-x64-tarball
           path: release/**/*.tar.gz
@@ -627,10 +627,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
 
