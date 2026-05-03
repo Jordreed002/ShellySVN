@@ -23,13 +23,10 @@ export function wait(ms: number): Promise<void> {
 /**
  * Create a mock function that resolves after a delay
  */
-export function createDelayedMock<T>(
-  value: T,
-  delayMs: number = 100
-): ReturnType<typeof vi.fn> {
-  return vi.fn().mockImplementation(
-    () => new Promise((resolve) => setTimeout(() => resolve(value), delayMs))
-  );
+export function createDelayedMock<T>(value: T, delayMs: number = 100): ReturnType<typeof vi.fn> {
+  return vi
+    .fn()
+    .mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(value), delayMs)));
 }
 
 /**
@@ -40,9 +37,9 @@ export function createDelayedErrorMock(
   delayMs: number = 100
 ): ReturnType<typeof vi.fn> {
   const err = typeof error === 'string' ? new Error(error) : error;
-  return vi.fn().mockImplementation(
-    () => new Promise((_, reject) => setTimeout(() => reject(err), delayMs))
-  );
+  return vi
+    .fn()
+    .mockImplementation(() => new Promise((_, reject) => setTimeout(() => reject(err), delayMs)));
 }
 
 /**
@@ -92,13 +89,15 @@ export function createMockEventEmitter<T extends Record<string, any[]>>() {
 /**
  * Helper to create mock file system entries
  */
-export function createMockFileEntry(overrides: Partial<{
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  size: number;
-  modifiedTime: string;
-}> = {}) {
+export function createMockFileEntry(
+  overrides: Partial<{
+    name: string;
+    path: string;
+    isDirectory: boolean;
+    size: number;
+    modifiedTime: string;
+  }> = {}
+) {
   return {
     name: 'test.txt',
     path: '/test/test.txt',
@@ -112,10 +111,12 @@ export function createMockFileEntry(overrides: Partial<{
 /**
  * Helper to create mock directory entries
  */
-export function createMockDirectoryEntry(overrides: Partial<{
-  name: string;
-  path: string;
-}> = {}) {
+export function createMockDirectoryEntry(
+  overrides: Partial<{
+    name: string;
+    path: string;
+  }> = {}
+) {
   return createMockFileEntry({
     name: 'testdir',
     path: '/test/testdir',
@@ -223,8 +224,9 @@ export type ResolvedType<T> = T extends Promise<infer U> ? U : T;
 /**
  * Type helper for mock functions
  */
-export type MockFn<T extends (...args: any[]) => any = (...args: any[]) => any> =
-  ReturnType<typeof vi.fn<T>>;
+export type MockFn<T extends (...args: any[]) => any = (...args: any[]) => any> = ReturnType<
+  typeof vi.fn<T>
+>;
 
 /**
  * Set up global window.api mock
@@ -247,9 +249,7 @@ function createMockElectronAPI() {
       statusRemote: vi
         .fn()
         .mockResolvedValue({ path: '/test/repo', entries: [], revision: 1, remoteChecked: true }),
-      workingCopyUpgradeStatus: vi
-        .fn()
-        .mockResolvedValue({ path: '/test/repo', required: false }),
+      workingCopyUpgradeStatus: vi.fn().mockResolvedValue({ path: '/test/repo', required: false }),
       upgradeWorkingCopy: vi.fn().mockResolvedValue({ success: true, output: '' }),
       log: vi.fn().mockResolvedValue({ entries: [], startRevision: 0, endRevision: 0 }),
       info: vi.fn().mockResolvedValue({
@@ -322,7 +322,9 @@ function createMockElectronAPI() {
       list: vi.fn().mockResolvedValue({ path: '', entries: [] }),
       patch: {
         create: vi.fn().mockResolvedValue({ success: true, output: '' }),
-        apply: vi.fn().mockResolvedValue({ success: true, filesPatched: 0, rejects: 0, output: '' }),
+        apply: vi
+          .fn()
+          .mockResolvedValue({ success: true, filesPatched: 0, rejects: 0, output: '' }),
       },
       externals: {
         list: vi.fn().mockResolvedValue([]),
@@ -365,6 +367,14 @@ function createMockElectronAPI() {
       listDirectory: vi.fn().mockResolvedValue([]),
       listDrives: vi.fn().mockResolvedValue([]),
       getParent: vi.fn().mockResolvedValue(null),
+      getDirectoryMetadata: vi.fn().mockResolvedValue({
+        parentPath: null,
+        isVersioned: true,
+        statusData: { directStatus: {}, allEntries: [] },
+        svnInfo: null,
+        workingCopyUpgradeStatus: { path: '', required: false },
+        workingCopyContext: null,
+      }),
       getStatus: vi.fn().mockResolvedValue({ directStatus: {}, allEntries: [] }),
       getDeepStatus: vi.fn().mockResolvedValue({ directStatus: {}, allEntries: [] }),
       applyStatus: vi.fn().mockResolvedValue([]),

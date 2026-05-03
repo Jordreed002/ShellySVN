@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import type { SvnStatusEntry } from '@shared/types';
 
 export const FOLDER_SIZE_BATCH_SIZE = 50;
-export const MAX_FOLDER_SIZE_PATHS = 500;
+export const MAX_FOLDER_SIZE_PATHS = 150;
 
 export function chunkFolderPaths(
   folderPaths: string[],

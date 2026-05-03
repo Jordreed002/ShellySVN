@@ -11,13 +11,7 @@ import {
   Suspense,
   useDeferredValue,
 } from 'react';
-import {
-  FolderX,
-  AlertCircle,
-  Loader,
-  ArrowUp,
-  Globe,
-} from 'lucide-react';
+import { FolderX, AlertCircle, Loader, ArrowUp, Globe } from 'lucide-react';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { RouteState } from './ui/RouteState';
@@ -26,7 +20,6 @@ import { FileRow, FileListHeader } from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
 import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialogs';
 import { useDualPane } from './ui/DualPaneView';
-import { FilePreview } from './ui/FilePreview';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
 import { useFolderSizes } from '../hooks/useFolderSizes';
@@ -52,6 +45,9 @@ const loadCommitDialog = () =>
   import('./ui/CommitDialog').then((m) => ({ default: m.CommitDialog }));
 const CommitDialog = lazy(loadCommitDialog);
 const DiffViewer = lazy(() => import('./ui/DiffViewer').then((m) => ({ default: m.DiffViewer })));
+const FilePreview = lazy(() =>
+  import('./ui/FilePreview').then((m) => ({ default: m.FilePreview }))
+);
 const LogViewer = lazy(() => import('./ui/LogViewer').then((m) => ({ default: m.LogViewer })));
 const SettingsDialog = lazy(() =>
   import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }))
@@ -197,7 +193,7 @@ export function FileExplorer() {
   const [changelistPath, setChangelistPath] = useState<string | null>(null);
   const [createPatchPath, setCreatePatchPath] = useState<string | null>(null);
   const [applyPatchPath, setApplyPatchPath] = useState<string | null>(null);
-  const [ignoreEntry, setIgnoreEntry] = useState<{path: string; fileName?: string} | null>(null);
+  const [ignoreEntry, setIgnoreEntry] = useState<{ path: string; fileName?: string } | null>(null);
   const [shelveDialogPath, setShelveDialogPath] = useState<string | null>(null);
   const [lockManagementPath, setLockManagementPath] = useState<string | null>(null);
   const [exportPath, setExportPath] = useState<string | null>(null);
@@ -252,60 +248,30 @@ export function FileExplorer() {
     gcTime: FILE_CACHE_TIME,
   });
 
-  // Check if current directory is versioned (for SVN features)
-  const { data: isVersioned } = useQuery({
-    queryKey: ['fs:isVersioned', path],
-    queryFn: () => window.api.fs.isVersioned(path),
-    enabled: !!path && path !== 'DRIVES://',
-    staleTime: FILE_CACHE_TIME,
-  });
-
-  // Get parent path for up navigation
-  const { data: parentPath } = useQuery({
-    queryKey: ['fs:getParent', path],
-    queryFn: () => window.api.fs.getParent(path),
-    enabled: !!path,
-    staleTime: Infinity,
-  });
-
-  // Phase 2: Get shallow SVN status (cached for 30 sec) - only if versioned
-  const { data: statusData, isFetching: isLoadingStatus } = useQuery({
-    queryKey: ['fs:getStatus', path],
-    queryFn: () => window.api.fs.getStatus(path),
-    enabled: !!path && path !== 'DRIVES://' && isVersioned === true && !!rawFiles,
+  // Phase 2: Fetch directory metadata in one IPC call after files are available.
+  const { data: directoryMetadata, isFetching: isLoadingStatus } = useQuery({
+    queryKey: ['fs:getDirectoryMetadata', path, Boolean(rawFiles?.length)],
+    queryFn: () => window.api.fs.getDirectoryMetadata(path, Boolean(rawFiles?.length)),
+    enabled: !!path && path !== 'DRIVES://' && !!rawFiles,
     staleTime: STATUS_STALE_TIME,
+    retry: false,
   });
+
+  const isVersioned = path === 'DRIVES://' ? false : directoryMetadata?.isVersioned;
+  const parentPath = path === 'DRIVES://' ? null : directoryMetadata?.parentPath;
+  const statusData = directoryMetadata?.statusData;
+  const svnInfo = directoryMetadata?.svnInfo;
+  const workingCopyUpgradeStatus = directoryMetadata?.workingCopyUpgradeStatus;
+  const workingCopyContext = directoryMetadata?.workingCopyContext;
 
   // Phase 3: Get deep status for folder aggregation (cached for 2 min, background) - only if versioned
   const { data: deepStatusData, isFetching: isLoadingDeep } = useQuery({
     queryKey: ['fs:getDeepStatus', path],
     queryFn: () => window.api.fs.getDeepStatus(path),
-    enabled: !!path && path !== 'DRIVES://' && isVersioned === true && !!rawFiles,
+    enabled:
+      !!path && path !== 'DRIVES://' && directoryMetadata?.isVersioned === true && !!rawFiles,
     staleTime: DEEP_STATUS_STALE_TIME,
     refetchOnWindowFocus: false,
-  });
-
-  // Phase 4: Get SVN info for remote file detection (sparse checkout support)
-  const { data: svnInfo } = useQuery({
-    queryKey: ['svn:info', path],
-    queryFn: () => window.api.svn.info(path),
-    enabled: !!path && path !== 'DRIVES://' && isVersioned === true,
-    staleTime: FILE_CACHE_TIME,
-  });
-
-  const { data: workingCopyUpgradeStatus } = useQuery({
-    queryKey: ['svn:workingCopyUpgradeStatus', path],
-    queryFn: () => window.api.svn.workingCopyUpgradeStatus(path),
-    enabled: !!path && path !== 'DRIVES://' && isVersioned === true,
-    staleTime: FILE_CACHE_TIME,
-    retry: false,
-  });
-
-  const { data: workingCopyContext } = useQuery({
-    queryKey: ['svn:getWorkingCopyContext', path],
-    queryFn: () => window.api.svn.getWorkingCopyContext(path),
-    enabled: !!path && path !== 'DRIVES://' && (isVersioned === false || rawFiles?.length === 0),
-    staleTime: FILE_CACHE_TIME,
   });
 
   const effectiveRepoRoot = svnInfo?.repositoryRoot || workingCopyContext?.repositoryRoot;
@@ -332,6 +298,7 @@ export function FileExplorer() {
         });
         queryClient.invalidateQueries({ queryKey: ['svn:workingCopyUpgradeStatus', path] });
         queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
         queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
         queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
         queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
@@ -620,125 +587,160 @@ export function FileExplorer() {
     selectedEntry,
     () => {
       queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+      queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
       queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
       queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
     },
     selectedPaths
   );
+  const operationContextRef = useRef({ actions, path, queryClient, selectedEntry });
+
+  useEffect(() => {
+    operationContextRef.current = { actions, path, queryClient, selectedEntry };
+  }, [actions, path, queryClient, selectedEntry]);
 
   // Event listeners for SVN operations from CommandPalette
   useEffect(() => {
+    const getContext = () => operationContextRef.current;
+
     const handleBranchTag = () => {
-      if (path) {
-        setBranchTagPath(path);
+      const context = getContext();
+      if (context.path) {
+        setBranchTagPath(context.path);
         setBranchTagMode('branch');
       }
     };
     const handleTag = () => {
-      if (path) {
-        setBranchTagPath(path);
+      const context = getContext();
+      if (context.path) {
+        setBranchTagPath(context.path);
         setBranchTagMode('tag');
       }
     };
     const handleBranchTagCompare = () => {
-      if (path) setBranchTagCompareOpen(true);
+      const context = getContext();
+      if (context.path) setBranchTagCompareOpen(true);
     };
     const handleSwitch = () => {
-      if (path) setSwitchPath(path);
+      const context = getContext();
+      if (context.path) setSwitchPath(context.path);
     };
     const handleMerge = () => {
-      if (path) setMergePath(path);
+      const context = getContext();
+      if (context.path) setMergePath(context.path);
     };
     const handleRelocate = () => {
-      if (path) setRelocatePath(path);
+      const context = getContext();
+      if (context.path) setRelocatePath(context.path);
     };
     const handleBlame = () => {
-      if (selectedEntry && !selectedEntry.isDirectory) setBlamePath(selectedEntry.path);
+      const context = getContext();
+      if (context.selectedEntry && !context.selectedEntry.isDirectory) {
+        setBlamePath(context.selectedEntry.path);
+      }
     };
     const handleProperties = () => {
-      if (selectedEntry) setPropertiesPath(selectedEntry.path);
+      const context = getContext();
+      if (context.selectedEntry) setPropertiesPath(context.selectedEntry.path);
     };
     const handleChangelist = () => {
-      if (selectedEntry) setChangelistPath(selectedEntry.path);
+      const context = getContext();
+      if (context.selectedEntry) setChangelistPath(context.selectedEntry.path);
     };
     const handleShelve = () => {
-      if (path) setShelveDialogPath(path);
+      const context = getContext();
+      if (context.path) setShelveDialogPath(context.path);
     };
     const handleUnshelve = () => {
-      if (path) setShelveDialogPath(path);
+      const context = getContext();
+      if (context.path) setShelveDialogPath(context.path);
     };
     const handleImport = () => {
       setIsImportDialogOpen(true);
     };
     const handleExport = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
         setExportPath(targetPath);
       }
     };
     const handleRepoBrowser = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
         setRepoBrowserUrl(targetPath);
       }
     };
     const handleRevisionGraph = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
         setRevisionGraphPath(targetPath);
       }
     };
     const handleLock = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
         setLockManagementPath(targetPath);
       }
     };
     const handleUnlock = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
         setLockManagementPath(targetPath);
       }
     };
     const handleCreatePatch = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
         setCreatePatchPath(targetPath);
       }
     };
     const handleApplyPatch = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
         setApplyPatchPath(targetPath);
       }
     };
     const handleRevert = () => {
-      void actions.handleRevertSelected();
+      const context = getContext();
+      void context.actions.handleRevertSelected();
     };
     const handleAdd = () => {
-      void actions.handleAddSelected();
+      const context = getContext();
+      void context.actions.handleAddSelected();
     };
     const handleDelete = () => {
-      void actions.handleDeleteSelected();
+      const context = getContext();
+      void context.actions.handleDeleteSelected();
     };
     const handleCleanup = () => {
-      const targetPath = selectedEntry?.path || path;
+      const context = getContext();
+      const targetPath = context.selectedEntry?.path || context.path;
       if (targetPath) {
-        void actions.cleanup(targetPath);
+        void context.actions.cleanup(targetPath);
       }
     };
     const handleResolve = () => {
-      if (selectedEntry?.status === 'C') {
-        setResolveEntry(selectedEntry);
+      const context = getContext();
+      if (context.selectedEntry?.status === 'C') {
+        setResolveEntry(context.selectedEntry);
       }
     };
     const handleMove = () => {
-      if (selectedEntry) {
-        setMoveRenameTarget({ path: selectedEntry.path, mode: 'move' });
+      const context = getContext();
+      if (context.selectedEntry) {
+        setMoveRenameTarget({ path: context.selectedEntry.path, mode: 'move' });
       }
     };
     const handleCopy = async () => {
-      if (!selectedEntry) return;
+      const context = getContext();
+      if (!context.selectedEntry) return;
       const destination = await promptAppInput({
         title: 'Copy item',
         message: 'Destination path:',
@@ -746,19 +748,23 @@ export function FileExplorer() {
       });
       if (!destination) return;
       const result = await window.api.svn.copy(
-        selectedEntry.path,
+        context.selectedEntry.path,
         destination,
-        `Copy ${selectedEntry.path}`
+        `Copy ${context.selectedEntry.path}`
       );
       if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+        context.queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', context.path] });
+        context.queryClient.invalidateQueries({
+          queryKey: ['fs:getDirectoryMetadata', context.path],
+        });
+        context.queryClient.invalidateQueries({ queryKey: ['fs:getStatus', context.path] });
+        context.queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', context.path] });
       }
     };
     const handleRename = () => {
-      if (selectedEntry) {
-        setMoveRenameTarget({ path: selectedEntry.path, mode: 'rename' });
+      const context = getContext();
+      if (context.selectedEntry) {
+        setMoveRenameTarget({ path: context.selectedEntry.path, mode: 'rename' });
       }
     };
 
@@ -819,13 +825,14 @@ export function FileExplorer() {
       window.removeEventListener(SVN_EVENTS.CREATE_PATCH, handleCreatePatch);
       window.removeEventListener(SVN_EVENTS.APPLY_PATCH, handleApplyPatch);
     };
-  }, [actions, path, queryClient, selectedEntry]);
+  }, []);
 
   // Virtualizer
   const virtualizer = useVirtualizer({
     count: filteredEntries.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 36,
+    getItemKey: (index) => filteredEntries[index]?.path ?? index,
     overscan: 15,
   });
 
@@ -836,13 +843,16 @@ export function FileExplorer() {
     [navigate]
   );
 
-  const handleSetBrowseMode = useCallback((mode: 'local' | 'online') => {
-    setBrowseMode(mode);
-    if (mode === 'local') {
-      setOnlinePath('');
-    }
-    clearSelection();
-  }, [clearSelection]);
+  const handleSetBrowseMode = useCallback(
+    (mode: 'local' | 'online') => {
+      setBrowseMode(mode);
+      if (mode === 'local') {
+        setOnlinePath('');
+      }
+      clearSelection();
+    },
+    [clearSelection]
+  );
 
   const handleNavigateToEntry = useCallback(
     (entry: SvnStatusEntry) => {
@@ -922,6 +932,7 @@ export function FileExplorer() {
         const result = await window.api.svn.copy(entry.path, destination, `Copy ${entry.path}`);
         if (result.success) {
           queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+          queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
           queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
           queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
         }
@@ -986,6 +997,7 @@ export function FileExplorer() {
           const result = await actions.lock(entry.path, message || undefined);
           if (result.success) {
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
           } else {
             await showAppMessage({
               type: 'error',
@@ -1000,6 +1012,7 @@ export function FileExplorer() {
           const result = await actions.unlock(entry.path);
           if (result.success) {
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
           } else {
             await showAppMessage({
               type: 'error',
@@ -1037,6 +1050,7 @@ export function FileExplorer() {
               message: 'Cleanup completed successfully.',
             });
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
           } else {
             await showAppMessage({
               type: 'error',
@@ -1102,6 +1116,7 @@ export function FileExplorer() {
           );
           if (result.success) {
             queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['svn:list'] });
@@ -1119,6 +1134,7 @@ export function FileExplorer() {
           const result = await window.api.svn.updateItem(entry.path);
           if (result.success) {
             queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['svn:list'] });
@@ -1150,6 +1166,7 @@ export function FileExplorer() {
       const success = await performSvnOperation(sources, target, operation);
       if (success) {
         queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+        queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
         queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
         queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
       }
@@ -1275,6 +1292,7 @@ export function FileExplorer() {
         <Toolbar
           onRefresh={() => {
             queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
             queryClient.invalidateQueries({ queryKey: ['fs:isVersioned', path] });
@@ -1310,6 +1328,7 @@ export function FileExplorer() {
             );
             if (result.success) {
               queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
             }
@@ -1507,16 +1526,16 @@ export function FileExplorer() {
         </div>
       </div>
 
-      {/* Preview Sidebar - VS Code style right panel */}
-      <FilePreview
-        filePath={
-          showPreview && selectedEntry && !selectedEntry.isDirectory ? selectedEntry.path : null
-        }
-        isOpen={showPreview}
-        onClose={() => setShowPreview(false)}
-        onOpen={() => setShowPreview(true)}
-        onDiff={(filePath) => setDiffViewerPath(filePath)}
-      />
+      {showPreview && (
+        <Suspense fallback={null}>
+          <FilePreview
+            filePath={selectedEntry && !selectedEntry.isDirectory ? selectedEntry.path : null}
+            isOpen={showPreview}
+            onClose={() => setShowPreview(false)}
+            onDiff={(filePath) => setDiffViewerPath(filePath)}
+          />
+        </Suspense>
+      )}
 
       {/* Commit Dialog */}
       {actions.commitDialogOpen && (
@@ -1597,6 +1616,7 @@ export function FileExplorer() {
             mode={branchTagMode}
             onComplete={() => {
               setBranchTagPath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
             }}
           />
@@ -1623,6 +1643,7 @@ export function FileExplorer() {
             currentUrl={svnInfo?.url}
             onComplete={() => {
               setSwitchPath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             }}
           />
@@ -1638,6 +1659,7 @@ export function FileExplorer() {
             targetPath={mergePath}
             onComplete={() => {
               setMergePath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
             }}
@@ -1655,6 +1677,7 @@ export function FileExplorer() {
             currentUrl={svnInfo?.url}
             onSuccess={() => {
               setRelocatePath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
             }}
           />
@@ -1716,6 +1739,7 @@ export function FileExplorer() {
             targetPath={applyPatchPath}
             onComplete={() => {
               setApplyPatchPath(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             }}
           />
@@ -1735,23 +1759,29 @@ export function FileExplorer() {
 
               // The path in ignoreEntry is the full path to the file/dir
               // svn:ignore is set on the parent directory
-              const ignoreParentPath = ignoreEntry.path.split(/[/\\]/).slice(0, -1).join('/') || '.';
+              const ignoreParentPath =
+                ignoreEntry.path.split(/[/\\]/).slice(0, -1).join('/') || '.';
 
               try {
                 // Get existing svn:ignore patterns
                 const existingProps = await window.api.svn.proplist(ignoreParentPath);
-                const existingIgnore = existingProps.find(p => p.name === 'svn:ignore');
+                const existingIgnore = existingProps.find((p) => p.name === 'svn:ignore');
                 const existingPatterns = existingIgnore?.value
-                  ? existingIgnore.value.split('\n').filter(p => p.trim())
+                  ? existingIgnore.value.split('\n').filter((p) => p.trim())
                   : [];
 
                 // Merge with new patterns (avoid duplicates)
                 const mergedPatterns = [...new Set([...existingPatterns, ...patterns])];
 
                 // Set the updated svn:ignore property
-                await window.api.svn.propset(ignoreParentPath, 'svn:ignore', mergedPatterns.join('\n'));
+                await window.api.svn.propset(
+                  ignoreParentPath,
+                  'svn:ignore',
+                  mergedPatterns.join('\n')
+                );
 
                 setIgnoreEntry(null);
+                queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
                 queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
               } catch (setIgnoreError) {
                 console.error('Failed to set svn:ignore:', setIgnoreError);
@@ -1790,7 +1820,10 @@ export function FileExplorer() {
             isOpen={!!lockManagementPath}
             workingCopyPath={lockManagementPath}
             onClose={() => setLockManagementPath(null)}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] })}
+            onRefresh={() => {
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+            }}
           />
         </Suspense>
       )}
@@ -1838,6 +1871,7 @@ export function FileExplorer() {
             onClose={() => setMoveRenameTarget(null)}
             onSuccess={() => {
               queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
             }}
@@ -1856,6 +1890,7 @@ export function FileExplorer() {
             onResolve={async (resolution) => {
               await actions.handleResolveSelected(resolution);
               setResolveEntry(null);
+              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
               queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
             }}
           />

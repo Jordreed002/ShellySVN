@@ -23,13 +23,11 @@ export function createMonitorApi(invokeIpc: InvokeIpc): ElectronAPI['monitor'] {
   };
 }
 
-export function createFsApi(
-  ipcRenderer: IpcRenderer,
-  invokeIpc: InvokeIpc
-): ElectronAPI['fs'] {
+export function createFsApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): ElectronAPI['fs'] {
   return {
     listDirectory: (path) => invokeIpc('fs:listDirectory', path),
     listDrives: () => invokeIpc('fs:listDrives'),
+    getDirectoryMetadata: (path, hasFiles) => invokeIpc('fs:getDirectoryMetadata', path, hasFiles),
     getParent: (path) => invokeIpc('fs:getParent', path),
     getStatus: (path) => invokeIpc('fs:getStatus', path),
     getDeepStatus: (path) => invokeIpc('fs:getDeepStatus', path),

@@ -6,6 +6,7 @@ export function useInvalidateStatus() {
 
   return useCallback(
     (path: string) => {
+      queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
       queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
       queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
       queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
@@ -14,6 +15,7 @@ export function useInvalidateStatus() {
       for (let i = parts.length - 1; i > 0; i--) {
         const parentPath = parts.slice(0, i).join(path.includes('\\') ? '\\' : '/');
         if (parentPath) {
+          queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', parentPath] });
           queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', parentPath] });
         }
       }
@@ -21,4 +23,3 @@ export function useInvalidateStatus() {
     [queryClient]
   );
 }
-

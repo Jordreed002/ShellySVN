@@ -17,9 +17,7 @@ export function createMockElectronAPI(): ElectronAPI {
       statusRemote: vi
         .fn()
         .mockResolvedValue({ path: '/test/repo', entries: [], revision: 1, remoteChecked: true }),
-      workingCopyUpgradeStatus: vi
-        .fn()
-        .mockResolvedValue({ path: '/test/repo', required: false }),
+      workingCopyUpgradeStatus: vi.fn().mockResolvedValue({ path: '/test/repo', required: false }),
       upgradeWorkingCopy: vi.fn().mockResolvedValue({ success: true, output: '' }),
       log: vi.fn().mockResolvedValue({ entries: [], startRevision: 0, endRevision: 0 }),
       info: vi.fn().mockResolvedValue({
@@ -92,7 +90,9 @@ export function createMockElectronAPI(): ElectronAPI {
       list: vi.fn().mockResolvedValue({ path: '', entries: [] }),
       patch: {
         create: vi.fn().mockResolvedValue({ success: true, output: '' }),
-        apply: vi.fn().mockResolvedValue({ success: true, filesPatched: 0, rejects: 0, output: '' }),
+        apply: vi
+          .fn()
+          .mockResolvedValue({ success: true, filesPatched: 0, rejects: 0, output: '' }),
       },
       externals: {
         list: vi.fn().mockResolvedValue([]),
@@ -135,6 +135,14 @@ export function createMockElectronAPI(): ElectronAPI {
       listDirectory: vi.fn().mockResolvedValue([]),
       listDrives: vi.fn().mockResolvedValue([]),
       getParent: vi.fn().mockResolvedValue(null),
+      getDirectoryMetadata: vi.fn().mockResolvedValue({
+        parentPath: null,
+        isVersioned: true,
+        statusData: { directStatus: {}, allEntries: [] },
+        svnInfo: null,
+        workingCopyUpgradeStatus: { path: '', required: false },
+        workingCopyContext: null,
+      }),
       getStatus: vi.fn().mockResolvedValue({ directStatus: {}, allEntries: [] }),
       getDeepStatus: vi.fn().mockResolvedValue({ directStatus: {}, allEntries: [] }),
       applyStatus: vi.fn().mockResolvedValue([]),

@@ -12,12 +12,17 @@ import chokidar from 'chokidar';
 import { join, basename, normalize, dirname, isAbsolute } from 'path';
 import { spawn } from 'child_process';
 import { platform } from 'os';
-import type { FileInfo, SvnStatusChar } from '@shared/types';
+import type { DirectoryMetadataResult, FileInfo, SvnStatusChar } from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { runSvnText } from '../services/svn-executor';
+import {
+  getInfo,
+  getWorkingCopyContext,
+  getWorkingCopyUpgradeStatus,
+} from '../services/svn-working-copy';
 
 interface SvnStatusEntry {
   status: SvnStatusChar;
@@ -254,6 +259,50 @@ interface QueuedDeepScan {
   dirPath: string;
   controller: AbortController;
   resolve: (result: { directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }) => void;
+}
+
+async function getDirectoryMetadata(
+  dirPath: string,
+  hasFiles = true
+): Promise<DirectoryMetadataResult> {
+  const parentPath = getParentPath(dirPath);
+
+  if (dirPath === 'DRIVES://') {
+    return {
+      parentPath,
+      isVersioned: false,
+      statusData: EMPTY_STATUS_RESULT,
+      svnInfo: null,
+      workingCopyUpgradeStatus: null,
+      workingCopyContext: null,
+    };
+  }
+
+  let svnInfo: DirectoryMetadataResult['svnInfo'] = null;
+  let isVersionedResult = false;
+  let workingCopyUpgradeStatus: DirectoryMetadataResult['workingCopyUpgradeStatus'] = null;
+
+  try {
+    svnInfo = await getInfo(dirPath);
+    isVersionedResult = true;
+    workingCopyUpgradeStatus = { path: dirPath, required: false };
+  } catch {
+    workingCopyUpgradeStatus = await getWorkingCopyUpgradeStatus(dirPath);
+  }
+
+  const [statusData, workingCopyContext] = await Promise.all([
+    isVersionedResult ? getSvnStatus(dirPath, 'immediates') : Promise.resolve(EMPTY_STATUS_RESULT),
+    !svnInfo || !hasFiles ? getWorkingCopyContext(dirPath) : Promise.resolve(null),
+  ]);
+
+  return {
+    parentPath,
+    isVersioned: isVersionedResult,
+    statusData,
+    svnInfo,
+    workingCopyUpgradeStatus,
+    workingCopyContext,
+  };
 }
 
 const queuedScans: QueuedDeepScan[] = [];
@@ -513,6 +562,25 @@ export function registerFsHandlers(): void {
     }
   });
 
+  ipcMain.handle(
+    'fs:getDirectoryMetadata',
+    async (_, path: string, hasFiles?: boolean): Promise<DirectoryMetadataResult> => {
+      try {
+        return getDirectoryMetadata(path, hasFiles);
+      } catch (error) {
+        console.error('[FS] Directory metadata error:', error);
+        return {
+          parentPath: getParentPath(path),
+          isVersioned: false,
+          statusData: EMPTY_STATUS_RESULT,
+          svnInfo: null,
+          workingCopyUpgradeStatus: null,
+          workingCopyContext: null,
+        };
+      }
+    }
+  );
+
   // Get parent directory
   ipcMain.handle('fs:getParent', async (_, path: string): Promise<string | null> => {
     return getParentPath(path);
@@ -579,7 +647,10 @@ export function registerFsHandlers(): void {
 
         // Limit file size for preview
         if (stats.size > MAX_FILE_PREVIEW_SIZE_BYTES) {
-          return { success: false, error: `File too large for preview (>${MAX_FILE_PREVIEW_SIZE_BYTES / 1024 / 1024}MB)` };
+          return {
+            success: false,
+            error: `File too large for preview (>${MAX_FILE_PREVIEW_SIZE_BYTES / 1024 / 1024}MB)`,
+          };
         }
 
         const content = await readFile(validatedPath, 'utf-8');

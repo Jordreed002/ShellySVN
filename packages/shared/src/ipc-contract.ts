@@ -4,6 +4,7 @@ import type {
   CheckoutOptions,
   CheckoutProgress,
   ConfirmDialogOptions,
+  DirectoryMetadataResult,
   FileFilter,
   FileInfo,
   FsStatusResult,
@@ -49,13 +50,7 @@ export interface IpcInvokeContract {
     { success: boolean; output?: string; error?: string }
   >;
   'svn:log': IpcCall<
-    [
-      path: string,
-      limit?: number,
-      startRev?: number,
-      endRev?: number,
-      useMergeHistory?: boolean,
-    ],
+    [path: string, limit?: number, startRev?: number, endRev?: number, useMergeHistory?: boolean],
     import('./types').SvnLogResult
   >;
   'svn:info': IpcCall<[path: string], SvnInfoResult>;
@@ -219,11 +214,15 @@ export interface IpcInvokeContract {
     [workingCopyPath: string, externalPath: string, external: SvnExternal],
     OperationResult
   >;
-  'svn:externals:update': IpcCall<[workingCopyPath: string, externalPath?: string], OperationResult>;
+  'svn:externals:update': IpcCall<
+    [workingCopyPath: string, externalPath?: string],
+    OperationResult
+  >;
   'svn:diagnostics': IpcCall<[workingCopyPath: string], RepoDiagnostics>;
 
   'fs:listDirectory': IpcCall<[path: string], FileInfo[]>;
   'fs:listDrives': IpcCall<[], FileInfo[]>;
+  'fs:getDirectoryMetadata': IpcCall<[path: string, hasFiles?: boolean], DirectoryMetadataResult>;
   'fs:getParent': IpcCall<[path: string], string | null>;
   'fs:getStatus': IpcCall<[path: string], FsStatusResult>;
   'fs:getDeepStatus': IpcCall<[path: string], FsStatusResult>;
