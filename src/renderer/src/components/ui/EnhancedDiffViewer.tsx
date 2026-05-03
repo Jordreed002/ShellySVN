@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {
   Columns2,
@@ -12,7 +12,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import type { SvnDiffResult, SvnDiffHunk, SvnDiffLine } from '@shared/types';
-import { detectLanguage } from './CodeHighlighter';
+import { detectLanguage } from '../../utils/detectLanguage';
 import { useSettings } from '@renderer/hooks/useSettings';
 
 export type DiffViewMode = 'unified' | 'side-by-side';
@@ -403,7 +403,6 @@ const UnifiedDiffLine = memo(function UnifiedDiffLine({
   copiedLine,
   _isDarkTheme,
 }: UnifiedDiffLineProps) {
-  const [isHovered, setIsHovered] = useState(false);
   const lineNum = line.oldLineNumber ?? line.newLineNumber ?? lineIndex;
 
   const getLineClass = () => {
@@ -507,8 +506,6 @@ const UnifiedDiffLine = memo(function UnifiedDiffLine({
   return (
     <div
       className={`${getLineClass()} flex group relative`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       data-match-index={isMatch ? matchIndex : undefined}
     >
       {/* Line number */}
@@ -537,11 +534,11 @@ const UnifiedDiffLine = memo(function UnifiedDiffLine({
       </div>
 
       {/* Copy button on hover */}
-      {isHovered && line.type !== 'hunk' && (
+      {line.type !== 'hunk' && (
         <button
           type="button"
           onClick={() => onCopyLine(line.content, lineNum)}
-          className="absolute right-2 top-0 p-1 bg-bg-elevated border border-border rounded hover:bg-bg-tertiary transition-fast"
+          className="absolute right-2 top-0 p-1 bg-bg-elevated border border-border rounded opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary transition-fast"
           title="Copy line"
         >
           {copiedLine === lineNum ? (
@@ -826,8 +823,6 @@ const SideBySideLine = memo(function SideBySideLine({
   copiedLine,
   isDarkTheme: _isDarkTheme,
 }: SideBySideLineProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
   if (!line) {
     // Empty cell for alignment
     return (
@@ -904,11 +899,7 @@ const SideBySideLine = memo(function SideBySideLine({
   const lineNum = getLineNumber();
 
   return (
-    <div
-      className={`flex min-h-[20px] group relative ${getLineClass()}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <div className={`flex min-h-[20px] group relative ${getLineClass()}`}>
       {/* Line number */}
       {showLineNumbers && (
         <div className="w-10 flex-shrink-0 text-right pr-2 text-text-faint select-none text-[10px]">
@@ -926,11 +917,11 @@ const SideBySideLine = memo(function SideBySideLine({
       </div>
 
       {/* Copy button */}
-      {isHovered && line.type !== 'hunk' && (
+      {line.type !== 'hunk' && (
         <button
           type="button"
           onClick={() => onCopyLine(line.content, lineNum as number)}
-          className="absolute right-1 top-0 p-0.5 bg-bg-elevated border border-border rounded hover:bg-bg-tertiary transition-fast"
+          className="absolute right-1 top-0 p-0.5 bg-bg-elevated border border-border rounded opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary transition-fast"
           title="Copy line"
         >
           {copiedLine === lineNum ? (

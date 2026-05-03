@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, memo, useRef, useCallback, lazy, Suspense } from 'react';
 import {
   X,
   FileText,
@@ -13,7 +13,11 @@ import {
   Maximize2,
   FileX,
 } from 'lucide-react';
-import { CodeHighlighter, detectLanguage } from './CodeHighlighter';
+import { detectLanguage } from '../../utils/detectLanguage';
+
+const CodeHighlighter = lazy(() =>
+  import('./CodeHighlighter').then((m) => ({ default: m.CodeHighlighter }))
+);
 
 interface FilePreviewProps {
   filePath: string | null;
@@ -307,7 +311,9 @@ export const FilePreview = memo(function FilePreview({
     }
   };
 
-  const filename = activeFilePath ? activeFilePath.split(/[/\\]/).pop() || activeFilePath : 'Preview';
+  const filename = activeFilePath
+    ? activeFilePath.split(/[/\\]/).pop() || activeFilePath
+    : 'Preview';
 
   // Memoize truncated content for performance
   const displayContent = useMemo(() => {
@@ -495,12 +501,20 @@ export const FilePreview = memo(function FilePreview({
             </pre>
           </div>
         ) : displayContent && (fileType === 'code' || fileType === 'config') ? (
-          <CodeHighlighter
-            code={displayContent}
-            language={language}
-            showLineNumbers={true}
-            maxHeight="100%"
-          />
+          <Suspense
+            fallback={
+              <pre className="p-4 text-xs font-mono text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
+                {displayContent}
+              </pre>
+            }
+          >
+            <CodeHighlighter
+              code={displayContent}
+              language={language}
+              showLineNumbers={true}
+              maxHeight="100%"
+            />
+          </Suspense>
         ) : displayContent ? (
           <pre className="p-4 text-xs font-mono text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
             {displayContent}

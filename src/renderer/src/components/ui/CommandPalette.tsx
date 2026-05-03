@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
   Command,
@@ -739,11 +740,13 @@ export function CommandPalette({
     bookmarks,
   ]);
 
+  const deferredQuery = useDeferredValue(query);
+
   // Filter commands based on query
   const filteredCommands = useMemo(() => {
-    if (!query.trim()) return commands;
+    if (!deferredQuery.trim()) return commands;
 
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = deferredQuery.toLowerCase();
     return commands.filter((cmd) => {
       const titleMatch = cmd.title.toLowerCase().includes(lowerQuery);
       const descMatch = cmd.description?.toLowerCase().includes(lowerQuery);
@@ -752,7 +755,26 @@ export function CommandPalette({
 
       return titleMatch || descMatch || categoryMatch || keywordMatch;
     });
-  }, [commands, query]);
+  }, [commands, deferredQuery]);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredCommands.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 56,
+    getItemKey: (index) => filteredCommands[index]?.id ?? index,
+    initialRect: { width: 600, height: 400 },
+    overscan: 8,
+  });
+  const shouldVirtualizeCommands = filteredCommands.length > 80;
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const visibleRows =
+    virtualRows.length > 0
+      ? virtualRows
+      : filteredCommands.slice(0, Math.min(filteredCommands.length, 12)).map((cmd, index) => ({
+          index,
+          key: cmd.id,
+          size: 56,
+          start: index * 56,
+        }));
 
   // Reset selection when filter changes
   useEffect(() => {
@@ -798,13 +820,14 @@ export function CommandPalette({
 
   // Scroll selected item into view
   useEffect(() => {
-    if (listRef.current) {
-      const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
-      if (selectedElement) {
-        selectedElement.scrollIntoView?.({ block: 'nearest' });
-      }
+    if (shouldVirtualizeCommands) {
+      rowVirtualizer.scrollToIndex(selectedIndex, { align: 'auto' });
+      return;
     }
-  }, [selectedIndex]);
+
+    const selectedElement = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
+    selectedElement?.scrollIntoView?.({ block: 'nearest' });
+  }, [rowVirtualizer, selectedIndex, shouldVirtualizeCommands]);
 
   const handleSelect = useCallback((index: number) => {
     setSelectedIndex(index);
@@ -823,10 +846,7 @@ export function CommandPalette({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60 animate-fade-in" onClick={onClose} />
 
       {/* Palette */}
       <div className="relative w-[600px] max-w-[90vw] bg-bg-secondary border border-border rounded-xl shadow-2xl animate-scale-in overflow-hidden">
@@ -845,11 +865,66 @@ export function CommandPalette({
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="max-h-[400px] overflow-auto py-2">
+        <div ref={listRef} className="h-[400px] overflow-auto py-2">
           {filteredCommands.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Search className="w-8 h-8 text-text-muted mb-2" />
               <p className="text-sm text-text-secondary">No commands found</p>
+            </div>
+          ) : shouldVirtualizeCommands ? (
+            <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+              {visibleRows.map((virtualRow) => {
+                const cmd = filteredCommands[virtualRow.index];
+                const Icon = cmd.icon;
+                const isSelected = virtualRow.index === selectedIndex;
+
+                return (
+                  <div
+                    key={virtualRow.key}
+                    onClick={() => handleExecute(cmd)}
+                    onMouseEnter={() => handleSelect(virtualRow.index)}
+                    className={`
+                      absolute left-0 top-0 flex w-full items-center gap-3 px-4 py-3 cursor-pointer transition-fast
+                      ${isSelected ? 'bg-accent/10' : 'hover:bg-bg-tertiary'}
+                    `}
+                    style={{
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <div
+                      className={`
+                      flex items-center justify-center w-8 h-8 rounded-lg
+                      ${isSelected ? 'bg-accent/20 text-accent' : 'bg-bg-tertiary text-text-muted'}
+                    `}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-sm font-medium ${isSelected ? 'text-accent' : 'text-text'}`}
+                        >
+                          {cmd.title}
+                        </span>
+                        {cmd.shortcut && (
+                          <kbd className="px-1.5 py-0.5 bg-bg-tertiary rounded text-xs text-text-muted">
+                            {cmd.shortcut}
+                          </kbd>
+                        )}
+                      </div>
+                      {cmd.description && (
+                        <p className="text-xs text-text-muted truncate mt-0.5">{cmd.description}</p>
+                      )}
+                    </div>
+
+                    <span className="text-xs text-text-muted px-2 py-0.5 bg-bg-tertiary rounded">
+                      {cmd.category}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             filteredCommands.map((cmd, index) => {

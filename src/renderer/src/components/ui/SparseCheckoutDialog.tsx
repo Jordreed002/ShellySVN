@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { X, FolderTree, AlertCircle, Check } from 'lucide-react';
 import { ProgressIndicator } from './ProgressIndicator';
 
@@ -69,6 +70,15 @@ export function SparseCheckoutDialog({
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const includePathListRef = useRef<HTMLDivElement>(null);
+  const shouldVirtualizeIncludePaths = includePaths.length > 40;
+  const includePathVirtualizer = useVirtualizer({
+    count: includePaths.length,
+    getScrollElement: () => includePathListRef.current,
+    estimateSize: () => 45,
+    getItemKey: (index) => includePaths[index]?.path ?? index,
+    overscan: 8,
+  });
 
   useEffect(() => {
     if (!isOpen) {
@@ -221,7 +231,10 @@ export function SparseCheckoutDialog({
           <form onSubmit={handleSubmit}>
             <div className="modal-body space-y-6">
               <div>
-                <label htmlFor="sparse-repo-url" className="block text-sm font-medium text-text mb-2">
+                <label
+                  htmlFor="sparse-repo-url"
+                  className="block text-sm font-medium text-text mb-2"
+                >
                   Repository URL
                 </label>
                 <input
@@ -234,7 +247,10 @@ export function SparseCheckoutDialog({
               </div>
 
               <div>
-                <label htmlFor="sparse-target-path" className="block text-sm font-medium text-text mb-2">
+                <label
+                  htmlFor="sparse-target-path"
+                  className="block text-sm font-medium text-text mb-2"
+                >
                   Target Path
                 </label>
                 <input
@@ -291,22 +307,59 @@ export function SparseCheckoutDialog({
                     </button>
                   </div>
                 </div>
-                <div className="border border-border rounded-lg divide-y divide-border">
-                  {includePaths.map((item) => (
-                    <label
-                      key={item.path}
-                      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bg-tertiary transition-fast"
+                <div
+                  ref={includePathListRef}
+                  className="max-h-72 overflow-auto border border-border rounded-lg"
+                >
+                  {shouldVirtualizeIncludePaths ? (
+                    <div
+                      className="relative"
+                      style={{ height: `${includePathVirtualizer.getTotalSize()}px` }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={item.selected}
-                        onChange={() => handleTogglePath(item.path)}
-                        className="checkbox"
-                      />
-                      <span className="text-sm text-text">{item.path}</span>
-                      {item.hasChildren && <span className="text-xs text-text-muted">/</span>}
-                    </label>
-                  ))}
+                      {includePathVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const item = includePaths[virtualRow.index];
+                        if (!item) return null;
+
+                        return (
+                          <label
+                            key={virtualRow.key}
+                            className="absolute left-0 top-0 flex w-full items-center gap-3 border-b border-border px-4 py-3 cursor-pointer hover:bg-bg-tertiary transition-fast"
+                            style={{
+                              height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={item.selected}
+                              onChange={() => handleTogglePath(item.path)}
+                              className="checkbox"
+                            />
+                            <span className="text-sm text-text">{item.path}</span>
+                            {item.hasChildren && <span className="text-xs text-text-muted">/</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {includePaths.map((item) => (
+                        <label
+                          key={item.path}
+                          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bg-tertiary transition-fast"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={() => handleTogglePath(item.path)}
+                            className="checkbox"
+                          />
+                          <span className="text-sm text-text">{item.path}</span>
+                          {item.hasChildren && <span className="text-xs text-text-muted">/</span>}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-text-muted mt-2">
                   Selected paths will be checked out. You can update individual paths later using

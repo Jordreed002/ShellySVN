@@ -42,6 +42,7 @@ export function CommitHistory() {
     count: data?.entries.length || 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 80,
+    getItemKey: (index) => data?.entries[index]?.revision ?? index,
     overscan: 5,
   });
 

@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { X, FileText, AlertTriangle, Loader, Image as ImageIcon, ExternalLink } from 'lucide-react';
-import type { SvnDiffResult, SvnDiffLine } from '@shared/types';
+import type { SvnDiffResult } from '@shared/types';
 import { isImageFile } from './image-utils';
 import { useSettings } from '@renderer/hooks/useSettings';
 import { resolveExternalToolForPath } from '@renderer/utils/externalToolOverrides';
+import { VirtualizedDiffViewer } from './VirtualizedDiffViewer';
 
 // Lazy load ImageDiffViewer - only loaded when viewing image files
 const ImageDiffViewer = lazy(() =>
@@ -23,8 +24,6 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [showImageDiff, setShowImageDiff] = useState(false);
   const [isOpeningExternal, setIsOpeningExternal] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
   // Check if file is an image
   const isImage = isImageFile(filePath);
 
@@ -48,11 +47,7 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
       await window.api.svn.export(filePath, basePath, 'BASE');
 
       // Open external diff tool with BASE (left) vs working copy (right)
-      const result = await window.api.external.openDiffTool(
-        externalDiffTool,
-        basePath,
-        filePath
-      );
+      const result = await window.api.external.openDiffTool(externalDiffTool, basePath, filePath);
 
       if (!result.success) {
         setError(result.error || 'Failed to open external diff tool');
@@ -236,9 +231,7 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
                   </div>
                 </div>
               ) : (
-                <div ref={contentRef} className="flex-1 overflow-auto bg-bg font-mono text-sm">
-                  <DiffContent diff={diff} />
-                </div>
+                <VirtualizedDiffViewer diff={diff} className="flex-1 min-h-0" />
               )}
             </>
           )}
@@ -269,109 +262,4 @@ function countLines(diff: SvnDiffResult, type: 'added' | 'removed'): number {
     }
   }
   return count;
-}
-
-function DiffContent({ diff }: { diff: SvnDiffResult }) {
-  return (
-    <div className="min-w-max">
-      {diff.files.map((file, fileIndex) => (
-        <div key={fileIndex} className="mb-4">
-          {/* File header */}
-          <div className="diff-file-header sticky top-0 bg-bg-elevated px-4 py-2 border-b border-border z-10">
-            <span className="text-text font-medium">{file.newPath || file.oldPath}</span>
-            {file.oldPath !== file.newPath && (
-              <span className="text-text-muted ml-2">(from {file.oldPath})</span>
-            )}
-          </div>
-
-          {/* Hunks */}
-          {file.hunks.map((hunk, hunkIndex) => (
-            <div key={hunkIndex}>
-              {/* Hunk header */}
-              <div className="diff-hunk-header bg-bg-tertiary px-4 py-1 text-text-muted text-xs">
-                @@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},{hunk.newLines} @@
-              </div>
-
-              {/* Lines */}
-              {hunk.lines.map((line, lineIndex) => (
-                <DiffLine key={lineIndex} line={line} />
-              ))}
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DiffLine({ line }: { line: SvnDiffLine }) {
-  const getLineClass = () => {
-    switch (line.type) {
-      case 'added':
-        return 'diff-line-added';
-      case 'removed':
-        return 'diff-line-removed';
-      case 'hunk':
-        return 'diff-line-hunk';
-      default:
-        return 'diff-line-context';
-    }
-  };
-
-  const getLineNumber = () => {
-    if (line.type === 'added' && line.newLineNumber !== undefined) {
-      return line.newLineNumber;
-    }
-    if (line.type === 'removed' && line.oldLineNumber !== undefined) {
-      return line.oldLineNumber;
-    }
-    if (line.type === 'context') {
-      return line.newLineNumber ?? line.oldLineNumber ?? '';
-    }
-    return '';
-  };
-
-  const getPrefix = () => {
-    switch (line.type) {
-      case 'added':
-        return '+';
-      case 'removed':
-        return '-';
-      case 'hunk':
-        return '';
-      default:
-        return ' ';
-    }
-  };
-
-  return (
-    <div className={`${getLineClass()} flex`}>
-      {/* Line number */}
-      <div className="diff-line-number w-12 flex-shrink-0 text-right pr-3 text-text-faint select-none">
-        {getLineNumber()}
-      </div>
-
-      {/* Prefix */}
-      <div
-        className={`diff-line-prefix w-4 flex-shrink-0 ${
-          line.type === 'added'
-            ? 'text-svn-added'
-            : line.type === 'removed'
-              ? 'text-svn-deleted'
-              : 'text-text-muted'
-        }`}
-      >
-        {getPrefix()}
-      </div>
-
-      {/* Content */}
-      <div className="diff-line-content flex-1 whitespace-pre overflow-x-auto">
-        {escapeHtml(line.content)}
-      </div>
-    </div>
-  );
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

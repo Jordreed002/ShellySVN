@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { X, User, Search, Loader2, ExternalLink } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
@@ -37,6 +38,7 @@ export function BlameViewer({
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightRevision, setHighlightRevision] = useState<number | null>(null);
   const [configPath, setConfigPath] = useState(filePath);
+  const listRef = useRef<HTMLDivElement>(null);
   const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, filePath);
 
   // Fetch blame data
@@ -64,17 +66,23 @@ export function BlameViewer({
   });
 
   // Get unique authors for legend
-  const authors = blameData
-    ? [...new Set(blameData.map((l) => l.author))].map((author) => ({
-        author,
-        color: getAuthorColor(author),
-      }))
-    : [];
+  const authors = useMemo(
+    () =>
+      blameData
+        ? [...new Set(blameData.map((l) => l.author))].map((author) => ({
+            author,
+            color: getAuthorColor(author),
+          }))
+        : [],
+    [blameData]
+  );
 
   // Get unique revisions
-  const revisions = blameData
-    ? [...new Set(blameData.map((l) => l.revision))].toSorted((a, b) => b - a)
-    : [];
+  const revisions = useMemo(
+    () =>
+      blameData ? [...new Set(blameData.map((l) => l.revision))].toSorted((a, b) => b - a) : [],
+    [blameData]
+  );
 
   const { data: logData } = useQuery({
     queryKey: ['svn:log:blame-context', filePath, revisions.join(','), issueTrackerConfig],
@@ -96,22 +104,45 @@ export function BlameViewer({
   }, [logData, issueTrackerConfig]);
 
   // Filter lines by search
-  const filteredLines = blameData?.filter((line) => {
-    if (searchQuery === '') return true;
+  const filteredLines = useMemo(
+    () =>
+      blameData?.filter((line) => {
+        if (searchQuery === '') return true;
 
-    const normalizedQuery = searchQuery.toLowerCase();
-    const context = revisionContext.get(line.revision);
-    const issueIds = context?.issues.map((issue) => issue.id.toLowerCase()).join(' ');
-    const message = context?.message.toLowerCase();
+        const normalizedQuery = searchQuery.toLowerCase();
+        const context = revisionContext.get(line.revision);
+        const issueIds = context?.issues.map((issue) => issue.id.toLowerCase()).join(' ');
+        const message = context?.message.toLowerCase();
 
-    return (
-      line.content.toLowerCase().includes(normalizedQuery) ||
-      line.author.toLowerCase().includes(normalizedQuery) ||
-      line.revision.toString().includes(searchQuery) ||
-      Boolean(issueIds?.includes(normalizedQuery)) ||
-      Boolean(message?.includes(normalizedQuery))
-    );
+        return (
+          line.content.toLowerCase().includes(normalizedQuery) ||
+          line.author.toLowerCase().includes(normalizedQuery) ||
+          line.revision.toString().includes(searchQuery) ||
+          Boolean(issueIds?.includes(normalizedQuery)) ||
+          Boolean(message?.includes(normalizedQuery))
+        );
+      }) ?? [],
+    [blameData, searchQuery, revisionContext]
+  );
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredLines.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 30,
+    getItemKey: (index) => filteredLines[index]?.lineNumber ?? index,
+    initialRect: { width: 1000, height: 480 },
+    overscan: 20,
   });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const visibleRows =
+    virtualRows.length > 0
+      ? virtualRows
+      : filteredLines.slice(0, Math.min(filteredLines.length, 25)).map((line, index) => ({
+          index,
+          key: line.lineNumber,
+          size: 30,
+          start: index * 30,
+        }));
 
   const hasRevisionMessages = useMemo(
     () => Array.from(revisionContext.values()).some((context) => context.message.trim()),
@@ -193,63 +224,71 @@ export function BlameViewer({
         </div>
 
         {/* Content */}
-        <div className="modal-body overflow-auto max-h-[60vh] font-mono text-sm">
+        <div ref={listRef} className="modal-body h-[60vh] overflow-auto font-mono text-sm">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 text-text-muted animate-spin" />
             </div>
           ) : error ? (
             <div className="text-center py-8 text-error">Failed to load blame data</div>
-          ) : !filteredLines?.length ? (
+          ) : !filteredLines.length ? (
             <div className="text-center py-8 text-text-muted">No results found</div>
           ) : (
-            <table className="w-full border-collapse">
-              <thead className="sticky top-0 bg-bg-primary">
-                <tr className="text-left text-xs text-text-muted">
-                  <th className="px-2 py-1 w-12 border-b border-border">Line</th>
-                  <th className="px-2 py-1 w-16 border-b border-border">Rev</th>
-                  <th className="px-2 py-1 w-28 border-b border-border">Issues</th>
-                  <th className="px-2 py-1 w-24 border-b border-border">Author</th>
-                  <th className="px-2 py-1 w-32 border-b border-border">Date</th>
-                  <th className="px-2 py-1 w-56 border-b border-border">Message</th>
-                  <th className="px-2 py-1 border-b border-border">Content</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLines.map((line) => {
+            <div className="min-w-[980px]">
+              <div className="sticky top-0 z-10 grid grid-cols-[3rem_4rem_7rem_6rem_8rem_14rem_minmax(18rem,1fr)] bg-bg-primary text-left text-xs text-text-muted">
+                <div className="px-2 py-1 border-b border-border">Line</div>
+                <div className="px-2 py-1 border-b border-border">Rev</div>
+                <div className="px-2 py-1 border-b border-border">Issues</div>
+                <div className="px-2 py-1 border-b border-border">Author</div>
+                <div className="px-2 py-1 border-b border-border">Date</div>
+                <div className="px-2 py-1 border-b border-border">Message</div>
+                <div className="px-2 py-1 border-b border-border">Content</div>
+              </div>
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  position: 'relative',
+                }}
+              >
+                {visibleRows.map((virtualRow) => {
+                  const line = filteredLines[virtualRow.index];
                   const context = revisionContext.get(line.revision);
                   const issueLinks = context?.issues || [];
 
                   return (
-                    <tr
-                      key={line.lineNumber}
-                      className={`hover:bg-bg-tertiary cursor-pointer ${
+                    <div
+                      key={virtualRow.key}
+                      className={`absolute left-0 top-0 grid w-full grid-cols-[3rem_4rem_7rem_6rem_8rem_14rem_minmax(18rem,1fr)] hover:bg-bg-tertiary cursor-pointer ${
                         highlightRevision === line.revision ? 'bg-accent/20' : ''
                       }`}
+                      style={{
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
                       onClick={() =>
                         setHighlightRevision(
                           highlightRevision === line.revision ? null : line.revision
                         )
                       }
                     >
-                      <td className="px-2 py-0.5 text-text-faint border-r border-border">
+                      <div className="px-2 py-0.5 text-text-faint border-r border-border">
                         {line.lineNumber}
-                      </td>
-                      <td className="px-2 py-0.5 text-accent border-r border-border">
+                      </div>
+                      <div className="px-2 py-0.5 text-accent border-r border-border">
                         r{line.revision}
-                      </td>
-                      <td className="px-2 py-0.5 border-r border-border">
+                      </div>
+                      <div className="px-2 py-0.5 border-r border-border">
                         <IssueLinkList issues={issueLinks} onOpen={openIssueUrl} />
-                      </td>
-                      <td
+                      </div>
+                      <div
                         className={`px-2 py-0.5 border-r border-border ${getAuthorColor(line.author).replace('bg-', 'text-')}`}
                       >
                         {line.author}
-                      </td>
-                      <td className="px-2 py-0.5 text-text-faint border-r border-border">
+                      </div>
+                      <div className="px-2 py-0.5 text-text-faint border-r border-border">
                         {new Date(line.date).toLocaleDateString()}
-                      </td>
-                      <td
+                      </div>
+                      <div
                         className="max-w-56 truncate px-2 py-0.5 text-text-secondary border-r border-border"
                         title={context?.message || 'No log message available'}
                       >
@@ -258,20 +297,22 @@ export function BlameViewer({
                             {hasRevisionMessages ? 'No message' : 'Loading...'}
                           </span>
                         )}
-                      </td>
-                      <td className="px-2 py-0.5 whitespace-pre">{line.content}</td>
-                    </tr>
+                      </div>
+                      <div className="overflow-hidden text-ellipsis whitespace-pre px-2 py-0.5">
+                        {line.content}
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="modal-footer">
           <div className="flex-1 text-sm text-text-faint">
-            {filteredLines?.length || 0} lines
+            {filteredLines.length} lines
             {revisions.length > 0 && `, ${revisions.length} revisions`}
           </div>
           <button onClick={onClose} className="btn btn-primary">

@@ -46,6 +46,7 @@ export function VirtualizedFileList({
     count: hasMore ? files.length + 1 : files.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedRowHeight,
+    getItemKey: (index) => files[index]?.path ?? `loading-${index}`,
     overscan,
   });
 
@@ -121,7 +122,7 @@ export function VirtualizedFileList({
 
           return (
             <div
-              key={file.path}
+              key={virtualRow.key}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -324,17 +325,14 @@ export function VirtualizedTree({
     if (!checkboxSelection) {
       return undefined;
     }
-    return getSelectionStates(
-      flattenedNodes,
-      checkboxSelection.selectedKeys,
-      selectionMetadata
-    );
+    return getSelectionStates(flattenedNodes, checkboxSelection.selectedKeys, selectionMetadata);
   }, [checkboxSelection, flattenedNodes, selectionMetadata]);
 
   const rowVirtualizer = useVirtualizer({
     count: flattenedNodes.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedRowHeight,
+    getItemKey: (index) => flattenedNodes[index]?.node.id ?? index,
     overscan: 15,
   });
 
@@ -388,7 +386,7 @@ export function VirtualizedTree({
 
           return (
             <div
-              key={node.id}
+              key={virtualRow.key}
               style={{
                 position: 'absolute',
                 top: 0,

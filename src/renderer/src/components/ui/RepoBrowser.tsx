@@ -59,6 +59,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
     count: entries?.length || 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 32,
+    getItemKey: (index) => entries?.[index]?.path ?? index,
     overscan: 10,
   });
 
@@ -151,7 +152,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
               const entry = entries[virtualRow.index];
               return (
                 <div
-                  key={entry.path}
+                  key={virtualRow.key}
                   className="flex items-center gap-3 px-4 py-2 hover:bg-bg-tertiary cursor-pointer transition-fast"
                   style={{
                     position: 'absolute',

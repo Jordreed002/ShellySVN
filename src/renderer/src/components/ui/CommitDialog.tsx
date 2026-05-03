@@ -1,4 +1,5 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   X,
   Upload,
@@ -16,14 +17,21 @@ import {
   AlertTriangle,
   Settings2,
   ExternalLink,
+  AlignLeft,
+  Columns2,
 } from 'lucide-react';
 import { AutoCompleteInput } from './AutoCompleteInput';
-import { CommitTemplateManager } from './CommitTemplateManager';
 import type { SvnStatusChar } from '@shared/types';
-import { useCommitDialogController } from '../commit/useCommitDialogController';
+import { useCommitDialogController, type CommitFile } from '../commit/useCommitDialogController';
 
 const EnhancedDiffViewer = lazy(() =>
   import('./EnhancedDiffViewer').then((m) => ({ default: m.EnhancedDiffViewer }))
+);
+const VirtualizedDiffViewer = lazy(() =>
+  import('./VirtualizedDiffViewer').then((m) => ({ default: m.VirtualizedDiffViewer }))
+);
+const CommitTemplateManager = lazy(() =>
+  import('./CommitTemplateManager').then((m) => ({ default: m.CommitTemplateManager }))
 );
 
 interface CommitDialogProps {
@@ -55,6 +63,141 @@ function DiffPreviewLoader() {
     <div className="flex-1 flex items-center justify-center text-text-muted bg-bg-primary">
       <Loader2 className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
       <span className="sr-only">Loading diff preview...</span>
+    </div>
+  );
+}
+
+function getDiffLineCount(diff: { files?: Array<{ hunks: Array<{ lines: unknown[] }> }> }) {
+  let count = 0;
+  for (const file of diff.files ?? []) {
+    for (const hunk of file.hunks) {
+      count += hunk.lines.length;
+    }
+  }
+  return count;
+}
+
+interface CommitFileListProps {
+  files: CommitFile[];
+  selectedDiffFile: string | null;
+  onSelectDiffFile: (path: string) => void;
+  onToggleFile: (path: string) => void;
+  onRevertFile: (path: string) => void;
+}
+
+function CommitFileList({
+  files,
+  selectedDiffFile,
+  onSelectDiffFile,
+  onToggleFile,
+  onRevertFile,
+}: CommitFileListProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: files.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 34,
+    getItemKey: (index) => files[index]?.path ?? index,
+    overscan: 12,
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      className="flex-1 overflow-auto"
+      role="listbox"
+      aria-label="Files to commit"
+      aria-multiselectable="true"
+    >
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const file = files[virtualRow.index];
+          const statusInfo = STATUS_CONFIG[file.status];
+          const filename = file.path.split(/[/\\]/).pop();
+
+          return (
+            <div
+              key={file.path}
+              className={`flex items-center gap-2 px-3 py-1.5 hover:bg-bg-tertiary cursor-pointer group ${
+                selectedDiffFile === file.path ? 'bg-accent/10' : ''
+              }`}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+              onClick={() => onSelectDiffFile(file.path)}
+              role="option"
+              aria-selected={file.selected}
+            >
+              <input
+                type="checkbox"
+                checked={file.selected}
+                disabled={!file.committable}
+                onChange={() => onToggleFile(file.path)}
+                onClick={(e) => e.stopPropagation()}
+                className="checkbox"
+                title={file.committable ? undefined : 'Not committable from this working copy'}
+                aria-label={`${file.selected ? 'Deselect' : 'Select'} ${filename}`}
+              />
+              <span
+                className={`text-xs font-mono ${statusInfo.color}`}
+                aria-label={statusInfo.label}
+                title={statusInfo.label}
+              >
+                {file.status}
+              </span>
+              <span className="flex-1 text-sm truncate text-text" title={file.path}>
+                {filename}
+              </span>
+              {file.propsStatus && (
+                <span
+                  className="text-[10px] rounded border border-border px-1 text-text-muted"
+                  title="Property status"
+                >
+                  P:{file.propsStatus}
+                </span>
+              )}
+              {file.changelist && (
+                <span
+                  className="max-w-[90px] truncate text-[10px] rounded border border-border px-1 text-text-muted"
+                  title={`Changelist: ${file.changelist}`}
+                >
+                  {file.changelist}
+                </span>
+              )}
+              {!file.committable && (
+                <span className="text-[10px] text-text-faint" title="Display only">
+                  Display only
+                </span>
+              )}
+              {file.status !== '?' && file.status !== 'A' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRevertFile(file.path);
+                  }}
+                  className="btn-icon-sm opacity-0 group-hover:opacity-100"
+                  title="Revert this file"
+                  aria-label={`Revert ${filename}`}
+                >
+                  <RotateCcw className="w-3 h-3" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -242,103 +385,31 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 </div>
 
                 {/* File list */}
-                <div
-                  className="flex-1 overflow-auto"
-                  role="listbox"
-                  aria-label="Files to commit"
-                  aria-multiselectable="true"
-                >
-                  {isLoadingStatus ? (
-                    <div
-                      className="flex items-center justify-center h-20"
-                      role="status"
-                      aria-label="Loading files"
-                    >
-                      <Loader2
-                        className="w-5 h-5 text-text-muted animate-spin"
-                        aria-hidden="true"
-                      />
-                      <span className="sr-only">Loading files...</span>
-                    </div>
-                  ) : filteredFiles.length === 0 ? (
-                    <div className="text-center py-8 text-text-muted text-sm" role="status">
-                      No files to commit
-                    </div>
-                  ) : (
-                    filteredFiles.map((file) => {
-                      const statusInfo = STATUS_CONFIG[file.status];
-                      const filename = file.path.split(/[/\\]/).pop();
-
-                      return (
-                        <div
-                          key={file.path}
-                          className={`flex items-center gap-2 px-3 py-1.5 hover:bg-bg-tertiary cursor-pointer group ${
-                            selectedDiffFile === file.path ? 'bg-accent/10' : ''
-                          }`}
-                          onClick={() => setSelectedDiffFile(file.path)}
-                          role="option"
-                          aria-selected={file.selected}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={file.selected}
-                            disabled={!file.committable}
-                            onChange={() => handleToggleFile(file.path)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="checkbox"
-                            title={file.committable ? undefined : 'Not committable from this working copy'}
-                            aria-label={`${file.selected ? 'Deselect' : 'Select'} ${filename}`}
-                          />
-                          <span
-                            className={`text-xs font-mono ${statusInfo.color}`}
-                            aria-label={statusInfo.label}
-                            title={statusInfo.label}
-                          >
-                            {file.status}
-                          </span>
-                          <span className="flex-1 text-sm truncate text-text" title={file.path}>
-                            {filename}
-                          </span>
-                          {file.propsStatus && (
-                            <span
-                              className="text-[10px] rounded border border-border px-1 text-text-muted"
-                              title="Property status"
-                            >
-                              P:{file.propsStatus}
-                            </span>
-                          )}
-                          {file.changelist && (
-                            <span
-                              className="max-w-[90px] truncate text-[10px] rounded border border-border px-1 text-text-muted"
-                              title={`Changelist: ${file.changelist}`}
-                            >
-                              {file.changelist}
-                            </span>
-                          )}
-                          {!file.committable && (
-                            <span className="text-[10px] text-text-faint" title="Display only">
-                              Display only
-                            </span>
-                          )}
-                          {file.status !== '?' && file.status !== 'A' && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRevertFile(file.path);
-                              }}
-                              className="btn-icon-sm opacity-0 group-hover:opacity-100"
-                              title="Revert this file"
-                              aria-label={`Revert ${filename}`}
-                            >
-                              <RotateCcw className="w-3 h-3" aria-hidden="true" />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                {isLoadingStatus ? (
+                  <div
+                    className="flex-1 flex items-center justify-center"
+                    role="status"
+                    aria-label="Loading files"
+                  >
+                    <Loader2 className="w-5 h-5 text-text-muted animate-spin" aria-hidden="true" />
+                    <span className="sr-only">Loading files...</span>
+                  </div>
+                ) : filteredFiles.length === 0 ? (
+                  <div
+                    className="flex-1 flex items-center justify-center text-text-muted text-sm"
+                    role="status"
+                  >
+                    No files to commit
+                  </div>
+                ) : (
+                  <CommitFileList
+                    files={filteredFiles}
+                    selectedDiffFile={selectedDiffFile}
+                    onSelectDiffFile={setSelectedDiffFile}
+                    onToggleFile={handleToggleFile}
+                    onRevertFile={handleRevertFile}
+                  />
+                )}
               </div>
 
               {/* Right panel - Message and diff */}
@@ -361,7 +432,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     </label>
                     <div className="flex items-center gap-2">
                       {/* AI Suggestions */}
-                      {aiSuggestions.length > 0 && (
+                      {selectedCount > 0 && (
                         <div className="relative">
                           <button
                             type="button"
@@ -456,9 +527,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                               <input
                                 type="checkbox"
                                 checked={rules.requireIssueId}
-                                onChange={(e) =>
-                                  updateRules({ requireIssueId: e.target.checked })
-                                }
+                                onChange={(e) => updateRules({ requireIssueId: e.target.checked })}
                                 className="checkbox"
                               />
                               Require issue ID
@@ -597,10 +666,12 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                         )}
                         {showTemplateManager && (
                           <div className="absolute right-0 top-full mt-1 w-[520px] max-h-[420px] overflow-auto bg-bg-elevated border border-border rounded-lg shadow-lg z-20">
-                            <CommitTemplateManager
-                              repositoryPath={workingCopyPath}
-                              onSelectTemplate={handleManagedTemplateSelect}
-                            />
+                            <Suspense fallback={<DiffPreviewLoader />}>
+                              <CommitTemplateManager
+                                repositoryPath={workingCopyPath}
+                                onSelectTemplate={handleManagedTemplateSelect}
+                              />
+                            </Suspense>
                           </div>
                         )}
                       </div>
@@ -750,15 +821,59 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 >
                   {selectedDiffFile ? (
                     diffData?.files && diffData.files.length > 0 ? (
-                      <Suspense fallback={<DiffPreviewLoader />}>
-                        <EnhancedDiffViewer
-                          diff={diffData}
-                          filePath={selectedDiffFile}
-                          mode={diffViewMode}
-                          onModeChange={setDiffViewMode}
-                          className="h-full"
-                        />
-                      </Suspense>
+                      <>
+                        <div className="flex items-center justify-between border-b border-border bg-bg-tertiary px-3 py-2">
+                          <div
+                            className="truncate text-xs text-text-muted"
+                            title={selectedDiffFile}
+                          >
+                            {selectedDiffFile}
+                          </div>
+                          <div className="flex items-center bg-bg rounded-md p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setDiffViewMode('unified')}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
+                                diffViewMode === 'unified'
+                                  ? 'bg-accent text-white'
+                                  : 'text-text-secondary hover:text-text'
+                              }`}
+                              aria-pressed={diffViewMode === 'unified'}
+                              title="Unified diff view"
+                            >
+                              <AlignLeft className="w-3.5 h-3.5" />
+                              Unified
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDiffViewMode('side-by-side')}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
+                                diffViewMode === 'side-by-side'
+                                  ? 'bg-accent text-white'
+                                  : 'text-text-secondary hover:text-text'
+                              }`}
+                              aria-pressed={diffViewMode === 'side-by-side'}
+                              title="Side-by-side diff view"
+                            >
+                              <Columns2 className="w-3.5 h-3.5" />
+                              Split
+                            </button>
+                          </div>
+                        </div>
+                        <Suspense fallback={<DiffPreviewLoader />}>
+                          {diffViewMode === 'unified' || getDiffLineCount(diffData) > 2000 ? (
+                            <VirtualizedDiffViewer diff={diffData} className="flex-1 min-h-0" />
+                          ) : (
+                            <EnhancedDiffViewer
+                              diff={diffData}
+                              filePath={selectedDiffFile}
+                              mode={diffViewMode}
+                              onModeChange={setDiffViewMode}
+                              className="flex-1 min-h-0"
+                            />
+                          )}
+                        </Suspense>
+                      </>
                     ) : (
                       <div className="flex-1 flex items-center justify-center text-text-muted bg-bg-primary">
                         <div className="text-center">

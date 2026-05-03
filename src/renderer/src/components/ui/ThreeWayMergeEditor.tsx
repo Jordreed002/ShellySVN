@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   X,
   AlertTriangle,
@@ -47,6 +48,76 @@ interface ConflictRegion {
   customContent?: string;
 }
 
+interface MergeLinePaneProps {
+  lines: string[];
+  showLineNumbers: boolean;
+  className?: string;
+  lineClassName?: string;
+  emptyMessage?: string;
+}
+
+function MergeLinePane({
+  lines,
+  showLineNumbers,
+  className = '',
+  lineClassName = '',
+  emptyMessage,
+}: MergeLinePaneProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: lines.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 22,
+    getItemKey: (index) => index,
+    initialRect: { width: 600, height: 480 },
+    overscan: 20,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const visibleRows =
+    virtualRows.length > 0
+      ? virtualRows
+      : lines.slice(0, Math.min(lines.length, 40)).map((_, index) => ({
+          index,
+          key: index,
+          size: 22,
+          start: index * 22,
+        }));
+
+  if (lines.length === 0 && emptyMessage) {
+    return (
+      <div className={`flex-1 overflow-auto p-2 font-mono text-sm ${className}`}>
+        <div className="h-full flex items-center justify-center text-text-muted text-sm">
+          {emptyMessage}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={parentRef} className={`flex-1 overflow-auto p-2 font-mono text-sm ${className}`}>
+      <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+        {visibleRows.map((virtualRow) => (
+          <div
+            key={virtualRow.key}
+            className={`absolute left-0 top-0 flex w-full ${lineClassName}`}
+            style={{
+              height: `${virtualRow.size}px`,
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
+          >
+            {showLineNumbers && (
+              <span className="w-8 text-right pr-2 text-text-faint select-none flex-shrink-0">
+                {virtualRow.index + 1}
+              </span>
+            )}
+            <span className="text-text whitespace-pre">{escapeHtml(lines[virtualRow.index])}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ThreeWayMergeEditor({
   isOpen,
   filePath,
@@ -77,7 +148,8 @@ export function ThreeWayMergeEditor({
     if (!sourceContent) return;
 
     const lines = sourceContent.split('\n');
-    const explicitMineLines = mineContent && mineContent !== sourceContent ? mineContent.split('\n') : null;
+    const explicitMineLines =
+      mineContent && mineContent !== sourceContent ? mineContent.split('\n') : null;
     const explicitTheirsLines =
       theirsContent && theirsContent !== sourceContent ? theirsContent.split('\n') : null;
     const explicitBaseLines = baseContent ? baseContent.split('\n') : null;
@@ -252,13 +324,13 @@ export function ThreeWayMergeEditor({
   };
 
   // Navigation
-  const handlePrevConflict = () => {
+  const handlePrevConflict = useCallback(() => {
     setCurrentConflictIndex((prev) => Math.max(0, prev - 1));
-  };
+  }, []);
 
-  const handleNextConflict = () => {
+  const handleNextConflict = useCallback(() => {
     setCurrentConflictIndex((prev) => Math.min(conflicts.length - 1, prev + 1));
-  };
+  }, [conflicts.length]);
 
   // Auto-resolve all
   const handleAutoResolveMine = () => {
@@ -326,7 +398,7 @@ export function ThreeWayMergeEditor({
   };
 
   // Save
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (isSaving) return;
 
     const unresolvedCount = conflicts.filter((c) => !c.resolved).length;
@@ -350,7 +422,7 @@ export function ThreeWayMergeEditor({
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [conflicts, isSaving, mergedContent, onClose, onSave]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -384,12 +456,16 @@ export function ThreeWayMergeEditor({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, editingConflictId, requestClose]);
+  }, [isOpen, editingConflictId, requestClose, handleSave, handleNextConflict, handlePrevConflict]);
 
   // Statistics
   const resolvedCount = conflicts.filter((c) => c.resolved).length;
   const unresolvedCount = conflicts.length - resolvedCount;
   const currentConflict = conflicts[currentConflictIndex];
+  const currentResolvedContent = useMemo(
+    () => (currentConflict?.resolved ? getResolvedContent(currentConflict) : []),
+    [currentConflict]
+  );
 
   if (!isOpen) return null;
 
@@ -530,18 +606,11 @@ export function ThreeWayMergeEditor({
                     Use
                   </button>
                 </div>
-                <div className="flex-1 overflow-auto p-2 font-mono text-sm">
-                  {currentConflict?.baseContent.map((line, i) => (
-                    <div key={i} className="flex">
-                      {showLineNumbers && (
-                        <span className="w-8 text-right pr-2 text-text-faint select-none flex-shrink-0">
-                          {i + 1}
-                        </span>
-                      )}
-                      <span className="text-text-secondary">{escapeHtml(line)}</span>
-                    </div>
-                  ))}
-                </div>
+                <MergeLinePane
+                  lines={currentConflict?.baseContent ?? []}
+                  showLineNumbers={showLineNumbers}
+                  lineClassName="text-text-secondary"
+                />
               </div>
 
               {/* Mine (center-left) */}
@@ -559,18 +628,11 @@ export function ThreeWayMergeEditor({
                     Use Mine
                   </button>
                 </div>
-                <div className="flex-1 overflow-auto p-2 font-mono text-sm">
-                  {currentConflict?.mineContent.map((line, i) => (
-                    <div key={i} className="flex hover:bg-accent/5">
-                      {showLineNumbers && (
-                        <span className="w-8 text-right pr-2 text-text-faint select-none flex-shrink-0">
-                          {i + 1}
-                        </span>
-                      )}
-                      <span className="text-text">{escapeHtml(line)}</span>
-                    </div>
-                  ))}
-                </div>
+                <MergeLinePane
+                  lines={currentConflict?.mineContent ?? []}
+                  showLineNumbers={showLineNumbers}
+                  lineClassName="hover:bg-accent/5"
+                />
               </div>
 
               {/* Theirs (center-right) */}
@@ -586,18 +648,11 @@ export function ThreeWayMergeEditor({
                     Use Theirs
                   </button>
                 </div>
-                <div className="flex-1 overflow-auto p-2 font-mono text-sm">
-                  {currentConflict?.theirsContent.map((line, i) => (
-                    <div key={i} className="flex hover:bg-accent/5">
-                      {showLineNumbers && (
-                        <span className="w-8 text-right pr-2 text-text-faint select-none flex-shrink-0">
-                          {i + 1}
-                        </span>
-                      )}
-                      <span className="text-text">{escapeHtml(line)}</span>
-                    </div>
-                  ))}
-                </div>
+                <MergeLinePane
+                  lines={currentConflict?.theirsContent ?? []}
+                  showLineNumbers={showLineNumbers}
+                  lineClassName="hover:bg-accent/5"
+                />
               </div>
 
               {/* Result (right) */}
@@ -635,24 +690,13 @@ export function ThreeWayMergeEditor({
                     )}
                   </div>
                 </div>
-                <div className="flex-1 overflow-auto p-2 font-mono text-sm bg-bg-elevated">
-                  {currentConflict?.resolved ? (
-                    getResolvedContent(currentConflict).map((line, i) => (
-                      <div key={i} className="flex bg-svn-added/10">
-                        {showLineNumbers && (
-                          <span className="w-8 text-right pr-2 text-text-faint select-none flex-shrink-0">
-                            {i + 1}
-                          </span>
-                        )}
-                        <span className="text-text">{escapeHtml(line)}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-text-muted text-sm">
-                      Choose resolution from left panels
-                    </div>
-                  )}
-                </div>
+                <MergeLinePane
+                  lines={currentResolvedContent}
+                  showLineNumbers={showLineNumbers}
+                  className="bg-bg-elevated"
+                  lineClassName="bg-svn-added/10"
+                  emptyMessage="Choose resolution from left panels"
+                />
               </div>
             </div>
           ) : (
@@ -720,7 +764,11 @@ export function ThreeWayMergeEditor({
               <RotateCcw className="w-4 h-4" />
               Revert Changes
             </button>
-            <button onClick={() => void requestClose()} disabled={isSaving} className="btn btn-secondary">
+            <button
+              onClick={() => void requestClose()}
+              disabled={isSaving}
+              className="btn btn-secondary"
+            >
               Cancel
             </button>
             <button onClick={handleSave} disabled={isSaving} className="btn btn-primary">

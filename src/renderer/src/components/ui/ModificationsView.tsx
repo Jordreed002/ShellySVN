@@ -38,9 +38,14 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
   const [includeRemote, setIncludeRemote] = useState(false);
 
   // Get SVN status for the path
-  const { data: statusData, isLoading, isFetching } = useQuery({
+  const {
+    data: statusData,
+    isLoading,
+    isFetching,
+  } = useQuery({
     queryKey: ['svn:status', path, includeRemote],
-    queryFn: () => (includeRemote ? window.api.svn.statusRemote(path) : window.api.svn.status(path)),
+    queryFn: () =>
+      includeRemote ? window.api.svn.statusRemote(path) : window.api.svn.status(path),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -78,6 +83,7 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
     count: filteredEntries.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 36,
+    getItemKey: (index) => filteredEntries[index]?.path ?? index,
     overscan: 10,
   });
 

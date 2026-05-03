@@ -1,6 +1,16 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import {
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from 'react';
 import { useSearch, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SvnListResult } from '@shared/types';
 import {
   Folder,
@@ -25,7 +35,6 @@ import {
   Edit3,
   Copy,
 } from 'lucide-react';
-import { CheckoutDialog } from '@renderer/components/ui/CheckoutDialog';
 import { RouteState } from '@renderer/components/ui/RouteState';
 import { useWorkingCopyContext } from '@renderer/hooks/useWorkingCopyContext';
 import { resolveRemoteUrlToLocalPath } from '@renderer/utils/pathResolution';
@@ -34,11 +43,12 @@ import {
   loadRepoBrowserCredentials,
   type RepoBrowserCredentials,
 } from './-repoBrowserAuth';
-import {
-  getRepoBrowserListQueryKey,
-  REPO_BROWSER_LIST_STALE_TIME_MS,
-} from './-repoBrowserCache';
+import { getRepoBrowserListQueryKey, REPO_BROWSER_LIST_STALE_TIME_MS } from './-repoBrowserCache';
 import { normalizeRepoBrowserRevision } from './-repoBrowserRevision';
+
+const CheckoutDialog = lazy(() =>
+  import('@renderer/components/ui/CheckoutDialog').then((m) => ({ default: m.CheckoutDialog }))
+);
 
 interface RepoNode {
   name: string;
@@ -85,6 +95,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const search = useSearch({ from: '/repo-browser/' });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const listRef = useRef<HTMLDivElement>(null);
 
   const [repoUrl, setRepoUrl] = useState(search.url || '');
   const [revision, setRevision] = useState('HEAD');
@@ -93,6 +104,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [selectedNode, setSelectedNode] = useState<RepoNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -133,8 +145,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   useEffect(() => {
     if (showAuthPrompt && authRealm) {
       getRepoBrowserRuntime()
-        .auth
-        .get(authRealm)
+        .auth.get(authRealm)
         .then((savedCreds) => {
           if (savedCreds) {
             setUsername(savedCreds.username);
@@ -200,15 +211,24 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       date: entry.date,
     }));
 
-    if (searchQuery) {
-      items = items.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (deferredSearchQuery) {
+      const lowerSearchQuery = deferredSearchQuery.toLowerCase();
+      items = items.filter((item) => item.name.toLowerCase().includes(lowerSearchQuery));
     }
 
     return items.toSorted((a, b) => {
       if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
-  }, [directoryData, currentPath, searchQuery]);
+  }, [directoryData, currentPath, deferredSearchQuery]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 37,
+    getItemKey: (index) => entries[index]?.path ?? index,
+    overscan: 15,
+  });
 
   const isInWorkingCopy = useCallback(
     (entry: RepoNode): boolean => {
@@ -272,25 +292,6 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       }
     },
     [navigateToPath]
-  );
-
-  const prefetchDirectory = useCallback(
-    (node: RepoNode) => {
-      if (node.kind !== 'dir') return;
-
-      queryClient.prefetchQuery({
-        queryKey: getRepoBrowserListQueryKey(node.url, selectedRevision, credentials),
-        queryFn: () =>
-          getRepoBrowserRuntime().svnList(
-            node.url,
-            selectedRevision,
-            'immediates',
-            credentials || undefined
-          ),
-        staleTime: REPO_BROWSER_LIST_STALE_TIME_MS,
-      });
-    },
-    [credentials, queryClient, selectedRevision]
   );
 
   const handleRefresh = useCallback(() => {
@@ -738,7 +739,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
           </div>
 
           <div className="flex-1 flex overflow-hidden">
-            <div className="flex-1 overflow-auto">
+            <div ref={listRef} className="flex-1 overflow-auto">
               {connectionError && !showAuthPrompt ? (
                 <RouteState
                   variant="offline"
@@ -762,84 +763,93 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                   }
                 />
               ) : (
-                <table className="w-full">
-                  <thead className="sticky top-0 bg-bg-secondary border-b border-border">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider w-8"></th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-text-muted uppercase tracking-wider w-20">
-                        Size
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-text-muted uppercase tracking-wider w-20">
-                        Revision
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider w-32">
-                        Author
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider w-40">
-                        Date
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {entries.map((entry) => (
-                      <tr
-                        key={entry.path}
-                        className={`cursor-pointer transition-fast ${
-                          selectedNode?.path === entry.path
-                            ? 'bg-accent/10'
-                            : 'hover:bg-bg-tertiary'
-                        }`}
-                        onClick={() => handleSelectNode(entry)}
-                        onDoubleClick={() => handleBrowse(entry)}
-                        onMouseEnter={() => prefetchDirectory(entry)}
-                        onFocus={() => prefetchDirectory(entry)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            handleBrowse(entry);
-                          }
-                        }}
-                        tabIndex={0}
-                      >
-                        <td className="px-4 py-2">
-                          {entry.kind === 'dir' ? (
-                            <Folder className="w-4 h-4 text-amber-500" />
-                          ) : (
-                            <FileText className="w-4 h-4 text-text-muted" />
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-text truncate max-w-xs">
-                          <div className="flex items-center gap-2">
-                            {entry.name}
-                            {isInWorkingCopy(entry) && (
-                              <span
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-success/20 rounded text-xs text-success"
-                                title="Already in working copy"
-                              >
-                                <Check className="w-3 h-3" />
-                                WC
-                              </span>
+                <div className="min-w-[760px]">
+                  <div className="sticky top-0 z-10 grid grid-cols-[3rem_minmax(16rem,1fr)_5rem_5rem_8rem_10rem] bg-bg-secondary border-b border-border">
+                    <div className="px-4 py-2" />
+                    <div className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                      Name
+                    </div>
+                    <div className="px-4 py-2 text-right text-xs font-medium text-text-muted uppercase tracking-wider">
+                      Size
+                    </div>
+                    <div className="px-4 py-2 text-right text-xs font-medium text-text-muted uppercase tracking-wider">
+                      Revision
+                    </div>
+                    <div className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                      Author
+                    </div>
+                    <div className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                      Date
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      height: `${rowVirtualizer.getTotalSize()}px`,
+                      position: 'relative',
+                    }}
+                  >
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const entry = entries[virtualRow.index];
+
+                      return (
+                        <div
+                          key={virtualRow.key}
+                          className={`absolute left-0 top-0 grid w-full grid-cols-[3rem_minmax(16rem,1fr)_5rem_5rem_8rem_10rem] cursor-pointer border-b border-border ${
+                            selectedNode?.path === entry.path
+                              ? 'bg-accent/10'
+                              : 'hover:bg-bg-tertiary'
+                          }`}
+                          style={{
+                            height: `${virtualRow.size}px`,
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                          onClick={() => handleSelectNode(entry)}
+                          onDoubleClick={() => handleBrowse(entry)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              handleBrowse(entry);
+                            }
+                          }}
+                          tabIndex={0}
+                        >
+                          <div className="px-4 py-2">
+                            {entry.kind === 'dir' ? (
+                              <Folder className="w-4 h-4 text-amber-500" />
+                            ) : (
+                              <FileText className="w-4 h-4 text-text-muted" />
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-2 text-sm text-text-muted text-right">
-                          {entry.kind === 'file' ? formatSize(entry.size) : '-'}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-accent text-right">
-                          r{entry.revision}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-text-muted truncate">
-                          {entry.author}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-text-muted">
-                          {formatDate(entry.date)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div className="px-4 py-2 text-sm text-text truncate">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate">{entry.name}</span>
+                              {isInWorkingCopy(entry) && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-success/20 rounded text-xs text-success"
+                                  title="Already in working copy"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  WC
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="px-4 py-2 text-sm text-text-muted text-right">
+                            {entry.kind === 'file' ? formatSize(entry.size) : '-'}
+                          </div>
+                          <div className="px-4 py-2 text-sm text-accent text-right">
+                            r{entry.revision}
+                          </div>
+                          <div className="px-4 py-2 text-sm text-text-muted truncate">
+                            {entry.author}
+                          </div>
+                          <div className="px-4 py-2 text-sm text-text-muted">
+                            {formatDate(entry.date)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -893,20 +903,20 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                     </button>
                   )}
                   {workingCopyContext && !isInWorkingCopy(selectedNode) && (
-                      <button
-                        type="button"
-                        onClick={() => handleAddToWorkingCopy(selectedNode)}
-                        disabled={isAddingToWc}
-                        className="w-full btn btn-secondary text-sm"
-                      >
-                        {isAddingToWc ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <PlusCircle className="w-4 h-4" />
-                        )}
-                        {isAddingToWc ? 'Adding...' : 'Add to Working Copy'}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleAddToWorkingCopy(selectedNode)}
+                      disabled={isAddingToWc}
+                      className="w-full btn btn-secondary text-sm"
+                    >
+                      {isAddingToWc ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <PlusCircle className="w-4 h-4" />
+                      )}
+                      {isAddingToWc ? 'Adding...' : 'Add to Working Copy'}
+                    </button>
+                  )}
                   {addWcSuccess && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-success/20 rounded text-sm text-success">
                       <Check className="w-4 h-4" />
@@ -985,12 +995,16 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
         </RouteState>
       )}
 
-      <CheckoutDialog
-        isOpen={isCheckoutOpen}
-        onClose={handleCloseCheckout}
-        initialUrl={selectedNode?.url || repoUrl}
-        onComplete={handleCloseCheckout}
-      />
+      {isCheckoutOpen && (
+        <Suspense fallback={null}>
+          <CheckoutDialog
+            isOpen={isCheckoutOpen}
+            onClose={handleCloseCheckout}
+            initialUrl={selectedNode?.url || repoUrl}
+            onComplete={handleCloseCheckout}
+          />
+        </Suspense>
+      )}
 
       {isCreateFolderOpen && (
         <div className="modal-overlay" onClick={handleCloseCreateFolder}>
@@ -1342,7 +1356,10 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                 </div>
               </div>
               <div>
-                <label htmlFor="repo-browser-auth-username" className="block text-sm font-medium text-text mb-1.5">
+                <label
+                  htmlFor="repo-browser-auth-username"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
                   Username
                 </label>
                 <input
@@ -1354,7 +1371,10 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                 />
               </div>
               <div>
-                <label htmlFor="repo-browser-auth-password" className="block text-sm font-medium text-text mb-1.5">
+                <label
+                  htmlFor="repo-browser-auth-password"
+                  className="block text-sm font-medium text-text mb-1.5"
+                >
                   Password
                 </label>
                 <input

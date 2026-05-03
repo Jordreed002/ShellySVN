@@ -19,6 +19,45 @@ interface FileThumbnailProps {
   showPreview?: boolean;
 }
 
+const thumbnailCache = new Map<string, string | null>();
+const thumbnailRequests = new Map<string, Promise<string | null>>();
+const MAX_THUMBNAIL_CACHE_ENTRIES = 300;
+
+function rememberThumbnail(filePath: string, data: string | null) {
+  if (thumbnailCache.size >= MAX_THUMBNAIL_CACHE_ENTRIES) {
+    const oldestKey = thumbnailCache.keys().next().value;
+    if (oldestKey) thumbnailCache.delete(oldestKey);
+  }
+  thumbnailCache.set(filePath, data);
+}
+
+function readThumbnail(filePath: string): Promise<string | null> {
+  if (thumbnailCache.has(filePath)) {
+    return Promise.resolve(thumbnailCache.get(filePath) ?? null);
+  }
+
+  const pending = thumbnailRequests.get(filePath);
+  if (pending) return pending;
+
+  const request = window.api.fs
+    .readImageAsBase64(filePath)
+    .then((result) => {
+      const data = result.success && result.data ? result.data : null;
+      rememberThumbnail(filePath, data);
+      return data;
+    })
+    .catch(() => {
+      rememberThumbnail(filePath, null);
+      return null;
+    })
+    .finally(() => {
+      thumbnailRequests.delete(filePath);
+    });
+
+  thumbnailRequests.set(filePath, request);
+  return request;
+}
+
 // File type to icon mapping
 function getFileIcon(filename: string, isDirectory: boolean) {
   if (isDirectory) return Folder;
@@ -101,27 +140,32 @@ export function FileThumbnail({
   useEffect(() => {
     if (!isImage || !showPreview || isDirectory) {
       setThumbnailUrl(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const cached = thumbnailCache.get(filePath);
+    if (cached !== undefined) {
+      setThumbnailUrl(cached);
+      setError(cached === null);
+      setLoading(false);
       return;
     }
 
     setLoading(true);
     setError(false);
 
-    // Use IPC to read image as base64 (avoids file:// protocol security issues)
-    window.api.fs
-      .readImageAsBase64(filePath)
-      .then((result) => {
-        if (result.success && result.data) {
-          setThumbnailUrl(result.data);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setError(true);
-        setLoading(false);
-      });
+    void readThumbnail(filePath).then((data) => {
+      if (cancelled) return;
+      setThumbnailUrl(data);
+      setError(data === null);
+      setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [filePath, isImage, showPreview, isDirectory]);
 
   // For directories or non-image files, show icon

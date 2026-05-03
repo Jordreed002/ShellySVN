@@ -147,6 +147,7 @@ export function FileTreeView({
     count: visibleItems.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 28,
+    getItemKey: (index) => visibleItems[index]?.path ?? index,
     overscan: 10,
   });
 

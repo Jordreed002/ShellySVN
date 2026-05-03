@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Folder,
   FolderOpen,
@@ -292,6 +293,18 @@ export interface RepoBrowserEnhancedProps {
   className?: string;
 }
 
+function formatRepoBrowserSize(bytes?: number): string {
+  if (!bytes) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatRepoBrowserDate(dateStr: string): string {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleDateString();
+}
+
 /**
  * Enhanced repository browser component
  */
@@ -318,22 +331,18 @@ export function RepoBrowserEnhanced({
   } = useRepoBrowser(repositoryUrl);
 
   const [selectedNode, setSelectedNode] = useState<RepoBrowserNode | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: visibleNodes.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 37,
+    getItemKey: (index) => visibleNodes[index]?.node.path ?? index,
+    overscan: 20,
+  });
 
   useEffect(() => {
     initialize();
   }, [initialize]);
-
-  const formatSize = (bytes?: number): string => {
-    if (!bytes) return '-';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatDate = (dateStr: string): string => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString();
-  };
 
   return (
     <div
@@ -392,7 +401,7 @@ export function RepoBrowserEnhanced({
       </div>
 
       {/* File list */}
-      <div className="max-h-96 overflow-auto">
+      <div ref={listRef} className="h-96 overflow-auto">
         {!rootNode ? (
           <div className="p-8 text-center text-slate-500 dark:text-slate-400">
             Loading repository...
@@ -402,78 +411,80 @@ export function RepoBrowserEnhanced({
             {searchQuery ? 'No files match your search' : 'Repository is empty'}
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {visibleNodes.map(({ node, depth }) => (
-              <div
-                key={node.path}
-                className={`
-                  flex items-center gap-2 px-4 py-2 cursor-pointer
-                  hover:bg-slate-50 dark:hover:bg-slate-700
-                  ${selectedNode?.path === node.path ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
-                `}
-                style={{ paddingLeft: `${depth * 20 + 16}px` }}
-                onClick={() => setSelectedNode(node)}
-                onDoubleClick={() => {
-                  if (node.kind === 'dir') {
-                    toggleExpand(node);
-                  } else {
-                    onSelectFile?.(node);
-                  }
-                }}
-              >
-                {/* Expand/collapse button for directories */}
-                {node.kind === 'dir' && (
-                  <span
-                    className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand(node);
-                    }}
-                  >
-                    {loadingPaths.has(node.path) ? (
-                      <RefreshCw className="w-3 h-3 animate-spin" />
-                    ) : expandedPaths.has(node.path) ? (
-                      <ChevronDown className="w-3 h-3" />
+          <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const { node, depth } = visibleNodes[virtualRow.index];
+
+              return (
+                <div
+                  key={virtualRow.key}
+                  className={`
+                    absolute left-0 top-0 flex w-full items-center gap-2 border-b border-slate-100 px-4 py-2
+                    cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700
+                    ${selectedNode?.path === node.path ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
+                  `}
+                  style={{
+                    height: `${virtualRow.size}px`,
+                    paddingLeft: `${depth * 20 + 16}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  onClick={() => setSelectedNode(node)}
+                  onDoubleClick={() => {
+                    if (node.kind === 'dir') {
+                      void toggleExpand(node);
+                    } else {
+                      onSelectFile?.(node);
+                    }
+                  }}
+                >
+                  {node.kind === 'dir' && (
+                    <span
+                      className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void toggleExpand(node);
+                      }}
+                    >
+                      {loadingPaths.has(node.path) ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : expandedPaths.has(node.path) ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                    </span>
+                  )}
+
+                  {node.kind === 'dir' ? (
+                    expandedPaths.has(node.path) ? (
+                      <FolderOpen className="w-4 h-4 text-amber-500" />
                     ) : (
-                      <ChevronRight className="w-3 h-3" />
-                    )}
-                  </span>
-                )}
-
-                {/* Icon */}
-                {node.kind === 'dir' ? (
-                  expandedPaths.has(node.path) ? (
-                    <FolderOpen className="w-4 h-4 text-amber-500" />
+                      <Folder className="w-4 h-4 text-amber-500" />
+                    )
                   ) : (
-                    <Folder className="w-4 h-4 text-amber-500" />
-                  )
-                ) : (
-                  <File className="w-4 h-4 text-slate-400" />
-                )}
+                    <File className="w-4 h-4 text-slate-400" />
+                  )}
 
-                {/* Name */}
-                <span className="flex-1 text-sm text-slate-800 dark:text-slate-200 truncate">
-                  {node.name}
-                </span>
-
-                {/* Size (files only) */}
-                {node.kind === 'file' && (
-                  <span className="text-xs text-slate-500 dark:text-slate-400 w-16 text-right">
-                    {formatSize(node.size)}
+                  <span className="flex-1 truncate text-sm text-slate-800 dark:text-slate-200">
+                    {node.name}
                   </span>
-                )}
 
-                {/* Revision */}
-                <span className="text-xs text-slate-500 dark:text-slate-400 w-12 text-right">
-                  r{node.revision}
-                </span>
+                  {node.kind === 'file' && (
+                    <span className="w-16 text-right text-xs text-slate-500 dark:text-slate-400">
+                      {formatRepoBrowserSize(node.size)}
+                    </span>
+                  )}
 
-                {/* Date */}
-                <span className="text-xs text-slate-500 dark:text-slate-400 w-20 text-right">
-                  {formatDate(node.date)}
-                </span>
-              </div>
-            ))}
+                  <span className="w-12 text-right text-xs text-slate-500 dark:text-slate-400">
+                    r{node.revision}
+                  </span>
+
+                  <span className="w-20 text-right text-xs text-slate-500 dark:text-slate-400">
+                    {formatRepoBrowserDate(node.date)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -499,7 +510,8 @@ export function RepoBrowserEnhanced({
             </button>
           </div>
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {selectedNode.author} • r{selectedNode.revision} • {formatDate(selectedNode.date)}
+            {selectedNode.author} • r{selectedNode.revision} •{' '}
+            {formatRepoBrowserDate(selectedNode.date)}
           </div>
         </div>
       )}

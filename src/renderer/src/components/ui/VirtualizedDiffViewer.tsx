@@ -463,6 +463,11 @@ export function VirtualizedDiffViewer({
   const rowVirtualizer = useVirtualizer({
     count: visibleLines.length,
     getScrollElement: () => parentRef.current,
+    getItemKey: (index) => {
+      const line = visibleLines[index];
+      if (!line) return index;
+      return `${line.type}:${line.fileIndex}:${line.hunkIndex}:${line.lineIndex}`;
+    },
     estimateSize: useCallback(
       (index: number) => {
         const line = visibleLines[index];

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, GitCompare, Loader2, X } from 'lucide-react';
 import type { SvnDiffResult } from '@shared/types';
 import { EnhancedDiffViewer } from './EnhancedDiffViewer';
+import { VirtualizedDiffViewer } from './VirtualizedDiffViewer';
 
 interface BranchTagCompareDialogProps {
   isOpen: boolean;
@@ -23,6 +24,16 @@ export function suggestComparisonUrl(sourceUrl: string): string {
   if (tagMatch) return `${tagMatch[1]}/trunk`;
 
   return trimmedUrl;
+}
+
+function getDiffLineCount(diff: SvnDiffResult): number {
+  let count = 0;
+  for (const file of diff.files) {
+    for (const hunk of file.hunks) {
+      count += hunk.lines.length;
+    }
+  }
+  return count;
 }
 
 export function BranchTagCompareDialog({
@@ -121,7 +132,11 @@ export function BranchTagCompareDialog({
                 disabled={isLoading}
               />
             </label>
-            <button type="submit" className="btn btn-primary h-9" disabled={isLoading || !canCompare}>
+            <button
+              type="submit"
+              className="btn btn-primary h-9"
+              disabled={isLoading || !canCompare}
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -152,13 +167,18 @@ export function BranchTagCompareDialog({
             </div>
           )}
 
-          {!isLoading && diff && diff.hasChanges && (
-            <EnhancedDiffViewer
-              diff={diff}
-              filePath={`${leftUrl.trim()} -> ${rightUrl.trim()}`}
-              className="h-full"
-            />
-          )}
+          {!isLoading &&
+            diff &&
+            diff.hasChanges &&
+            (getDiffLineCount(diff) > 2000 ? (
+              <VirtualizedDiffViewer diff={diff} className="h-full" />
+            ) : (
+              <EnhancedDiffViewer
+                diff={diff}
+                filePath={`${leftUrl.trim()} -> ${rightUrl.trim()}`}
+                className="h-full"
+              />
+            ))}
 
           {!isLoading && diff && !diff.hasChanges && (
             <div className="flex h-full items-center justify-center text-text-muted">
