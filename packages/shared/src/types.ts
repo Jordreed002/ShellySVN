@@ -641,6 +641,7 @@ export interface SvnExecutionContext {
   connectionTimeout?: number;
   sslVerify?: boolean;
   clientCertificatePath?: string;
+  svnConfigPath?: string;
 }
 
 // ============================================
@@ -666,6 +667,15 @@ export interface FsStatusResult {
     [filename: string]: { status: SvnStatusChar; revision?: number; author?: string };
   };
   allEntries: { status: SvnStatusChar; fullPath: string; revision?: number; author?: string }[];
+}
+
+export interface DirectoryMetadataResult {
+  parentPath: string | null;
+  isVersioned: boolean;
+  statusData: FsStatusResult;
+  svnInfo: SvnInfoResult | null;
+  workingCopyUpgradeStatus: WorkingCopyUpgradeStatus | null;
+  workingCopyContext: { workingCopyRoot: string; repositoryRoot: string; url: string } | null;
 }
 
 export interface WebhookDeliverRequest {
@@ -909,6 +919,7 @@ export interface ElectronAPI {
   fs: {
     listDirectory: (path: string) => Promise<FileInfo[]>;
     listDrives: () => Promise<FileInfo[]>;
+    getDirectoryMetadata: (path: string, hasFiles?: boolean) => Promise<DirectoryMetadataResult>;
     getParent: (path: string) => Promise<string | null>;
     getStatus: (path: string) => Promise<FsStatusResult>;
     getDeepStatus: (path: string) => Promise<FsStatusResult>;

@@ -7,6 +7,7 @@ const mockState = vi.hoisted(() => ({
   mkdtemp: vi.fn().mockResolvedValue('C:\\temp\\svn-config-123'),
   rm: vi.fn().mockResolvedValue(undefined),
   getSvnClientPath: vi.fn().mockReturnValue('custom-svn'),
+  settingsReady: vi.fn().mockResolvedValue(undefined),
   getSvnExecutionContext: vi.fn().mockReturnValue({
     proxySettings: { enabled: false },
     connectionTimeout: 0,
@@ -50,6 +51,7 @@ vi.mock('fs/promises', () => ({
 
 vi.mock('../../settings-manager', () => ({
   getSettingsManager: () => ({
+    ready: mockState.settingsReady,
     getSvnClientPath: mockState.getSvnClientPath,
     getSvnExecutionContext: mockState.getSvnExecutionContext,
   }),
@@ -81,9 +83,9 @@ async function startSvn(args: string[], options = {}) {
   const proc = createMockProcess();
   mockState.spawn.mockReturnValueOnce(proc);
   const promise = runSvnText(args, options);
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  while (mockState.spawn.mock.calls.length === 0) {
+    await Promise.resolve();
+  }
   return { proc, promise };
 }
 
@@ -91,9 +93,9 @@ async function startSvnResult(args: string[], options = {}) {
   const proc = createMockProcess();
   mockState.spawn.mockReturnValueOnce(proc);
   const promise = runSvn(args, options);
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  while (mockState.spawn.mock.calls.length === 0) {
+    await Promise.resolve();
+  }
   return { proc, promise };
 }
 
@@ -102,6 +104,7 @@ describe('svn-executor', () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     mockState.getSvnClientPath.mockReturnValue('custom-svn');
+    mockState.settingsReady.mockResolvedValue(undefined);
     mockState.getSvnExecutionContext.mockReturnValue({
       proxySettings: { enabled: false },
       connectionTimeout: 0,
@@ -125,6 +128,30 @@ describe('svn-executor', () => {
       expect.objectContaining({ windowsHide: true })
     );
     expect(mockState.debugLog.mock.calls.join('\n')).not.toContain('secret-value');
+  });
+
+  it('waits for settings to load before spawning SVN', async () => {
+    let resolveReady!: () => void;
+    mockState.settingsReady.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveReady = resolve;
+      })
+    );
+    const proc = createMockProcess();
+    mockState.spawn.mockReturnValueOnce(proc);
+
+    const promise = runSvnText(['status']);
+    await Promise.resolve();
+    expect(mockState.spawn).not.toHaveBeenCalled();
+
+    resolveReady();
+    while (mockState.spawn.mock.calls.length === 0) {
+      await Promise.resolve();
+    }
+
+    proc.emit('close', 0);
+    await expect(promise).resolves.toBe('');
+    expect(mockState.spawn).toHaveBeenCalledWith('custom-svn', ['status'], expect.any(Object));
   });
 
   it('redacts secret-looking stderr before returning command failures', async () => {
@@ -242,6 +269,26 @@ describe('svn-executor', () => {
     );
   });
 
+  it('passes the configured SVN config directory when no proxy override is needed', async () => {
+    mockState.getSvnExecutionContext.mockReturnValue({
+      proxySettings: { enabled: false },
+      connectionTimeout: 0,
+      sslVerify: true,
+      clientCertificatePath: '',
+      svnConfigPath: ' C:\\Users\\alice\\Subversion ',
+    });
+    const { proc, promise } = await startSvn(['status']);
+
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      'custom-svn',
+      expect.arrayContaining(['--config-dir', 'C:\\Users\\alice\\Subversion']),
+      expect.any(Object)
+    );
+  });
+
   it('only bypasses explicitly confirmed SSL failure classes', async () => {
     const { proc, promise } = await startSvn(['info', 'https://svn.example.com/repo'], {
       trustSslFailures: true,
@@ -289,9 +336,7 @@ describe('svn-executor', () => {
     proc.emit('close', 0);
 
     await expect(promise).resolves.toBe('<log />');
-    expect(mockState.authFindForUrl).toHaveBeenCalledWith(
-      'https://svn.example.com/project/trunk'
-    );
+    expect(mockState.authFindForUrl).toHaveBeenCalledWith('https://svn.example.com/project/trunk');
     expect(mockState.spawn).toHaveBeenCalledWith(
       'custom-svn',
       expect.arrayContaining(['--username', 'alice', '--password', 'secret']),
@@ -340,9 +385,7 @@ describe('svn-executor', () => {
     });
     const { proc, promise } = await startSvn(['status']);
 
-    const assertion = expect(promise).rejects.toThrow(
-      'SVN operation timed out after 2 seconds'
-    );
+    const assertion = expect(promise).rejects.toThrow('SVN operation timed out after 2 seconds');
     await vi.advanceTimersByTimeAsync(2000);
 
     await assertion;

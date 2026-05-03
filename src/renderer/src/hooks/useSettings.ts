@@ -1,12 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type {
-  AppSettings,
-  ProxySettings,
-  DiffMergeSettings,
-  DialogSettings,
-  NotificationSettings,
-  IntegrationSettings,
-} from '@shared/types';
+import { DEFAULT_SETTINGS, mergeDeep, mergeSettings } from '@shared/settings-defaults';
+import type { AppSettings } from '@shared/types';
+
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
+};
 
 /**
  * Return type for useSettings hook
@@ -16,7 +14,7 @@ export interface UseSettingsReturn {
   settings: AppSettings;
   isLoading: boolean;
   error: Error | null;
-  updateSettings: (updates: Partial<AppSettings>) => Promise<AppSettings>;
+  updateSettings: (updates: DeepPartial<AppSettings>) => Promise<AppSettings>;
   addRecentRepo: (repoPath: string) => Promise<void>;
   removeRecentRepo: (repoPath: string) => Promise<void>;
   addRecentPath: (path: string) => Promise<void>;
@@ -24,111 +22,6 @@ export interface UseSettingsReturn {
   removeBookmark: (path: string) => Promise<void>;
   isUpdating: boolean;
 }
-
-const DEFAULT_PROXY_SETTINGS: ProxySettings = {
-  enabled: false,
-  host: '',
-  port: 8080,
-  username: '',
-  password: '',
-  bypassForLocal: true,
-};
-
-const DEFAULT_DIFF_MERGE_SETTINGS: DiffMergeSettings = {
-  externalDiffTool: '',
-  externalMergeTool: '',
-  externalToolOverrides: [],
-  diffOnDoubleClick: true,
-  ignoreWhitespace: false,
-  ignoreEol: false,
-  contextLines: 3,
-};
-
-const DEFAULT_DIALOG_SETTINGS: DialogSettings = {
-  rememberPositions: true,
-  rememberSizes: true,
-  commitDialogColumns: ['status', 'path', 'extension'],
-  logMessagesPerPage: 100,
-  maxCachedMessages: 1000,
-};
-
-const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
-  enableSounds: true,
-  enableSystemNotifications: true,
-  showHookOutput: true,
-  monitorPollInterval: 60,
-};
-
-const DEFAULT_INTEGRATION_SETTINGS: IntegrationSettings = {
-  shellExtensionEnabled: false,
-  contextMenuItems: ['update', 'commit', 'revert', 'log', 'diff', 'checkout', 'export'],
-  iconOverlaysEnabled: true,
-};
-
-const DEFAULT_SETTINGS: AppSettings = {
-  // General
-  theme: 'system',
-  language: 'en',
-  checkUpdatesOnStartup: true,
-  confirmDestructiveOps: true,
-  singleInstanceMode: false,
-  defaultCheckoutDirectory: '',
-  startupAction: 'welcome',
-
-  // SVN
-  recentRepositories: [],
-  showIgnoredFiles: false,
-  showUnversionedFiles: true,
-  sidebarWidth: 250,
-  defaultCommitMessage: '',
-  autoRefreshInterval: 0,
-  svnClientPath: '', // empty = bundled
-  workingCopyFormat: '1.14',
-  globalIgnorePatterns: [],
-  proxySettings: DEFAULT_PROXY_SETTINGS,
-  connectionTimeout: 30,
-  sslVerify: true,
-  clientCertificatePath: '',
-
-  // Diff & Merge
-  diffMerge: DEFAULT_DIFF_MERGE_SETTINGS,
-
-  // Dialogs
-  dialogs: DEFAULT_DIALOG_SETTINGS,
-
-  // Notifications
-  notifications: DEFAULT_NOTIFICATION_SETTINGS,
-
-  // Integration
-  integration: DEFAULT_INTEGRATION_SETTINGS,
-
-  // Appearance
-  fontSize: 'medium',
-  showStatusBar: true,
-  fileListHeight: 'fill',
-  accentColor: '#6366f1', // Indigo
-  compactFileRows: false,
-  animationSpeed: 'normal',
-  showThumbnails: false,
-  showFolderSizes: false,
-
-  // Navigation
-  bookmarks: [],
-  recentPaths: [],
-
-  // Authentication
-  savedCredentials: [],
-
-  // Advanced
-  logLevel: 'info',
-  svnConfigPath: '',
-  logCachePath: '',
-  maxLogCacheSize: 100,
-
-  // Tutorial
-  hasCompletedTutorial: false,
-  tutorialStep: 0,
-};
 
 const MAX_RECENT_REPOS = 10;
 const MAX_RECENT_PATHS = 20;
@@ -145,7 +38,7 @@ export function useSettings(): UseSettingsReturn {
     queryKey: ['settings'],
     queryFn: async () => {
       const stored = await window.api.store.get<AppSettings>('settings');
-      return { ...DEFAULT_SETTINGS, ...stored } as AppSettings;
+      return mergeSettings(stored);
     },
     staleTime: Infinity, // Settings don't change often
     refetchOnMount: false, // Don't refetch when component mounts if data exists
@@ -154,10 +47,13 @@ export function useSettings(): UseSettingsReturn {
 
   // Mutation for updating settings
   const updateMutation = useMutation({
-    mutationFn: async (updates: Partial<AppSettings>) => {
+    mutationFn: async (updates: DeepPartial<AppSettings>) => {
       // Read the LATEST cached value directly from queryClient to avoid stale closures
       const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
-      const updated = { ...current, ...updates };
+      const updated = mergeDeep(
+        current as unknown as Record<string, unknown>,
+        updates as Partial<Record<string, unknown>>
+      ) as unknown as AppSettings;
       await window.api.store.set('settings', updated);
       return updated;
     },
@@ -218,7 +114,7 @@ export function useSettings(): UseSettingsReturn {
   };
 
   // Update any setting
-  const updateSettings = async (updates: Partial<AppSettings>) => {
+  const updateSettings = async (updates: DeepPartial<AppSettings>) => {
     return updateMutation.mutateAsync(updates);
   };
 

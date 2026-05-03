@@ -44,6 +44,73 @@ describe('useSettings navigation state', () => {
     expect(result.current.settings.bookmarks).toEqual([]);
   });
 
+  it('deep-merges saved nested settings with current defaults', async () => {
+    mockSettingsStore({
+      diffMerge: {
+        ignoreWhitespace: true,
+      },
+      proxySettings: {
+        enabled: true,
+        host: 'proxy.example.com',
+      },
+    });
+
+    const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.settings.diffMerge).toMatchObject({
+      ignoreWhitespace: true,
+      externalDiffTool: '',
+      externalMergeTool: '',
+      externalToolOverrides: [],
+      contextLines: 3,
+    });
+    expect(result.current.settings.proxySettings).toMatchObject({
+      enabled: true,
+      host: 'proxy.example.com',
+      port: 8080,
+      bypassForLocal: true,
+    });
+  });
+
+  it('preserves customized nested siblings during partial nested updates', async () => {
+    const { set } = mockSettingsStore({
+      diffMerge: {
+        externalDiffTool: 'meld',
+        externalMergeTool: 'kdiff3',
+        externalToolOverrides: [],
+        diffOnDoubleClick: true,
+        ignoreWhitespace: false,
+        ignoreEol: false,
+        contextLines: 8,
+      },
+    });
+
+    const { result } = renderHook(() => useSettings(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.updateSettings({
+        diffMerge: {
+          ignoreWhitespace: true,
+        },
+      });
+    });
+
+    expect(set).toHaveBeenLastCalledWith(
+      'settings',
+      expect.objectContaining({
+        diffMerge: expect.objectContaining({
+          externalDiffTool: 'meld',
+          externalMergeTool: 'kdiff3',
+          ignoreWhitespace: true,
+          contextLines: 8,
+        }),
+      })
+    );
+  });
+
   it('moves recent repositories to the front, deduplicates them, and caps the list', async () => {
     const existing = Array.from({ length: 10 }, (_, index) => `C:\\repos\\repo-${index}`);
     const { set } = mockSettingsStore({

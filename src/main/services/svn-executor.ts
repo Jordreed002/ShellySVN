@@ -152,6 +152,7 @@ async function getCachedCredentialsForArgs(
 
 export async function runSvn(args: string[], options: RunSvnOptions = {}): Promise<RunSvnResult> {
   const settingsManager = getSettingsManager();
+  await settingsManager.ready();
   const globalContext = settingsManager.getSvnExecutionContext();
   const context: SvnExecutionContext = {
     proxySettings: options.operationContext?.proxySettings ?? globalContext.proxySettings,
@@ -160,6 +161,7 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
     sslVerify: options.operationContext?.sslVerify ?? globalContext.sslVerify,
     clientCertificatePath:
       options.operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath,
+    svnConfigPath: options.operationContext?.svnConfigPath ?? globalContext.svnConfigPath,
   };
 
   const tempConfigDir = await createTempSvnConfig(context.proxySettings);
@@ -174,6 +176,8 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
 
     if (tempConfigDir) {
       finalArgs.push('--config-dir', tempConfigDir);
+    } else if (context.svnConfigPath?.trim()) {
+      finalArgs.push('--config-dir', context.svnConfigPath.trim());
     }
 
     finalArgs.push(...args);
@@ -190,7 +194,9 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
         finalArgs.push('--trust-server-cert-failures', trustedFailures);
         debug.warn(`[SECURITY] SSL verification bypassed for: ${options.cwd || process.cwd()}`);
       } else {
-        debug.warn('[SECURITY] SSL trust requested without confirmed failure classes; not bypassing certificate checks.');
+        debug.warn(
+          '[SECURITY] SSL trust requested without confirmed failure classes; not bypassing certificate checks.'
+        );
       }
     }
 

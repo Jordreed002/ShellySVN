@@ -17,6 +17,7 @@ import { existsSync, statSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join } from 'path';
 import type { AppSettings, SvnExecutionContext, ProxySettings } from '@shared/types';
+import { mergeDeep, mergeSettings } from '@shared/settings-defaults';
 import {
   KNOWN_DIFF_TOOL_ALIASES,
   KNOWN_MERGE_TOOL_ALIASES,
@@ -25,81 +26,6 @@ import {
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
-};
-
-// Default settings (must match renderer defaults)
-const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'system',
-  language: 'en',
-  checkUpdatesOnStartup: true,
-  confirmDestructiveOps: true,
-  singleInstanceMode: false,
-  defaultCheckoutDirectory: '',
-  startupAction: 'welcome',
-  recentRepositories: [],
-  showIgnoredFiles: false,
-  showUnversionedFiles: true,
-  sidebarWidth: 250,
-  defaultCommitMessage: '',
-  autoRefreshInterval: 0,
-  svnClientPath: '',
-  workingCopyFormat: '1.14',
-  globalIgnorePatterns: [],
-  proxySettings: {
-    enabled: false,
-    host: '',
-    port: 8080,
-    username: '',
-    password: '',
-    bypassForLocal: true,
-  },
-  connectionTimeout: 30,
-  sslVerify: true,
-  clientCertificatePath: '',
-  diffMerge: {
-    externalDiffTool: '',
-    externalMergeTool: '',
-    externalToolOverrides: [],
-    diffOnDoubleClick: true,
-    ignoreWhitespace: false,
-    ignoreEol: false,
-    contextLines: 3,
-  },
-  dialogs: {
-    rememberPositions: true,
-    rememberSizes: true,
-    commitDialogColumns: ['status', 'path', 'extension'],
-    logMessagesPerPage: 100,
-    maxCachedMessages: 1000,
-  },
-  notifications: {
-    enableSounds: true,
-    enableSystemNotifications: true,
-    showHookOutput: true,
-    monitorPollInterval: 60,
-  },
-  integration: {
-    shellExtensionEnabled: false,
-    contextMenuItems: ['update', 'commit', 'revert', 'log', 'diff', 'checkout', 'export'],
-    iconOverlaysEnabled: true,
-  },
-  fontSize: 'medium',
-  showStatusBar: true,
-  fileListHeight: 'fill',
-  accentColor: '#6366f1',
-  compactFileRows: false,
-  animationSpeed: 'normal',
-  showThumbnails: false,
-  showFolderSizes: false,
-  bookmarks: [],
-  recentPaths: [],
-  savedCredentials: [],
-  logLevel: 'info',
-  svnConfigPath: '',
-  logCachePath: '',
-  maxLogCacheSize: 100,
-  hasCompletedTutorial: false,
-  tutorialStep: 0,
 };
 
 /**
@@ -118,7 +44,7 @@ class SettingsManager {
   private constructor() {
     const userDataPath = app.getPath('userData');
     this.filePath = join(userDataPath, 'shellysvn-config.json');
-    this.settings = { ...DEFAULT_SETTINGS };
+    this.settings = mergeSettings();
     this.encryptionAvailable = safeStorage.isEncryptionAvailable();
     this.loadPromise = this.load();
   }
@@ -142,7 +68,7 @@ class SettingsManager {
       const content = await readFile(this.filePath, 'utf-8');
       const stored = JSON.parse(content);
       // Merge with defaults to ensure all fields exist
-      this.settings = this.mergeDeep({ ...DEFAULT_SETTINGS }, stored.settings || stored);
+      this.settings = mergeSettings(stored.settings || stored);
 
       // SECURITY: Decrypt proxy password if it exists and is encrypted
       if (this.settings.proxySettings?.password) {
@@ -152,38 +78,8 @@ class SettingsManager {
       }
     } catch {
       // File doesn't exist or parse error, use defaults
-      this.settings = { ...DEFAULT_SETTINGS };
+      this.settings = mergeSettings();
     }
-  }
-
-  /**
-   * Deep merge utility
-   * Type-safe implementation for merging partial settings
-   */
-  private mergeDeep<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-    const output = { ...target };
-    if (this.isObject(target) && this.isObject(source)) {
-      Object.keys(source).forEach((key) => {
-        const typedKey = key as keyof T;
-        if (this.isObject(source[typedKey])) {
-          if (!(key in target)) {
-            Object.assign(output, { [key]: source[typedKey] });
-          } else {
-            output[typedKey] = this.mergeDeep(
-              target[typedKey] as Record<string, unknown>,
-              source[typedKey] as Partial<Record<string, unknown>>
-            ) as T[keyof T];
-          }
-        } else {
-          Object.assign(output, { [key]: source[typedKey] });
-        }
-      });
-    }
-    return output;
-  }
-
-  private isObject(item: unknown): item is Record<string, unknown> {
-    return item !== null && typeof item === 'object' && !Array.isArray(item);
   }
 
   private validateSvnClientPath(path: string): void {
@@ -253,7 +149,9 @@ class SettingsManager {
     // Encrypt proxy password if present
     if (encrypted.proxySettings?.password) {
       if (!this.encryptionAvailable) {
-        console.warn('[SECURITY] Dropping proxy password from persisted settings - encryption not available');
+        console.warn(
+          '[SECURITY] Dropping proxy password from persisted settings - encryption not available'
+        );
         encrypted.proxySettings = {
           ...encrypted.proxySettings,
           password: '',
@@ -381,7 +279,7 @@ class SettingsManager {
       }
     }
 
-    this.settings = this.mergeDeep(
+    this.settings = mergeDeep(
       this.settings as unknown as Record<string, unknown>,
       updates as unknown as Partial<Record<string, unknown>>
     ) as unknown as AppSettings;
@@ -399,6 +297,7 @@ class SettingsManager {
       connectionTimeout: this.settings.connectionTimeout,
       sslVerify: this.settings.sslVerify,
       clientCertificatePath: this.settings.clientCertificatePath,
+      svnConfigPath: this.settings.svnConfigPath,
     };
   }
 
@@ -411,7 +310,10 @@ class SettingsManager {
         this.validateSvnClientPath(this.settings.svnClientPath);
         return this.settings.svnClientPath.trim();
       } catch (error) {
-        console.warn('[SECURITY] Ignoring invalid custom SVN client path:', (error as Error).message);
+        console.warn(
+          '[SECURITY] Ignoring invalid custom SVN client path:',
+          (error as Error).message
+        );
       }
     }
     // Default to system SVN
