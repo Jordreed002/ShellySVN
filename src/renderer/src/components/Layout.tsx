@@ -8,18 +8,22 @@ import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { Sidebar } from './Sidebar';
 import { OnboardingTutorial, useOnboarding } from './tutorial';
-import { KeyboardShortcutsDialog } from './ui/KeyboardShortcutsDialog';
-import { QuickNotesPanel } from './ui/QuickNotesPanel';
 import { StatusBar } from './ui/StatusBar';
 
 const CommandPalette = lazy(() =>
   import('./ui/CommandPalette').then((m) => ({ default: m.CommandPalette }))
+);
+const KeyboardShortcutsDialog = lazy(() =>
+  import('./ui/KeyboardShortcutsDialog').then((m) => ({ default: m.KeyboardShortcutsDialog }))
 );
 const PerformanceDashboard = lazy(() =>
   import('./ui/PerformanceDashboard').then((m) => ({ default: m.PerformanceDashboard }))
 );
 const PluginManagerDialog = lazy(() =>
   import('./ui/PluginManagerDialog').then((m) => ({ default: m.PluginManagerDialog }))
+);
+const QuickNotesPanel = lazy(() =>
+  import('./ui/QuickNotesPanel').then((m) => ({ default: m.QuickNotesPanel }))
 );
 
 /**
@@ -177,7 +181,11 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Modals */}
-      <KeyboardShortcutsDialog isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      {showShortcuts && (
+        <Suspense fallback={null}>
+          <KeyboardShortcutsDialog isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+        </Suspense>
+      )}
 
       {/* Onboarding Tutorial */}
       <OnboardingTutorial
@@ -324,11 +332,13 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Quick Notes Panel */}
       {showNotes && (
-        <QuickNotesPanel
-          isOpen={showNotes}
-          currentPath={currentPath}
-          onClose={() => setShowNotes(false)}
-        />
+        <Suspense fallback={null}>
+          <QuickNotesPanel
+            isOpen={showNotes}
+            currentPath={currentPath}
+            onClose={() => setShowNotes(false)}
+          />
+        </Suspense>
       )}
 
       {/* Performance Dashboard */}

@@ -1,4 +1,4 @@
-import { useCallback, useState, createContext, useContext, type ReactNode } from 'react';
+import { useCallback, useRef, useState, createContext, useContext, type ReactNode } from 'react';
 import type { AppSettings } from '@shared/types';
 
 /**
@@ -48,6 +48,7 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
   const [originalSettings, setOriginalSettings] = useState<AppSettings | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [hasPreviewChanges, setHasPreviewChanges] = useState(false);
+  const dirtyPreviewKeysRef = useRef<Set<string>>(new Set());
 
   // Apply visual changes immediately
   const applyVisualChanges = useCallback((settings: AppSettings) => {
@@ -115,9 +116,14 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
         // Apply visual change immediately
         applyVisualChanges(updated);
 
-        // Check if different from original
         if (originalSettings) {
-          setHasPreviewChanges(JSON.stringify(updated) !== JSON.stringify(originalSettings));
+          const dirtyKey = String(key);
+          if (Object.is(value, originalSettings[key])) {
+            dirtyPreviewKeysRef.current.delete(dirtyKey);
+          } else {
+            dirtyPreviewKeysRef.current.add(dirtyKey);
+          }
+          setHasPreviewChanges(dirtyPreviewKeysRef.current.size > 0);
         }
 
         return updated;
@@ -146,9 +152,15 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
         // Apply visual change immediately
         applyVisualChanges(updated);
 
-        // Check if different from original
         if (originalSettings) {
-          setHasPreviewChanges(JSON.stringify(updated) !== JSON.stringify(originalSettings));
+          const dirtyKey = `${String(key)}.${String(subKey)}`;
+          const originalNestedValue = originalSettings[key] as unknown as Record<string, unknown>;
+          if (Object.is(value, originalNestedValue?.[String(subKey)])) {
+            dirtyPreviewKeysRef.current.delete(dirtyKey);
+          } else {
+            dirtyPreviewKeysRef.current.add(dirtyKey);
+          }
+          setHasPreviewChanges(dirtyPreviewKeysRef.current.size > 0);
         }
 
         return updated;
@@ -163,6 +175,7 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
       setOriginalSettings(settings);
       setIsPreviewing(true);
       setHasPreviewChanges(false);
+      dirtyPreviewKeysRef.current.clear();
       applyVisualChanges(settings);
     },
     [applyVisualChanges]
@@ -172,6 +185,7 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
     // Preview is committed - clear preview state
     setIsPreviewing(false);
     setHasPreviewChanges(false);
+    dirtyPreviewKeysRef.current.clear();
     // Don't clear previewSettings - let it stay for visual continuity
   }, []);
 
@@ -182,6 +196,7 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
       setPreviewSettings(savedSettings);
       setIsPreviewing(false);
       setHasPreviewChanges(false);
+      dirtyPreviewKeysRef.current.clear();
       setOriginalSettings(null);
     },
     [applyVisualChanges]

@@ -23,7 +23,10 @@ export function useSvnActions() {
   const updateOverlayIfEnabled = useCallback(
     async (path: string, status: SvnStatusChar): Promise<void> => {
       // Check if shell integration and icon overlays are enabled
-      if (!settings.integration?.shellExtensionEnabled || !settings.integration?.iconOverlaysEnabled) {
+      if (
+        !settings.integration?.shellExtensionEnabled ||
+        !settings.integration?.iconOverlaysEnabled
+      ) {
         return;
       }
 
@@ -43,16 +46,21 @@ export function useSvnActions() {
   const updateOverlaysIfEnabled = useCallback(
     async (paths: string[], status: SvnStatusChar): Promise<void> => {
       // Check if shell integration and icon overlays are enabled
-      if (!settings.integration?.shellExtensionEnabled || !settings.integration?.iconOverlaysEnabled) {
+      if (
+        !settings.integration?.shellExtensionEnabled ||
+        !settings.integration?.iconOverlaysEnabled
+      ) {
         return;
       }
 
       // Update all paths in parallel, errors are handled individually
-      await Promise.allSettled(
-        paths.map((path) => updateOverlayIfEnabled(path, status))
-      );
+      await Promise.allSettled(paths.map((path) => updateOverlayIfEnabled(path, status)));
     },
-    [updateOverlayIfEnabled, settings.integration?.shellExtensionEnabled, settings.integration?.iconOverlaysEnabled]
+    [
+      updateOverlayIfEnabled,
+      settings.integration?.shellExtensionEnabled,
+      settings.integration?.iconOverlaysEnabled,
+    ]
   );
 
   const confirmRiskyAction = useCallback(
@@ -77,6 +85,7 @@ export function useSvnActions() {
   const invalidateStatus = useCallback(
     (path: string) => {
       // Invalidate status for this path
+      queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
       queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
       queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
 
@@ -90,6 +99,7 @@ export function useSvnActions() {
         const parentPath = parts.slice(0, i).join(separator);
         if (parentPath) {
           queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', parentPath] });
+          queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', parentPath] });
           queryClient.invalidateQueries({ queryKey: ['fs:getStatus', parentPath] });
         }
       }

@@ -1,11 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   Bookmark,
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
   FileText,
   Folder,
   Globe,
@@ -15,31 +11,38 @@ import {
   Key,
   Loader2,
   Monitor,
-  MoreHorizontal,
   Plus,
   Puzzle,
-  RefreshCw,
   Search,
   Settings,
-  Trash2,
 } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 
-import { BookmarksManager } from './ui/BookmarksManager';
-import { CertificateManagerDialog } from './ui/CertificateManagerDialog';
-import { ImportDialog } from './ui/ImportDialog';
 import type { SettingsTab } from './ui/SettingsDialog';
-import { StatusDot } from './ui/StatusIcon';
 
 const AddRepoModal = lazy(() =>
   import('./ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
+);
+const BookmarksManager = lazy(() =>
+  import('./ui/BookmarksManager').then((m) => ({ default: m.BookmarksManager }))
+);
+const CertificateManagerDialog = lazy(() =>
+  import('./ui/CertificateManagerDialog').then((m) => ({
+    default: m.CertificateManagerDialog,
+  }))
+);
+const ImportDialog = lazy(() =>
+  import('./ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
 );
 const PluginManagerDialog = lazy(() =>
   import('./ui/PluginManagerDialog').then((m) => ({ default: m.PluginManagerDialog }))
 );
 const SettingsDialog = lazy(() =>
   import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }))
+);
+const RepositorySection = lazy(() =>
+  import('./sidebar/RepositorySection').then((m) => ({ default: m.RepositorySection }))
 );
 
 interface QuickAccessItem {
@@ -48,101 +51,14 @@ interface QuickAccessItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-interface TreeEntry {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-}
+function runWhenIdle(callback: () => void, timeout = 1500): () => void {
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(callback, { timeout });
+    return () => window.cancelIdleCallback(id);
+  }
 
-// Tree item component that loads children on expand
-function RepoTreeItem({
-  path,
-  depth = 0,
-  currentPath,
-}: {
-  path: string;
-  depth?: number;
-  currentPath: string;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const { data: entries, isLoading } = useQuery({
-    queryKey: ['sidebar:tree', path],
-    queryFn: async (): Promise<TreeEntry[]> => {
-      const files = await window.api.fs.listDirectory(path);
-      // Only show directories in the tree
-      return files
-        .filter((f) => f.isDirectory)
-        .toSorted((a, b) => a.name.localeCompare(b.name))
-        .map((f) => ({
-          name: f.name,
-          path: f.path,
-          isDirectory: f.isDirectory,
-        }));
-    },
-    enabled: isExpanded,
-  });
-
-  const isActive = currentPath === path;
-  const name = path.split(/[/\\]/).pop() || path;
-
-  return (
-    <>
-      <div
-        className={`
-          flex items-center gap-1 px-2 py-1 cursor-pointer transition-fast
-          ${isActive ? 'bg-accent/10' : 'hover:bg-bg-tertiary'}
-        `}
-        style={{ paddingLeft: `${12 + depth * 12}px` }}
-      >
-        <button
-          type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="p-0.5 hover:bg-bg-elevated rounded transition-fast"
-        >
-          {isExpanded ? (
-            <ChevronDown className="w-3 h-3 text-text-muted" />
-          ) : (
-            <ChevronRight className="w-3 h-3 text-text-muted" />
-          )}
-        </button>
-        <Link
-          to="/files"
-          search={{ path }}
-          className="flex items-center gap-1.5 min-w-0 flex-1"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Folder className="w-3.5 h-3.5 text-accent flex-shrink-0" />
-          <span
-            className={`truncate text-xs ${isActive ? 'text-accent font-medium' : 'text-text-secondary'}`}
-          >
-            {name}
-          </span>
-        </Link>
-      </div>
-
-      {isExpanded && (
-        <div className="border-l border-border ml-4">
-          {isLoading ? (
-            <div className="px-3 py-1">
-              <Loader2 className="w-3 h-3 animate-spin text-text-muted" />
-            </div>
-          ) : entries && entries.length > 0 ? (
-            entries.map((entry) => (
-              <RepoTreeItem
-                key={entry.path}
-                path={entry.path}
-                depth={depth + 1}
-                currentPath={currentPath}
-              />
-            ))
-          ) : (
-            <div className="px-3 py-1 text-xs text-text-muted">Empty</div>
-          )}
-        </div>
-      )}
-    </>
-  );
+  const id = window.setTimeout(callback, timeout);
+  return () => window.clearTimeout(id);
 }
 
 export function Sidebar() {
@@ -153,14 +69,10 @@ export function Sidebar() {
   // Safely get the path from search params
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
 
-  const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [quickAccess, setQuickAccess] = useState<QuickAccessItem[]>([]);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; repo: string } | null>(
-    null
-  );
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const [isBookmarksManagerOpen, setIsBookmarksManagerOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -173,23 +85,31 @@ export function Sidebar() {
   const bookmarks = settings?.bookmarks || [];
 
   const isWindows = navigator.platform.toLowerCase().startsWith('win');
+  const currentPathWithDefault = currentPath || '/';
 
   // Load drives on Windows
   useEffect(() => {
-    if (isWindows) {
-      const loadDrives = async () => {
+    if (!isWindows) return;
+
+    let cancelled = false;
+    const cancelIdle = runWhenIdle(() => {
+      void (async () => {
         setLoadingDrives(true);
         try {
           const driveList = await window.api.fs.listDrives();
-          setDrives(driveList);
+          if (!cancelled) setDrives(driveList);
         } catch (err) {
           console.error('Failed to load drives:', err);
         } finally {
-          setLoadingDrives(false);
+          if (!cancelled) setLoadingDrives(false);
         }
-      };
-      loadDrives();
-    }
+      })();
+    });
+
+    return () => {
+      cancelled = true;
+      cancelIdle();
+    };
   }, [isWindows]);
 
   // Load quick access locations
@@ -227,26 +147,39 @@ export function Sidebar() {
   }, [isWindows]);
 
   useEffect(() => {
+    if (!settings?.recentRepositories?.length) return;
+
+    let cancelled = false;
     const cleanupMissingRepos = async () => {
       const repos = settings?.recentRepositories || [];
       if (repos.length === 0) return;
 
-      const existenceChecks = await Promise.all(
-        repos.map(async (repo) => ({
+      const existenceChecks: Array<{ repo: string; exists: boolean }> = [];
+      for (const repo of repos) {
+        if (cancelled) return;
+        existenceChecks.push({
           repo,
           exists: await window.api.fs.exists(repo),
-        }))
-      );
+        });
+      }
 
       const missingRepos = existenceChecks.filter(({ exists }) => !exists).map(({ repo }) => repo);
       if (missingRepos.length > 0) {
         for (const repo of missingRepos) {
+          if (cancelled) return;
           await removeRecentRepo(repo);
         }
       }
     };
 
-    cleanupMissingRepos();
+    const cancelIdle = runWhenIdle(() => {
+      void cleanupMissingRepos();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      cancelIdle();
+    };
   }, [settings?.recentRepositories, removeRecentRepo]);
 
   // Handler for opening a repo - saves to recent and navigates
@@ -258,60 +191,16 @@ export function Sidebar() {
     [addRecentRepo, navigate]
   );
 
-  const toggleRepo = (path: string) => {
-    setExpandedRepos((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  };
-
-  const filteredRepos = searchQuery
-    ? recentRepos.filter((repo) => repo.toLowerCase().includes(searchQuery.toLowerCase()))
-    : recentRepos;
-
-  // Context menu handlers
-  const handleContextMenu = useCallback((e: React.MouseEvent, repo: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, repo });
-  }, []);
-
   const handleRemoveRepo = useCallback(
     async (repo: string) => {
       await removeRecentRepo(repo);
-      setContextMenu(null);
     },
     [removeRecentRepo]
   );
 
-  const handleOpenInExplorer = useCallback(async (repo: string) => {
-    await window.api.external.openFolder(repo);
-    setContextMenu(null);
-  }, []);
-
   const handleManageCredentials = useCallback(() => {
     setSettingsTab('auth');
     setIsSettingsDialogOpen(true);
-    setContextMenu(null);
-  }, []);
-
-  // Close context menu on click outside
-  useEffect(() => {
-    const handleClick = () => setContextMenu(null);
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null);
-    };
-    window.addEventListener('click', handleClick);
-    window.addEventListener('keydown', handleEscape);
-    return () => {
-      window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', handleEscape);
-    };
   }, []);
 
   return (
@@ -409,7 +298,7 @@ export function Sidebar() {
             </div>
             <Link
               to="/files"
-              search={{ path: currentPath || '/' }}
+              search={{ path: currentPathWithDefault }}
               className="tree-item"
               activeProps={{ className: 'tree-item-active' }}
             >
@@ -418,7 +307,7 @@ export function Sidebar() {
             </Link>
             <Link
               to="/history"
-              search={{ path: currentPath || '/' }}
+              search={{ path: currentPathWithDefault }}
               className="tree-item"
               activeProps={{ className: 'tree-item-active' }}
             >
@@ -477,113 +366,16 @@ export function Sidebar() {
             </div>
           )}
 
-          {/* Repositories Section */}
-          <div className="border-t border-border py-2">
-            <div className="px-3 py-1.5 flex items-center justify-between">
-              <span className="text-2xs font-semibold text-text-muted uppercase tracking-wider">
-                SVN Repositories
-              </span>
-              {recentRepos.length > 0 && (
-                <button type="button" className="btn-icon-sm p-0.5">
-                  <RefreshCw className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
-            {filteredRepos.length === 0 ? (
-              <div className="px-3 py-4 text-center">
-                <div className="w-10 h-10 rounded-lg bg-bg-tertiary flex items-center justify-center mx-auto mb-2">
-                  <Folder className="w-5 h-5 text-text-muted" />
-                </div>
-                <p className="text-xs text-text-muted mb-2">No repositories yet</p>
-                <button
-                  type="button"
-                  onClick={() => setIsAddRepoModalOpen(true)}
-                  className="text-xs text-accent hover:text-accent-hover"
-                >
-                  Add your first repository
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-0.5">
-                {filteredRepos.map((repo) => {
-                  const name = repo.split('/').pop() || repo;
-                  const isExpanded = expandedRepos.has(repo);
-                  const isActive = currentPath === repo || currentPath?.startsWith(repo + '/');
-                  const isContextMenuOpen = contextMenu?.repo === repo;
-
-                  return (
-                    <div key={repo}>
-                      {/* Repository Item */}
-                      <div
-                        role="treeitem"
-                        aria-expanded={isExpanded}
-                        tabIndex={0}
-                        className={`
-                          flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-fast group
-                          ${isActive || isContextMenuOpen ? 'bg-accent/10' : 'hover:bg-bg-tertiary'}
-                        `}
-                        onClick={() => toggleRepo(repo)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleRepo(repo);
-                          }
-                        }}
-                        onContextMenu={(e) => handleContextMenu(e, repo)}
-                      >
-                        <button
-                          type="button"
-                          className="p-0.5 hover:bg-bg-elevated rounded transition-fast"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleRepo(repo);
-                          }}
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-                          ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
-                          )}
-                        </button>
-                        <StatusDot status=" " />
-                        <Link
-                          to="/files"
-                          search={{ path: repo }}
-                          className="flex-1 flex items-center gap-2 min-w-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Folder className="w-4 h-4 text-accent flex-shrink-0" />
-                          <span
-                            className={`truncate text-sm ${isActive ? 'text-accent font-medium' : 'text-text-secondary'}`}
-                          >
-                            {name}
-                          </span>
-                        </Link>
-                        <button
-                          type="button"
-                          className="btn-icon-sm p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleContextMenu(e, repo);
-                          }}
-                        >
-                          <MoreHorizontal className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Expanded Children (tree view) */}
-                      {isExpanded && (
-                        <div className="border-l border-border ml-4">
-                          <RepoTreeItem path={repo} depth={0} currentPath={currentPath} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <Suspense fallback={<RepositorySectionSkeleton recentRepos={recentRepos.length} />}>
+            <RepositorySection
+              recentRepos={recentRepos}
+              currentPath={currentPath}
+              searchQuery={searchQuery}
+              onAddRepository={() => setIsAddRepoModalOpen(true)}
+              onRemoveRepository={handleRemoveRepo}
+              onManageCredentials={handleManageCredentials}
+            />
+          </Suspense>
         </nav>
 
         {/* Status Bar */}
@@ -654,20 +446,28 @@ export function Sidebar() {
       )}
 
       {/* Bookmarks Manager */}
-      <BookmarksManager
-        isOpen={isBookmarksManagerOpen}
-        onClose={() => setIsBookmarksManagerOpen(false)}
-        bookmarks={bookmarks}
-        onAddBookmark={(path, name) => addBookmark(path, name)}
-        onRemoveBookmark={(path) => removeBookmark(path)}
-      />
+      {isBookmarksManagerOpen && (
+        <Suspense fallback={null}>
+          <BookmarksManager
+            isOpen={isBookmarksManagerOpen}
+            onClose={() => setIsBookmarksManagerOpen(false)}
+            bookmarks={bookmarks}
+            onAddBookmark={(path, name) => addBookmark(path, name)}
+            onRemoveBookmark={(path) => removeBookmark(path)}
+          />
+        </Suspense>
+      )}
 
       {/* Import Dialog */}
-      <ImportDialog
-        isOpen={isImportDialogOpen}
-        onClose={() => setIsImportDialogOpen(false)}
-        initialPath={currentPath}
-      />
+      {isImportDialogOpen && (
+        <Suspense fallback={null}>
+          <ImportDialog
+            isOpen={isImportDialogOpen}
+            onClose={() => setIsImportDialogOpen(false)}
+            initialPath={currentPath}
+          />
+        </Suspense>
+      )}
 
       {/* Plugin Manager Dialog */}
       {isPluginManagerOpen && (
@@ -680,68 +480,29 @@ export function Sidebar() {
       )}
 
       {/* Certificate Manager Dialog */}
-      <CertificateManagerDialog
-        isOpen={isCertificateManagerOpen}
-        onClose={() => setIsCertificateManagerOpen(false)}
-      />
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          role="menu"
-          aria-label="Repository actions"
-          className="fixed z-50 bg-bg-secondary border border-border rounded-lg shadow-lg py-1 min-w-[180px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setContextMenu(null);
-            }
-          }}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              navigate({ to: '/files', search: { path: contextMenu.repo } });
-              setContextMenu(null);
-            }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-text hover:bg-bg-tertiary transition-fast"
-          >
-            <Folder className="w-4 h-4" />
-            Open
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => handleOpenInExplorer(contextMenu.repo)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-text hover:bg-bg-tertiary transition-fast"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Open in Explorer
-          </button>
-          <div role="separator" className="border-t border-border my-1" />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleManageCredentials}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-text hover:bg-bg-tertiary transition-fast"
-          >
-            <Key className="w-4 h-4" />
-            Manage Credentials
-          </button>
-          <div role="separator" className="border-t border-border my-1" />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => handleRemoveRepo(contextMenu.repo)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-error hover:bg-error/10 transition-fast"
-          >
-            <Trash2 className="w-4 h-4" />
-            Remove from List
-          </button>
-        </div>
+      {isCertificateManagerOpen && (
+        <Suspense fallback={null}>
+          <CertificateManagerDialog
+            isOpen={isCertificateManagerOpen}
+            onClose={() => setIsCertificateManagerOpen(false)}
+          />
+        </Suspense>
       )}
     </>
+  );
+}
+
+function RepositorySectionSkeleton({ recentRepos }: { recentRepos: number }) {
+  return (
+    <div className="border-t border-border py-2">
+      <div className="px-3 py-1.5 text-2xs font-semibold text-text-muted uppercase tracking-wider">
+        SVN Repositories
+      </div>
+      <div className="space-y-1 px-3">
+        {Array.from({ length: Math.min(Math.max(recentRepos, 1), 4) }).map((_, index) => (
+          <div key={index} className="h-7 rounded bg-bg-tertiary/60 animate-pulse" />
+        ))}
+      </div>
+    </div>
   );
 }

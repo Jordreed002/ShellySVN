@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useCommitMessageHistory } from '@renderer/hooks/useCommitMessageHistory';
 import { setTemplateContext, useCommitTemplates } from '@renderer/hooks/useCommitTemplates';
@@ -9,13 +9,7 @@ import { buildPathAutocompleteOptions } from '@renderer/utils/commitAutocomplete
 import { getCommitWarnings } from '@renderer/utils/commitWarnings';
 import { validateCommitRules } from '@renderer/utils/commitRules';
 import { extractIssueLinks } from '@renderer/utils/issueTracker';
-import {
-  analyzeFiles,
-  getAutocompleteSuggestions,
-  getTemplatesWithRecommendations,
-  validateCommitMessage,
-  type TemplateRecommendation,
-} from '@renderer/utils/suggestionEngine';
+import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
 import type { SvnStatusChar } from '@shared/types';
 import type { AutocompleteOption } from '../ui/AutoCompleteInput';
 import type { DiffViewMode } from '../ui/EnhancedDiffViewer';
@@ -51,6 +45,16 @@ interface UseCommitDialogControllerOptions {
 
 const COMMITABLE_STATUSES: SvnStatusChar[] = ['M', 'A', 'D', 'R', 'C', '?'];
 const DISPLAY_ONLY_STATUSES: SvnStatusChar[] = ['!', '~', 'X'];
+const COMMIT_MESSAGE_PREFIXES = [
+  'feat: ',
+  'fix: ',
+  'refactor: ',
+  'docs: ',
+  'test: ',
+  'chore: ',
+  'style: ',
+  'perf: ',
+];
 
 function canCommitStatus(status: SvnStatusChar, propsStatus?: SvnStatusChar): boolean {
   return (
@@ -86,6 +90,12 @@ export function useCommitDialogController({
   const [showRules, setShowRules] = useState(false);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
   const [files, setFiles] = useState<CommitFile[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<CommitSuggestion[]>([]);
+  const [templateRecommendations, setTemplateRecommendations] = useState<TemplateRecommendation[]>(
+    []
+  );
+  const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([]);
+  const deferredMessage = useDeferredValue(message);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { history, addMessage } = useCommitMessageHistory();
@@ -145,38 +155,79 @@ export function useCommitDialogController({
     }
   }, [statusData]);
 
-  const aiSuggestions = useMemo(() => {
-    const selectedFilesList = files.filter((file) => file.selected);
-    if (selectedFilesList.length === 0) return [];
+  const selectedFileSummaries = useMemo(
+    () =>
+      files
+        .filter((file) => file.selected)
+        .map((file) => ({
+          path: file.path,
+          status: file.status,
+        })),
+    [files]
+  );
 
-    const { suggestions } = analyzeFiles(
-      selectedFilesList.map((file) => ({ path: file.path, status: file.status }))
-    );
-    return suggestions;
-  }, [files]);
+  useEffect(() => {
+    if (!showSuggestions || selectedFileSummaries.length === 0) {
+      setAiSuggestions([]);
+      return;
+    }
 
-  const templateRecommendations = useMemo(() => {
-    const selectedFilesList = files.filter((file) => file.selected);
-    if (selectedFilesList.length === 0) return [];
+    let cancelled = false;
+    void import('@renderer/utils/suggestionEngine').then(({ analyzeFiles }) => {
+      if (!cancelled) {
+        setAiSuggestions(analyzeFiles(selectedFileSummaries).suggestions);
+      }
+    });
 
-    return getTemplatesWithRecommendations(
-      selectedFilesList.map((file) => ({ path: file.path, status: file.status }))
-    );
-  }, [files]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFileSummaries, showSuggestions]);
+
+  useEffect(() => {
+    if (!showTemplates || selectedFileSummaries.length === 0) {
+      setTemplateRecommendations([]);
+      return;
+    }
+
+    let cancelled = false;
+    void import('@renderer/utils/suggestionEngine').then(({ getTemplatesWithRecommendations }) => {
+      if (!cancelled) {
+        setTemplateRecommendations(getTemplatesWithRecommendations(selectedFileSummaries));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFileSummaries, showTemplates]);
+
+  useEffect(() => {
+    if (!deferredMessage.trim()) {
+      setKeywordSuggestions(COMMIT_MESSAGE_PREFIXES);
+      return;
+    }
+
+    let cancelled = false;
+    void import('@renderer/utils/suggestionEngine').then(({ getAutocompleteSuggestions }) => {
+      if (!cancelled) {
+        setKeywordSuggestions(
+          getAutocompleteSuggestions(
+            deferredMessage,
+            selectedFileSummaries,
+            history.map((historyItem) => historyItem.message)
+          )
+        );
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deferredMessage, history, selectedFileSummaries]);
 
   const autocompleteOptions = useMemo((): AutocompleteOption[] => {
     const options: AutocompleteOption[] = [];
-    const selectedFilesList = files.filter((file) => file.selected);
-    const selectedFileSummaries = selectedFilesList.map((file) => ({
-      path: file.path,
-      status: file.status,
-    }));
-
-    const keywordSuggestions = getAutocompleteSuggestions(
-      message,
-      selectedFileSummaries,
-      history.map((historyItem) => historyItem.message)
-    );
 
     for (const suggestion of keywordSuggestions.slice(0, 5)) {
       options.push({
@@ -187,13 +238,12 @@ export function useCommitDialogController({
       });
     }
 
-    options.push(...buildPathAutocompleteOptions(message, selectedFileSummaries));
+    options.push(...buildPathAutocompleteOptions(deferredMessage, selectedFileSummaries));
 
     for (const historyItem of history.slice(0, 5)) {
       options.push({
         value: historyItem.message,
-        label:
-          historyItem.message.slice(0, 50) + (historyItem.message.length > 50 ? '...' : ''),
+        label: historyItem.message.slice(0, 50) + (historyItem.message.length > 50 ? '...' : ''),
         description: new Date(historyItem.timestamp).toLocaleDateString(),
         category: 'Recent',
       });
@@ -205,7 +255,7 @@ export function useCommitDialogController({
       seenValues.add(option.value);
       return true;
     });
-  }, [files, history, message]);
+  }, [deferredMessage, history, keywordSuggestions, selectedFileSummaries]);
 
   const { data: diffData } = useQuery({
     queryKey: ['svn:diff', selectedDiffFile],
@@ -225,9 +275,12 @@ export function useCommitDialogController({
     return files.filter((file) => filterMap[fileFilter]?.includes(file.status));
   }, [files, fileFilter]);
 
-  const selectedFiles = files.filter((file) => file.selected && file.committable);
+  const selectedFiles = useMemo(
+    () => files.filter((file) => file.selected && file.committable),
+    [files]
+  );
   const selectedCount = selectedFiles.length;
-  const committableCount = files.filter((file) => file.committable).length;
+  const committableCount = useMemo(() => files.filter((file) => file.committable).length, [files]);
   const commitWarnings = useMemo(
     () => getCommitWarnings(files, statusData?.entries ?? files),
     [files, statusData?.entries]
@@ -262,8 +315,16 @@ export function useCommitDialogController({
 
   useEffect(() => {
     if (message.trim()) {
-      const validation = validateCommitMessage(message);
-      setValidationWarnings(validation.warnings);
+      let cancelled = false;
+      void import('@renderer/utils/suggestionEngine').then(({ validateCommitMessage }) => {
+        if (!cancelled) {
+          const validation = validateCommitMessage(message);
+          setValidationWarnings(validation.warnings);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
     } else {
       setValidationWarnings([]);
     }

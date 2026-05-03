@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -19,8 +19,11 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useSettings } from '@renderer/hooks/useSettings';
-import { ChooseItemsDialog } from './ChooseItemsDialog';
 import type { AppSettings, CheckoutProgress } from '@shared/types';
+
+const ChooseItemsDialog = lazy(() =>
+  import('./ChooseItemsDialog').then((m) => ({ default: m.ChooseItemsDialog }))
+);
 
 interface SslCertificate {
   fingerprint: string;
@@ -319,7 +322,8 @@ export function AddRepoModal({
       if (result.success) {
         if (provideCredentials && saveCredentials && username.trim()) {
           try {
-            const realm = checkoutUrl.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || checkoutUrl.trim();
+            const realm =
+              checkoutUrl.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || checkoutUrl.trim();
             await window.api.auth.set(realm, username.trim(), password);
           } catch {
             // Ignore credential save errors
@@ -479,7 +483,10 @@ export function AddRepoModal({
             <div className="space-y-4">
               {/* Browse Section */}
               <div>
-                <label htmlFor="add-repo-working-copy-path" className="block text-sm font-medium text-text mb-2">
+                <label
+                  htmlFor="add-repo-working-copy-path"
+                  className="block text-sm font-medium text-text mb-2"
+                >
                   Working Copy Path
                 </label>
                 <div className="flex gap-2">
@@ -541,7 +548,10 @@ export function AddRepoModal({
               <form onSubmit={(e) => executeCheckout(undefined, e)} className="space-y-4">
                 {/* Repository URL */}
                 <div>
-                  <label htmlFor="add-repo-checkout-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label
+                    htmlFor="add-repo-checkout-url"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block"
+                  >
                     URL of repository <span className="text-error">*</span>
                   </label>
                   <input
@@ -557,7 +567,10 @@ export function AddRepoModal({
 
                 {/* Destination Path */}
                 <div>
-                  <label htmlFor="add-repo-checkout-path" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label
+                    htmlFor="add-repo-checkout-path"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block"
+                  >
                     Checkout directory <span className="text-error">*</span>
                   </label>
                   <div className="flex gap-2">
@@ -584,7 +597,10 @@ export function AddRepoModal({
 
                 {/* Revision */}
                 <div>
-                  <label htmlFor="add-repo-checkout-revision" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label
+                    htmlFor="add-repo-checkout-revision"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block"
+                  >
                     Revision
                   </label>
                   <input
@@ -602,7 +618,12 @@ export function AddRepoModal({
                 {/* Depth */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label htmlFor="add-repo-checkout-depth" className="text-sm font-medium text-text-secondary">Checkout depth</label>
+                    <label
+                      htmlFor="add-repo-checkout-depth"
+                      className="text-sm font-medium text-text-secondary"
+                    >
+                      Checkout depth
+                    </label>
                     {selectedPaths.length > 0 && (
                       <span className="text-xs text-accent">
                         {selectedPaths.length} items selected
@@ -696,7 +717,10 @@ export function AddRepoModal({
                       </p>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label htmlFor="add-repo-credential-username" className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5">
+                          <label
+                            htmlFor="add-repo-credential-username"
+                            className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5"
+                          >
                             <User className="w-3.5 h-3.5" />
                             Username
                           </label>
@@ -711,7 +735,10 @@ export function AddRepoModal({
                           />
                         </div>
                         <div>
-                          <label htmlFor="add-repo-credential-password" className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5">
+                          <label
+                            htmlFor="add-repo-credential-password"
+                            className="text-xs font-medium text-text-secondary mb-1 block flex items-center gap-1.5"
+                          >
                             <Key className="w-3.5 h-3.5" />
                             Password
                           </label>
@@ -726,7 +753,10 @@ export function AddRepoModal({
                           />
                         </div>
                       </div>
-                      <label htmlFor="add-repo-save-credentials" className="flex items-center gap-2 text-xs cursor-pointer">
+                      <label
+                        htmlFor="add-repo-save-credentials"
+                        className="flex items-center gap-2 text-xs cursor-pointer"
+                      >
                         <input
                           id="add-repo-save-credentials"
                           type="checkbox"
@@ -780,7 +810,11 @@ export function AddRepoModal({
 
         {/* Footer */}
         <div className="modal-footer flex-shrink-0">
-          <button onClick={handleClose} className="btn btn-ghost" disabled={isChecking || isCheckingOut}>
+          <button
+            onClick={handleClose}
+            className="btn btn-ghost"
+            disabled={isChecking || isCheckingOut}
+          >
             Cancel
           </button>
           {mode === 'open' ? (
@@ -893,9 +927,7 @@ export function AddRepoModal({
                       <li>Certificate hostname does not match</li>
                     )}
                     {sslFailures.includes('expired') && <li>Certificate has expired</li>}
-                    {sslFailures.includes('not-yet-valid') && (
-                      <li>Certificate is not yet valid</li>
-                    )}
+                    {sslFailures.includes('not-yet-valid') && <li>Certificate is not yet valid</li>}
                   </ul>
                 </div>
               )}
@@ -954,7 +986,10 @@ export function AddRepoModal({
                 )}
 
                 <div>
-                  <label htmlFor="add-repo-auth-username" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label
+                    htmlFor="add-repo-auth-username"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2"
+                  >
                     <User className="w-4 h-4" />
                     Username <span className="text-error">*</span>
                   </label>
@@ -969,7 +1004,10 @@ export function AddRepoModal({
                 </div>
 
                 <div>
-                  <label htmlFor="add-repo-auth-password" className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2">
+                  <label
+                    htmlFor="add-repo-auth-password"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block flex items-center gap-2"
+                  >
                     <Key className="w-4 h-4" />
                     Password
                   </label>
@@ -1008,24 +1046,26 @@ export function AddRepoModal({
 
       {/* Choose Items Dialog */}
       {showChooseItemsDialog && (
-        <ChooseItemsDialog
-          isOpen={showChooseItemsDialog}
-          repoUrl={checkoutUrl}
-          credentials={
-            provideCredentials && username.trim()
-              ? {
-                  username: username.trim(),
-                  password,
-                }
-              : undefined
-          }
-          onSelect={(paths) => {
-            setSelectedPaths(paths);
-            setShowChooseItemsDialog(false);
-          }}
-          onCancel={() => setShowChooseItemsDialog(false)}
-          title="Choose Items to Checkout"
-        />
+        <Suspense fallback={null}>
+          <ChooseItemsDialog
+            isOpen={showChooseItemsDialog}
+            repoUrl={checkoutUrl}
+            credentials={
+              provideCredentials && username.trim()
+                ? {
+                    username: username.trim(),
+                    password,
+                  }
+                : undefined
+            }
+            onSelect={(paths) => {
+              setSelectedPaths(paths);
+              setShowChooseItemsDialog(false);
+            }}
+            onCancel={() => setShowChooseItemsDialog(false)}
+            title="Choose Items to Checkout"
+          />
+        </Suspense>
       )}
     </div>
   );

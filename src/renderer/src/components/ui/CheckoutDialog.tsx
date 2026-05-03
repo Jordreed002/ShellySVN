@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import {
   X,
   Download,
@@ -12,12 +12,15 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useSettings } from '@renderer/hooks/useSettings';
-import { ChooseItemsDialog } from './ChooseItemsDialog';
 import {
   CheckoutAuthPrompt,
   CheckoutSslPrompt,
   type SslCertificate,
 } from '../checkout/CheckoutPrompts';
+
+const ChooseItemsDialog = lazy(() =>
+  import('./ChooseItemsDialog').then((m) => ({ default: m.ChooseItemsDialog }))
+);
 
 interface CheckoutDialogProps {
   isOpen: boolean;
@@ -679,24 +682,26 @@ export function CheckoutDialog({
 
       {/* Choose Items Dialog */}
       {showChooseItemsDialog && (
-        <ChooseItemsDialog
-          isOpen={showChooseItemsDialog}
-          repoUrl={url}
-          credentials={
-            provideCredentials && username.trim()
-              ? {
-                  username: username.trim(),
-                  password,
-                }
-              : undefined
-          }
-          onSelect={(paths) => {
-            setSelectedPaths(paths);
-            setShowChooseItemsDialog(false);
-          }}
-          onCancel={() => setShowChooseItemsDialog(false)}
-          title="Choose Items to Checkout"
-        />
+        <Suspense fallback={null}>
+          <ChooseItemsDialog
+            isOpen={showChooseItemsDialog}
+            repoUrl={url}
+            credentials={
+              provideCredentials && username.trim()
+                ? {
+                    username: username.trim(),
+                    password,
+                  }
+                : undefined
+            }
+            onSelect={(paths) => {
+              setSelectedPaths(paths);
+              setShowChooseItemsDialog(false);
+            }}
+            onCancel={() => setShowChooseItemsDialog(false)}
+            title="Choose Items to Checkout"
+          />
+        </Suspense>
       )}
     </>
   );

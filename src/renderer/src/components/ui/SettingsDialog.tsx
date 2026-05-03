@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -6,6 +6,7 @@ import {
   FileDiff,
   GitBranch,
   Key,
+  Loader2,
   MessageSquare,
   Palette,
   Puzzle,
@@ -15,22 +16,40 @@ import {
 } from 'lucide-react';
 
 import type { AppSettings } from '@shared/types';
+import { DEFAULT_SETTINGS, mergeSettings } from '@shared/settings-defaults';
 
 import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
 import { useSettings } from '../../hooks/useSettings';
-import {
-  AdvancedSettings,
-  AppearanceSettings,
-  AuthSettings,
-  DialogsSettingsTab,
-  DiffMergeSettingsTab,
-  GeneralSettings,
-  IntegrationSettingsTab,
-  NotificationsSettingsTab,
-  SvnSettings,
-} from '../settings/SettingsPanels';
-
-import { ShellIntegrationDialog } from './ShellIntegrationDialog';
+const GeneralSettings = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.GeneralSettings }))
+);
+const SvnSettings = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.SvnSettings }))
+);
+const DiffMergeSettingsTab = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.DiffMergeSettingsTab }))
+);
+const DialogsSettingsTab = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.DialogsSettingsTab }))
+);
+const NotificationsSettingsTab = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.NotificationsSettingsTab }))
+);
+const IntegrationSettingsTab = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.IntegrationSettingsTab }))
+);
+const AppearanceSettings = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.AppearanceSettings }))
+);
+const AuthSettings = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.AuthSettings }))
+);
+const AdvancedSettings = lazy(() =>
+  import('../settings/SettingsPanels').then((m) => ({ default: m.AdvancedSettings }))
+);
+const ShellIntegrationDialog = lazy(() =>
+  import('./ShellIntegrationDialog').then((m) => ({ default: m.ShellIntegrationDialog }))
+);
 
 export type SettingsTab =
   | 'general'
@@ -61,78 +80,6 @@ const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'advanced', label: 'Advanced', icon: <Wrench className="w-4 h-4" /> },
 ];
 
-const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'system',
-  language: 'en',
-  checkUpdatesOnStartup: true,
-  confirmDestructiveOps: true,
-  singleInstanceMode: false,
-  defaultCheckoutDirectory: '',
-  startupAction: 'welcome',
-  recentRepositories: [],
-  showIgnoredFiles: false,
-  showUnversionedFiles: true,
-  sidebarWidth: 250,
-  defaultCommitMessage: '',
-  autoRefreshInterval: 0,
-  svnClientPath: '',
-  workingCopyFormat: '1.14',
-  globalIgnorePatterns: [],
-  proxySettings: {
-    enabled: false,
-    host: '',
-    port: 8080,
-    username: '',
-    password: '',
-    bypassForLocal: true,
-  },
-  connectionTimeout: 30,
-  sslVerify: true,
-  clientCertificatePath: '',
-  diffMerge: {
-    externalDiffTool: '',
-    externalMergeTool: '',
-    externalToolOverrides: [],
-    diffOnDoubleClick: true,
-    ignoreWhitespace: false,
-    ignoreEol: false,
-    contextLines: 3,
-  },
-  dialogs: {
-    rememberPositions: true,
-    rememberSizes: true,
-    commitDialogColumns: ['status', 'path', 'extension'],
-    logMessagesPerPage: 100,
-    maxCachedMessages: 1000,
-  },
-  notifications: {
-    enableSounds: true,
-    enableSystemNotifications: true,
-    showHookOutput: true,
-    monitorPollInterval: 60,
-  },
-  integration: {
-    shellExtensionEnabled: false,
-    contextMenuItems: ['update', 'commit', 'revert', 'log', 'diff', 'checkout', 'export'],
-    iconOverlaysEnabled: true,
-  },
-  fontSize: 'medium',
-  showStatusBar: true,
-  fileListHeight: 'fill',
-  accentColor: '#6366f1',
-  compactFileRows: false,
-  animationSpeed: 'normal',
-  showThumbnails: false,
-  showFolderSizes: false,
-  bookmarks: [],
-  recentPaths: [],
-  savedCredentials: [],
-  logLevel: 'info',
-  svnConfigPath: '',
-  logCachePath: '',
-  maxLogCacheSize: 100,
-};
-
 export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: SettingsDialogProps) {
   const { settings: savedSettings, updateSettings, isUpdating } = useSettings();
   const {
@@ -152,7 +99,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   // Load settings and start preview when dialog opens
   useEffect(() => {
     if (isOpen && savedSettings) {
-      const settings = { ...DEFAULT_SETTINGS, ...savedSettings };
+      const settings = mergeSettings(savedSettings);
       setLocalSettings(settings);
       startPreview(settings); // Start live preview
       setShowResetConfirm(false);
@@ -258,55 +205,67 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
               <h3 className="text-base font-medium text-text">
                 {TABS.find((t) => t.id === activeTab)?.label}
               </h3>
-              <button onClick={handleClose} className="btn-icon-sm" data-testid="modal-close-button">
+              <button
+                onClick={handleClose}
+                className="btn-icon-sm"
+                data-testid="modal-close-button"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-overlay">
-              {activeTab === 'general' && (
-                <GeneralSettings settings={localSettings} onChange={updateLocalSetting} />
-              )}
-              {activeTab === 'svn' && (
-                <SvnSettings
-                  settings={localSettings}
-                  onChange={updateLocalSetting}
-                  onChangeNested={updateNestedSetting}
-                />
-              )}
-              {activeTab === 'diffmerge' && (
-                <DiffMergeSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
-              )}
-              {activeTab === 'dialogs' && (
-                <DialogsSettingsTab settings={localSettings} onChangeNested={updateNestedSetting} />
-              )}
-              {activeTab === 'notifications' && (
-                <NotificationsSettingsTab
-                  settings={localSettings}
-                  onChangeNested={updateNestedSetting}
-                />
-              )}
-              {activeTab === 'integration' && (
-                <IntegrationSettingsTab
-                  settings={localSettings}
-                  onChangeNested={updateNestedSetting}
-                  onOpenShellIntegration={() => setShowShellIntegrationDialog(true)}
-                />
-              )}
-              {activeTab === 'appearance' && (
-                <AppearanceSettings settings={localSettings} onChange={updateLocalSetting} />
-              )}
-              {activeTab === 'auth' && <AuthSettings isOpen={isOpen} />}
-              {activeTab === 'advanced' && (
-                <AdvancedSettings
-                  settings={localSettings}
-                  onChange={updateLocalSetting}
-                  onReset={handleReset}
-                  showResetConfirm={showResetConfirm}
-                  setShowResetConfirm={setShowResetConfirm}
-                />
-              )}
+              <Suspense fallback={<SettingsPanelLoader />}>
+                {activeTab === 'general' && (
+                  <GeneralSettings settings={localSettings} onChange={updateLocalSetting} />
+                )}
+                {activeTab === 'svn' && (
+                  <SvnSettings
+                    settings={localSettings}
+                    onChange={updateLocalSetting}
+                    onChangeNested={updateNestedSetting}
+                  />
+                )}
+                {activeTab === 'diffmerge' && (
+                  <DiffMergeSettingsTab
+                    settings={localSettings}
+                    onChangeNested={updateNestedSetting}
+                  />
+                )}
+                {activeTab === 'dialogs' && (
+                  <DialogsSettingsTab
+                    settings={localSettings}
+                    onChangeNested={updateNestedSetting}
+                  />
+                )}
+                {activeTab === 'notifications' && (
+                  <NotificationsSettingsTab
+                    settings={localSettings}
+                    onChangeNested={updateNestedSetting}
+                  />
+                )}
+                {activeTab === 'integration' && (
+                  <IntegrationSettingsTab
+                    settings={localSettings}
+                    onChangeNested={updateNestedSetting}
+                    onOpenShellIntegration={() => setShowShellIntegrationDialog(true)}
+                  />
+                )}
+                {activeTab === 'appearance' && (
+                  <AppearanceSettings settings={localSettings} onChange={updateLocalSetting} />
+                )}
+                {activeTab === 'auth' && <AuthSettings isOpen={isOpen} />}
+                {activeTab === 'advanced' && (
+                  <AdvancedSettings
+                    settings={localSettings}
+                    onChange={updateLocalSetting}
+                    onReset={handleReset}
+                    showResetConfirm={showResetConfirm}
+                    setShowResetConfirm={setShowResetConfirm}
+                  />
+                )}
+              </Suspense>
             </div>
 
             {/* Footer */}
@@ -340,17 +299,30 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
                     </>
                   )}
                 </button>
-               </div>
-             </div>
-           </div>
-           </div>
-         </div>
-         <ShellIntegrationDialog
-           isOpen={showShellIntegrationDialog}
-           onClose={() => setShowShellIntegrationDialog(false)}
-         />
-       </>
-     );
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {showShellIntegrationDialog && (
+        <Suspense fallback={<SettingsPanelLoader />}>
+          <ShellIntegrationDialog
+            isOpen={showShellIntegrationDialog}
+            onClose={() => setShowShellIntegrationDialog(false)}
+          />
+        </Suspense>
+      )}
+    </>
+  );
+}
+
+function SettingsPanelLoader() {
+  return (
+    <div className="flex h-full min-h-[220px] items-center justify-center text-text-muted">
+      <Loader2 className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
+      <span className="sr-only">Loading settings...</span>
+    </div>
+  );
 }
 
 export function SettingsButton({ onClick }: { onClick: () => void }) {
