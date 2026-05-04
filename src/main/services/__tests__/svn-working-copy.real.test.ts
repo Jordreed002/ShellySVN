@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../settings-manager', () => ({
   getSettingsManager: () => ({
+    ready: vi.fn().mockResolvedValue(undefined),
     getSvnClientPath: () => 'svn',
     getSvnExecutionContext: () => ({
       proxySettings: undefined,
@@ -87,7 +88,9 @@ describeIfSvn('svn-working-copy real SVN integration', () => {
     const info = await getInfo(workingCopyPath);
     const context = await getWorkingCopyContext(join(workingCopyPath, 'modified.txt'));
     const status = await getStatus(workingCopyPath);
-    const entriesByName = new Map(status.entries.map((entry) => [entry.path.split(/[/\\]/).pop(), entry]));
+    const entriesByName = new Map(
+      status.entries.map((entry) => [entry.path.split(/[/\\]/).pop(), entry])
+    );
 
     expect(info.url).toBe(repoUrl);
     expect(info.path).toBe(workingCopyPath);

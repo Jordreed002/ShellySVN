@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, expect, it } from 'vitest';
 
@@ -11,7 +11,7 @@ describe('CodeHighlighter language resilience', () => {
     expect(detectLanguage('no-extension')).toBe('text');
   });
 
-  it('renders large unknown-language content without throwing', () => {
+  it('renders large unknown-language content without throwing', async () => {
     const largeContent = Array.from({ length: 2_000 }, (_, index) => `unknown line ${index}`).join(
       '\n'
     );
@@ -22,8 +22,12 @@ describe('CodeHighlighter language resilience', () => {
     );
     const elapsedMs = performance.now() - startedAt;
 
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     expect(elapsedMs).toBeLessThan(1000);
-    expect(screen.getByText('unknown line 0')).toBeInTheDocument();
+    expect(container.textContent).toContain('unknown line 0');
     expect(container.textContent).toContain('unknown line 1999');
   });
 });

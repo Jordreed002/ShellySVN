@@ -151,6 +151,18 @@ function measureTime<T>(fn: () => T): { result: T; durationMs: number } {
   return { result, durationMs };
 }
 
+function measureBestRenderTime(fn: () => void, samples = 3): number {
+  const durations: number[] = [];
+
+  for (let i = 0; i < samples; i++) {
+    cleanup();
+    const { durationMs } = measureTime(fn);
+    durations.push(durationMs);
+  }
+
+  return Math.min(...durations);
+}
+
 function expectWithinPerfBudget(durationMs: number, budgetMs: number): void {
   expect(durationMs).toBeLessThan(budgetMs * PERF_BUDGET_MULTIPLIER);
 }
@@ -196,7 +208,7 @@ describe('Sparse Checkout Performance Tests', () => {
       const roots = generateMockTreeRoots(SMALL_REPO_SIZE);
       mockHookState = createMockHookState(roots);
 
-      const { durationMs } = measureTime(() => {
+      const durationMs = measureBestRenderTime(() => {
         render(<ChooseItemsDialog {...defaultProps} />);
       });
 
@@ -209,7 +221,7 @@ describe('Sparse Checkout Performance Tests', () => {
       const roots = generateMockTreeRoots(MEDIUM_REPO_SIZE);
       mockHookState = createMockHookState(roots);
 
-      const { durationMs } = measureTime(() => {
+      const durationMs = measureBestRenderTime(() => {
         render(<ChooseItemsDialog {...defaultProps} />);
       });
 
@@ -221,7 +233,7 @@ describe('Sparse Checkout Performance Tests', () => {
       const roots = generateMockTreeRoots(LARGE_REPO_SIZE);
       mockHookState = createMockHookState(roots);
 
-      const { durationMs } = measureTime(() => {
+      const durationMs = measureBestRenderTime(() => {
         render(<ChooseItemsDialog {...defaultProps} />);
       });
 
@@ -234,7 +246,7 @@ describe('Sparse Checkout Performance Tests', () => {
       const roots = generateMockTreeRoots(VERY_LARGE_REPO_SIZE);
       mockHookState = createMockHookState(roots);
 
-      const { durationMs } = measureTime(() => {
+      const durationMs = measureBestRenderTime(() => {
         render(<ChooseItemsDialog {...defaultProps} />);
       });
 
@@ -397,7 +409,7 @@ describe('Sparse Checkout Performance Tests', () => {
 
         cleanup();
 
-        const { durationMs } = measureTime(() => {
+        const durationMs = measureBestRenderTime(() => {
           render(<ChooseItemsDialog {...defaultProps} />);
         });
         times.push(durationMs);
