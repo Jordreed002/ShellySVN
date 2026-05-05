@@ -38,9 +38,9 @@ const ImportDialog = lazy(() =>
 const PluginManagerDialog = lazy(() =>
   import('./ui/PluginManagerDialog').then((m) => ({ default: m.PluginManagerDialog }))
 );
-const SettingsDialog = lazy(() =>
-  import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }))
-);
+const loadSettingsDialog = () =>
+  import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }));
+const SettingsDialog = lazy(loadSettingsDialog);
 const RepositorySection = lazy(() =>
   import('./sidebar/RepositorySection').then((m) => ({ default: m.RepositorySection }))
 );
@@ -199,8 +199,15 @@ export function Sidebar() {
   );
 
   const handleManageCredentials = useCallback(() => {
+    void loadSettingsDialog();
     setSettingsTab('auth');
     setIsSettingsDialogOpen(true);
+  }, []);
+
+  useEffect(() => {
+    return runWhenIdle(() => {
+      void loadSettingsDialog();
+    });
   }, []);
 
   return (
@@ -403,6 +410,8 @@ export function Sidebar() {
               </button>
               <button
                 type="button"
+                onPointerEnter={() => void loadSettingsDialog()}
+                onFocus={() => void loadSettingsDialog()}
                 onClick={() => setIsSettingsDialogOpen(true)}
                 className="hover:text-text transition-fast"
                 data-testid="settings-button"

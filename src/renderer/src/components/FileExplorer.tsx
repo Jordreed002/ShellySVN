@@ -49,9 +49,9 @@ const FilePreview = lazy(() =>
   import('./ui/FilePreview').then((m) => ({ default: m.FilePreview }))
 );
 const LogViewer = lazy(() => import('./ui/LogViewer').then((m) => ({ default: m.LogViewer })));
-const SettingsDialog = lazy(() =>
-  import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }))
-);
+const loadSettingsDialog = () =>
+  import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }));
+const SettingsDialog = lazy(loadSettingsDialog);
 const UpdateToRevisionDialog = lazy(() =>
   import('./ui/UpdateToRevisionDialog').then((m) => ({ default: m.UpdateToRevisionDialog }))
 );
@@ -128,6 +128,16 @@ function DialogLoader() {
       </div>
     </div>
   );
+}
+
+function runWhenIdle(callback: () => void, timeout = 1500): () => void {
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(callback, { timeout });
+    return () => window.cancelIdleCallback(id);
+  }
+
+  const id = window.setTimeout(callback, timeout);
+  return () => window.clearTimeout(id);
 }
 
 // Cache configuration
@@ -1182,6 +1192,13 @@ export function FileExplorer() {
     }
   }, [hasChanges]);
 
+  useEffect(() => {
+    return runWhenIdle(() => {
+      void loadSettingsDialog();
+      void loadCommitDialog();
+    });
+  }, []);
+
   const isLoading = isLoadingFiles;
   const isFetching =
     isLoadingStatus ||
@@ -1354,6 +1371,8 @@ export function FileExplorer() {
           hasSelectionForPreview={selectedEntry !== null && !selectedEntry.isDirectory}
           isBookmarked={isBookmarked}
           onToggleBookmark={handleToggleBookmark}
+          onCommitPreload={() => void loadCommitDialog()}
+          onSettingsPreload={() => void loadSettingsDialog()}
           onSettings={() => setSettingsDialogOpen(true)}
           onDiagnostics={() => setDiagnosticsOpen(true)}
           browseMode={browseMode}

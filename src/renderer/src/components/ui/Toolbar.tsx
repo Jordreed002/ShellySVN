@@ -42,6 +42,8 @@ interface ToolbarProps {
   onCopy?: () => void;
   onRename?: () => void;
   onSettings?: () => void;
+  onSettingsPreload?: () => void;
+  onCommitPreload?: () => void;
   onDiagnostics?: () => void;
   isUpdating?: boolean;
   hasChanges?: boolean;
@@ -83,6 +85,8 @@ export function Toolbar({
   onCopy,
   onRename,
   onSettings,
+  onSettingsPreload,
+  onCommitPreload,
   onDiagnostics,
   isUpdating = false,
   hasChanges = false,
@@ -229,6 +233,8 @@ export function Toolbar({
             </button>
 
             <button
+              onPointerEnter={onCommitPreload}
+              onFocus={onCommitPreload}
               onClick={onCommit}
               disabled={!hasChanges}
               className="btn btn-primary gap-1.5"
@@ -489,6 +495,8 @@ export function Toolbar({
       {/* Settings */}
       {onSettings && (
         <button
+          onPointerEnter={onSettingsPreload}
+          onFocus={onSettingsPreload}
           onClick={onSettings}
           className="btn-icon-sm"
           title="Settings"
@@ -532,12 +540,19 @@ export function ToolbarCompact({
   onRefresh,
   onUpdate,
   onCommit,
+  onCommitPreload,
   isUpdating = false,
   hasChanges = false,
   className = '',
 }: Pick<
   ToolbarProps,
-  'onRefresh' | 'onUpdate' | 'onCommit' | 'isUpdating' | 'hasChanges' | 'className'
+  | 'onRefresh'
+  | 'onUpdate'
+  | 'onCommit'
+  | 'onCommitPreload'
+  | 'isUpdating'
+  | 'hasChanges'
+  | 'className'
 >) {
   return (
     <div
@@ -573,6 +588,8 @@ export function ToolbarCompact({
       </button>
 
       <button
+        onPointerEnter={onCommitPreload}
+        onFocus={onCommitPreload}
         onClick={onCommit}
         disabled={!hasChanges}
         className="btn-sm px-2 py-1 bg-accent text-white rounded text-xs font-medium disabled:opacity-50"
