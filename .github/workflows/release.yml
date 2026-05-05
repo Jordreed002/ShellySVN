@@ -271,6 +271,22 @@ jobs:
       - name: Verify bundled binaries
         run: bun run verify:binaries darwin-${{ matrix.arch }}
 
+      - name: Generate macOS icon
+        run: |
+          set -euo pipefail
+          mkdir -p build/icon.iconset
+          sips -z 16 16 build/icon.png --out build/icon.iconset/icon_16x16.png
+          sips -z 32 32 build/icon.png --out build/icon.iconset/icon_16x16@2x.png
+          sips -z 32 32 build/icon.png --out build/icon.iconset/icon_32x32.png
+          sips -z 64 64 build/icon.png --out build/icon.iconset/icon_32x32@2x.png
+          sips -z 128 128 build/icon.png --out build/icon.iconset/icon_128x128.png
+          sips -z 256 256 build/icon.png --out build/icon.iconset/icon_128x128@2x.png
+          sips -z 256 256 build/icon.png --out build/icon.iconset/icon_256x256.png
+          sips -z 512 512 build/icon.png --out build/icon.iconset/icon_256x256@2x.png
+          sips -z 512 512 build/icon.png --out build/icon.iconset/icon_512x512.png
+          cp build/icon.png build/icon.iconset/icon_512x512@2x.png
+          iconutil -c icns build/icon.iconset -o build/icon.icns
+
       - name: Cache Electron build output
         uses: actions/cache@v5
         with:
@@ -286,7 +302,7 @@ jobs:
 
       - name: Build Electron app (unsigned)
         if: ${{ env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false' }}
-        run: bunx electron-builder --mac --${{ matrix.arch }} --config
+        run: bunx electron-builder --mac --${{ matrix.arch }} --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -299,7 +315,7 @@ jobs:
 
       - name: Build Electron app (signed)
         if: ${{ env.HAS_MAC_CERTIFICATE == 'true' && env.HAS_MAC_CERTIFICATE_PASSWORD == 'true' && env.HAS_APPLE_ID == 'true' && env.HAS_APPLE_APP_PASSWORD == 'true' && env.HAS_APPLE_TEAM_ID == 'true' }}
-        run: bunx electron-builder --mac --${{ matrix.arch }} --config
+        run: bunx electron-builder --mac --${{ matrix.arch }} --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE_BASE64 }}
@@ -425,7 +441,7 @@ jobs:
 
       - name: Build Electron app (unsigned)
         if: ${{ env.HAS_WIN_CERTIFICATE == 'false' || env.HAS_WIN_CERTIFICATE_PASSWORD == 'false' }}
-        run: bunx electron-builder --win --x64 --config
+        run: bunx electron-builder --win --x64 --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -443,7 +459,7 @@ jobs:
           [System.Convert]::FromBase64String($env:WIN_CERT_BASE64) | Set-Content $certPath -AsByteStream
           $env:CSC_LINK = $certPath
           $env:CSC_KEY_PASSWORD = $env:WIN_CERT_PASSWORD
-          bunx electron-builder --win --x64 --config
+          bunx electron-builder --win --x64 --config --publish never
           Remove-Item $certPath -Force -ErrorAction SilentlyContinue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -559,7 +575,7 @@ jobs:
         run: bun run build
 
       - name: Build Electron app
-        run: bunx electron-builder --linux --x64 --config
+        run: bunx electron-builder --linux --x64 --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
