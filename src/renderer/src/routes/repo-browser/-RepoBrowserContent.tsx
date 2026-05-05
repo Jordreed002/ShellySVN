@@ -294,6 +294,21 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     [navigateToPath]
   );
 
+  const prefetchDirectory = useCallback(
+    (node: RepoNode) => {
+      if (node.kind !== 'dir') return;
+
+      const { svnList } = getRepoBrowserRuntime();
+      queryClient.prefetchQuery({
+        queryKey: getRepoBrowserListQueryKey(node.url, selectedRevision, credentials),
+        queryFn: () =>
+          svnList(node.url, selectedRevision, 'immediates', credentials || undefined),
+        staleTime: REPO_BROWSER_LIST_STALE_TIME_MS,
+      });
+    },
+    [credentials, queryClient, selectedRevision]
+  );
+
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
@@ -805,6 +820,8 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                           }}
                           onClick={() => handleSelectNode(entry)}
                           onDoubleClick={() => handleBrowse(entry)}
+                          onMouseEnter={() => prefetchDirectory(entry)}
+                          onFocus={() => prefetchDirectory(entry)}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') {
                               handleBrowse(entry);
