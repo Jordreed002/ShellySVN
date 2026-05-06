@@ -3,6 +3,7 @@ import { ipcMain } from 'electron';
 import type {
   CheckoutOptions,
   RepoDiagnostics,
+  OperationResult,
   SvnBlameResult,
   SvnChangelistResult,
   SvnDiffResult,
@@ -83,16 +84,33 @@ import {
   updateItem as updateWorkingCopyItem,
   updateToRevision,
 } from '../services/svn-working-copy';
+import { getSharedWorkerPool } from '../workers/WorkerPool';
 
 export function registerSvnHandlers(): void {
   // SVN Status
-  ipcMain.handle('svn:status', async (_, path: string): Promise<SvnStatusResult> => {
-    return getStatus(path);
-  });
+  ipcMain.handle(
+    'svn:status',
+    async (_, path: string, workerJobId?: string): Promise<SvnStatusResult> => {
+      return getStatus(path, workerJobId);
+    }
+  );
 
-  ipcMain.handle('svn:statusRemote', async (_, path: string): Promise<SvnStatusResult> => {
-    return getRemoteStatus(path);
-  });
+  ipcMain.handle(
+    'svn:statusRemote',
+    async (_, path: string, workerJobId?: string): Promise<SvnStatusResult> => {
+      return getRemoteStatus(path, workerJobId);
+    }
+  );
+
+  ipcMain.handle(
+    'svn:cancelWorkerJob',
+    async (_, workerJobId: string): Promise<OperationResult> => {
+      const cancelled = getSharedWorkerPool().cancel(workerJobId);
+      return cancelled
+        ? { success: true }
+        : { success: false, error: 'Worker job not found or already completed' };
+    }
+  );
 
   ipcMain.handle('svn:workingCopyUpgradeStatus', async (_, path: string) => {
     return getWorkingCopyUpgradeStatus(path);
@@ -111,9 +129,10 @@ export function registerSvnHandlers(): void {
       limit = 100,
       startRev?: number,
       endRev?: number,
-      useMergeHistory = false
+      useMergeHistory = false,
+      workerJobId?: string
     ): Promise<SvnLogResult> => {
-      return getLog(path, limit, startRev, endRev, useMergeHistory);
+      return getLog(path, limit, startRev, endRev, useMergeHistory, workerJobId);
     }
   );
 
@@ -131,22 +150,25 @@ export function registerSvnHandlers(): void {
   });
 
   // SVN Diff
-  ipcMain.handle('svn:diff', async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
-    return getDiff(path, revision);
-  });
+  ipcMain.handle(
+    'svn:diff',
+    async (_, path: string, revision?: string, workerJobId?: string): Promise<SvnDiffResult> => {
+      return getDiff(path, revision, workerJobId);
+    }
+  );
 
   ipcMain.handle(
     'svn:diffUrls',
-    async (_, leftUrl: string, rightUrl: string): Promise<SvnDiffResult> => {
-      return getUrlDiff(leftUrl, rightUrl);
+    async (_, leftUrl: string, rightUrl: string, workerJobId?: string): Promise<SvnDiffResult> => {
+      return getUrlDiff(leftUrl, rightUrl, workerJobId);
     }
   );
 
   // SVN Streaming Diff - Memory-efficient diff parsing for large files
   ipcMain.handle(
     'svn:diffStreaming',
-    async (_, path: string, revision?: string): Promise<SvnDiffResult> => {
-      return getDiffStreaming(path, revision);
+    async (_, path: string, revision?: string, workerJobId?: string): Promise<SvnDiffResult> => {
+      return getDiffStreaming(path, revision, workerJobId);
     }
   );
 
@@ -500,9 +522,10 @@ export function registerSvnHandlers(): void {
       _,
       path: string,
       startRevision?: number,
-      endRevision?: number
+      endRevision?: number,
+      workerJobId?: string
     ): Promise<SvnBlameResult> => {
-      return getBlame(path, startRevision, endRevision);
+      return getBlame(path, startRevision, endRevision, workerJobId);
     }
   );
 

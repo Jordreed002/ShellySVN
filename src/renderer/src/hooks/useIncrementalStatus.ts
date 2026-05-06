@@ -132,7 +132,9 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
 
     try {
       // First, get the raw status output
-      const statusResult = await window.api.svn.status(path);
+      const statusResult = await window.api.svn.status(path, {
+        signal: abortControllerRef.current.signal,
+      });
 
       if (abortControllerRef.current?.signal.aborted) {
         return;

@@ -695,10 +695,14 @@ export interface WebhookDeliverResult {
   error?: string;
 }
 
+export interface CancellableRequestOptions {
+  signal?: AbortSignal;
+}
+
 export interface ElectronAPI {
   svn: {
-    status: (path: string) => Promise<SvnStatusResult>;
-    statusRemote: (path: string) => Promise<SvnStatusResult>;
+    status: (path: string, options?: CancellableRequestOptions) => Promise<SvnStatusResult>;
+    statusRemote: (path: string, options?: CancellableRequestOptions) => Promise<SvnStatusResult>;
     workingCopyUpgradeStatus: (path: string) => Promise<WorkingCopyUpgradeStatus>;
     upgradeWorkingCopy: (
       path: string
@@ -708,16 +712,29 @@ export interface ElectronAPI {
       limit?: number,
       startRev?: number,
       endRev?: number,
-      useMergeHistory?: boolean
+      useMergeHistory?: boolean,
+      options?: CancellableRequestOptions
     ) => Promise<SvnLogResult>;
     info: (path: string) => Promise<SvnInfoResult>;
     infoUrl: (url: string) => Promise<SvnInfoResult>;
     getWorkingCopyContext: (
       path: string
     ) => Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>;
-    diff: (path: string, revision?: string) => Promise<SvnDiffResult>;
-    diffUrls: (leftUrl: string, rightUrl: string) => Promise<SvnDiffResult>;
-    diffStreaming: (path: string, revision?: string) => Promise<SvnDiffResult>;
+    diff: (
+      path: string,
+      revision?: string,
+      options?: CancellableRequestOptions
+    ) => Promise<SvnDiffResult>;
+    diffUrls: (
+      leftUrl: string,
+      rightUrl: string,
+      options?: CancellableRequestOptions
+    ) => Promise<SvnDiffResult>;
+    diffStreaming: (
+      path: string,
+      revision?: string,
+      options?: CancellableRequestOptions
+    ) => Promise<SvnDiffResult>;
     update: (
       path: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
@@ -862,7 +879,12 @@ export interface ElectronAPI {
     proplist: (path: string) => Promise<{ name: string; value: string }[]>;
     propset: (path: string, name: string, value: string) => Promise<{ success: boolean }>;
     propdel: (path: string, name: string) => Promise<{ success: boolean }>;
-    blame: (path: string, startRevision?: number, endRevision?: number) => Promise<SvnBlameResult>;
+    blame: (
+      path: string,
+      startRevision?: number,
+      endRevision?: number,
+      options?: CancellableRequestOptions
+    ) => Promise<SvnBlameResult>;
     list: (
       url: string,
       revision?: string,

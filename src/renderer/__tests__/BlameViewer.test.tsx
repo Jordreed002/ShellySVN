@@ -84,8 +84,19 @@ describe('BlameViewer', () => {
       expect(screen.getAllByText('APP-42').length).toBeGreaterThan(0);
     });
     expect(await screen.findByText('APP-42 Add answer export')).toBeInTheDocument();
-    expect(svnApi.blame).toHaveBeenCalledWith('C:/repo/src/app.ts', undefined, undefined);
-    expect(svnApi.log).toHaveBeenCalledWith('C:/repo/src/app.ts', 200);
+    expect(svnApi.blame).toHaveBeenCalledWith('C:/repo/src/app.ts', undefined, undefined, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(svnApi.log).toHaveBeenCalledWith(
+      'C:/repo/src/app.ts',
+      200,
+      undefined,
+      undefined,
+      false,
+      {
+        signal: expect.any(AbortSignal),
+      }
+    );
   });
 
   it('filters blame lines by revision log message text', async () => {

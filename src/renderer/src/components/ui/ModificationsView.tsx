@@ -44,8 +44,10 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
     isFetching,
   } = useQuery({
     queryKey: ['svn:status', path, includeRemote],
-    queryFn: () =>
-      includeRemote ? window.api.svn.statusRemote(path) : window.api.svn.status(path),
+    queryFn: ({ signal }) =>
+      includeRemote
+        ? window.api.svn.statusRemote(path, { signal })
+        : window.api.svn.status(path, { signal }),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 

@@ -83,7 +83,9 @@ describe('background scanning and active SVN operations', () => {
     await waitFor(() => {
       expect(result.current.scan.isScanning).toBe(true);
     });
-    expect(svnStatus).toHaveBeenCalledWith('/repo');
+    expect(svnStatus).toHaveBeenCalledWith('/repo', {
+      signal: expect.any(AbortSignal),
+    });
 
     let updateResult: Awaited<ReturnType<ReturnType<typeof useSvnActions>['update']>> | undefined;
     await act(async () => {

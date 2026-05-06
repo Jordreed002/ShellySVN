@@ -20,6 +20,33 @@ let activeCheckoutId: string | null = null;
 let activeUpdateId: string | null = null;
 let activeOperationId: string | null = null;
 
+function invokeCancellableWorkerJob<T>(
+  invokeIpc: InvokeIpc,
+  operationPrefix: string,
+  signal: AbortSignal | undefined,
+  invoke: (workerJobId?: string) => Promise<T>
+): Promise<T> {
+  if (!signal) {
+    return invoke();
+  }
+
+  const workerJobId = createOperationId(operationPrefix);
+
+  if (signal.aborted) {
+    return Promise.reject(new Error('Operation cancelled'));
+  }
+
+  const abortHandler = () => {
+    void invokeIpc('svn:cancelWorkerJob', workerJobId);
+  };
+
+  signal.addEventListener('abort', abortHandler, { once: true });
+
+  return invoke(workerJobId).finally(() => {
+    signal.removeEventListener('abort', abortHandler);
+  });
+}
+
 function invokeWithOperationProgress<T>(
   ipcRenderer: IpcRenderer,
   operationPrefix: string,
@@ -58,18 +85,35 @@ function invokeWithOperationProgress<T>(
 
 export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): ElectronAPI['svn'] {
   return {
-    status: (path) => invokeIpc('svn:status', path),
-    statusRemote: (path) => invokeIpc('svn:statusRemote', path),
+    status: (path, options?) =>
+      invokeCancellableWorkerJob(invokeIpc, 'svn-status', options?.signal, (workerJobId) =>
+        invokeIpc('svn:status', path, workerJobId)
+      ),
+    statusRemote: (path, options?) =>
+      invokeCancellableWorkerJob(invokeIpc, 'svn-status-remote', options?.signal, (workerJobId) =>
+        invokeIpc('svn:statusRemote', path, workerJobId)
+      ),
     workingCopyUpgradeStatus: (path) => invokeIpc('svn:workingCopyUpgradeStatus', path),
     upgradeWorkingCopy: (path) => invokeIpc('svn:upgradeWorkingCopy', path),
-    log: (path, limit?, startRev?, endRev?, useMergeHistory?) =>
-      invokeIpc('svn:log', path, limit, startRev, endRev, useMergeHistory),
+    log: (path, limit?, startRev?, endRev?, useMergeHistory?, options?) =>
+      invokeCancellableWorkerJob(invokeIpc, 'svn-log', options?.signal, (workerJobId) =>
+        invokeIpc('svn:log', path, limit, startRev, endRev, useMergeHistory, workerJobId)
+      ),
     info: (path) => invokeIpc('svn:info', path),
     infoUrl: (url) => invokeIpc('svn:infoUrl', url),
     getWorkingCopyContext: (path) => invokeIpc('svn:getWorkingCopyContext', path),
-    diff: (path, revision?) => invokeIpc('svn:diff', path, revision),
-    diffUrls: (leftUrl, rightUrl) => invokeIpc('svn:diffUrls', leftUrl, rightUrl),
-    diffStreaming: (path, revision?) => invokeIpc('svn:diffStreaming', path, revision),
+    diff: (path, revision?, options?) =>
+      invokeCancellableWorkerJob(invokeIpc, 'svn-diff', options?.signal, (workerJobId) =>
+        invokeIpc('svn:diff', path, revision, workerJobId)
+      ),
+    diffUrls: (leftUrl, rightUrl, options?) =>
+      invokeCancellableWorkerJob(invokeIpc, 'svn-diff-urls', options?.signal, (workerJobId) =>
+        invokeIpc('svn:diffUrls', leftUrl, rightUrl, workerJobId)
+      ),
+    diffStreaming: (path, revision?, options?) =>
+      invokeCancellableWorkerJob(invokeIpc, 'svn-diff-streaming', options?.signal, (workerJobId) =>
+        invokeIpc('svn:diffStreaming', path, revision, workerJobId)
+      ),
     update: (path, depth?, options?) => invokeIpc('svn:update', path, depth, options),
     updateWithProgress: (path, onProgress, depth?, options?) => {
       const updateId = createOperationId('update');
@@ -234,8 +278,10 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     proplist: (path) => ipcRenderer.invoke('svn:proplist', path),
     propset: (path, name, value) => ipcRenderer.invoke('svn:propset', path, name, value),
     propdel: (path, name) => ipcRenderer.invoke('svn:propdel', path, name),
-    blame: (path, startRevision?, endRevision?) =>
-      ipcRenderer.invoke('svn:blame', path, startRevision, endRevision) as Promise<SvnBlameResult>,
+    blame: (path, startRevision?, endRevision?, options?) =>
+      invokeCancellableWorkerJob(invokeIpc, 'svn-blame', options?.signal, (workerJobId) =>
+        invokeIpc('svn:blame', path, startRevision, endRevision, workerJobId)
+      ) as Promise<SvnBlameResult>,
     list: (url, revision?, depth?, credentials?) =>
       ipcRenderer.invoke('svn:list', url, revision, depth, credentials) as Promise<SvnListResult>,
     patch: {
@@ -259,7 +305,12 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
           success: boolean;
         }>,
       edit: (workingCopyPath, externalPath, external) =>
-        ipcRenderer.invoke('svn:externals:edit', workingCopyPath, externalPath, external) as Promise<{
+        ipcRenderer.invoke(
+          'svn:externals:edit',
+          workingCopyPath,
+          externalPath,
+          external
+        ) as Promise<{
           success: boolean;
         }>,
       remove: (workingCopyPath, externalPath) =>

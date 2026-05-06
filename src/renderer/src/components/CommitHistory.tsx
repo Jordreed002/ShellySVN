@@ -33,7 +33,7 @@ export function CommitHistory() {
   // Fetch commit history
   const { data, isLoading, error } = useQuery({
     queryKey: ['svn:log', path],
-    queryFn: () => window.api.svn.log(path, 100),
+    queryFn: ({ signal }) => window.api.svn.log(path, 100, undefined, undefined, false, { signal }),
     enabled: !!path && path !== '/',
   });
 

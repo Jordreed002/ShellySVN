@@ -78,7 +78,7 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
     refetch,
   } = useQuery({
     queryKey: ['svn:log', path, 200],
-    queryFn: () => window.api.svn.log(path, 200),
+    queryFn: ({ signal }) => window.api.svn.log(path, 200, undefined, undefined, false, { signal }),
     enabled: isOpen && !!path,
   });
 
@@ -118,7 +118,10 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
     ): string[] => {
       const references = new Set<string>();
       const branchPattern = /\b(?:trunk|branches\/[^/\s,;:)]+|tags\/[^/\s,;:)]+)/g;
-      const text = [message, ...paths.map((p) => [p.path, p.copyFromPath].filter(Boolean).join(' '))]
+      const text = [
+        message,
+        ...paths.map((p) => [p.path, p.copyFromPath].filter(Boolean).join(' ')),
+      ]
         .join(' ')
         .replaceAll('\\', '/');
 

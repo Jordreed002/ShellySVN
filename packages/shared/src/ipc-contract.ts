@@ -39,8 +39,11 @@ type OperationResult = { success: boolean; error?: string };
 type RevisionResult = { success: boolean; revision: number; error?: string; output?: string };
 
 export interface IpcInvokeContract {
-  'svn:status': IpcCall<[path: string], import('./types').SvnStatusResult>;
-  'svn:statusRemote': IpcCall<[path: string], import('./types').SvnStatusResult>;
+  'svn:status': IpcCall<[path: string, workerJobId?: string], import('./types').SvnStatusResult>;
+  'svn:statusRemote': IpcCall<
+    [path: string, workerJobId?: string],
+    import('./types').SvnStatusResult
+  >;
   'svn:workingCopyUpgradeStatus': IpcCall<
     [path: string],
     import('./types').WorkingCopyUpgradeStatus
@@ -50,7 +53,14 @@ export interface IpcInvokeContract {
     { success: boolean; output?: string; error?: string }
   >;
   'svn:log': IpcCall<
-    [path: string, limit?: number, startRev?: number, endRev?: number, useMergeHistory?: boolean],
+    [
+      path: string,
+      limit?: number,
+      startRev?: number,
+      endRev?: number,
+      useMergeHistory?: boolean,
+      workerJobId?: string,
+    ],
     import('./types').SvnLogResult
   >;
   'svn:info': IpcCall<[path: string], SvnInfoResult>;
@@ -59,9 +69,12 @@ export interface IpcInvokeContract {
     [path: string],
     { workingCopyRoot: string; repositoryRoot: string; url: string } | null
   >;
-  'svn:diff': IpcCall<[path: string, revision?: string], SvnDiffResult>;
-  'svn:diffUrls': IpcCall<[leftUrl: string, rightUrl: string], SvnDiffResult>;
-  'svn:diffStreaming': IpcCall<[path: string, revision?: string], SvnDiffResult>;
+  'svn:diff': IpcCall<[path: string, revision?: string, workerJobId?: string], SvnDiffResult>;
+  'svn:diffUrls': IpcCall<[leftUrl: string, rightUrl: string, workerJobId?: string], SvnDiffResult>;
+  'svn:diffStreaming': IpcCall<
+    [path: string, revision?: string, workerJobId?: string],
+    SvnDiffResult
+  >;
   'svn:update': IpcCall<
     [path: string, depth?: 'empty' | 'files' | 'immediates' | 'infinity', options?: UpdateOptions],
     RevisionResult
@@ -76,6 +89,7 @@ export interface IpcInvokeContract {
     RevisionResult
   >;
   'svn:cancelUpdate': IpcCall<[updateId: string], OperationResult>;
+  'svn:cancelWorkerJob': IpcCall<[workerJobId: string], OperationResult>;
   'svn:updateItem': IpcCall<[path: string], RevisionResult>;
   'svn:updateToRevision': IpcCall<
     [
@@ -187,7 +201,7 @@ export interface IpcInvokeContract {
   'svn:propset': IpcCall<[path: string, name: string, value: string], OperationResult>;
   'svn:propdel': IpcCall<[path: string, name: string], OperationResult>;
   'svn:blame': IpcCall<
-    [path: string, startRevision?: number, endRevision?: number],
+    [path: string, startRevision?: number, endRevision?: number, workerJobId?: string],
     SvnBlameResult
   >;
   'svn:list': IpcCall<

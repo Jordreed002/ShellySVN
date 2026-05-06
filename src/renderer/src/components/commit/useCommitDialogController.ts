@@ -124,7 +124,7 @@ export function useCommitDialogController({
     refetch,
   } = useQuery({
     queryKey: ['svn:status', workingCopyPath],
-    queryFn: () => window.api.svn.status(workingCopyPath),
+    queryFn: ({ signal }) => window.api.svn.status(workingCopyPath, { signal }),
     enabled: isOpen && !!workingCopyPath,
   });
 
@@ -259,7 +259,7 @@ export function useCommitDialogController({
 
   const { data: diffData } = useQuery({
     queryKey: ['svn:diff', selectedDiffFile],
-    queryFn: () => window.api.svn.diff(selectedDiffFile!),
+    queryFn: ({ signal }) => window.api.svn.diff(selectedDiffFile!, undefined, { signal }),
     enabled: !!selectedDiffFile,
   });
 
