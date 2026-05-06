@@ -16,6 +16,7 @@ import { setupProtocolHandler, registerDeepLinkHandler } from './services/protoc
 import { registerNotificationHandlers } from './ipc/notification';
 import { registerWebhookHandlers } from './ipc/webhook';
 import { openValidatedExternalUrl } from './utils/external-url';
+import { shutdownSharedWorkerPool } from './workers/WorkerPool';
 
 let mainWindow: BrowserWindow | null = null;
 const isSmokeTest = process.argv.includes('--smoke-test');
@@ -184,6 +185,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  void shutdownSharedWorkerPool();
 });
 
 // Handle certificate errors (for self-signed SVN servers)

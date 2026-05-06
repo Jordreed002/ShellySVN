@@ -1,0 +1,276 @@
+import { existsSync, mkdirSync } from 'fs';
+import { cpus } from 'os';
+import { basename, join } from 'path';
+import { Worker } from 'worker_threads';
+
+import type {
+  WorkerJobName,
+  WorkerJobPayloadMap,
+  WorkerJobResultMap,
+  WorkerPriority,
+  WorkerRunOptions,
+  WorkerChildMessage,
+  WorkerProgressEvent,
+} from './types';
+
+export class WorkerJobCancelledError extends Error {
+  constructor(message = 'Worker job cancelled') {
+    super(message);
+    this.name = 'WorkerJobCancelledError';
+  }
+}
+
+interface QueuedJob<N extends WorkerJobName = WorkerJobName> {
+  id: string;
+  name: N;
+  payload: WorkerJobPayloadMap[N];
+  priority: WorkerPriority;
+  timeoutMs?: number;
+  resolve: (result: WorkerJobResultMap[N]) => void;
+  reject: (error: Error) => void;
+  onProgress?: (progress: WorkerProgressEvent) => void;
+}
+
+interface ActiveJob {
+  worker: Worker;
+  timeout: NodeJS.Timeout | null;
+  reject: (error: Error) => void;
+}
+
+export interface WorkerPoolOptions {
+  maxWorkers?: number;
+  workerScript?: string;
+}
+
+function getDefaultWorkerCount(): number {
+  return Math.max(2, Math.min((cpus().length || 2) - 1, 4));
+}
+
+function priorityScore(priority: WorkerPriority): number {
+  return priority === 'interactive' ? 0 : 1;
+}
+
+function getDefaultWorkerScript(): string {
+  const builtWorkerScript = join(__dirname, 'workers', 'svn-worker.js');
+  if (existsSync(builtWorkerScript)) {
+    return builtWorkerScript;
+  }
+
+  if (basename(__dirname) !== 'workers') {
+    const projectBuiltWorkerScript = join(process.cwd(), 'out', 'main', 'workers', 'svn-worker.js');
+    if (existsSync(projectBuiltWorkerScript)) {
+      return projectBuiltWorkerScript;
+    }
+
+    return builtWorkerScript;
+  }
+
+  const sourceWorkerScript = join(__dirname, 'svn-worker.ts');
+  const testWorkerScript = join(process.cwd(), 'tmp', 'workers', 'svn-worker.cjs');
+
+  mkdirSync(join(process.cwd(), 'tmp', 'workers'), { recursive: true });
+  const { buildSync } = loadEsbuild();
+  buildSync({
+    entryPoints: [sourceWorkerScript],
+    outfile: testWorkerScript,
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    target: 'node20',
+    tsconfig: join(process.cwd(), 'tsconfig.node.json'),
+    logLevel: 'silent',
+  });
+  return testWorkerScript;
+}
+
+function loadEsbuild(): typeof import('esbuild') {
+  try {
+    return require('esbuild') as typeof import('esbuild');
+  } catch {
+    return require(
+      join(process.cwd(), 'node_modules', '.bun', 'node_modules', 'esbuild')
+    ) as typeof import('esbuild');
+  }
+}
+
+export class WorkerPool {
+  private readonly maxWorkers: number;
+  private readonly workerScript: string;
+  private readonly queue: QueuedJob[] = [];
+  private readonly activeJobs = new Map<string, ActiveJob>();
+  private shuttingDown = false;
+
+  constructor(options: WorkerPoolOptions = {}) {
+    this.maxWorkers = options.maxWorkers ?? getDefaultWorkerCount();
+    this.workerScript = options.workerScript ?? getDefaultWorkerScript();
+  }
+
+  run<N extends WorkerJobName>(
+    name: N,
+    payload: WorkerJobPayloadMap[N],
+    options: WorkerRunOptions = {}
+  ): Promise<WorkerJobResultMap[N]> {
+    const id = options.id ?? `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const priority = options.priority ?? 'background';
+
+    return new Promise<WorkerJobResultMap[N]>((resolve, reject) => {
+      if (this.shuttingDown) {
+        reject(new WorkerJobCancelledError('Worker pool is shutting down'));
+        return;
+      }
+
+      this.queue.push({
+        id,
+        name,
+        payload,
+        priority,
+        timeoutMs: options.timeoutMs,
+        resolve,
+        reject,
+        onProgress: options.onProgress,
+      });
+      this.sortQueue();
+      this.startNext();
+    });
+  }
+
+  cancel(id: string): boolean {
+    const queuedIndex = this.queue.findIndex((job) => job.id === id);
+    if (queuedIndex >= 0) {
+      const [job] = this.queue.splice(queuedIndex, 1);
+      job.reject(new WorkerJobCancelledError());
+      return true;
+    }
+
+    const active = this.activeJobs.get(id);
+    if (!active) {
+      return false;
+    }
+
+    active.worker.postMessage({ type: 'cancel', id });
+    return true;
+  }
+
+  getStateForTests() {
+    return {
+      activeCount: this.activeJobs.size,
+      queuedCount: this.queue.length,
+      activeIds: Array.from(this.activeJobs.keys()),
+      queuedIds: this.queue.map((job) => job.id),
+    };
+  }
+
+  private sortQueue() {
+    this.queue.sort((a, b) => priorityScore(a.priority) - priorityScore(b.priority));
+  }
+
+  private startNext() {
+    while (this.activeJobs.size < this.maxWorkers && this.queue.length > 0) {
+      const job = this.queue.shift()!;
+      this.startJob(job);
+    }
+  }
+
+  private startJob<N extends WorkerJobName>(job: QueuedJob<N>) {
+    const worker = new Worker(this.workerScript);
+    let settled = false;
+    let timeout: NodeJS.Timeout | null = null;
+
+    const cleanup = () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      this.activeJobs.delete(job.id);
+      worker.removeAllListeners();
+      void worker.terminate();
+      this.startNext();
+    };
+
+    const reject = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      job.reject(error);
+    };
+
+    const resolve = (result: WorkerJobResultMap[N]) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      job.resolve(result);
+    };
+
+    worker.on('message', (message: WorkerChildMessage) => {
+      if (message.id !== job.id) return;
+
+      if (message.type === 'progress') {
+        job.onProgress?.(message.progress);
+      } else if (message.type === 'result') {
+        resolve(message.result as WorkerJobResultMap[N]);
+      } else {
+        reject(new Error(message.error));
+      }
+    });
+
+    worker.on('error', (error) => reject(error));
+    worker.on('exit', (code) => {
+      if (code !== 0 && !settled) {
+        reject(new Error(`Worker exited with code ${code}`));
+      }
+    });
+
+    if (job.timeoutMs && job.timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        worker.postMessage({ type: 'cancel', id: job.id });
+        reject(new Error(`Worker job timed out after ${job.timeoutMs}ms`));
+      }, job.timeoutMs);
+    }
+
+    this.activeJobs.set(job.id, { worker, timeout, reject });
+    worker.postMessage({
+      id: job.id,
+      name: job.name,
+      payload: job.payload,
+    });
+  }
+
+  async shutdown(): Promise<void> {
+    this.shuttingDown = true;
+
+    while (this.queue.length > 0) {
+      const job = this.queue.shift()!;
+      job.reject(new WorkerJobCancelledError('Worker pool is shutting down'));
+    }
+
+    const terminations: Array<Promise<number>> = [];
+    for (const [id, active] of this.activeJobs) {
+      if (active.timeout) {
+        clearTimeout(active.timeout);
+      }
+      active.worker.removeAllListeners();
+      active.reject(new WorkerJobCancelledError('Worker pool is shutting down'));
+      active.worker.postMessage({ type: 'cancel', id });
+      terminations.push(active.worker.terminate());
+    }
+
+    this.activeJobs.clear();
+    await Promise.allSettled(terminations);
+  }
+}
+
+let sharedWorkerPool: WorkerPool | null = null;
+
+export function getSharedWorkerPool(): WorkerPool {
+  sharedWorkerPool ??= new WorkerPool();
+  return sharedWorkerPool;
+}
+
+export function resetSharedWorkerPoolForTests(pool: WorkerPool | null = null): void {
+  sharedWorkerPool = pool;
+}
+
+export async function shutdownSharedWorkerPool(): Promise<void> {
+  const pool = sharedWorkerPool;
+  sharedWorkerPool = null;
+  await pool?.shutdown();
+}

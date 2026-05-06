@@ -136,6 +136,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/main/index.ts'),
+          'workers/svn-worker': resolve(__dirname, 'src/main/workers/svn-worker.ts'),
         },
       },
     },

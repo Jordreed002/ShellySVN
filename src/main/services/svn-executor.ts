@@ -1,17 +1,14 @@
-import { spawn } from 'child_process';
-import { writeFile, mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
-
 import type { SvnExecutionContext } from '@shared/types';
 import { getSettingsManager } from '../settings-manager';
 import { getAuthCache } from '../auth-cache';
 import { debug } from '../utils/debug';
-import { redactArgs, redactValue } from '../utils/redaction';
+import {
+  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+  runResolvedSvn,
+  type RunSvnResult,
+} from './svn-runner';
 
-const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
-const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
-export const DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES = 1024 * 1024;
+export { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, type RunSvnResult } from './svn-runner';
 
 export interface RunSvnOptions {
   cwd?: string;
@@ -26,103 +23,13 @@ export interface RunSvnOptions {
   maxStderrBytes?: number;
 }
 
-export interface RunSvnResult {
-  stdout: string;
-  stderr: string;
-  code: number | null;
-  stdoutTruncated: boolean;
-  stderrTruncated: boolean;
-}
-
-function appendCappedOutput(
-  currentOutput: string,
-  chunk: string,
-  maxBytes: number | undefined
-): { output: string; truncated: boolean } {
-  if (maxBytes === undefined || maxBytes < 0) {
-    return { output: currentOutput + chunk, truncated: false };
-  }
-
-  const currentBytes = Buffer.byteLength(currentOutput, 'utf8');
-  if (currentBytes >= maxBytes) {
-    return { output: currentOutput, truncated: chunk.length > 0 };
-  }
-
-  const remainingBytes = maxBytes - currentBytes;
-  const chunkBytes = Buffer.byteLength(chunk, 'utf8');
-  if (chunkBytes <= remainingBytes) {
-    return { output: currentOutput + chunk, truncated: false };
-  }
-
-  let output = currentOutput;
-  let usedBytes = 0;
-  for (const char of chunk) {
-    const charBytes = Buffer.byteLength(char, 'utf8');
-    if (usedBytes + charBytes > remainingBytes) {
-      break;
-    }
-    output += char;
-    usedBytes += charBytes;
-  }
-
-  return { output, truncated: true };
-}
-
-async function createTempSvnConfig(
-  proxySettings: SvnExecutionContext['proxySettings']
-): Promise<string | null> {
-  if (!proxySettings?.enabled || !proxySettings.host || !proxySettings.port) {
-    return null;
-  }
-
-  const configDir = await mkdtemp(join(tmpdir(), 'svn-config-'));
-  const serversPath = join(configDir, 'servers');
-  const configLines = [
-    '[global]',
-    `http-proxy-host = ${proxySettings.host}`,
-    `http-proxy-port = ${proxySettings.port}`,
-  ];
-
-  if (proxySettings.username) {
-    configLines.push(`http-proxy-username = ${proxySettings.username}`);
-  }
-
-  if (proxySettings.password) {
-    configLines.push(`http-proxy-password = ${proxySettings.password}`);
-  }
-
-  if (proxySettings.bypassForLocal) {
-    configLines.push('http-proxy-exceptions = localhost, 127.0.0.1');
-  }
-
-  await writeFile(serversPath, configLines.join('\n'), { mode: 0o600 });
-  return configDir;
-}
-
-async function cleanupTempSvnConfig(configDir: string): Promise<void> {
-  try {
-    await rm(configDir, { recursive: true, force: true });
-  } catch (error) {
-    debug.warn('[SVN] Failed to cleanup temp config dir:', error);
-  }
+export interface ResolvedSvnExecution {
+  svnCommand: string;
+  context: SvnExecutionContext;
 }
 
 function getRepositoryUrlArgs(args: string[]): string[] {
   return args.filter((arg) => /^https?:\/\//i.test(arg));
-}
-
-function normalizeTrustedSslFailures(failures?: string): string | undefined {
-  if (!failures?.trim()) {
-    return undefined;
-  }
-
-  const allowed = new Set<string>(ALLOWED_SSL_FAILURES);
-  const normalized = failures
-    .split(',')
-    .map((failure) => failure.trim())
-    .filter((failure) => allowed.has(failure));
-
-  return normalized.length > 0 ? Array.from(new Set(normalized)).join(',') : undefined;
 }
 
 async function getCachedCredentialsForArgs(
@@ -150,7 +57,9 @@ async function getCachedCredentialsForArgs(
   return null;
 }
 
-export async function runSvn(args: string[], options: RunSvnOptions = {}): Promise<RunSvnResult> {
+export async function resolveSvnExecution(
+  options: Pick<RunSvnOptions, 'operationContext'> = {}
+): Promise<ResolvedSvnExecution> {
   const settingsManager = getSettingsManager();
   await settingsManager.ready();
   const globalContext = settingsManager.getSvnExecutionContext();
@@ -164,135 +73,30 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
     svnConfigPath: options.operationContext?.svnConfigPath ?? globalContext.svnConfigPath,
   };
 
-  const tempConfigDir = await createTempSvnConfig(context.proxySettings);
+  return {
+    svnCommand: settingsManager.getSvnClientPath(),
+    context,
+  };
+}
+
+export async function runSvn(args: string[], options: RunSvnOptions = {}): Promise<RunSvnResult> {
+  const { svnCommand, context } = await resolveSvnExecution(options);
   const cachedCredentials =
     options.credentials === undefined ? await getCachedCredentialsForArgs(args) : null;
   const credentials = options.credentials ?? cachedCredentials ?? undefined;
 
-  return new Promise((resolve, reject) => {
-    const svnCommand = settingsManager.getSvnClientPath();
-    const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
-    const finalArgs: string[] = [];
-
-    if (tempConfigDir) {
-      finalArgs.push('--config-dir', tempConfigDir);
-    } else if (context.svnConfigPath?.trim()) {
-      finalArgs.push('--config-dir', context.svnConfigPath.trim());
-    }
-
-    finalArgs.push(...args);
-
-    if (context.sslVerify === false || options.trustSslFailures) {
-      if (!finalArgs.includes('--non-interactive')) {
-        finalArgs.push('--non-interactive');
-      }
-      const trustedFailures =
-        context.sslVerify === false
-          ? DEFAULT_SSL_FAILURES
-          : normalizeTrustedSslFailures(options.trustedSslFailures);
-      if (trustedFailures) {
-        finalArgs.push('--trust-server-cert-failures', trustedFailures);
-        debug.warn(`[SECURITY] SSL verification bypassed for: ${options.cwd || process.cwd()}`);
-      } else {
-        debug.warn(
-          '[SECURITY] SSL trust requested without confirmed failure classes; not bypassing certificate checks.'
-        );
-      }
-    }
-
-    if (credentials?.username) {
-      finalArgs.push('--username', credentials.username);
-    }
-    if (credentials?.password) {
-      finalArgs.push('--password', credentials.password);
-    }
-
-    if (context.clientCertificatePath && context.clientCertificatePath.trim()) {
-      finalArgs.push('--certificate', context.clientCertificatePath.trim());
-    }
-
-    debug.log(
-      `[SVN] Running: svn ${redactArgs(finalArgs).join(' ')} in ${options.cwd || process.cwd()}`
-    );
-
-    const proc = spawn(svnCommand, finalArgs, {
-      cwd: options.cwd || process.cwd(),
-      env,
-      windowsHide: true,
-    });
-
-    let stdout = '';
-    let stderr = '';
-    let stdoutTruncated = false;
-    let stderrTruncated = false;
-    let timeoutId: NodeJS.Timeout | null = null;
-    let settled = false;
-
-    const cleanup = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (tempConfigDir) cleanupTempSvnConfig(tempConfigDir);
-      options.signal?.removeEventListener('abort', abort);
-    };
-
-    const fail = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    };
-
-    const abort = () => {
-      proc.kill();
-      fail(new Error('SVN operation cancelled'));
-    };
-
-    if (options.signal?.aborted) {
-      abort();
-      return;
-    }
-
-    options.signal?.addEventListener('abort', abort, { once: true });
-
-    proc.stdout.on('data', (data) => {
-      const chunk = data.toString();
-      const capped = appendCappedOutput(stdout, chunk, options.maxStdoutBytes);
-      stdout = capped.output;
-      stdoutTruncated = stdoutTruncated || capped.truncated;
-      options.onStdout?.(chunk);
-    });
-
-    proc.stderr.on('data', (data) => {
-      const chunk = data.toString();
-      const capped = appendCappedOutput(stderr, chunk, options.maxStderrBytes);
-      stderr = capped.output;
-      stderrTruncated = stderrTruncated || capped.truncated;
-      options.onStderr?.(chunk);
-    });
-
-    if (context.connectionTimeout && context.connectionTimeout > 0) {
-      timeoutId = setTimeout(() => {
-        proc.kill();
-        fail(new Error(`SVN operation timed out after ${context.connectionTimeout} seconds`));
-      }, context.connectionTimeout * 1000);
-    }
-
-    proc.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      debug.log(`[SVN] Exit code: ${code}`);
-
-      if (code === 0) {
-        resolve({ stdout, stderr, code, stdoutTruncated, stderrTruncated });
-      } else {
-        reject(new Error((redactValue(stderr) as string) || `SVN exited with code ${code}`));
-      }
-    });
-
-    proc.on('error', (error) => {
-      debug.error('[SVN] Error:', error);
-      fail(error);
-    });
+  return runResolvedSvn(args, {
+    svnCommand,
+    context,
+    cwd: options.cwd,
+    trustSslFailures: options.trustSslFailures,
+    trustedSslFailures: options.trustedSslFailures,
+    credentials,
+    signal: options.signal,
+    onStdout: options.onStdout,
+    onStderr: options.onStderr,
+    maxStdoutBytes: options.maxStdoutBytes,
+    maxStderrBytes: options.maxStderrBytes,
   });
 }
 
