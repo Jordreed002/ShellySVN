@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
+  resolveSvnExecution: vi.fn(),
+  workerRun: vi.fn(),
+  workerCancel: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -18,6 +21,14 @@ vi.mock('chokidar', () => ({
 
 vi.mock('../../services/svn-executor', () => ({
   runSvnText: mockState.runSvnText,
+  resolveSvnExecution: mockState.resolveSvnExecution,
+}));
+
+vi.mock('../../workers/WorkerPool', () => ({
+  getSharedWorkerPool: () => ({
+    run: mockState.workerRun,
+    cancel: mockState.workerCancel,
+  }),
 }));
 
 import {
@@ -27,13 +38,20 @@ import {
 } from '../fs';
 
 interface PendingSvnCall {
-  resolve: (value: string) => void;
+  id: string;
+  resolve: (value: {
+    directStatus: {};
+    allEntries: Array<{ status: string; fullPath: string }>;
+  }) => void;
 }
 
 const pendingCalls: PendingSvnCall[] = [];
 
-function statusXml(path: string): string {
-  return `<?xml version="1.0"?><status><target path="${path}"><entry path="${path}/file.txt"><wc-status item="modified"><commit revision="1"><author>alice</author></commit></wc-status></entry></target></status>`;
+function statusResult(path: string) {
+  return {
+    directStatus: {},
+    allEntries: [{ status: 'M', fullPath: `${path}/file.txt` }],
+  };
 }
 
 async function flushMicrotasks() {
@@ -44,12 +62,17 @@ async function flushMicrotasks() {
 beforeEach(() => {
   vi.clearAllMocks();
   pendingCalls.length = 0;
-  mockState.runSvnText.mockImplementation(
-    () =>
-      new Promise<string>((resolve) => {
-        pendingCalls.push({ resolve });
+  mockState.resolveSvnExecution.mockResolvedValue({
+    svnCommand: 'svn',
+    context: {},
+  });
+  mockState.workerRun.mockImplementation(
+    (_name: string, _payload: unknown, options: { id: string }) =>
+      new Promise((resolve) => {
+        pendingCalls.push({ id: options.id, resolve });
       })
   );
+  mockState.workerCancel.mockReturnValue(true);
 });
 
 describe('background status scan queue', () => {
@@ -60,23 +83,25 @@ describe('background status scan queue', () => {
 
     await flushMicrotasks();
 
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY);
+    expect(mockState.workerRun).toHaveBeenCalledTimes(MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY);
     expect(getBackgroundStatusScanStateForTests()).toMatchObject({
       activeScanCount: MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY,
       queuedScanCount: 1,
     });
 
-    pendingCalls[0].resolve(statusXml('/repo/a'));
+    pendingCalls[0].resolve(statusResult('/repo/a'));
     await expect(first).resolves.toMatchObject({
-      allEntries: [expect.objectContaining({ status: 'M', fullPath: expect.stringContaining('file.txt') })],
+      allEntries: [
+        expect.objectContaining({ status: 'M', fullPath: expect.stringContaining('file.txt') }),
+      ],
     });
     await flushMicrotasks();
 
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(3);
+    expect(mockState.workerRun).toHaveBeenCalledTimes(3);
     expect(getBackgroundStatusScanStateForTests().queuedScanCount).toBe(0);
 
-    pendingCalls[1].resolve(statusXml('/repo/b'));
-    pendingCalls[2].resolve(statusXml('/repo/c'));
+    pendingCalls[1].resolve(statusResult('/repo/b'));
+    pendingCalls[2].resolve(statusResult('/repo/c'));
     await expect(second).resolves.toMatchObject({ allEntries: expect.any(Array) });
     await expect(third).resolves.toMatchObject({ allEntries: expect.any(Array) });
   });
@@ -87,24 +112,59 @@ describe('background status scan queue', () => {
     const stale = startDeepScan('/repo/c');
 
     await flushMicrotasks();
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY);
+    expect(mockState.workerRun).toHaveBeenCalledTimes(MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY);
 
     const replacement = startDeepScan('/repo/c');
 
     await expect(stale).resolves.toEqual({ directStatus: {}, allEntries: [] });
+    expect(mockState.workerCancel).toHaveBeenCalledWith('deep-status:/repo/c');
     expect(getBackgroundStatusScanStateForTests().queuedScanCount).toBe(1);
 
-    pendingCalls[0].resolve(statusXml('/repo/a'));
+    pendingCalls[0].resolve(statusResult('/repo/a'));
     await first;
     await flushMicrotasks();
 
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(3);
+    expect(mockState.workerRun).toHaveBeenCalledTimes(3);
 
-    pendingCalls[1].resolve(statusXml('/repo/b'));
-    pendingCalls[2].resolve(statusXml('/repo/c'));
+    pendingCalls[1].resolve(statusResult('/repo/b'));
+    pendingCalls[2].resolve(statusResult('/repo/c'));
     await second;
     await expect(replacement).resolves.toMatchObject({
       allEntries: [expect.objectContaining({ status: 'M' })],
+    });
+  });
+
+  it('queues navigation-triggered deep scans immediately while existing scans are active', async () => {
+    const first = startDeepScan('/repo/a');
+    const second = startDeepScan('/repo/b');
+
+    await flushMicrotasks();
+    expect(getBackgroundStatusScanStateForTests()).toMatchObject({
+      activeScanCount: MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY,
+      queuedScanCount: 0,
+    });
+
+    const startedAt = performance.now();
+    const navigationScan = startDeepScan('/repo/navigated');
+    const queueDurationMs = performance.now() - startedAt;
+
+    expect(queueDurationMs).toBeLessThan(50);
+    expect(getBackgroundStatusScanStateForTests()).toMatchObject({
+      activeScanCount: MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY,
+      queuedScanCount: 1,
+    });
+
+    pendingCalls[0].resolve(statusResult('/repo/a'));
+    await first;
+    await flushMicrotasks();
+
+    expect(mockState.workerRun).toHaveBeenCalledTimes(3);
+
+    pendingCalls[1].resolve(statusResult('/repo/b'));
+    pendingCalls[2].resolve(statusResult('/repo/navigated'));
+    await second;
+    await expect(navigationScan).resolves.toMatchObject({
+      allEntries: [expect.objectContaining({ fullPath: expect.stringContaining('navigated') })],
     });
   });
 });

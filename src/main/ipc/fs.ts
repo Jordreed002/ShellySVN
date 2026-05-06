@@ -9,20 +9,21 @@ import {
   access,
 } from 'fs/promises';
 import chokidar from 'chokidar';
-import { join, basename, normalize, dirname, isAbsolute } from 'path';
+import { join, normalize, dirname } from 'path';
 import { spawn } from 'child_process';
 import { platform } from 'os';
 import type { DirectoryMetadataResult, FileInfo, SvnStatusChar } from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
-import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
-import { runSvnText } from '../services/svn-executor';
+import { resolveSvnExecution, runSvnText } from '../services/svn-executor';
+import { getWorkerFsStatus } from '../services/svn-status-worker';
 import {
   getInfo,
   getWorkingCopyContext,
   getWorkingCopyUpgradeStatus,
 } from '../services/svn-working-copy';
+import { getSharedWorkerPool } from '../workers/WorkerPool';
 
 interface SvnStatusEntry {
   status: SvnStatusChar;
@@ -38,22 +39,6 @@ export interface SvnStatusMap {
     author?: string;
   };
 }
-
-// Map SVN XML item attribute values to single-char status codes
-const SVN_STATUS_MAP: Record<string, SvnStatusChar> = {
-  normal: ' ',
-  added: 'A',
-  conflicted: 'C',
-  deleted: 'D',
-  ignored: 'I',
-  modified: 'M',
-  replaced: 'R',
-  external: 'X',
-  unversioned: '?',
-  missing: '!',
-  obstructed: '~',
-  incomplete: '!',
-};
 
 // Status priority (higher = more important to show)
 const STATUS_PRIORITY: Record<SvnStatusChar, number> = {
@@ -76,47 +61,6 @@ function getWorstStatus(a: SvnStatusChar, b: SvnStatusChar): SvnStatusChar {
 }
 
 /**
- * Parse SVN status XML output into status map and entries
- */
-function parseSvnStatusXml(
-  xml: string,
-  baseDir: string
-): {
-  directStatus: SvnStatusMap;
-  allEntries: SvnStatusEntry[];
-} {
-  const directStatus: SvnStatusMap = {};
-  const allEntries: SvnStatusEntry[] = [];
-
-  for (const entry of parseSvnStatusEntriesXml(xml)) {
-    const entryPath = entry.path;
-    const statusName = entry.item;
-    const status = SVN_STATUS_MAP[statusName] || ' ';
-    const fullPath = normalize(isAbsolute(entryPath) ? entryPath : join(baseDir, entryPath));
-    const fileName = basename(fullPath);
-
-    allEntries.push({
-      status,
-      revision: entry.revision,
-      author: entry.author,
-      fullPath,
-    });
-
-    // Direct entries (immediate children)
-    const entryParent = normalize(dirname(fullPath));
-    if (entryParent === normalize(baseDir)) {
-      directStatus[fileName] = {
-        status,
-        revision: entry.revision,
-        author: entry.author,
-      };
-    }
-  }
-
-  return { directStatus, allEntries };
-}
-
-/**
  * Get SVN status with configurable depth
  */
 async function getSvnStatus(
@@ -124,10 +68,7 @@ async function getSvnStatus(
   depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'immediates'
 ): Promise<{ directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }> {
   try {
-    const stdout = await runSvnText(['status', '--xml', `--depth=${depth}`, dirPath], {
-      cwd: dirPath,
-    });
-    return parseSvnStatusXml(stdout, dirPath);
+    return getWorkerFsStatus(dirPath, depth);
   } catch {
     return { directStatus: {}, allEntries: [] };
   }
@@ -257,6 +198,7 @@ let activeScanCount = 0;
 
 interface QueuedDeepScan {
   dirPath: string;
+  jobId: string;
   controller: AbortController;
   resolve: (result: { directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }) => void;
 }
@@ -314,12 +256,16 @@ function cancelDeepScan(dirPath: string) {
   const controller = activeScans.get(dirPath);
   if (controller) {
     controller.abort();
+    const pool = getSharedWorkerPool();
+    pool.cancel(`deep-status:${dirPath}`);
     activeScans.delete(dirPath);
   }
 
   for (let index = queuedScans.length - 1; index >= 0; index--) {
     const queued = queuedScans[index];
     if (queued.dirPath === dirPath) {
+      const pool = getSharedWorkerPool();
+      pool.cancel(queued.jobId);
       queuedScans.splice(index, 1);
       queued.resolve(EMPTY_STATUS_RESULT);
     }
@@ -342,11 +288,28 @@ function startQueuedScans() {
 
 async function runDeepScan(queued: QueuedDeepScan) {
   try {
-    const stdout = await runSvnText(['status', '--xml', '--depth=infinity', queued.dirPath], {
-      cwd: queued.dirPath,
-      signal: queued.controller.signal,
-    });
-    queued.resolve(parseSvnStatusXml(stdout, queued.dirPath));
+    const { svnCommand, context } = await resolveSvnExecution();
+
+    if (queued.controller.signal.aborted) {
+      queued.resolve(EMPTY_STATUS_RESULT);
+      return;
+    }
+
+    const pool = getSharedWorkerPool();
+    const result = await pool.run(
+      'svn:deepStatus',
+      {
+        dirPath: queued.dirPath,
+        svnCommand,
+        context,
+      },
+      {
+        id: queued.jobId,
+        priority: 'background',
+      }
+    );
+
+    queued.resolve(result);
   } catch {
     queued.resolve(EMPTY_STATUS_RESULT);
   } finally {
@@ -368,11 +331,12 @@ export async function startDeepScan(dirPath: string): Promise<{
   cancelDeepScan(dirPath);
 
   const controller = new AbortController();
+  const jobId = `deep-status:${dirPath}`;
   activeScans.set(dirPath, controller);
 
   const result = new Promise<{ directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }>(
     (resolve) => {
-      queuedScans.push({ dirPath, controller, resolve });
+      queuedScans.push({ dirPath, jobId, controller, resolve });
       startQueuedScans();
     }
   );

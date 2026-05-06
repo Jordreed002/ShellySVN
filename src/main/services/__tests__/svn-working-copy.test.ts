@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockState = vi.hoisted(() => ({
   runSvn: vi.fn(),
   runSvnText: vi.fn(),
+  getWorkerSvnStatus: vi.fn(),
   rm: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -21,6 +22,10 @@ vi.mock('../svn-executor', () => ({
   DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
   runSvn: mockState.runSvn,
   runSvnText: mockState.runSvnText,
+}));
+
+vi.mock('../svn-status-worker', () => ({
+  getWorkerSvnStatus: mockState.getWorkerSvnStatus,
 }));
 
 vi.mock('../../ipc/store', () => ({
@@ -54,25 +59,15 @@ import {
 } from '../svn-working-copy';
 import { getAuthCache } from '../../auth-cache';
 
-const statusXml = (path: string, item: string) => `<?xml version="1.0" encoding="UTF-8"?>
-<status>
-  <target path="${path}">
-    <entry path="${path}">
-      <wc-status item="${item}" props="none" />
-    </entry>
-  </target>
-</status>`;
-
 describe('svn-working-copy remove', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockState.runSvnText.mockImplementation(async (args: string[]) => {
-      if (args[0] === 'status') {
-        const path = args[2];
-        return statusXml(path, path.includes('unversioned') ? 'unversioned' : 'modified');
-      }
-      return '';
-    });
+    mockState.getWorkerSvnStatus.mockImplementation(async (path: string) => ({
+      path,
+      entries: [{ path, status: path.includes('unversioned') ? '?' : 'M' }],
+      revision: 0,
+    }));
+    mockState.runSvnText.mockResolvedValue('');
   });
 
   it('deletes unversioned paths from disk and SVN-managed paths with force', async () => {
@@ -82,11 +77,7 @@ describe('svn-working-copy remove', () => {
       recursive: true,
       force: true,
     });
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'delete',
-      '--force',
-      'C:\\wc\\tracked.txt',
-    ]);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['delete', '--force', 'C:\\wc\\tracked.txt']);
   });
 
   it('does not call svn delete when all selected paths are unversioned', async () => {
@@ -96,9 +87,7 @@ describe('svn-working-copy remove', () => {
       recursive: true,
       force: true,
     });
-    expect(mockState.runSvnText).not.toHaveBeenCalledWith(
-      expect.arrayContaining(['delete'])
-    );
+    expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['delete']));
   });
 });
 
@@ -160,35 +149,69 @@ describe('svn-working-copy status', () => {
   });
 
   it('gets local status without repository update checks', async () => {
-    mockState.runSvnText.mockResolvedValue(statusXml('/wc/file.txt', 'modified'));
+    mockState.getWorkerSvnStatus.mockResolvedValue({
+      path: '/wc',
+      entries: [{ path: '/wc/file.txt', status: 'M' }],
+      revision: 0,
+      remoteChecked: false,
+    });
 
     const result = await getStatus('/wc');
 
     expect(result.remoteChecked).toBe(false);
     expect(result.entries[0].status).toBe('M');
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['status', '--xml', '/wc']);
+    expect(mockState.getWorkerSvnStatus).toHaveBeenCalledWith('/wc');
+  });
+
+  it('passes caller job ids to cancellable local status work', async () => {
+    mockState.getWorkerSvnStatus.mockResolvedValue({
+      path: '/wc',
+      entries: [],
+      revision: 0,
+      remoteChecked: false,
+    });
+
+    await getStatus('/wc', 'job-status-1');
+
+    expect(mockState.getWorkerSvnStatus).toHaveBeenCalledWith('/wc', {
+      jobId: 'job-status-1',
+    });
   });
 
   it('gets remote status with explicit repository update checks', async () => {
-    mockState.runSvnText.mockResolvedValue(`<?xml version="1.0" encoding="UTF-8"?>
-<status>
-  <target path="/wc">
-    <entry path="/wc/file.txt">
-      <wc-status item="normal" props="none" />
-      <repos-status item="modified" props="none" />
-    </entry>
-  </target>
-</status>`);
+    mockState.getWorkerSvnStatus.mockResolvedValue({
+      path: '/wc',
+      entries: [{ path: '/wc/file.txt', status: ' ', remoteStatus: 'M' }],
+      revision: 0,
+      remoteChecked: true,
+    });
 
     const result = await getRemoteStatus('/wc');
 
     expect(result.remoteChecked).toBe(true);
     expect(result.entries[0].status).toBe(' ');
     expect(result.entries[0].remoteStatus).toBe('M');
-    expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['status', '--xml', '--show-updates', '/wc'],
-      { trustSslFailures: true }
-    );
+    expect(mockState.getWorkerSvnStatus).toHaveBeenCalledWith('/wc', {
+      showUpdates: true,
+      trustSslFailures: true,
+    });
+  });
+
+  it('passes caller job ids to cancellable remote status work', async () => {
+    mockState.getWorkerSvnStatus.mockResolvedValue({
+      path: '/wc',
+      entries: [],
+      revision: 0,
+      remoteChecked: true,
+    });
+
+    await getRemoteStatus('/wc', 'job-status-remote-1');
+
+    expect(mockState.getWorkerSvnStatus).toHaveBeenCalledWith('/wc', {
+      showUpdates: true,
+      trustSslFailures: true,
+      jobId: 'job-status-remote-1',
+    });
   });
 });
 
@@ -290,17 +313,11 @@ describe('svn-working-copy update progress', () => {
       stderrTruncated: false,
     });
 
-    await updateWithProgress(
-      { sender: { send } } as never,
-      'update-options',
-      '/wc',
-      'files',
-      {
-        revision: '42',
-        ignoreExternals: true,
-        force: true,
-      }
-    );
+    await updateWithProgress({ sender: { send } } as never, 'update-options', '/wc', 'files', {
+      revision: '42',
+      ignoreExternals: true,
+      force: true,
+    });
 
     expect(mockState.runSvn).toHaveBeenCalledWith(
       ['update', '-r', '42', '--depth', 'files', '--ignore-externals', '--force', '/wc'],

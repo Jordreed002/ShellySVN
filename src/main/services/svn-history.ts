@@ -1,79 +1,68 @@
 import type { SvnBlameResult, SvnDiffResult, SvnLogResult } from '@shared/types';
-import { parseSvnBlameXml, parseSvnDiff, parseSvnLogXml } from '../svn/parsers';
-import { parseDiffStreaming } from '../utils/diff-parser';
 import { debug } from '../utils/debug';
-import { runSvnText } from './svn-executor';
+import {
+  getWorkerBlame,
+  getWorkerDiff,
+  getWorkerDiffStreaming,
+  getWorkerLog,
+  getWorkerUrlDiff,
+} from './svn-history-worker';
 
 export async function getLog(
   path: string,
   limit = 100,
   startRev?: number,
   endRev?: number,
-  useMergeHistory = false
+  useMergeHistory = false,
+  workerJobId?: string
 ): Promise<SvnLogResult> {
   try {
-    const args = ['log', '--xml', '-l', String(limit)];
-    if (startRev !== undefined && endRev !== undefined) {
-      args.push('-r', `${startRev}:${endRev}`);
-    }
-    if (useMergeHistory) {
-      args.push('--use-merge-history');
-    }
-    args.push(path);
-
-    const xml = await runSvnText(args);
-    return parseSvnLogXml(xml);
+    return workerJobId
+      ? getWorkerLog(path, limit, startRev, endRev, useMergeHistory, workerJobId)
+      : getWorkerLog(path, limit, startRev, endRev, useMergeHistory);
   } catch (error) {
     debug.error('[SVN] Log error:', error);
     return { entries: [], startRevision: 0, endRevision: 0 };
   }
 }
 
-export async function getDiff(path: string, revision?: string): Promise<SvnDiffResult> {
+export async function getDiff(
+  path: string,
+  revision?: string,
+  workerJobId?: string
+): Promise<SvnDiffResult> {
   try {
-    const args = ['diff'];
-    if (revision) {
-      args.push('-c', revision);
-    }
-    args.push(path);
-
-    const output = await runSvnText(args);
-    return parseSvnDiff(output);
+    return workerJobId ? getWorkerDiff(path, revision, workerJobId) : getWorkerDiff(path, revision);
   } catch (error) {
     debug.error('[SVN] Diff error:', error);
     return { files: [], hasChanges: false, rawDiff: (error as Error).message };
   }
 }
 
-export async function getUrlDiff(leftUrl: string, rightUrl: string): Promise<SvnDiffResult> {
+export async function getUrlDiff(
+  leftUrl: string,
+  rightUrl: string,
+  workerJobId?: string
+): Promise<SvnDiffResult> {
   try {
-    const output = await runSvnText(['diff', leftUrl, rightUrl]);
-    return parseSvnDiff(output);
+    return workerJobId
+      ? getWorkerUrlDiff(leftUrl, rightUrl, workerJobId)
+      : getWorkerUrlDiff(leftUrl, rightUrl);
   } catch (error) {
     debug.error('[SVN] URL diff error:', error);
     return { files: [], hasChanges: false, rawDiff: (error as Error).message };
   }
 }
 
-export async function getDiffStreaming(path: string, revision?: string): Promise<SvnDiffResult> {
+export async function getDiffStreaming(
+  path: string,
+  revision?: string,
+  workerJobId?: string
+): Promise<SvnDiffResult> {
   try {
-    const args = ['diff'];
-    if (revision) {
-      args.push('-c', revision);
-    }
-    args.push(path);
-
-    const output = await runSvnText(args);
-    if (output.includes('Cannot display: file marked as a binary type')) {
-      return {
-        files: [],
-        hasChanges: true,
-        isBinary: true,
-        rawDiff: output,
-      };
-    }
-
-    return await parseDiffStreaming(output);
+    return workerJobId
+      ? getWorkerDiffStreaming(path, revision, workerJobId)
+      : getWorkerDiffStreaming(path, revision);
   } catch (error) {
     debug.error('[SVN] Streaming diff error:', error);
     return { files: [], hasChanges: false, rawDiff: (error as Error).message };
@@ -83,17 +72,13 @@ export async function getDiffStreaming(path: string, revision?: string): Promise
 export async function getBlame(
   path: string,
   startRevision?: number,
-  endRevision?: number
+  endRevision?: number,
+  workerJobId?: string
 ): Promise<SvnBlameResult> {
   try {
-    const args = ['blame', '--xml', '-v'];
-    if (startRevision !== undefined && endRevision !== undefined) {
-      args.push('-r', `${startRevision}:${endRevision}`);
-    }
-    args.push(path);
-
-    const xml = await runSvnText(args);
-    return parseSvnBlameXml(xml, path);
+    return workerJobId
+      ? getWorkerBlame(path, startRevision, endRevision, workerJobId)
+      : getWorkerBlame(path, startRevision, endRevision);
   } catch (error) {
     debug.error('[SVN] Blame error:', error);
     return { path, lines: [], startRevision: 0, endRevision: 0 };

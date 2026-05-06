@@ -13,9 +13,11 @@ import type {
 import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
-import { parseSvnInfoXml, parseSvnStatusXml } from '../svn/parsers';
+import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
+import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
+import { getWorkerSvnStatus } from './svn-status-worker';
 
 const activeUpdates = new Map<string, AbortController>();
 
@@ -131,31 +133,35 @@ export async function getWorkingCopyContext(
   return null;
 }
 
-export async function getStatus(path: string): Promise<SvnStatusResult> {
+export async function getStatus(path: string, workerJobId?: string): Promise<SvnStatusResult> {
   try {
-    const xml = await runSvnText(['status', '--xml', path]);
-    return parseSvnStatusXml(xml, path);
+    return workerJobId
+      ? getWorkerSvnStatus(path, { jobId: workerJobId })
+      : getWorkerSvnStatus(path);
   } catch (error) {
     debug.error('[SVN] Status error:', error);
     return { path, entries: [], revision: 0 };
   }
 }
 
-export async function getRemoteStatus(path: string): Promise<SvnStatusResult> {
+export async function getRemoteStatus(
+  path: string,
+  workerJobId?: string
+): Promise<SvnStatusResult> {
   try {
-    const xml = await runSvnText(['status', '--xml', '--show-updates', path], {
+    const options = {
+      showUpdates: true,
       trustSslFailures: true,
-    });
-    return { ...parseSvnStatusXml(xml, path), remoteChecked: true };
+      ...(workerJobId ? { jobId: workerJobId } : {}),
+    };
+    return getWorkerSvnStatus(path, options);
   } catch (error) {
     debug.error('[SVN] Remote status error:', error);
     return { path, entries: [], revision: 0, remoteChecked: true };
   }
 }
 
-export async function getWorkingCopyUpgradeStatus(
-  path: string
-): Promise<WorkingCopyUpgradeStatus> {
+export async function getWorkingCopyUpgradeStatus(path: string): Promise<WorkingCopyUpgradeStatus> {
   try {
     await runSvnText(['info', '--xml', path]);
     return { path, required: false };
@@ -213,6 +219,16 @@ export async function update(
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   options?: UpdateOptions
 ): Promise<{ success: boolean; revision?: number; error?: string }> {
+  return runSerializedWorkingCopyMutation(path, async () =>
+    updateUnserialized(path, depth, options)
+  );
+}
+
+async function updateUnserialized(
+  path: string,
+  depth?: 'empty' | 'files' | 'immediates' | 'infinity',
+  options?: UpdateOptions
+): Promise<{ success: boolean; revision?: number; error?: string }> {
   try {
     await runSvnText(['info', '--xml', path], { cwd: path, trustSslFailures: true });
   } catch (error) {
@@ -262,7 +278,8 @@ export async function update(
     if (errorMsg.includes('E155004')) {
       return {
         success: false,
-        error: 'Working copy is locked. Try running "Cleanup" from the toolbar to resolve this issue.',
+        error:
+          'Working copy is locked. Try running "Cleanup" from the toolbar to resolve this issue.',
       };
     }
     if (errorMsg.includes('E155036')) {
@@ -400,6 +417,18 @@ export async function updateToRevision(
   depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity',
   setDepthSticky: boolean = false
 ): Promise<{ success: boolean; revision: number; error?: string }> {
+  return runSerializedWorkingCopyMutation(workingCopyRoot, async () =>
+    updateToRevisionUnserialized(workingCopyRoot, repoUrl, localPath, depth, setDepthSticky)
+  );
+}
+
+async function updateToRevisionUnserialized(
+  workingCopyRoot: string,
+  repoUrl: string,
+  localPath: string,
+  depth: 'empty' | 'files' | 'immediates' | 'infinity',
+  setDepthSticky: boolean
+): Promise<{ success: boolean; revision: number; error?: string }> {
   try {
     const relativePath = getWorkingCopyRelativePath(workingCopyRoot, localPath);
 
@@ -451,7 +480,10 @@ export async function updateToRevision(
 
     const targetFullPath = resolveWorkingCopyPath(workingCopyRoot, relativePath);
     if (!existsSync(targetFullPath)) {
-      debug.log('[updateToRevision] Target does not exist, fetching with --depth empty first:', relativePath);
+      debug.log(
+        '[updateToRevision] Target does not exist, fetching with --depth empty first:',
+        relativePath
+      );
       try {
         await runSvnText(['update', '--depth', 'empty', relativePath], {
           cwd: workingCopyRoot,
@@ -492,46 +524,62 @@ export async function updateToRevision(
 }
 
 export async function revert(paths: string[]): Promise<{ success: boolean }> {
-  await runSvnText(['revert', ...paths]);
-  return { success: true };
+  return runSerializedWorkingCopyMutation(paths[0], async () => {
+    await runSvnText(['revert', ...paths]);
+    return { success: true };
+  });
 }
 
 export async function add(paths: string[]): Promise<{ success: boolean }> {
-  await runSvnText(['add', ...paths]);
-  return { success: true };
+  return runSerializedWorkingCopyMutation(paths[0], async () => {
+    await runSvnText(['add', ...paths]);
+    return { success: true };
+  });
 }
 
 export async function remove(paths: string[]): Promise<{ success: boolean }> {
-  const svnPaths: string[] = [];
+  return runSerializedWorkingCopyMutation(paths[0], async () => {
+    const svnPaths: string[] = [];
 
-  for (const path of paths) {
-    const status = await getStatus(path);
-    const entry = status.entries.find((item) => item.path === path) ?? status.entries[0];
+    for (const path of paths) {
+      const status = await getStatus(path);
+      const entry = status.entries.find((item) => item.path === path) ?? status.entries[0];
 
-    if (entry?.status === '?' || entry?.status === 'I') {
-      await rm(path, { recursive: true, force: true });
-    } else {
-      svnPaths.push(path);
+      if (entry?.status === '?' || entry?.status === 'I') {
+        await rm(path, { recursive: true, force: true });
+      } else {
+        svnPaths.push(path);
+      }
     }
-  }
 
-  if (svnPaths.length > 0) {
-    await runSvnText(['delete', '--force', ...svnPaths]);
-  }
+    if (svnPaths.length > 0) {
+      await runSvnText(['delete', '--force', ...svnPaths]);
+    }
 
-  return { success: true };
+    return { success: true };
+  });
 }
 
 export async function cleanup(path: string): Promise<{ success: boolean }> {
-  await runSvnText(['cleanup', path]);
-  return { success: true };
+  return runSerializedWorkingCopyMutation(path, async () => {
+    await runSvnText(['cleanup', path]);
+    return { success: true };
+  });
 }
 
-export async function move(src: string, dst: string): Promise<{ success: boolean; output?: string }> {
-  const output = await runSvnText(['move', src, dst]);
-  return { success: true, output };
+export async function move(
+  src: string,
+  dst: string
+): Promise<{ success: boolean; output?: string }> {
+  return runSerializedWorkingCopyMutation(src, async () => {
+    const output = await runSvnText(['move', src, dst]);
+    return { success: true, output };
+  });
 }
 
-export async function rename(src: string, dst: string): Promise<{ success: boolean; output?: string }> {
+export async function rename(
+  src: string,
+  dst: string
+): Promise<{ success: boolean; output?: string }> {
   return move(src, dst);
 }
