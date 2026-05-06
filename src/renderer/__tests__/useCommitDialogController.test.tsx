@@ -1,6 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/hooks/useCommitMessageHistory', () => ({
@@ -37,6 +37,7 @@ vi.mock('../src/hooks/useIssueTrackerConfig', () => ({
 }));
 
 import { useCommitDialogController } from '../src/components/commit/useCommitDialogController';
+import { CommitDialog } from '../src/components/ui/CommitDialog';
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -172,13 +173,37 @@ describe('useCommitDialogController file selection and filtering', () => {
     );
 
     act(() => result.current.handleSelectAll());
-    expect(result.current.files.filter((file) => file.committable).every((file) => file.selected))
-      .toBe(true);
+    expect(
+      result.current.files.filter((file) => file.committable).every((file) => file.selected)
+    ).toBe(true);
     expect(result.current.files.find((file) => file.path === 'src/missing.ts')?.selected).toBe(
       false
     );
 
     act(() => result.current.handleDeselectAll());
     expect(result.current.files.every((file) => !file.selected)).toBe(true);
+  });
+
+  it('shows the commit modal shell immediately while status loading is slow', () => {
+    window.api = {
+      svn: {
+        status: vi.fn().mockReturnValue(new Promise(() => {})),
+        diff: vi.fn(),
+      },
+      app: {
+        openExternal: vi.fn(),
+      },
+    } as unknown as Window['api'];
+
+    const startedAt = performance.now();
+    render(
+      <CommitDialog isOpen={true} workingCopyPath="C:\\wc" onClose={vi.fn()} onSubmit={vi.fn()} />,
+      { wrapper: createWrapper() }
+    );
+    const renderDurationMs = performance.now() - startedAt;
+
+    expect(renderDurationMs).toBeLessThan(100);
+    expect(screen.getByRole('dialog', { name: /commit changes/i })).toBeTruthy();
+    expect(screen.getByRole('status', { name: /loading files/i })).toBeTruthy();
   });
 });

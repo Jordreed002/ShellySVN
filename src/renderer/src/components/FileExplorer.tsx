@@ -11,7 +11,7 @@ import {
   Suspense,
   useDeferredValue,
 } from 'react';
-import { FolderX, AlertCircle, Loader, ArrowUp, Globe } from 'lucide-react';
+import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Settings, Upload } from 'lucide-react';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { RouteState } from './ui/RouteState';
@@ -125,6 +125,75 @@ function DialogLoader() {
     <div className="modal-overlay">
       <div className="modal flex items-center justify-center">
         <Loader className="w-6 h-6 animate-spin text-accent" />
+      </div>
+    </div>
+  );
+}
+
+function CommitDialogLoader() {
+  return (
+    <div className="modal-overlay" role="presentation">
+      <div className="modal w-[900px] max-h-[90vh]" role="dialog" aria-modal="true">
+        <div className="modal-header">
+          <h2 className="modal-title">
+            <Upload className="w-5 h-5 text-accent" aria-hidden="true" />
+            Commit Changes
+          </h2>
+          <button className="btn-icon-sm" disabled aria-label="Close dialog">
+            <span className="sr-only">Close dialog</span>
+          </button>
+        </div>
+        <div className="flex" style={{ height: '500px' }}>
+          <div className="w-[350px] border-r border-border flex flex-col">
+            <div className="px-3 py-2 border-b border-border bg-bg-tertiary">
+              <div className="h-8 rounded bg-bg-elevated animate-pulse" />
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <Loader className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
+              <span className="sr-only">Loading files...</span>
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col">
+            <div className="border-b border-border p-4 space-y-3">
+              <div className="h-4 w-28 rounded bg-bg-elevated animate-pulse" />
+              <div className="h-24 rounded bg-bg-elevated animate-pulse" />
+            </div>
+            <div className="flex-1 p-4">
+              <div className="h-full rounded bg-bg-elevated animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsDialogLoader() {
+  return (
+    <div className="modal-overlay" role="presentation">
+      <div className="modal w-[820px] h-[680px] flex" role="dialog" aria-modal="true">
+        <div className="w-[180px] flex-shrink-0 bg-bg-tertiary border-r border-border flex flex-col">
+          <div className="px-4 py-4 border-b border-border">
+            <h2 className="text-lg font-semibold text-text flex items-center gap-2">
+              <Settings className="w-5 h-5 text-accent" aria-hidden="true" />
+              Settings
+            </h2>
+          </div>
+          <div className="flex-1 py-2 px-3 space-y-2">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="h-8 rounded bg-bg-elevated animate-pulse" />
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <div className="h-5 w-24 rounded bg-bg-elevated animate-pulse" />
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <Loader className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
+            <span className="sr-only">Loading settings...</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1558,7 +1627,7 @@ export function FileExplorer() {
 
       {/* Commit Dialog */}
       {actions.commitDialogOpen && (
-        <Suspense fallback={<DialogLoader />}>
+        <Suspense fallback={<CommitDialogLoader />}>
           <CommitDialog
             isOpen={actions.commitDialogOpen}
             workingCopyPath={path || ''}
@@ -1591,7 +1660,7 @@ export function FileExplorer() {
       )}
 
       {settingsDialogOpen && (
-        <Suspense fallback={<DialogLoader />}>
+        <Suspense fallback={<SettingsDialogLoader />}>
           <SettingsDialog
             isOpen={settingsDialogOpen}
             onClose={() => setSettingsDialogOpen(false)}
