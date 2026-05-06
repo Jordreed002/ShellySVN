@@ -3,6 +3,7 @@ import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
+import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
 import { runSvnOperationWithProgress } from './svn-progress';
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
@@ -19,10 +20,20 @@ async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScri
 }
 
 function sanitizeCommitMessage(message: string): string {
-  return message.replace(/\0/g, '');
+  return message.split('\u0000').join('');
 }
 
 export async function commit(
+  paths: string[],
+  message: string
+): Promise<{ success: boolean; revision?: number; error?: string }> {
+  const workingCopyPath = paths[0];
+  return runSerializedWorkingCopyMutation(workingCopyPath, async () => {
+    return commitUnserialized(paths, message);
+  });
+}
+
+async function commitUnserialized(
   paths: string[],
   message: string
 ): Promise<{ success: boolean; revision?: number; error?: string }> {
