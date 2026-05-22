@@ -2,6 +2,7 @@ import { ipcMain, app, BrowserWindow } from 'electron';
 import { readdir, stat, unlink as removeFile, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { openValidatedExternalUrl } from '../utils/external-url';
+import { approvePathForIpc } from '../utils/approved-paths';
 
 /**
  * Cache type definitions
@@ -163,10 +164,8 @@ export function registerAppHandlers(): void {
   ipcMain.handle(
     'app:getPath',
     (_, name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => {
-      if (name === 'temp') {
-        return app.getPath('temp');
-      }
-      return app.getPath(name);
+      const resolvedPath = name === 'temp' ? app.getPath('temp') : app.getPath(name);
+      return approvePathForIpc(resolvedPath);
     }
   );
 

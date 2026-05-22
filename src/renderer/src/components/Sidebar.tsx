@@ -146,42 +146,6 @@ export function Sidebar() {
     loadQuickAccess();
   }, [isWindows]);
 
-  useEffect(() => {
-    if (!settings?.recentRepositories?.length) return;
-
-    let cancelled = false;
-    const cleanupMissingRepos = async () => {
-      const repos = settings?.recentRepositories || [];
-      if (repos.length === 0) return;
-
-      const existenceChecks: Array<{ repo: string; exists: boolean }> = [];
-      for (const repo of repos) {
-        if (cancelled) return;
-        existenceChecks.push({
-          repo,
-          exists: await window.api.fs.exists(repo),
-        });
-      }
-
-      const missingRepos = existenceChecks.filter(({ exists }) => !exists).map(({ repo }) => repo);
-      if (missingRepos.length > 0) {
-        for (const repo of missingRepos) {
-          if (cancelled) return;
-          await removeRecentRepo(repo);
-        }
-      }
-    };
-
-    const cancelIdle = runWhenIdle(() => {
-      void cleanupMissingRepos();
-    }, 3000);
-
-    return () => {
-      cancelled = true;
-      cancelIdle();
-    };
-  }, [settings?.recentRepositories, removeRecentRepo]);
-
   // Handler for opening a repo - saves to recent and navigates
   const handleOpenRepo = useCallback(
     async (path: string) => {

@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { join, resolve } from 'path';
 
 // Create mock state with hoisting
 const mockState = vi.hoisted(() => ({
@@ -24,7 +25,6 @@ const mockState = vi.hoisted(() => ({
     size: 100,
     mtime: new Date('2024-01-01'),
   }),
-  access: vi.fn().mockResolvedValue(undefined),
   readFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
   writeFile: vi.fn().mockResolvedValue(undefined),
   copyFile: vi.fn().mockResolvedValue(undefined),
@@ -61,10 +61,33 @@ vi.mock('electron', () => ({
 
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
-  default: {},
+  default: {
+    readdir: mockState.readdir,
+    stat: mockState.stat,
+    readFile: mockState.readFile,
+    writeFile: mockState.writeFile,
+    copyFile: mockState.copyFile,
+    mkdir: mockState.mkdir,
+  },
   readdir: mockState.readdir,
   stat: mockState.stat,
-  access: mockState.access,
+  readFile: mockState.readFile,
+  writeFile: mockState.writeFile,
+  copyFile: mockState.copyFile,
+  mkdir: mockState.mkdir,
+}));
+
+vi.mock('node:fs/promises', () => ({
+  default: {
+    readdir: mockState.readdir,
+    stat: mockState.stat,
+    readFile: mockState.readFile,
+    writeFile: mockState.writeFile,
+    copyFile: mockState.copyFile,
+    mkdir: mockState.mkdir,
+  },
+  readdir: mockState.readdir,
+  stat: mockState.stat,
   readFile: mockState.readFile,
   writeFile: mockState.writeFile,
   copyFile: mockState.copyFile,
@@ -99,7 +122,12 @@ vi.mock('chokidar', () => ({
 
 // Mock os module with named export
 vi.mock('os', () => ({
-  default: {},
+  default: { platform: vi.fn(() => 'darwin') },
+  platform: vi.fn(() => 'darwin'),
+}));
+
+vi.mock('node:os', () => ({
+  default: { platform: vi.fn(() => 'darwin') },
   platform: vi.fn(() => 'darwin'),
 }));
 
@@ -121,7 +149,11 @@ vi.mock('../../workers/WorkerPool', () => ({
 
 // Import after mocking
 import { registerFsHandlers, applySvnStatusToFiles } from '../fs';
-import { approvePathForIpc, clearApprovedPathsForTests } from '../../utils/approved-paths';
+import {
+  approvePathForIpc,
+  clearApprovedPathsForTests,
+  isPathApprovedForIpc,
+} from '../../utils/approved-paths';
 import type { FileInfo } from '@shared/types';
 
 describe('FS IPC Handlers', () => {
@@ -136,7 +168,6 @@ describe('FS IPC Handlers', () => {
     mockState.ipcMainHandle.mockClear();
     mockState.readdir.mockClear();
     mockState.stat.mockClear();
-    mockState.access.mockClear();
     mockState.readFile.mockClear();
     mockState.writeFile.mockClear();
     mockState.copyFile.mockClear();
@@ -154,7 +185,6 @@ describe('FS IPC Handlers', () => {
       size: 100,
       mtime: new Date('2024-01-01'),
     });
-    mockState.access.mockResolvedValue(undefined);
     mockState.readFile.mockResolvedValue(Buffer.from('test content'));
     mockState.writeFile.mockResolvedValue(undefined);
     mockState.copyFile.mockResolvedValue(undefined);
@@ -261,11 +291,60 @@ describe('FS IPC Handlers', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should reject parent lookup outside approved roots', async () => {
+      const handler = handlers.get('fs:getParent');
+      const result = await handler!({}, '/unapproved/project');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return parent for approved paths', async () => {
+      const rootPath = resolve('/test/path');
+      const childPath = join(rootPath, 'child');
+      approvePathForIpc(rootPath);
+
+      const handler = handlers.get('fs:getParent');
+      const result = await handler!({}, childPath);
+
+      expect(result).toBe(rootPath);
+    });
+
+    it('should not return parents outside approved roots', async () => {
+      const rootPath = resolve('/test/path');
+      approvePathForIpc(rootPath);
+
+      const handler = handlers.get('fs:getParent');
+      const result = await handler!({}, rootPath);
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('fs:exists', () => {
+    it('should return false for unapproved paths', async () => {
+      const handler = handlers.get('fs:exists');
+      const result = await handler!({}, '/unapproved/file.txt');
+
+      expect(result).toBe(false);
+      expect(mockState.stat).not.toHaveBeenCalled();
+    });
+
+    it('should check approved paths', async () => {
+      const filePath = resolve('/test/path/file.txt');
+      approvePathForIpc(filePath);
+      expect(isPathApprovedForIpc(filePath)).toBe(true);
+
+      const handler = handlers.get('fs:exists');
+      const result = await handler!({}, filePath);
+
+      expect(result).toBe(true);
+      expect(mockState.stat).toHaveBeenCalled();
+    });
+
     it('should return false when path does not exist', async () => {
-      mockState.access.mockRejectedValue(new Error('ENOENT'));
+      approvePathForIpc('/nonexistent');
+      mockState.stat.mockRejectedValue(new Error('ENOENT'));
 
       const handler = handlers.get('fs:exists');
       const result = await handler!({}, '/nonexistent');
@@ -275,13 +354,59 @@ describe('FS IPC Handlers', () => {
   });
 
   describe('fs:listDirectory', () => {
+    it('should reject directory listing outside approved roots', async () => {
+      const handler = handlers.get('fs:listDirectory');
+      const result = await handler!({}, '/unapproved');
+
+      expect(result).toEqual([]);
+      expect(mockState.readdir).not.toHaveBeenCalled();
+    });
+
+    it('should list approved descendant directories', async () => {
+      const rootPath = resolve('/test/path');
+      const childPath = join(rootPath, 'child');
+      approvePathForIpc(rootPath);
+      mockState.readdir.mockResolvedValue([
+        {
+          name: 'nested',
+          isDirectory: () => true,
+        },
+      ]);
+
+      const handler = handlers.get('fs:listDirectory');
+      const result = (await handler!({}, childPath)) as FileInfo[];
+
+      expect(mockState.readdir).toHaveBeenCalledWith(childPath, { withFileTypes: true });
+      expect(result).toEqual([
+        expect.objectContaining({
+          name: 'nested',
+          isDirectory: true,
+        }),
+      ]);
+    });
+
     it('should return empty array on error', async () => {
+      approvePathForIpc('/protected');
       mockState.readdir.mockRejectedValue(new Error('Permission denied'));
 
       const handler = handlers.get('fs:listDirectory');
       const result = await handler!({}, '/protected');
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('fs:getDirectoryMetadata', () => {
+    it('should reject metadata lookup outside approved roots', async () => {
+      const handler = handlers.get('fs:getDirectoryMetadata');
+      const result = (await handler!({}, '/unapproved', false)) as {
+        parentPath: string | null;
+        isVersioned: boolean;
+      };
+
+      expect(result.parentPath).toBeNull();
+      expect(result.isVersioned).toBe(false);
+      expect(mockState.spawn).not.toHaveBeenCalled();
     });
   });
 
@@ -442,6 +567,18 @@ describe('FS IPC Handlers', () => {
       expect(result.directStatus).toEqual({});
       expect(result.allEntries).toEqual([]);
     });
+
+    it('should reject status lookup outside approved roots', async () => {
+      const handler = handlers.get('fs:getStatus');
+      const result = (await handler!({}, '/unapproved')) as {
+        directStatus: Record<string, unknown>;
+        allEntries: unknown[];
+      };
+
+      expect(result.directStatus).toEqual({});
+      expect(result.allEntries).toEqual([]);
+      expect(mockState.spawn).not.toHaveBeenCalled();
+    });
   });
 
   describe('fs:getDeepStatus', () => {
@@ -455,12 +592,31 @@ describe('FS IPC Handlers', () => {
       expect(result.directStatus).toEqual({});
       expect(result.allEntries).toEqual([]);
     });
+
+    it('should reject deep status lookup outside approved roots', async () => {
+      const handler = handlers.get('fs:getDeepStatus');
+      const result = (await handler!({ sender: { send: vi.fn() } }, '/unapproved')) as {
+        directStatus: Record<string, unknown>;
+        allEntries: unknown[];
+      };
+
+      expect(result.directStatus).toEqual({});
+      expect(result.allEntries).toEqual([]);
+      expect(mockState.workerRun).not.toHaveBeenCalled();
+    });
   });
 
   describe('fs:isVersioned', () => {
     it('should return false for DRIVES://', async () => {
       const handler = handlers.get('fs:isVersioned');
       const result = await handler!({}, 'DRIVES://');
+
+      expect(result).toBe(false);
+    });
+
+    it('should reject version checks outside approved roots', async () => {
+      const handler = handlers.get('fs:isVersioned');
+      const result = await handler!({}, '/unapproved');
 
       expect(result).toBe(false);
     });

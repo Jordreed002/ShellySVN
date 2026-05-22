@@ -126,12 +126,12 @@ Notes:
 
 Goal: make read/probe/status filesystem IPC follow the same approved-root policy as write/watch/folder-size operations.
 
-- [ ] Audit every `fs:*` IPC handler and classify it as dialog approval, approved-root required, app-internal path only, or public-safe.
-- [ ] Add approved-root checks to directory listing, metadata, status, deep status, version checks, parent lookup, and existence checks unless a specific exception is documented.
-- [ ] Ensure path approval works correctly for selected roots, descendants, drive roots, UNC paths, and case-insensitive Windows paths.
-- [ ] Update renderer flows to approve paths before calling newly gated handlers.
-- [ ] Add tests proving unapproved arbitrary paths are rejected.
-- [ ] Add tests proving approved roots and descendants still work.
+- [x] Audit every `fs:*` IPC handler and classify it as dialog approval, approved-root required, app-internal path only, or public-safe.
+- [x] Add approved-root checks to directory listing, metadata, status, deep status, version checks, parent lookup, and existence checks unless a specific exception is documented.
+- [x] Ensure path approval works correctly for selected roots, descendants, drive roots, UNC paths, and case-insensitive Windows paths.
+- [x] Update renderer flows to approve paths before calling newly gated handlers.
+- [x] Add tests proving unapproved arbitrary paths are rejected.
+- [x] Add tests proving approved roots and descendants still work.
 
 Files to inspect first:
 
@@ -143,10 +143,21 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Targeted filesystem IPC tests.
-- [ ] Targeted FileExplorer tests if renderer flow changes.
-- [ ] `bun run typecheck`
-- [ ] `bun run lint`
+- [x] Targeted filesystem IPC tests.
+- [x] Targeted FileExplorer tests if renderer flow changes.
+- [x] `bun run typecheck`
+- [x] `bun run lint`
+
+Notes:
+
+- `fs:listDirectory`, `fs:getDirectoryMetadata`, `fs:getParent`, `fs:getStatus`, `fs:getDeepStatus`, `fs:isVersioned`, `fs:cancelScan`, and `fs:exists` now require an approved path, except the public-safe `DRIVES://` sentinel and drive listing.
+- Dialog-selected paths remain the primary approval source. `app:getPath` now approves only the concrete platform paths returned by main for app-provided quick access entries.
+- Parent lookup now returns a parent only when that parent is still inside an approved root, so selecting a repository does not expose traversal above it.
+- The sidebar no longer auto-prunes recent repositories with `fs:exists`, because an unapproved persisted path and a missing path intentionally both fail the gated existence check.
+- Persisted recent/bookmark entries from a previous process are not implicitly re-approved from renderer-controlled settings; users must open/select paths through an approved flow in the current process. A persistent main-owned approval store is a possible follow-up if cross-restart path grants are required.
+- Targeted verification: `bun x vitest run src/main/ipc/__tests__/fs.test.ts src/main/ipc/__tests__/app.test.ts` passed with 99 tests.
+- `bun run typecheck` and `bun run check:boundaries` passed.
+- `bun run lint` passed with the existing 119-warning baseline.
 
 ## Commit Point 5 - Harden Local Status Server
 

@@ -1,17 +1,9 @@
 import { ipcMain, type WebContents } from 'electron';
-import {
-  readdir,
-  stat,
-  copyFile as fsCopyFile,
-  writeFile as fsWriteFile,
-  mkdir,
-  readFile,
-  access,
-} from 'fs/promises';
+import fs from 'node:fs/promises';
 import chokidar from 'chokidar';
 import { join, normalize, dirname } from 'path';
 import { spawn } from 'child_process';
-import { platform } from 'os';
+import os from 'node:os';
 import type {
   DeepStatusProgress,
   DirectoryMetadataResult,
@@ -20,7 +12,7 @@ import type {
 } from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpc, isPathApprovedForIpc } from '../utils/approved-paths';
 import { resolveSvnExecution, runSvnText } from '../services/svn-executor';
 import { getWorkerFsStatus } from '../services/svn-status-worker';
 import {
@@ -30,6 +22,8 @@ import {
 } from '../services/svn-working-copy';
 import { getStatusService } from '../services/status-service';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
+
+const { readdir, stat, copyFile: fsCopyFile, writeFile: fsWriteFile, mkdir, readFile } = fs;
 
 interface SvnStatusEntry {
   status: SvnStatusChar;
@@ -457,7 +451,7 @@ export function getBackgroundStatusScanStateForTests() {
 async function listDrives(): Promise<FileInfo[]> {
   const files: FileInfo[] = [];
 
-  if (platform() === 'win32') {
+  if (os.platform() === 'win32') {
     // Windows: Use wmic to get drive letters
     return new Promise((resolve) => {
       const proc = spawn('wmic', ['logicaldisk', 'get', 'caption,volumename']);
@@ -497,7 +491,7 @@ async function listDrives(): Promise<FileInfo[]> {
 
     for (const mountPoint of mountPoints) {
       try {
-        await access(mountPoint);
+        await stat(mountPoint);
         const entries = await readdir(mountPoint, { withFileTypes: true });
         for (const entry of entries) {
           if (entry.isDirectory() && !entry.name.startsWith('.')) {
@@ -540,7 +534,7 @@ function getParentPath(path: string): string | null {
   const parent = dirname(normalized);
 
   // On Windows, if we're at the root of a drive (e.g., C:\), return DRIVES://
-  if (platform() === 'win32' && parent.length === 2 && parent[1] === ':') {
+  if (os.platform() === 'win32' && parent.length === 2 && parent[1] === ':') {
     return 'DRIVES://';
   }
 
@@ -568,6 +562,20 @@ async function calculateFolderSizes(folderPaths: string[]): Promise<Record<strin
   );
 }
 
+function assertApprovedFsPath(path: string, operation: string): string {
+  const validatedPath = validatePath(path, { allowAbsolute: true });
+  return assertPathApprovedForIpc(validatedPath, operation);
+}
+
+function getApprovedParentPath(path: string): string | null {
+  const parentPath = getParentPath(path);
+  if (!parentPath || parentPath === 'DRIVES://') {
+    return parentPath;
+  }
+
+  return isPathApprovedForIpc(parentPath) ? parentPath : null;
+}
+
 export function registerFsHandlers(): void {
   // Fast directory listing (filesystem only, no SVN)
   ipcMain.handle('fs:listDirectory', async (_, path: string): Promise<FileInfo[]> => {
@@ -576,7 +584,7 @@ export function registerFsHandlers(): void {
       if (path === 'DRIVES://') {
         return listDrives();
       }
-      return listDirectoryFiles(path);
+      return listDirectoryFiles(assertApprovedFsPath(path, 'Directory listing'));
     } catch (error) {
       console.error('[FS] List error:', error);
       return [];
@@ -597,11 +605,11 @@ export function registerFsHandlers(): void {
     'fs:getDirectoryMetadata',
     async (_, path: string, hasFiles?: boolean): Promise<DirectoryMetadataResult> => {
       try {
-        return getDirectoryMetadata(path, hasFiles);
+        return getDirectoryMetadata(assertApprovedFsPath(path, 'Directory metadata'), hasFiles);
       } catch (error) {
         console.error('[FS] Directory metadata error:', error);
         return {
-          parentPath: getParentPath(path),
+          parentPath: null,
           isVersioned: false,
           statusData: EMPTY_STATUS_RESULT,
           svnInfo: null,
@@ -614,7 +622,13 @@ export function registerFsHandlers(): void {
 
   // Get parent directory
   ipcMain.handle('fs:getParent', async (_, path: string): Promise<string | null> => {
-    return getParentPath(path);
+    if (path === 'DRIVES://') return null;
+
+    try {
+      return getApprovedParentPath(assertApprovedFsPath(path, 'Parent lookup'));
+    } catch {
+      return null;
+    }
   });
 
   // Shallow SVN status (fast, --depth=immediates)
@@ -624,7 +638,7 @@ export function registerFsHandlers(): void {
       if (path === 'DRIVES://') {
         return { directStatus: {}, allEntries: [] };
       }
-      return getSvnStatus(path, 'immediates');
+      return getSvnStatus(assertApprovedFsPath(path, 'SVN status'), 'immediates');
     } catch (error) {
       console.error('[FS] Status error:', error);
       return { directStatus: {}, allEntries: [] };
@@ -638,12 +652,13 @@ export function registerFsHandlers(): void {
       if (path === 'DRIVES://') {
         return { directStatus: {}, allEntries: [] };
       }
+      const approvedPath = assertApprovedFsPath(path, 'Deep SVN status');
       const statusService = getStatusService();
-      const cached = statusService.getDeepStatus(path);
+      const cached = statusService.getDeepStatus(approvedPath);
       if (cached) {
         event.sender.send('fs:deepStatus:progress', {
-          path,
-          jobId: `deep-status:${path}`,
+          path: approvedPath,
+          jobId: `deep-status:${approvedPath}`,
           phase: 'complete',
           activeScans: activeScanCount,
           queuedScans: queuedScans.length,
@@ -653,8 +668,11 @@ export function registerFsHandlers(): void {
         return cached;
       }
 
-      const result = await startDeepScan(path, createDeepStatusProgressSender(event.sender, path));
-      statusService.setDeepStatus(path, result);
+      const result = await startDeepScan(
+        approvedPath,
+        createDeepStatusProgressSender(event.sender, approvedPath)
+      );
+      statusService.setDeepStatus(approvedPath, result);
       return result;
     } catch (error) {
       console.error('[FS] Deep status error:', error);
@@ -674,7 +692,11 @@ export function registerFsHandlers(): void {
   ipcMain.handle('fs:isVersioned', async (_, path: string): Promise<boolean> => {
     // Drives list is never versioned
     if (path === 'DRIVES://') return false;
-    return isVersioned(path);
+    try {
+      return isVersioned(assertApprovedFsPath(path, 'Version check'));
+    } catch {
+      return false;
+    }
   });
 
   // Read file content
@@ -749,7 +771,11 @@ export function registerFsHandlers(): void {
 
   // Cancel active scan
   ipcMain.handle('fs:cancelScan', async (_, path: string) => {
-    cancelDeepScan(path);
+    try {
+      cancelDeepScan(assertApprovedFsPath(path, 'Scan cancellation'));
+    } catch {
+      // Ignore cancellation for paths the renderer is not allowed to address.
+    }
   });
 
   // Calculate folder sizes (can be slow for large directories)
@@ -894,7 +920,7 @@ export function registerFsHandlers(): void {
 
   ipcMain.handle('fs:exists', async (_, path: string): Promise<boolean> => {
     try {
-      await access(path);
+      await stat(assertApprovedFsPath(path, 'Path existence check'));
       return true;
     } catch {
       return false;

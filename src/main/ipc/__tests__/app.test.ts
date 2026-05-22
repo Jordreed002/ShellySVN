@@ -54,12 +54,14 @@ vi.mock('fs/promises', () => ({
 
 // Import after mocking
 import { registerAppHandlers } from '../app';
+import { clearApprovedPathsForTests, isPathApprovedForIpc } from '../../utils/approved-paths';
 
 describe('App IPC Handlers', () => {
   const handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
 
   beforeEach(() => {
     handlers.clear();
+    clearApprovedPathsForTests();
 
     // Reset mock call counts
     mockState.ipcMainHandle.mockClear();
@@ -87,6 +89,7 @@ describe('App IPC Handlers', () => {
   });
 
   afterEach(() => {
+    clearApprovedPathsForTests();
     vi.restoreAllMocks();
   });
 
@@ -148,6 +151,7 @@ describe('App IPC Handlers', () => {
 
       expect(result).toBe('/home/user');
       expect(mockState.appGetPath).toHaveBeenCalledWith('home');
+      expect(isPathApprovedForIpc('/home/user')).toBe(true);
     });
 
     it('should return appData path', async () => {
