@@ -11,13 +11,65 @@ The audit includes:
 - Renderer data flow, bundle shape, virtualization, React Query usage, and large-repository performance patterns.
 - Existing release gates, lint/type/test coverage, architecture boundary checks, remote asset checks, and performance budgets.
 
+## Remediation Completion Update
+
+The remediation plan generated from this audit is tracked in
+`audit-remediation-tasks-2026-05-22.md`. Commit Points 1 through 11 have now
+been completed and committed through `856610d` plus the final documentation
+checkpoint.
+
+High-impact items closed during the remediation pass:
+
+- `bun run check:boundaries` is back to passing without weakening production
+  architecture rules.
+- Renderer query keys no longer serialize stored SVN credentials.
+- Auth realm matching now uses URL-aware origin and path-boundary semantics.
+- Filesystem read/probe/status IPC is gated by approved roots.
+- The local status server requires a per-run capability token and rejects
+  malformed, oversized, or unauthenticated requests.
+- Status cache and worker queue behavior now have explicit bounds.
+- Webhook delivery is HTTPS-only, blocks local/private targets, and caps payload
+  size before delivery.
+- BrowserWindow sandboxing is enabled, preload fails closed without context
+  isolation, and local file/folder opening is separated from external URL
+  opening behind approved-root checks.
+- `FileExplorer.tsx` has been reduced by extracting command-event, lazy-dialog,
+  dialog-state, and directory-data hooks.
+- Renderer initial bundle budgets are now enforced by `scripts/analyze-bundle.mjs`.
+
+Final local verification on 2026-05-22:
+
+- `bun run verify`: passed on rerun. The first full-suite attempt hit a transient
+  timeout in `src/main/workers/__tests__/svn-worker.test.ts`; the isolated test
+  passed immediately afterward and the full suite passed on the next run.
+- `SHELLYSVN_BUNDLE_REPORT=1 bun run build`: passed.
+- `bun run check:bundle-budget`: passed at 641.8 KiB raw / 135.6 KiB gzip against
+  the 750 KiB / 160 KiB initial renderer bundle budgets.
+- `bun run verify:svn-workflows`: passed against local SVN 1.14.2 for checkout,
+  status, info, add, commit, update, revert, log, diff, patch, branch, tag, merge,
+  switch, sparse checkout, externals, repository browser, conflict resolve,
+  lock/unlock, and cleanup. Shelving was reported as unavailable by this SVN
+  client and remains a release-toolchain verification item.
+
+Remaining public-release blockers are no longer source-level audit remediations:
+signed Windows/macOS artifacts, clean-machine packaged smoke evidence, and
+replacement-critical SVN workflow verification against the signed release
+candidate toolchains/artifacts still need release-process evidence. Deferred
+hardening items remain tracked at the end of `audit-remediation-tasks-2026-05-22.md`.
+
 ## Executive Summary
 
-The project is in a strong intermediate state: the architecture is documented, the main security posture has several good Electron controls, and the recent status optimization work moved expensive SVN/status reads into a better worker/cache model. The renderer initial bundle is currently within the documented budget at 642.8 KiB raw and 135.8 KiB gzip, under the `.spec/performance-budgets.md` limits of 750 KiB raw and 160 KiB gzip.
+The original audit found a strong intermediate project with good architecture
+documentation and several important Electron controls, but not a release-clean
+source state. The remediation pass closed the source-level high and medium risk
+items identified in the recommended order while preserving the status/cache
+performance improvements.
 
-The project is not yet release-clean. `bun run check:boundaries` currently fails because renderer tests import main/preload modules, which means `bun run verify` cannot pass as written. Security is directionally good, but several privileged interfaces still trust renderer-supplied inputs too broadly. The highest-risk items are credential realm prefix matching, credentials being included in renderer query keys, read-oriented filesystem IPC without approved-root enforcement, and a local status socket with no authentication token.
-
-The optimization changes should continue, but the next pass should not focus only on speed. The most useful next work is to harden the status/cache path against security and lifecycle risks while preserving the performance wins: fix boundary-check failures, stop credentials from entering query keys, add proper URL/path-boundary credential matching, and scope IPC filesystem reads to approved roots.
+The current source tree is verification-clean locally: `bun run verify`, bundle
+report generation, bundle budget enforcement, and local real-SVN workflow
+verification all pass. Public production release remains gated by signed artifact
+and release-candidate workflow evidence tracked in
+`.spec/production-release-blockers.md`.
 
 ## Evidence Collected
 

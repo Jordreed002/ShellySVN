@@ -23,6 +23,7 @@ This checklist is the release gate for a public production release. A preview or
 - `tests/e2e/conflict-resolution.spec.ts` verifies conflict creation and guided resolve behavior against a disposable real SVN repository through the app UI.
 - `src/main/services/__tests__/svn-release-workflows.real.test.ts` verifies service-layer checkout, commit, update, revert, cleanup, locks, patch dry-run/apply, branch/tag creation, switch, merge, sparse checkout expansion, repository browser listing, and externals definition/list/update against disposable real SVN repositories.
 - `src/main/services/__tests__/svn-metadata.test.ts` verifies app-side shelve/list/apply/delete command construction and structured unsupported handling when the active SVN binary lacks `shelve` / `unshelve`.
+- 2026-05-22 local verification: `bun run verify:svn-workflows` passed against SVN 1.14.2 for checkout, status, info, add, commit, update, revert, log, diff, patch, branch, tag, merge, switch, sparse checkout, externals, repository browser, conflict resolve, lock/unlock, and cleanup. The verifier reported `shelve-unavailable` for this SVN client.
 
 Remaining before this blocker can close: shelving execution with an SVN client that supports shelving, and the same workflow verifier run against signed release-candidate toolchains/artifacts.
 

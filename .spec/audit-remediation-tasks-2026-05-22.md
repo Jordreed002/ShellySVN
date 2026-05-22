@@ -377,20 +377,35 @@ Progress notes:
 
 Goal: finish with a coherent, auditable project state.
 
-- [ ] Run full verification.
-- [ ] Run bundle analysis.
-- [ ] Run real SVN workflow verification if the environment supports it.
-- [ ] Update `.spec/project-deep-dive-audit-2026-05-22.md` with a completion note or link to this checklist if useful.
-- [ ] Update `.spec/production-release-blockers.md` only for gates genuinely closed.
-- [ ] Ensure all completed items in this file are checked.
-- [ ] Commit final documentation updates.
+- [x] Run full verification.
+- [x] Run bundle analysis.
+- [x] Run real SVN workflow verification if the environment supports it.
+- [x] Update `.spec/project-deep-dive-audit-2026-05-22.md` with a completion note or link to this checklist if useful.
+- [x] Update `.spec/production-release-blockers.md` only for gates genuinely closed.
+- [x] Ensure all completed items in this file are checked.
+- [x] Commit final documentation updates.
 
 Verification:
 
-- [ ] `bun run verify`
-- [ ] `SHELLYSVN_BUNDLE_REPORT=1 bun run build`
-- [ ] `bun run verify:svn-workflows` where supported.
-- [ ] `git status --short`
+- [x] `bun run verify`
+- [x] `SHELLYSVN_BUNDLE_REPORT=1 bun run build`
+- [x] `bun run verify:svn-workflows` where supported.
+- [x] `git status --short`
+
+Progress notes:
+
+- `bun run verify` passed on rerun. The first full-suite attempt hit a transient
+  timeout in `src/main/workers/__tests__/svn-worker.test.ts`; the isolated test
+  passed immediately afterward, and the full verification suite passed on the
+  next run.
+- `SHELLYSVN_BUNDLE_REPORT=1 bun run build` passed and regenerated the bundle
+  report. `bun run check:bundle-budget` passed at 641.8 KiB raw / 135.6 KiB gzip.
+- `bun run verify:svn-workflows` passed against local SVN 1.14.2 for the real
+  workflow set. The verifier reported `shelve-unavailable`, so shelving execution
+  remains a release-toolchain evidence item.
+- `.spec/project-deep-dive-audit-2026-05-22.md` now has a remediation completion
+  update. `.spec/production-release-blockers.md` records the local SVN workflow
+  evidence without closing signing or release-candidate gates.
 
 ## Deferred Or Conditional Items
 
