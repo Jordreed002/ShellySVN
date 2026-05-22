@@ -183,8 +183,7 @@ export const useOperationQueue = create<OperationQueueState>((set, get) => ({
  * Hook to execute an operation with queue management
  */
 export function useOperationExecutor() {
-  const { addOperation, updateOperation, isPaused, getRunningOperations, maxConcurrent } =
-    useOperationQueue();
+  const { addOperation, updateOperation } = useOperationQueue();
 
   const executeOperation = async <T>(
     type: OperationType,
@@ -214,7 +213,12 @@ export function useOperationExecutor() {
     });
 
     // Wait for queue slot
-    while (isPaused || getRunningOperations().length >= maxConcurrent) {
+    while (true) {
+      const { isPaused, getRunningOperations, maxConcurrent } = useOperationQueue.getState();
+      if (!isPaused && getRunningOperations().length < maxConcurrent) {
+        break;
+      }
+
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Check if cancelled while waiting

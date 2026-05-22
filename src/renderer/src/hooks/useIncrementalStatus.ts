@@ -84,9 +84,6 @@ interface IncrementalStatusOptions {
 export function useIncrementalStatus(options: IncrementalStatusOptions) {
   const {
     path,
-    includeUnversioned = true,
-    includeExternals = true,
-    depth = 'infinity',
     batchSize = 100,
     onUpdate,
     enableWatch = false,
@@ -104,7 +101,6 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
   const [isScanning, setIsScanning] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
-  const watchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const entriesRef = useRef<SvnStatusEntry[]>([]);
 
   /**
@@ -232,7 +228,7 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
         error: errorMessage,
       });
     }
-  }, [path, includeUnversioned, includeExternals, depth, batchSize, onUpdate, queryClient]);
+  }, [path, batchSize, onUpdate, queryClient]);
 
   /**
    * Cancel ongoing scan
@@ -294,9 +290,6 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
-      }
-      if (watchTimeoutRef.current) {
-        clearTimeout(watchTimeoutRef.current);
       }
     };
   }, []);

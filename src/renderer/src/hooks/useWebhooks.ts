@@ -95,6 +95,17 @@ export function useWebhooks() {
   const [isLoading, setIsLoading] = useState(true);
 
   /**
+   * Save webhooks to storage
+   */
+  const saveWebhooks = useCallback(async (newWebhooks: WebhookConfig[]) => {
+    try {
+      await window.api.store.set(STORAGE_KEY, newWebhooks);
+    } catch (error) {
+      console.error('Failed to save webhooks:', error);
+    }
+  }, []);
+
+  /**
    * Load webhooks from storage
    */
   const loadWebhooks = useCallback(async () => {
@@ -126,18 +137,7 @@ export function useWebhooks() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
-
-  /**
-   * Save webhooks to storage
-   */
-  const saveWebhooks = useCallback(async (newWebhooks: WebhookConfig[]) => {
-    try {
-      await window.api.store.set(STORAGE_KEY, newWebhooks);
-    } catch (error) {
-      console.error('Failed to save webhooks:', error);
-    }
-  }, []);
+  }, [saveWebhooks]);
 
   /**
    * Save deliveries to storage
@@ -251,33 +251,6 @@ export function useWebhooks() {
   );
 
   /**
-   * Test a webhook
-   */
-  const testWebhook = useCallback(
-    async (id: string): Promise<boolean> => {
-      const webhook = webhooks.find((w) => w.id === id);
-      if (!webhook) return false;
-
-      const payload: WebhookPayload = {
-        event: 'commit',
-        timestamp: Date.now(),
-        repository: {
-          path: webhook.repositoryPath || '/test',
-          url: 'svn://test/repo',
-          revision: 1,
-        },
-        data: {
-          test: true,
-          message: 'This is a test webhook delivery',
-        },
-      };
-
-      return triggerWebhook(webhook, payload);
-    },
-    [webhooks]
-  );
-
-  /**
    * Trigger a webhook
    */
   const triggerWebhook = useCallback(
@@ -357,6 +330,33 @@ export function useWebhooks() {
       }
     },
     [deliveries, saveDeliveries, updateWebhook]
+  );
+
+  /**
+   * Test a webhook
+   */
+  const testWebhook = useCallback(
+    async (id: string): Promise<boolean> => {
+      const webhook = webhooks.find((w) => w.id === id);
+      if (!webhook) return false;
+
+      const payload: WebhookPayload = {
+        event: 'commit',
+        timestamp: Date.now(),
+        repository: {
+          path: webhook.repositoryPath || '/test',
+          url: 'svn://test/repo',
+          revision: 1,
+        },
+        data: {
+          test: true,
+          message: 'This is a test webhook delivery',
+        },
+      };
+
+      return triggerWebhook(webhook, payload);
+    },
+    [webhooks, triggerWebhook]
   );
 
   /**

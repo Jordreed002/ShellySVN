@@ -284,6 +284,26 @@ export function usePlugins() {
   );
 
   /**
+   * Deactivate plugin
+   */
+  const deactivatePlugin = useCallback(
+    async (pluginId: string): Promise<void> => {
+      const plugin = plugins.find((p) => p.manifest.id === pluginId);
+      if (!plugin || !plugin.activated) return;
+
+      // Clear handlers
+      handlersRef.current.delete(pluginId);
+
+      const newPlugins = plugins.map((p) =>
+        p.manifest.id === pluginId ? { ...p, activated: false } : p
+      );
+      setPlugins(newPlugins);
+      await savePlugins(newPlugins);
+    },
+    [plugins, savePlugins]
+  );
+
+  /**
    * Uninstall plugin
    */
   const uninstallPlugin = useCallback(
@@ -298,7 +318,7 @@ export function usePlugins() {
       setPlugins(newPlugins);
       await savePlugins(newPlugins);
     },
-    [plugins, savePlugins]
+    [plugins, savePlugins, deactivatePlugin]
   );
 
   /**
@@ -338,26 +358,6 @@ export function usePlugins() {
         );
         setPlugins(newPlugins);
       }
-    },
-    [plugins, savePlugins, createPluginAPI]
-  );
-
-  /**
-   * Deactivate plugin
-   */
-  const deactivatePlugin = useCallback(
-    async (pluginId: string): Promise<void> => {
-      const plugin = plugins.find((p) => p.manifest.id === pluginId);
-      if (!plugin || !plugin.activated) return;
-
-      // Clear handlers
-      handlersRef.current.delete(pluginId);
-
-      const newPlugins = plugins.map((p) =>
-        p.manifest.id === pluginId ? { ...p, activated: false } : p
-      );
-      setPlugins(newPlugins);
-      await savePlugins(newPlugins);
     },
     [plugins, savePlugins]
   );

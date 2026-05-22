@@ -304,9 +304,9 @@ Notes:
 Goal: reduce regression risk in the highest-change renderer surface.
 
 - [ ] Split `FileExplorer.tsx` into smaller units around data hooks, command handlers, dialog state, and presentation.
-- [ ] Resolve hook dependency warnings in changed areas.
-- [ ] Resolve or document `useIncrementalStatus` hook warnings.
-- [ ] Resolve `useOperationQueue` loop-condition warning.
+- [x] Resolve hook dependency warnings in changed areas.
+- [x] Resolve or document `useIncrementalStatus` hook warnings.
+- [x] Resolve `useOperationQueue` loop-condition warning.
 - [ ] Add focused tests for extracted hooks or handlers.
 - [ ] Confirm no bundle regression from the split.
 
@@ -325,6 +325,13 @@ Verification:
 - [ ] `bun run lint`
 - [ ] `bun run typecheck`
 - [ ] `SHELLYSVN_BUNDLE_REPORT=1 bun run build`
+
+Progress notes:
+
+- First CP9 slice resolved hook warning regressions before the larger `FileExplorer.tsx` split. `useOperationExecutor` now reads queue pause/concurrency state inside the wait loop instead of closing over stale values.
+- `useIncrementalStatus` no longer declares unused status options in the scan callback dependency list and removed the unused watch timeout cleanup ref.
+- `useWebhooks` and `usePlugins` callbacks were reordered so dependency arrays can include the functions they call without temporal-dead-zone issues.
+- Targeted verification for this slice: `bun x vitest run src/renderer/src/hooks/__tests__/useIncrementalStatus.test.ts src/renderer/__tests__/background-scanning-operations.test.tsx src/renderer/__tests__/scan-nonblocking.test.tsx` passed with 4 tests. `bun run typecheck` and `bun run lint` passed; lint warning baseline dropped from 119 to 109.
 
 ## Commit Point 10 - Automated Performance Gates
 
