@@ -37,11 +37,11 @@ Notes:
 
 Goal: make `bun run check:boundaries` pass without weakening production boundaries.
 
-- [ ] Fix renderer test imports that currently reach into main/preload modules.
-- [ ] Move shared test fixtures into allowed test utility locations if needed.
-- [ ] Replace direct main/preload test imports with renderer-side API mocks.
-- [ ] Keep `scripts/check-boundaries.mjs` strict for production code.
-- [ ] Add a short note here if a deliberate test-only exception is introduced.
+- [x] Fix renderer test imports that currently reach into main/preload modules.
+- [x] Move shared test fixtures into allowed test utility locations if needed.
+- [x] Replace direct main/preload test imports with renderer-side API mocks.
+- [x] Keep `scripts/check-boundaries.mjs` strict for production code.
+- [x] Add a short note here if a deliberate test-only exception is introduced.
 
 Files to inspect first:
 
@@ -54,9 +54,15 @@ Files to inspect first:
 
 Verification:
 
-- [ ] `bun run check:boundaries`
-- [ ] Targeted tests for changed renderer tests.
-- [ ] `bun run typecheck`
+- [x] `bun run check:boundaries`
+- [x] Targeted tests for changed renderer tests.
+- [x] `bun run typecheck`
+
+Notes:
+
+- No checker exception was introduced. SVN status/log XML parsers used by renderer tests now live in `packages/shared/src/svn-parsers.ts`, and `src/main/svn/parsers.ts` re-exports them for existing main callers.
+- Targeted parser/boundary tests passed for the five previously violating renderer tests plus main SVN parser tests.
+- `bun run lint` also passed with the existing warning baseline.
 
 ## Commit Point 2 - Remove Credential Leakage From Renderer Query Keys
 

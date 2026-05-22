@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSvnStatusXml } from '@main/svn/parsers';
+import { parseSvnStatusXml } from '@shared/svn-parsers';
 import { getCommitWarnings } from '../src/utils/commitWarnings';
 import {
   getTextConflictPathsFromStatus,

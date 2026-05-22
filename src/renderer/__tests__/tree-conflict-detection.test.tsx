@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, expect, it, vi } from 'vitest';
 
-import { parseSvnStatusXml } from '@main/svn/parsers';
+import { parseSvnStatusXml } from '@shared/svn-parsers';
 import { TreeConflictDialog } from '../src/components/ui/TreeConflictDialog';
 
 describe('tree conflict detection and display', () => {

@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { parseSvnStatusXml } from '@main/svn/parsers';
+import { parseSvnStatusXml } from '@shared/svn-parsers';
 import { LockManagementDialog } from '../src/components/ui/LockManagementDialog';
 import { getCommitWarnings } from '../src/utils/commitWarnings';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSvnLogXml } from '@main/svn/parsers';
+import { parseSvnLogXml } from '@shared/svn-parsers';
 import type { SvnLogEntry } from '@shared/types';
 import {
   EMPTY_LOG_FILTERS,
