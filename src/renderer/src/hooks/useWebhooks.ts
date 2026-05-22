@@ -80,7 +80,7 @@ function stripWebhookSecret(webhook: WebhookConfig): WebhookConfig {
 function isValidWebhookUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    return parsed.protocol === 'https:';
   } catch {
     return false;
   }
@@ -176,7 +176,7 @@ export function useWebhooks() {
       };
 
       if (!isValidWebhookUrl(url)) {
-        throw new Error('Webhook URL must use http or https.');
+        throw new Error('Webhook URL must use https.');
       }
 
       if (options.secret) {
@@ -198,7 +198,7 @@ export function useWebhooks() {
   const updateWebhook = useCallback(
     async (id: string, updates: Partial<WebhookConfig>): Promise<void> => {
       if (updates.url && !isValidWebhookUrl(updates.url)) {
-        throw new Error('Webhook URL must use http or https.');
+        throw new Error('Webhook URL must use https.');
       }
 
       if (updates.secret !== undefined) {
@@ -299,7 +299,7 @@ export function useWebhooks() {
 
       try {
         if (!isValidWebhookUrl(webhook.url)) {
-          throw new Error('Webhook URL must use http or https.');
+          throw new Error('Webhook URL must use https.');
         }
 
         const result = await window.api.webhook.deliver({

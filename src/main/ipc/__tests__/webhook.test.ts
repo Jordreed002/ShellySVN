@@ -1,11 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockIpcMainHandle = vi.hoisted(() => vi.fn());
+const mockDnsLookup = vi.hoisted(() => vi.fn());
 
 vi.mock('electron', () => ({
   ipcMain: {
     handle: mockIpcMainHandle,
   },
+}));
+
+vi.mock('dns/promises', () => ({
+  default: {
+    lookup: mockDnsLookup,
+  },
+  lookup: mockDnsLookup,
 }));
 
 const mockGet = vi.hoisted(() => vi.fn());
@@ -30,6 +38,7 @@ describe('Webhook IPC Handlers', () => {
       }
     );
     mockGet.mockReturnValue(null);
+    mockDnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -41,17 +50,21 @@ describe('Webhook IPC Handlers', () => {
     registerWebhookHandlers();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('registers the delivery handler', () => {
     expect(handlers.has('webhook:deliver')).toBe(true);
   });
 
-  it('rejects non-http webhook URLs before fetching', async () => {
+  it('rejects non-https webhook URLs before fetching', async () => {
     const handler = handlers.get('webhook:deliver');
 
     const result = await handler!({}, {
       webhookId: 'webhook-1',
       deliveryId: 'delivery-1',
-      url: 'file:///tmp/hook',
+      url: 'http://example.com/hook',
       event: 'commit',
       timestamp: 1704067200000,
       payload: { event: 'commit' },
@@ -59,7 +72,76 @@ describe('Webhook IPC Handlers', () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: 'Webhook URL must use http or https.',
+      error: 'Webhook URL must use https.',
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects localhost and private network webhook targets before fetching', async () => {
+    const handler = handlers.get('webhook:deliver');
+
+    const localhost = await handler!({}, {
+      webhookId: 'webhook-1',
+      deliveryId: 'delivery-1',
+      url: 'https://localhost/hook',
+      event: 'commit',
+      timestamp: 1704067200000,
+      payload: { event: 'commit' },
+    });
+
+    const privateIpv4 = await handler!({}, {
+      webhookId: 'webhook-1',
+      deliveryId: 'delivery-2',
+      url: 'https://192.168.1.10/hook',
+      event: 'commit',
+      timestamp: 1704067200000,
+      payload: { event: 'commit' },
+    });
+
+    const ipv6Loopback = await handler!({}, {
+      webhookId: 'webhook-1',
+      deliveryId: 'delivery-3',
+      url: 'https://[::1]/hook',
+      event: 'commit',
+      timestamp: 1704067200000,
+      payload: { event: 'commit' },
+    });
+
+    mockDnsLookup.mockReset();
+    mockDnsLookup.mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }]);
+    const privateDns = await handler!({}, {
+      webhookId: 'webhook-1',
+      deliveryId: 'delivery-4',
+      url: 'https://internal.example.test/hook',
+      event: 'commit',
+      timestamp: 1704067200000,
+      payload: { event: 'commit' },
+    });
+
+    for (const result of [localhost, privateIpv4, ipv6Loopback, privateDns]) {
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Webhook URL must not target local or private network addresses.',
+      });
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized payloads before fetching', async () => {
+    const handler = handlers.get('webhook:deliver');
+
+    const result = await handler!({}, {
+      webhookId: 'webhook-1',
+      deliveryId: 'delivery-1',
+      url: 'https://example.com/hook',
+      event: 'commit',
+      timestamp: 1704067200000,
+      payload: { data: 'x'.repeat(256 * 1024) },
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Webhook payload exceeds 256 KiB.',
     });
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -114,5 +196,35 @@ describe('Webhook IPC Handlers', () => {
       success: false,
       statusCode: 500,
     });
+  });
+
+  it('reports timeouts without losing configured timeout behavior', async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetch).mockImplementationOnce((_, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        });
+      }) as Promise<Response>
+    );
+    const handler = handlers.get('webhook:deliver');
+
+    const resultPromise = handler!({}, {
+      webhookId: 'webhook-1',
+      deliveryId: 'delivery-1',
+      url: 'https://example.com/hook',
+      event: 'commit',
+      timestamp: 1704067200000,
+      payload: { event: 'commit' },
+      timeout: 1000,
+    });
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      success: false,
+      error: 'Request timed out after 1 seconds',
+    });
+    vi.useRealTimers();
   });
 });

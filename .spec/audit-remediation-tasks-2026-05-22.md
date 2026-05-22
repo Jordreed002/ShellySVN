@@ -232,11 +232,11 @@ Notes:
 
 Goal: avoid webhook delivery becoming unintended network egress or SSRF-like behavior.
 
-- [ ] Decide policy for HTTP webhooks: block by default, warn/confirm, or allow only with explicit setting.
-- [ ] Block or explicitly allowlist localhost, loopback, link-local, private IPv4, private IPv6, and metadata-service ranges.
-- [ ] Add payload size limits before serialization/delivery.
-- [ ] Add tests for private IPs, localhost, IPv6 loopback, oversized payloads, invalid schemes, timeout behavior, and HMAC signature preservation.
-- [ ] Update any settings UI copy only if user-facing behavior changes.
+- [x] Decide policy for HTTP webhooks: block by default, warn/confirm, or allow only with explicit setting.
+- [x] Block or explicitly allowlist localhost, loopback, link-local, private IPv4, private IPv6, and metadata-service ranges.
+- [x] Add payload size limits before serialization/delivery.
+- [x] Add tests for private IPs, localhost, IPv6 loopback, oversized payloads, invalid schemes, timeout behavior, and HMAC signature preservation.
+- [x] Update any settings UI copy only if user-facing behavior changes.
 
 Files to inspect first:
 
@@ -247,9 +247,17 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Targeted webhook tests.
-- [ ] `bun run typecheck`
-- [ ] `bun run lint`
+- [x] Targeted webhook tests.
+- [x] `bun run typecheck`
+- [x] `bun run lint`
+
+Notes:
+
+- Webhook delivery now requires HTTPS; HTTP and all non-HTTPS schemes are rejected in main before delivery. Renderer-side webhook URL validation now matches the HTTPS-only policy.
+- Main-process delivery rejects embedded URL credentials, localhost, `.localhost`, loopback, link-local, private IPv4 ranges, private IPv6 ranges, and DNS names resolving to blocked addresses.
+- Webhook payloads are capped at 256 KiB before `fetch`; HMAC signatures are still generated over the exact JSON payload sent.
+- Targeted tests cover HTTP rejection, localhost/private IPv4/IPv6/DNS blocking, oversized payloads, HMAC signature preservation, non-2xx responses, and timeout behavior.
+- Targeted verification: `bun x vitest run src/main/ipc/__tests__/webhook.test.ts` passed with 7 tests. `bun run typecheck`, `bun run check:boundaries`, and `bun run lint` also passed; lint remains at the existing 119-warning baseline.
 
 ## Commit Point 8 - Electron And External Tool Hardening
 
