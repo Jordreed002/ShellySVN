@@ -23,7 +23,6 @@ import { useDualPane } from './ui/DualPaneView';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
 import { useFolderSizes } from '../hooks/useFolderSizes';
-import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
 import { createSvnListQueryKey, getAuthPresenceKey } from '../features/files/authQueryKeys';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
@@ -41,6 +40,7 @@ import {
   useFileExplorerSelection,
 } from './files/useFileExplorerSelection';
 import { resolveRemoteUpdateTarget } from './files/remoteUpdateTarget';
+import { useFileExplorerCommandEvents } from './files/useFileExplorerCommandEvents';
 
 // Lazy load heavy dialog components for better initial bundle size
 const loadCommitDialog = () =>
@@ -620,228 +620,28 @@ export function FileExplorer() {
     operationContextRef.current = { actions, path, queryClient, selectedEntry };
   }, [actions, path, queryClient, selectedEntry]);
 
-  // Event listeners for SVN operations from CommandPalette
-  useEffect(() => {
-    const getContext = () => operationContextRef.current;
-
-    const handleBranchTag = () => {
-      const context = getContext();
-      if (context.path) {
-        setBranchTagPath(context.path);
-        setBranchTagMode('branch');
-      }
-    };
-    const handleTag = () => {
-      const context = getContext();
-      if (context.path) {
-        setBranchTagPath(context.path);
-        setBranchTagMode('tag');
-      }
-    };
-    const handleBranchTagCompare = () => {
-      const context = getContext();
-      if (context.path) setBranchTagCompareOpen(true);
-    };
-    const handleSwitch = () => {
-      const context = getContext();
-      if (context.path) setSwitchPath(context.path);
-    };
-    const handleMerge = () => {
-      const context = getContext();
-      if (context.path) setMergePath(context.path);
-    };
-    const handleRelocate = () => {
-      const context = getContext();
-      if (context.path) setRelocatePath(context.path);
-    };
-    const handleBlame = () => {
-      const context = getContext();
-      if (context.selectedEntry && !context.selectedEntry.isDirectory) {
-        setBlamePath(context.selectedEntry.path);
-      }
-    };
-    const handleProperties = () => {
-      const context = getContext();
-      if (context.selectedEntry) setPropertiesPath(context.selectedEntry.path);
-    };
-    const handleChangelist = () => {
-      const context = getContext();
-      if (context.selectedEntry) setChangelistPath(context.selectedEntry.path);
-    };
-    const handleShelve = () => {
-      const context = getContext();
-      if (context.path) setShelveDialogPath(context.path);
-    };
-    const handleUnshelve = () => {
-      const context = getContext();
-      if (context.path) setShelveDialogPath(context.path);
-    };
-    const handleImport = () => {
-      setIsImportDialogOpen(true);
-    };
-    const handleExport = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        setExportPath(targetPath);
-      }
-    };
-    const handleRepoBrowser = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        setRepoBrowserUrl(targetPath);
-      }
-    };
-    const handleRevisionGraph = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        setRevisionGraphPath(targetPath);
-      }
-    };
-    const handleLock = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        setLockManagementPath(targetPath);
-      }
-    };
-    const handleUnlock = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        setLockManagementPath(targetPath);
-      }
-    };
-    const handleCreatePatch = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        setCreatePatchPath(targetPath);
-      }
-    };
-    const handleApplyPatch = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        setApplyPatchPath(targetPath);
-      }
-    };
-    const handleRevert = () => {
-      const context = getContext();
-      void context.actions.handleRevertSelected();
-    };
-    const handleAdd = () => {
-      const context = getContext();
-      void context.actions.handleAddSelected();
-    };
-    const handleDelete = () => {
-      const context = getContext();
-      void context.actions.handleDeleteSelected();
-    };
-    const handleCleanup = () => {
-      const context = getContext();
-      const targetPath = context.selectedEntry?.path || context.path;
-      if (targetPath) {
-        void context.actions.cleanup(targetPath);
-      }
-    };
-    const handleResolve = () => {
-      const context = getContext();
-      if (context.selectedEntry?.status === 'C') {
-        setResolveEntry(context.selectedEntry);
-      }
-    };
-    const handleMove = () => {
-      const context = getContext();
-      if (context.selectedEntry) {
-        setMoveRenameTarget({ path: context.selectedEntry.path, mode: 'move' });
-      }
-    };
-    const handleCopy = async () => {
-      const context = getContext();
-      if (!context.selectedEntry) return;
-      const destination = await promptAppInput({
-        title: 'Copy item',
-        message: 'Destination path:',
-        confirmLabel: 'Copy',
-      });
-      if (!destination) return;
-      const result = await window.api.svn.copy(
-        context.selectedEntry.path,
-        destination,
-        `Copy ${context.selectedEntry.path}`
-      );
-      if (result.success) {
-        invalidateWorkingCopyViews(context.queryClient, context.path);
-      }
-    };
-    const handleRename = () => {
-      const context = getContext();
-      if (context.selectedEntry) {
-        setMoveRenameTarget({ path: context.selectedEntry.path, mode: 'rename' });
-      }
-    };
-
-    window.addEventListener(SVN_EVENTS.REVERT, handleRevert);
-    window.addEventListener(SVN_EVENTS.ADD, handleAdd);
-    window.addEventListener(SVN_EVENTS.DELETE, handleDelete);
-    window.addEventListener(SVN_EVENTS.CLEANUP, handleCleanup);
-    window.addEventListener(SVN_EVENTS.RESOLVE, handleResolve);
-    window.addEventListener(SVN_EVENTS.MOVE, handleMove);
-    window.addEventListener(SVN_EVENTS.COPY, handleCopy);
-    window.addEventListener(SVN_EVENTS.RENAME, handleRename);
-    window.addEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
-    window.addEventListener(SVN_EVENTS.TAG, handleTag);
-    window.addEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
-    window.addEventListener(SVN_EVENTS.SWITCH, handleSwitch);
-    window.addEventListener(SVN_EVENTS.MERGE, handleMerge);
-    window.addEventListener(SVN_EVENTS.RELOCATE, handleRelocate);
-    window.addEventListener(SVN_EVENTS.BLAME, handleBlame);
-    window.addEventListener(SVN_EVENTS.PROPERTIES, handleProperties);
-    window.addEventListener(SVN_EVENTS.CHANGELIST, handleChangelist);
-    window.addEventListener(SVN_EVENTS.SHELVE, handleShelve);
-    window.addEventListener(SVN_EVENTS.UNSHELVE, handleUnshelve);
-    window.addEventListener(SVN_EVENTS.IMPORT, handleImport);
-    window.addEventListener(SVN_EVENTS.EXPORT, handleExport);
-    window.addEventListener(SVN_EVENTS.REPO_BROWSER, handleRepoBrowser);
-    window.addEventListener(SVN_EVENTS.REVISION_GRAPH, handleRevisionGraph);
-    window.addEventListener(SVN_EVENTS.LOCK, handleLock);
-    window.addEventListener(SVN_EVENTS.UNLOCK, handleUnlock);
-    window.addEventListener(SVN_EVENTS.CREATE_PATCH, handleCreatePatch);
-    window.addEventListener(SVN_EVENTS.APPLY_PATCH, handleApplyPatch);
-
-    return () => {
-      window.removeEventListener(SVN_EVENTS.REVERT, handleRevert);
-      window.removeEventListener(SVN_EVENTS.ADD, handleAdd);
-      window.removeEventListener(SVN_EVENTS.DELETE, handleDelete);
-      window.removeEventListener(SVN_EVENTS.CLEANUP, handleCleanup);
-      window.removeEventListener(SVN_EVENTS.RESOLVE, handleResolve);
-      window.removeEventListener(SVN_EVENTS.MOVE, handleMove);
-      window.removeEventListener(SVN_EVENTS.COPY, handleCopy);
-      window.removeEventListener(SVN_EVENTS.RENAME, handleRename);
-      window.removeEventListener(SVN_EVENTS.BRANCH_TAG, handleBranchTag);
-      window.removeEventListener(SVN_EVENTS.TAG, handleTag);
-      window.removeEventListener(SVN_EVENTS.BRANCH_TAG_COMPARE, handleBranchTagCompare);
-      window.removeEventListener(SVN_EVENTS.SWITCH, handleSwitch);
-      window.removeEventListener(SVN_EVENTS.MERGE, handleMerge);
-      window.removeEventListener(SVN_EVENTS.RELOCATE, handleRelocate);
-      window.removeEventListener(SVN_EVENTS.BLAME, handleBlame);
-      window.removeEventListener(SVN_EVENTS.PROPERTIES, handleProperties);
-      window.removeEventListener(SVN_EVENTS.CHANGELIST, handleChangelist);
-      window.removeEventListener(SVN_EVENTS.SHELVE, handleShelve);
-      window.removeEventListener(SVN_EVENTS.UNSHELVE, handleUnshelve);
-      window.removeEventListener(SVN_EVENTS.IMPORT, handleImport);
-      window.removeEventListener(SVN_EVENTS.EXPORT, handleExport);
-      window.removeEventListener(SVN_EVENTS.REPO_BROWSER, handleRepoBrowser);
-      window.removeEventListener(SVN_EVENTS.REVISION_GRAPH, handleRevisionGraph);
-      window.removeEventListener(SVN_EVENTS.LOCK, handleLock);
-      window.removeEventListener(SVN_EVENTS.UNLOCK, handleUnlock);
-      window.removeEventListener(SVN_EVENTS.CREATE_PATCH, handleCreatePatch);
-      window.removeEventListener(SVN_EVENTS.APPLY_PATCH, handleApplyPatch);
-    };
-  }, []);
+  useFileExplorerCommandEvents({
+    operationContextRef,
+    setApplyPatchPath,
+    setBlamePath,
+    setBranchTagCompareOpen,
+    setBranchTagMode,
+    setBranchTagPath,
+    setChangelistPath,
+    setCreatePatchPath,
+    setExportPath,
+    setImportDialogOpen: setIsImportDialogOpen,
+    setLockManagementPath,
+    setMergePath,
+    setMoveRenameTarget,
+    setPropertiesPath,
+    setRelocatePath,
+    setRepoBrowserUrl,
+    setResolveEntry,
+    setRevisionGraphPath,
+    setShelveDialogPath,
+    setSwitchPath,
+  });
 
   // Virtualizer
   const virtualizer = useVirtualizer({

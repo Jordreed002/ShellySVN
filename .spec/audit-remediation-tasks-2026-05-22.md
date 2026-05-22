@@ -307,8 +307,8 @@ Goal: reduce regression risk in the highest-change renderer surface.
 - [x] Resolve hook dependency warnings in changed areas.
 - [x] Resolve or document `useIncrementalStatus` hook warnings.
 - [x] Resolve `useOperationQueue` loop-condition warning.
-- [ ] Add focused tests for extracted hooks or handlers.
-- [ ] Confirm no bundle regression from the split.
+- [x] Add focused tests for extracted hooks or handlers.
+- [x] Confirm no bundle regression from the split.
 
 Files to inspect first:
 
@@ -321,10 +321,10 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Targeted renderer tests.
-- [ ] `bun run lint`
-- [ ] `bun run typecheck`
-- [ ] `SHELLYSVN_BUNDLE_REPORT=1 bun run build`
+- [x] Targeted renderer tests.
+- [x] `bun run lint`
+- [x] `bun run typecheck`
+- [x] `SHELLYSVN_BUNDLE_REPORT=1 bun run build`
 
 Progress notes:
 
@@ -332,6 +332,8 @@ Progress notes:
 - `useIncrementalStatus` no longer declares unused status options in the scan callback dependency list and removed the unused watch timeout cleanup ref.
 - `useWebhooks` and `usePlugins` callbacks were reordered so dependency arrays can include the functions they call without temporal-dead-zone issues.
 - Targeted verification for this slice: `bun x vitest run src/renderer/src/hooks/__tests__/useIncrementalStatus.test.ts src/renderer/__tests__/background-scanning-operations.test.tsx src/renderer/__tests__/scan-nonblocking.test.tsx` passed with 4 tests. `bun run typecheck` and `bun run lint` passed; lint warning baseline dropped from 119 to 109.
+- Second CP9 slice extracted the CommandPalette/SVN event bridge from `FileExplorer.tsx` into `useFileExplorerCommandEvents`, reducing the component from 1971 to 1771 lines while preserving the latest operation context ref behavior.
+- Focused verification for the extracted hook: `bun x vitest run src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx src/renderer/__tests__/keyboardShortcuts.parity.test.tsx src/renderer/__tests__/useSvnActions.confirmations.test.tsx src/renderer/__tests__/conflict-resolution-workflows.test.tsx` passed with 17 tests. `bun run typecheck`, `bun run lint`, and `SHELLYSVN_BUNDLE_REPORT=1 bun run build` passed; lint remains at the 109-warning baseline.
 
 ## Commit Point 10 - Automated Performance Gates
 
