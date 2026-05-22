@@ -336,6 +336,8 @@ Progress notes:
 - Focused verification for the extracted hook: `bun x vitest run src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx src/renderer/__tests__/keyboardShortcuts.parity.test.tsx src/renderer/__tests__/useSvnActions.confirmations.test.tsx src/renderer/__tests__/conflict-resolution-workflows.test.tsx` passed with 17 tests. `bun run typecheck`, `bun run lint`, and `SHELLYSVN_BUNDLE_REPORT=1 bun run build` passed; lint remains at the 109-warning baseline.
 - Third CP9 slice moved lazy dialog declarations and loading fallbacks into `FileExplorerLazyDialogs`, reducing `FileExplorer.tsx` from 1771 to 1676 lines and keeping lazy chunk boundaries intact.
 - Verification for the lazy-dialog split: `bun x vitest run src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx src/renderer/__tests__/keyboardShortcuts.parity.test.tsx`, `bun run typecheck`, `bun run lint`, and `bun run build` passed.
+- Fourth CP9 slice moved dialog open/target state into `useFileExplorerDialogState`, separating dialog state ownership from the main explorer data and row-rendering flow.
+- Verification for the dialog-state split: `bun x vitest run src/renderer/__tests__/useFileExplorerDialogState.test.tsx src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx`, `bun run typecheck`, and `bun run lint` passed; lint remains at the 109-warning baseline.
 
 ## Commit Point 10 - Automated Performance Gates
 
