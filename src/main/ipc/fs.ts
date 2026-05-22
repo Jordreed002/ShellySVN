@@ -198,6 +198,7 @@ export function applySvnStatusToFiles(
 }
 
 export const MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY = 2;
+export const FOLDER_SIZE_WORKER_TIMEOUT_MS = 30_000;
 
 const EMPTY_STATUS_RESULT = { directStatus: {}, allEntries: [] };
 
@@ -558,6 +559,7 @@ async function calculateFolderSizes(folderPaths: string[]): Promise<Record<strin
     {
       id: `fs-folder-sizes:${approvedPaths.join('|')}`,
       priority: 'background',
+      timeoutMs: FOLDER_SIZE_WORKER_TIMEOUT_MS,
     }
   );
 }

@@ -3,7 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WorkerJobCancelledError, WorkerPool } from '../WorkerPool';
+import { WorkerJobCancelledError, WorkerPool, WorkerQueueFullError } from '../WorkerPool';
 
 let tempDir: string;
 let workerScript: string;
@@ -104,6 +104,56 @@ describe('WorkerPool', () => {
     expect(pool.cancel('second')).toBe(true);
     await expect(second).rejects.toBeInstanceOf(WorkerJobCancelledError);
     await expect(first).resolves.toMatchObject({ allEntries: expect.any(Array) });
+  });
+
+  it('deduplicates queued jobs by id and keeps the newest payload', async () => {
+    const pool = new WorkerPool({ maxWorkers: 1, workerScript });
+
+    const first = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/a', svnCommand: 'svn', context: {} },
+      { id: 'first' }
+    );
+    const superseded = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/b', svnCommand: 'svn', context: {} },
+      { id: 'duplicate' }
+    );
+    const newest = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/c', svnCommand: 'svn', context: {} },
+      { id: 'duplicate' }
+    );
+
+    await expect(superseded).rejects.toBeInstanceOf(WorkerJobCancelledError);
+    await expect(first).resolves.toMatchObject({ allEntries: expect.any(Array) });
+    await expect(newest).resolves.toMatchObject({
+      allEntries: [expect.objectContaining({ fullPath: '/repo/c/file.txt' })],
+    });
+  });
+
+  it('rejects new jobs when the queue is full', async () => {
+    const pool = new WorkerPool({ maxWorkers: 1, maxQueuedJobs: 1, workerScript });
+
+    const active = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/a', svnCommand: 'svn', context: {} },
+      { id: 'active' }
+    );
+    const queued = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/b', svnCommand: 'svn', context: {} },
+      { id: 'queued' }
+    );
+    const rejected = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/c', svnCommand: 'svn', context: {} },
+      { id: 'rejected' }
+    );
+
+    await expect(rejected).rejects.toBeInstanceOf(WorkerQueueFullError);
+    await expect(active).resolves.toMatchObject({ allEntries: expect.any(Array) });
+    await expect(queued).resolves.toMatchObject({ allEntries: expect.any(Array) });
   });
 
   it('forwards cancellation to active jobs', async () => {

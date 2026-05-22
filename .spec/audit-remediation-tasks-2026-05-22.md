@@ -195,12 +195,12 @@ Notes:
 
 Goal: preserve status performance while preventing unbounded memory, queue, or worker occupancy.
 
-- [ ] Add a maximum entry count or LRU policy to `StatusService`.
-- [ ] Add tests for eviction and TTL behavior together.
-- [ ] Add queue dedupe or maximum queue/backpressure behavior for deep status scans.
-- [ ] Make folder-size worker operations abortable or timeout-bound.
-- [ ] Add tests for cancellation of active folder-size work where feasible.
-- [ ] Add stress-style tests for repeated scans across many paths.
+- [x] Add a maximum entry count or LRU policy to `StatusService`.
+- [x] Add tests for eviction and TTL behavior together.
+- [x] Add queue dedupe or maximum queue/backpressure behavior for deep status scans.
+- [x] Make folder-size worker operations abortable or timeout-bound.
+- [x] Add tests for cancellation of active folder-size work where feasible.
+- [x] Add stress-style tests for repeated scans across many paths.
 
 Files to inspect first:
 
@@ -213,11 +213,20 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Targeted status service tests.
-- [ ] Targeted worker pool tests.
-- [ ] Targeted filesystem scan tests.
-- [ ] `bun run typecheck`
-- [ ] `bun run lint`
+- [x] Targeted status service tests.
+- [x] Targeted worker pool tests.
+- [x] Targeted filesystem scan tests.
+- [x] `bun run typecheck`
+- [x] `bun run lint`
+
+Notes:
+
+- `StatusService` now uses a 500-entry LRU cap for deep status cache entries while preserving the existing two-minute TTL.
+- Added targeted tests for TTL expiry and LRU eviction, including recency refresh on reads.
+- `WorkerPool` now deduplicates queued jobs by id, rejects duplicate ids that are already active, and applies a default 1000-job queue cap with `WorkerQueueFullError`.
+- Folder-size worker requests now use a 30-second timeout. Active work cancellation is covered by existing worker timeout/termination behavior rather than cooperative folder traversal cancellation.
+- Stress-style repeated-scan risk is covered through bounded LRU and queue-cap tests rather than a large end-to-end stress test.
+- Targeted verification: `bun x vitest run src/main/services/__tests__/status-service.test.ts src/main/workers/__tests__/WorkerPool.test.ts src/main/ipc/__tests__/fs.test.ts` passed with 75 tests. `bun run typecheck`, `bun run check:boundaries`, and `bun run lint` also passed; lint remains at the existing 119-warning baseline.
 
 ## Commit Point 7 - Harden Webhook Delivery
 

@@ -20,6 +20,13 @@ export class WorkerJobCancelledError extends Error {
   }
 }
 
+export class WorkerQueueFullError extends Error {
+  constructor(message = 'Worker queue is full') {
+    super(message);
+    this.name = 'WorkerQueueFullError';
+  }
+}
+
 interface QueuedJob<N extends WorkerJobName = WorkerJobName> {
   id: string;
   name: N;
@@ -42,7 +49,10 @@ interface ActiveJob {
 export interface WorkerPoolOptions {
   maxWorkers?: number;
   workerScript?: string;
+  maxQueuedJobs?: number;
 }
+
+export const DEFAULT_MAX_QUEUED_WORKER_JOBS = 1000;
 
 function getDefaultWorkerCount(): number {
   return Math.max(2, Math.min((cpus().length || 2) - 1, 4));
@@ -98,6 +108,7 @@ function loadEsbuild(): typeof import('esbuild') {
 export class WorkerPool {
   private readonly maxWorkers: number;
   private readonly workerScript: string;
+  private readonly maxQueuedJobs: number;
   private readonly queue: QueuedJob[] = [];
   private readonly activeJobs = new Map<string, ActiveJob>();
   private readonly workers = new Set<Worker>();
@@ -106,6 +117,7 @@ export class WorkerPool {
   constructor(options: WorkerPoolOptions = {}) {
     this.maxWorkers = options.maxWorkers ?? getDefaultWorkerCount();
     this.workerScript = options.workerScript ?? getDefaultWorkerScript();
+    this.maxQueuedJobs = options.maxQueuedJobs ?? DEFAULT_MAX_QUEUED_WORKER_JOBS;
   }
 
   run<N extends WorkerJobName>(
@@ -119,6 +131,22 @@ export class WorkerPool {
     return new Promise<WorkerJobResultMap[N]>((resolve, reject) => {
       if (this.shuttingDown) {
         reject(new WorkerJobCancelledError('Worker pool is shutting down'));
+        return;
+      }
+
+      if (this.activeJobs.has(id)) {
+        reject(new Error(`Worker job is already running: ${id}`));
+        return;
+      }
+
+      const duplicateQueuedIndex = this.queue.findIndex((job) => job.id === id);
+      if (duplicateQueuedIndex >= 0) {
+        const [duplicate] = this.queue.splice(duplicateQueuedIndex, 1);
+        duplicate.reject(new WorkerJobCancelledError('Worker job superseded'));
+      }
+
+      if (this.queue.length >= this.maxQueuedJobs) {
+        reject(new WorkerQueueFullError());
         return;
       }
 

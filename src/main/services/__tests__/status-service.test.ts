@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { StatusService } from '../status-service';
+import { DEEP_STATUS_CACHE_TTL_MS, StatusService } from '../status-service';
 
 function statusResult(path: string) {
   return {
@@ -10,6 +10,10 @@ function statusResult(path: string) {
 }
 
 describe('StatusService', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('caches and returns deep status results', () => {
     const service = new StatusService();
     const result = statusResult('/repo');
@@ -54,5 +58,38 @@ describe('StatusService', () => {
     service.setDeepStatus('/repo/', result);
 
     expect(service.getDeepStatus('/repo')).toBe(result);
+  });
+
+  it('expires deep status entries after the cache TTL', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-22T00:00:00Z'));
+
+    const service = new StatusService();
+    service.setDeepStatus('/repo', statusResult('/repo'));
+
+    vi.setSystemTime(new Date(Date.now() + DEEP_STATUS_CACHE_TTL_MS + 1));
+
+    expect(service.getDeepStatus('/repo')).toBeNull();
+    expect(service.getStateForTests()).toMatchObject({ deepStatusCacheSize: 0 });
+  });
+
+  it('evicts least recently used deep status entries when bounded', () => {
+    const service = new StatusService(2);
+    const repoA = statusResult('/repo-a');
+    const repoB = statusResult('/repo-b');
+    const repoC = statusResult('/repo-c');
+
+    service.setDeepStatus('/repo-a', repoA);
+    service.setDeepStatus('/repo-b', repoB);
+    expect(service.getDeepStatus('/repo-a')).toBe(repoA);
+    service.setDeepStatus('/repo-c', repoC);
+
+    expect(service.getDeepStatus('/repo-a')).toBe(repoA);
+    expect(service.getDeepStatus('/repo-b')).toBeNull();
+    expect(service.getDeepStatus('/repo-c')).toBe(repoC);
+    expect(service.getStateForTests()).toMatchObject({
+      deepStatusCacheSize: 2,
+      cachedPaths: ['/repo-a', '/repo-c'],
+    });
   });
 });

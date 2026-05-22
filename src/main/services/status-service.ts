@@ -2,6 +2,7 @@ import type { FsStatusResult } from '@shared/types';
 import type { SvnStatusChar } from '@shared/types';
 
 export const DEEP_STATUS_CACHE_TTL_MS = 2 * 60 * 1000;
+export const DEEP_STATUS_CACHE_MAX_ENTRIES = 500;
 
 interface DeepStatusCacheEntry {
   result: FsStatusResult;
@@ -39,6 +40,8 @@ function getWorstStatus(current: SvnStatusChar, next: SvnStatusChar): SvnStatusC
 export class StatusService {
   private readonly deepStatusCache = new Map<string, DeepStatusCacheEntry>();
 
+  constructor(private readonly maxEntries = DEEP_STATUS_CACHE_MAX_ENTRIES) {}
+
   getDeepStatus(path: string, maxAgeMs = DEEP_STATUS_CACHE_TTL_MS): FsStatusResult | null {
     const cacheKey = normalizeStatusPath(path);
     const cached = this.deepStatusCache.get(cacheKey);
@@ -49,14 +52,24 @@ export class StatusService {
       return null;
     }
 
+    this.deepStatusCache.delete(cacheKey);
+    this.deepStatusCache.set(cacheKey, cached);
     return cached.result;
   }
 
   setDeepStatus(path: string, result: FsStatusResult): void {
-    this.deepStatusCache.set(normalizeStatusPath(path), {
+    const cacheKey = normalizeStatusPath(path);
+    this.deepStatusCache.delete(cacheKey);
+    this.deepStatusCache.set(cacheKey, {
       result,
       cachedAt: Date.now(),
     });
+
+    while (this.deepStatusCache.size > this.maxEntries) {
+      const oldestKey = this.deepStatusCache.keys().next().value;
+      if (!oldestKey) break;
+      this.deepStatusCache.delete(oldestKey);
+    }
   }
 
   getCachedPathStatus(path: string): SvnStatusChar | null {
@@ -103,6 +116,7 @@ export class StatusService {
     return {
       deepStatusCacheSize: this.deepStatusCache.size,
       cachedPaths: Array.from(this.deepStatusCache.keys()),
+      maxEntries: this.maxEntries,
     };
   }
 }
