@@ -97,11 +97,11 @@ Notes:
 
 Goal: prevent credentials for one repository realm from matching sibling URL prefixes.
 
-- [ ] Replace raw `url.startsWith(realm)` matching with parsed URL origin and path-boundary matching.
-- [ ] Prefer the longest valid matching realm when multiple realms apply.
-- [ ] Preserve expected behavior for repository roots and nested paths.
-- [ ] Add tests for sibling prefixes such as `/repo` versus `/repo2`.
-- [ ] Add tests for trailing slash, encoded path, query/hash, origin mismatch, and case behavior.
+- [x] Replace raw `url.startsWith(realm)` matching with parsed URL origin and path-boundary matching.
+- [x] Prefer the longest valid matching realm when multiple realms apply.
+- [x] Preserve expected behavior for repository roots and nested paths.
+- [x] Add tests for sibling prefixes such as `/repo` versus `/repo2`.
+- [x] Add tests for trailing slash, encoded path, query/hash, origin mismatch, and case behavior.
 
 Files to inspect first:
 
@@ -112,9 +112,15 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Targeted auth-cache tests.
-- [ ] Targeted SVN executor/working-copy credential tests if affected.
-- [ ] `bun run typecheck`
+- [x] Targeted auth-cache tests.
+- [x] Targeted SVN executor/working-copy credential tests if affected.
+- [x] `bun run typecheck`
+
+Notes:
+
+- `AuthCache.findForUrl` now keeps exact lookup behavior, then uses parsed URL origin plus path-boundary ancestor matching for fallback realm lookup.
+- Added tests for sibling path prefixes, trailing slash equivalence, query/hash ignoring, origin mismatch, path case sensitivity, and encoded path boundaries.
+- Targeted SVN executor, working-copy, and diagnostics tests passed; `bun run lint` also passed with the existing warning baseline.
 
 ## Commit Point 4 - Scope Filesystem IPC Reads To Approved Roots
 

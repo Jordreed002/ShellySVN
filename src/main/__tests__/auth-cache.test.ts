@@ -349,6 +349,74 @@ describe('AuthCache', () => {
       });
     });
 
+    it('should not match sibling URL path prefixes', async () => {
+      authCache.set('https://svn.example.com/repo', 'testuser', 'testpass');
+      await vi.runAllTimersAsync();
+
+      const result = authCache.findForUrl('https://svn.example.com/repo2/trunk');
+
+      expect(result).toBeNull();
+    });
+
+    it('should treat trailing slashes as the same realm path', async () => {
+      authCache.set('https://svn.example.com/repo/', 'testuser', 'testpass');
+      await vi.runAllTimersAsync();
+
+      const result = authCache.findForUrl('https://svn.example.com/repo/trunk');
+
+      expect(result).toEqual({
+        username: 'testuser',
+        password: 'testpass',
+        realm: 'https://svn.example.com/repo/',
+      });
+    });
+
+    it('should ignore URL query and hash when matching realm path boundaries', async () => {
+      authCache.set('https://svn.example.com/repo', 'testuser', 'testpass');
+      await vi.runAllTimersAsync();
+
+      const result = authCache.findForUrl('https://svn.example.com/repo/trunk?view=log#r10');
+
+      expect(result).toEqual({
+        username: 'testuser',
+        password: 'testpass',
+        realm: 'https://svn.example.com/repo',
+      });
+    });
+
+    it('should require matching URL origins', async () => {
+      authCache.set('https://svn.example.com/repo', 'testuser', 'testpass');
+      await vi.runAllTimersAsync();
+
+      const result = authCache.findForUrl('https://other.example.com/repo/trunk');
+
+      expect(result).toBeNull();
+    });
+
+    it('should preserve path case sensitivity when matching realms', async () => {
+      authCache.set('https://svn.example.com/Repo', 'testuser', 'testpass');
+      await vi.runAllTimersAsync();
+
+      const result = authCache.findForUrl('https://svn.example.com/repo/trunk');
+
+      expect(result).toBeNull();
+    });
+
+    it('should compare encoded URL path boundaries without decoding sibling paths', async () => {
+      authCache.set('https://svn.example.com/repo%20one', 'testuser', 'testpass');
+      await vi.runAllTimersAsync();
+
+      const result = authCache.findForUrl('https://svn.example.com/repo%20one/trunk');
+      const siblingResult = authCache.findForUrl('https://svn.example.com/repo%20one2/trunk');
+
+      expect(result).toEqual({
+        username: 'testuser',
+        password: 'testpass',
+        realm: 'https://svn.example.com/repo%20one',
+      });
+      expect(siblingResult).toBeNull();
+    });
+
     it('should return null when no match found', () => {
       const result = authCache.findForUrl('https://nonexistent.com/repo');
       expect(result).toBeNull();

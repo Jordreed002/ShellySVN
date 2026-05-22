@@ -16,6 +16,33 @@ interface StoredCache {
   credentials: CachedCredential[];
 }
 
+function normalizeUrlForRealmMatch(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRealmPath(pathname: string): string {
+  if (pathname === '') return '/';
+  return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+}
+
+function isRealmAncestorOfUrl(realm: string, url: string): boolean {
+  const parsedRealm = normalizeUrlForRealmMatch(realm);
+  const parsedUrl = normalizeUrlForRealmMatch(url);
+
+  if (!parsedRealm || !parsedUrl || parsedRealm.origin !== parsedUrl.origin) {
+    return false;
+  }
+
+  const realmPath = normalizeRealmPath(parsedRealm.pathname);
+  const urlPath = normalizeRealmPath(parsedUrl.pathname);
+
+  return realmPath === '/' || urlPath === realmPath || urlPath.startsWith(`${realmPath}/`);
+}
+
 class AuthCache {
   private credentials: Map<string, CachedCredential> = new Map();
   private storePath: string;
@@ -120,12 +147,11 @@ class AuthCache {
       return { ...exact, realm: url };
     }
 
-    // Then try prefix matching - find the longest matching realm
+    // Then try URL-aware ancestor matching - find the longest matching realm.
     let bestMatch: { realm: string; credential: CachedCredential } | null = null;
 
     for (const [realm, credential] of this.credentials) {
-      // Check if the url starts with the realm (realm is a prefix)
-      if (url.startsWith(realm)) {
+      if (isRealmAncestorOfUrl(realm, url)) {
         // Prefer longer (more specific) matches
         if (!bestMatch || realm.length > bestMatch.realm.length) {
           bestMatch = { realm, credential };
