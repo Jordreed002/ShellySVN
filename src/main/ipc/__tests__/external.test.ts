@@ -9,17 +9,15 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // Create mock state with hoisting
 const mockState = vi.hoisted(() => ({
   ipcMainHandle: vi.fn(),
   shellOpenPath: vi.fn().mockResolvedValue(''),
   spawn: vi.fn().mockReturnValue({ unref: vi.fn() }),
-  access: vi.fn().mockResolvedValue(undefined),
-  stat: vi.fn().mockResolvedValue({
-    isFile: () => true,
-    isDirectory: () => false,
-  }),
 }));
 
 // Mock electron module
@@ -38,13 +36,6 @@ vi.mock('child_process', () => ({
   spawn: mockState.spawn,
 }));
 
-// Mock fs/promises
-vi.mock('fs/promises', () => ({
-  default: {},
-  access: mockState.access,
-  stat: mockState.stat,
-}));
-
 // Mock debug module
 vi.mock('../../utils/debug', () => ({
   default: {
@@ -56,27 +47,38 @@ vi.mock('../../utils/debug', () => ({
 
 // Import after mocking
 import { registerExternalHandlers } from '../external';
+import { approvePathForIpc, clearApprovedPathsForTests } from '../../utils/approved-paths';
 
 describe('External IPC Handlers', () => {
   // Store registered handlers
   const handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
+  let tempRoot: string;
+  let approvedRoot: string;
+  let approvedFile: string;
+  let approvedFolder: string;
+  let rightFile: string;
+  let customToolDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     handlers.clear();
+    tempRoot = await mkdtemp(join(tmpdir(), 'shellysvn-external-'));
+    approvedRoot = join(tempRoot, 'approved');
+    approvedFolder = join(approvedRoot, 'folder');
+    approvedFile = join(approvedRoot, 'left.txt');
+    rightFile = join(approvedRoot, 'right.txt');
+    customToolDir = join(tempRoot, 'tool-dir');
+    await mkdir(approvedFolder, { recursive: true });
+    await mkdir(customToolDir, { recursive: true });
+    await writeFile(approvedFile, 'left');
+    await writeFile(rightFile, 'right');
 
     // Reset mock call counts but keep implementations
     mockState.ipcMainHandle.mockClear();
     mockState.shellOpenPath.mockClear();
     mockState.spawn.mockClear();
-    mockState.access.mockClear();
-    mockState.stat.mockClear();
 
     // Reset mock implementations
-    mockState.access.mockResolvedValue(undefined);
-    mockState.stat.mockResolvedValue({
-      isFile: () => true,
-      isDirectory: () => false,
-    });
+    clearApprovedPathsForTests();
     mockState.shellOpenPath.mockResolvedValue('');
     mockState.spawn.mockReturnValue({ unref: vi.fn() });
 
@@ -89,8 +91,9 @@ describe('External IPC Handlers', () => {
     registerExternalHandlers();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterEach(async () => {
+    clearApprovedPathsForTests();
+    await rm(tempRoot, { recursive: true, force: true });
   });
 
   describe('handler registration', () => {
@@ -241,6 +244,58 @@ describe('External IPC Handlers', () => {
       const result = await handler!({}, '../../../etc/passwd');
 
       expect(result.success).toBe(false);
+    });
+
+    it('should reject custom diff tool paths that are not files', async () => {
+      const handler = handlers.get('external:openDiffTool');
+      const result = await handler!({}, customToolDir, approvedFile, rightFile);
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('Tool executable must be a file'),
+      });
+      expect(mockState.spawn).not.toHaveBeenCalled();
+    });
+
+    it('should reject opening unapproved local files', async () => {
+      const handler = handlers.get('external:openFile');
+      const result = await handler!({}, 'C:/unapproved/file.txt');
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('Opening local files is only allowed'),
+      });
+      expect(mockState.shellOpenPath).not.toHaveBeenCalled();
+    });
+
+    it('should open approved local files', async () => {
+      approvePathForIpc(approvedRoot);
+      const handler = handlers.get('external:openFile');
+      const result = await handler!({}, approvedFile);
+
+      expect(result).toEqual({ success: true });
+      expect(mockState.shellOpenPath).toHaveBeenCalledWith(expect.stringContaining('approved'));
+    });
+
+    it('should reject opening unapproved local folders', async () => {
+      const handler = handlers.get('external:openFolder');
+      const result = await handler!({}, 'C:/unapproved/folder');
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('Opening local folders is only allowed'),
+      });
+      expect(mockState.shellOpenPath).not.toHaveBeenCalled();
+    });
+
+    it('should open approved local folders', async () => {
+      approvePathForIpc(approvedRoot);
+
+      const handler = handlers.get('external:openFolder');
+      const result = await handler!({}, approvedFolder);
+
+      expect(result).toEqual({ success: true });
+      expect(mockState.shellOpenPath).toHaveBeenCalledWith(expect.stringContaining('approved'));
     });
   });
 

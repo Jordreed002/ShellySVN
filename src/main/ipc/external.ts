@@ -1,8 +1,10 @@
 import { ipcMain, shell } from 'electron';
 import { spawn } from 'child_process';
+import { constants } from 'fs';
 import { access, stat } from 'fs/promises';
 import { normalize } from 'path';
 import debug from '../utils/debug';
+import { assertPathApprovedForIpc } from '../utils/approved-paths';
 
 /**
  * SECURITY: Whitelist of allowed diff tools (known aliases)
@@ -45,6 +47,10 @@ const ALLOWED_MERGE_TOOLS: Record<
   },
 };
 
+function hasPathTraversal(path: string): boolean {
+  return path.split(/[/\\]+/).includes('..');
+}
+
 /**
  * SECURITY: Validate that a path is a valid executable or script path
  * Allows custom tool paths while preventing security issues
@@ -57,15 +63,27 @@ async function validateToolPath(
     const normalized = normalize(path);
 
     // Check for path traversal attempts
-    if (normalized.includes('..')) {
+    if (hasPathTraversal(path)) {
       return { valid: false, error: 'Path traversal not allowed' };
     }
 
-    // Check that file exists (async)
+    // Check that file exists and points to a file (async)
+    let stats;
     try {
       await access(normalized);
+      stats = await stat(normalized);
     } catch {
       return { valid: false, error: 'Tool executable does not exist' };
+    }
+    if (!stats.isFile()) {
+      return { valid: false, error: 'Tool executable must be a file' };
+    }
+    if (process.platform !== 'win32') {
+      try {
+        await access(normalized, constants.X_OK);
+      } catch {
+        return { valid: false, error: 'Tool executable is not executable' };
+      }
     }
 
     return { valid: true, normalized };
@@ -86,7 +104,7 @@ async function validateFilePath(
     const normalized = normalize(path);
 
     // Check for path traversal attempts
-    if (normalized.includes('..')) {
+    if (hasPathTraversal(path)) {
       return { valid: false, error: 'Path traversal not allowed' };
     }
 
@@ -185,7 +203,7 @@ export function registerExternalHandlers(): void {
 
         // Normalize merged path (file may not exist yet)
         const mergedNormalized = normalize(merged);
-        if (mergedNormalized.includes('..')) {
+        if (hasPathTraversal(merged)) {
           return { success: false, error: 'Path traversal not allowed in merged file path' };
         }
 
@@ -242,17 +260,19 @@ export function registerExternalHandlers(): void {
   // Open folder in file explorer
   ipcMain.handle('external:openFolder', async (_, path: string) => {
     try {
-      // SECURITY: Validate path exists
-      const normalized = normalize(path);
-      if (normalized.includes('..')) {
+      if (hasPathTraversal(path)) {
         return { success: false, error: 'Path traversal not allowed' };
       }
+      const normalized = assertPathApprovedForIpc(path, 'Opening local folders');
 
-      // Check folder exists (async)
+      let stats;
       try {
-        await access(normalized);
+        stats = await stat(normalized);
       } catch {
         return { success: false, error: 'Folder does not exist' };
+      }
+      if (!stats.isDirectory()) {
+        return { success: false, error: 'Path must be a folder' };
       }
 
       await shell.openPath(normalized);
@@ -265,6 +285,7 @@ export function registerExternalHandlers(): void {
   // Open file with default application
   ipcMain.handle('external:openFile', async (_, path: string) => {
     try {
+      assertPathApprovedForIpc(path, 'Opening local files');
       // SECURITY: Validate path
       const validation = await validateFilePath(path);
       if (!validation.valid) {

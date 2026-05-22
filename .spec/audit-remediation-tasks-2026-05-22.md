@@ -263,14 +263,14 @@ Notes:
 
 Goal: tighten process, URL, and shell boundaries without breaking intended SVN-client workflows.
 
-- [ ] Test whether `BrowserWindow` can run with `sandbox: true`.
-- [ ] If sandbox cannot be enabled, document the blocker in `.spec`.
-- [ ] Consider failing fast in packaged preload if context isolation is unavailable.
-- [ ] Keep CSP in place and decide whether production can remove `style-src 'unsafe-inline'`.
-- [ ] Tighten custom external tool validation with `stats.isFile()` and platform-specific executable checks where practical.
-- [ ] Separate local file/folder opening from external URL opening.
-- [ ] Gate local file/folder opening behind approved roots.
-- [ ] Add tests for custom tool path validation and local path opening.
+- [x] Test whether `BrowserWindow` can run with `sandbox: true`.
+- [x] If sandbox cannot be enabled, document the blocker in `.spec`.
+- [x] Consider failing fast in packaged preload if context isolation is unavailable.
+- [x] Keep CSP in place and decide whether production can remove `style-src 'unsafe-inline'`.
+- [x] Tighten custom external tool validation with `stats.isFile()` and platform-specific executable checks where practical.
+- [x] Separate local file/folder opening from external URL opening.
+- [x] Gate local file/folder opening behind approved roots.
+- [x] Add tests for custom tool path validation and local path opening.
 
 Files to inspect first:
 
@@ -284,10 +284,20 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Targeted Electron/main IPC tests.
-- [ ] Manual app smoke test if sandbox behavior changes.
-- [ ] `bun run typecheck`
-- [ ] `bun run lint`
+- [x] Targeted Electron/main IPC tests.
+- [x] Manual app smoke test if sandbox behavior changes.
+- [x] `bun run typecheck`
+- [x] `bun run lint`
+
+Notes:
+
+- `BrowserWindow` now runs with `sandbox: true`, while keeping `contextIsolation: true`, `nodeIntegration: false`, and `webSecurity: true`.
+- The preload now fails closed if context isolation is unavailable instead of installing APIs directly on `window`.
+- CSP remains in place. `style-src 'unsafe-inline'` is intentionally retained because the renderer still uses React inline style props for virtualized/layout-heavy UI; removing it should be revisited only after those surfaces are audited or converted.
+- Local URL opening remains separated through `app:openExternal` and `openValidatedExternalUrl`; local file/folder opening remains under `external:openFile` and `external:openFolder`.
+- `external:openFile` and `external:openFolder` now require approved roots. Custom external tool paths now reject path traversal, require an existing file, and require POSIX executable permission where supported.
+- Targeted verification: `bun x vitest run src/main/ipc/__tests__/external.test.ts src/main/utils/__tests__/external-tool-validation.test.ts` passed with 24 tests and the existing 7 skipped legacy fs-mock tests. `bun run build`, `bun run typecheck`, `bun run check:boundaries`, and `bun run lint` also passed; lint remains at the existing 119-warning baseline.
+- Manual launch smoke was attempted against the built app after enabling sandbox. The direct Electron CLI launch did not reach window creation because this Bun-installed local Electron layout fails in `@electron-toolkit/utils` with `electron.app` undefined before app code creates a `BrowserWindow`; this is recorded as an environment smoke blocker, not a sandbox blocker. A packaged-app smoke remains appropriate in final release verification.
 
 ## Commit Point 9 - FileExplorer Structure And Hook Warning Burn-Down
 
