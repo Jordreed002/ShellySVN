@@ -303,7 +303,7 @@ Notes:
 
 Goal: reduce regression risk in the highest-change renderer surface.
 
-- [ ] Split `FileExplorer.tsx` into smaller units around data hooks, command handlers, dialog state, and presentation.
+- [x] Split `FileExplorer.tsx` into smaller units around data hooks, command handlers, dialog state, and presentation.
 - [x] Resolve hook dependency warnings in changed areas.
 - [x] Resolve or document `useIncrementalStatus` hook warnings.
 - [x] Resolve `useOperationQueue` loop-condition warning.
@@ -338,6 +338,8 @@ Progress notes:
 - Verification for the lazy-dialog split: `bun x vitest run src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx src/renderer/__tests__/keyboardShortcuts.parity.test.tsx`, `bun run typecheck`, `bun run lint`, and `bun run build` passed.
 - Fourth CP9 slice moved dialog open/target state into `useFileExplorerDialogState`, separating dialog state ownership from the main explorer data and row-rendering flow.
 - Verification for the dialog-state split: `bun x vitest run src/renderer/__tests__/useFileExplorerDialogState.test.tsx src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx`, `bun run typecheck`, and `bun run lint` passed; lint remains at the 109-warning baseline.
+- Fifth CP9 slice moved local filesystem, metadata, and deep-status query orchestration into `useFileExplorerDirectoryData`, completing the data-hook portion of the FileExplorer split.
+- Verification for the data-hook split: `bun x vitest run src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx src/renderer/__tests__/useFileExplorerDialogState.test.tsx src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx`, `bun run typecheck`, `bun run lint`, and `SHELLYSVN_BUNDLE_REPORT=1 bun run build` passed.
 
 ## Commit Point 10 - Automated Performance Gates
 

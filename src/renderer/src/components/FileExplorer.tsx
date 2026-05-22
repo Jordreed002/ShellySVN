@@ -39,6 +39,11 @@ import {
   useFileExplorerSelection,
 } from './files/useFileExplorerSelection';
 import { useFileExplorerDialogState } from './files/useFileExplorerDialogState';
+import {
+  FILE_CACHE_TIME,
+  STATUS_STALE_TIME,
+  useFileExplorerDirectoryData,
+} from './files/useFileExplorerDirectoryData';
 import { resolveRemoteUpdateTarget } from './files/remoteUpdateTarget';
 import { useFileExplorerCommandEvents } from './files/useFileExplorerCommandEvents';
 import {
@@ -82,11 +87,6 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   const id = window.setTimeout(callback, timeout);
   return () => window.clearTimeout(id);
 }
-
-// Cache configuration
-const FILE_CACHE_TIME = 5 * 60 * 1000; // 5 minutes - files rarely change
-const STATUS_STALE_TIME = 30 * 1000; // 30 seconds - status can change externally
-const DEEP_STATUS_STALE_TIME = 2 * 60 * 1000; // 2 minutes - expensive to compute
 
 export function FileExplorer() {
   const { path } = useSearch({ from: '/files/' });
@@ -207,45 +207,23 @@ export function FileExplorer() {
   // Dual-pane state
   const { isDualPane, toggleDualPane } = useDualPane(path || '');
 
-  // Phase 1: Fetch files immediately from filesystem (instant, cached for 5 min)
   const {
-    data: rawFiles,
-    isLoading: isLoadingFiles,
+    deepStatusData,
+    effectiveRepoRoot,
+    effectiveUrl,
     error,
+    isLoadingDeep,
+    isLoadingFiles,
+    isLoadingStatus,
+    isVersioned,
+    parentPath,
+    rawFiles,
     refetch,
-  } = useQuery({
-    queryKey: ['fs:listDirectory', path],
-    queryFn: () => window.api.fs.listDirectory(path),
-    enabled: !!path,
-    staleTime: FILE_CACHE_TIME,
-    gcTime: FILE_CACHE_TIME,
-  });
-
-  // Phase 2: Fetch directory metadata in one IPC call after files are available.
-  const { data: directoryMetadata, isFetching: isLoadingStatus } = useQuery({
-    queryKey: ['fs:getDirectoryMetadata', path, Boolean(rawFiles?.length)],
-    queryFn: () => window.api.fs.getDirectoryMetadata(path, Boolean(rawFiles?.length)),
-    enabled: !!path && path !== 'DRIVES://' && !!rawFiles,
-    staleTime: STATUS_STALE_TIME,
-    retry: false,
-  });
-
-  const isVersioned = path === 'DRIVES://' ? false : directoryMetadata?.isVersioned;
-  const parentPath = path === 'DRIVES://' ? null : directoryMetadata?.parentPath;
-  const statusData = directoryMetadata?.statusData;
-  const svnInfo = directoryMetadata?.svnInfo;
-  const workingCopyUpgradeStatus = directoryMetadata?.workingCopyUpgradeStatus;
-  const workingCopyContext = directoryMetadata?.workingCopyContext;
-
-  // Phase 3: Get deep status for folder aggregation (cached for 2 min, background) - only if versioned
-  const { data: deepStatusData, isFetching: isLoadingDeep } = useQuery({
-    queryKey: ['fs:getDeepStatus', path],
-    queryFn: () => window.api.fs.getDeepStatus(path),
-    enabled:
-      !!path && path !== 'DRIVES://' && directoryMetadata?.isVersioned === true && !!rawFiles,
-    staleTime: DEEP_STATUS_STALE_TIME,
-    refetchOnWindowFocus: false,
-  });
+    statusData,
+    svnInfo,
+    workingCopyContext,
+    workingCopyUpgradeStatus,
+  } = useFileExplorerDirectoryData(path);
 
   useEffect(() => {
     setDeepStatusProgress(null);
@@ -256,9 +234,6 @@ export function FileExplorer() {
       setDeepStatusProgress(progress);
     });
   }, [path]);
-
-  const effectiveRepoRoot = svnInfo?.repositoryRoot || workingCopyContext?.repositoryRoot;
-  const effectiveUrl = svnInfo?.url || workingCopyContext?.url;
 
   const invalidateCurrentPath = useCallback(() => {
     invalidateWorkingCopyViews(queryClient, path);
