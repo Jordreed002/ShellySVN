@@ -68,11 +68,11 @@ Notes:
 
 Goal: ensure credentials never appear in React Query keys, devtools, logs, snapshots, or diagnostics.
 
-- [ ] Replace query keys that include `storedCreds` with non-secret key material.
-- [ ] Pass credentials only inside query functions.
-- [ ] Use a stable non-secret auth version/key if cache invalidation must depend on credential changes.
-- [ ] Add or update tests proving query keys do not contain username/password values.
-- [ ] Search for any other credential-bearing objects in renderer cache keys.
+- [x] Replace query keys that include `storedCreds` with non-secret key material.
+- [x] Pass credentials only inside query functions.
+- [x] Use a stable non-secret auth version/key if cache invalidation must depend on credential changes.
+- [x] Add or update tests proving query keys do not contain username/password values.
+- [x] Search for any other credential-bearing objects in renderer cache keys.
 
 Files to inspect first:
 
@@ -82,10 +82,16 @@ Files to inspect first:
 
 Verification:
 
-- [ ] `rg -n "queryKey:.*storedCreds|password.*queryKey|username.*queryKey" src/renderer`
-- [ ] Targeted renderer tests.
-- [ ] `bun run typecheck`
-- [ ] `bun run lint`
+- [x] `rg -n "queryKey:.*storedCreds|password.*queryKey|username.*queryKey" src/renderer`
+- [x] Targeted renderer tests.
+- [x] `bun run typecheck`
+- [x] `bun run lint`
+
+Notes:
+
+- SVN list query keys now use only URL plus `stored`/`anonymous` auth presence via `createSvnListQueryKey`.
+- Credential values are still passed to SVN list calls only inside query functions.
+- Added `authQueryKeys.test.ts` to prove usernames/passwords are not serialized into query keys.
 
 ## Commit Point 3 - Fix Auth Realm Matching
 

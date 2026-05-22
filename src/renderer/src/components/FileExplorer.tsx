@@ -25,6 +25,7 @@ import { useSettings } from '../hooks/useSettings';
 import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
+import { createSvnListQueryKey, getAuthPresenceKey } from '../features/files/authQueryKeys';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
 import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
 import { SettingsDialog } from './ui/SettingsDialog';
@@ -387,10 +388,11 @@ export function FileExplorer() {
     enabled: !!effectiveRepoRoot,
     staleTime: FILE_CACHE_TIME,
   });
+  const svnListAuthKey = getAuthPresenceKey(storedCreds);
 
   // Phase 6: Get online files for repo browser mode
   const { data: onlineFiles, isFetching: isLoadingOnline } = useQuery({
-    queryKey: ['svn:list:online', onlineUrl, storedCreds],
+    queryKey: createSvnListQueryKey('online', onlineUrl, svnListAuthKey),
     queryFn: async () => {
       if (!onlineUrl) return { path: '', entries: [] };
       const creds = storedCreds
@@ -421,7 +423,7 @@ export function FileExplorer() {
 
   // Fetch remote items for merging with local items (sparse checkout support)
   const { data: remoteItems, isFetching: isLoadingRemoteItems } = useQuery({
-    queryKey: ['svn:list:remote', effectiveUrl, storedCreds],
+    queryKey: createSvnListQueryKey('remote', effectiveUrl, svnListAuthKey),
     queryFn: async () => {
       if (!effectiveUrl) return { path: '', entries: [] };
       const creds = storedCreds
