@@ -7,11 +7,10 @@ import {
   useCallback,
   useMemo,
   useEffect,
-  lazy,
   Suspense,
   useDeferredValue,
 } from 'react';
-import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Upload } from 'lucide-react';
+import { FolderX, AlertCircle, Loader, ArrowUp, Globe } from 'lucide-react';
 import type { DeepStatusProgress, SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { RouteState } from './ui/RouteState';
@@ -41,131 +40,37 @@ import {
 } from './files/useFileExplorerSelection';
 import { resolveRemoteUpdateTarget } from './files/remoteUpdateTarget';
 import { useFileExplorerCommandEvents } from './files/useFileExplorerCommandEvents';
-
-// Lazy load heavy dialog components for better initial bundle size
-const loadCommitDialog = () =>
-  import('./ui/CommitDialog').then((m) => ({ default: m.CommitDialog }));
-const CommitDialog = lazy(loadCommitDialog);
-const DiffViewer = lazy(() => import('./ui/DiffViewer').then((m) => ({ default: m.DiffViewer })));
-const FilePreview = lazy(() =>
-  import('./ui/FilePreview').then((m) => ({ default: m.FilePreview }))
-);
-const LogViewer = lazy(() => import('./ui/LogViewer').then((m) => ({ default: m.LogViewer })));
-const UpdateToRevisionDialog = lazy(() =>
-  import('./ui/UpdateToRevisionDialog').then((m) => ({ default: m.UpdateToRevisionDialog }))
-);
-const RepoDiagnosticsPanel = lazy(() =>
-  import('./RepoDiagnostics').then((m) => ({ default: m.RepoDiagnosticsPanel }))
-);
-const BranchTagDialog = lazy(() =>
-  import('./ui/BranchTagDialog').then((m) => ({ default: m.BranchTagDialog }))
-);
-const BranchTagCompareDialog = lazy(() =>
-  import('./ui/BranchTagCompareDialog').then((m) => ({ default: m.BranchTagCompareDialog }))
-);
-const SwitchDialog = lazy(() =>
-  import('./ui/SwitchDialog').then((m) => ({ default: m.SwitchDialog }))
-);
-const MergeWizard = lazy(() =>
-  import('./ui/MergeWizard').then((m) => ({ default: m.MergeWizard }))
-);
-const RelocateDialog = lazy(() =>
-  import('./ui/RelocateDialog').then((m) => ({ default: m.RelocateDialog }))
-);
-const BlameViewer = lazy(() =>
-  import('./ui/BlameViewer').then((m) => ({ default: m.BlameViewer }))
-);
-const PropertiesDialog = lazy(() =>
-  import('./ui/PropertiesDialog').then((m) => ({ default: m.PropertiesDialog }))
-);
-const ChangelistDialog = lazy(() =>
-  import('./ui/ChangelistDialog').then((m) => ({ default: m.ChangelistDialog }))
-);
-const CreatePatchDialog = lazy(() =>
-  import('./ui/CreatePatchDialog').then((m) => ({ default: m.CreatePatchDialog }))
-);
-const ApplyPatchDialog = lazy(() =>
-  import('./ui/ApplyPatchDialog').then((m) => ({ default: m.ApplyPatchDialog }))
-);
-const IgnoreDialog = lazy(() =>
-  import('./ui/IgnoreDialog').then((m) => ({ default: m.IgnoreDialog }))
-);
-const ShelveDialog = lazy(() =>
-  import('./ui/ShelveDialog').then((m) => ({ default: m.ShelveDialog }))
-);
-const QuickNotesPanel = lazy(() =>
-  import('./ui/QuickNotesPanel').then((m) => ({ default: m.QuickNotesPanel }))
-);
-const LockManagementDialog = lazy(() =>
-  import('./ui/LockManagementDialog').then((m) => ({ default: m.LockManagementDialog }))
-);
-const ExportDialog = lazy(() =>
-  import('./ui/ExportDialog').then((m) => ({ default: m.ExportDialog }))
-);
-const RevisionGraph = lazy(() =>
-  import('./ui/RevisionGraph').then((m) => ({ default: m.RevisionGraph }))
-);
-const RepoBrowser = lazy(() =>
-  import('./ui/RepoBrowser').then((m) => ({ default: m.RepoBrowser }))
-);
-const ImportDialog = lazy(() =>
-  import('./ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
-);
-const ResolveDialog = lazy(() =>
-  import('./ui/ResolveDialog').then((m) => ({ default: m.ResolveDialog }))
-);
-const MoveRenameDialog = lazy(() =>
-  import('./ui/MoveRenameDialog').then((m) => ({ default: m.MoveRenameDialog }))
-);
-
-// Loading fallback for lazy components
-function DialogLoader() {
-  return (
-    <div className="modal-overlay">
-      <div className="modal flex items-center justify-center">
-        <Loader className="w-6 h-6 animate-spin text-accent" />
-      </div>
-    </div>
-  );
-}
-
-function CommitDialogLoader() {
-  return (
-    <div className="modal-overlay" role="presentation">
-      <div className="modal w-[900px] max-h-[90vh]" role="dialog" aria-modal="true">
-        <div className="modal-header">
-          <h2 className="modal-title">
-            <Upload className="w-5 h-5 text-accent" aria-hidden="true" />
-            Commit Changes
-          </h2>
-          <button className="btn-icon-sm" disabled aria-label="Close dialog">
-            <span className="sr-only">Close dialog</span>
-          </button>
-        </div>
-        <div className="flex" style={{ height: '500px' }}>
-          <div className="w-[350px] border-r border-border flex flex-col">
-            <div className="px-3 py-2 border-b border-border bg-bg-tertiary">
-              <div className="h-8 rounded bg-bg-elevated animate-pulse" />
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <Loader className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
-              <span className="sr-only">Loading files...</span>
-            </div>
-          </div>
-          <div className="flex-1 flex flex-col">
-            <div className="border-b border-border p-4 space-y-3">
-              <div className="h-4 w-28 rounded bg-bg-elevated animate-pulse" />
-              <div className="h-24 rounded bg-bg-elevated animate-pulse" />
-            </div>
-            <div className="flex-1 p-4">
-              <div className="h-full rounded bg-bg-elevated animate-pulse" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import {
+  ApplyPatchDialog,
+  BlameViewer,
+  BranchTagCompareDialog,
+  BranchTagDialog,
+  ChangelistDialog,
+  CommitDialog,
+  CommitDialogLoader,
+  CreatePatchDialog,
+  DialogLoader,
+  DiffViewer,
+  ExportDialog,
+  FilePreview,
+  IgnoreDialog,
+  ImportDialog,
+  LockManagementDialog,
+  LogViewer,
+  MergeWizard,
+  MoveRenameDialog,
+  PropertiesDialog,
+  QuickNotesPanel,
+  RelocateDialog,
+  RepoBrowser,
+  RepoDiagnosticsPanel,
+  ResolveDialog,
+  RevisionGraph,
+  ShelveDialog,
+  SwitchDialog,
+  UpdateToRevisionDialog,
+  loadCommitDialog,
+} from './files/FileExplorerLazyDialogs';
 
 function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   if ('requestIdleCallback' in window) {

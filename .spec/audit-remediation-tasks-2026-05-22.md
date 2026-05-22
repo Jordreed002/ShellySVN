@@ -334,6 +334,8 @@ Progress notes:
 - Targeted verification for this slice: `bun x vitest run src/renderer/src/hooks/__tests__/useIncrementalStatus.test.ts src/renderer/__tests__/background-scanning-operations.test.tsx src/renderer/__tests__/scan-nonblocking.test.tsx` passed with 4 tests. `bun run typecheck` and `bun run lint` passed; lint warning baseline dropped from 119 to 109.
 - Second CP9 slice extracted the CommandPalette/SVN event bridge from `FileExplorer.tsx` into `useFileExplorerCommandEvents`, reducing the component from 1971 to 1771 lines while preserving the latest operation context ref behavior.
 - Focused verification for the extracted hook: `bun x vitest run src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx src/renderer/__tests__/keyboardShortcuts.parity.test.tsx src/renderer/__tests__/useSvnActions.confirmations.test.tsx src/renderer/__tests__/conflict-resolution-workflows.test.tsx` passed with 17 tests. `bun run typecheck`, `bun run lint`, and `SHELLYSVN_BUNDLE_REPORT=1 bun run build` passed; lint remains at the 109-warning baseline.
+- Third CP9 slice moved lazy dialog declarations and loading fallbacks into `FileExplorerLazyDialogs`, reducing `FileExplorer.tsx` from 1771 to 1676 lines and keeping lazy chunk boundaries intact.
+- Verification for the lazy-dialog split: `bun x vitest run src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx src/renderer/__tests__/keyboardShortcuts.parity.test.tsx`, `bun run typecheck`, `bun run lint`, and `bun run build` passed.
 
 ## Commit Point 10 - Automated Performance Gates
 
