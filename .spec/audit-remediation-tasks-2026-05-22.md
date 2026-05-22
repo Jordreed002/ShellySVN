@@ -163,13 +163,13 @@ Notes:
 
 Goal: keep local status sharing performant while preventing unauthenticated local process access.
 
-- [ ] Add a per-run capability token for local status server requests.
-- [ ] Ensure clients must include the token before status/invalidate operations are served.
-- [ ] Store or communicate the token only through process-local trusted channels.
-- [ ] Add maximum line/message size enforcement.
-- [ ] Reject malformed, oversized, or unauthenticated requests early.
-- [ ] Restrict socket permissions where supported by platform APIs.
-- [ ] Add tests for valid token, missing token, invalid token, malformed JSON, oversized message, and shutdown cleanup.
+- [x] Add a per-run capability token for local status server requests.
+- [x] Ensure clients must include the token before status/invalidate operations are served.
+- [x] Store or communicate the token only through process-local trusted channels.
+- [x] Add maximum line/message size enforcement.
+- [x] Reject malformed, oversized, or unauthenticated requests early.
+- [x] Restrict socket permissions where supported by platform APIs.
+- [x] Add tests for valid token, missing token, invalid token, malformed JSON, oversized message, and shutdown cleanup.
 
 Files to inspect first:
 
@@ -179,9 +179,17 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Targeted local status server tests.
-- [ ] `bun run typecheck`
-- [ ] `bun run lint`
+- [x] Targeted local status server tests.
+- [x] `bun run typecheck`
+- [x] `bun run lint`
+
+Notes:
+
+- `LocalStatusServer` now generates a per-process capability token and rejects requests before serving status or invalidation when the token is missing or invalid.
+- The protocol now rejects malformed JSON with a stable error, validates request shape, caps pending line size at 64 KiB by default, and closes oversized clients early.
+- Unix-domain sockets are chmodded to `0600` after bind and still removed during shutdown. Windows named pipe security remains platform-default and should be revisited if the helper gains custom pipe ACL support.
+- The Windows shell helper registration payload now includes the status server token from main process state; the token is not exposed through renderer IPC.
+- Targeted verification: `bun x vitest run src/main/shell/__tests__/ShellIntegration.test.ts src/main/services/__tests__/local-status-server.test.ts` passed with 14 tests. `bun run typecheck`, `bun run check:boundaries`, and `bun run lint` also passed; lint remains at the existing 119-warning baseline.
 
 ## Commit Point 6 - Bound Status Cache And Worker Queue Behavior
 

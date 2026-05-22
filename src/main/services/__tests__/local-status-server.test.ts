@@ -1,3 +1,4 @@
+import { existsSync, statSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -9,15 +10,20 @@ import { getStatusService } from '../status-service';
 
 let server: LocalStatusServer | null = null;
 let tempDir: string | null = null;
+const TEST_TOKEN = 'test-status-token';
 
 async function request(socketPath: string, payload: unknown) {
+  return rawRequest(socketPath, `${JSON.stringify(payload)}\n`);
+}
+
+async function rawRequest(socketPath: string, payload: string) {
   return new Promise<Record<string, unknown>>((resolve, reject) => {
     const socket = createConnection(socketPath);
     let buffer = '';
 
     socket.setEncoding('utf8');
     socket.on('connect', () => {
-      socket.write(`${JSON.stringify(payload)}\n`);
+      socket.write(payload);
     });
     socket.on('data', (chunk) => {
       buffer += chunk;
@@ -29,6 +35,23 @@ async function request(socketPath: string, payload: unknown) {
     });
     socket.on('error', reject);
   });
+}
+
+async function createStartedServer(options: { maxMessageBytes?: number } = {}) {
+  tempDir = await mkdtemp(join(tmpdir(), 'shellysvn-status-server-'));
+  const socketPath =
+    process.platform === 'win32'
+      ? `\\\\.\\pipe\\shellysvn-status-test-${Date.now()}`
+      : join(tempDir, 'status.sock');
+
+  server = new LocalStatusServer({
+    userDataPath: tempDir,
+    socketPath,
+    authToken: TEST_TOKEN,
+    maxMessageBytes: options.maxMessageBytes,
+  });
+  await server.start();
+  return { socketPath, server };
 }
 
 afterEach(async () => {
@@ -53,23 +76,17 @@ describe('LocalStatusServer', () => {
   });
 
   it('serves cached path status over the local socket', async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'shellysvn-status-server-'));
-    const socketPath =
-      process.platform === 'win32'
-        ? `\\\\.\\pipe\\shellysvn-status-test-${Date.now()}`
-        : join(tempDir, 'status.sock');
-
     getStatusService().setDeepStatus('C:\\repo', {
       directStatus: {},
       allEntries: [{ status: 'M', fullPath: 'C:\\repo\\src\\file.ts' }],
     });
 
-    server = new LocalStatusServer({ userDataPath: tempDir, socketPath });
-    await server.start();
+    const { socketPath } = await createStartedServer();
 
     await expect(
       request(socketPath, {
         id: '1',
+        token: TEST_TOKEN,
         type: 'status.getPathStatus',
         path: 'C:\\repo\\src',
       })
@@ -78,5 +95,77 @@ describe('LocalStatusServer', () => {
       ok: true,
       result: 'M',
     });
+  });
+
+  it('rejects requests without the per-run token', async () => {
+    const { socketPath } = await createStartedServer();
+
+    await expect(
+      request(socketPath, {
+        id: 'missing-token',
+        type: 'status.getPathStatus',
+        path: 'C:\\repo',
+      })
+    ).resolves.toMatchObject({
+      id: 'missing-token',
+      ok: false,
+      error: 'unauthorized',
+    });
+  });
+
+  it('rejects requests with an invalid token', async () => {
+    const { socketPath } = await createStartedServer();
+
+    await expect(
+      request(socketPath, {
+        id: 'bad-token',
+        token: 'wrong-token',
+        type: 'status.getCached',
+        path: 'C:\\repo',
+      })
+    ).resolves.toMatchObject({
+      id: 'bad-token',
+      ok: false,
+      error: 'unauthorized',
+    });
+  });
+
+  it('rejects malformed JSON without exposing parser details', async () => {
+    const { socketPath } = await createStartedServer();
+
+    await expect(rawRequest(socketPath, '{"token":\n')).resolves.toMatchObject({
+      ok: false,
+      error: 'malformed JSON',
+    });
+  });
+
+  it('rejects oversized messages before parsing', async () => {
+    const { socketPath } = await createStartedServer({ maxMessageBytes: 64 });
+
+    await expect(rawRequest(socketPath, `${'x'.repeat(128)}\n`)).resolves.toMatchObject({
+      ok: false,
+      error: 'message too large',
+    });
+  });
+
+  it('uses owner-only permissions for unix sockets', async () => {
+    if (process.platform === 'win32') return;
+
+    const { socketPath } = await createStartedServer();
+    const mode = statSync(socketPath).mode & 0o777;
+
+    expect(mode).toBe(0o600);
+  });
+
+  it('removes unix socket files on shutdown', async () => {
+    if (process.platform === 'win32') return;
+
+    const { socketPath } = await createStartedServer();
+    expect(existsSync(socketPath)).toBe(true);
+
+    await server?.stop();
+    server = null;
+
+    expect(existsSync(socketPath)).toBe(false);
   });
 });

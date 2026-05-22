@@ -1,12 +1,15 @@
 import { createServer, type Server, type Socket } from 'net';
-import { existsSync, unlinkSync } from 'fs';
-import { createHash } from 'crypto';
+import { chmodSync, existsSync, unlinkSync } from 'fs';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { join } from 'path';
 
 import { getStatusService } from './status-service';
 
+export const DEFAULT_LOCAL_STATUS_MAX_MESSAGE_BYTES = 64 * 1024;
+
 export interface LocalStatusRequest {
   id?: string;
+  token?: string;
   type: 'status.getCached' | 'status.getPathStatus' | 'status.invalidate';
   path?: string;
 }
@@ -21,6 +24,8 @@ export interface LocalStatusResponse {
 export interface LocalStatusServerOptions {
   userDataPath: string;
   socketPath?: string;
+  authToken?: string;
+  maxMessageBytes?: number;
 }
 
 export function getDefaultLocalStatusSocketPath(userDataPath: string): string {
@@ -36,7 +41,32 @@ function writeResponse(socket: Socket, response: LocalStatusResponse): void {
   socket.write(`${JSON.stringify(response)}\n`);
 }
 
-function handleRequest(request: LocalStatusRequest): LocalStatusResponse {
+function generateAuthToken(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+function isValidRequest(value: unknown): value is LocalStatusRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    typeof (value as { type?: unknown }).type === 'string'
+  );
+}
+
+function isExpectedToken(actual: unknown, expected: string): boolean {
+  if (typeof actual !== 'string') return false;
+
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+function handleRequest(request: LocalStatusRequest, authToken: string): LocalStatusResponse {
+  if (!isExpectedToken(request.token, authToken)) {
+    return { id: request.id, ok: false, error: 'unauthorized' };
+  }
+
   if (!request.path && request.type !== 'status.invalidate') {
     return { id: request.id, ok: false, error: 'path is required' };
   }
@@ -63,15 +93,21 @@ function handleRequest(request: LocalStatusRequest): LocalStatusResponse {
         statusService.clear();
       }
       return { id: request.id, ok: true };
+    default:
+      return { id: request.id, ok: false, error: 'unsupported request type' };
   }
 }
 
 export class LocalStatusServer {
   private server: Server | null = null;
   readonly socketPath: string;
+  readonly authToken: string;
+  private readonly maxMessageBytes: number;
 
   constructor(options: LocalStatusServerOptions) {
     this.socketPath = options.socketPath ?? getDefaultLocalStatusSocketPath(options.userDataPath);
+    this.authToken = options.authToken ?? generateAuthToken();
+    this.maxMessageBytes = options.maxMessageBytes ?? DEFAULT_LOCAL_STATUS_MAX_MESSAGE_BYTES;
   }
 
   async start(): Promise<void> {
@@ -87,6 +123,9 @@ export class LocalStatusServer {
       this.server?.once('error', reject);
       this.server?.listen(this.socketPath, () => {
         this.server?.off('error', reject);
+        if (process.platform !== 'win32') {
+          chmodSync(this.socketPath, 0o600);
+        }
         resolve();
       });
     });
@@ -110,6 +149,12 @@ export class LocalStatusServer {
 
     socket.on('data', (chunk) => {
       buffer += chunk;
+      if (Buffer.byteLength(buffer, 'utf8') > this.maxMessageBytes) {
+        writeResponse(socket, { ok: false, error: 'message too large' });
+        socket.end();
+        return;
+      }
+
       let newlineIndex = buffer.indexOf('\n');
 
       while (newlineIndex >= 0) {
@@ -118,11 +163,16 @@ export class LocalStatusServer {
 
         if (line) {
           try {
-            writeResponse(socket, handleRequest(JSON.parse(line) as LocalStatusRequest));
+            const request = JSON.parse(line) as unknown;
+            if (!isValidRequest(request)) {
+              writeResponse(socket, { ok: false, error: 'invalid request' });
+            } else {
+              writeResponse(socket, handleRequest(request, this.authToken));
+            }
           } catch (error) {
             writeResponse(socket, {
               ok: false,
-              error: error instanceof Error ? error.message : String(error || ''),
+              error: error instanceof SyntaxError ? 'malformed JSON' : String(error || ''),
             });
           }
         }
@@ -139,6 +189,10 @@ export async function startLocalStatusServer(userDataPath: string): Promise<Loca
   localStatusServer ??= new LocalStatusServer({ userDataPath });
   await localStatusServer.start();
   return localStatusServer;
+}
+
+export function getLocalStatusServerAuthToken(): string | null {
+  return localStatusServer?.authToken ?? null;
 }
 
 export async function stopLocalStatusServer(): Promise<void> {
