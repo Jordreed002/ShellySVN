@@ -42,6 +42,39 @@ Budgets are measured on a release-class machine, not a developer laptop under lo
 | Unified diff render | <= 2 seconds for 5 MB text diff, with truncation/streaming metadata above budget | diff benchmark |
 | Large binary handling | no renderer preview attempt above configured binary preview limit | diff/file review benchmark |
 
+## Bundle Budget Gate
+
+`bun run analyze:bundle` builds with `SHELLYSVN_BUNDLE_REPORT=1`, writes `reports/bundle/renderer-bundle-report.json`, and fails if the initial renderer entry exceeds the `Renderer initial bundle` budget above. The current enforced defaults are:
+
+- raw initial JavaScript: 750 KiB
+- gzip initial JavaScript: 160 KiB
+
+Use `bun run check:bundle-budget` to re-check an existing report without rebuilding. For budget failure tests, override limits with `SHELLYSVN_BUNDLE_INITIAL_RAW_KIB` and `SHELLYSVN_BUNDLE_INITIAL_GZIP_KIB`.
+
+`bun run verify:release` runs the normal verification suite and then runs the bundle budget gate. Use that command before packaging or release candidate handoff.
+
+`bun run test:perf` runs strict wall-clock performance assertions with `SHELLYSVN_STRICT_PERF=1`. Normal unit verification still exercises the same code paths, but strict timing assertions are reserved for controlled release hardware.
+
+## CI Split
+
+Normal CI should run deterministic unit checks and smoke performance code paths without enforcing wall-clock thresholds:
+
+- `src/renderer/__tests__/performance/working-copy-status.perf.test.ts`
+- `src/renderer/__tests__/performance/log-history.perf.test.ts`
+- `src/renderer/__tests__/performance/repo-browser-lazy-loading.perf.test.tsx`
+- `src/renderer/__tests__/performance/sparse-checkout.perf.test.tsx`
+- `src/renderer/src/features/files/__tests__/fileStatus.test.ts`
+- `src/renderer/src/features/files/__tests__/fileListTransforms.test.ts`
+
+Release-only CI should run strict performance gates and fixture-backed large repository tests because they need controlled hardware, generated repositories, or native SVN binaries:
+
+- `bun run test:perf`
+- `tests/e2e/performance.spec.ts`
+- medium/large working-copy open and refresh timings
+- `large-wc` background scan cancellation timing
+- packaged cold-start and warm-start timing
+- real SVN workflow verification through `bun run verify:svn-workflows`
+
 ## Measurement Rules
 
 - Benchmarks must run against generated or checked-in fixture recipes, not hand-picked local repositories.

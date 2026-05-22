@@ -345,11 +345,11 @@ Progress notes:
 
 Goal: make the documented performance budgets enforceable rather than advisory.
 
-- [ ] Add a script that reads the renderer bundle report JSON and fails when the initial raw/gzip budget is exceeded.
-- [ ] Wire the bundle-budget check into `verify` or a dedicated release verification script.
-- [ ] Add documentation for how to regenerate and inspect bundle reports.
-- [ ] Decide which large-repository performance tests should run in normal CI versus release-only CI.
-- [ ] Record any intentionally release-only performance gates in `.spec/performance-budgets.md`.
+- [x] Add a script that reads the renderer bundle report JSON and fails when the initial raw/gzip budget is exceeded.
+- [x] Wire the bundle-budget check into `verify` or a dedicated release verification script.
+- [x] Add documentation for how to regenerate and inspect bundle reports.
+- [x] Decide which large-repository performance tests should run in normal CI versus release-only CI.
+- [x] Record any intentionally release-only performance gates in `.spec/performance-budgets.md`.
 
 Files to inspect first:
 
@@ -362,9 +362,16 @@ Files to inspect first:
 
 Verification:
 
-- [ ] Bundle budget script passes with current bundle.
-- [ ] Script fails against an artificially lowered threshold.
-- [ ] `bun run verify` or updated release verification command.
+- [x] Bundle budget script passes with current bundle.
+- [x] Script fails against an artificially lowered threshold.
+- [x] `bun run verify` or updated release verification command.
+
+Progress notes:
+
+- `scripts/analyze-bundle.mjs` now enforces the renderer initial bundle budget from `reports/bundle/renderer-bundle-report.json`, with `--check-only` support and `SHELLYSVN_BUNDLE_INITIAL_RAW_KIB` / `SHELLYSVN_BUNDLE_INITIAL_GZIP_KIB` threshold overrides.
+- `package.json` now exposes `check:bundle-budget`, `test:perf`, and `verify:release`. `verify:release` runs the normal verification suite and then rebuilds with bundle reporting plus the budget gate.
+- Local timing-sensitive perf assertions are opt-in behind `SHELLYSVN_STRICT_PERF=1`; normal verification still executes the functional code paths, while `test:perf` is reserved for release or controlled CI hardware.
+- Verification: `bun run check:bundle-budget` passed at 641.8 KiB raw / 135.6 KiB gzip against the 750 KiB / 160 KiB initial bundle budgets. A lowered 1 KiB raw threshold failed as expected. `bun run analyze:bundle` and `bun run verify:release` passed.
 
 ## Commit Point 11 - Final Verification And Release-State Update
 
