@@ -20,33 +20,17 @@ import { DEFAULT_SETTINGS, mergeSettings } from '@shared/settings-defaults';
 
 import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
 import { useSettings } from '../../hooks/useSettings';
-const GeneralSettings = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.GeneralSettings }))
-);
-const SvnSettings = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.SvnSettings }))
-);
-const DiffMergeSettingsTab = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.DiffMergeSettingsTab }))
-);
-const DialogsSettingsTab = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.DialogsSettingsTab }))
-);
-const NotificationsSettingsTab = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.NotificationsSettingsTab }))
-);
-const IntegrationSettingsTab = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.IntegrationSettingsTab }))
-);
-const AppearanceSettings = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.AppearanceSettings }))
-);
-const AuthSettings = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.AuthSettings }))
-);
-const AdvancedSettings = lazy(() =>
-  import('../settings/SettingsPanels').then((m) => ({ default: m.AdvancedSettings }))
-);
+import {
+  AdvancedSettings,
+  AppearanceSettings,
+  AuthSettings,
+  DialogsSettingsTab,
+  DiffMergeSettingsTab,
+  GeneralSettings,
+  IntegrationSettingsTab,
+  NotificationsSettingsTab,
+  SvnSettings,
+} from '../settings/SettingsPanels';
 const ShellIntegrationDialog = lazy(() =>
   import('./ShellIntegrationDialog').then((m) => ({ default: m.ShellIntegrationDialog }))
 );

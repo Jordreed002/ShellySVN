@@ -31,6 +31,12 @@ export function createFsApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): Ele
     getParent: (path) => invokeIpc('fs:getParent', path),
     getStatus: (path) => invokeIpc('fs:getStatus', path),
     getDeepStatus: (path) => invokeIpc('fs:getDeepStatus', path),
+    onDeepStatusProgress: (callback) => {
+      const handler = (_: unknown, progress: unknown) =>
+        callback(progress as Parameters<typeof callback>[0]);
+      ipcRenderer.on('fs:deepStatus:progress', handler);
+      return () => ipcRenderer.removeListener('fs:deepStatus:progress', handler);
+    },
     applyStatus: (files, directStatus, allEntries) =>
       invokeIpc('fs:applyStatus', files, directStatus, allEntries),
     cancelScan: (path) => invokeIpc('fs:cancelScan', path).then(() => undefined),

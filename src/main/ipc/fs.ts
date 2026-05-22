@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, type WebContents } from 'electron';
 import {
   readdir,
   stat,
@@ -12,7 +12,12 @@ import chokidar from 'chokidar';
 import { join, normalize, dirname } from 'path';
 import { spawn } from 'child_process';
 import { platform } from 'os';
-import type { DirectoryMetadataResult, FileInfo, SvnStatusChar } from '@shared/types';
+import type {
+  DeepStatusProgress,
+  DirectoryMetadataResult,
+  FileInfo,
+  SvnStatusChar,
+} from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
@@ -23,6 +28,7 @@ import {
   getWorkingCopyContext,
   getWorkingCopyUpgradeStatus,
 } from '../services/svn-working-copy';
+import { getStatusService } from '../services/status-service';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
 
 interface SvnStatusEntry {
@@ -121,25 +127,34 @@ async function isVersioned(dirPath: string): Promise<boolean> {
 async function listDirectoryFiles(dirPath: string): Promise<FileInfo[]> {
   try {
     const entries = await readdir(dirPath, { withFileTypes: true });
+    const visibleEntries = entries.filter((entry) => !entry.name.startsWith('.'));
+    const metadataConcurrency = 32;
     const files: FileInfo[] = [];
 
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
+    for (let index = 0; index < visibleEntries.length; index += metadataConcurrency) {
+      const batch = visibleEntries.slice(index, index + metadataConcurrency);
+      const batchFiles = await Promise.all(
+        batch.map(async (entry): Promise<FileInfo | null> => {
+          const fullPath = join(dirPath, entry.name);
 
-      const fullPath = join(dirPath, entry.name);
+          try {
+            const stats = await stat(fullPath);
+            return {
+              name: entry.name,
+              path: fullPath,
+              isDirectory: entry.isDirectory(),
+              size: entry.isDirectory() ? 0 : stats.size,
+              modifiedTime: stats.mtime.toISOString(),
+              svnStatus: undefined,
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
 
-      try {
-        const stats = await stat(fullPath);
-        files.push({
-          name: entry.name,
-          path: fullPath,
-          isDirectory: entry.isDirectory(),
-          size: entry.isDirectory() ? 0 : stats.size,
-          modifiedTime: stats.mtime.toISOString(),
-          svnStatus: undefined,
-        });
-      } catch {
-        continue;
+      for (const file of batchFiles) {
+        if (file) files.push(file);
       }
     }
 
@@ -194,12 +209,15 @@ const EMPTY_STATUS_RESULT = { directStatus: {}, allEntries: [] };
 
 // Track active background scans
 const activeScans = new Map<string, AbortController>();
+const activeScanProgress = new Map<string, (progress: DeepStatusProgress) => void>();
 let activeScanCount = 0;
 
 interface QueuedDeepScan {
   dirPath: string;
   jobId: string;
   controller: AbortController;
+  startedAt: number;
+  onProgress?: (progress: DeepStatusProgress) => void;
   resolve: (result: { directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }) => void;
 }
 
@@ -252,13 +270,58 @@ const queuedScans: QueuedDeepScan[] = [];
 // Track active file watchers
 const activeWatchers = new Map<string, chokidar.FSWatcher>();
 
+function createDeepStatusProgress(
+  queued: QueuedDeepScan,
+  phase: DeepStatusProgress['phase'],
+  overrides: Partial<Pick<DeepStatusProgress, 'filesFound' | 'error'>> = {}
+): DeepStatusProgress {
+  return {
+    path: queued.dirPath,
+    jobId: queued.jobId,
+    phase,
+    activeScans: activeScanCount,
+    queuedScans: queuedScans.length,
+    elapsedMs: Date.now() - queued.startedAt,
+    ...overrides,
+  };
+}
+
+function emitDeepStatusProgress(
+  queued: QueuedDeepScan,
+  phase: DeepStatusProgress['phase'],
+  overrides: Partial<Pick<DeepStatusProgress, 'filesFound' | 'error'>> = {}
+) {
+  queued.onProgress?.(createDeepStatusProgress(queued, phase, overrides));
+}
+
+function createDeepStatusProgressSender(
+  sender: WebContents,
+  dirPath: string
+): (progress: DeepStatusProgress) => void {
+  return (progress) => {
+    if (progress.path === dirPath && !sender.isDestroyed()) {
+      sender.send('fs:deepStatus:progress', progress);
+    }
+  };
+}
+
 function cancelDeepScan(dirPath: string) {
   const controller = activeScans.get(dirPath);
   if (controller) {
     controller.abort();
     const pool = getSharedWorkerPool();
     pool.cancel(`deep-status:${dirPath}`);
+    const onProgress = activeScanProgress.get(dirPath);
+    onProgress?.({
+      path: dirPath,
+      jobId: `deep-status:${dirPath}`,
+      phase: 'cancelled',
+      activeScans: activeScanCount,
+      queuedScans: queuedScans.length,
+      elapsedMs: 0,
+    });
     activeScans.delete(dirPath);
+    activeScanProgress.delete(dirPath);
   }
 
   for (let index = queuedScans.length - 1; index >= 0; index--) {
@@ -267,6 +330,7 @@ function cancelDeepScan(dirPath: string) {
       const pool = getSharedWorkerPool();
       pool.cancel(queued.jobId);
       queuedScans.splice(index, 1);
+      emitDeepStatusProgress(queued, 'cancelled');
       queued.resolve(EMPTY_STATUS_RESULT);
     }
   }
@@ -282,15 +346,25 @@ function startQueuedScans() {
     }
 
     activeScanCount++;
+    if (queued.onProgress) {
+      activeScanProgress.set(queued.dirPath, queued.onProgress);
+    }
     void runDeepScan(queued);
   }
 }
 
 async function runDeepScan(queued: QueuedDeepScan) {
+  emitDeepStatusProgress(queued, 'running');
+  const progressInterval = setInterval(() => {
+    emitDeepStatusProgress(queued, 'running');
+  }, 1000);
+  progressInterval.unref?.();
+
   try {
     const { svnCommand, context } = await resolveSvnExecution();
 
     if (queued.controller.signal.aborted) {
+      emitDeepStatusProgress(queued, 'cancelled');
       queued.resolve(EMPTY_STATUS_RESULT);
       return;
     }
@@ -309,13 +383,25 @@ async function runDeepScan(queued: QueuedDeepScan) {
       }
     );
 
+    emitDeepStatusProgress(queued, 'complete', { filesFound: result.allEntries.length });
     queued.resolve(result);
-  } catch {
+  } catch (error) {
+    if (queued.controller.signal.aborted) {
+      emitDeepStatusProgress(queued, 'cancelled');
+    } else {
+      emitDeepStatusProgress(queued, 'error', {
+        error: error instanceof Error ? error.message : String(error || ''),
+      });
+    }
     queued.resolve(EMPTY_STATUS_RESULT);
   } finally {
+    clearInterval(progressInterval);
     activeScanCount = Math.max(0, activeScanCount - 1);
     if (activeScans.get(queued.dirPath) === queued.controller) {
       activeScans.delete(queued.dirPath);
+    }
+    if (queued.onProgress && activeScanProgress.get(queued.dirPath) === queued.onProgress) {
+      activeScanProgress.delete(queued.dirPath);
     }
     startQueuedScans();
   }
@@ -324,7 +410,10 @@ async function runDeepScan(queued: QueuedDeepScan) {
 /**
  * Background deep scan for folder aggregation
  */
-export async function startDeepScan(dirPath: string): Promise<{
+export async function startDeepScan(
+  dirPath: string,
+  onProgress?: (progress: DeepStatusProgress) => void
+): Promise<{
   directStatus: SvnStatusMap;
   allEntries: SvnStatusEntry[];
 }> {
@@ -333,10 +422,20 @@ export async function startDeepScan(dirPath: string): Promise<{
   const controller = new AbortController();
   const jobId = `deep-status:${dirPath}`;
   activeScans.set(dirPath, controller);
+  const startedAt = Date.now();
 
   const result = new Promise<{ directStatus: SvnStatusMap; allEntries: SvnStatusEntry[] }>(
     (resolve) => {
-      queuedScans.push({ dirPath, jobId, controller, resolve });
+      const queued: QueuedDeepScan = {
+        dirPath,
+        jobId,
+        controller,
+        startedAt,
+        onProgress,
+        resolve,
+      };
+      queuedScans.push(queued);
+      emitDeepStatusProgress(queued, 'queued');
       startQueuedScans();
     }
   );
@@ -452,53 +551,21 @@ function getParentPath(path: string): string | null {
 }
 
 /**
- * Calculate folder size recursively
- */
-async function calculateFolderSize(folderPath: string): Promise<number> {
-  let totalSize = 0;
-
-  try {
-    const entries = await readdir(folderPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      // Skip hidden files and common exclude patterns
-      if (entry.name.startsWith('.')) continue;
-      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.svn') continue;
-
-      const fullPath = join(folderPath, entry.name);
-
-      try {
-        if (entry.isDirectory()) {
-          totalSize += await calculateFolderSize(fullPath);
-        } else if (entry.isFile()) {
-          const stats = await stat(fullPath);
-          totalSize += stats.size;
-        }
-      } catch {
-        // Skip files/folders we can't access
-        continue;
-      }
-    }
-  } catch {
-    // Can't read directory
-    return 0;
-  }
-
-  return totalSize;
-}
-
-/**
  * Calculate sizes for multiple folders
  */
 async function calculateFolderSizes(folderPaths: string[]): Promise<Record<string, number>> {
-  const results: Record<string, number> = {};
+  const approvedPaths = folderPaths.map((folderPath) =>
+    assertPathApprovedForIpc(folderPath, 'Folder size calculation')
+  );
 
-  for (const folderPath of folderPaths) {
-    const approvedPath = assertPathApprovedForIpc(folderPath, 'Folder size calculation');
-    results[folderPath] = await calculateFolderSize(approvedPath);
-  }
-
-  return results;
+  return getSharedWorkerPool().run(
+    'fs:folderSizes',
+    { folderPaths: approvedPaths },
+    {
+      id: `fs-folder-sizes:${approvedPaths.join('|')}`,
+      priority: 'background',
+    }
+  );
 }
 
 export function registerFsHandlers(): void {
@@ -565,13 +632,30 @@ export function registerFsHandlers(): void {
   });
 
   // Deep SVN status (slower, --depth=infinity) for folder aggregation
-  ipcMain.handle('fs:getDeepStatus', async (_, path: string) => {
+  ipcMain.handle('fs:getDeepStatus', async (event, path: string) => {
     try {
       // Don't get SVN status for drives list
       if (path === 'DRIVES://') {
         return { directStatus: {}, allEntries: [] };
       }
-      return startDeepScan(path);
+      const statusService = getStatusService();
+      const cached = statusService.getDeepStatus(path);
+      if (cached) {
+        event.sender.send('fs:deepStatus:progress', {
+          path,
+          jobId: `deep-status:${path}`,
+          phase: 'complete',
+          activeScans: activeScanCount,
+          queuedScans: queuedScans.length,
+          elapsedMs: 0,
+          filesFound: cached.allEntries.length,
+        } satisfies DeepStatusProgress);
+        return cached;
+      }
+
+      const result = await startDeepScan(path, createDeepStatusProgressSender(event.sender, path));
+      statusService.setDeepStatus(path, result);
+      return result;
     } catch (error) {
       console.error('[FS] Deep status error:', error);
       return { directStatus: {}, allEntries: [] };
@@ -605,8 +689,6 @@ export function registerFsHandlers(): void {
           maxSize: MAX_FILE_PREVIEW_SIZE_BYTES,
         });
 
-        // PERFORMANCE: Use async file operations to avoid blocking
-        const { stat, readFile } = await import('fs/promises');
         const stats = await stat(validatedPath);
 
         // Limit file size for preview

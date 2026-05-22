@@ -14,7 +14,7 @@ function settings(theme: AppSettings['theme']): AppSettings {
     accentColor: '#336699',
     sidebarWidth: 280,
     fontSize: 'medium',
-    animationSpeed: 'normal',
+    animationSpeed: 'none',
   } as AppSettings;
 }
 

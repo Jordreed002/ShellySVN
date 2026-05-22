@@ -102,9 +102,7 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
 
     // Apply animation speed
     root.classList.remove('animations-none', 'animations-fast', 'animations-normal');
-    if (settings.animationSpeed) {
-      root.classList.add(`animations-${settings.animationSpeed}`);
-    }
+    root.classList.add(`animations-${settings.animationSpeed ?? 'none'}`);
   }, []);
 
   const updatePreviewSetting = useCallback(

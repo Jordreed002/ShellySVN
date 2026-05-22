@@ -17,7 +17,9 @@ import { join } from 'path';
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import type { ShellIntegrationStatus, SvnStatusChar, SvnStatusEntry } from '@shared/types';
+// oxlint-disable-next-line eslint-plugin-import(no-named-as-default)
 import debug from '../utils/debug';
+import { getDefaultLocalStatusSocketPath } from '../services/local-status-server';
 
 // Icon overlay status mapping
 export const OVERLAY_STATUS_MAP: Record<SvnStatusChar, { icon: string; priority: number }> = {
@@ -138,6 +140,7 @@ interface WindowsHelperData {
   appId?: string;
   appName?: string;
   iconPath?: string;
+  statusSocketPath?: string;
   path?: string;
   status?: SvnStatusChar;
   overlays?: OverlayIcon[];
@@ -369,6 +372,7 @@ export class ShellIntegrationManager {
       appId: 'com.shellysvn.app',
       appName: 'ShellySVN',
       iconPath: join(app.getPath('userData'), 'icons'),
+      statusSocketPath: getDefaultLocalStatusSocketPath(app.getPath('userData')),
     });
 
     debug.log('[Shell] Windows shell extension registered');

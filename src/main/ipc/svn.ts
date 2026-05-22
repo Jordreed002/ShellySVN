@@ -64,6 +64,7 @@ import {
   switchWorkingCopy,
 } from '../services/svn-repository-ops';
 import { cancelSvnOperation } from '../services/svn-progress';
+import { getStatusService } from '../services/status-service';
 import {
   add as addWorkingCopyItems,
   cancelUpdate,
@@ -85,6 +86,12 @@ import {
   updateToRevision,
 } from '../services/svn-working-copy';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
+
+async function invalidateStatusAfter<T>(paths: string[], operation: Promise<T>): Promise<T> {
+  const result = await operation;
+  getStatusService().invalidatePaths(paths);
+  return result;
+}
 
 export function registerSvnHandlers(): void {
   // SVN Status
@@ -180,7 +187,7 @@ export function registerSvnHandlers(): void {
       path: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: Parameters<typeof updateWorkingCopy>[2]
-    ) => updateWorkingCopy(path, depth, options)
+    ) => invalidateStatusAfter([path], updateWorkingCopy(path, depth, options))
   );
 
   ipcMain.handle(
@@ -191,7 +198,7 @@ export function registerSvnHandlers(): void {
       path: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: Parameters<typeof updateWorkingCopy>[2]
-    ) => updateWithProgress(event, updateId, path, depth, options)
+    ) => invalidateStatusAfter([path], updateWithProgress(event, updateId, path, depth, options))
   );
 
   ipcMain.handle('svn:cancelUpdate', async (_, updateId: string) => {
@@ -199,7 +206,7 @@ export function registerSvnHandlers(): void {
   });
 
   ipcMain.handle('svn:updateItem', async (_, localPath: string) => {
-    return updateWorkingCopyItem(localPath);
+    return invalidateStatusAfter([localPath], updateWorkingCopyItem(localPath));
   });
 
   ipcMain.handle(
@@ -211,18 +218,22 @@ export function registerSvnHandlers(): void {
       localPath: string,
       depth: 'empty' | 'files' | 'immediates' | 'infinity' = 'infinity',
       setDepthSticky: boolean = false
-    ) => updateToRevision(workingCopyRoot, repoUrl, localPath, depth, setDepthSticky)
+    ) =>
+      invalidateStatusAfter(
+        [workingCopyRoot, localPath],
+        updateToRevision(workingCopyRoot, repoUrl, localPath, depth, setDepthSticky)
+      )
   );
 
   // SVN Commit
   ipcMain.handle('svn:commit', async (_, paths: string[], message: string) => {
-    return commit(paths, message);
+    return invalidateStatusAfter(paths, commit(paths, message));
   });
 
   ipcMain.handle(
     'svn:commitWithProgress',
     async (event, operationId: string, paths: string[], message: string) => {
-      return commitWithProgress(event, operationId, paths, message);
+      return invalidateStatusAfter(paths, commitWithProgress(event, operationId, paths, message));
     }
   );
 
@@ -232,22 +243,22 @@ export function registerSvnHandlers(): void {
 
   // SVN Revert
   ipcMain.handle('svn:revert', async (_, paths: string[]) => {
-    return revertWorkingCopyItems(paths);
+    return invalidateStatusAfter(paths, revertWorkingCopyItems(paths));
   });
 
   // SVN Add
   ipcMain.handle('svn:add', async (_, paths: string[]) => {
-    return addWorkingCopyItems(paths);
+    return invalidateStatusAfter(paths, addWorkingCopyItems(paths));
   });
 
   // SVN Delete
   ipcMain.handle('svn:delete', async (_, paths: string[]) => {
-    return removeWorkingCopyItems(paths);
+    return invalidateStatusAfter(paths, removeWorkingCopyItems(paths));
   });
 
   // SVN Cleanup
   ipcMain.handle('svn:cleanup', async (_, path: string) => {
-    return cleanupWorkingCopy(path);
+    return invalidateStatusAfter([path], cleanupWorkingCopy(path));
   });
 
   // SVN Checkout
@@ -439,7 +450,7 @@ export function registerSvnHandlers(): void {
 
   // SVN Relocate
   ipcMain.handle('svn:relocate', async (_, from: string, to: string, path: string) => {
-    return relocateWorkingCopy(from, to, path);
+    return invalidateStatusAfter([path], relocateWorkingCopy(from, to, path));
   });
 
   // SVN Changelist - Add to changelist
@@ -469,12 +480,12 @@ export function registerSvnHandlers(): void {
 
   // SVN Move
   ipcMain.handle('svn:move', async (_, src: string, dst: string) => {
-    return moveWorkingCopyItem(src, dst);
+    return invalidateStatusAfter([src, dst], moveWorkingCopyItem(src, dst));
   });
 
   // SVN Rename
   ipcMain.handle('svn:rename', async (_, src: string, dst: string) => {
-    return renameWorkingCopyItem(src, dst);
+    return invalidateStatusAfter([src, dst], renameWorkingCopyItem(src, dst));
   });
 
   // SVN Shelve - List shelves

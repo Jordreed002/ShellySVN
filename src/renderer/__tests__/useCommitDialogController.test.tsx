@@ -49,6 +49,12 @@ function createWrapper() {
   };
 }
 
+function createWrapperWithClient(queryClient: QueryClient) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  };
+}
+
 const statusEntries = [
   { path: 'src/modified.ts', status: 'M', isDirectory: false },
   { path: 'src/added.ts', status: 'A', isDirectory: false },
@@ -71,6 +77,9 @@ describe('useCommitDialogController file selection and filtering', () => {
       svn: {
         status: vi.fn().mockResolvedValue({ entries: statusEntries }),
         diff: vi.fn(),
+      },
+      fs: {
+        getDeepStatus: vi.fn().mockResolvedValue({ directStatus: {}, allEntries: [] }),
       },
       app: {
         openExternal: vi.fn(),
@@ -190,6 +199,9 @@ describe('useCommitDialogController file selection and filtering', () => {
         status: vi.fn().mockReturnValue(new Promise(() => {})),
         diff: vi.fn(),
       },
+      fs: {
+        getDeepStatus: vi.fn().mockReturnValue(new Promise(() => {})),
+      },
       app: {
         openExternal: vi.fn(),
       },
@@ -205,5 +217,89 @@ describe('useCommitDialogController file selection and filtering', () => {
     expect(renderDurationMs).toBeLessThan(100);
     expect(screen.getByRole('dialog', { name: /commit changes/i })).toBeTruthy();
     expect(screen.getByRole('status', { name: /loading files/i })).toBeTruthy();
+  });
+
+  it('refetches status when opened even if an empty status result is cached', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(['svn:status', 'C:\\wc'], { entries: [] });
+    const status = vi.fn().mockResolvedValue({ entries: statusEntries });
+    window.api = {
+      svn: {
+        status,
+        diff: vi.fn(),
+      },
+      fs: {
+        getDeepStatus: vi.fn().mockResolvedValue({ directStatus: {}, allEntries: [] }),
+      },
+      app: {
+        openExternal: vi.fn(),
+      },
+    } as unknown as Window['api'];
+
+    const { result } = renderHook(
+      () =>
+        useCommitDialogController({
+          isOpen: true,
+          workingCopyPath: 'C:\\wc',
+          onClose: vi.fn(),
+          onSubmit: vi.fn(),
+        }),
+      { wrapper: createWrapperWithClient(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(status).toHaveBeenCalled();
+      expect(result.current.files).toHaveLength(statusEntries.length);
+    });
+  });
+
+  it('falls back to deep status when SVN status returns no entries', async () => {
+    window.api = {
+      svn: {
+        status: vi.fn().mockResolvedValue({ entries: [] }),
+        diff: vi.fn(),
+      },
+      fs: {
+        getDeepStatus: vi.fn().mockResolvedValue({
+          directStatus: {},
+          allEntries: [
+            {
+              fullPath: 'C:\\wc\\src\\modified.ts',
+              status: 'M',
+              revision: 123,
+              author: 'dev',
+            },
+            {
+              fullPath: 'C:\\wc\\src\\added.ts',
+              status: 'A',
+            },
+          ],
+        }),
+      },
+      app: {
+        openExternal: vi.fn(),
+      },
+    } as unknown as Window['api'];
+
+    const { result } = renderHook(
+      () =>
+        useCommitDialogController({
+          isOpen: true,
+          workingCopyPath: 'C:\\wc',
+          onClose: vi.fn(),
+          onSubmit: vi.fn(),
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.files.map((file) => file.path)).toEqual([
+        'C:\\wc\\src\\modified.ts',
+        'C:\\wc\\src\\added.ts',
+      ]);
+    });
+    expect(result.current.selectedCount).toBe(2);
   });
 });

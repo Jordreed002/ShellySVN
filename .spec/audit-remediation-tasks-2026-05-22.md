@@ -14,15 +14,24 @@ This checklist is the execution plan for the performance, standards, and securit
 
 ## Commit Point 0 - Baseline And Planning
 
-- [ ] Confirm current dirty worktree and separate audit/planning files from active optimization code.
-- [ ] Decide whether to commit the existing status optimization changes before remediation begins.
-- [ ] Record the current failing `bun run check:boundaries` output in the commit or PR notes.
-- [ ] Commit this task list and the deep dive audit together, or explicitly keep them staged for the first remediation commit.
+- [x] Confirm current dirty worktree and separate audit/planning files from active optimization code.
+- [x] Decide whether to commit the existing status optimization changes before remediation begins.
+- [x] Record the current failing `bun run check:boundaries` output in the commit or PR notes.
+- [x] Commit this task list and the deep dive audit together, or explicitly keep them staged for the first remediation commit.
 
 Verification:
 
-- [ ] `git status --short`
-- [ ] `bun run check:boundaries` expected to fail until Commit Point 1 is complete.
+- [x] `git status --short`
+- [x] `bun run check:boundaries` expected to fail until Commit Point 1 is complete.
+
+Notes:
+
+- Baseline documentation was committed in `5479357`.
+- Existing optimization patch verification before remediation: `bun run typecheck`, `bun run lint`, `bun run build`, and targeted status/worker/filesystem Vitest suite passed.
+- Current boundary failure is limited to renderer tests importing main/preload modules:
+  `lock-conflict-recovery.test.tsx`, `performance/log-history.perf.test.ts`,
+  `performance/working-copy-status.perf.test.ts`, `text-conflict-detection.test.ts`,
+  and `tree-conflict-detection.test.tsx`.
 
 ## Commit Point 1 - Restore Architecture Boundary Gate
 

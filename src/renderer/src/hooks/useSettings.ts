@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DEFAULT_SETTINGS, mergeDeep, mergeSettings } from '@shared/settings-defaults';
 import type { AppSettings } from '@shared/types';
@@ -62,9 +63,10 @@ export function useSettings(): UseSettingsReturn {
       queryClient.setQueryData(['settings'], updated);
     },
   });
+  const { mutateAsync, isPending } = updateMutation;
 
   // Add a repository to recent list
-  const addRecentRepo = async (repoPath: string) => {
+  const addRecentRepo = useCallback(async (repoPath: string) => {
     // Read the latest cached value to avoid race conditions
     const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
     const currentRecents = current.recentRepositories || [];
@@ -75,59 +77,73 @@ export function useSettings(): UseSettingsReturn {
     // Add to beginning, limit to max
     const updated = [repoPath, ...filtered].slice(0, MAX_RECENT_REPOS);
 
-    await updateMutation.mutateAsync({ recentRepositories: updated });
-  };
+    await mutateAsync({ recentRepositories: updated });
+  }, [queryClient, mutateAsync]);
 
   // Remove a repository from recent list
-  const removeRecentRepo = async (repoPath: string) => {
+  const removeRecentRepo = useCallback(async (repoPath: string) => {
     // Read the latest cached value to avoid race conditions
     const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
     const updated = (current.recentRepositories || []).filter((p) => p !== repoPath);
-    await updateMutation.mutateAsync({ recentRepositories: updated });
-  };
+    await mutateAsync({ recentRepositories: updated });
+  }, [queryClient, mutateAsync]);
 
   // Add a path to recent paths
-  const addRecentPath = async (path: string) => {
+  const addRecentPath = useCallback(async (path: string) => {
     const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
     const currentPaths = current.recentPaths || [];
     const filtered = currentPaths.filter((p) => p !== path);
     const updated = [path, ...filtered].slice(0, MAX_RECENT_PATHS);
-    await updateMutation.mutateAsync({ recentPaths: updated });
-  };
+    await mutateAsync({ recentPaths: updated });
+  }, [queryClient, mutateAsync]);
 
   // Add a bookmark
-  const addBookmark = async (path: string, name: string) => {
+  const addBookmark = useCallback(async (path: string, name: string) => {
     const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
     const currentBookmarks = current.bookmarks || [];
     // Check if already bookmarked
     if (currentBookmarks.some((b) => b.path === path)) return;
     const newBookmark = { path, name, addedAt: Date.now() };
     const updated = [newBookmark, ...currentBookmarks].slice(0, MAX_BOOKMARKS);
-    await updateMutation.mutateAsync({ bookmarks: updated });
-  };
+    await mutateAsync({ bookmarks: updated });
+  }, [queryClient, mutateAsync]);
 
   // Remove a bookmark
-  const removeBookmark = async (path: string) => {
+  const removeBookmark = useCallback(async (path: string) => {
     const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
     const updated = (current.bookmarks || []).filter((b) => b.path !== path);
-    await updateMutation.mutateAsync({ bookmarks: updated });
-  };
+    await mutateAsync({ bookmarks: updated });
+  }, [queryClient, mutateAsync]);
 
   // Update any setting
-  const updateSettings = async (updates: DeepPartial<AppSettings>) => {
-    return updateMutation.mutateAsync(updates);
-  };
+  const updateSettings = useCallback(async (updates: DeepPartial<AppSettings>) => {
+    return mutateAsync(updates);
+  }, [mutateAsync]);
 
-  return {
-    settings: settings || DEFAULT_SETTINGS,
-    isLoading,
-    error,
-    updateSettings,
-    addRecentRepo,
-    removeRecentRepo,
-    addRecentPath,
-    addBookmark,
-    removeBookmark,
-    isUpdating: updateMutation.isPending,
-  };
+  return useMemo(
+    () => ({
+      settings: settings || DEFAULT_SETTINGS,
+      isLoading,
+      error,
+      updateSettings,
+      addRecentRepo,
+      removeRecentRepo,
+      addRecentPath,
+      addBookmark,
+      removeBookmark,
+      isUpdating: isPending,
+    }),
+    [
+      settings,
+      isLoading,
+      error,
+      updateSettings,
+      addRecentRepo,
+      removeRecentRepo,
+      addRecentPath,
+      addBookmark,
+      removeBookmark,
+      isPending,
+    ]
+  );
 }

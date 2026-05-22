@@ -34,7 +34,9 @@ interface QueuedJob<N extends WorkerJobName = WorkerJobName> {
 interface ActiveJob {
   worker: Worker;
   timeout: NodeJS.Timeout | null;
+  resolve: (result: WorkerJobResultMap[WorkerJobName]) => void;
   reject: (error: Error) => void;
+  onProgress?: (progress: WorkerProgressEvent) => void;
 }
 
 export interface WorkerPoolOptions {
@@ -98,6 +100,7 @@ export class WorkerPool {
   private readonly workerScript: string;
   private readonly queue: QueuedJob[] = [];
   private readonly activeJobs = new Map<string, ActiveJob>();
+  private readonly workers = new Set<Worker>();
   private shuttingDown = false;
 
   constructor(options: WorkerPoolOptions = {}) {
@@ -147,6 +150,7 @@ export class WorkerPool {
       return false;
     }
 
+    // oxlint-disable-next-line eslint-plugin-unicorn(require-post-message-target-origin)
     active.worker.postMessage({ type: 'cancel', id });
     return true;
   }
@@ -166,13 +170,66 @@ export class WorkerPool {
 
   private startNext() {
     while (this.activeJobs.size < this.maxWorkers && this.queue.length > 0) {
+      const worker = this.getIdleWorker() ?? this.createWorker();
+      if (!worker) {
+        return;
+      }
       const job = this.queue.shift()!;
-      this.startJob(job);
+      this.startJob(worker, job);
     }
   }
 
-  private startJob<N extends WorkerJobName>(job: QueuedJob<N>) {
+  private getIdleWorker(): Worker | null {
+    for (const worker of this.workers) {
+      const busy = Array.from(this.activeJobs.values()).some((job) => job.worker === worker);
+      if (!busy) {
+        return worker;
+      }
+    }
+
+    return null;
+  }
+
+  private createWorker(): Worker | null {
+    if (this.workers.size >= this.maxWorkers || this.shuttingDown) {
+      return null;
+    }
+
     const worker = new Worker(this.workerScript);
+    this.workers.add(worker);
+
+    worker.on('message', (message: WorkerChildMessage) => {
+      const active = this.activeJobs.get(message.id);
+      if (!active || active.worker !== worker) return;
+
+      if (message.type === 'progress') {
+        active.onProgress?.(message.progress);
+      } else if (message.type === 'result') {
+        this.resolveJob(message.id, message.result as WorkerJobResultMap[WorkerJobName]);
+      } else {
+        this.rejectJob(message.id, new Error(message.error));
+      }
+    });
+
+    worker.on('error', (error) => {
+      this.rejectJobsForWorker(worker, error);
+      this.workers.delete(worker);
+      void worker.terminate();
+      this.startNext();
+    });
+
+    worker.on('exit', (code) => {
+      this.workers.delete(worker);
+      if (code !== 0 && !this.shuttingDown) {
+        this.rejectJobsForWorker(worker, new Error(`Worker exited with code ${code}`));
+      }
+      this.startNext();
+    });
+
+    return worker;
+  }
+
+  private startJob<N extends WorkerJobName>(worker: Worker, job: QueuedJob<N>) {
     let settled = false;
     let timeout: NodeJS.Timeout | null = null;
 
@@ -181,8 +238,6 @@ export class WorkerPool {
         clearTimeout(timeout);
       }
       this.activeJobs.delete(job.id);
-      worker.removeAllListeners();
-      void worker.terminate();
       this.startNext();
     };
 
@@ -200,38 +255,64 @@ export class WorkerPool {
       job.resolve(result);
     };
 
-    worker.on('message', (message: WorkerChildMessage) => {
-      if (message.id !== job.id) return;
-
-      if (message.type === 'progress') {
-        job.onProgress?.(message.progress);
-      } else if (message.type === 'result') {
-        resolve(message.result as WorkerJobResultMap[N]);
-      } else {
-        reject(new Error(message.error));
-      }
-    });
-
-    worker.on('error', (error) => reject(error));
-    worker.on('exit', (code) => {
-      if (code !== 0 && !settled) {
-        reject(new Error(`Worker exited with code ${code}`));
-      }
-    });
-
     if (job.timeoutMs && job.timeoutMs > 0) {
       timeout = setTimeout(() => {
+        // oxlint-disable-next-line eslint-plugin-unicorn(require-post-message-target-origin)
         worker.postMessage({ type: 'cancel', id: job.id });
+        this.workers.delete(worker);
+        void worker.terminate();
         reject(new Error(`Worker job timed out after ${job.timeoutMs}ms`));
       }, job.timeoutMs);
     }
 
-    this.activeJobs.set(job.id, { worker, timeout, reject });
+    this.activeJobs.set(job.id, {
+      worker,
+      timeout,
+      reject,
+      resolve: resolve as (result: WorkerJobResultMap[WorkerJobName]) => void,
+      onProgress: job.onProgress,
+    });
+    // oxlint-disable eslint-plugin-unicorn(require-post-message-target-origin)
     worker.postMessage({
       id: job.id,
       name: job.name,
       payload: job.payload,
     });
+    // oxlint-enable eslint-plugin-unicorn(require-post-message-target-origin)
+  }
+
+  private resolveJob(id: string, result: WorkerJobResultMap[WorkerJobName]) {
+    const active = this.activeJobs.get(id);
+    if (!active) return;
+
+    if (active.timeout) {
+      clearTimeout(active.timeout);
+    }
+    this.activeJobs.delete(id);
+    active.resolve(result);
+  }
+
+  private rejectJob(id: string, error: Error) {
+    const active = this.activeJobs.get(id);
+    if (!active) return;
+
+    if (active.timeout) {
+      clearTimeout(active.timeout);
+    }
+    this.activeJobs.delete(id);
+    active.reject(error);
+  }
+
+  private rejectJobsForWorker(worker: Worker, error: Error) {
+    for (const [id, active] of Array.from(this.activeJobs.entries())) {
+      if (active.worker === worker) {
+        if (active.timeout) {
+          clearTimeout(active.timeout);
+        }
+        this.activeJobs.delete(id);
+        active.reject(error);
+      }
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -247,13 +328,17 @@ export class WorkerPool {
       if (active.timeout) {
         clearTimeout(active.timeout);
       }
-      active.worker.removeAllListeners();
       active.reject(new WorkerJobCancelledError('Worker pool is shutting down'));
+      // oxlint-disable-next-line eslint-plugin-unicorn(require-post-message-target-origin)
       active.worker.postMessage({ type: 'cancel', id });
-      terminations.push(active.worker.terminate());
     }
 
     this.activeJobs.clear();
+    for (const worker of this.workers) {
+      worker.removeAllListeners();
+      terminations.push(worker.terminate());
+    }
+    this.workers.clear();
     await Promise.allSettled(terminations);
   }
 }

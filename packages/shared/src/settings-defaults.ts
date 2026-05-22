@@ -64,7 +64,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   fileListHeight: 'fill',
   accentColor: '#6366f1',
   compactFileRows: false,
-  animationSpeed: 'normal',
+  animationSpeed: 'none',
   showThumbnails: false,
   showFolderSizes: false,
   bookmarks: [],

@@ -180,6 +180,28 @@ describe('WorkerPool', () => {
     expect(pool.getStateForTests()).toMatchObject({ activeCount: 0, queuedCount: 0 });
   });
 
+  it('uses a fresh worker after a timed-out job', async () => {
+    const pool = new WorkerPool({ maxWorkers: 1, workerScript });
+
+    const timedOut = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/a', svnCommand: 'svn', context: {} },
+      { id: 'timed-out', timeoutMs: 1 }
+    );
+
+    await expect(timedOut).rejects.toThrow('Worker job timed out');
+
+    await expect(
+      pool.run(
+        'svn:deepStatus',
+        { dirPath: '/repo/b', svnCommand: 'svn', context: {} },
+        { id: 'after-timeout' }
+      )
+    ).resolves.toMatchObject({
+      allEntries: [expect.objectContaining({ fullPath: '/repo/b/file.txt' })],
+    });
+  });
+
   it('rejects jobs when a worker crashes', async () => {
     const crashWorkerScript = join(tempDir, 'crash-worker.cjs');
     await writeFile(

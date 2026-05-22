@@ -740,6 +740,15 @@ body {
   /* Default - no override needed */
 }
 
+@media (prefers-reduced-motion: reduce) {
+  :root:not(.animations-normal) *,
+  :root:not(.animations-normal)::before,
+  :root:not(.animations-normal)::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
 /* Font Size Variants */
 .font-size-small {
   font-size: 13px;

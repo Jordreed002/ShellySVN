@@ -22,6 +22,7 @@ export interface FsSvnStatusResult {
 }
 
 export type WorkerJobName =
+  | 'fs:folderSizes'
   | 'svn:deepStatus'
   | 'svn:fsStatus'
   | 'svn:workingCopyStatus'
@@ -41,6 +42,10 @@ export interface StatusPayload {
 }
 
 export type DeepStatusPayload = StatusPayload;
+
+export interface FolderSizesPayload {
+  folderPaths: string[];
+}
 
 export interface DiffPayload {
   path: string;
@@ -75,6 +80,7 @@ export interface BlamePayload {
 }
 
 export type WorkerJobPayloadMap = {
+  'fs:folderSizes': FolderSizesPayload;
   'svn:deepStatus': DeepStatusPayload;
   'svn:fsStatus': StatusPayload;
   'svn:workingCopyStatus': StatusPayload;
@@ -86,6 +92,7 @@ export type WorkerJobPayloadMap = {
 };
 
 export type WorkerJobResultMap = {
+  'fs:folderSizes': Record<string, number>;
   'svn:deepStatus': FsSvnStatusResult;
   'svn:fsStatus': FsSvnStatusResult;
   'svn:workingCopyStatus': SvnStatusResult;

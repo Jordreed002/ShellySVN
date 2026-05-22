@@ -4,6 +4,7 @@ import type {
   CheckoutOptions,
   CheckoutProgress,
   ConfirmDialogOptions,
+  DeepStatusProgress,
   DirectoryMetadataResult,
   FileFilter,
   FileInfo,
@@ -326,6 +327,7 @@ export type IpcEventContract = {
   'svn:update:progress': CheckoutProgress & { updateId?: string };
   'svn:operation:progress': SvnOperationProgress;
   'fs:watch:change': { path: string; eventType: string; changedPath: string };
+  'fs:deepStatus:progress': DeepStatusProgress;
   'deep-link': {
     action: string;
     params: Record<string, string>;

@@ -97,9 +97,11 @@ export function useVisualSettings(settings: AppSettings | undefined) {
     const root = document.documentElement;
     root.classList.remove('animations-none', 'animations-fast', 'animations-normal');
 
-    if (settings?.animationSpeed === 'none') {
+    const animationSpeed = settings?.animationSpeed ?? 'none';
+
+    if (animationSpeed === 'none') {
       root.classList.add('animations-none');
-    } else if (settings?.animationSpeed === 'fast') {
+    } else if (animationSpeed === 'fast') {
       root.classList.add('animations-fast');
     } else {
       root.classList.add('animations-normal');

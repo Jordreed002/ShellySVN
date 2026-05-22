@@ -17,6 +17,7 @@ import { registerNotificationHandlers } from './ipc/notification';
 import { registerWebhookHandlers } from './ipc/webhook';
 import { openValidatedExternalUrl } from './utils/external-url';
 import { shutdownSharedWorkerPool } from './workers/WorkerPool';
+import { startLocalStatusServer, stopLocalStatusServer } from './services/local-status-server';
 
 let mainWindow: BrowserWindow | null = null;
 const isSmokeTest = process.argv.includes('--smoke-test');
@@ -139,6 +140,9 @@ app.whenReady().then(() => {
   registerShellIntegrationHandlers();
   registerNotificationHandlers();
   registerWebhookHandlers();
+  startLocalStatusServer(app.getPath('userData')).catch((error) => {
+    console.error('[StatusService] Failed to start local status server:', error);
+  });
 
   // Setup deep link protocol handler
   setupProtocolHandler();
@@ -188,6 +192,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  void stopLocalStatusServer();
   void shutdownSharedWorkerPool();
 });
 

@@ -669,6 +669,17 @@ export interface FsStatusResult {
   allEntries: { status: SvnStatusChar; fullPath: string; revision?: number; author?: string }[];
 }
 
+export interface DeepStatusProgress {
+  path: string;
+  jobId: string;
+  phase: 'queued' | 'running' | 'complete' | 'cancelled' | 'error';
+  activeScans: number;
+  queuedScans: number;
+  elapsedMs: number;
+  filesFound?: number;
+  error?: string;
+}
+
 export interface DirectoryMetadataResult {
   parentPath: string | null;
   isVersioned: boolean;
@@ -945,6 +956,7 @@ export interface ElectronAPI {
     getParent: (path: string) => Promise<string | null>;
     getStatus: (path: string) => Promise<FsStatusResult>;
     getDeepStatus: (path: string) => Promise<FsStatusResult>;
+    onDeepStatusProgress: (callback: (progress: DeepStatusProgress) => void) => () => void;
     applyStatus: (
       files: FileInfo[],
       directStatus: FsStatusResult['directStatus'],

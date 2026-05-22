@@ -11,8 +11,8 @@ import {
   Suspense,
   useDeferredValue,
 } from 'react';
-import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Settings, Upload } from 'lucide-react';
-import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
+import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Upload } from 'lucide-react';
+import type { DeepStatusProgress, SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
@@ -24,9 +24,10 @@ import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
 import { useFolderSizes } from '../hooks/useFolderSizes';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
-import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
+import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
+import { SettingsDialog } from './ui/SettingsDialog';
 import {
   DraggableFileRow,
   performSvnOperation,
@@ -49,9 +50,6 @@ const FilePreview = lazy(() =>
   import('./ui/FilePreview').then((m) => ({ default: m.FilePreview }))
 );
 const LogViewer = lazy(() => import('./ui/LogViewer').then((m) => ({ default: m.LogViewer })));
-const loadSettingsDialog = () =>
-  import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }));
-const SettingsDialog = lazy(loadSettingsDialog);
 const UpdateToRevisionDialog = lazy(() =>
   import('./ui/UpdateToRevisionDialog').then((m) => ({ default: m.UpdateToRevisionDialog }))
 );
@@ -168,37 +166,6 @@ function CommitDialogLoader() {
   );
 }
 
-function SettingsDialogLoader() {
-  return (
-    <div className="modal-overlay" role="presentation">
-      <div className="modal w-[820px] h-[680px] flex" role="dialog" aria-modal="true">
-        <div className="w-[180px] flex-shrink-0 bg-bg-tertiary border-r border-border flex flex-col">
-          <div className="px-4 py-4 border-b border-border">
-            <h2 className="text-lg font-semibold text-text flex items-center gap-2">
-              <Settings className="w-5 h-5 text-accent" aria-hidden="true" />
-              Settings
-            </h2>
-          </div>
-          <div className="flex-1 py-2 px-3 space-y-2">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div key={index} className="h-8 rounded bg-bg-elevated animate-pulse" />
-            ))}
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <div className="h-5 w-24 rounded bg-bg-elevated animate-pulse" />
-          </div>
-          <div className="flex-1 flex items-center justify-center">
-            <Loader className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
-            <span className="sr-only">Loading settings...</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   if ('requestIdleCallback' in window) {
     const id = window.requestIdleCallback(callback, { timeout });
@@ -220,11 +187,6 @@ export function FileExplorer() {
   const queryClient = useQueryClient();
   const parentRef = useRef<HTMLDivElement>(null);
   const { settings, addRecentPath, addBookmark, removeBookmark } = useSettings();
-
-  // Performance monitoring for SVN operations
-  const { startMetric, endMetric } = usePerformanceMonitor({
-    enabled: true,
-  });
 
   // Track recent paths on navigation
   useEffect(() => {
@@ -280,6 +242,7 @@ export function FileExplorer() {
   const [repoBrowserUrl, setRepoBrowserUrl] = useState<string | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [resolveEntry, setResolveEntry] = useState<SvnStatusEntry | null>(null);
+  const [deepStatusProgress, setDeepStatusProgress] = useState<DeepStatusProgress | null>(null);
   const [moveRenameTarget, setMoveRenameTarget] = useState<{
     path: string;
     mode: 'move' | 'rename';
@@ -353,8 +316,22 @@ export function FileExplorer() {
     refetchOnWindowFocus: false,
   });
 
+  useEffect(() => {
+    setDeepStatusProgress(null);
+    if (!path || path === 'DRIVES://') return;
+
+    return window.api.fs.onDeepStatusProgress((progress) => {
+      if (progress.path !== path) return;
+      setDeepStatusProgress(progress);
+    });
+  }, [path]);
+
   const effectiveRepoRoot = svnInfo?.repositoryRoot || workingCopyContext?.repositoryRoot;
   const effectiveUrl = svnInfo?.url || workingCopyContext?.url;
+
+  const invalidateCurrentPath = useCallback(() => {
+    invalidateWorkingCopyViews(queryClient, path);
+  }, [path, queryClient]);
 
   const handleUpgradeWorkingCopy = useCallback(async () => {
     if (!path || path === 'DRIVES://') return;
@@ -377,10 +354,7 @@ export function FileExplorer() {
         });
         queryClient.invalidateQueries({ queryKey: ['svn:workingCopyUpgradeStatus', path] });
         queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
+        invalidateCurrentPath();
       } else {
         await showAppMessage({
           type: 'error',
@@ -391,7 +365,7 @@ export function FileExplorer() {
     } finally {
       setIsUpgradingWorkingCopy(false);
     }
-  }, [path, queryClient]);
+  }, [path, queryClient, invalidateCurrentPath]);
 
   const onlineUrl = useMemo(() => {
     if (!effectiveRepoRoot) return '';
@@ -566,43 +540,6 @@ export function FileExplorer() {
     return (files || []).map(fileInfoToEntry);
   }, [files]);
 
-  // Performance tracking: Track file count when entries are loaded
-  useEffect(() => {
-    if (entries.length > 0) {
-      // Record file count as a quick metric with the 'scan' category
-      const metricId = startMetric('file-count', 'scan', { count: entries.length, path });
-      endMetric(metricId, { count: entries.length });
-    }
-  }, [entries.length, startMetric, endMetric, path]);
-
-  // Performance tracking: Track SVN status fetch timing
-  const statusMetricIdRef = useRef<string>('');
-  useEffect(() => {
-    if (isLoadingStatus && !statusMetricIdRef.current) {
-      statusMetricIdRef.current = startMetric('status-fetch', 'scan', { path });
-    } else if (!isLoadingStatus && statusMetricIdRef.current) {
-      endMetric(statusMetricIdRef.current, {
-        fileCount: entries.length,
-        success: !error,
-      });
-      statusMetricIdRef.current = '';
-    }
-  }, [isLoadingStatus, startMetric, endMetric, entries.length, path, error]);
-
-  // Performance tracking: Track deep status fetch timing
-  const deepStatusMetricIdRef = useRef<string>('');
-  useEffect(() => {
-    if (isLoadingDeep && !deepStatusMetricIdRef.current) {
-      deepStatusMetricIdRef.current = startMetric('deep-status-fetch', 'scan', { path });
-    } else if (!isLoadingDeep && deepStatusMetricIdRef.current) {
-      endMetric(deepStatusMetricIdRef.current, {
-        fileCount: entries.length,
-        success: true,
-      });
-      deepStatusMetricIdRef.current = '';
-    }
-  }, [isLoadingDeep, startMetric, endMetric, entries.length, path]);
-
   // Calculate folder sizes when enabled
   const { folderSizes } = useFolderSizes(entries, settings.showFolderSizes);
 
@@ -654,22 +591,25 @@ export function FileExplorer() {
     handleSelect,
   } = useFileExplorerSelection(filteredEntries);
 
+  const filteredEntryByPath = useMemo(() => {
+    const map = new Map<string, SvnStatusEntry>();
+    for (const entry of filteredEntries) {
+      map.set(entry.path, entry);
+    }
+    return map;
+  }, [filteredEntries]);
+
   // SVN Actions - get first selected entry for single-file actions
   const selectedEntry = useMemo(() => {
     const firstSelected = Array.from(selectedPaths)[0];
     if (!firstSelected) return null;
-    return filteredEntries.find((e) => e.path === firstSelected) || null;
-  }, [selectedPaths, filteredEntries]);
+    return filteredEntryByPath.get(firstSelected) || null;
+  }, [selectedPaths, filteredEntryByPath]);
 
   const actions = useFileExplorerActions(
     path || '',
     selectedEntry,
-    () => {
-      queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-      queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-      queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-      queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
-    },
+    invalidateCurrentPath,
     selectedPaths
   );
   const operationContextRef = useRef({ actions, path, queryClient, selectedEntry });
@@ -832,12 +772,7 @@ export function FileExplorer() {
         `Copy ${context.selectedEntry.path}`
       );
       if (result.success) {
-        context.queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', context.path] });
-        context.queryClient.invalidateQueries({
-          queryKey: ['fs:getDirectoryMetadata', context.path],
-        });
-        context.queryClient.invalidateQueries({ queryKey: ['fs:getStatus', context.path] });
-        context.queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', context.path] });
+        invalidateWorkingCopyViews(context.queryClient, context.path);
       }
     };
     const handleRename = () => {
@@ -1010,10 +945,7 @@ export function FileExplorer() {
         if (!destination) return;
         const result = await window.api.svn.copy(entry.path, destination, `Copy ${entry.path}`);
         if (result.success) {
-          queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-          queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+          invalidateCurrentPath();
         }
       },
       onRename: (entry: SvnStatusEntry) => {
@@ -1075,8 +1007,7 @@ export function FileExplorer() {
           }
           const result = await actions.lock(entry.path, message || undefined);
           if (result.success) {
-            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
+            invalidateWorkingCopyViews(queryClient, path, { includeParents: false, scope: 'status' });
           } else {
             await showAppMessage({
               type: 'error',
@@ -1090,8 +1021,7 @@ export function FileExplorer() {
         if (!entry.isDirectory) {
           const result = await actions.unlock(entry.path);
           if (result.success) {
-            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
+            invalidateWorkingCopyViews(queryClient, path, { includeParents: false, scope: 'status' });
           } else {
             await showAppMessage({
               type: 'error',
@@ -1128,8 +1058,7 @@ export function FileExplorer() {
               type: 'info',
               message: 'Cleanup completed successfully.',
             });
-            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
+            invalidateWorkingCopyViews(queryClient, path, { includeParents: false, scope: 'status' });
           } else {
             await showAppMessage({
               type: 'error',
@@ -1148,6 +1077,7 @@ export function FileExplorer() {
       actions,
       path,
       queryClient,
+      invalidateCurrentPath,
       setBranchTagPath,
       setBranchTagMode,
       setSwitchPath,
@@ -1194,10 +1124,7 @@ export function FileExplorer() {
             setDepthSticky
           );
           if (result.success) {
-            queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+            invalidateCurrentPath();
             queryClient.invalidateQueries({ queryKey: ['svn:list'] });
           }
           return result;
@@ -1212,10 +1139,7 @@ export function FileExplorer() {
         try {
           const result = await window.api.svn.updateItem(entry.path);
           if (result.success) {
-            queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+            invalidateCurrentPath();
             queryClient.invalidateQueries({ queryKey: ['svn:list'] });
           }
           return result;
@@ -1237,6 +1161,7 @@ export function FileExplorer() {
       effectiveRepoRoot,
       effectiveUrl,
       queryClient,
+      invalidateCurrentPath,
     ]
   );
 
@@ -1244,13 +1169,10 @@ export function FileExplorer() {
     async (sources: string[], target: string, operation: DragDropOperation) => {
       const success = await performSvnOperation(sources, target, operation);
       if (success) {
-        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-        queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+        invalidateCurrentPath();
       }
     },
-    [path, queryClient]
+    [invalidateCurrentPath]
   );
 
   const hasChanges = entries.some((e) => ['M', 'A', 'D', 'C'].includes(e.status));
@@ -1263,7 +1185,6 @@ export function FileExplorer() {
 
   useEffect(() => {
     return runWhenIdle(() => {
-      void loadSettingsDialog();
       void loadCommitDialog();
     });
   }, []);
@@ -1275,6 +1196,25 @@ export function FileExplorer() {
     isLoadingOnline ||
     isLoadingRemoteItems ||
     actions.isUpdating;
+  const deepStatusMessage = useMemo(() => {
+    if (!isLoadingDeep && deepStatusProgress?.phase !== 'complete') return null;
+    if (!deepStatusProgress) return isLoadingDeep ? 'Calculating folder status...' : null;
+
+    switch (deepStatusProgress.phase) {
+      case 'queued':
+        return 'Folder status scan queued...';
+      case 'running':
+        return `Calculating folder status... ${Math.max(1, Math.round(deepStatusProgress.elapsedMs / 1000))}s`;
+      case 'complete':
+        return deepStatusProgress.filesFound !== undefined
+          ? `Folder status indexed ${deepStatusProgress.filesFound} changes`
+          : null;
+      case 'cancelled':
+        return null;
+      case 'error':
+        return 'Folder status scan failed';
+    }
+  }, [deepStatusProgress, isLoadingDeep]);
 
   // Empty state - show when no path is set
   if (!path) {
@@ -1377,10 +1317,7 @@ export function FileExplorer() {
         {/* Toolbar */}
         <Toolbar
           onRefresh={() => {
-            queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-            queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+            invalidateCurrentPath();
             queryClient.invalidateQueries({ queryKey: ['fs:isVersioned', path] });
             queryClient.invalidateQueries({ queryKey: ['svn:workingCopyUpgradeStatus', path] });
           }}
@@ -1413,10 +1350,7 @@ export function FileExplorer() {
               `Copy ${selectedEntry.path}`
             );
             if (result.success) {
-              queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+              invalidateCurrentPath();
             }
           }}
           onRename={() => {
@@ -1441,7 +1375,6 @@ export function FileExplorer() {
           isBookmarked={isBookmarked}
           onToggleBookmark={handleToggleBookmark}
           onCommitPreload={() => void loadCommitDialog()}
-          onSettingsPreload={() => void loadSettingsDialog()}
           onSettings={() => setSettingsDialogOpen(true)}
           onDiagnostics={() => setDiagnosticsOpen(true)}
           browseMode={browseMode}
@@ -1608,7 +1541,7 @@ export function FileExplorer() {
                 {entries.filter((e) => e.status === 'M').length || 0} modified
               </span>
             )}
-            {isLoadingDeep && <span className="text-accent">Calculating folder status...</span>}
+            {deepStatusMessage && <span className="text-accent">{deepStatusMessage}</span>}
           </div>
           <span className="text-text-faint">{path}</span>
         </div>
@@ -1660,12 +1593,7 @@ export function FileExplorer() {
       )}
 
       {settingsDialogOpen && (
-        <Suspense fallback={<SettingsDialogLoader />}>
-          <SettingsDialog
-            isOpen={settingsDialogOpen}
-            onClose={() => setSettingsDialogOpen(false)}
-          />
-        </Suspense>
+        <SettingsDialog isOpen={settingsDialogOpen} onClose={() => setSettingsDialogOpen(false)} />
       )}
 
       {updateDialogOpen && (
@@ -1704,7 +1632,10 @@ export function FileExplorer() {
             mode={branchTagMode}
             onComplete={() => {
               setBranchTagPath(null);
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
+              invalidateWorkingCopyViews(queryClient, path, {
+                includeParents: false,
+                scope: 'directory',
+              });
               queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
             }}
           />
@@ -1731,8 +1662,10 @@ export function FileExplorer() {
             currentUrl={svnInfo?.url}
             onComplete={() => {
               setSwitchPath(null);
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              invalidateWorkingCopyViews(queryClient, path, {
+                includeParents: false,
+                scope: 'status',
+              });
             }}
           />
         </Suspense>
@@ -1747,9 +1680,10 @@ export function FileExplorer() {
             targetPath={mergePath}
             onComplete={() => {
               setMergePath(null);
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+              invalidateWorkingCopyViews(queryClient, path, {
+                includeParents: false,
+                scope: 'status',
+              });
             }}
           />
         </Suspense>
@@ -1765,7 +1699,10 @@ export function FileExplorer() {
             currentUrl={svnInfo?.url}
             onSuccess={() => {
               setRelocatePath(null);
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
+              invalidateWorkingCopyViews(queryClient, path, {
+                includeParents: false,
+                scope: 'directory',
+              });
               queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
             }}
           />
@@ -1827,8 +1764,10 @@ export function FileExplorer() {
             targetPath={applyPatchPath}
             onComplete={() => {
               setApplyPatchPath(null);
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              invalidateWorkingCopyViews(queryClient, path, {
+                includeParents: false,
+                scope: 'status',
+              });
             }}
           />
         </Suspense>
@@ -1869,8 +1808,10 @@ export function FileExplorer() {
                 );
 
                 setIgnoreEntry(null);
-                queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-                queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+                invalidateWorkingCopyViews(queryClient, path, {
+                  includeParents: false,
+                  scope: 'status',
+                });
               } catch (setIgnoreError) {
                 console.error('Failed to set svn:ignore:', setIgnoreError);
               }
@@ -1909,8 +1850,10 @@ export function FileExplorer() {
             workingCopyPath={lockManagementPath}
             onClose={() => setLockManagementPath(null)}
             onRefresh={() => {
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              invalidateWorkingCopyViews(queryClient, path, {
+                includeParents: false,
+                scope: 'status',
+              });
             }}
           />
         </Suspense>
@@ -1958,10 +1901,7 @@ export function FileExplorer() {
             mode={moveRenameTarget.mode}
             onClose={() => setMoveRenameTarget(null)}
             onSuccess={() => {
-              queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+              invalidateCurrentPath();
             }}
           />
         </Suspense>
@@ -1978,8 +1918,10 @@ export function FileExplorer() {
             onResolve={async (resolution) => {
               await actions.handleResolveSelected(resolution);
               setResolveEntry(null);
-              queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-              queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+              invalidateWorkingCopyViews(queryClient, path, {
+                includeParents: false,
+                scope: 'status',
+              });
             }}
           />
         </Suspense>

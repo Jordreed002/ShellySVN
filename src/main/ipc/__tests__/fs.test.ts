@@ -48,6 +48,8 @@ const mockState = vi.hoisted(() => ({
     isDirectory: () => false,
     size: 100,
   }),
+  workerRun: vi.fn().mockResolvedValue({}),
+  workerCancel: vi.fn().mockReturnValue(true),
 }));
 
 // Mock electron module
@@ -110,6 +112,13 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
+vi.mock('../../workers/WorkerPool', () => ({
+  getSharedWorkerPool: () => ({
+    run: mockState.workerRun,
+    cancel: mockState.workerCancel,
+  }),
+}));
+
 // Import after mocking
 import { registerFsHandlers, applySvnStatusToFiles } from '../fs';
 import { approvePathForIpc, clearApprovedPathsForTests } from '../../utils/approved-paths';
@@ -156,6 +165,8 @@ describe('FS IPC Handlers', () => {
       isDirectory: () => false,
       size: 100,
     });
+    mockState.workerRun.mockResolvedValue({});
+    mockState.workerCancel.mockReturnValue(true);
 
     // Capture registered handlers
     mockState.ipcMainHandle.mockImplementation((channel: string, handler: (...args: unknown[]) => unknown) => {
@@ -573,18 +584,28 @@ describe('FS IPC Handlers', () => {
       approvePathForIpc('/folder1');
       approvePathForIpc('/folder2');
 
-      mockState.readdir.mockResolvedValue([]);
-      mockState.stat.mockResolvedValue({
-        isFile: () => true,
-        isDirectory: () => false,
-        size: 100,
-        mtime: new Date(),
+      mockState.workerRun.mockResolvedValue({
+        '/folder1': 100,
+        '/folder2': 200,
       });
 
       const handler = handlers.get('fs:getFolderSizes');
       const result = (await handler!({}, ['/folder1', '/folder2'])) as Record<string, number>;
 
-      expect(typeof result).toBe('object');
+      expect(result).toEqual({
+        '/folder1': 100,
+        '/folder2': 200,
+      });
+      expect(mockState.workerRun).toHaveBeenCalledWith(
+        'fs:folderSizes',
+        {
+          folderPaths: [
+            expect.stringContaining('folder1'),
+            expect.stringContaining('folder2'),
+          ],
+        },
+        expect.objectContaining({ priority: 'background' })
+      );
     });
   });
 });

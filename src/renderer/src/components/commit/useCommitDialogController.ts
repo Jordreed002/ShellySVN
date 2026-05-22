@@ -10,7 +10,7 @@ import { getCommitWarnings } from '@renderer/utils/commitWarnings';
 import { validateCommitRules } from '@renderer/utils/commitRules';
 import { extractIssueLinks } from '@renderer/utils/issueTracker';
 import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
-import type { SvnStatusChar } from '@shared/types';
+import type { FsStatusResult, SvnStatusChar, SvnStatusEntry } from '@shared/types';
 import type { AutocompleteOption } from '../ui/AutoCompleteInput';
 import type { DiffViewMode } from '../ui/EnhancedDiffViewer';
 
@@ -68,6 +68,18 @@ const openIssue = (url?: string) => {
   void window.api.app.openExternal(url);
 };
 
+function deepStatusToEntries(deepStatus?: FsStatusResult): SvnStatusEntry[] {
+  if (!deepStatus?.allEntries.length) return [];
+
+  return deepStatus.allEntries.map((entry) => ({
+    path: entry.fullPath,
+    status: entry.status,
+    revision: entry.revision,
+    author: entry.author,
+    isDirectory: false,
+  }));
+}
+
 export function useCommitDialogController({
   isOpen,
   workingCopyPath,
@@ -120,17 +132,41 @@ export function useCommitDialogController({
 
   const {
     data: statusData,
-    isLoading: isLoadingStatus,
+    isLoading: isLoadingSvnStatus,
     refetch,
   } = useQuery({
     queryKey: ['svn:status', workingCopyPath],
     queryFn: ({ signal }) => window.api.svn.status(workingCopyPath, { signal }),
     enabled: isOpen && !!workingCopyPath,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
   });
 
+  const {
+    data: deepStatusData,
+    isLoading: isLoadingDeepStatus,
+    refetch: refetchDeepStatus,
+  } = useQuery({
+    queryKey: ['fs:getDeepStatus', workingCopyPath],
+    queryFn: () => window.api.fs.getDeepStatus(workingCopyPath),
+    enabled: isOpen && !!workingCopyPath,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+  });
+
+  const statusEntries = useMemo(
+    () =>
+      statusData?.entries?.length ? statusData.entries : deepStatusToEntries(deepStatusData),
+    [deepStatusData, statusData?.entries]
+  );
+  const isLoadingStatus =
+    isLoadingSvnStatus || (statusEntries.length === 0 && isLoadingDeepStatus);
+
   useEffect(() => {
-    if (statusData?.entries) {
-      const commitFiles = statusData.entries
+    if (statusEntries.length > 0) {
+      const commitFiles = statusEntries
         .filter(
           (entry) =>
             canCommitStatus(entry.status, entry.propsStatus) ||
@@ -152,8 +188,10 @@ export function useCommitDialogController({
           };
         });
       setFiles(commitFiles);
+    } else if (isOpen) {
+      setFiles([]);
     }
-  }, [statusData]);
+  }, [isOpen, statusEntries]);
 
   const selectedFileSummaries = useMemo(
     () =>
@@ -282,8 +320,8 @@ export function useCommitDialogController({
   const selectedCount = selectedFiles.length;
   const committableCount = useMemo(() => files.filter((file) => file.committable).length, [files]);
   const commitWarnings = useMemo(
-    () => getCommitWarnings(files, statusData?.entries ?? files),
-    [files, statusData?.entries]
+    () => getCommitWarnings(files, statusEntries.length > 0 ? statusEntries : files),
+    [files, statusEntries]
   );
   const ruleErrors = useMemo(
     () => (message.trim() ? validateCommitRules(message, rules) : []),
@@ -349,7 +387,8 @@ export function useCommitDialogController({
   const handleRevertFile = async (path: string) => {
     try {
       await window.api.svn.revert([path]);
-      refetch();
+      void refetch();
+      void refetchDeepStatus();
     } catch (revertError) {
       console.error('Revert failed:', revertError);
     }

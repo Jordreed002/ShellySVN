@@ -1,4 +1,5 @@
 import { basename, dirname, isAbsolute, join, normalize } from 'path';
+import { readdir, stat } from 'fs/promises';
 import { parentPort } from 'worker_threads';
 
 import type { SvnStatusChar } from '@shared/types';
@@ -15,6 +16,7 @@ import type {
   BlamePayload,
   DiffPayload,
   DiffUrlsPayload,
+  FolderSizesPayload,
   FsSvnStatusResult,
   LogPayload,
   StatusPayload,
@@ -210,6 +212,49 @@ async function runBlame(job: WorkerJobMessage<'svn:blame'>) {
   return parseSvnBlameXml(xml, payload.path);
 }
 
+async function calculateFolderSize(folderPath: string): Promise<number> {
+  let totalSize = 0;
+
+  try {
+    const entries = await readdir(folderPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.svn') {
+        continue;
+      }
+
+      const fullPath = join(folderPath, entry.name);
+
+      try {
+        if (entry.isDirectory()) {
+          totalSize += await calculateFolderSize(fullPath);
+        } else if (entry.isFile()) {
+          const stats = await stat(fullPath);
+          totalSize += stats.size;
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    return 0;
+  }
+
+  return totalSize;
+}
+
+async function runFolderSizes(job: WorkerJobMessage<'fs:folderSizes'>) {
+  const payload: FolderSizesPayload = job.payload;
+  const results: Record<string, number> = {};
+
+  for (const folderPath of payload.folderPaths) {
+    results[folderPath] = await calculateFolderSize(folderPath);
+  }
+
+  return results;
+}
+
 function cancelJob(id: string) {
   cancelledJobs.add(id);
   const controller = runningControllers.get(id);
@@ -228,6 +273,12 @@ parentPort?.on('message', (message: WorkerParentMessage) => {
     try {
       if (message.name === 'svn:deepStatus') {
         const result = await runDeepStatus(message as WorkerJobMessage<'svn:deepStatus'>);
+        parentPort?.postMessage({ type: 'result', id: message.id, result });
+        return;
+      }
+
+      if (message.name === 'fs:folderSizes') {
+        const result = await runFolderSizes(message as WorkerJobMessage<'fs:folderSizes'>);
         parentPort?.postMessage({ type: 'result', id: message.id, result });
         return;
       }

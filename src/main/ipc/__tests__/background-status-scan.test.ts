@@ -76,6 +76,40 @@ beforeEach(() => {
 });
 
 describe('background status scan queue', () => {
+  it('emits queued, running, and complete progress for deep scans', async () => {
+    const onProgress = vi.fn();
+    const scan = startDeepScan('/repo/progress', onProgress);
+
+    await flushMicrotasks();
+
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/repo/progress',
+        jobId: 'deep-status:/repo/progress',
+        phase: 'queued',
+      })
+    );
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/repo/progress',
+        phase: 'running',
+      })
+    );
+
+    pendingCalls[0].resolve(statusResult('/repo/progress'));
+    await expect(scan).resolves.toMatchObject({
+      allEntries: [expect.objectContaining({ status: 'M' })],
+    });
+
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/repo/progress',
+        phase: 'complete',
+        filesFound: 1,
+      })
+    );
+  });
+
   it('limits concurrent deep status scans and starts queued work as slots free up', async () => {
     const first = startDeepScan('/repo/a');
     const second = startDeepScan('/repo/b');

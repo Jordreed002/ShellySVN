@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SvnStatusEntry } from '@shared/types';
 
 type SelectEvent = {
@@ -15,6 +15,13 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const pathIndex = useMemo(() => {
+    const indexByPath = new Map<string, number>();
+    entries.forEach((entry, index) => {
+      indexByPath.set(entry.path, index);
+    });
+    return indexByPath;
+  }, [entries]);
 
   const clearSelection = useCallback(() => {
     setSelectedPaths(new Set());
@@ -24,7 +31,7 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
 
   const handleSelect = useCallback(
     (entry: SvnStatusEntry, event?: SelectEvent) => {
-      const entryIndex = entries.findIndex((candidate) => candidate.path === entry.path);
+      const entryIndex = pathIndex.get(entry.path) ?? -1;
       if (entryIndex < 0) return;
 
       if (event?.shiftKey && lastSelectedIndex >= 0) {
@@ -58,7 +65,7 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
       setLastSelectedIndex(entryIndex);
       setFocusedIndex(entryIndex);
     },
-    [entries, lastSelectedIndex]
+    [entries, lastSelectedIndex, pathIndex]
   );
 
   return {

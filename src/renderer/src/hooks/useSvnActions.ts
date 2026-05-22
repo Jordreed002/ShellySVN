@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { useSettings } from './useSettings';
 import { confirmAppAction, promptAppInput } from '../utils/dialogs';
+import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
 
 interface SvnActionResult {
   success: boolean;
@@ -84,25 +85,7 @@ export function useSvnActions() {
    */
   const invalidateStatus = useCallback(
     (path: string) => {
-      // Invalidate status for this path
-      queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', path] });
-      queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-      queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
-
-      // Invalidate file listing (in case files were added/deleted)
-      queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', path] });
-
-      // Invalidate parent directories too (folder aggregation changes)
-      const separator = path.includes('\\') ? '\\' : '/';
-      const parts = path.split(separator);
-      for (let i = parts.length - 1; i > 0; i--) {
-        const parentPath = parts.slice(0, i).join(separator);
-        if (parentPath) {
-          queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', parentPath] });
-          queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', parentPath] });
-          queryClient.invalidateQueries({ queryKey: ['fs:getStatus', parentPath] });
-        }
-      }
+      invalidateWorkingCopyViews(queryClient, path);
     },
     [queryClient]
   );
@@ -150,12 +133,12 @@ export function useSvnActions() {
    * SVN Commit
    */
   const commit = useCallback(
-    async (paths: string[], message: string): Promise<SvnActionResult> => {
+    async (paths: string[], commitMessage: string): Promise<SvnActionResult> => {
       setIsUpdating(true);
       setLastError(null);
 
       try {
-        const result = await window.api.svn.commit(paths, message);
+        const result = await window.api.svn.commit(paths, commitMessage);
 
         if (result.success) {
           // Invalidate all status caches for all committed paths
@@ -345,12 +328,12 @@ export function useSvnActions() {
    * SVN Lock
    */
   const lock = useCallback(
-    async (path: string, message?: string): Promise<SvnActionResult> => {
+    async (path: string, lockMessage?: string): Promise<SvnActionResult> => {
       setIsUpdating(true);
       setLastError(null);
 
       try {
-        const result = await window.api.svn.lock(path, message);
+        const result = await window.api.svn.lock(path, lockMessage);
 
         if (result.success) {
           invalidateStatus(path);
@@ -460,7 +443,8 @@ export function useSvnActions() {
     setLastError(null);
   }, []);
 
-  return {
+  return useMemo(
+    () => ({
     update,
     commit,
     revert,
@@ -474,7 +458,23 @@ export function useSvnActions() {
     lastError,
     clearError,
     invalidateStatus,
-  };
+    }),
+    [
+      update,
+      commit,
+      revert,
+      add,
+      del,
+      cleanup,
+      lock,
+      unlock,
+      resolve,
+      isUpdating,
+      lastError,
+      clearError,
+      invalidateStatus,
+    ]
+  );
 }
 
 /**
@@ -497,13 +497,22 @@ export function useLockManagement() {
     setSelectedLockPath(undefined);
   }, []);
 
-  return {
+  return useMemo(
+    () => ({
     lockDialogOpen,
     lockDialogPath,
     selectedLockPath,
     openLockDialog,
     closeLockDialog,
-  };
+    }),
+    [
+      lockDialogOpen,
+      lockDialogPath,
+      selectedLockPath,
+      openLockDialog,
+      closeLockDialog,
+    ]
+  );
 }
 
 // Hook specifically for file explorer actions
@@ -514,9 +523,30 @@ export function useFileExplorerActions(
   selectedPaths?: Set<string>
 ) {
   const svnActions = useSvnActions();
+  const {
+    update,
+    commit,
+    revert,
+    add,
+    delete: delete_,
+    cleanup,
+    lock,
+    unlock,
+    resolve,
+    isUpdating,
+    lastError,
+    clearError,
+  } = svnActions;
   const [commitDialogOpen, setCommitDialogOpen] = useState(false);
   const [commitPaths, setCommitPaths] = useState<string[]>([]);
   const lockManagement = useLockManagement();
+  const {
+    lockDialogOpen,
+    lockDialogPath,
+    selectedLockPath,
+    openLockDialog,
+    closeLockDialog,
+  } = lockManagement;
 
   // Get all selected paths as array
   const getSelectedPaths = useCallback(() => {
@@ -531,11 +561,11 @@ export function useFileExplorerActions(
 
   // Update current directory
   const handleUpdate = useCallback(async () => {
-    const result = await svnActions.update(currentPath);
+    const result = await update(currentPath);
     if (result.success) {
       onRefresh();
     }
-  }, [currentPath, svnActions, onRefresh]);
+  }, [currentPath, update, onRefresh]);
 
   // Commit - opens dialog
   const handleCommit = useCallback(() => {
@@ -556,10 +586,10 @@ export function useFileExplorerActions(
   const handleRevertSelected = useCallback(async () => {
     const paths = getSelectedPaths();
     if (paths.length > 0) {
-      await svnActions.revert(paths);
+      await revert(paths);
       onRefresh();
     }
-  }, [getSelectedPaths, svnActions, onRefresh]);
+  }, [getSelectedPaths, revert, onRefresh]);
 
   // Add selected (supports multiple, only unversioned files)
   const handleAddSelected = useCallback(async () => {
@@ -577,19 +607,19 @@ export function useFileExplorerActions(
     }
 
     if (pathsToAdd.length > 0) {
-      await svnActions.add(pathsToAdd);
+      await add(pathsToAdd);
       onRefresh();
     }
-  }, [selectedPaths, selectedEntry, svnActions, onRefresh]);
+  }, [selectedPaths, selectedEntry, add, onRefresh]);
 
   // Delete selected (supports multiple)
   const handleDeleteSelected = useCallback(async () => {
     const paths = getSelectedPaths();
     if (paths.length > 0) {
-      const result = await svnActions.delete(paths);
+      const result = await delete_(paths);
       if (result.success) onRefresh();
     }
-  }, [getSelectedPaths, svnActions, onRefresh]);
+  }, [getSelectedPaths, delete_, onRefresh]);
 
   // Lock selected
   const handleLockSelected = useCallback(async () => {
@@ -605,22 +635,22 @@ export function useFileExplorerActions(
       }
       // Lock each path
       for (const path of paths) {
-        await svnActions.lock(path, message || undefined);
+        await lock(path, message || undefined);
       }
       onRefresh();
     }
-  }, [getSelectedPaths, svnActions, onRefresh]);
+  }, [getSelectedPaths, lock, onRefresh]);
 
   // Unlock selected
   const handleUnlockSelected = useCallback(async () => {
     const paths = getSelectedPaths();
     if (paths.length > 0) {
       for (const path of paths) {
-        await svnActions.unlock(path);
+        await unlock(path);
       }
       onRefresh();
     }
-  }, [getSelectedPaths, svnActions, onRefresh]);
+  }, [getSelectedPaths, unlock, onRefresh]);
 
   // Resolve selected conflict
   const handleResolveSelected = useCallback(
@@ -630,37 +660,42 @@ export function useFileExplorerActions(
       const paths = getSelectedPaths();
       if (paths.length > 0) {
         for (const path of paths) {
-          await svnActions.resolve(path, resolution);
+          await resolve(path, resolution);
         }
         onRefresh();
       }
     },
-    [getSelectedPaths, svnActions, onRefresh]
+    [getSelectedPaths, resolve, onRefresh]
   );
 
   // Manage locks - opens the lock management dialog
   const handleManageLocks = useCallback(
     (entry?: SvnStatusEntry) => {
       const path = entry?.path || selectedEntry?.path;
-      lockManagement.openLockDialog(currentPath, path);
+      openLockDialog(currentPath, path);
     },
-    [currentPath, selectedEntry, lockManagement]
+    [currentPath, selectedEntry, openLockDialog]
   );
 
   // Submit commit
   const handleSubmitCommit = useCallback(
     async (paths: string[], message: string) => {
-      const result = await svnActions.commit(paths, message);
+      const result = await commit(paths, message);
       if (result.success) {
         setCommitDialogOpen(false);
         onRefresh();
       }
       return result;
     },
-    [svnActions, onRefresh]
+    [commit, onRefresh]
   );
 
-  return {
+  const closeCommitDialog = useCallback(() => {
+    setCommitDialogOpen(false);
+  }, []);
+
+  return useMemo(
+    () => ({
     // Actions
     handleUpdate,
     handleCommit,
@@ -672,25 +707,52 @@ export function useFileExplorerActions(
     handleUnlockSelected,
     handleResolveSelected,
     handleManageLocks,
-    cleanup: svnActions.cleanup,
-    lock: svnActions.lock,
-    unlock: svnActions.unlock,
+    cleanup,
+    lock,
+    unlock,
 
     // Commit dialog
     commitDialogOpen,
     commitPaths,
-    closeCommitDialog: () => setCommitDialogOpen(false),
+    closeCommitDialog,
     handleSubmitCommit,
 
     // Lock management dialog
-    lockDialogOpen: lockManagement.lockDialogOpen,
-    lockDialogPath: lockManagement.lockDialogPath,
-    selectedLockPath: lockManagement.selectedLockPath,
-    closeLockDialog: lockManagement.closeLockDialog,
+    lockDialogOpen,
+    lockDialogPath,
+    selectedLockPath,
+    closeLockDialog,
 
     // State
-    isUpdating: svnActions.isUpdating,
-    lastError: svnActions.lastError,
-    clearError: svnActions.clearError,
-  };
+    isUpdating,
+    lastError,
+    clearError,
+    }),
+    [
+      handleUpdate,
+      handleCommit,
+      handleCommitSelected,
+      handleRevertSelected,
+      handleAddSelected,
+      handleDeleteSelected,
+      handleLockSelected,
+      handleUnlockSelected,
+      handleResolveSelected,
+      handleManageLocks,
+      cleanup,
+      lock,
+      unlock,
+      commitDialogOpen,
+      commitPaths,
+      closeCommitDialog,
+      handleSubmitCommit,
+      lockDialogOpen,
+      lockDialogPath,
+      selectedLockPath,
+      closeLockDialog,
+      isUpdating,
+      lastError,
+      clearError,
+    ]
+  );
 }

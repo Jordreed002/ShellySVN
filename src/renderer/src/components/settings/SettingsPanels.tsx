@@ -1248,7 +1248,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       <SettingsGroup title="Animation Speed" description="UI transition animations">
         <div className="flex gap-2">
           {[
-            { value: 'none', label: 'None' },
+            { value: 'none', label: 'Minimal' },
             { value: 'fast', label: 'Fast' },
             { value: 'normal', label: 'Normal' },
           ].map((opt) => (
