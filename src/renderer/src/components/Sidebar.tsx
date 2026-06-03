@@ -1,55 +1,32 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type MouseEvent } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
-  Bookmark,
-  FileText,
-  Folder,
-  Globe,
-  HardDrive,
+  ExternalLink,
+  FolderGit2,
+  FolderOpen,
   History,
-  Home,
   Key,
-  Loader2,
-  Monitor,
+  MoreHorizontal,
   Plus,
-  Puzzle,
   Search,
   Settings,
+  Trash2,
 } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 
+import { m, useMotionEnabled, variants } from '../lib/motion';
 import type { SettingsTab } from './ui/SettingsDialog';
 
 const AddRepoModal = lazy(() =>
-  import('./ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
-);
-const BookmarksManager = lazy(() =>
-  import('./ui/BookmarksManager').then((m) => ({ default: m.BookmarksManager }))
-);
-const CertificateManagerDialog = lazy(() =>
-  import('./ui/CertificateManagerDialog').then((m) => ({
-    default: m.CertificateManagerDialog,
-  }))
+  import('./ui/AddRepoModal').then((mod) => ({ default: mod.AddRepoModal }))
 );
 const ImportDialog = lazy(() =>
-  import('./ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
-);
-const PluginManagerDialog = lazy(() =>
-  import('./ui/PluginManagerDialog').then((m) => ({ default: m.PluginManagerDialog }))
+  import('./ui/ImportDialog').then((mod) => ({ default: mod.ImportDialog }))
 );
 const loadSettingsDialog = () =>
-  import('./ui/SettingsDialog').then((m) => ({ default: m.SettingsDialog }));
+  import('./ui/SettingsDialog').then((mod) => ({ default: mod.SettingsDialog }));
 const SettingsDialog = lazy(loadSettingsDialog);
-const RepositorySection = lazy(() =>
-  import('./sidebar/RepositorySection').then((m) => ({ default: m.RepositorySection }))
-);
-
-interface QuickAccessItem {
-  name: string;
-  path: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
 
 function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   if ('requestIdleCallback' in window) {
@@ -61,92 +38,48 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   return () => window.clearTimeout(id);
 }
 
+/** Split a repository path into its name and parent directory for display. */
+function describeRepo(repoPath: string) {
+  const parts = repoPath.split(/[/\\]/).filter(Boolean);
+  const name = parts[parts.length - 1] || repoPath;
+  const parent = parts.slice(0, -1).join('/');
+  return { name, parent };
+}
+
 export function Sidebar() {
-  const { settings, addRecentRepo, removeRecentRepo, addBookmark, removeBookmark } = useSettings();
+  const { settings, addRecentRepo, removeRecentRepo } = useSettings();
   const navigate = useNavigate();
   const routerState = useRouterState();
+  const motionEnabled = useMotionEnabled();
 
-  // Safely get the path from search params
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
+  const currentPathWithDefault = currentPath || '/';
 
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [quickAccess, setQuickAccess] = useState<QuickAccessItem[]>([]);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
-  const [isBookmarksManagerOpen, setIsBookmarksManagerOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [isPluginManagerOpen, setIsPluginManagerOpen] = useState(false);
-  const [isCertificateManagerOpen, setIsCertificateManagerOpen] = useState(false);
-  const [drives, setDrives] = useState<import('@shared/types').FileInfo[]>([]);
-  const [loadingDrives, setLoadingDrives] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; repo: string } | null>(
+    null
+  );
 
   const recentRepos = settings?.recentRepositories || [];
-  const bookmarks = settings?.bookmarks || [];
+  const filteredRepos = searchQuery
+    ? recentRepos.filter((repo) => repo.toLowerCase().includes(searchQuery.toLowerCase()))
+    : recentRepos;
 
-  const isWindows = navigator.platform.toLowerCase().startsWith('win');
-  const currentPathWithDefault = currentPath || '/';
+  // Preload the settings dialog when the app is idle.
+  useEffect(() => runWhenIdle(() => void loadSettingsDialog()), []);
 
-  // Load drives on Windows
+  // Close the repo context menu on any outside click.
   useEffect(() => {
-    if (!isWindows) return;
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [contextMenu]);
 
-    let cancelled = false;
-    const cancelIdle = runWhenIdle(() => {
-      void (async () => {
-        setLoadingDrives(true);
-        try {
-          const driveList = await window.api.fs.listDrives();
-          if (!cancelled) setDrives(driveList);
-        } catch (err) {
-          console.error('Failed to load drives:', err);
-        } finally {
-          if (!cancelled) setLoadingDrives(false);
-        }
-      })();
-    });
-
-    return () => {
-      cancelled = true;
-      cancelIdle();
-    };
-  }, [isWindows]);
-
-  // Load quick access locations
-  useEffect(() => {
-    const loadQuickAccess = async () => {
-      const items: QuickAccessItem[] = [];
-
-      // Get common paths
-      try {
-        const homePath = await window.api.app.getPath('home');
-        items.push({ name: 'Home', path: homePath, icon: Home });
-      } catch {}
-
-      try {
-        const desktopPath = await window.api.app.getPath('desktop');
-        items.push({ name: 'Desktop', path: desktopPath, icon: Monitor });
-      } catch {}
-
-      try {
-        const docsPath = await window.api.app.getPath('documents');
-        items.push({ name: 'Documents', path: docsPath, icon: FileText });
-      } catch {}
-
-      // Add drives (Windows) or root (Mac/Linux)
-      if (!isWindows) {
-        // On Mac/Linux, add root
-        items.push({ name: 'Root', path: '/', icon: HardDrive });
-      }
-      // Note: On Windows, drives are shown separately below Quick Access
-
-      setQuickAccess(items);
-    };
-
-    loadQuickAccess();
-  }, [isWindows]);
-
-  // Handler for opening a repo - saves to recent and navigates
   const handleOpenRepo = useCallback(
     async (path: string) => {
       await addRecentRepo(path);
@@ -158,235 +91,234 @@ export function Sidebar() {
   const handleRemoveRepo = useCallback(
     async (repo: string) => {
       await removeRecentRepo(repo);
+      setContextMenu(null);
     },
     [removeRecentRepo]
   );
+
+  const handleOpenInOS = useCallback(async (repo: string) => {
+    await window.api.external.openFolder(repo);
+    setContextMenu(null);
+  }, []);
 
   const handleManageCredentials = useCallback(() => {
     void loadSettingsDialog();
     setSettingsTab('auth');
     setIsSettingsDialogOpen(true);
+    setContextMenu(null);
   }, []);
 
-  useEffect(() => {
-    return runWhenIdle(() => {
-      void loadSettingsDialog();
-    });
+  const openContextMenu = useCallback((event: MouseEvent, repo: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ x: event.clientX, y: event.clientY, repo });
+  }, []);
+
+  const openSettings = useCallback(() => {
+    setSettingsTab('general');
+    setIsSettingsDialogOpen(true);
   }, []);
 
   return (
     <>
-      <aside className="w-[--sidebar-width] bg-bg-secondary border-r border-border flex flex-col overflow-hidden">
-        {/* Add Repo Button */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-bg-tertiary">
-          <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-            Repositories
-          </span>
+      <aside className="w-[--sidebar-width] bg-bg-secondary/70 border-r border-border flex flex-col overflow-hidden">
+        {/* Search + add */}
+        <div className="flex items-center gap-2 px-3 pt-3.5 pb-2">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted group-focus-within:text-accent transition-fast" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search repositories…"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-bg-tertiary/60 border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25 transition-fast"
+            />
+          </div>
           <button
             type="button"
             onClick={() => setIsAddRepoModalOpen(true)}
-            className="btn-icon-sm"
-            title="Add Repository"
+            className="btn-icon"
+            title="Add repository"
+            aria-label="Add repository"
           >
             <Plus className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Search */}
-        <div className="p-2 border-b border-border">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search repositories..."
-              className="w-full pl-8 pr-2 py-1.5 text-sm bg-bg-tertiary border border-border rounded-md text-text placeholder:text-text-muted focus:outline-none focus:border-accent transition-fast"
-            />
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto scrollbar-overlay">
-          {/* Quick Access */}
-          <div className="py-2">
-            <div className="px-3 py-1.5 text-2xs font-semibold text-text-muted uppercase tracking-wider">
-              Quick Access
-            </div>
-            {quickAccess.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentPath === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to="/files"
-                  search={{ path: item.path }}
-                  className={`tree-item ${isActive ? 'tree-item-active' : ''}`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Drives Section (Windows only) */}
-          {isWindows && (
-            <div className="py-2 border-t border-border">
-              <div className="px-3 py-1.5 text-2xs font-semibold text-text-muted uppercase tracking-wider">
-                This PC
-              </div>
-              {loadingDrives ? (
-                <div className="px-3 py-2 flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-text-muted" />
-                  <span className="text-xs text-text-muted">Loading drives...</span>
-                </div>
-              ) : drives.length > 0 ? (
-                drives.map((drive) => {
-                  const isActive = currentPath === drive.path;
-                  return (
-                    <Link
-                      key={drive.path}
-                      to="/files"
-                      search={{ path: drive.path }}
-                      className={`tree-item ${isActive ? 'tree-item-active' : ''}`}
-                    >
-                      <HardDrive className="w-4 h-4" />
-                      <span className="truncate">{drive.name}</span>
-                    </Link>
-                  );
-                })
-              ) : (
-                <div className="px-3 py-2 text-xs text-text-muted">No drives found</div>
-              )}
-            </div>
-          )}
-
-          {/* Main Navigation */}
-          <div className="py-2 border-t border-border">
-            <div className="px-3 py-1.5 text-2xs font-semibold text-text-muted uppercase tracking-wider">
-              Browse
-            </div>
-            <Link
-              to="/files"
-              search={{ path: currentPathWithDefault }}
-              className="tree-item"
-              activeProps={{ className: 'tree-item-active' }}
-            >
-              <Folder className="w-4 h-4" />
-              <span>File Explorer</span>
-            </Link>
-            <Link
-              to="/history"
-              search={{ path: currentPathWithDefault }}
-              className="tree-item"
-              activeProps={{ className: 'tree-item-active' }}
-            >
-              <History className="w-4 h-4" />
-              <span>History</span>
-            </Link>
-            <Link
-              to="/repo-browser"
-              search={{ url: '' }}
-              className="tree-item"
-              activeProps={{ className: 'tree-item-active' }}
-            >
-              <Globe className="w-4 h-4" />
-              <span>Repo Browser</span>
-            </Link>
-          </div>
-
-          {/* Bookmarks Section */}
-          {bookmarks.length > 0 && (
-            <div className="border-t border-border py-2">
-              <div className="px-3 py-1.5 flex items-center justify-between">
-                <span className="text-2xs font-semibold text-text-muted uppercase tracking-wider">
-                  Bookmarks
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsBookmarksManagerOpen(true)}
-                  className="btn-icon-sm p-0.5"
-                  title="Manage Bookmarks"
-                >
-                  <Bookmark className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="space-y-0.5">
-                {bookmarks.slice(0, 5).map((bookmark) => (
-                  <Link
-                    key={bookmark.path}
-                    to="/files"
-                    search={{ path: bookmark.path }}
-                    className={`tree-item ${currentPath === bookmark.path ? 'tree-item-active' : ''}`}
-                  >
-                    <Bookmark className="w-4 h-4" />
-                    <span className="truncate">{bookmark.name}</span>
-                  </Link>
-                ))}
-                {bookmarks.length > 5 && (
-                  <button
-                    type="button"
-                    onClick={() => setIsBookmarksManagerOpen(true)}
-                    className="w-full text-left px-6 py-1 text-xs text-text-muted hover:text-text transition-fast"
-                  >
-                    +{bookmarks.length - 5} more...
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <Suspense fallback={<RepositorySectionSkeleton recentRepos={recentRepos.length} />}>
-            <RepositorySection
-              recentRepos={recentRepos}
-              currentPath={currentPath}
-              searchQuery={searchQuery}
-              onAddRepository={() => setIsAddRepoModalOpen(true)}
-              onRemoveRepository={handleRemoveRepo}
-              onManageCredentials={handleManageCredentials}
-            />
-          </Suspense>
+        {/* Primary navigation */}
+        <nav className="px-1.5 pb-1">
+          <Link
+            to="/files"
+            search={{ path: currentPathWithDefault }}
+            className="tree-item"
+            activeProps={{ className: 'tree-item-active' }}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>Files</span>
+          </Link>
+          <Link
+            to="/history"
+            search={{ path: currentPathWithDefault }}
+            className="tree-item"
+            activeProps={{ className: 'tree-item-active' }}
+          >
+            <History className="w-4 h-4" />
+            <span>History</span>
+          </Link>
         </nav>
 
-        {/* Status Bar */}
-        <div className="border-t border-border px-3 py-2">
-          <div className="flex items-center justify-between text-xs text-text-muted">
-            <span>
-              {recentRepos.length} repositor{recentRepos.length === 1 ? 'y' : 'ies'}
+        {/* Repositories header */}
+        <div className="mt-1 px-3.5 pt-2.5 pb-1.5 flex items-center justify-between border-t border-border-muted">
+          <span className="text-2xs font-semibold text-text-muted uppercase tracking-[0.12em]">
+            Repositories
+          </span>
+          {recentRepos.length > 0 && (
+            <span className="text-2xs font-medium text-text-muted tabular-nums px-1.5 py-0.5 rounded-md bg-bg-tertiary/70">
+              {recentRepos.length}
             </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsCertificateManagerOpen(true)}
-                className="hover:text-text transition-fast"
-                title="Certificates"
-              >
-                <Key className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsPluginManagerOpen(true)}
-                className="hover:text-text transition-fast"
-                title="Plugins"
-              >
-                <Puzzle className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onPointerEnter={() => void loadSettingsDialog()}
-                onFocus={() => void loadSettingsDialog()}
-                onClick={() => setIsSettingsDialogOpen(true)}
-                className="hover:text-text transition-fast"
-                data-testid="settings-button"
-                title="Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
+          )}
+        </div>
+
+        {/* Repository list */}
+        <div className="flex-1 overflow-y-auto scrollbar-overlay px-1.5 pb-2">
+          {filteredRepos.length === 0 ? (
+            <div className="px-3 py-10 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-bg-tertiary/70 flex items-center justify-center mx-auto mb-3">
+                <FolderGit2 className="w-6 h-6 text-text-faint" />
+              </div>
+              <p className="text-sm text-text-secondary mb-1">
+                {searchQuery ? 'No matches' : 'No repositories yet'}
+              </p>
+              {!searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddRepoModalOpen(true)}
+                  className="text-xs text-accent hover:text-accent-hover transition-fast"
+                >
+                  Add your first repository
+                </button>
+              )}
             </div>
-          </div>
+          ) : (
+            <m.div
+              className="space-y-0.5"
+              variants={variants.staggerList}
+              initial={motionEnabled ? 'initial' : false}
+              animate="animate"
+            >
+              {filteredRepos.map((repo) => {
+                const { name, parent } = describeRepo(repo);
+                const isActive = currentPath === repo || currentPath.startsWith(repo + '/');
+                const isMenuOpen = contextMenu?.repo === repo;
+                return (
+                  <m.div key={repo} className="group relative" variants={variants.listItem}>
+                    <Link
+                      to="/files"
+                      search={{ path: repo }}
+                      onClick={() => void addRecentRepo(repo)}
+                      onContextMenu={(e) => openContextMenu(e, repo)}
+                      className={`relative flex items-center gap-2.5 rounded-lg pl-2.5 pr-9 py-2 cursor-pointer transition-fast ${
+                        isActive || isMenuOpen
+                          ? 'tree-item-active'
+                          : 'text-text-secondary hover:bg-bg-elevated hover:text-text'
+                      }`}
+                    >
+                      <FolderGit2
+                        className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-accent' : 'text-text-muted'}`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium leading-tight">
+                          {name}
+                        </span>
+                        {parent && (
+                          <span className="block truncate text-2xs text-text-muted leading-tight">
+                            {parent}
+                          </span>
+                        )}
+                      </span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={(e) => openContextMenu(e, repo)}
+                      className={`absolute right-1.5 top-1/2 -translate-y-1/2 btn-icon-sm transition-opacity ${
+                        isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+                      }`}
+                      aria-label={`Actions for ${name}`}
+                    >
+                      <MoreHorizontal className="w-3.5 h-3.5" />
+                    </button>
+                  </m.div>
+                );
+              })}
+            </m.div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-border p-1.5">
+          <button
+            type="button"
+            onPointerEnter={() => void loadSettingsDialog()}
+            onFocus={() => void loadSettingsDialog()}
+            onClick={openSettings}
+            className="tree-item w-full"
+            data-testid="settings-button"
+          >
+            <Settings className="w-4 h-4" />
+            <span>Settings</span>
+          </button>
         </div>
       </aside>
+
+      {/* Repository context menu */}
+      {contextMenu && (
+        <div
+          role="menu"
+          aria-label="Repository actions"
+          className="context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.key === 'Escape' && setContextMenu(null)}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleOpenRepo(contextMenu.repo)}
+            className="context-menu-item w-full"
+          >
+            <FolderOpen className="w-4 h-4" />
+            Open
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleOpenInOS(contextMenu.repo)}
+            className="context-menu-item w-full"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Reveal in file manager
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleManageCredentials}
+            className="context-menu-item w-full"
+          >
+            <Key className="w-4 h-4" />
+            Manage credentials
+          </button>
+          <div className="context-menu-divider" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleRemoveRepo(contextMenu.repo)}
+            className="context-menu-item context-menu-item-danger w-full"
+          >
+            <Trash2 className="w-4 h-4" />
+            Remove from list
+          </button>
+        </div>
+      )}
 
       {/* Add Repo Modal */}
       {isAddRepoModalOpen && (
@@ -418,19 +350,6 @@ export function Sidebar() {
         </Suspense>
       )}
 
-      {/* Bookmarks Manager */}
-      {isBookmarksManagerOpen && (
-        <Suspense fallback={null}>
-          <BookmarksManager
-            isOpen={isBookmarksManagerOpen}
-            onClose={() => setIsBookmarksManagerOpen(false)}
-            bookmarks={bookmarks}
-            onAddBookmark={(path, name) => addBookmark(path, name)}
-            onRemoveBookmark={(path) => removeBookmark(path)}
-          />
-        </Suspense>
-      )}
-
       {/* Import Dialog */}
       {isImportDialogOpen && (
         <Suspense fallback={null}>
@@ -441,41 +360,6 @@ export function Sidebar() {
           />
         </Suspense>
       )}
-
-      {/* Plugin Manager Dialog */}
-      {isPluginManagerOpen && (
-        <Suspense fallback={null}>
-          <PluginManagerDialog
-            isOpen={isPluginManagerOpen}
-            onClose={() => setIsPluginManagerOpen(false)}
-          />
-        </Suspense>
-      )}
-
-      {/* Certificate Manager Dialog */}
-      {isCertificateManagerOpen && (
-        <Suspense fallback={null}>
-          <CertificateManagerDialog
-            isOpen={isCertificateManagerOpen}
-            onClose={() => setIsCertificateManagerOpen(false)}
-          />
-        </Suspense>
-      )}
     </>
-  );
-}
-
-function RepositorySectionSkeleton({ recentRepos }: { recentRepos: number }) {
-  return (
-    <div className="border-t border-border py-2">
-      <div className="px-3 py-1.5 text-2xs font-semibold text-text-muted uppercase tracking-wider">
-        SVN Repositories
-      </div>
-      <div className="space-y-1 px-3">
-        {Array.from({ length: Math.min(Math.max(recentRepos, 1), 4) }).map((_, index) => (
-          <div key={index} className="h-7 rounded bg-bg-tertiary/60 animate-pulse" />
-        ))}
-      </div>
-    </div>
   );
 }

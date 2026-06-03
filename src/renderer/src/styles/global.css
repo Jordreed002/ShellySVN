@@ -530,18 +530,45 @@ body {
 
   /* Tree / nav item */
   .tree-item {
-    @apply flex items-center gap-2.5 px-2.5 py-1.5 text-sm text-text-secondary cursor-pointer rounded-lg mx-1.5;
+    @apply relative flex items-center gap-2.5 px-2.5 py-1.5 text-sm text-text-secondary cursor-pointer rounded-lg mx-1.5;
     transition:
-      background-color 0.08s linear,
-      color 0.08s linear;
+      background-color 0.1s cubic-bezier(0.25, 1, 0.5, 1),
+      color 0.1s cubic-bezier(0.25, 1, 0.5, 1),
+      transform 0.1s cubic-bezier(0.25, 1, 0.5, 1);
   }
 
   .tree-item:hover {
-    @apply bg-bg-elevated text-text;
+    @apply bg-bg-elevated text-text translate-x-0.5;
   }
 
   .tree-item-active {
     @apply bg-accent/10 text-accent font-medium;
+  }
+
+  /* Animated accent indicator bar for the active nav item */
+  .tree-item-active::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 50%;
+    width: 3px;
+    height: 62%;
+    border-radius: 9999px;
+    background: var(--color-accent);
+    transform: translateY(-50%);
+    box-shadow: 0 0 8px var(--color-accent-glow);
+    animation: tree-indicator-in 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  @keyframes tree-indicator-in {
+    from {
+      opacity: 0;
+      height: 0%;
+    }
+    to {
+      opacity: 1;
+      height: 62%;
+    }
   }
 
   /* Toolbar */
