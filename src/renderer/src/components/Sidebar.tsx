@@ -6,7 +6,8 @@ import {
   FolderOpen,
   History,
   Key,
-  MoreHorizontal,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Settings,
@@ -16,6 +17,9 @@ import {
 import { useSettings } from '@renderer/hooks/useSettings';
 
 import { m, useMotionEnabled, variants } from '../lib/motion';
+import { RepoRow } from './sidebar/RepoRow';
+import { usePinnedRepos } from './sidebar/sidebarData';
+import { WorkingCopyPanel } from './sidebar/WorkingCopyPanel';
 import type { SettingsTab } from './ui/SettingsDialog';
 
 const AddRepoModal = lazy(() =>
@@ -38,14 +42,6 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   return () => window.clearTimeout(id);
 }
 
-/** Split a repository path into its name and parent directory for display. */
-function describeRepo(repoPath: string) {
-  const parts = repoPath.split(/[/\\]/).filter(Boolean);
-  const name = parts[parts.length - 1] || repoPath;
-  const parent = parts.slice(0, -1).join('/');
-  return { name, parent };
-}
-
 export function Sidebar() {
   const { settings, addRecentRepo, removeRecentRepo } = useSettings();
   const navigate = useNavigate();
@@ -64,10 +60,21 @@ export function Sidebar() {
     null
   );
 
+  const { isPinned, togglePin } = usePinnedRepos();
+
   const recentRepos = settings?.recentRepositories || [];
   const filteredRepos = searchQuery
     ? recentRepos.filter((repo) => repo.toLowerCase().includes(searchQuery.toLowerCase()))
     : recentRepos;
+  // Pinned repos float to the top (stable within each group).
+  const sortedRepos = [...filteredRepos].sort(
+    (a, b) => Number(isPinned(b)) - Number(isPinned(a))
+  );
+
+  // The recent repo that contains the current path, if any (drives the panel).
+  const activeRepo = recentRepos.find(
+    (repo) => currentPath === repo || currentPath.startsWith(repo + '/')
+  );
 
   // Preload the settings dialog when the app is idle.
   useEffect(() => runWhenIdle(() => void loadSettingsDialog()), []);
@@ -167,6 +174,9 @@ export function Sidebar() {
           </Link>
         </nav>
 
+        {/* Active working copy context */}
+        {activeRepo && <WorkingCopyPanel repoPath={activeRepo} />}
+
         {/* Repositories header */}
         <div className="mt-1 px-3.5 pt-2.5 pb-1.5 flex items-center justify-between border-t border-border-muted">
           <span className="text-2xs font-semibold text-text-muted uppercase tracking-[0.12em]">
@@ -206,50 +216,17 @@ export function Sidebar() {
               initial={motionEnabled ? 'initial' : false}
               animate="animate"
             >
-              {filteredRepos.map((repo) => {
-                const { name, parent } = describeRepo(repo);
-                const isActive = currentPath === repo || currentPath.startsWith(repo + '/');
-                const isMenuOpen = contextMenu?.repo === repo;
-                return (
-                  <m.div key={repo} className="group relative" variants={variants.listItem}>
-                    <Link
-                      to="/files"
-                      search={{ path: repo }}
-                      onClick={() => void addRecentRepo(repo)}
-                      onContextMenu={(e) => openContextMenu(e, repo)}
-                      className={`relative flex items-center gap-2.5 rounded-lg pl-2.5 pr-9 py-2 cursor-pointer transition-fast ${
-                        isActive || isMenuOpen
-                          ? 'tree-item-active'
-                          : 'text-text-secondary hover:bg-bg-elevated hover:text-text'
-                      }`}
-                    >
-                      <FolderGit2
-                        className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-accent' : 'text-text-muted'}`}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium leading-tight">
-                          {name}
-                        </span>
-                        {parent && (
-                          <span className="block truncate text-2xs text-text-muted leading-tight">
-                            {parent}
-                          </span>
-                        )}
-                      </span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={(e) => openContextMenu(e, repo)}
-                      className={`absolute right-1.5 top-1/2 -translate-y-1/2 btn-icon-sm transition-opacity ${
-                        isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
-                      }`}
-                      aria-label={`Actions for ${name}`}
-                    >
-                      <MoreHorizontal className="w-3.5 h-3.5" />
-                    </button>
-                  </m.div>
-                );
-              })}
+              {sortedRepos.map((repo) => (
+                <RepoRow
+                  key={repo}
+                  repo={repo}
+                  isActive={currentPath === repo || currentPath.startsWith(repo + '/')}
+                  isPinned={isPinned(repo)}
+                  isMenuOpen={contextMenu?.repo === repo}
+                  onOpen={(r) => void addRecentRepo(r)}
+                  onMenu={openContextMenu}
+                />
+              ))}
             </m.div>
           )}
         </div>
@@ -297,6 +274,27 @@ export function Sidebar() {
           >
             <ExternalLink className="w-4 h-4" />
             Reveal in file manager
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              togglePin(contextMenu.repo);
+              setContextMenu(null);
+            }}
+            className="context-menu-item w-full"
+          >
+            {isPinned(contextMenu.repo) ? (
+              <>
+                <PinOff className="w-4 h-4" />
+                Unpin
+              </>
+            ) : (
+              <>
+                <Pin className="w-4 h-4" />
+                Pin to top
+              </>
+            )}
           </button>
           <button
             type="button"
