@@ -19,6 +19,8 @@ const mockState = vi.hoisted(() => ({
   debugError: vi.fn(),
   authReady: vi.fn().mockResolvedValue(undefined),
   authFindForUrl: vi.fn(),
+  sslReady: vi.fn().mockResolvedValue(undefined),
+  sslFindForUrl: vi.fn(),
 }));
 
 function createMockProcess() {
@@ -77,6 +79,13 @@ vi.mock('../../auth-cache', () => ({
   }),
 }));
 
+vi.mock('../../ssl-trust-cache', () => ({
+  getSslTrustCache: () => ({
+    ready: mockState.sslReady,
+    findForUrl: mockState.sslFindForUrl,
+  }),
+}));
+
 import { runSvn, runSvnText } from '../svn-executor';
 
 async function startSvn(args: string[], options = {}) {
@@ -113,6 +122,8 @@ describe('svn-executor', () => {
     });
     mockState.authReady.mockResolvedValue(undefined);
     mockState.authFindForUrl.mockReturnValue(null);
+    mockState.sslReady.mockResolvedValue(undefined);
+    mockState.sslFindForUrl.mockReturnValue(null);
   });
 
   it('uses the configured SVN client path and redacts credentials in logs', async () => {
@@ -340,6 +351,24 @@ describe('svn-executor', () => {
     expect(mockState.spawn).toHaveBeenCalledWith(
       'custom-svn',
       expect.arrayContaining(['--username', 'alice', '--password', 'secret']),
+      expect.any(Object)
+    );
+  });
+
+  it('applies cached SSL trust to URL-based SVN commands', async () => {
+    mockState.sslFindForUrl.mockReturnValue({
+      realm: 'https://svn.example.com/project',
+      failures: 'unknown-ca',
+    });
+    const { proc, promise } = await startSvn(['list', 'https://svn.example.com/project/trunk']);
+
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    expect(mockState.sslFindForUrl).toHaveBeenCalledWith('https://svn.example.com/project/trunk');
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      'custom-svn',
+      expect.arrayContaining(['--trust-server-cert-failures', 'unknown-ca']),
       expect.any(Object)
     );
   });

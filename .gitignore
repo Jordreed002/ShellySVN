@@ -5,6 +5,8 @@ node_modules/
 out/
 dist/
 release/
+.next/
+.source/
 *.tsbuildinfo
 
 # Generated files
@@ -15,6 +17,7 @@ src/renderer/src/routeTree.gen.ts
 .vscode/
 *.swp
 *.swo
+.omo
 
 # OS
 .DS_Store

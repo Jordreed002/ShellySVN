@@ -1,0 +1,64 @@
+[
+  {
+    "version": "1.0.0",
+    "tag": "v1.0.0",
+    "publishedAt": "2026-05-05T23:50:54Z",
+    "channel": "preview",
+    "notesUrl": "https://github.com/Jordreed002/ShellySVN/releases/tag/v1.0.0",
+    "bodyMd": "## ShellySVN v1.0.0\n\nPreview release for the standalone desktop app with packaged binaries for Windows, macOS, and Linux. Native file-manager integration remains gated until the helper path is fully signed and validated.",
+    "artifacts": [
+      {
+        "platform": "Windows",
+        "arch": "x64",
+        "label": "Installer",
+        "fileName": "ShellySVN.Setup.0.1.0.exe",
+        "downloadUrl": "https://github.com/Jordreed002/ShellySVN/releases/download/v1.0.0/ShellySVN.Setup.0.1.0.exe",
+        "sizeBytes": 114064848,
+        "checksumSha256": "939321960605c44aec5e9b5695a100669565aee3a9a11fb77b3d6e3b823f9f5b"
+      },
+      {
+        "platform": "Windows",
+        "arch": "x64",
+        "label": "Portable executable",
+        "fileName": "ShellySVN.exe",
+        "downloadUrl": "https://github.com/Jordreed002/ShellySVN/releases/download/v1.0.0/ShellySVN.exe",
+        "sizeBytes": 188877312,
+        "checksumSha256": "ac558135c8db5b0404a222dbac7a9e1f0e266488548fcf5393b3558ffbdee22d"
+      },
+      {
+        "platform": "macOS",
+        "arch": "Apple Silicon",
+        "label": "Disk image",
+        "fileName": "shellysvn-0.1.0-arm64.dmg",
+        "downloadUrl": "https://github.com/Jordreed002/ShellySVN/releases/download/v1.0.0/shellysvn-0.1.0-arm64.dmg",
+        "sizeBytes": 117510168,
+        "checksumSha256": "8bdbd6c2cd85ebcab80566b8b391ef25caebf313907cbdb5a6f71ea39e972b9f"
+      },
+      {
+        "platform": "macOS",
+        "arch": "Intel",
+        "label": "Disk image",
+        "fileName": "shellysvn-0.1.0-x64.dmg",
+        "downloadUrl": "https://github.com/Jordreed002/ShellySVN/releases/download/v1.0.0/shellysvn-0.1.0-x64.dmg",
+        "sizeBytes": 122931248,
+        "checksumSha256": "e6e64144d18173e4a4bcb1ed7af3b67f1a475b3895d1ff70f1612061bee5b668"
+      },
+      {
+        "platform": "Linux",
+        "arch": "x64",
+        "label": "AppImage",
+        "fileName": "ShellySVN-0.1.0.AppImage",
+        "downloadUrl": "https://github.com/Jordreed002/ShellySVN/releases/download/v1.0.0/ShellySVN-0.1.0.AppImage",
+        "sizeBytes": 121571028,
+        "checksumSha256": "dabd29dc214093e71097eb3d4d92c358606fd728dc5821885f3566e3c20a2e55"
+      },
+      {
+        "platform": "Linux",
+        "arch": "x64",
+        "label": "Debian package",
+        "fileName": "shellysvn_0.1.0_amd64.deb",
+        "downloadUrl": "https://github.com/Jordreed002/ShellySVN/releases/download/v1.0.0/shellysvn_0.1.0_amd64.deb"
+      }
+    ]
+  }
+]

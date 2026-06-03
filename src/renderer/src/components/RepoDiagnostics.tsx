@@ -13,6 +13,7 @@ import {
   Loader,
   Copy,
   MonitorCog,
+  Shield,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { RepoDiagnostics } from '@shared/types';
@@ -77,6 +78,8 @@ export function RepoDiagnosticsPanel({
 }: RepoDiagnosticsProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [isTrustingCertificate, setIsTrustingCertificate] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const {
     data: diagnostics,
@@ -91,8 +94,34 @@ export function RepoDiagnosticsPanel({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
+    setActionError(null);
     await refetch();
     setIsRefreshing(false);
+  };
+
+  const handleTrustCertificate = async () => {
+    if (!diagnostics?.repositoryUrl || !diagnostics.connectionError) {
+      return;
+    }
+
+    setIsTrustingCertificate(true);
+    setActionError(null);
+    try {
+      const result = await window.api.svn.trustServerCertificate(
+        diagnostics.repositoryUrl,
+        diagnostics.connectionError
+      );
+      if (!result.success) {
+        setActionError(result.error || 'Failed to trust certificate');
+        return;
+      }
+
+      await refetch();
+    } catch (error) {
+      setActionError((error as Error).message || 'Failed to trust certificate');
+    } finally {
+      setIsTrustingCertificate(false);
+    }
   };
 
   const handleCopyDiagnostics = async () => {
@@ -412,6 +441,11 @@ export function RepoDiagnosticsPanel({
                     {diagnostics.connectionError}
                   </p>
                 )}
+                {actionError && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                    {actionError}
+                  </p>
+                )}
               </div>
             </>
           ) : null}
@@ -423,6 +457,27 @@ export function RepoDiagnosticsPanel({
             {copyStatus === 'failed' && (
               <span className="text-xs text-red-600 dark:text-red-400">Copy failed</span>
             )}
+            {diagnostics?.connectionStatus === 'ssl-error' &&
+              diagnostics.repositoryUrl &&
+              diagnostics.connectionError && (
+                <button
+                  onClick={handleTrustCertificate}
+                  disabled={isTrustingCertificate}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  {isTrustingCertificate ? (
+                    <>
+                      <Loader className="w-4 h-4 inline mr-2 animate-spin" />
+                      Re-trusting...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-4 h-4 inline mr-2" />
+                      Re-trust Certificate
+                    </>
+                  )}
+                </button>
+              )}
             {diagnostics && !diagnostics.hasCredentials && onAuthenticate && (
               <button
                 onClick={() => {

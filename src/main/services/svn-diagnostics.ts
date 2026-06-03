@@ -3,12 +3,14 @@ import { isAbsolute, join } from 'path';
 import { app } from 'electron';
 import type { RepoDiagnostics } from '@shared/types';
 import { getAuthCache } from '../auth-cache';
+import { getSslTrustCache } from '../ssl-trust-cache';
 import { getSettingsManager } from '../settings-manager';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 
 const MINIMUM_SVN_VERSION = '1.14';
+const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 
 function getCurrentBinaryTarget(): string {
   return `${process.platform}-${process.arch}`;
@@ -80,6 +82,76 @@ function isSvnVersionSupported(version: string | null): boolean | null {
   const major = Number.parseInt(match[1], 10);
   const minor = Number.parseInt(match[2], 10);
   return major > 1 || (major === 1 && minor >= 14);
+}
+
+function parseTrustedSslFailures(errorText: string): string {
+  const failures = new Set<(typeof ALLOWED_SSL_FAILURES)[number]>();
+  if (errorText.match(/not issued by a trusted authority|issuer is not trusted/i)) {
+    failures.add('unknown-ca');
+  }
+  if (errorText.match(/hostname does not match|certificate issued for a different hostname/i)) {
+    failures.add('cn-mismatch');
+  }
+  if (errorText.match(/has expired|certificate.*expired/i)) {
+    failures.add('expired');
+  }
+  if (errorText.match(/not yet valid/i)) {
+    failures.add('not-yet-valid');
+  }
+
+  return failures.size > 0 ? Array.from(failures).join(',') : 'unknown-ca';
+}
+
+function isAuthenticationError(errorText: string): boolean {
+  return (
+    errorText.includes('authentication') ||
+    errorText.includes('Authentication') ||
+    errorText.includes('Authorization') ||
+    errorText.includes('authorization') ||
+    errorText.includes('403')
+  );
+}
+
+export async function trustServerCertificate(
+  url: string,
+  errorText: string
+): Promise<{ success: boolean; error?: string }> {
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) {
+    return { success: false, error: 'Repository URL is required.' };
+  }
+
+  const trustedSslFailures = parseTrustedSslFailures(errorText);
+  const authCache = getAuthCache();
+  const credentialsMatch = authCache.findForUrl(trimmedUrl);
+  const credentials = credentialsMatch
+    ? { username: credentialsMatch.username, password: credentialsMatch.password }
+    : undefined;
+
+  try {
+    await runSvnText(['info', '--xml', '--non-interactive', trimmedUrl], {
+      trustSslFailures: true,
+      trustedSslFailures,
+      credentials,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      message.includes('SSL') ||
+      message.includes('certificate') ||
+      message.includes('E230001')
+    ) {
+      return { success: false, error: message };
+    }
+    if (!isAuthenticationError(message)) {
+      return { success: false, error: message };
+    }
+  }
+
+  const cache = getSslTrustCache();
+  await cache.ready();
+  cache.set(trimmedUrl, trustedSslFailures);
+  return { success: true };
 }
 
 export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagnostics> {

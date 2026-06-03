@@ -1,0 +1,18 @@
+---
+title: Common errors
+description: Start with context, not panic, when a repository operation fails.
+category: Troubleshooting
+status: available
+lastReviewed: "2026-06-01"
+---
+
+## A good debugging order
+
+1. Confirm the repository URL and working-copy path.
+2. Re-check authentication state.
+3. Inspect recent history and local modifications.
+4. Reduce operation scope if the repository is large or sparsely checked out.
+
+## Escalate carefully
+
+Do not assume every failure is an app bug. SVN environment differences, credentials, externals, or path selection issues often explain the first error signal.

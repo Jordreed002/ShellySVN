@@ -1,0 +1,21 @@
+---
+title: Authentication
+description: What to expect from credential prompts and protected repositories.
+category: Getting Started
+status: available
+lastReviewed: "2026-06-01"
+---
+
+## Basic expectation
+
+ShellySVN should surface the same repository access requirements your SVN environment already enforces. If the repository requires credentials or certificate trust, the app should prompt for them during the relevant operation.
+
+## Good rollout practice
+
+- Test with a disposable repository path first.
+- Validate both standard credentials and any SSL trust prompts.
+- Keep notes on which repositories require special network or certificate handling.
+
+## If authentication fails
+
+Move to the troubleshooting pages for SSL, certificate, and connectivity guidance before assuming the client itself is broken.

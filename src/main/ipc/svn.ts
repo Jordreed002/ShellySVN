@@ -46,7 +46,7 @@ import {
   shelveList,
   shelveSave,
 } from '../services/svn-metadata';
-import { getDiagnostics } from '../services/svn-diagnostics';
+import { getDiagnostics, trustServerCertificate } from '../services/svn-diagnostics';
 import { applyPatch, createPatch } from '../services/svn-patch';
 import {
   copyRepositoryItem,
@@ -632,6 +632,13 @@ export function registerSvnHandlers(): void {
     'svn:diagnostics',
     async (_, workingCopyPath: string): Promise<RepoDiagnostics> => {
       return getDiagnostics(workingCopyPath);
+    }
+  );
+
+  ipcMain.handle(
+    'svn:trustServerCertificate',
+    async (_, url: string, errorText: string): Promise<{ success: boolean; error?: string }> => {
+      return trustServerCertificate(url, errorText);
     }
   );
 }

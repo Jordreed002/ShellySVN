@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SvnStatusEntry } from '@shared/types';
+import { getAdjustedContextMenuPosition } from '../src/components/ui/ContextMenu';
 import { FileRow } from '../src/components/ui/FileRow';
 import { VirtualizedFileList } from '../src/components/ui/VirtualizedList';
 
@@ -157,5 +158,38 @@ describe('virtualized list stability', () => {
     expect(onCopyPath).toHaveBeenLastCalledWith(
       expect.objectContaining({ path: '/repo/file-10.ts', revision: 1011 })
     );
+  });
+
+  it('renders the context menu in a body portal for transformed rows', () => {
+    const entries = makeEntries(5);
+
+    render(<VirtualizedFileRowWindow entries={entries} onCopyPath={vi.fn()} />);
+
+    const row = screen.getByText('file-2.ts').closest('[data-path]');
+    fireEvent.contextMenu(row!, { clientX: 120, clientY: 80 });
+
+    const menuButton = screen.getByRole('button', { name: /Copy Path/ });
+    const menu = menuButton.closest('.context-menu');
+
+    expect(menu).not.toBeNull();
+    expect(menu?.parentElement).toBe(document.body);
+  });
+
+  it('clamps context menu placement to the visible viewport', () => {
+    expect(
+      getAdjustedContextMenuPosition(
+        { x: 700, y: 900 },
+        { width: 240, height: 320 },
+        { width: 800, height: 1000 }
+      )
+    ).toEqual({ x: 544, y: 664 });
+
+    expect(
+      getAdjustedContextMenuPosition(
+        { x: 4, y: 8 },
+        { width: 180, height: 120 },
+        { width: 800, height: 600 }
+      )
+    ).toEqual({ x: 16, y: 16 });
   });
 });

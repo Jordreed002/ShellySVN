@@ -1,0 +1,21 @@
+---
+title: Checkout
+description: Create a working copy with the minimum amount of friction possible.
+category: Workflows
+status: available
+lastReviewed: "2026-06-01"
+---
+
+## Normal checkout
+
+Use the standard checkout path when the repository size is reasonable and the team needs the entire tree locally.
+
+## When not to do that
+
+If the repository is very large or only a subset is needed, use sparse checkout instead. That is one of the highest-value workflows currently exposed by ShellySVN.
+
+## Practical checks
+
+- Choose a clean destination folder.
+- Confirm the branch or trunk path before starting.
+- Validate the first update after checkout to ensure the path behaves like a normal working copy.

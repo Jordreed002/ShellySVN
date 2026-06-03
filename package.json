@@ -14,6 +14,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "site:dev": "bun run --cwd apps/site dev",
+    "site:build": "bun run --cwd apps/site build",
+    "site:start": "bun run --cwd apps/site start",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "bun run build && bun run verify:binaries current && electron-builder --dir",
     "build:win": "bun run build && bun run verify:binaries win32-x64 && electron-builder --win",
@@ -54,6 +57,7 @@
     "cli:dev": "bun run src/main/cli.ts"
   },
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "dependencies": {

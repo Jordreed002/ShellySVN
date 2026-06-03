@@ -13,6 +13,7 @@ import {
 } from '../utils/svn-xml';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
+import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 
 const SHELVING_UNSUPPORTED_MESSAGE =
   'SVN shelving is not available from the active SVN binary. Use an SVN client build with shelve/unshelve support to enable this workflow.';
@@ -27,7 +28,7 @@ function getShelvingUnsupportedReason(error: unknown): string | null {
 export async function listRepository(
   url: string,
   revision?: string,
-  depth?: 'empty' | 'immediates' | 'infinity',
+  depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   credentials?: { username: string; password: string }
 ): Promise<SvnListResult> {
   const args = ['list', '--xml', '--non-interactive'];
@@ -255,7 +256,7 @@ export async function externalsUpdate(
         : externalPath
           ? join(workingCopyPath, externalPath)
           : workingCopyPath;
-    await runSvnText(['update', targetPath]);
+    await runSvnText(['update', targetPath], await getNetworkOptionsForWorkingCopyPath(targetPath));
     return { success: true };
   } catch (error) {
     debug.error('[SVN] Externals update error:', error);

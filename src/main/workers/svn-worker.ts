@@ -74,7 +74,20 @@ function parseSvnStatusXml(xml: string, baseDir: string): FsSvnStatusResult {
   return { directStatus, allEntries };
 }
 
-async function runSvnXml(jobId: string, args: string[], payload: StatusPayload): Promise<string> {
+interface WorkerSvnPayload {
+  svnCommand: string;
+  context: StatusPayload['context'];
+  trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
+}
+
+async function runSvnXml(
+  jobId: string,
+  args: string[],
+  payload: WorkerSvnPayload,
+  cwd: string
+): Promise<string> {
   const controller = new AbortController();
   runningControllers.set(jobId, controller);
 
@@ -88,8 +101,10 @@ async function runSvnXml(jobId: string, args: string[], payload: StatusPayload):
     const result = await runResolvedSvn(args, {
       svnCommand: payload.svnCommand,
       context: payload.context,
-      cwd: payload.dirPath,
+      cwd,
       trustSslFailures: payload.trustSslFailures,
+      trustedSslFailures: payload.trustedSslFailures,
+      credentials: payload.credentials,
       signal: controller.signal,
     });
     return result.stdout;
@@ -103,7 +118,8 @@ async function runDeepStatus(job: WorkerJobMessage<'svn:deepStatus'>): Promise<F
   const xml = await runSvnXml(
     job.id,
     ['status', '--xml', '--depth=infinity', job.payload.dirPath],
-    job.payload
+    job.payload,
+    job.payload.dirPath
   );
   return parseSvnStatusXml(xml, job.payload.dirPath);
 }
@@ -115,7 +131,7 @@ async function runFsStatus(job: WorkerJobMessage<'svn:fsStatus'>): Promise<FsSvn
   }
   args.push(job.payload.dirPath);
 
-  const xml = await runSvnXml(job.id, args, job.payload);
+  const xml = await runSvnXml(job.id, args, job.payload, job.payload.dirPath);
   return parseSvnStatusXml(xml, job.payload.dirPath);
 }
 
@@ -126,7 +142,7 @@ async function runWorkingCopyStatus(job: WorkerJobMessage<'svn:workingCopyStatus
   }
   args.push(job.payload.dirPath);
 
-  const xml = await runSvnXml(job.id, args, job.payload);
+  const xml = await runSvnXml(job.id, args, job.payload, job.payload.dirPath);
   return parseWorkingCopyStatusXml(xml, job.payload.dirPath);
 }
 
@@ -141,19 +157,23 @@ function buildDiffArgs(payload: DiffPayload): string[] {
 
 async function runDiff(job: WorkerJobMessage<'svn:diff'>) {
   const output = await runSvnXml(job.id, buildDiffArgs(job.payload), {
-    dirPath: process.cwd(),
     svnCommand: job.payload.svnCommand,
     context: job.payload.context,
-  });
+    trustSslFailures: job.payload.trustSslFailures,
+    trustedSslFailures: job.payload.trustedSslFailures,
+    credentials: job.payload.credentials,
+  }, process.cwd());
   return parseSvnDiff(output);
 }
 
 async function runDiffStreaming(job: WorkerJobMessage<'svn:diffStreaming'>) {
   const output = await runSvnXml(job.id, buildDiffArgs(job.payload), {
-    dirPath: process.cwd(),
     svnCommand: job.payload.svnCommand,
     context: job.payload.context,
-  });
+    trustSslFailures: job.payload.trustSslFailures,
+    trustedSslFailures: job.payload.trustedSslFailures,
+    credentials: job.payload.credentials,
+  }, process.cwd());
 
   if (output.includes('Cannot display: file marked as a binary type')) {
     return {
@@ -170,10 +190,12 @@ async function runDiffStreaming(job: WorkerJobMessage<'svn:diffStreaming'>) {
 async function runDiffUrls(job: WorkerJobMessage<'svn:diffUrls'>) {
   const payload: DiffUrlsPayload = job.payload;
   const output = await runSvnXml(job.id, ['diff', payload.leftUrl, payload.rightUrl], {
-    dirPath: process.cwd(),
     svnCommand: payload.svnCommand,
     context: payload.context,
-  });
+    trustSslFailures: payload.trustSslFailures,
+    trustedSslFailures: payload.trustedSslFailures,
+    credentials: payload.credentials,
+  }, process.cwd());
   return parseSvnDiff(output);
 }
 
@@ -189,10 +211,12 @@ async function runLog(job: WorkerJobMessage<'svn:log'>) {
   args.push(payload.path);
 
   const xml = await runSvnXml(job.id, args, {
-    dirPath: process.cwd(),
     svnCommand: payload.svnCommand,
     context: payload.context,
-  });
+    trustSslFailures: payload.trustSslFailures,
+    trustedSslFailures: payload.trustedSslFailures,
+    credentials: payload.credentials,
+  }, process.cwd());
   return parseSvnLogXml(xml);
 }
 
@@ -205,10 +229,12 @@ async function runBlame(job: WorkerJobMessage<'svn:blame'>) {
   args.push(payload.path);
 
   const xml = await runSvnXml(job.id, args, {
-    dirPath: process.cwd(),
     svnCommand: payload.svnCommand,
     context: payload.context,
-  });
+    trustSslFailures: payload.trustSslFailures,
+    trustedSslFailures: payload.trustedSslFailures,
+    credentials: payload.credentials,
+  }, process.cwd());
   return parseSvnBlameXml(xml, payload.path);
 }
 

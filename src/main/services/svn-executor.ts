@@ -1,6 +1,7 @@
 import type { SvnExecutionContext } from '@shared/types';
 import { getSettingsManager } from '../settings-manager';
 import { getAuthCache } from '../auth-cache';
+import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
 import {
   DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
@@ -57,6 +58,29 @@ async function getCachedCredentialsForArgs(
   return null;
 }
 
+async function getCachedTrustedSslFailuresForArgs(args: string[]): Promise<string | undefined> {
+  const urls = getRepositoryUrlArgs(args);
+  if (urls.length === 0) {
+    return undefined;
+  }
+
+  try {
+    const cache = getSslTrustCache();
+    await cache.ready();
+
+    for (const url of urls) {
+      const match = cache.findForUrl(url);
+      if (match) {
+        return match.failures;
+      }
+    }
+  } catch (error) {
+    debug.warn('[SVN] Failed to look up cached SSL trust:', error);
+  }
+
+  return undefined;
+}
+
 export async function resolveSvnExecution(
   options: Pick<RunSvnOptions, 'operationContext'> = {}
 ): Promise<ResolvedSvnExecution> {
@@ -83,14 +107,21 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
   const { svnCommand, context } = await resolveSvnExecution(options);
   const cachedCredentials =
     options.credentials === undefined ? await getCachedCredentialsForArgs(args) : null;
+  const cachedTrustedSslFailures =
+    options.trustedSslFailures === undefined
+      ? await getCachedTrustedSslFailuresForArgs(args)
+      : undefined;
   const credentials = options.credentials ?? cachedCredentials ?? undefined;
+  const trustedSslFailures = options.trustedSslFailures ?? cachedTrustedSslFailures;
+  const trustSslFailures =
+    options.trustSslFailures === true || trustedSslFailures !== undefined ? true : undefined;
 
   return runResolvedSvn(args, {
     svnCommand,
     context,
     cwd: options.cwd,
-    trustSslFailures: options.trustSslFailures,
-    trustedSslFailures: options.trustedSslFailures,
+    trustSslFailures,
+    trustedSslFailures,
     credentials,
     signal: options.signal,
     onStdout: options.onStdout,

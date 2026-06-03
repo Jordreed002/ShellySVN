@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Download,
   Upload,
@@ -50,6 +51,18 @@ interface ContextMenuProps {
   className?: string;
 }
 
+export function getAdjustedContextMenuPosition(
+  position: { x: number; y: number },
+  menuSize: { width: number; height: number },
+  viewport: { width: number; height: number },
+  padding = 16
+) {
+  return {
+    x: Math.max(padding, Math.min(position.x, viewport.width - menuSize.width - padding)),
+    y: Math.max(padding, Math.min(position.y, viewport.height - menuSize.height - padding)),
+  };
+}
+
 export function ContextMenu({ items, position, onClose, className = '' }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [submenuOpen, setSubmenuOpen] = useState<string | null>(null);
@@ -57,25 +70,24 @@ export function ContextMenu({ items, position, onClose, className = '' }: Contex
   // Adjust position to stay within viewport
   const [adjustedPosition, setAdjustedPosition] = useState(position);
 
-  useEffect(() => {
-    if (menuRef.current) {
+  useLayoutEffect(() => {
+    const updatePosition = () => {
+      if (!menuRef.current) return;
+
       const rect = menuRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
+      setAdjustedPosition(
+        getAdjustedContextMenuPosition(
+          position,
+          { width: rect.width, height: rect.height },
+          { width: window.innerWidth, height: window.innerHeight }
+        )
+      );
+    };
 
-      let x = position.x;
-      let y = position.y;
-
-      if (x + rect.width > viewportWidth - 16) {
-        x = viewportWidth - rect.width - 16;
-      }
-      if (y + rect.height > viewportHeight - 16) {
-        y = viewportHeight - rect.height - 16;
-      }
-
-      setAdjustedPosition({ x, y });
-    }
-  }, [position]);
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [items, position]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -101,7 +113,7 @@ export function ContextMenu({ items, position, onClose, className = '' }: Contex
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       className={`context-menu ${className}`}
@@ -176,7 +188,8 @@ export function ContextMenu({ items, position, onClose, className = '' }: Contex
           </div>
         );
       })}
-    </div>
+    </div>,
+    document.body
   );
 }
 

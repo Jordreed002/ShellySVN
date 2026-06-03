@@ -1,0 +1,14 @@
+{
+  "title": "Workflows",
+  "pages": [
+    "checkout",
+    "sparse-checkout",
+    "update",
+    "commit",
+    "history-and-diff",
+    "branch-tag-merge",
+    "conflicts-and-resolve",
+    "externals",
+    "locks-and-shelving"
+  ]
+}
