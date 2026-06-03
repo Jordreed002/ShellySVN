@@ -1,11 +1,13 @@
 import { lazy, ReactNode, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { GitBranch, Minus, Square, StickyNote, X } from 'lucide-react';
+import { Minus, Search, Square, StickyNote, X } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 
+import { AnimatePresence, m, useMotionEnabled, variants } from '../lib/motion';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
+import { ShellMark } from './ShellMark';
 import { Sidebar } from './Sidebar';
 import { OnboardingTutorial, useOnboarding } from './tutorial';
 import { StatusBar } from './ui/StatusBar';
@@ -112,70 +114,104 @@ export function Layout({ children }: LayoutProps) {
     window.api.app.window.close();
   };
 
+  const routePath = routerState.location.pathname;
+  const motionEnabled = useMotionEnabled();
+
+  // Short, readable label for the command bar (current path tail or default)
+  const omnibarLabel = currentPath
+    ? currentPath.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).pop() || currentPath
+    : 'Search files, jump to a repo, or run a command';
+
   return (
-    <div className="flex flex-col h-screen bg-bg text-text overflow-hidden">
-      {/* Unified Title Bar - Full Width */}
-      <div
-        className={`h-[32px] bg-bg-tertiary titlebar-drag flex items-center justify-between border-b border-border flex-shrink-0 ${
+    <div className="flex flex-col h-screen shell-backdrop text-text overflow-hidden">
+      {/* Top Bar — glass, modern */}
+      <header
+        className={`h-[--topbar-height] glass titlebar-drag flex items-center gap-3 border-b border-border flex-shrink-0 px-3 ${
           isMac ? 'pl-20' : ''
         }`}
       >
-        {/* Left: App branding */}
-        <div className="flex items-center gap-2 px-4">
-          <GitBranch className="w-4 h-4 text-accent" />
-          <span className="text-sm font-semibold text-text">ShellySVN</span>
+        {/* Left: brand */}
+        <div className="flex items-center gap-2 pl-1 pr-2 select-none">
+          <ShellMark className="w-5 h-5 text-accent" />
+          <span className="text-sm font-semibold tracking-tight">ShellySVN</span>
         </div>
 
-        {/* Center: Window title (draggable) and Quick Notes button */}
-        <div className="flex-1 flex items-center justify-center gap-4">
-          <span className="text-xs text-text-muted font-medium">Subversion Client</span>
+        {/* Center: command / search bar */}
+        <div className="flex-1 flex justify-center">
           <button
-            onClick={() => setShowNotes(!showNotes)}
-            className={`titlebar-no-drag p-1.5 rounded transition-fast ${
-              showNotes
-                ? 'bg-accent/20 text-accent'
-                : 'text-text-muted hover:text-text hover:bg-bg-elevated'
-            }`}
-            title="Quick Notes"
+            type="button"
+            onClick={() => setShowCommandPalette(true)}
+            className="omnibar titlebar-no-drag group"
+            title="Open command palette (Ctrl/Cmd+Shift+P)"
           >
-            <StickyNote className="w-4 h-4" />
+            <Search className="w-3.5 h-3.5 flex-shrink-0 text-text-muted group-hover:text-text-secondary transition-fast" />
+            <span className="flex-1 text-left text-sm truncate">{omnibarLabel}</span>
+            <span className="kbd ml-2 flex-shrink-0">⌘K</span>
           </button>
         </div>
 
-        {/* Right: Window controls (Windows/Linux) */}
-        {!isMac && (
-          <div className="flex items-center h-full titlebar-no-drag">
-            <button
-              onClick={handleMinimize}
-              className="h-full px-4 flex items-center justify-center hover:bg-bg-elevated transition-fast"
-              aria-label="Minimize"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleMaximize}
-              className="h-full px-4 flex items-center justify-center hover:bg-bg-elevated transition-fast"
-              aria-label="Maximize"
-            >
-              <Square className="w-3 h-3" />
-            </button>
-            <button
-              onClick={handleClose}
-              className="h-full px-4 flex items-center justify-center hover:bg-error hover:text-white transition-fast"
-              aria-label="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        {isMac && <div className="w-20" />}
-      </div>
+        {/* Right: actions + window controls */}
+        <div className="flex items-center gap-1 titlebar-no-drag">
+          <button
+            onClick={() => setShowNotes(!showNotes)}
+            className={`btn-icon-sm ${showNotes ? 'bg-accent/15 text-accent' : ''}`}
+            title="Quick Notes"
+            aria-pressed={showNotes}
+          >
+            <StickyNote className="w-4 h-4" />
+          </button>
+
+          {!isMac && (
+            <div className="flex items-center h-full ml-1">
+              <button
+                onClick={handleMinimize}
+                className="window-control rounded-md hover:bg-bg-elevated transition-fast"
+                aria-label="Minimize"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleMaximize}
+                className="window-control rounded-md hover:bg-bg-elevated transition-fast"
+                aria-label="Maximize"
+              >
+                <Square className="w-3 h-3" />
+              </button>
+              <button
+                onClick={handleClose}
+                className="window-control rounded-md hover:bg-error hover:text-white transition-fast"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
 
       {/* Main Content Area - Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden">{children}</div>
+          <div className="flex-1 overflow-hidden relative">
+            {motionEnabled ? (
+              <AnimatePresence mode="wait" initial={false}>
+                <m.div
+                  key={routePath}
+                  className="absolute inset-0 flex flex-col overflow-hidden"
+                  variants={variants.fadeUp}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
+                >
+                  {children}
+                </m.div>
+              </AnimatePresence>
+            ) : (
+              children
+            )}
+          </div>
           <StatusBar />
         </main>
       </div>

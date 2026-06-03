@@ -2,31 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ShellySVN design tokens.
+ *
+ * Palette: the original GitHub-style dark blue base and blue accent are kept.
+ * The redesign adds depth (glass surfaces, layered shadows), organic radii, and
+ * motion — without recoloring the app.
+ *
+ * Colors are stored as space-separated RGB triplets so Tailwind's
+ * `rgb(var(--x) / <alpha-value>)` opacity utilities keep working.
+ */
 :root {
-  --sidebar-width: 260px;
-  --header-height: 40px;
-  --titlebar-height: 32px;
-  --toolbar-height: 44px;
+  --rail-width: 56px;
+  --panel-width: 248px;
+  --topbar-height: 48px;
 
-  /* Background colors - RGB format for opacity support */
+  /* legacy aliases still referenced in a few places */
+  --sidebar-width: 260px;
+  --header-height: 48px;
+  --titlebar-height: 40px;
+  --toolbar-height: 48px;
+
+  /* Surfaces */
   --color-bg-rgb: 13 17 23;
   --color-bg-secondary-rgb: 22 27 34;
   --color-bg-tertiary-rgb: 33 38 45;
   --color-bg-elevated-rgb: 48 54 61;
-
-  /* Background colors - Direct format for CSS usage */
   --color-bg: rgb(13 17 23);
   --color-bg-secondary: rgb(22 27 34);
   --color-bg-tertiary: rgb(33 38 45);
   --color-bg-elevated: rgb(48 54 61);
 
-  /* Border colors */
+  /* Glass surface (translucent + blur) */
+  --surface-glass: rgba(33, 38, 45, 0.72);
+  --surface-glass-strong: rgba(22, 27, 34, 0.9);
+
+  /* Borders */
   --color-border-rgb: 48 54 61;
   --color-border-muted-rgb: 33 38 45;
   --color-border: rgb(48 54 61);
   --color-border-muted: rgb(33 38 45);
 
-  /* Text colors */
+  /* Text */
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 139 148 158;
   --color-text-muted-rgb: 110 118 129;
@@ -36,10 +53,11 @@
   --color-text-muted: rgb(110 118 129);
   --color-text-faint: rgb(72 79 88);
 
-  /* Accent/Primary colors (user customizable) */
+  /* Accent — original blue (user-customizable) */
   --color-accent-rgb: 88 166 255;
   --color-accent-hover-rgb: 121 184 255;
   --color-accent-muted-rgb: 56 139 253;
+  --color-accent-soft-rgb: 88 166 255;
   --color-accent-glow: rgba(88, 166, 255, 0.4);
   --color-accent: rgb(88 166 255);
   --color-accent-hover: rgb(121 184 255);
@@ -81,11 +99,15 @@
   --color-warning: rgb(210 153 34);
   --color-error: rgb(248 81 73);
   --color-info: rgb(88 166 255);
+
+  /* Layered shadows — soft ambient + key light */
+  --shadow-card: 0 1px 2px rgba(1, 4, 9, 0.5), 0 1px 1px rgba(1, 4, 9, 0.35);
+  --shadow-panel: 0 12px 32px -8px rgba(1, 4, 9, 0.7), 0 2px 8px rgba(1, 4, 9, 0.5);
+  --shadow-overlay: 0 24px 64px -12px rgba(1, 4, 9, 0.8), 0 8px 24px rgba(1, 4, 9, 0.5);
 }
 
 /* Light theme */
 :root.light {
-  /* Background colors */
   --color-bg-rgb: 255 255 255;
   --color-bg-secondary-rgb: 246 248 250;
   --color-bg-tertiary-rgb: 234 238 242;
@@ -95,13 +117,14 @@
   --color-bg-tertiary: rgb(234 238 242);
   --color-bg-elevated: rgb(255 255 255);
 
-  /* Border colors */
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --surface-glass-strong: rgba(246, 248, 250, 0.92);
+
   --color-border-rgb: 208 215 222;
   --color-border-muted-rgb: 234 238 242;
   --color-border: rgb(208 215 222);
   --color-border-muted: rgb(234 238 242);
 
-  /* Text colors */
   --color-text-rgb: 31 35 40;
   --color-text-secondary-rgb: 87 96 106;
   --color-text-muted-rgb: 140 149 159;
@@ -111,13 +134,12 @@
   --color-text-muted: rgb(140 149 159);
   --color-text-faint: rgb(140 149 159);
 
-  /* Accent colors stay the same but glow is adjusted */
+  --color-accent-soft-rgb: 88 166 255;
   --color-accent-glow: rgba(88, 166, 255, 0.25);
   --color-accent: rgb(88 166 255);
   --color-accent-hover: rgb(121 184 255);
   --color-accent-muted: rgb(56 139 253);
 
-  /* SVN Status Colors - slightly adjusted for light theme */
   --color-svn-normal-rgb: 26 127 55;
   --color-svn-added-rgb: 9 105 218;
   --color-svn-modified-rgb: 154 103 0;
@@ -131,7 +153,6 @@
   --color-svn-conflict: rgb(207 34 46);
   --color-svn-unversioned: rgb(87 96 106);
 
-  /* UI State Colors */
   --color-success-rgb: 26 127 55;
   --color-success-glow: rgba(26, 127, 55, 0.25);
   --color-warning-rgb: 154 103 0;
@@ -141,11 +162,14 @@
   --color-success: rgb(26 127 55);
   --color-warning: rgb(154 103 0);
   --color-error: rgb(207 34 46);
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.08), 0 1px 1px rgba(16, 24, 40, 0.04);
+  --shadow-panel: 0 12px 32px -8px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
+  --shadow-overlay: 0 24px 64px -12px rgba(16, 24, 40, 0.22), 0 8px 24px rgba(16, 24, 40, 0.1);
 }
 
-/* Dark theme (explicit, same as default) */
+/* Dark theme (explicit — mirrors :root defaults) */
 :root.dark {
-  /* Background colors */
   --color-bg-rgb: 13 17 23;
   --color-bg-secondary-rgb: 22 27 34;
   --color-bg-tertiary-rgb: 33 38 45;
@@ -155,13 +179,14 @@
   --color-bg-tertiary: rgb(33 38 45);
   --color-bg-elevated: rgb(48 54 61);
 
-  /* Border colors */
+  --surface-glass: rgba(33, 38, 45, 0.72);
+  --surface-glass-strong: rgba(22, 27, 34, 0.9);
+
   --color-border-rgb: 48 54 61;
   --color-border-muted-rgb: 33 38 45;
   --color-border: rgb(48 54 61);
   --color-border-muted: rgb(33 38 45);
 
-  /* Text colors */
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 139 148 158;
   --color-text-muted-rgb: 110 118 129;
@@ -171,36 +196,7 @@
   --color-text-muted: rgb(110 118 129);
   --color-text-faint: rgb(72 79 88);
 
-  /* Accent colors */
   --color-accent-glow: rgba(88, 166, 255, 0.4);
-  --color-accent: rgb(88 166 255);
-  --color-accent-hover: rgb(121 184 255);
-  --color-accent-muted: rgb(56 139 253);
-
-  /* SVN Status Colors */
-  --color-svn-normal-rgb: 63 185 80;
-  --color-svn-added-rgb: 88 166 255;
-  --color-svn-modified-rgb: 210 153 34;
-  --color-svn-deleted-rgb: 248 81 73;
-  --color-svn-conflict-rgb: 248 81 73;
-  --color-svn-unversioned-rgb: 110 118 129;
-  --color-svn-normal: rgb(63 185 80);
-  --color-svn-added: rgb(88 166 255);
-  --color-svn-modified: rgb(210 153 34);
-  --color-svn-deleted: rgb(248 81 73);
-  --color-svn-conflict: rgb(248 81 73);
-  --color-svn-unversioned: rgb(110 118 129);
-
-  /* UI State Colors */
-  --color-success-rgb: 63 185 80;
-  --color-success-glow: rgba(63, 185, 80, 0.4);
-  --color-warning-rgb: 210 153 34;
-  --color-warning-glow: rgba(210, 153, 34, 0.4);
-  --color-error-rgb: 248 81 73;
-  --color-error-glow: rgba(248, 81, 73, 0.4);
-  --color-success: rgb(63 185 80);
-  --color-warning: rgb(210 153 34);
-  --color-error: rgb(248 81 73);
 }
 
 /* Reset */
@@ -232,10 +228,18 @@ body {
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.011em;
 }
 
-/* Custom Scrollbar - Refined */
+/* Ambient backdrop — subtle radial accent glow anchoring the app */
+.shell-backdrop {
+  background:
+    radial-gradient(900px 600px at 12% -10%, rgb(var(--color-accent-rgb) / 0.06), transparent 60%),
+    radial-gradient(700px 500px at 100% 110%, rgb(var(--color-accent-rgb) / 0.04), transparent 55%),
+    var(--color-bg);
+}
+
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -246,14 +250,14 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(110, 118, 129, 0.4);
-  border-radius: 5px;
+  background: rgba(108, 119, 120, 0.35);
+  border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(110, 118, 129, 0.6);
+  background: rgba(108, 119, 120, 0.55);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -262,21 +266,20 @@ body {
   background: transparent;
 }
 
-/* Overlay Scrollbar Effect */
 .scrollbar-overlay {
   scrollbar-width: thin;
-  scrollbar-color: rgba(110, 118, 129, 0.3) transparent;
+  scrollbar-color: rgba(108, 119, 120, 0.3) transparent;
 }
 
 .scrollbar-overlay::-webkit-scrollbar-thumb {
-  background: rgba(110, 118, 129, 0.3);
+  background: rgba(108, 119, 120, 0.28);
 }
 
 .scrollbar-overlay::-webkit-scrollbar-thumb:hover {
-  background: rgba(110, 118, 129, 0.5);
+  background: rgba(108, 119, 120, 0.5);
 }
 
-/* Drag region for macOS */
+/* Electron drag regions */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
@@ -291,90 +294,112 @@ body {
   outline-offset: 2px;
 }
 
-/* Selection */
 ::selection {
-  background: rgba(88, 166, 255, 0.3);
+  background: rgb(var(--color-accent-rgb) / 0.3);
 }
 
 /* Transitions */
 .transition-fast {
   transition:
-    background-color 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-    border-color 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-    color 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-    opacity 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-    box-shadow 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-    transform 0.12s cubic-bezier(0.25, 1, 0.5, 1);
+    background-color 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+    border-color 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+    color 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.13s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .transition-normal {
   transition:
-    background-color 0.2s cubic-bezier(0.25, 1, 0.5, 1),
-    border-color 0.2s cubic-bezier(0.25, 1, 0.5, 1),
-    color 0.2s cubic-bezier(0.25, 1, 0.5, 1),
-    opacity 0.2s cubic-bezier(0.25, 1, 0.5, 1),
-    box-shadow 0.2s cubic-bezier(0.25, 1, 0.5, 1),
-    transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+    background-color 0.22s cubic-bezier(0.25, 1, 0.5, 1),
+    border-color 0.22s cubic-bezier(0.25, 1, 0.5, 1),
+    color 0.22s cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 0.22s cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 0.22s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.22s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* Button Base Styles */
 @layer components {
+  /* Glass surfaces */
+  .glass {
+    background: var(--surface-glass);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+  }
+
+  .glass-strong {
+    background: var(--surface-glass-strong);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+  }
+
+  /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md cursor-pointer select-none;
+    @apply inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-medium rounded-lg cursor-pointer select-none;
     transition:
-      background-color 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-      border-color 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-      color 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-      opacity 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-      box-shadow 0.12s cubic-bezier(0.25, 1, 0.5, 1),
-      transform 0.12s cubic-bezier(0.25, 1, 0.5, 1);
+      background-color 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+      border-color 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+      color 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+      opacity 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+      box-shadow 0.13s cubic-bezier(0.25, 1, 0.5, 1),
+      transform 0.08s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  .btn:active {
+    transform: scale(0.97);
+  }
+
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs rounded-md;
   }
 
   .btn-primary {
-    @apply bg-accent text-white hover:bg-accent-hover active:scale-[0.98] shadow-sm hover:shadow-glow-accent;
+    @apply bg-accent text-white font-semibold hover:bg-accent-hover shadow-sm hover:shadow-glow-accent;
   }
 
   .btn-secondary {
-    @apply bg-bg-tertiary text-text border border-border hover:bg-bg-elevated hover:border-border-focus active:scale-[0.98];
+    @apply bg-bg-elevated text-text border border-border hover:bg-bg-tertiary hover:border-border-focus;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated;
+    @apply bg-transparent text-text-secondary hover:text-text hover:bg-bg-elevated;
   }
 
   .btn-danger {
-    @apply bg-error text-white hover:brightness-110 active:scale-[0.98] shadow-sm hover:shadow-glow-error;
+    @apply bg-error text-white hover:brightness-110 shadow-sm hover:shadow-glow-error;
   }
 
   .btn-success {
-    @apply bg-success text-white hover:brightness-110 active:scale-[0.98] shadow-sm hover:shadow-glow-success;
+    @apply bg-success text-white hover:brightness-110 shadow-sm hover:shadow-glow-success;
   }
 
   .btn-icon {
-    @apply p-2 rounded-md text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated transition-fast;
+    @apply p-2 rounded-lg text-text-secondary hover:text-text hover:bg-bg-elevated active:scale-95 transition-fast;
   }
 
   .btn-icon-sm {
-    @apply p-1.5 rounded text-text-secondary hover:text-text hover:bg-bg-tertiary active:bg-bg-elevated transition-fast;
+    @apply p-1.5 rounded-md text-text-secondary hover:text-text hover:bg-bg-elevated active:scale-95 transition-fast;
   }
 
-  /* Input Styles */
+  /* Inputs */
   .input {
-    @apply w-full px-3 py-2 bg-bg-secondary border border-border rounded-md text-text placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-fast;
+    @apply w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25 transition-fast;
   }
 
-  /* Card Styles */
+  /* Cards */
   .card {
-    @apply bg-bg-secondary border border-border rounded-lg shadow-card;
+    @apply bg-bg-secondary border border-border rounded-xl;
+    box-shadow: var(--shadow-card);
   }
 
   .card-elevated {
-    @apply bg-bg-tertiary border border-border rounded-lg shadow-dropdown;
+    @apply bg-bg-elevated border border-border rounded-xl;
+    box-shadow: var(--shadow-panel);
   }
 
-  /* Badge Styles */
+  /* Badges */
   .badge {
-    @apply inline-flex items-center px-2 py-0.5 text-2xs font-medium rounded-full;
+    @apply inline-flex items-center px-2 py-0.5 text-2xs font-semibold rounded-full;
   }
 
   .badge-normal {
@@ -399,10 +424,11 @@ body {
 
   /* Tooltip */
   .tooltip {
-    @apply absolute z-50 px-2 py-1 text-xs bg-bg-elevated text-text border border-border rounded shadow-dropdown animate-fade-in;
+    @apply absolute z-50 px-2 py-1 text-xs bg-bg-elevated text-text border border-border rounded-lg animate-fade-in;
+    box-shadow: var(--shadow-panel);
   }
 
-  /* Divider */
+  /* Dividers */
   .divider {
     @apply w-full h-px bg-border;
   }
@@ -413,18 +439,19 @@ body {
 
   /* Context Menu */
   .context-menu {
-    @apply fixed z-50 min-w-[180px] py-1 bg-bg-tertiary border border-border rounded-lg shadow-dropdown animate-scale-in;
+    @apply fixed z-50 min-w-[190px] p-1.5 glass-strong border border-border rounded-xl animate-scale-in;
+    box-shadow: var(--shadow-overlay);
   }
 
   .context-menu-item {
-    @apply flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-elevated cursor-pointer;
+    @apply flex items-center gap-3 px-3 py-2 text-sm text-text-secondary rounded-lg hover:text-text hover:bg-accent/10 cursor-pointer;
     transition:
-      background-color 0.04s linear,
-      color 0.04s linear;
+      background-color 0.06s linear,
+      color 0.06s linear;
   }
 
   .context-menu-item-danger {
-    @apply hover:text-error;
+    @apply hover:text-error hover:bg-error/10;
   }
 
   .context-menu-divider {
@@ -433,41 +460,43 @@ body {
 
   /* Dropdown */
   .dropdown {
-    @apply absolute z-50 mt-1 min-w-full bg-bg-tertiary border border-border rounded-lg shadow-dropdown animate-slide-down overflow-hidden;
+    @apply absolute z-50 mt-1.5 min-w-full p-1.5 glass-strong border border-border rounded-xl animate-slide-down overflow-hidden;
+    box-shadow: var(--shadow-overlay);
   }
 
   .dropdown-item {
-    @apply flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-elevated cursor-pointer;
+    @apply flex items-center gap-2 px-3 py-2 text-sm text-text-secondary rounded-lg hover:text-text hover:bg-accent/10 cursor-pointer;
     transition:
-      background-color 0.04s linear,
-      color 0.04s linear;
+      background-color 0.06s linear,
+      color 0.06s linear;
   }
 
   .dropdown-item-active {
-    @apply bg-accent text-white hover:bg-accent-hover;
+    @apply bg-accent text-white font-medium hover:bg-accent-hover;
   }
 
   /* File Row */
   .file-row {
-    @apply flex items-center gap-3 px-4 py-2 border-b border-border-muted cursor-pointer;
-    transition: background-color 0.04s linear;
+    @apply flex items-center gap-3 px-4 py-2 rounded-lg mx-1.5 cursor-pointer;
+    transition: background-color 0.06s linear;
   }
 
   .file-row:hover {
-    @apply bg-bg-tertiary;
+    @apply bg-bg-elevated;
   }
 
   .file-row-selected {
-    @apply bg-accent/10 hover:bg-accent/15;
+    @apply bg-accent/10 hover:bg-accent/20;
   }
 
   /* Modal */
   .modal-overlay {
-    @apply fixed inset-0 z-40 flex items-center justify-center bg-black/60 animate-fade-in;
+    @apply fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in;
   }
 
   .modal {
-    @apply relative z-50 bg-bg-secondary border border-border rounded-xl shadow-dropdown animate-scale-in overflow-hidden max-h-[90vh];
+    @apply relative z-50 glass-strong border border-border rounded-2xl animate-scale-in overflow-hidden max-h-[90vh];
+    box-shadow: var(--shadow-overlay);
   }
 
   .modal-header {
@@ -475,20 +504,20 @@ body {
   }
 
   .modal-body {
-    @apply px-6 py-4 overflow-auto;
+    @apply px-6 py-5 overflow-auto;
   }
 
   .modal-footer {
-    @apply flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-bg-tertiary/50 flex-shrink-0;
+    @apply flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-bg-tertiary/40 flex-shrink-0;
   }
 
-  /* Breadcrumb */
+  /* Breadcrumb / path bar */
   .breadcrumb {
-    @apply flex items-center gap-1 text-sm;
+    @apply flex items-center gap-0.5 text-sm;
   }
 
   .breadcrumb-item {
-    @apply flex items-center gap-1 text-text-secondary hover:text-text cursor-pointer transition-fast;
+    @apply flex items-center gap-1 px-1.5 py-0.5 rounded-md text-text-secondary hover:text-text hover:bg-bg-elevated cursor-pointer transition-fast;
   }
 
   .breadcrumb-separator {
@@ -496,28 +525,28 @@ body {
   }
 
   .breadcrumb-current {
-    @apply text-text font-medium;
+    @apply text-text font-medium px-1.5;
   }
 
-  /* Tree Item */
+  /* Tree / nav item */
   .tree-item {
-    @apply flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer rounded-md mx-1;
+    @apply flex items-center gap-2.5 px-2.5 py-1.5 text-sm text-text-secondary cursor-pointer rounded-lg mx-1.5;
     transition:
-      background-color 0.04s linear,
-      color 0.04s linear;
+      background-color 0.08s linear,
+      color 0.08s linear;
   }
 
   .tree-item:hover {
-    @apply bg-bg-tertiary;
+    @apply bg-bg-elevated text-text;
   }
 
   .tree-item-active {
-    @apply bg-accent/10 text-accent;
+    @apply bg-accent/10 text-accent font-medium;
   }
 
   /* Toolbar */
   .toolbar {
-    @apply flex items-center gap-2 h-[--toolbar-height] px-4 bg-bg-secondary border-b border-border;
+    @apply flex items-center gap-2 h-[--toolbar-height] px-3 bg-bg-secondary/60 border-b border-border;
   }
 
   .toolbar-group {
@@ -525,7 +554,36 @@ body {
   }
 
   .toolbar-divider {
-    @apply w-px h-5 bg-border mx-1;
+    @apply w-px h-5 bg-border mx-1.5;
+  }
+
+  /* Icon rail (primary nav) */
+  .rail-item {
+    @apply relative flex items-center justify-center w-10 h-10 rounded-xl text-text-muted cursor-pointer transition-fast;
+  }
+
+  .rail-item:hover {
+    @apply text-text bg-bg-elevated;
+  }
+
+  .rail-item-active {
+    @apply text-accent bg-accent/10;
+  }
+
+  /* Omnibar (center of top bar) */
+  .omnibar {
+    @apply flex items-center gap-2 h-8 px-3 min-w-[260px] max-w-[560px] w-full rounded-lg bg-bg-secondary/70 border border-border text-text-secondary cursor-text hover:border-border-focus/60 transition-fast;
+  }
+
+  /* Floating status pill */
+  .status-pill {
+    @apply flex items-center gap-2.5 h-8 pl-2.5 pr-3 rounded-full glass border border-border text-xs text-text-secondary;
+    box-shadow: var(--shadow-panel);
+  }
+
+  /* Kbd hint */
+  .kbd {
+    @apply inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-2xs font-medium font-mono text-text-muted bg-bg-elevated border border-border rounded-md;
   }
 }
 
@@ -556,7 +614,7 @@ body {
 
 /* Drag & Drop Zone */
 .drop-zone {
-  @apply border-2 border-dashed border-border rounded-xl p-8 text-center transition-all duration-200;
+  @apply border-2 border-dashed border-border rounded-2xl p-8 text-center transition-all duration-200;
 }
 
 .drop-zone-active {
@@ -610,7 +668,7 @@ body {
 
 /* Grid Lines for File Explorer */
 .grid-lines {
-  background-image: linear-gradient(to right, rgba(48, 54, 61, 0.5) 1px, transparent 1px);
+  background-image: linear-gradient(to right, rgba(38, 44, 46, 0.5) 1px, transparent 1px);
   background-size: 100% 100%;
 }
 
@@ -622,7 +680,7 @@ body {
 
 /* Custom Checkbox */
 .checkbox {
-  @apply w-4 h-4 rounded border border-border bg-bg-tertiary appearance-none cursor-pointer transition-fast relative;
+  @apply w-4 h-4 rounded-md border border-border bg-bg-tertiary appearance-none cursor-pointer transition-fast relative;
 }
 
 .checkbox:checked {
@@ -644,14 +702,14 @@ body {
   @apply absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-accent/50 transition-fast;
 }
 
-/* Status Bar */
+/* Legacy full-width status bar (kept for any consumers; new shell uses .status-pill) */
 .status-bar {
-  @apply flex items-center gap-4 h-6 px-4 text-xs text-text-secondary bg-bg-secondary border-t border-border;
+  @apply flex items-center justify-between gap-4 h-7 px-4 text-xs text-text-secondary bg-bg-secondary border-t border-border;
 }
 
 /* Activity Indicator */
 .activity-indicator {
-  @apply flex items-center gap-2 px-2 py-1 bg-bg-tertiary rounded-md;
+  @apply flex items-center gap-2 px-2 py-1 bg-bg-elevated rounded-lg;
 }
 
 .activity-dot {
@@ -660,24 +718,24 @@ body {
 
 /* Command Palette */
 .command-palette {
-  @apply fixed inset-0 z-50 flex items-start justify-center pt-[15vh];
+  @apply fixed inset-0 z-50 flex items-start justify-center pt-[14vh];
 }
 
 .command-palette-input {
-  @apply w-full px-4 py-3 bg-bg-tertiary border-b border-border text-text placeholder:text-text-muted focus:outline-none text-base;
+  @apply w-full px-5 py-4 bg-transparent text-text placeholder:text-text-muted focus:outline-none text-base;
 }
 
 .command-palette-list {
-  @apply max-h-[50vh] overflow-y-auto;
+  @apply max-h-[52vh] overflow-y-auto scrollbar-overlay p-2;
 }
 
 .command-palette-item {
-  @apply flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-bg-elevated;
-  transition: background-color 0.04s linear;
+  @apply flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg cursor-pointer;
+  transition: background-color 0.05s linear;
 }
 
 .command-palette-item-active {
-  @apply bg-bg-elevated;
+  @apply bg-accent/20;
 }
 
 /* Diff Viewer */
@@ -717,7 +775,6 @@ body {
   @apply text-text;
 }
 
-/* Diff syntax highlighting */
 .diff-line-added .diff-line-content {
   @apply text-svn-added;
 }
@@ -734,10 +791,6 @@ body {
 
 .animations-fast * {
   transition-duration: 0.05s !important;
-}
-
-.animations-normal * {
-  /* Default - no override needed */
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -767,7 +820,7 @@ body {
   @apply py-1;
 }
 
-/* Slide up animation for toast-style notifications */
+/* Keyframe animations */
 @keyframes slide-up {
   from {
     transform: translateY(100%);
@@ -780,13 +833,12 @@ body {
 }
 
 .animate-slide-up {
-  animation: slide-up 0.2s ease-out;
+  animation: slide-up 0.25s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* Scale in animation */
 @keyframes scale-in {
   from {
-    transform: scale(0.95);
+    transform: scale(0.96);
     opacity: 0;
   }
   to {
@@ -796,10 +848,9 @@ body {
 }
 
 .animate-scale-in {
-  animation: scale-in 0.15s ease-out;
+  animation: scale-in 0.16s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* Fade in animation */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -810,20 +861,10 @@ body {
 }
 
 .animate-fade-in {
-  animation: fade-in 0.15s ease-out;
+  animation: fade-in 0.16s ease-out;
 }
 
 /* Accent glow effect */
 .shadow-glow-accent {
-  box-shadow: 0 0 20px var(--color-accent);
-}
-
-/* SVN Status Colors */
-:root {
-  --svn-normal: #7c3aed;
-  --svn-added: #22c55e;
-  --svn-modified: #3b82f6;
-  --svn-deleted: #ef4444;
-  --svn-conflict: #f59e0b;
-  --svn-unversioned: #6b7280;
+  box-shadow: 0 0 24px var(--color-accent-glow);
 }

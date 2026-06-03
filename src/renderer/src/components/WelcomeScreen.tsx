@@ -13,78 +13,15 @@ import {
   Turtle,
 } from 'lucide-react';
 
+import { m, useMotionEnabled, variants } from '../lib/motion';
+import { ShellMark } from './ShellMark';
+
 const AddRepoModal = lazy(() =>
-  import('./ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
+  import('./ui/AddRepoModal').then((mod) => ({ default: mod.AddRepoModal }))
 );
 const ImportDialog = lazy(() =>
-  import('./ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
+  import('./ui/ImportDialog').then((mod) => ({ default: mod.ImportDialog }))
 );
-
-// Shell/Turtle SVG Logo for ShellySVN
-function ShellLogo({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Shell base */}
-      <path
-        d="M24 4C13 4 4 13 4 24C4 35 13 44 24 44C35 44 44 35 44 24C44 13 35 4 24 4Z"
-        fill="url(#shell-gradient)"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      {/* Shell spiral pattern */}
-      <path
-        d="M16 16C16 16 20 12 24 12C28 12 32 16 32 20C32 24 28 28 24 28C20 28 18 26 18 24C18 22 20 20 22 20"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.6"
-      />
-      {/* Turtle pattern segments */}
-      <path
-        d="M24 20V32"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        opacity="0.4"
-      />
-      <path
-        d="M18 24H30"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        opacity="0.4"
-      />
-      <path
-        d="M19 19L29 29"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        opacity="0.3"
-      />
-      <path
-        d="M29 19L19 29"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        opacity="0.3"
-      />
-      <defs>
-        <linearGradient
-          id="shell-gradient"
-          x1="4"
-          y1="4"
-          x2="44"
-          y2="44"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="currentColor" stopOpacity="0.15" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.05" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
 
 export function WelcomeScreen() {
   const navigate = useNavigate();
@@ -144,64 +81,79 @@ export function WelcomeScreen() {
   };
 
   const recentRepos = settings?.recentRepositories || [];
+  const motionEnabled = useMotionEnabled();
+  const initial = motionEnabled ? 'initial' : false;
 
   return (
-    <div className="flex-1 flex flex-col bg-bg overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden">
       {/* Main Content */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-2xl space-y-8 animate-fade-in">
+      <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto scrollbar-overlay">
+        <m.div
+          className="w-full max-w-2xl space-y-8"
+          variants={variants.staggerList}
+          initial={initial}
+          animate="animate"
+        >
           {/* Logo & Title */}
-          <div className="text-center space-y-4">
+          <m.div className="text-center space-y-4" variants={variants.listItem}>
             <div className="flex justify-center">
-              <div className="relative">
-                <div className="absolute inset-0 blur-2xl bg-accent/20 rounded-full" />
-                <ShellLogo className="w-20 h-20 text-accent relative" />
-              </div>
+              <m.div
+                className="relative"
+                initial={initial}
+                animate={motionEnabled ? { scale: [0.9, 1], opacity: [0, 1] } : undefined}
+                transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1] }}
+              >
+                <div className="absolute inset-0 blur-3xl bg-accent/25 rounded-full" />
+                <ShellMark className="w-24 h-24 text-accent relative drop-shadow-[0_4px_24px_var(--color-accent-glow)]" />
+              </m.div>
             </div>
             <div>
-              <h1 className="text-3xl font-semibold text-text tracking-tight">ShellySVN</h1>
+              <h1 className="text-4xl font-bold text-text tracking-tight">ShellySVN</h1>
               <p className="text-text-secondary mt-2">
-                A modern Subversion client for professionals
+                A modern Subversion client — press{' '}
+                <span className="kbd align-middle">⌘K</span> to get started
               </p>
             </div>
-          </div>
+          </m.div>
 
           {/* Drop Zone */}
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`
-              drop-zone cursor-pointer transition-all duration-300
-              ${isDragOver ? 'drop-zone-active scale-[1.02]' : ''}
-            `}
-            onClick={() => openModal('open')}
-          >
-            <div className="flex flex-col items-center gap-3">
-              <div
-                className={`
-                w-16 h-16 rounded-xl bg-bg-tertiary flex items-center justify-center
-                transition-all duration-300
-                ${isDragOver ? 'bg-accent/20 scale-110' : ''}
+          <m.div variants={variants.listItem}>
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`
+                drop-zone cursor-pointer transition-all duration-300
+                ${isDragOver ? 'drop-zone-active scale-[1.02]' : 'hover:border-accent/40 hover:bg-bg-secondary/40'}
               `}
-              >
-                <FolderOpen
-                  className={`w-8 h-8 transition-colors ${isDragOver ? 'text-accent' : 'text-text-muted'}`}
-                />
-              </div>
-              <div>
-                <p className="text-lg font-medium text-text">
-                  {isDragOver ? 'Drop to Open' : 'Open Working Copy'}
-                </p>
-                <p className="text-sm text-text-secondary mt-1">
-                  Drag a folder here or click to browse
-                </p>
+              onClick={() => openModal('open')}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div
+                  className={`
+                  w-16 h-16 rounded-2xl bg-bg-tertiary flex items-center justify-center
+                  transition-all duration-300
+                  ${isDragOver ? 'bg-accent/20 scale-110' : ''}
+                `}
+                >
+                  <FolderOpen
+                    className={`w-8 h-8 transition-colors ${isDragOver ? 'text-accent' : 'text-text-muted'}`}
+                  />
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-text">
+                    {isDragOver ? 'Drop to Open' : 'Open Working Copy'}
+                  </p>
+                  <p className="text-sm text-text-secondary mt-1">
+                    Drag a folder here or click to browse
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          </m.div>
 
           {/* Quick Actions */}
-          <div className="flex justify-center gap-4">
+          <m.div className="flex justify-center gap-3" variants={variants.listItem}>
             <button
               onClick={() => openModal('open')}
               className="btn btn-secondary gap-2"
@@ -218,26 +170,26 @@ export function WelcomeScreen() {
               <GitBranch className="w-4 h-4" />
               Checkout
             </button>
-          </div>
+          </m.div>
 
           {/* Recent Repositories */}
           {recentRepos.length > 0 && (
-            <div className="space-y-3 animate-slide-up" style={{ animationDelay: '100ms' }}>
+            <m.div className="space-y-3" variants={variants.listItem}>
               <div className="flex items-center gap-2 text-sm text-text-secondary">
                 <Clock className="w-4 h-4" />
                 <span>Recent Repositories</span>
               </div>
               <div className="grid gap-2">
-                {recentRepos.slice(0, 5).map((repo, index) => {
+                {recentRepos.slice(0, 5).map((repo) => {
                   const name = repo.split('/').pop() || repo;
                   return (
-                    <button
+                    <m.button
                       key={repo}
                       onClick={() => handleOpenWorkingCopy(repo)}
-                      className="flex items-center gap-3 px-4 py-3 bg-bg-secondary rounded-lg border border-border hover:border-accent/50 hover:bg-bg-tertiary transition-all duration-200 group text-left"
-                      style={{ animationDelay: `${index * 50}ms` }}
+                      whileHover={motionEnabled ? { x: 3 } : undefined}
+                      className="flex items-center gap-3 px-4 py-3 card hover:border-accent/50 hover:bg-bg-tertiary transition-colors group text-left"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
                         <FolderOpen className="w-5 h-5 text-accent" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -245,13 +197,13 @@ export function WelcomeScreen() {
                         <p className="text-xs text-text-muted truncate">{repo}</p>
                       </div>
                       <ChevronRight className="w-5 h-5 text-text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
+                    </m.button>
                   );
                 })}
               </div>
-            </div>
+            </m.div>
           )}
-        </div>
+        </m.div>
       </div>
 
       {/* Feature Highlights */}

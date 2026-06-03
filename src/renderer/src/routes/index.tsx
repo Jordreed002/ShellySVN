@@ -1,11 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { WelcomeScreen } from '@renderer/components/WelcomeScreen';
+import { lazy, Suspense } from 'react';
 import { RouteErrorBoundary } from '@renderer/components/ErrorBoundary';
+
+const WelcomeScreen = lazy(() =>
+  import('@renderer/components/WelcomeScreen').then((m) => ({ default: m.WelcomeScreen }))
+);
 
 export const Route = createFileRoute('/')({
   component: () => (
     <RouteErrorBoundary routeName="Welcome">
-      <WelcomeScreen />
+      <Suspense fallback={null}>
+        <WelcomeScreen />
+      </Suspense>
     </RouteErrorBoundary>
   ),
 });
