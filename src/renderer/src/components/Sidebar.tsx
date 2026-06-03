@@ -6,6 +6,8 @@ import {
   FolderOpen,
   History,
   Key,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pin,
   PinOff,
   Plus,
@@ -44,10 +46,10 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
 
 interface SidebarProps {
   collapsed?: boolean;
-  onExpand?: () => void;
+  onToggleCollapse?: () => void;
 }
 
-export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
+export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const { settings, addRecentRepo, removeRecentRepo } = useSettings();
   const navigate = useNavigate();
   const routerState = useRouterState();
@@ -149,7 +151,7 @@ export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
           </button>
           <button
             type="button"
-            onClick={onExpand}
+            onClick={onToggleCollapse}
             className="rail-item"
             title="Search repositories"
             aria-label="Search repositories"
@@ -206,6 +208,15 @@ export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
             aria-label="Settings"
           >
             <Settings className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="rail-item"
+            title="Expand sidebar (Ctrl/Cmd+B)"
+            aria-label="Expand sidebar"
+          >
+            <PanelLeftOpen className="w-5 h-5" />
           </button>
         </aside>
       ) : (
@@ -313,17 +324,26 @@ export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border p-1.5">
+        <div className="border-t border-border p-1.5 flex items-center gap-1">
           <button
             type="button"
             onPointerEnter={() => void loadSettingsDialog()}
             onFocus={() => void loadSettingsDialog()}
             onClick={openSettings}
-            className="tree-item w-full"
+            className="tree-item flex-1"
             data-testid="settings-button"
           >
             <Settings className="w-4 h-4" />
             <span>Settings</span>
+          </button>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="btn-icon-sm flex-shrink-0"
+            title="Collapse sidebar (Ctrl/Cmd+B)"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose className="w-4 h-4" />
           </button>
         </div>
       </aside>

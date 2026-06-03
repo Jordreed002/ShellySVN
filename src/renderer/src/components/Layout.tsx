@@ -1,6 +1,6 @@
 import { lazy, ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { Minus, PanelLeftClose, PanelLeftOpen, Search, Square, StickyNote, X } from 'lucide-react';
+import { Minus, Search, Square, StickyNote, X } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
@@ -97,11 +97,6 @@ export function Layout({ children }: LayoutProps) {
     });
   }, []);
 
-  const expandSidebar = useCallback(() => {
-    setSidebarCollapsed(false);
-    void window.api.store.set('shellysvn:sidebar-collapsed', false);
-  }, []);
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
@@ -168,22 +163,8 @@ export function Layout({ children }: LayoutProps) {
           isMac ? 'pl-[92px]' : ''
         }`}
       >
-        {/* Left: sidebar toggle + brand */}
-        <div className="flex items-center gap-1.5 pr-2 select-none">
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className="btn-icon-sm titlebar-no-drag"
-            title={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar (Ctrl/Cmd+B)`}
-            aria-label={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar`}
-            aria-pressed={!sidebarCollapsed}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="w-4 h-4" />
-            ) : (
-              <PanelLeftClose className="w-4 h-4" />
-            )}
-          </button>
+        {/* Left: brand */}
+        <div className="flex items-center gap-2 pr-2 select-none">
           <ShellMark className="w-5 h-5 text-accent" />
           <span className="text-sm font-semibold tracking-tight">ShellySVN</span>
         </div>
@@ -249,7 +230,7 @@ export function Layout({ children }: LayoutProps) {
           animate={{ width: sidebarCollapsed ? 56 : (settings?.sidebarWidth ?? 260) }}
           transition={motionEnabled ? springs.smooth : { duration: 0 }}
         >
-          <Sidebar collapsed={sidebarCollapsed} onExpand={expandSidebar} />
+          <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
         </m.div>
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden relative">
