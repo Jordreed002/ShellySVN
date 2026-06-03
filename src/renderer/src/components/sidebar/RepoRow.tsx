@@ -82,3 +82,43 @@ export function RepoRow({ repo, isActive, isPinned, isMenuOpen, onOpen, onMenu }
     </m.div>
   );
 }
+
+interface RepoRailItemProps {
+  repo: string;
+  isActive: boolean;
+  isPinned: boolean;
+  onOpen: (repo: string) => void;
+  onMenu: (event: MouseEvent, repo: string) => void;
+}
+
+/** Compact icon-only repository entry shown in the collapsed sidebar rail. */
+export function RepoRailItem({ repo, isActive, isPinned, onOpen, onMenu }: RepoRailItemProps) {
+  const { name } = describeRepo(repo);
+  const { data: status } = useRepoStatus(repo);
+  const conflicts = status?.conflicts ?? 0;
+  const changes = status?.changes ?? 0;
+
+  return (
+    <Link
+      to="/files"
+      search={{ path: repo }}
+      onClick={() => onOpen(repo)}
+      onContextMenu={(e) => onMenu(e, repo)}
+      title={name}
+      aria-label={name}
+      className={`rail-item ${isActive ? 'rail-item-active' : ''}`}
+    >
+      <FolderGit2 className="w-5 h-5" />
+      {changes > 0 && (
+        <span
+          className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-bg-secondary ${
+            conflicts > 0 ? 'bg-svn-conflict' : 'bg-svn-modified'
+          }`}
+        />
+      )}
+      {isPinned && (
+        <Star className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 text-accent fill-current" />
+      )}
+    </Link>
+  );
+}

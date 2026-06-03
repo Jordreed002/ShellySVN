@@ -1,11 +1,11 @@
-import { lazy, ReactNode, Suspense, useEffect, useState } from 'react';
+import { lazy, ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { Minus, Search, Square, StickyNote, X } from 'lucide-react';
+import { Minus, PanelLeftClose, PanelLeftOpen, Search, Square, StickyNote, X } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 
-import { AnimatePresence, m, useMotionEnabled, variants } from '../lib/motion';
+import { AnimatePresence, m, springs, useMotionEnabled, variants } from '../lib/motion';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { ShellMark } from './ShellMark';
 import { Sidebar } from './Sidebar';
@@ -52,6 +52,7 @@ export function Layout({ children }: LayoutProps) {
   const [showPluginManager, setShowPluginManager] = useState(false);
   const [_isMaximized, setIsMaximized] = useState(false);
   const [forceShowTutorial, setForceShowTutorial] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { settings } = useSettings();
   const { resetTutorial } = useOnboarding();
   const navigate = useNavigate();
@@ -74,11 +75,44 @@ export function Layout({ children }: LayoutProps) {
     return () => window.removeEventListener('tutorial:restart', handleTutorialRestart);
   }, [resetTutorial]);
 
+  // Restore the persisted sidebar collapsed state
+  useEffect(() => {
+    let cancelled = false;
+    window.api.store
+      .get<boolean>('shellysvn:sidebar-collapsed')
+      .then((value) => {
+        if (!cancelled && typeof value === 'boolean') setSidebarCollapsed(value);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      void window.api.store.set('shellysvn:sidebar-collapsed', next);
+      return next;
+    });
+  }, []);
+
+  const expandSidebar = useCallback(() => {
+    setSidebarCollapsed(false);
+    void window.api.store.set('shellysvn:sidebar-collapsed', false);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setShowCommandPalette(true);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
         return;
       }
 
@@ -98,7 +132,7 @@ export function Layout({ children }: LayoutProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [toggleSidebar]);
 
   const handleGoToPath = (targetPath: string) => {
     navigate({ to: '/files', search: { path: targetPath } });
@@ -134,8 +168,22 @@ export function Layout({ children }: LayoutProps) {
           isMac ? 'pl-20' : ''
         }`}
       >
-        {/* Left: brand */}
-        <div className="flex items-center gap-2 pl-1 pr-2 select-none">
+        {/* Left: sidebar toggle + brand */}
+        <div className="flex items-center gap-1.5 pr-2 select-none">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="btn-icon-sm titlebar-no-drag"
+            title={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar (Ctrl/Cmd+B)`}
+            aria-label={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar`}
+            aria-pressed={!sidebarCollapsed}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
           <ShellMark className="w-5 h-5 text-accent" />
           <span className="text-sm font-semibold tracking-tight">ShellySVN</span>
         </div>
@@ -195,7 +243,14 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Main Content Area - Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        <m.div
+          className="flex-shrink-0 overflow-hidden h-full"
+          initial={false}
+          animate={{ width: sidebarCollapsed ? 56 : (settings?.sidebarWidth ?? 260) }}
+          transition={motionEnabled ? springs.smooth : { duration: 0 }}
+        >
+          <Sidebar collapsed={sidebarCollapsed} onExpand={expandSidebar} />
+        </m.div>
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden relative">
             {motionEnabled ? (

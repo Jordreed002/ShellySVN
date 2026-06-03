@@ -26,7 +26,10 @@ function invokeCancellableWorkerJob<T>(
   signal: AbortSignal | undefined,
   invoke: (workerJobId?: string) => Promise<T>
 ): Promise<T> {
-  if (!signal) {
+  // An AbortSignal loses its prototype methods when passed across Electron's
+  // contextBridge boundary, so guard against a signal that can't register
+  // listeners and simply run without cancellation support in that case.
+  if (!signal || typeof signal.addEventListener !== 'function') {
     return invoke();
   }
 

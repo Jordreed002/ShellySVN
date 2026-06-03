@@ -17,7 +17,7 @@ import {
 import { useSettings } from '@renderer/hooks/useSettings';
 
 import { m, useMotionEnabled, variants } from '../lib/motion';
-import { RepoRow } from './sidebar/RepoRow';
+import { RepoRailItem, RepoRow } from './sidebar/RepoRow';
 import { usePinnedRepos } from './sidebar/sidebarData';
 import { WorkingCopyPanel } from './sidebar/WorkingCopyPanel';
 import type { SettingsTab } from './ui/SettingsDialog';
@@ -42,7 +42,12 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   return () => window.clearTimeout(id);
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean;
+  onExpand?: () => void;
+}
+
+export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
   const { settings, addRecentRepo, removeRecentRepo } = useSettings();
   const navigate = useNavigate();
   const routerState = useRouterState();
@@ -128,7 +133,83 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="w-[--sidebar-width] bg-bg-secondary/70 border-r border-border flex flex-col overflow-hidden">
+      {collapsed ? (
+        <aside
+          className="w-[--rail-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col items-center py-2 gap-1"
+          aria-label="Sidebar"
+        >
+          <button
+            type="button"
+            onClick={() => setIsAddRepoModalOpen(true)}
+            className="rail-item"
+            title="Add repository"
+            aria-label="Add repository"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onExpand}
+            className="rail-item"
+            title="Search repositories"
+            aria-label="Search repositories"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
+          <div className="my-1 h-px w-6 bg-border" />
+
+          <Link
+            to="/files"
+            search={{ path: currentPathWithDefault }}
+            className="rail-item"
+            activeProps={{ className: 'rail-item rail-item-active' }}
+            title="Files"
+            aria-label="Files"
+          >
+            <FolderOpen className="w-5 h-5" />
+          </Link>
+          <Link
+            to="/history"
+            search={{ path: currentPathWithDefault }}
+            className="rail-item"
+            activeProps={{ className: 'rail-item rail-item-active' }}
+            title="History"
+            aria-label="History"
+          >
+            <History className="w-5 h-5" />
+          </Link>
+
+          <div className="my-1 h-px w-6 bg-border" />
+
+          <div className="flex-1 w-full overflow-y-auto scrollbar-overlay flex flex-col items-center gap-1 py-1">
+            {sortedRepos.map((repo) => (
+              <RepoRailItem
+                key={repo}
+                repo={repo}
+                isActive={currentPath === repo || currentPath.startsWith(repo + '/')}
+                isPinned={isPinned(repo)}
+                onOpen={(r) => void addRecentRepo(r)}
+                onMenu={openContextMenu}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onPointerEnter={() => void loadSettingsDialog()}
+            onFocus={() => void loadSettingsDialog()}
+            onClick={openSettings}
+            className="rail-item"
+            data-testid="settings-button"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </aside>
+      ) : (
+        <aside className="w-[--sidebar-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col overflow-hidden">
         {/* Search + add */}
         <div className="flex items-center gap-2 px-3 pt-3.5 pb-2">
           <div className="relative flex-1 group">
@@ -246,6 +327,7 @@ export function Sidebar() {
           </button>
         </div>
       </aside>
+      )}
 
       {/* Repository context menu */}
       {contextMenu && (
