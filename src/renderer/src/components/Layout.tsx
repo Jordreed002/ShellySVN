@@ -165,7 +165,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Top Bar — glass, modern */}
       <header
         className={`h-[--topbar-height] glass titlebar-drag flex items-center gap-3 border-b border-border flex-shrink-0 px-3 ${
-          isMac ? 'pl-20' : ''
+          isMac ? 'pl-[92px]' : ''
         }`}
       >
         {/* Left: sidebar toggle + brand */}
