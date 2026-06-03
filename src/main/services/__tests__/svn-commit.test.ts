@@ -7,6 +7,7 @@ const mockState = vi.hoisted(() => ({
   getStore: vi.fn(),
   runSvnText: vi.fn(),
   runSvnOperationWithProgress: vi.fn(),
+  getNetworkOptionsForWorkingCopyPath: vi.fn(),
 }));
 
 vi.mock('../../hooks/HookExecutor', () => ({
@@ -23,6 +24,10 @@ vi.mock('../svn-executor', () => ({
 
 vi.mock('../svn-progress', () => ({
   runSvnOperationWithProgress: mockState.runSvnOperationWithProgress,
+}));
+
+vi.mock('../svn-network-context', () => ({
+  getNetworkOptionsForWorkingCopyPath: mockState.getNetworkOptionsForWorkingCopyPath,
 }));
 
 vi.mock('../../utils/debug', () => ({
@@ -44,6 +49,7 @@ describe('svn-commit', () => {
       revision: 123,
       output: 'Committed revision 123.',
     });
+    mockState.getNetworkOptionsForWorkingCopyPath.mockResolvedValue({ trustSslFailures: false });
   });
 
   it('strips null bytes before passing commit messages to hooks and svn', async () => {
@@ -65,7 +71,7 @@ describe('svn-commit', () => {
       '-m',
       'fix: message',
       'C:\\wc\\file.txt',
-    ]);
+    ], { trustSslFailures: false });
   });
 
   it('uses sanitized messages for progress commits', async () => {
@@ -78,7 +84,7 @@ describe('svn-commit', () => {
       '-m',
       'feat: progress',
       'C:\\wc\\file.txt',
-    ]);
+    ], { trustSslFailures: false });
   });
 
   it('runs start, pre, svn, and post commit in order', async () => {
@@ -127,5 +133,25 @@ describe('svn-commit', () => {
       error: 'Hook rejected commit: run formatter',
     });
     expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+
+  it('passes working-copy-derived credentials and SSL trust to commit commands', async () => {
+    mockState.getNetworkOptionsForWorkingCopyPath.mockResolvedValue({
+      credentials: { username: 'alice', password: 'secret' },
+      trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca',
+    });
+
+    await commit(['C:\\wc\\file.txt'], 'networked commit');
+
+    expect(mockState.getNetworkOptionsForWorkingCopyPath).toHaveBeenCalledWith('C:\\wc\\file.txt');
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['commit', '-m', 'networked commit', 'C:\\wc\\file.txt'],
+      {
+        credentials: { username: 'alice', password: 'secret' },
+        trustSslFailures: true,
+        trustedSslFailures: 'unknown-ca',
+      }
+    );
   });
 });

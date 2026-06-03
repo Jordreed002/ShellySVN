@@ -221,6 +221,10 @@ export type SvnChannels = {
   'svn:add': (paths: string[]) => { success: boolean };
   'svn:delete': (paths: string[]) => { success: boolean };
   'svn:cleanup': (path: string) => { success: boolean };
+  'svn:trustServerCertificate': (
+    url: string,
+    errorText: string
+  ) => { success: boolean; error?: string };
 };
 
 export type DialogChannels = {
@@ -899,7 +903,7 @@ export interface ElectronAPI {
     list: (
       url: string,
       revision?: string,
-      depth?: 'empty' | 'immediates' | 'infinity',
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       credentials?: { username: string; password: string }
     ) => Promise<SvnListResult>;
     patch: {
@@ -924,6 +928,10 @@ export interface ElectronAPI {
       update: (workingCopyPath: string, externalPath?: string) => Promise<{ success: boolean }>;
     };
     diagnostics: (workingCopyPath: string) => Promise<RepoDiagnostics>;
+    trustServerCertificate: (
+      url: string,
+      errorText: string
+    ) => Promise<{ success: boolean; error?: string }>;
   };
   external: {
     openDiffTool: (

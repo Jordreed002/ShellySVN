@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync } from 'fs';
 import { rm } from 'fs/promises';
 import { dirname, join, normalize, relative } from 'path';
 import type { IpcMainInvokeEvent } from 'electron';
@@ -13,6 +13,7 @@ import type {
 import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
+import { getSslTrustCache } from '../ssl-trust-cache';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
@@ -94,12 +95,22 @@ function getWorkingCopyRelativePath(workingCopyRoot: string, localPath: string):
   return relative(workingCopyRoot, localPath);
 }
 
-function resolveWorkingCopyPath(workingCopyRoot: string, relativePath: string): string {
-  if (isWindowsAbsolutePath(workingCopyRoot)) {
-    return `${workingCopyRoot.replace(/[\\/]+$/, '')}\\${relativePath.replaceAll('/', '\\')}`;
+async function getCachedTrustedSslFailuresForWorkingCopy(
+  path: string
+): Promise<string | undefined> {
+  try {
+    const context = await getWorkingCopyContext(path);
+    return context?.url ? getCachedTrustedSslFailuresForUrl(context.url) : undefined;
+  } catch (error) {
+    debug.warn('[SSL] Failed to resolve cached trust for working copy:', error);
+    return undefined;
   }
+}
 
-  return join(workingCopyRoot, relativePath);
+async function getCachedTrustedSslFailuresForUrl(url: string): Promise<string | undefined> {
+  const cache = getSslTrustCache();
+  await cache.ready();
+  return cache.findForUrl(url)?.failures;
 }
 
 export async function getWorkingCopyContext(
@@ -149,9 +160,21 @@ export async function getRemoteStatus(
   workerJobId?: string
 ): Promise<SvnStatusResult> {
   try {
+    const context = await getWorkingCopyContext(path);
+    const repoUrl = context?.url;
+    const authCache = getAuthCache();
+    await authCache.ready();
+    const credentialMatch = repoUrl ? authCache.findForUrl(repoUrl) : null;
+    const trustedSslFailures = repoUrl
+      ? await getCachedTrustedSslFailuresForUrl(repoUrl)
+      : undefined;
     const options = {
       showUpdates: true,
-      trustSslFailures: true,
+      trustSslFailures: trustedSslFailures !== undefined,
+      trustedSslFailures,
+      credentials: credentialMatch
+        ? { username: credentialMatch.username, password: credentialMatch.password }
+        : undefined,
       ...(workerJobId ? { jobId: workerJobId } : {}),
     };
     return getWorkerSvnStatus(path, options);
@@ -229,8 +252,14 @@ async function updateUnserialized(
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   options?: UpdateOptions
 ): Promise<{ success: boolean; revision?: number; error?: string }> {
+  const trustedSslFailures = await getCachedTrustedSslFailuresForWorkingCopy(path);
+
   try {
-    await runSvnText(['info', '--xml', path], { cwd: path, trustSslFailures: true });
+    await runSvnText(['info', '--xml', path], {
+      cwd: path,
+      trustSslFailures: trustedSslFailures !== undefined,
+      trustedSslFailures,
+    });
   } catch (error) {
     const errorMsg = (error as Error).message || '';
     debug.error('[SVN] Working copy validation failed for update:', path, errorMsg);
@@ -252,7 +281,8 @@ async function updateUnserialized(
 
   try {
     const output = await runSvnText(buildUpdateArgs(path, depth, options), {
-      trustSslFailures: true,
+      trustSslFailures: trustedSslFailures !== undefined,
+      trustedSslFailures,
     });
     const result = {
       success: true,
@@ -301,6 +331,7 @@ export async function updateWithProgress(
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   options?: UpdateOptions
 ): Promise<{ success: boolean; revision: number; error?: string; output?: string }> {
+  const trustedSslFailures = await getCachedTrustedSslFailuresForWorkingCopy(path);
   const controller = new AbortController();
   activeUpdates.set(updateId, controller);
 
@@ -317,7 +348,8 @@ export async function updateWithProgress(
 
   try {
     const result = await runSvn(buildUpdateArgs(path, depth, options), {
-      trustSslFailures: true,
+      trustSslFailures: trustedSslFailures !== undefined,
+      trustedSslFailures,
       signal: controller.signal,
       maxStdoutBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
       maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
@@ -391,11 +423,13 @@ export async function updateItem(
       return { success: false, revision: 0, error: 'Not inside a working copy' };
     }
 
-    if (!existsSync(localPath)) {
-      mkdirSync(localPath, { recursive: true });
-    }
-
-    const output = await runSvnText(['update', '--depth', 'infinity', localPath]);
+    const trustedSslFailures = context.url
+      ? await getCachedTrustedSslFailuresForUrl(context.url)
+      : undefined;
+    const output = await runSvnText(['update', '--parents', '--depth', 'infinity', localPath], {
+      trustSslFailures: trustedSslFailures !== undefined,
+      trustedSslFailures,
+    });
 
     return {
       success: true,
@@ -441,6 +475,9 @@ async function updateToRevisionUnserialized(
 
     const authCache = getAuthCache();
     const credentialMatch = repoUrl ? authCache.findForUrl(repoUrl) : null;
+    const trustedSslFailures = repoUrl
+      ? await getCachedTrustedSslFailuresForUrl(repoUrl)
+      : undefined;
     const credentials = credentialMatch
       ? { username: credentialMatch.username, password: credentialMatch.password }
       : undefined;
@@ -448,54 +485,8 @@ async function updateToRevisionUnserialized(
       debug.log('[updateToRevision] Using cached credentials for realm:', credentialMatch?.realm);
     }
 
-    const pathParts = relativePath.split(/[/\\]/).filter((part) => part.length > 0);
-
-    for (let i = 0; i < pathParts.length - 1; i++) {
-      const partialPath = pathParts.slice(0, i + 1).join('/');
-      const fullPath = resolveWorkingCopyPath(workingCopyRoot, partialPath);
-
-      const parentArgs = ['update', '--set-depth', 'immediates', partialPath];
-      if (!existsSync(fullPath)) {
-        debug.log('[updateToRevision] Creating parent with --set-depth immediates:', partialPath);
-        await runSvnText(parentArgs, { cwd: workingCopyRoot, trustSslFailures: true, credentials });
-      } else {
-        debug.log(
-          '[updateToRevision] Opening parent to see children with --set-depth immediates:',
-          partialPath
-        );
-        try {
-          await runSvnText(parentArgs, {
-            cwd: workingCopyRoot,
-            trustSslFailures: true,
-            credentials,
-          });
-        } catch (error) {
-          debug.log(
-            '[updateToRevision] Parent depth update failed (may already be sufficient):',
-            (error as Error)?.message
-          );
-        }
-      }
-    }
-
-    const targetFullPath = resolveWorkingCopyPath(workingCopyRoot, relativePath);
-    if (!existsSync(targetFullPath)) {
-      debug.log(
-        '[updateToRevision] Target does not exist, fetching with --depth empty first:',
-        relativePath
-      );
-      try {
-        await runSvnText(['update', '--depth', 'empty', relativePath], {
-          cwd: workingCopyRoot,
-          trustSslFailures: true,
-          credentials,
-        });
-      } catch (error) {
-        debug.log('[updateToRevision] Initial target fetch failed:', (error as Error)?.message);
-      }
-    }
-
     const args = ['update'];
+    args.push('--parents');
     if (setDepthSticky) {
       args.push('--set-depth', depth);
     } else {
@@ -506,7 +497,8 @@ async function updateToRevisionUnserialized(
     debug.log('[updateToRevision] Running svn with args:', args);
     const output = await runSvnText(args, {
       cwd: workingCopyRoot,
-      trustSslFailures: true,
+      trustSslFailures: trustedSslFailures !== undefined,
+      trustedSslFailures,
       credentials,
     });
 

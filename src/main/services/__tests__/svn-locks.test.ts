@@ -6,6 +6,7 @@ const mockState = vi.hoisted(() => ({
   executeHooksForType: vi.fn().mockResolvedValue({ allSucceeded: true }),
   getStore: vi.fn(),
   runSvnText: vi.fn(),
+  getNetworkOptionsForWorkingCopyPath: vi.fn(),
 }));
 
 vi.mock('../../hooks/HookExecutor', () => ({
@@ -18,6 +19,10 @@ vi.mock('../../ipc/store', () => ({
 
 vi.mock('../svn-executor', () => ({
   runSvnText: mockState.runSvnText,
+}));
+
+vi.mock('../svn-network-context', () => ({
+  getNetworkOptionsForWorkingCopyPath: mockState.getNetworkOptionsForWorkingCopyPath,
 }));
 
 vi.mock('../../utils/debug', () => ({
@@ -34,6 +39,7 @@ describe('svn-locks', () => {
     mockState.getStore.mockRejectedValue(new Error('No store in unit test'));
     mockState.executeHooksForType.mockResolvedValue({ allSucceeded: true });
     mockState.runSvnText.mockResolvedValue('ok');
+    mockState.getNetworkOptionsForWorkingCopyPath.mockResolvedValue({ trustSslFailures: false });
   });
 
   it('runs lock and unlock commands with configured pre-hooks', async () => {
@@ -61,8 +67,11 @@ describe('svn-locks', () => {
       '-m',
       'working',
       'C:\\wc\\file.txt',
-    ]);
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['unlock', '--force', 'C:\\wc\\file.txt']);
+    ], { trustSslFailures: false });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['unlock', '--force', 'C:\\wc\\file.txt'],
+      { trustSslFailures: false }
+    );
   });
 
   it('runs force lock and force unlock workflows', async () => {
@@ -92,8 +101,11 @@ describe('svn-locks', () => {
       '-m',
       'mine',
       'C:\\wc\\file.txt',
-    ]);
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['unlock', '--force', 'C:\\wc\\file.txt']);
+    ], { trustSslFailures: false });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['unlock', '--force', 'C:\\wc\\file.txt'],
+      { trustSslFailures: false }
+    );
   });
 
   it('lists locks from SVN status XML', async () => {
@@ -122,5 +134,25 @@ describe('svn-locks', () => {
         token: 'token',
       },
     ]);
+  });
+
+  it('passes working-copy-derived credentials and SSL trust to lock workflows', async () => {
+    mockState.getNetworkOptionsForWorkingCopyPath.mockResolvedValue({
+      credentials: { username: 'alice', password: 'secret' },
+      trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca',
+    });
+
+    await lock('C:\\wc\\file.txt', 'working');
+
+    expect(mockState.getNetworkOptionsForWorkingCopyPath).toHaveBeenCalledWith('C:\\wc\\file.txt');
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['lock', '-m', 'working', 'C:\\wc\\file.txt'],
+      {
+        credentials: { username: 'alice', password: 'secret' },
+        trustSslFailures: true,
+        trustedSslFailures: 'unknown-ca',
+      }
+    );
   });
 });

@@ -1,0 +1,15 @@
+---
+title: Locks and shelving
+description: Understand what your active SVN client baseline supports before depending on advanced flows.
+category: Workflows
+status: preview
+lastReviewed: "2026-06-01"
+---
+
+## Important baseline
+
+Advanced workflows such as shelving depend on the active SVN client capabilities. Treat them as environment-sensitive until your rollout validates the exact packaged client behavior you intend to support.
+
+## Recommendation
+
+Test locking, unlocking, and any shelving-adjacent flow against the same release artifact that your team would actually install.

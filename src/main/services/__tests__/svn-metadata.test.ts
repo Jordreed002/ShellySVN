@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
+  getNetworkOptionsForWorkingCopyPath: vi.fn(),
 }));
 
 vi.mock('../svn-executor', () => ({
   runSvnText: mockState.runSvnText,
+}));
+
+vi.mock('../svn-network-context', () => ({
+  getNetworkOptionsForWorkingCopyPath: mockState.getNetworkOptionsForWorkingCopyPath,
 }));
 
 vi.mock('../../utils/debug', () => ({
@@ -33,6 +38,8 @@ import {
 
 beforeEach(() => {
   mockState.runSvnText.mockReset();
+  mockState.getNetworkOptionsForWorkingCopyPath.mockReset();
+  mockState.getNetworkOptionsForWorkingCopyPath.mockResolvedValue({ trustSslFailures: false });
 });
 
 describe('svn-metadata repository browsing', () => {
@@ -158,8 +165,30 @@ describe('svn-metadata externals management', () => {
     await expect(externalsUpdate('C:\\wc')).resolves.toEqual({ success: true });
     await expect(externalsUpdate('C:\\wc', 'lib')).resolves.toEqual({ success: true });
 
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', 'C:\\wc']);
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', 'C:\\wc\\lib']);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', 'C:\\wc'], {
+      trustSslFailures: false,
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', 'C:\\wc\\lib'], {
+      trustSslFailures: false,
+    });
+  });
+
+  it('passes working-copy-derived credentials and SSL trust to externals updates', async () => {
+    mockState.getNetworkOptionsForWorkingCopyPath.mockResolvedValue({
+      credentials: { username: 'alice', password: 'secret' },
+      trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca',
+    });
+    mockState.runSvnText.mockResolvedValue('');
+
+    await externalsUpdate('C:\\wc', 'lib');
+
+    expect(mockState.getNetworkOptionsForWorkingCopyPath).toHaveBeenCalledWith('C:\\wc\\lib');
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', 'C:\\wc\\lib'], {
+      credentials: { username: 'alice', password: 'secret' },
+      trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca',
+    });
   });
 });
 

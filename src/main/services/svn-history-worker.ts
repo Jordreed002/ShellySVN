@@ -2,6 +2,10 @@ import type { SvnBlameResult, SvnDiffResult, SvnLogResult } from '@shared/types'
 
 import { getSharedWorkerPool } from '../workers/WorkerPool';
 import { resolveSvnExecution } from './svn-executor';
+import {
+  getNetworkOptionsForUrl,
+  getNetworkOptionsForWorkingCopyPath,
+} from './svn-network-context';
 
 export async function getWorkerLog(
   path: string,
@@ -12,6 +16,9 @@ export async function getWorkerLog(
   workerJobId?: string
 ): Promise<SvnLogResult> {
   const { svnCommand, context } = await resolveSvnExecution();
+  const networkOptions = /^https?:\/\//i.test(path)
+    ? await getNetworkOptionsForUrl(path)
+    : await getNetworkOptionsForWorkingCopyPath(path);
   return getSharedWorkerPool().run(
     'svn:log',
     {
@@ -22,6 +29,7 @@ export async function getWorkerLog(
       useMergeHistory,
       svnCommand,
       context,
+      ...networkOptions,
     },
     {
       id:
@@ -38,6 +46,9 @@ export async function getWorkerDiff(
   workerJobId?: string
 ): Promise<SvnDiffResult> {
   const { svnCommand, context } = await resolveSvnExecution();
+  const networkOptions = /^https?:\/\//i.test(path)
+    ? await getNetworkOptionsForUrl(path)
+    : await getNetworkOptionsForWorkingCopyPath(path);
   return getSharedWorkerPool().run(
     'svn:diff',
     {
@@ -45,6 +56,7 @@ export async function getWorkerDiff(
       revision,
       svnCommand,
       context,
+      ...networkOptions,
     },
     {
       id: workerJobId ?? `svn-diff:${path}:${revision ?? ''}`,
@@ -59,6 +71,9 @@ export async function getWorkerDiffStreaming(
   workerJobId?: string
 ): Promise<SvnDiffResult> {
   const { svnCommand, context } = await resolveSvnExecution();
+  const networkOptions = /^https?:\/\//i.test(path)
+    ? await getNetworkOptionsForUrl(path)
+    : await getNetworkOptionsForWorkingCopyPath(path);
   return getSharedWorkerPool().run(
     'svn:diffStreaming',
     {
@@ -66,6 +81,7 @@ export async function getWorkerDiffStreaming(
       revision,
       svnCommand,
       context,
+      ...networkOptions,
     },
     {
       id: workerJobId ?? `svn-diff-streaming:${path}:${revision ?? ''}`,
@@ -80,6 +96,7 @@ export async function getWorkerUrlDiff(
   workerJobId?: string
 ): Promise<SvnDiffResult> {
   const { svnCommand, context } = await resolveSvnExecution();
+  const networkOptions = await getNetworkOptionsForUrl(leftUrl);
   return getSharedWorkerPool().run(
     'svn:diffUrls',
     {
@@ -87,6 +104,7 @@ export async function getWorkerUrlDiff(
       rightUrl,
       svnCommand,
       context,
+      ...networkOptions,
     },
     {
       id: workerJobId ?? `svn-diff-urls:${leftUrl}:${rightUrl}`,
@@ -102,6 +120,9 @@ export async function getWorkerBlame(
   workerJobId?: string
 ): Promise<SvnBlameResult> {
   const { svnCommand, context } = await resolveSvnExecution();
+  const networkOptions = /^https?:\/\//i.test(path)
+    ? await getNetworkOptionsForUrl(path)
+    : await getNetworkOptionsForWorkingCopyPath(path);
   return getSharedWorkerPool().run(
     'svn:blame',
     {
@@ -110,6 +131,7 @@ export async function getWorkerBlame(
       endRevision,
       svnCommand,
       context,
+      ...networkOptions,
     },
     {
       id: workerJobId ?? `svn-blame:${path}:${startRevision ?? ''}:${endRevision ?? ''}`,

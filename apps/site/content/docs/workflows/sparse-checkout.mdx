@@ -1,0 +1,25 @@
+---
+title: Sparse checkout
+description: Select only the folders and files you need from a large repository.
+category: Workflows
+status: available
+lastReviewed: "2026-06-01"
+---
+
+## Why sparse checkout matters
+
+Sparse checkout is the clearest way to keep large SVN repositories usable on modern laptops. It reduces disk cost, shrinks update scope, and lets teams focus on just the part of the tree they actually own.
+
+## Where it appears
+
+- During initial checkout
+- During later update flows
+- From repository browsing when you want to add remote-only paths
+
+## Recommended usage
+
+Start lean. Pull the folders you need now, then expand the working copy only when a real task requires additional paths.
+
+## Operational habit
+
+Treat sparse expansion as part of normal repository hygiene instead of as a rescue operation after a full checkout becomes painful.

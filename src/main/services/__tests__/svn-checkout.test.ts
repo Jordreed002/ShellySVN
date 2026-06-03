@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockState = vi.hoisted(() => ({
   runSvn: vi.fn(),
   runSvnText: vi.fn(),
+  sslReady: vi.fn().mockResolvedValue(undefined),
+  sslSet: vi.fn(),
 }));
 
 vi.mock('../svn-executor', () => ({
@@ -21,11 +23,19 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
+vi.mock('../../ssl-trust-cache', () => ({
+  getSslTrustCache: () => ({
+    ready: mockState.sslReady,
+    set: mockState.sslSet,
+  }),
+}));
+
 import { cancelCheckout, checkout, checkoutWithProgress } from '../svn-checkout';
 
 describe('svn-checkout progress', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState.sslReady.mockResolvedValue(undefined);
   });
 
   it('caps stored output for progress checkout and keeps streamed revision', async () => {
@@ -113,6 +123,64 @@ describe('svn-checkout progress', () => {
         trustedSslFailures: 'cn-mismatch',
         credentials: { username: 'alice', password: 'secret' },
       })
+    );
+  });
+
+  it('persists trusted SSL failures after a permanent-trust checkout succeeds', async () => {
+    mockState.runSvnText.mockResolvedValue('Checked out revision 321.');
+
+    await checkout('https://example.test/svn/project', 'C:\\wc', undefined, 'files', {
+      trustSsl: true,
+      trustPermanently: true,
+      sslFailures: ['hostname-mismatch'],
+    });
+
+    expect(mockState.sslSet).toHaveBeenCalledWith(
+      'https://example.test/svn/project',
+      'cn-mismatch'
+    );
+  });
+
+  it('implements sparse checkout as empty checkout plus targeted updates', async () => {
+    mockState.runSvnText
+      .mockResolvedValueOnce('Checked out revision 12.')
+      .mockResolvedValueOnce('Updated to revision 12.')
+      .mockResolvedValueOnce('Updated to revision 12.');
+
+    const result = await checkout('https://example.test/svn/project/trunk', 'C:\\wc', undefined, 'empty', {
+      sparsePaths: [
+        'https://example.test/svn/project/trunk/src/file1.ts',
+        'https://example.test/svn/project/trunk/src/file2.ts',
+      ],
+    });
+
+    expect(result).toEqual({
+      success: true,
+      revision: 12,
+      output:
+        'Checked out revision 12.Updated to revision 12.Updated to revision 12.',
+    });
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      1,
+      [
+        'checkout',
+        '--non-interactive',
+        '--depth',
+        'empty',
+        'https://example.test/svn/project/trunk',
+        'C:\\wc',
+      ],
+      expect.any(Object)
+    );
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      2,
+      ['update', '--parents', '--depth', 'infinity', 'src/file1.ts'],
+      expect.objectContaining({ cwd: 'C:\\wc' })
+    );
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      3,
+      ['update', '--parents', '--depth', 'infinity', 'src/file2.ts'],
+      expect.objectContaining({ cwd: 'C:\\wc' })
     );
   });
 

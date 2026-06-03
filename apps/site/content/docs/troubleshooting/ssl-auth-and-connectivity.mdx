@@ -1,0 +1,21 @@
+---
+title: SSL, auth, and connectivity
+description: Diagnose certificate trust and network access issues before changing client assumptions.
+category: Troubleshooting
+status: available
+lastReviewed: "2026-06-01"
+---
+
+## What to check first
+
+- Whether the repository is reachable outside the app
+- Whether the server presents a certificate chain your machine trusts
+- Whether stored credentials are valid for the exact repository path
+
+## Good evaluation practice
+
+Validate SSL and authentication behavior early in a rollout, especially for older on-prem SVN infrastructure.
+
+## If prompts repeat
+
+Treat repeated prompts as a signal to investigate certificate trust, URL mismatch, or credential scoping before retrying the same operation indefinitely.

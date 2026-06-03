@@ -35,6 +35,8 @@ export async function getWorkerFsStatus(
 export interface WorkerSvnStatusOptions {
   showUpdates?: boolean;
   trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
   jobId?: string;
 }
 
@@ -51,6 +53,8 @@ export async function getWorkerSvnStatus(
       context,
       showUpdates: options.showUpdates,
       trustSslFailures: options.trustSslFailures,
+      trustedSslFailures: options.trustedSslFailures,
+      credentials: options.credentials,
     },
     {
       id:

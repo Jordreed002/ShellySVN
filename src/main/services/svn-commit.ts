@@ -4,6 +4,7 @@ import { getStore } from '../ipc/store';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
 import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
+import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 import { runSvnOperationWithProgress } from './svn-progress';
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
@@ -65,7 +66,8 @@ async function commitUnserialized(
     };
   }
 
-  const output = await runSvnText(['commit', '-m', cleanMessage, ...paths]);
+  const networkOptions = await getNetworkOptionsForWorkingCopyPath(workingCopyPath);
+  const output = await runSvnText(['commit', '-m', cleanMessage, ...paths], networkOptions);
   const match = output.match(/Committed revision (\d+)\./);
   const result = {
     success: true,
@@ -118,12 +120,13 @@ export async function commitWithProgress(
     };
   }
 
+  const networkOptions = await getNetworkOptionsForWorkingCopyPath(workingCopyPath);
   const result = await runSvnOperationWithProgress(event, operationId, 'commit', [
     'commit',
     '-m',
     cleanMessage,
     ...paths,
-  ]);
+  ], networkOptions);
 
   if (result.success) {
     executeHooksForType(hooks, 'post-commit', {

@@ -323,5 +323,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
         }>,
     },
     diagnostics: (workingCopyPath) => invokeIpc('svn:diagnostics', workingCopyPath),
+    trustServerCertificate: (url, errorText) =>
+      invokeIpc('svn:trustServerCertificate', url, errorText),
   };
 }

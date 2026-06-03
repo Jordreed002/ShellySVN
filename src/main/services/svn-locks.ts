@@ -6,6 +6,7 @@ import { getStore } from '../ipc/store';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { runSvnText } from './svn-executor';
+import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -51,7 +52,7 @@ export async function lock(path: string, message?: string): Promise<{ success: b
   const args = ['lock'];
   if (message) args.push('-m', message);
   args.push(path);
-  const output = await runSvnText(args);
+  const output = await runSvnText(args, await getNetworkOptionsForWorkingCopyPath(path));
   return { success: true, output };
 }
 
@@ -70,7 +71,7 @@ export async function unlock(path: string, force?: boolean): Promise<{ success: 
   const args = ['unlock'];
   if (force) args.push('--force');
   args.push(path);
-  const output = await runSvnText(args);
+  const output = await runSvnText(args, await getNetworkOptionsForWorkingCopyPath(path));
   return { success: true, output };
 }
 
@@ -100,12 +101,13 @@ export async function forceLock(path: string, message?: string): Promise<{ succe
   }
 
   try {
+    const networkOptions = await getNetworkOptionsForWorkingCopyPath(path);
     const args = ['lock', '--force'];
     if (message) args.push('-m', message);
     args.push(path);
-    await runSvnText(args);
+    await runSvnText(args, networkOptions);
 
-    const xml = await runSvnText(['info', '--xml', path]);
+    const xml = await runSvnText(['info', '--xml', path], networkOptions);
     const info = parseSvnInfoXml(xml);
 
     return { success: true, lock: info.lock };
@@ -130,7 +132,7 @@ export async function forceUnlock(path: string): Promise<{ success: boolean; err
   }
 
   try {
-    await runSvnText(['unlock', '--force', path]);
+    await runSvnText(['unlock', '--force', path], await getNetworkOptionsForWorkingCopyPath(path));
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

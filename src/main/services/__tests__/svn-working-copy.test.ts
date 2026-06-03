@@ -8,7 +8,18 @@ const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
   getWorkerSvnStatus: vi.fn(),
   rm: vi.fn().mockResolvedValue(undefined),
+  sslReady: vi.fn().mockResolvedValue(undefined),
+  sslFindForUrl: vi.fn(),
+  existsSync: vi.fn(),
 }));
+
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof import('fs')>('fs');
+  return {
+    ...actual,
+    existsSync: mockState.existsSync,
+  };
+});
 
 vi.mock('fs/promises', async () => {
   const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
@@ -40,6 +51,13 @@ vi.mock('../../hooks/HookExecutor', () => ({
   executeHooksForType: vi.fn(),
 }));
 
+vi.mock('../../ssl-trust-cache', () => ({
+  getSslTrustCache: () => ({
+    ready: mockState.sslReady,
+    findForUrl: mockState.sslFindForUrl,
+  }),
+}));
+
 vi.mock('../../utils/debug', () => ({
   debug: {
     error: vi.fn(),
@@ -62,6 +80,9 @@ import { getAuthCache } from '../../auth-cache';
 describe('svn-working-copy remove', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState.sslReady.mockResolvedValue(undefined);
+    mockState.sslFindForUrl.mockReturnValue(null);
+    mockState.existsSync.mockReturnValue(false);
     mockState.getWorkerSvnStatus.mockImplementation(async (path: string) => ({
       path,
       entries: [{ path, status: path.includes('unversioned') ? '?' : 'M' }],
@@ -94,11 +115,17 @@ describe('svn-working-copy remove', () => {
 describe('svn-working-copy updateToRevision sparse additions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getAuthCache).mockReturnValue({ findForUrl: vi.fn(() => null) } as never);
+    mockState.sslReady.mockResolvedValue(undefined);
+    mockState.sslFindForUrl.mockReturnValue(null);
+    mockState.existsSync.mockReturnValue(false);
+    vi.mocked(getAuthCache).mockReturnValue({
+      ready: vi.fn().mockResolvedValue(undefined),
+      findForUrl: vi.fn(() => null),
+    } as never);
     mockState.runSvnText.mockResolvedValue('Updated to revision 99.');
   });
 
-  it('opens mixed-depth parents before adding a remote folder to the working copy', async () => {
+  it('uses svn update --parents for sparse folder additions', async () => {
     const result = await updateToRevision(
       'C:\\wc',
       'https://svn.example.com/repo/trunk/src/features',
@@ -108,21 +135,14 @@ describe('svn-working-copy updateToRevision sparse additions', () => {
     );
 
     expect(result).toEqual({ success: true, revision: 99 });
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
     expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['update', '--set-depth', 'immediates', 'src'],
-      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
-    );
-    expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['update', '--depth', 'empty', 'src\\features'],
-      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
-    );
-    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
-      ['update', '--set-depth', 'infinity', 'src\\features'],
-      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
+      ['update', '--parents', '--set-depth', 'infinity', 'src\\features'],
+      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: false })
     );
   });
 
-  it('adds a remote file with empty depth after opening mixed-depth parents', async () => {
+  it('uses svn update --parents for sparse file additions', async () => {
     const result = await updateToRevision(
       'C:\\wc',
       'https://svn.example.com/repo/trunk/src/index.ts',
@@ -132,13 +152,10 @@ describe('svn-working-copy updateToRevision sparse additions', () => {
     );
 
     expect(result).toEqual({ success: true, revision: 99 });
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
     expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['update', '--set-depth', 'immediates', 'src'],
-      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
-    );
-    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
-      ['update', '--set-depth', 'empty', 'src\\index.ts'],
-      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: true })
+      ['update', '--parents', '--set-depth', 'empty', 'src\\index.ts'],
+      expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: false })
     );
   });
 });
@@ -146,6 +163,13 @@ describe('svn-working-copy updateToRevision sparse additions', () => {
 describe('svn-working-copy status', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState.sslReady.mockResolvedValue(undefined);
+    mockState.sslFindForUrl.mockReturnValue(null);
+    mockState.existsSync.mockReturnValue(false);
+    vi.mocked(getAuthCache).mockReturnValue({
+      ready: vi.fn().mockResolvedValue(undefined),
+      findForUrl: vi.fn(() => null),
+    } as never);
   });
 
   it('gets local status without repository update checks', async () => {
@@ -179,6 +203,22 @@ describe('svn-working-copy status', () => {
   });
 
   it('gets remote status with explicit repository update checks', async () => {
+    mockState.existsSync.mockImplementation((path: string) => path === '/wc/.svn');
+    mockState.runSvnText.mockResolvedValue(
+      '<info><entry><url>https://svn.example.com/repo/trunk</url><repository><root>https://svn.example.com/repo</root></repository><wc-info><wcroot-abspath>/wc</wcroot-abspath></wc-info></entry></info>'
+    );
+    mockState.sslFindForUrl.mockReturnValue({
+      realm: 'https://svn.example.com/repo',
+      failures: 'unknown-ca',
+    });
+    vi.mocked(getAuthCache).mockReturnValue({
+      ready: vi.fn().mockResolvedValue(undefined),
+      findForUrl: vi.fn(() => ({
+        username: 'alice',
+        password: 'secret',
+        realm: 'https://svn.example.com/repo',
+      })),
+    } as never);
     mockState.getWorkerSvnStatus.mockResolvedValue({
       path: '/wc',
       entries: [{ path: '/wc/file.txt', status: ' ', remoteStatus: 'M' }],
@@ -194,10 +234,28 @@ describe('svn-working-copy status', () => {
     expect(mockState.getWorkerSvnStatus).toHaveBeenCalledWith('/wc', {
       showUpdates: true,
       trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca',
+      credentials: { username: 'alice', password: 'secret' },
     });
   });
 
   it('passes caller job ids to cancellable remote status work', async () => {
+    mockState.existsSync.mockImplementation((path: string) => path === '/wc/.svn');
+    mockState.runSvnText.mockResolvedValue(
+      '<info><entry><url>https://svn.example.com/repo/trunk</url><repository><root>https://svn.example.com/repo</root></repository><wc-info><wcroot-abspath>/wc</wcroot-abspath></wc-info></entry></info>'
+    );
+    mockState.sslFindForUrl.mockReturnValue({
+      realm: 'https://svn.example.com/repo',
+      failures: 'unknown-ca',
+    });
+    vi.mocked(getAuthCache).mockReturnValue({
+      ready: vi.fn().mockResolvedValue(undefined),
+      findForUrl: vi.fn(() => ({
+        username: 'alice',
+        password: 'secret',
+        realm: 'https://svn.example.com/repo',
+      })),
+    } as never);
     mockState.getWorkerSvnStatus.mockResolvedValue({
       path: '/wc',
       entries: [],
@@ -210,6 +268,8 @@ describe('svn-working-copy status', () => {
     expect(mockState.getWorkerSvnStatus).toHaveBeenCalledWith('/wc', {
       showUpdates: true,
       trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca',
+      credentials: { username: 'alice', password: 'secret' },
       jobId: 'job-status-remote-1',
     });
   });
@@ -218,6 +278,9 @@ describe('svn-working-copy status', () => {
 describe('svn-working-copy upgrade helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState.sslReady.mockResolvedValue(undefined);
+    mockState.sslFindForUrl.mockReturnValue(null);
+    mockState.existsSync.mockReturnValue(false);
   });
 
   it('reports no upgrade requirement when svn info succeeds', async () => {
@@ -287,7 +350,7 @@ describe('svn-working-copy update progress', () => {
     expect(mockState.runSvn).toHaveBeenCalledWith(
       ['update', '--depth', 'infinity', '/wc'],
       expect.objectContaining({
-        trustSslFailures: true,
+        trustSslFailures: false,
         maxStdoutBytes: 1024 * 1024,
         maxStderrBytes: 1024 * 1024,
       })
@@ -322,7 +385,7 @@ describe('svn-working-copy update progress', () => {
     expect(mockState.runSvn).toHaveBeenCalledWith(
       ['update', '-r', '42', '--depth', 'files', '--ignore-externals', '--force', '/wc'],
       expect.objectContaining({
-        trustSslFailures: true,
+        trustSslFailures: false,
       })
     );
   });

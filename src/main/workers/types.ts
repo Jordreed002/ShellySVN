@@ -39,6 +39,8 @@ export interface StatusPayload {
   depth?: 'empty' | 'files' | 'immediates' | 'infinity';
   showUpdates?: boolean;
   trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
 }
 
 export type DeepStatusPayload = StatusPayload;
@@ -52,6 +54,9 @@ export interface DiffPayload {
   revision?: string;
   svnCommand: string;
   context: SvnExecutionContext;
+  trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
 }
 
 export interface DiffUrlsPayload {
@@ -59,6 +64,9 @@ export interface DiffUrlsPayload {
   rightUrl: string;
   svnCommand: string;
   context: SvnExecutionContext;
+  trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
 }
 
 export interface LogPayload {
@@ -69,6 +77,9 @@ export interface LogPayload {
   useMergeHistory?: boolean;
   svnCommand: string;
   context: SvnExecutionContext;
+  trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
 }
 
 export interface BlamePayload {
@@ -77,6 +88,9 @@ export interface BlamePayload {
   endRevision?: number;
   svnCommand: string;
   context: SvnExecutionContext;
+  trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
 }
 
 export type WorkerJobPayloadMap = {

@@ -116,6 +116,7 @@ export function createMockElectronAPI(): ElectronAPI {
         credentialUsername: null,
         connectionStatus: 'ok',
       }),
+      trustServerCertificate: vi.fn().mockResolvedValue({ success: true }),
     },
     external: {
       openDiffTool: vi.fn().mockResolvedValue({ success: true }),
