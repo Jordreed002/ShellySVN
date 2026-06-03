@@ -9,8 +9,12 @@ import { AnimatePresence, m, useMotionEnabled, variants } from '../lib/motion';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { ShellMark } from './ShellMark';
 import { Sidebar } from './Sidebar';
-import { OnboardingTutorial, useOnboarding } from './tutorial';
+import { useOnboarding } from './tutorial/useOnboarding';
 import { StatusBar } from './ui/StatusBar';
+
+const OnboardingTutorial = lazy(() =>
+  import('./tutorial/OnboardingTutorial').then((m) => ({ default: m.OnboardingTutorial }))
+);
 
 const CommandPalette = lazy(() =>
   import('./ui/CommandPalette').then((m) => ({ default: m.CommandPalette }))
@@ -224,11 +228,13 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       {/* Onboarding Tutorial */}
-      <OnboardingTutorial
-        forceShow={forceShowTutorial}
-        onComplete={() => setForceShowTutorial(false)}
-        onSkip={() => setForceShowTutorial(false)}
-      />
+      <Suspense fallback={null}>
+        <OnboardingTutorial
+          forceShow={forceShowTutorial}
+          onComplete={() => setForceShowTutorial(false)}
+          onSkip={() => setForceShowTutorial(false)}
+        />
+      </Suspense>
 
       {showCommandPalette && (
         <Suspense fallback={null}>
