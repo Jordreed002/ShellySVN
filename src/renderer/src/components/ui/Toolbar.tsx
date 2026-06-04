@@ -274,13 +274,11 @@ export function Toolbar({
                 <button
                   type="button"
                   onClick={() => setShowActionsMenu((value) => !value)}
-                  disabled={!hasSelection}
                   className="btn btn-ghost gap-1.5"
-                  title={hasSelection ? 'File actions' : 'Select a file to see actions'}
+                  title="File actions"
                   aria-label="File actions"
                   aria-haspopup="menu"
                   aria-expanded={showActionsMenu}
-                  aria-disabled={!hasSelection}
                 >
                   <span>Actions</span>
                   <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
@@ -294,11 +292,16 @@ export function Toolbar({
                       aria-hidden="true"
                     />
                     <div
-                      className="dropdown left-0 z-50 w-52"
+                      className="dropdown left-0 z-50 w-56"
                       role="menu"
                       aria-label="File actions"
                       onKeyDown={(e) => e.key === 'Escape' && setShowActionsMenu(false)}
                     >
+                      {!hasSelection && (
+                        <p className="px-3 py-1.5 text-2xs text-text-muted">
+                          Select an item to act on it
+                        </p>
+                      )}
                       {actionItems.map((item) => {
                         const Icon = item.icon;
                         return (
@@ -306,11 +309,12 @@ export function Toolbar({
                             key={item.key}
                             type="button"
                             role="menuitem"
+                            disabled={!hasSelection}
                             onClick={() => {
                               item.onClick();
                               setShowActionsMenu(false);
                             }}
-                            className={`dropdown-item w-full ${
+                            className={`dropdown-item w-full disabled:opacity-40 disabled:pointer-events-none ${
                               item.danger ? 'hover:text-error hover:bg-error/10' : ''
                             }`}
                           >
