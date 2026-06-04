@@ -5,6 +5,7 @@ import {
   FolderGit2,
   FolderOpen,
   History,
+  Home,
   Key,
   PanelLeftClose,
   PanelLeftOpen,
@@ -162,6 +163,16 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           <div className="my-1 h-px w-6 bg-border" />
 
           <Link
+            to="/"
+            className="rail-item"
+            activeProps={{ className: 'rail-item rail-item-active' }}
+            activeOptions={{ exact: true }}
+            title="Home"
+            aria-label="Home"
+          >
+            <Home className="w-5 h-5" />
+          </Link>
+          <Link
             to="/files"
             search={{ path: currentPathWithDefault }}
             className="rail-item"
@@ -246,10 +257,19 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </button>
         </div>
 
-        {/* Primary navigation — general file browsing when no repo is active.
-            When a repo is active, navigation lives inside its lozenge below. */}
-        {!activeRepo && (
-          <nav className="px-1.5 pb-1">
+        {/* Primary navigation. Home is always available; Files shows for general
+            browsing when no repo is active (otherwise it lives in the lozenge). */}
+        <nav className="px-1.5 pb-1">
+          <Link
+            to="/"
+            className="tree-item"
+            activeProps={{ className: 'tree-item-active' }}
+            activeOptions={{ exact: true }}
+          >
+            <Home className="w-4 h-4" />
+            <span>Home</span>
+          </Link>
+          {!activeRepo && (
             <Link
               to="/files"
               search={{ path: currentPathWithDefault }}
@@ -259,8 +279,8 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               <FolderOpen className="w-4 h-4" />
               <span>Files</span>
             </Link>
-          </nav>
-        )}
+          )}
+        </nav>
 
         {/* Repositories header */}
         <div className="mt-1 px-3.5 pt-2.5 pb-1.5 flex items-center justify-between border-t border-border-muted">
