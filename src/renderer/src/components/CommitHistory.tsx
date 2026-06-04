@@ -2,12 +2,43 @@ import { useSearch } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useRef, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { History, GitCommit, User, Clock } from 'lucide-react';
-import type { SvnLogEntry } from '@shared/types';
+import { History, GitCommit, User, Clock, FileDiff } from 'lucide-react';
+import type { SvnLogEntry, SvnLogPath } from '@shared/types';
+
+const MAX_VISIBLE_PATHS = 8;
+
+const ACTION_META: Record<string, { label: string; cls: string; title: string }> = {
+  A: { label: 'A', cls: 'text-svn-added bg-svn-added/15', title: 'Added' },
+  M: { label: 'M', cls: 'text-svn-modified bg-svn-modified/15', title: 'Modified' },
+  D: { label: 'D', cls: 'text-svn-deleted bg-svn-deleted/15', title: 'Deleted' },
+  R: { label: 'R', cls: 'text-svn-replaced bg-svn-replaced/15', title: 'Replaced' },
+};
+
+function ChangedPath({ change }: { change: SvnLogPath }) {
+  const meta = ACTION_META[change.action] ?? {
+    label: change.action || '?',
+    cls: 'text-text-muted bg-bg-elevated',
+    title: 'Changed',
+  };
+  return (
+    <div className="flex items-center gap-2 text-2xs font-mono leading-relaxed">
+      <span
+        className={`flex-shrink-0 w-4 h-4 flex items-center justify-center rounded font-semibold ${meta.cls}`}
+        title={meta.title}
+      >
+        {meta.label}
+      </span>
+      <span className="truncate text-text-secondary" dir="rtl" title={change.path}>
+        {change.path}
+      </span>
+    </div>
+  );
+}
 
 // Commit row component - memoized for performance in virtualized lists
 const CommitRow = memo(function CommitRow({ entry }: { entry: SvnLogEntry }) {
   const date = new Date(entry.date).toLocaleString();
+  const paths = entry.paths ?? [];
 
   return (
     <div className="flex gap-3 px-4 py-3 mx-1.5 rounded-lg hover:bg-bg-elevated transition-fast">
@@ -29,7 +60,29 @@ const CommitRow = memo(function CommitRow({ entry }: { entry: SvnLogEntry }) {
             <Clock className="w-3 h-3" />
             {date}
           </span>
+          {paths.length > 0 && (
+            <span className="flex items-center gap-1">
+              <FileDiff className="w-3 h-3" />
+              {paths.length} file{paths.length === 1 ? '' : 's'}
+            </span>
+          )}
         </div>
+
+        {paths.length > 0 && (
+          <div className="mt-2 pl-0.5 border-l-2 border-border-muted">
+            <div className="pl-3 space-y-0.5">
+              {paths.slice(0, MAX_VISIBLE_PATHS).map((change) => (
+                <ChangedPath key={`${change.action}:${change.path}`} change={change} />
+              ))}
+              {paths.length > MAX_VISIBLE_PATHS && (
+                <div className="text-2xs text-text-muted">
+                  +{paths.length - MAX_VISIBLE_PATHS} more file
+                  {paths.length - MAX_VISIBLE_PATHS === 1 ? '' : 's'}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -39,20 +92,22 @@ export function CommitHistory() {
   const { path } = useSearch({ from: '/history/' });
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // Fetch commit history
+  // Fetch commit history (verbose: includes changed paths per revision)
   const { data, isLoading, error } = useQuery({
     queryKey: ['svn:log', path],
     queryFn: ({ signal }) => window.api.svn.log(path, 100, undefined, undefined, false, { signal }),
     enabled: !!path && path !== '/',
   });
 
-  // Virtualizer
+  const entries = data?.entries ?? [];
+
+  // Virtualizer with dynamic row measurement (rows vary with the path list)
   const virtualizer = useVirtualizer({
-    count: data?.entries.length || 0,
+    count: entries.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 84,
-    getItemKey: (index) => data?.entries[index]?.revision ?? index,
-    overscan: 8,
+    estimateSize: () => 112,
+    getItemKey: (index) => entries[index]?.revision ?? index,
+    overscan: 6,
   });
 
   if (!path || path === '/') {
@@ -86,8 +141,6 @@ export function CommitHistory() {
     );
   }
 
-  const entries = data?.entries || [];
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
@@ -95,7 +148,9 @@ export function CommitHistory() {
         <History className="w-4 h-4 text-accent" />
         <span className="text-sm font-medium text-text">Commit History</span>
         <span className="text-xs text-text-muted truncate">· {path.split(/[/\\]/).pop()}</span>
-        <span className="ml-auto text-xs text-text-muted tabular-nums">{entries.length} commits</span>
+        <span className="ml-auto text-xs text-text-muted tabular-nums">
+          {entries.length} commits
+        </span>
       </div>
 
       {/* Commit list */}
@@ -111,6 +166,8 @@ export function CommitHistory() {
               return (
                 <div
                   key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
                   style={{
                     position: 'absolute',
                     top: 0,

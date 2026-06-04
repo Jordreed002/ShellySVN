@@ -201,7 +201,8 @@ async function runDiffUrls(job: WorkerJobMessage<'svn:diffUrls'>) {
 
 async function runLog(job: WorkerJobMessage<'svn:log'>) {
   const payload: LogPayload = job.payload;
-  const args = ['log', '--xml', '-l', String(payload.limit)];
+  // -v (verbose) includes the changed paths for each revision.
+  const args = ['log', '--xml', '-v', '-l', String(payload.limit)];
   if (payload.startRev !== undefined && payload.endRev !== undefined) {
     args.push('-r', `${payload.startRev}:${payload.endRev}`);
   }
