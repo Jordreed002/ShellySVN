@@ -233,12 +233,12 @@ export function Layout({ children }: LayoutProps) {
           <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
         </m.div>
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 overflow-hidden relative flex flex-col min-h-0">
             {motionEnabled ? (
               <AnimatePresence mode="wait" initial={false}>
                 <m.div
                   key={routePath}
-                  className="absolute inset-0 flex flex-col overflow-hidden"
+                  className="absolute inset-0 flex flex-col overflow-hidden min-h-0"
                   variants={variants.fadeUp}
                   initial="initial"
                   animate="animate"
@@ -249,7 +249,7 @@ export function Layout({ children }: LayoutProps) {
                 </m.div>
               </AnimatePresence>
             ) : (
-              children
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">{children}</div>
             )}
           </div>
           <StatusBar />
