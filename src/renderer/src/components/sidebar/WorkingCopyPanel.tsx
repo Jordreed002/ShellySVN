@@ -1,30 +1,53 @@
+import { type MouseEvent } from 'react';
 import { GitBranch, Tag } from 'lucide-react';
 
 import { m, springs } from '../../lib/motion';
 import { describeRepo, useRepoStatus, useWorkingCopyInfo } from './sidebarData';
 
+interface WorkingCopyPanelProps {
+  repoPath: string;
+  onContextMenu?: (event: MouseEvent) => void;
+}
+
 /**
- * Compact context panel for the active working copy: branch/URL, revision, and
- * pending-change summary. Renders nothing until `svn info` resolves (so it stays
- * hidden when the current location isn't a working copy).
+ * The active repository expands into this working-copy lozenge: name, branch/URL,
+ * revision, and pending-change summary. Falls back to a compact label until
+ * `svn info` resolves (so it still reads as the selected repo immediately).
  */
-export function WorkingCopyPanel({ repoPath }: { repoPath: string }) {
+export function WorkingCopyPanel({ repoPath, onContextMenu }: WorkingCopyPanelProps) {
   const { data: info } = useWorkingCopyInfo(repoPath);
   const { data: status } = useRepoStatus(repoPath);
 
-  if (!info) return null;
-
-  const { name } = describeRepo(repoPath);
+  const { name, parent } = describeRepo(repoPath);
   const changes = status?.changes ?? 0;
   const conflicts = status?.conflicts ?? 0;
-  const BranchIcon = info.branchKind === 'tag' ? Tag : GitBranch;
+  const BranchIcon = info?.branchKind === 'tag' ? Tag : GitBranch;
+
+  // Until svn info resolves, show a minimal selected-repo card (no branch/rev yet).
+  if (!info) {
+    return (
+      <m.div
+        className="my-0.5 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5"
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={springs.smooth}
+        onContextMenu={onContextMenu}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="truncate text-sm font-semibold text-text">{name}</span>
+        </div>
+        {parent && <span className="block truncate text-2xs text-text-muted mt-0.5">{parent}</span>}
+      </m.div>
+    );
+  }
 
   return (
     <m.div
-      className="mx-2 mt-1 mb-1 rounded-xl border border-border bg-bg-tertiary/50 px-3 py-2.5"
-      initial={{ opacity: 0, y: -6 }}
+      className="my-0.5 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5"
+      initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springs.smooth}
+      onContextMenu={onContextMenu}
     >
       <div className="flex items-center gap-2 min-w-0">
         <span className="truncate text-sm font-semibold text-text">{name}</span>

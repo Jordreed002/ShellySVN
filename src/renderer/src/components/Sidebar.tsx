@@ -171,16 +171,18 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           >
             <FolderOpen className="w-5 h-5" />
           </Link>
-          <Link
-            to="/history"
-            search={{ path: currentPathWithDefault }}
-            className="rail-item"
-            activeProps={{ className: 'rail-item rail-item-active' }}
-            title="History"
-            aria-label="History"
-          >
-            <History className="w-5 h-5" />
-          </Link>
+          {activeRepo && (
+            <Link
+              to="/history"
+              search={{ path: currentPathWithDefault }}
+              className="rail-item"
+              activeProps={{ className: 'rail-item rail-item-active' }}
+              title="History"
+              aria-label="History"
+            >
+              <History className="w-5 h-5" />
+            </Link>
+          )}
 
           <div className="my-1 h-px w-6 bg-border" />
 
@@ -255,19 +257,18 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             <FolderOpen className="w-4 h-4" />
             <span>Files</span>
           </Link>
-          <Link
-            to="/history"
-            search={{ path: currentPathWithDefault }}
-            className="tree-item"
-            activeProps={{ className: 'tree-item-active' }}
-          >
-            <History className="w-4 h-4" />
-            <span>History</span>
-          </Link>
+          {activeRepo && (
+            <Link
+              to="/history"
+              search={{ path: currentPathWithDefault }}
+              className="tree-item"
+              activeProps={{ className: 'tree-item-active' }}
+            >
+              <History className="w-4 h-4" />
+              <span>History</span>
+            </Link>
+          )}
         </nav>
-
-        {/* Active working copy context */}
-        {activeRepo && <WorkingCopyPanel repoPath={activeRepo} />}
 
         {/* Repositories header */}
         <div className="mt-1 px-3.5 pt-2.5 pb-1.5 flex items-center justify-between border-t border-border-muted">
@@ -308,17 +309,30 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               initial={motionEnabled ? 'initial' : false}
               animate="animate"
             >
-              {sortedRepos.map((repo) => (
-                <RepoRow
-                  key={repo}
-                  repo={repo}
-                  isActive={currentPath === repo || currentPath.startsWith(repo + '/')}
-                  isPinned={isPinned(repo)}
-                  isMenuOpen={contextMenu?.repo === repo}
-                  onOpen={(r) => void addRecentRepo(r)}
-                  onMenu={openContextMenu}
-                />
-              ))}
+              {sortedRepos.map((repo) => {
+                const isActive = currentPath === repo || currentPath.startsWith(repo + '/');
+                // The active repo expands into a working-copy lozenge.
+                if (isActive) {
+                  return (
+                    <WorkingCopyPanel
+                      key={repo}
+                      repoPath={repo}
+                      onContextMenu={(e) => openContextMenu(e, repo)}
+                    />
+                  );
+                }
+                return (
+                  <RepoRow
+                    key={repo}
+                    repo={repo}
+                    isActive={false}
+                    isPinned={isPinned(repo)}
+                    isMenuOpen={contextMenu?.repo === repo}
+                    onOpen={(r) => void addRecentRepo(r)}
+                    onMenu={openContextMenu}
+                  />
+                );
+              })}
             </m.div>
           )}
         </div>
