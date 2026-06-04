@@ -246,29 +246,21 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </button>
         </div>
 
-        {/* Primary navigation */}
-        <nav className="px-1.5 pb-1">
-          <Link
-            to="/files"
-            search={{ path: currentPathWithDefault }}
-            className="tree-item"
-            activeProps={{ className: 'tree-item-active' }}
-          >
-            <FolderOpen className="w-4 h-4" />
-            <span>Files</span>
-          </Link>
-          {activeRepo && (
+        {/* Primary navigation — general file browsing when no repo is active.
+            When a repo is active, navigation lives inside its lozenge below. */}
+        {!activeRepo && (
+          <nav className="px-1.5 pb-1">
             <Link
-              to="/history"
+              to="/files"
               search={{ path: currentPathWithDefault }}
               className="tree-item"
               activeProps={{ className: 'tree-item-active' }}
             >
-              <History className="w-4 h-4" />
-              <span>History</span>
+              <FolderOpen className="w-4 h-4" />
+              <span>Files</span>
             </Link>
-          )}
-        </nav>
+          </nav>
+        )}
 
         {/* Repositories header */}
         <div className="mt-1 px-3.5 pt-2.5 pb-1.5 flex items-center justify-between border-t border-border-muted">
