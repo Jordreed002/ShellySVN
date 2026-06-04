@@ -8,6 +8,7 @@ import {
   List,
   Grid3X3,
   ChevronDown,
+  Check,
   Search,
   SlidersHorizontal,
   Columns2,
@@ -218,20 +219,6 @@ export function Toolbar({
         </div>
       )}
 
-      {isVersioned && browseMode === 'local' && onToggleRemoteItems && (
-        <button
-          type="button"
-          onClick={onToggleRemoteItems}
-          className={`btn-icon-sm ml-2 ${showRemoteItems ? 'text-info bg-info/10' : ''}`}
-          title={showRemoteItems ? 'Hide remote items' : 'Show remote items (sparse checkout)'}
-          aria-label={
-            showRemoteItems ? 'Hide remote items' : 'Show remote items for sparse checkout'
-          }
-          aria-pressed={showRemoteItems}
-        >
-          <Cloud className="w-4 h-4" aria-hidden="true" />
-        </button>
-      )}
 
       {isVersioned && (
         <>
@@ -437,7 +424,7 @@ export function Toolbar({
               />
               <div
                 ref={viewMenuRef}
-                className="dropdown right-0 z-50 w-40"
+                className="dropdown right-0 z-50 w-56"
                 role="menu"
                 aria-label="View options"
                 onKeyDown={handleViewMenuKeyDown}
@@ -466,6 +453,28 @@ export function Toolbar({
                   <Grid3X3 className="w-4 h-4" aria-hidden="true" />
                   <span>Grid View</span>
                 </button>
+
+                {isVersioned && browseMode === 'local' && onToggleRemoteItems && (
+                  <>
+                    <div className="context-menu-divider" />
+                    <button
+                      onClick={() => {
+                        onToggleRemoteItems();
+                        setShowViewMenu(false);
+                      }}
+                      className="dropdown-item w-full justify-between"
+                      role="menuitemcheckbox"
+                      aria-checked={showRemoteItems}
+                      title="Show items that exist in the repository but aren't checked out locally (sparse checkout)"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Cloud className="w-4 h-4" aria-hidden="true" />
+                        <span>Show remote items</span>
+                      </span>
+                      {showRemoteItems && <Check className="w-4 h-4 text-accent" aria-hidden="true" />}
+                    </button>
+                  </>
+                )}
               </div>
             </>
           )}
