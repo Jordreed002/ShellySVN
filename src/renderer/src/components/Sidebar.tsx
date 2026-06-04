@@ -174,10 +174,10 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </Link>
           <Link
             to="/files"
-            search={{ path: currentPathWithDefault }}
+            search={{ path: '/' }}
             className="rail-item"
             activeProps={{ className: 'rail-item rail-item-active' }}
-            title="Files"
+            title="Files (filesystem root)"
             aria-label="Files"
           >
             <FolderOpen className="w-5 h-5" />
@@ -257,8 +257,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </button>
         </div>
 
-        {/* Primary navigation. Home is always available; Files shows for general
-            browsing when no repo is active (otherwise it lives in the lozenge). */}
+        {/* Primary navigation — Home and Files are always available. */}
         <nav className="px-1.5 pb-1">
           <Link
             to="/"
@@ -269,17 +268,15 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             <Home className="w-4 h-4" />
             <span>Home</span>
           </Link>
-          {!activeRepo && (
-            <Link
-              to="/files"
-              search={{ path: currentPathWithDefault }}
-              className="tree-item"
-              activeProps={{ className: 'tree-item-active' }}
-            >
-              <FolderOpen className="w-4 h-4" />
-              <span>Files</span>
-            </Link>
-          )}
+          <Link
+            to="/files"
+            search={{ path: '/' }}
+            className="tree-item"
+            activeProps={{ className: 'tree-item-active' }}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>Files</span>
+          </Link>
         </nav>
 
         {/* Repositories header */}
