@@ -21,6 +21,7 @@ import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialo
 import { useDualPane } from './ui/DualPaneView';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
+import { useHomePath } from '../hooks/useHomePath';
 import { useFolderSizes } from '../hooks/useFolderSizes';
 import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
 import { createSvnListQueryKey, getAuthPresenceKey } from '../features/files/authQueryKeys';
@@ -93,6 +94,7 @@ export function FileExplorer() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const parentRef = useRef<HTMLDivElement>(null);
+  const homePath = useHomePath();
   const { settings, addRecentPath, addBookmark, removeBookmark } = useSettings();
 
   // Track recent paths on navigation
@@ -1018,7 +1020,7 @@ export function FileExplorer() {
                   <ArrowUp className="w-4 h-4" />
                 </button>
               )}
-              <Breadcrumb path={path} onNavigate={handleNavigate} />
+              <Breadcrumb path={path} onNavigate={handleNavigate} homePath={homePath} />
             </>
           )}
           {isFetching && (

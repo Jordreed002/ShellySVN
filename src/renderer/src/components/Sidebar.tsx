@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
+import { useHomePath } from '@renderer/hooks/useHomePath';
 
 import { m, useMotionEnabled, variants } from '../lib/motion';
 import { RepoRailItem, RepoRow } from './sidebar/RepoRow';
@@ -58,9 +59,8 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
 
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
   const currentPathWithDefault = currentPath || '/';
-  const isWindows = navigator.platform.toLowerCase().startsWith('win');
+  const homePath = useHomePath();
 
-  const [homePath, setHomePath] = useState('');
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
@@ -85,21 +85,6 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const activeRepo = recentRepos.find(
     (repo) => currentPath === repo || currentPath.startsWith(repo + '/')
   );
-
-  // Resolve the user's home location for the Files button. Fetching it via
-  // app.getPath also approves the path for IPC, so the listing works.
-  useEffect(() => {
-    let cancelled = false;
-    window.api.app
-      .getPath(isWindows ? 'documents' : 'home')
-      .then((p) => {
-        if (!cancelled && p) setHomePath(p);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [isWindows]);
 
   // Preload the settings dialog when the app is idle.
   useEffect(() => runWhenIdle(() => void loadSettingsDialog()), []);
