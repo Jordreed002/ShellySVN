@@ -79,6 +79,7 @@ import {
   remove as removeWorkingCopyItems,
   rename as renameWorkingCopyItem,
   revert as revertWorkingCopyItems,
+  unversion as unversionWorkingCopyItems,
   update as updateWorkingCopy,
   updateWithProgress,
   upgradeWorkingCopy,
@@ -244,6 +245,11 @@ export function registerSvnHandlers(): void {
   // SVN Revert
   ipcMain.handle('svn:revert', async (_, paths: string[]) => {
     return invalidateStatusAfter(paths, revertWorkingCopyItems(paths));
+  });
+
+  // SVN Unversion (recursively undo an accidental add)
+  ipcMain.handle('svn:unversion', async (_, paths: string[]) => {
+    return invalidateStatusAfter(paths, unversionWorkingCopyItems(paths));
   });
 
   // SVN Add

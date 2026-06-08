@@ -636,6 +636,20 @@ export function FileExplorer() {
           await actions.handleRevertSelected();
         }
       },
+      onUnversion: async (entry: SvnStatusEntry) => {
+        const name = entry.path.split(/[/\\]/).pop() || entry.path;
+        const confirmed = await confirmAppAction({
+          type: 'warning',
+          title: 'Unversion item',
+          message: `Undo the pending add for "${name}"?`,
+          detail: 'The files stay on disk and become unversioned again — nothing is deleted.',
+          confirmLabel: 'Unversion',
+        });
+        if (!confirmed) return;
+        await window.api.svn.unversion([entry.path]);
+        invalidateCurrentPath();
+        queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+      },
       onAdd: async () => {
         if (selectedEntry) await actions.handleAddSelected();
       },

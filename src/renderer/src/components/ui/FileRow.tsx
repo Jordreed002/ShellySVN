@@ -34,6 +34,7 @@ export interface FileRowActions {
   onDownload?: (entry: SvnStatusEntry) => void;
   onCommit?: (entry: SvnStatusEntry) => void;
   onRevert?: (entry: SvnStatusEntry) => void;
+  onUnversion?: (entry: SvnStatusEntry) => void;
   onAdd?: (entry: SvnStatusEntry) => void;
   onDelete?: (entry: SvnStatusEntry) => void;
   onMove?: (entry: SvnStatusEntry) => void;
@@ -244,6 +245,7 @@ export const FileRow = memo(function FileRow({
     onDownload: actions.onDownload ? () => actions.onDownload!(entry) : undefined,
     onCommit: actions.onCommit ? () => actions.onCommit!(entry) : undefined,
     onRevert: actions.onRevert ? () => actions.onRevert!(entry) : undefined,
+    onUnversion: actions.onUnversion ? () => actions.onUnversion!(entry) : undefined,
     onAdd: actions.onAdd ? () => actions.onAdd!(entry) : undefined,
     onDelete: actions.onDelete ? () => actions.onDelete!(entry) : undefined,
     onMove: actions.onMove ? () => actions.onMove!(entry) : undefined,

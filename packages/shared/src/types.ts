@@ -778,6 +778,7 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
     cancelOperation: () => Promise<{ success: boolean; error?: string }>;
     revert: (paths: string[]) => Promise<{ success: boolean }>;
+    unversion: (paths: string[]) => Promise<{ success: boolean }>;
     add: (paths: string[]) => Promise<{ success: boolean }>;
     delete: (paths: string[]) => Promise<{ success: boolean }>;
     cleanup: (path: string) => Promise<{ success: boolean }>;

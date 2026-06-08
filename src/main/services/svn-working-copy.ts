@@ -522,6 +522,17 @@ export async function revert(paths: string[]): Promise<{ success: boolean }> {
   });
 }
 
+/**
+ * Unschedule an accidental `svn add` for the given paths, recursively. The files
+ * stay on disk (becoming unversioned again); only the pending addition is undone.
+ */
+export async function unversion(paths: string[]): Promise<{ success: boolean }> {
+  return runSerializedWorkingCopyMutation(paths[0], async () => {
+    await runSvnText(['revert', '--depth', 'infinity', ...paths]);
+    return { success: true };
+  });
+}
+
 export async function add(paths: string[]): Promise<{ success: boolean }> {
   return runSerializedWorkingCopyMutation(paths[0], async () => {
     await runSvnText(['add', ...paths]);

@@ -171,6 +171,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       return invokeIpc('svn:cancelOperation', activeOperationId);
     },
     revert: (paths) => invokeIpc('svn:revert', paths),
+    unversion: (paths) => invokeIpc('svn:unversion', paths),
     add: (paths) => invokeIpc('svn:add', paths),
     delete: (paths) => invokeIpc('svn:delete', paths),
     cleanup: (path) => invokeIpc('svn:cleanup', path),
