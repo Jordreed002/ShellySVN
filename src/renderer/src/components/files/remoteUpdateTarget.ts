@@ -17,39 +17,20 @@ interface ResolveRemoteUpdateTargetOptions {
 export function resolveRemoteUpdateTarget({
   entry,
   repositoryRoot,
-  workingCopyUrl,
   workingCopyRoot,
   currentPath,
 }: ResolveRemoteUpdateTargetOptions): RemoteUpdateTarget {
   const repoRootClean = repositoryRoot.replace(/\/$/, '');
   const repoUrl = entry.remoteUrl ?? `${repoRootClean}${entry.path}`;
-  const workingCopyUrlClean = workingCopyUrl?.replace(/\/$/, '');
 
-  if (workingCopyUrlClean) {
-    const normalizedRepoUrl = repoUrl.replace(/\\/g, '/');
-    const workingCopyUrlWithSlash = `${workingCopyUrlClean}/`;
+  // The clicked item's own local path is the exact target to bring into the
+  // working copy. Updating anything broader (e.g. the current directory) would
+  // pull in the item's siblings, so prefer entry.path. Only fall back to
+  // URL-derived resolution when the entry has no local path.
+  const localPath =
+    entry.path && entry.path.trim().length > 0
+      ? entry.path
+      : (resolveRemoteUrlToLocalPath(repoUrl, workingCopyRoot, repoRootClean) ?? currentPath);
 
-    if (normalizedRepoUrl === workingCopyUrlClean) {
-      return { repoUrl, localPath: currentPath };
-    }
-
-    if (normalizedRepoUrl.startsWith(workingCopyUrlWithSlash)) {
-      const separator = currentPath.includes('\\') ? '\\' : '/';
-      const relativePath = normalizedRepoUrl
-        .slice(workingCopyUrlWithSlash.length)
-        .replace(/\//g, separator);
-      const currentPathClean = currentPath.replace(/[\\/]+$/, '');
-      return {
-        repoUrl,
-        localPath: `${currentPathClean}${separator}${relativePath}`,
-      };
-    }
-  }
-
-  const resolvedLocalPath = resolveRemoteUrlToLocalPath(repoUrl, workingCopyRoot, repoRootClean);
-
-  return {
-    repoUrl,
-    localPath: resolvedLocalPath ?? entry.path ?? currentPath,
-  };
+  return { repoUrl, localPath };
 }
