@@ -58,7 +58,9 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
 
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
   const currentPathWithDefault = currentPath || '/';
+  const isWindows = navigator.platform.toLowerCase().startsWith('win');
 
+  const [homePath, setHomePath] = useState('');
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
@@ -83,6 +85,21 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const activeRepo = recentRepos.find(
     (repo) => currentPath === repo || currentPath.startsWith(repo + '/')
   );
+
+  // Resolve the user's home location for the Files button. Fetching it via
+  // app.getPath also approves the path for IPC, so the listing works.
+  useEffect(() => {
+    let cancelled = false;
+    window.api.app
+      .getPath(isWindows ? 'documents' : 'home')
+      .then((p) => {
+        if (!cancelled && p) setHomePath(p);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isWindows]);
 
   // Preload the settings dialog when the app is idle.
   useEffect(() => runWhenIdle(() => void loadSettingsDialog()), []);
@@ -174,10 +191,10 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </Link>
           <Link
             to="/files"
-            search={{ path: '/' }}
+            search={{ path: homePath || currentPathWithDefault }}
             className="rail-item"
             activeProps={{ className: 'rail-item rail-item-active' }}
-            title="Files (filesystem root)"
+            title="Files"
             aria-label="Files"
           >
             <FolderOpen className="w-5 h-5" />
@@ -270,7 +287,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </Link>
           <Link
             to="/files"
-            search={{ path: '/' }}
+            search={{ path: homePath || currentPathWithDefault }}
             className="tree-item"
             activeProps={{ className: 'tree-item-active' }}
           >
