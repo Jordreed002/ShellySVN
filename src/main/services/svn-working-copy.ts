@@ -113,6 +113,21 @@ async function getCachedTrustedSslFailuresForUrl(url: string): Promise<string | 
   return cache.findForUrl(url)?.failures;
 }
 
+/** Cached credentials for a working copy's repository URL, if any. */
+async function getCachedCredentialsForWorkingCopy(
+  path: string
+): Promise<{ username: string; password: string } | undefined> {
+  try {
+    const context = await getWorkingCopyContext(path);
+    if (!context?.url) return undefined;
+    const match = getAuthCache().findForUrl(context.url);
+    return match ? { username: match.username, password: match.password } : undefined;
+  } catch (error) {
+    debug.warn('[SVN] Failed to resolve cached credentials for working copy:', error);
+    return undefined;
+  }
+}
+
 export async function getWorkingCopyContext(
   localPath: string
 ): Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null> {
@@ -279,10 +294,13 @@ async function updateUnserialized(
     return { success: false, error: preResult.error || 'Pre-update hook blocked' };
   }
 
+  const credentials = await getCachedCredentialsForWorkingCopy(path);
+
   try {
     const output = await runSvnText(buildUpdateArgs(path, depth, options), {
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,
+      credentials,
     });
     const result = {
       success: true,
@@ -319,6 +337,17 @@ async function updateUnserialized(
           'Working copy format is too old. Use the working copy upgrade prompt in ShellySVN before updating.',
       };
     }
+    if (
+      errorMsg.includes('E215004') ||
+      errorMsg.includes('E170013') ||
+      /authentication failed|no more credentials/i.test(errorMsg)
+    ) {
+      return {
+        success: false,
+        error:
+          'Authentication failed connecting to the repository. Check your credentials in Settings → Authentication and try again.',
+      };
+    }
 
     return { success: false, error: `SVN update failed: ${errorMsg}` };
   }
@@ -332,6 +361,7 @@ export async function updateWithProgress(
   options?: UpdateOptions
 ): Promise<{ success: boolean; revision: number; error?: string; output?: string }> {
   const trustedSslFailures = await getCachedTrustedSslFailuresForWorkingCopy(path);
+  const credentials = await getCachedCredentialsForWorkingCopy(path);
   const controller = new AbortController();
   activeUpdates.set(updateId, controller);
 
@@ -350,6 +380,7 @@ export async function updateWithProgress(
     const result = await runSvn(buildUpdateArgs(path, depth, options), {
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,
+      credentials,
       signal: controller.signal,
       maxStdoutBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
       maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
