@@ -331,9 +331,9 @@ export const FileRow = memo(function FileRow({
           )}
         </div>
 
-        {/* Status Icon */}
+        {/* Status dot — quiet when clean, only shown for changed/special items */}
         <div className="flex items-center justify-center w-6 flex-shrink-0">
-          <StatusDot status={entry.status} />
+          {entry.status !== ' ' && <StatusDot status={entry.status} />}
         </div>
 
         {/* Name Column */}
@@ -354,12 +354,12 @@ export const FileRow = memo(function FileRow({
         {/* Additional Columns */}
         {showColumns && (
           <>
-            {/* Status */}
+            {/* Status — blank for clean items to keep the list calm */}
             <div
               className="flex items-center justify-center flex-shrink-0"
               style={{ width: columnWidths.status }}
             >
-              <StatusIcon status={entry.status} size="sm" />
+              {entry.status !== ' ' && <StatusIcon status={entry.status} size="sm" />}
             </div>
 
             {/* Revision */}
