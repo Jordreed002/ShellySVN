@@ -10,9 +10,10 @@ import {
   Suspense,
   useDeferredValue,
 } from 'react';
-import { FolderX, AlertCircle, Loader, ArrowUp, Globe } from 'lucide-react';
+import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Columns3, List } from 'lucide-react';
 import type { DeepStatusProgress, SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
+import { MillerColumns } from './files/MillerColumns';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
@@ -99,7 +100,8 @@ export function FileExplorer() {
   const queryClient = useQueryClient();
   const parentRef = useRef<HTMLDivElement>(null);
   const homePath = useHomePath();
-  const { settings, addRecentPath, addBookmark, removeBookmark } = useSettings();
+  const { settings, updateSettings, addRecentPath, addBookmark, removeBookmark } = useSettings();
+  const explorerViewMode = settings.explorerViewMode ?? 'miller';
 
   // Track recent paths on navigation
   useEffect(() => {
@@ -449,6 +451,17 @@ export function FileExplorer() {
   ]);
 
   // Convert to entries for virtualizer
+  // Base directory for Miller columns: the working-copy root (or home) when the
+  // current path is inside it, so we don't render empty unapproved /…/ columns.
+  const millerBase = useMemo(() => {
+    const isUnder = (root?: string) =>
+      !!root && (path === root || path.startsWith(root.replace(/[\\/]+$/, '') + '/') || path.startsWith(root.replace(/[\\/]+$/, '') + '\\'));
+    const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot;
+    if (isUnder(wcRoot)) return wcRoot ?? null;
+    if (isUnder(homePath)) return homePath;
+    return null;
+  }, [path, svnInfo?.workingCopyRoot, workingCopyContext?.workingCopyRoot, homePath]);
+
   const folderChangeCounts = useMemo(
     () => (deepStatusData ? buildFolderChangeCounts(files || [], deepStatusData) : null),
     [files, deepStatusData]
@@ -1153,8 +1166,44 @@ export function FileExplorer() {
           </div>
         )}
 
+        {/* View mode toggle (list vs Miller columns) */}
+        {browseMode === 'local' && (
+          <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-border">
+            <button
+              type="button"
+              onClick={() => void updateSettings({ explorerViewMode: 'list' })}
+              className={`btn-icon-sm ${explorerViewMode === 'list' ? 'text-accent bg-accent/10' : ''}`}
+              title="List view"
+              aria-label="List view"
+              aria-pressed={explorerViewMode === 'list'}
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void updateSettings({ explorerViewMode: 'miller' })}
+              className={`btn-icon-sm ${explorerViewMode === 'miller' ? 'text-accent bg-accent/10' : ''}`}
+              title="Columns view"
+              aria-label="Columns view"
+              aria-pressed={explorerViewMode === 'miller'}
+            >
+              <Columns3 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {explorerViewMode === 'miller' && browseMode === 'local' && (
+          <MillerColumns
+            path={path}
+            baseRoot={millerBase}
+            selectedPath={selectedEntry?.path}
+            onNavigate={handleNavigate}
+            onSelect={handleSelect}
+          />
+        )}
+
         {/* Filter Bar */}
-        {showFilters && (
+        {!(explorerViewMode === 'miller' && browseMode === 'local') && showFilters && (
           <FilterBar
             activeFileType={fileTypeFilter}
             activeStatus={statusFilter}
@@ -1165,15 +1214,18 @@ export function FileExplorer() {
         )}
 
         {/* File List Header */}
-        <FileListHeader
-          columnWidths={columnWidths}
-          onColumnWidthChange={handleColumnWidthChange}
-          onSort={handleSort}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-        />
+        {!(explorerViewMode === 'miller' && browseMode === 'local') && (
+          <FileListHeader
+            columnWidths={columnWidths}
+            onColumnWidthChange={handleColumnWidthChange}
+            onSort={handleSort}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+          />
+        )}
 
         {/* File list */}
+        {!(explorerViewMode === 'miller' && browseMode === 'local') && (
         <div
           ref={parentRef}
           className={`scrollbar-overlay ${settings.fileListHeight === 'fill' ? 'flex-1 overflow-auto' : 'flex-none overflow-auto'}`}
@@ -1274,6 +1326,7 @@ export function FileExplorer() {
             </div>
           )}
         </div>
+        )}
 
         {/* Status Bar */}
         <div className="status-bar">

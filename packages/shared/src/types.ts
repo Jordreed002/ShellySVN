@@ -385,6 +385,8 @@ export interface AppSettings {
   // Appearance
   fontSize: FontSize;
   showStatusBar: boolean;
+  /** Default Explorer layout: classic list or Finder-style Miller columns. */
+  explorerViewMode: 'list' | 'miller';
   fileListHeight: 'auto' | 'fill';
   accentColor: string;
   compactFileRows: boolean;

@@ -1285,6 +1285,40 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
         </label>
       </SettingsGroup>
 
+      {/* Explorer View */}
+      <SettingsGroup
+        title="Default Explorer View"
+        description="How the file explorer is laid out by default"
+      >
+        <div className="flex gap-2">
+          <button
+            onClick={() => onChange('explorerViewMode', 'miller')}
+            className={`flex-1 px-3 py-2 text-sm rounded-md border transition-fast ${
+              settings.explorerViewMode === 'miller'
+                ? 'bg-accent/10 border-accent text-accent'
+                : 'bg-bg-tertiary border-border text-text-secondary hover:border-border-focus'
+            }`}
+          >
+            Columns
+          </button>
+          <button
+            onClick={() => onChange('explorerViewMode', 'list')}
+            className={`flex-1 px-3 py-2 text-sm rounded-md border transition-fast ${
+              settings.explorerViewMode === 'list'
+                ? 'bg-accent/10 border-accent text-accent'
+                : 'bg-bg-tertiary border-border text-text-secondary hover:border-border-focus'
+            }`}
+          >
+            List
+          </button>
+        </div>
+        <p className="text-xs text-text-muted mt-2">
+          {settings.explorerViewMode === 'miller'
+            ? 'Finder-style Miller columns — best for deep, nested trees'
+            : 'Classic single-column list with sortable columns'}
+        </p>
+      </SettingsGroup>
+
       {/* File List Height */}
       <SettingsGroup title="File List Height" description="How file list fills available space">
         <div className="flex gap-2">
