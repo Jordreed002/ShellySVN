@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ChevronRight, File, Folder, Loader2 } from 'lucide-react';
+import { ChevronRight, File, Folder } from 'lucide-react';
 import type { FileInfo, SvnStatusEntry } from '@shared/types';
 
 const FILE_CACHE_TIME = 5 * 60 * 1000;
@@ -100,6 +100,25 @@ interface MillerColumnProps {
   onSelect: (entry: SvnStatusEntry) => void;
 }
 
+function basename(p: string): string {
+  const parts = p.replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || p;
+}
+
+function ColumnSkeleton() {
+  return (
+    <div className="space-y-1 px-1 pt-0.5">
+      {[82, 64, 90, 58, 74, 86, 60].map((w, i) => (
+        <div
+          key={i}
+          className="h-7 rounded-lg bg-bg-elevated/50 animate-pulse"
+          style={{ width: `${w}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function MillerColumn({
   dirPath,
   activeChildPath,
@@ -118,57 +137,71 @@ function MillerColumn({
   });
 
   const entries = useMemo(() => sortEntries(data || []), [data]);
+  const showSkeleton = isLoading && entries.length === 0;
 
   return (
-    <div className="w-60 flex-shrink-0 h-full border-r border-border overflow-y-auto scrollbar-overlay py-1">
-      {isLoading ? (
-        <div className="flex items-center gap-2 px-3 py-2 text-text-muted">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          <span className="text-xs">Loading…</span>
-        </div>
-      ) : entries.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-text-muted">Empty</div>
-      ) : (
-        entries.map((entry) => {
-          const isActive = activeChildPath === entry.path;
-          const isSelected = selectedPath === entry.path;
-          const Icon = entry.isDirectory ? Folder : File;
-          return (
-            <button
-              key={entry.path}
-              type="button"
-              onClick={() =>
-                entry.isDirectory
-                  ? onNavigate(entry.path)
-                  : onSelect({
-                      path: entry.path,
-                      status: ' ',
-                      isDirectory: false,
-                    })
-              }
-              className={`group flex items-center gap-2 w-full px-2.5 py-1.5 mx-0 text-sm text-left transition-fast ${
-                isActive
-                  ? 'bg-accent/10 text-accent'
-                  : isSelected
-                    ? 'bg-bg-elevated text-text'
-                    : 'text-text-secondary hover:bg-bg-elevated hover:text-text'
-              }`}
-            >
-              <Icon
-                className={`w-4 h-4 flex-shrink-0 ${
-                  entry.isDirectory ? (isActive ? 'text-accent' : 'text-accent/80') : 'text-text-muted'
+    <div className="w-64 flex-shrink-0 h-full border-r border-border-muted flex flex-col">
+      {/* Column header — the folder this column lists */}
+      <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5 flex-shrink-0">
+        <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-text-muted truncate">
+          {basename(dirPath)}
+        </span>
+        {!showSkeleton && entries.length > 0 && (
+          <span className="ml-auto text-2xs text-text-faint tabular-nums">{entries.length}</span>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-overlay px-1.5 pb-2 space-y-0.5">
+        {showSkeleton ? (
+          <ColumnSkeleton />
+        ) : entries.length === 0 ? (
+          <div className="px-2 py-6 text-center text-xs text-text-faint">Empty folder</div>
+        ) : (
+          entries.map((entry) => {
+            const isActive = activeChildPath === entry.path;
+            const isSelected = !isActive && selectedPath === entry.path;
+            const Icon = entry.isDirectory ? Folder : File;
+            return (
+              <button
+                key={entry.path}
+                type="button"
+                onClick={() =>
+                  entry.isDirectory
+                    ? onNavigate(entry.path)
+                    : onSelect({ path: entry.path, status: ' ', isDirectory: false })
+                }
+                className={`group flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-sm text-left transition-fast ${
+                  isActive
+                    ? 'bg-accent/10 text-accent font-medium'
+                    : isSelected
+                      ? 'bg-bg-elevated text-text'
+                      : 'text-text-secondary hover:bg-bg-elevated hover:text-text'
                 }`}
-              />
-              <span className="flex-1 truncate">{entry.name}</span>
-              {entry.isDirectory && (
-                <ChevronRight
-                  className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-accent' : 'text-text-faint'}`}
+              >
+                <Icon
+                  className={`w-4 h-4 flex-shrink-0 ${
+                    entry.isDirectory
+                      ? isActive
+                        ? 'text-accent'
+                        : 'text-accent/70'
+                      : 'text-text-muted'
+                  }`}
                 />
-              )}
-            </button>
-          );
-        })
-      )}
+                <span className="flex-1 truncate">{entry.name}</span>
+                {entry.isDirectory && (
+                  <ChevronRight
+                    className={`w-3.5 h-3.5 flex-shrink-0 transition-opacity ${
+                      isActive
+                        ? 'text-accent opacity-100'
+                        : 'text-text-faint opacity-0 group-hover:opacity-100'
+                    }`}
+                  />
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
