@@ -81,7 +81,7 @@ export function MillerColumns({
   }, [columns.length]);
 
   return (
-    <div ref={scrollRef} className="flex-1 min-w-0 flex overflow-x-auto overflow-y-hidden">
+    <div ref={scrollRef} className="absolute inset-0 flex overflow-x-auto overflow-y-hidden">
       {columns.map((dirPath, index) => (
         <MillerColumn
           key={index}

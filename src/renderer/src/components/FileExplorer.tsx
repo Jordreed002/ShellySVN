@@ -454,13 +454,26 @@ export function FileExplorer() {
   // Base directory for Miller columns: the working-copy root (or home) when the
   // current path is inside it, so we don't render empty unapproved /…/ columns.
   const millerBase = useMemo(() => {
-    const isUnder = (root?: string) =>
-      !!root && (path === root || path.startsWith(root.replace(/[\\/]+$/, '') + '/') || path.startsWith(root.replace(/[\\/]+$/, '') + '\\'));
+    const isUnder = (root?: string) => {
+      if (!root) return false;
+      const base = root.replace(/[\\/]+$/, '');
+      return path === root || path.startsWith(base + '/') || path.startsWith(base + '\\');
+    };
     const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot;
     if (isUnder(wcRoot)) return wcRoot ?? null;
+    // Fall back to the recent repository that contains the current path, so the
+    // columns start at the repo root rather than walking up from home.
+    const repo = (settings?.recentRepositories || []).find(isUnder);
+    if (repo) return repo;
     if (isUnder(homePath)) return homePath;
     return null;
-  }, [path, svnInfo?.workingCopyRoot, workingCopyContext?.workingCopyRoot, homePath]);
+  }, [
+    path,
+    svnInfo?.workingCopyRoot,
+    workingCopyContext?.workingCopyRoot,
+    settings?.recentRepositories,
+    homePath,
+  ]);
 
   const folderChangeCounts = useMemo(
     () => (deepStatusData ? buildFolderChangeCounts(files || [], deepStatusData) : null),
@@ -1193,15 +1206,17 @@ export function FileExplorer() {
         )}
 
         {explorerViewMode === 'miller' && browseMode === 'local' && (
-          <MillerColumns
-            path={path}
-            baseRoot={millerBase}
-            selectedPath={selectedEntry?.path}
-            onNavigate={handleNavigate}
-            onSelect={handleSelect}
-            actions={fileRowActions}
-            workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
-          />
+          <div className="relative flex-1 min-h-0 min-w-0">
+            <MillerColumns
+              path={path}
+              baseRoot={millerBase}
+              selectedPath={selectedEntry?.path}
+              onNavigate={handleNavigate}
+              onSelect={handleSelect}
+              actions={fileRowActions}
+              workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
+            />
+          </div>
         )}
 
         {/* Filter Bar */}
