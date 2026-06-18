@@ -342,6 +342,15 @@ export const FileRow = memo(function FileRow({
           style={{ minWidth: columnWidths.name - 80 }}
         >
           <span className={entry.isDirectory ? 'font-medium' : ''}>{filename}</span>
+          {entry.isDirectory && entry.childChangeCount ? (
+            <span
+              className="flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full bg-svn-modified/15 text-svn-modified text-2xs font-semibold tabular-nums"
+              title={`${entry.childChangeCount} changed item${entry.childChangeCount === 1 ? '' : 's'} inside`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-svn-modified" />
+              {entry.childChangeCount}
+            </span>
+          ) : null}
           {entry.lock && (
             <Lock
               className="w-3 h-3 text-warning flex-shrink-0"

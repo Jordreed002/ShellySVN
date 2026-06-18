@@ -29,6 +29,8 @@ export interface SvnStatusEntry {
   author?: string;
   date?: string;
   isDirectory: boolean;
+  /** For directories: number of changed items nested inside (recursive rollup). */
+  childChangeCount?: number;
   propsStatus?: SvnStatusChar;
   remoteStatus?: SvnStatusChar;
   remotePropsStatus?: SvnStatusChar;

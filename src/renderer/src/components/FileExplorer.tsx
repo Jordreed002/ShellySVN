@@ -23,7 +23,11 @@ import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
 import { useHomePath } from '../hooks/useHomePath';
 import { useFolderSizes } from '../hooks/useFolderSizes';
-import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
+import {
+  applyDeepStatus,
+  buildFolderChangeCounts,
+  fileInfoToEntry,
+} from '../features/files/fileStatus';
 import { createSvnListQueryKey, getAuthPresenceKey } from '../features/files/authQueryKeys';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
 import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
@@ -445,9 +449,21 @@ export function FileExplorer() {
   ]);
 
   // Convert to entries for virtualizer
+  const folderChangeCounts = useMemo(
+    () => (deepStatusData ? buildFolderChangeCounts(files || [], deepStatusData) : null),
+    [files, deepStatusData]
+  );
+
   const entries = useMemo(() => {
-    return (files || []).map(fileInfoToEntry);
-  }, [files]);
+    const list = (files || []).map(fileInfoToEntry);
+    if (!folderChangeCounts || folderChangeCounts.size === 0) return list;
+    return list.map((entry) => {
+      if (!entry.isDirectory) return entry;
+      const key = entry.path.replace(/\\/g, '/').replace(/\/+$/, '');
+      const count = folderChangeCounts.get(key);
+      return count ? { ...entry, childChangeCount: count } : entry;
+    });
+  }, [files, folderChangeCounts]);
 
   // Calculate folder sizes when enabled
   const { folderSizes } = useFolderSizes(entries, settings.showFolderSizes);
