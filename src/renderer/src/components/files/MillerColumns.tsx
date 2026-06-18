@@ -3,7 +3,14 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronRight, File, Folder } from 'lucide-react';
 import type { FileInfo, SvnStatusEntry } from '@shared/types';
 
+import { ContextMenu, useContextMenu } from '../ui/ContextMenu';
+import { buildSvnContextMenuItems, type FileRowActions } from '../ui/FileRow';
+
 const FILE_CACHE_TIME = 5 * 60 * 1000;
+
+function toEntry(file: FileInfo): SvnStatusEntry {
+  return { path: file.path, status: ' ', isDirectory: file.isDirectory };
+}
 
 function detectSeparator(path: string): string {
   return path.includes('\\') ? '\\' : '/';
@@ -51,6 +58,8 @@ interface MillerColumnsProps {
   selectedPath?: string;
   onNavigate: (path: string) => void;
   onSelect: (entry: SvnStatusEntry) => void;
+  actions: FileRowActions;
+  workingCopyRoot?: string;
 }
 
 export function MillerColumns({
@@ -59,6 +68,8 @@ export function MillerColumns({
   selectedPath,
   onNavigate,
   onSelect,
+  actions,
+  workingCopyRoot,
 }: MillerColumnsProps) {
   const columns = useMemo(() => buildColumnPaths(path, baseRoot), [path, baseRoot]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -79,6 +90,8 @@ export function MillerColumns({
           selectedPath={selectedPath}
           onNavigate={onNavigate}
           onSelect={onSelect}
+          actions={actions}
+          workingCopyRoot={workingCopyRoot}
         />
       ))}
     </div>
@@ -98,6 +111,8 @@ interface MillerColumnProps {
   selectedPath?: string;
   onNavigate: (path: string) => void;
   onSelect: (entry: SvnStatusEntry) => void;
+  actions: FileRowActions;
+  workingCopyRoot?: string;
 }
 
 function basename(p: string): string {
@@ -125,6 +140,8 @@ function MillerColumn({
   selectedPath,
   onNavigate,
   onSelect,
+  actions,
+  workingCopyRoot,
 }: MillerColumnProps) {
   const { data, isLoading } = useQuery({
     queryKey: ['fs:listDirectory', dirPath],
@@ -136,11 +153,18 @@ function MillerColumn({
     placeholderData: keepPreviousData,
   });
 
+  const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
   const entries = useMemo(() => sortEntries(data || []), [data]);
   const showSkeleton = isLoading && entries.length === 0;
+  // Columns along the active trail (all but the deepest) get a faint tint.
+  const onActiveTrail = activeChildPath !== undefined;
 
   return (
-    <div className="w-64 flex-shrink-0 h-full border-r border-border-muted flex flex-col">
+    <div
+      className={`w-64 flex-shrink-0 h-full border-r border-border-muted flex flex-col ${
+        onActiveTrail ? 'bg-bg-secondary/25' : ''
+      }`}
+    >
       {/* Column header — the folder this column lists */}
       <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1.5 flex-shrink-0">
         <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-text-muted truncate">
@@ -166,11 +190,13 @@ function MillerColumn({
                 key={entry.path}
                 type="button"
                 onClick={() =>
-                  entry.isDirectory
-                    ? onNavigate(entry.path)
-                    : onSelect({ path: entry.path, status: ' ', isDirectory: false })
+                  entry.isDirectory ? onNavigate(entry.path) : onSelect(toEntry(entry))
                 }
-                className={`group flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-sm text-left transition-fast ${
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  showContextMenu(e, toEntry(entry));
+                }}
+                className={`group relative flex items-center gap-2.5 w-full pl-3.5 pr-2.5 py-1.5 rounded-lg text-sm text-left transition-fast ${
                   isActive
                     ? 'bg-accent/10 text-accent font-medium'
                     : isSelected
@@ -178,6 +204,9 @@ function MillerColumn({
                       : 'text-text-secondary hover:bg-bg-elevated hover:text-text'
                 }`}
               >
+                {isActive && (
+                  <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-4 rounded-full bg-accent" />
+                )}
                 <Icon
                   className={`w-4 h-4 flex-shrink-0 ${
                     entry.isDirectory
@@ -202,6 +231,18 @@ function MillerColumn({
           })
         )}
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          items={buildSvnContextMenuItems(
+            contextMenu.data as SvnStatusEntry,
+            actions,
+            workingCopyRoot
+          )}
+          position={contextMenu.position}
+          onClose={hideContextMenu}
+        />
+      )}
     </div>
   );
 }

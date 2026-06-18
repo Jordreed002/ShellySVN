@@ -1199,6 +1199,8 @@ export function FileExplorer() {
             selectedPath={selectedEntry?.path}
             onNavigate={handleNavigate}
             onSelect={handleSelect}
+            actions={fileRowActions}
+            workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
           />
         )}
 

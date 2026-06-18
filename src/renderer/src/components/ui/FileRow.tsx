@@ -65,6 +65,62 @@ export interface FileRowActions {
   onRelocate?: (entry: SvnStatusEntry) => void;
 }
 
+/**
+ * Build the SVN context-menu items for an entry, binding each FileRowActions
+ * callback to that entry. Shared by the list view and the Miller columns.
+ */
+export function buildSvnContextMenuItems(
+  entry: SvnStatusEntry,
+  actions: FileRowActions,
+  workingCopyRoot?: string
+) {
+  const isWorkingCopyRoot = workingCopyRoot === entry.path;
+  return getSvnContextMenuItems(
+    entry.status,
+    entry.isDirectory,
+    {
+      onUpdate: actions.onUpdate ? () => actions.onUpdate!(entry) : undefined,
+      onDownload: actions.onDownload ? () => actions.onDownload!(entry) : undefined,
+      onCommit: actions.onCommit ? () => actions.onCommit!(entry) : undefined,
+      onRevert: actions.onRevert ? () => actions.onRevert!(entry) : undefined,
+      onUnversion: actions.onUnversion ? () => actions.onUnversion!(entry) : undefined,
+      onAdd: actions.onAdd ? () => actions.onAdd!(entry) : undefined,
+      onDelete: actions.onDelete ? () => actions.onDelete!(entry) : undefined,
+      onMove: actions.onMove ? () => actions.onMove!(entry) : undefined,
+      onCopy: actions.onCopy ? () => actions.onCopy!(entry) : undefined,
+      onRename: actions.onRename ? () => actions.onRename!(entry) : undefined,
+      onShowLog: actions.onShowLog ? () => actions.onShowLog!(entry) : undefined,
+      onDiff: actions.onDiff ? () => actions.onDiff!(entry) : undefined,
+      onOpenInExplorer: actions.onOpenInExplorer
+        ? () => actions.onOpenInExplorer!(entry)
+        : undefined,
+      onCopyPath: actions.onCopyPath
+        ? () => actions.onCopyPath!(entry)
+        : () => navigator.clipboard.writeText(entry.path),
+      onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
+      onGetLock: actions.onGetLock ? () => actions.onGetLock!(entry) : undefined,
+      onReleaseLock: actions.onReleaseLock ? () => actions.onReleaseLock!(entry) : undefined,
+      onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
+      onCleanup: actions.onCleanup ? () => actions.onCleanup!(entry) : undefined,
+      onCreatePatch: actions.onCreatePatch ? () => actions.onCreatePatch!(entry) : undefined,
+      onApplyPatch: actions.onApplyPatch ? () => actions.onApplyPatch!(entry) : undefined,
+      onBlame: actions.onBlame ? () => actions.onBlame!(entry) : undefined,
+      onExport: actions.onExport ? () => actions.onExport!(entry) : undefined,
+      onImport: actions.onImport ? () => actions.onImport!(entry) : undefined,
+      onRepoBrowser: actions.onRepoBrowser ? () => actions.onRepoBrowser!(entry) : undefined,
+      onRevisionGraph: actions.onRevisionGraph ? () => actions.onRevisionGraph!(entry) : undefined,
+      onBranchTag: actions.onBranchTag ? () => actions.onBranchTag!(entry) : undefined,
+      onTag: actions.onTag ? () => actions.onTag!(entry) : undefined,
+      onSwitch: actions.onSwitch ? () => actions.onSwitch!(entry) : undefined,
+      onMerge: actions.onMerge ? () => actions.onMerge!(entry) : undefined,
+      onRelocate: actions.onRelocate ? () => actions.onRelocate!(entry) : undefined,
+      onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
+      onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
+    },
+    isWorkingCopyRoot
+  );
+}
+
 // File type to icon mapping
 function getFileIcon(filename: string, isDirectory: boolean) {
   if (isDirectory) return Folder;
@@ -239,44 +295,7 @@ export const FileRow = memo(function FileRow({
   };
 
   // Context menu items with action callbacks
-  const isWorkingCopyRoot = workingCopyRoot === entry.path;
-  const contextMenuItems = getSvnContextMenuItems(entry.status, entry.isDirectory, {
-    onUpdate: actions.onUpdate ? () => actions.onUpdate!(entry) : undefined,
-    onDownload: actions.onDownload ? () => actions.onDownload!(entry) : undefined,
-    onCommit: actions.onCommit ? () => actions.onCommit!(entry) : undefined,
-    onRevert: actions.onRevert ? () => actions.onRevert!(entry) : undefined,
-    onUnversion: actions.onUnversion ? () => actions.onUnversion!(entry) : undefined,
-    onAdd: actions.onAdd ? () => actions.onAdd!(entry) : undefined,
-    onDelete: actions.onDelete ? () => actions.onDelete!(entry) : undefined,
-    onMove: actions.onMove ? () => actions.onMove!(entry) : undefined,
-    onCopy: actions.onCopy ? () => actions.onCopy!(entry) : undefined,
-    onRename: actions.onRename ? () => actions.onRename!(entry) : undefined,
-    onShowLog: actions.onShowLog ? () => actions.onShowLog!(entry) : undefined,
-    onDiff: actions.onDiff ? () => actions.onDiff!(entry) : undefined,
-    onOpenInExplorer: actions.onOpenInExplorer ? () => actions.onOpenInExplorer!(entry) : undefined,
-    onCopyPath: actions.onCopyPath
-      ? () => actions.onCopyPath!(entry)
-      : () => navigator.clipboard.writeText(entry.path),
-    onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
-    onGetLock: actions.onGetLock ? () => actions.onGetLock!(entry) : undefined,
-    onReleaseLock: actions.onReleaseLock ? () => actions.onReleaseLock!(entry) : undefined,
-    onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
-    onCleanup: actions.onCleanup ? () => actions.onCleanup!(entry) : undefined,
-    onCreatePatch: actions.onCreatePatch ? () => actions.onCreatePatch!(entry) : undefined,
-    onApplyPatch: actions.onApplyPatch ? () => actions.onApplyPatch!(entry) : undefined,
-    onBlame: actions.onBlame ? () => actions.onBlame!(entry) : undefined,
-    onExport: actions.onExport ? () => actions.onExport!(entry) : undefined,
-    onImport: actions.onImport ? () => actions.onImport!(entry) : undefined,
-    onRepoBrowser: actions.onRepoBrowser ? () => actions.onRepoBrowser!(entry) : undefined,
-    onRevisionGraph: actions.onRevisionGraph ? () => actions.onRevisionGraph!(entry) : undefined,
-    onBranchTag: actions.onBranchTag ? () => actions.onBranchTag!(entry) : undefined,
-    onTag: actions.onTag ? () => actions.onTag!(entry) : undefined,
-    onSwitch: actions.onSwitch ? () => actions.onSwitch!(entry) : undefined,
-    onMerge: actions.onMerge ? () => actions.onMerge!(entry) : undefined,
-    onRelocate: actions.onRelocate ? () => actions.onRelocate!(entry) : undefined,
-    onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
-    onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
-  }, isWorkingCopyRoot);
+  const contextMenuItems = buildSvnContextMenuItems(entry, actions, workingCopyRoot);
 
   return (
     <>
