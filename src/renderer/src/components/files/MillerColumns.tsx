@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronRight, File, Folder, Loader2 } from 'lucide-react';
 import type { FileInfo, SvnStatusEntry } from '@shared/types';
 
@@ -73,7 +73,7 @@ export function MillerColumns({
     <div ref={scrollRef} className="flex-1 flex overflow-x-auto overflow-y-hidden">
       {columns.map((dirPath, index) => (
         <MillerColumn
-          key={dirPath}
+          key={index}
           dirPath={dirPath}
           activeChildPath={columns[index + 1]}
           selectedPath={selectedPath}
@@ -113,6 +113,8 @@ function MillerColumn({
     enabled: !!dirPath,
     staleTime: FILE_CACHE_TIME,
     gcTime: FILE_CACHE_TIME,
+    // Keep the column's current entries visible while a sibling/new path loads.
+    placeholderData: keepPreviousData,
   });
 
   const entries = useMemo(() => sortEntries(data || []), [data]);
