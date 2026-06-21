@@ -14,6 +14,8 @@ import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Columns3, List } from 'lu
 import type { DeepStatusProgress, SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { MillerColumns } from './files/MillerColumns';
+import { BranchSwitcher } from '../features/branches/BranchSwitcher';
+import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
@@ -1083,6 +1085,22 @@ export function FileExplorer() {
             <span title="Loading status...">
               <Loader className="w-4 h-4 text-accent animate-spin ml-2" />
             </span>
+          )}
+          {browseMode === 'local' && (
+            <div className="ml-auto pl-3">
+              <BranchSwitcher
+                url={effectiveUrl}
+                localPath={path}
+                onSwitched={() => {
+                  invalidateCurrentPath();
+                  queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+                }}
+                onCreateBranch={() =>
+                  window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG))
+                }
+                onCreateTag={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG))}
+              />
+            </div>
           )}
         </div>
 
