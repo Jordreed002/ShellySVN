@@ -35,24 +35,22 @@ describe('primary workflow ARIA labeling', () => {
       />
     );
 
+    // Direct toolbar controls. Secondary file actions live in the "File actions"
+    // menu; remote-items lives in the View options menu; Settings/Notes moved to
+    // the sidebar and top bar respectively.
     [
       'Refresh files (F5)',
       'Add bookmark',
       'Local files',
       'Online repository',
-      'Show remote items for sparse checkout',
       'Update working copy from repository',
       'Commit changes (no changes to commit)',
-      'Revert selected files to last committed version',
-      'Add selected files to version control',
-      'Delete selected files',
+      'File actions',
       'Show filters',
       'Open dual pane view',
       'Preview selected file',
       'Search files',
       'View options',
-      'Open settings',
-      'Open quick notes',
       'Open repository diagnostics',
     ].forEach((name) => {
       expect(screen.getByLabelText(name)).toBeInTheDocument();

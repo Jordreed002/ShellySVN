@@ -7,7 +7,15 @@ import { ProgressIndicator } from '../src/components/ui/ProgressIndicator';
 import { StatusBar } from '../src/components/ui/StatusBar';
 
 vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ settings: { showStatusBar: true } }),
+  useSettings: () => ({ settings: { showStatusBar: true, recentRepositories: [] } }),
+}));
+
+vi.mock('@tanstack/react-router', () => ({
+  useRouterState: () => ({ location: { search: {} } }),
+}));
+
+vi.mock('../src/components/sidebar/sidebarData', () => ({
+  useWorkingCopyInfo: () => ({ data: undefined }),
 }));
 
 describe('status and progress accessibility', () => {
@@ -52,10 +60,8 @@ describe('status and progress accessibility', () => {
   it('exposes the app status bar as a polite status region', () => {
     render(<StatusBar />);
 
-    expect(screen.getByRole('status', { name: 'Application status' })).toHaveAttribute(
-      'aria-live',
-      'polite'
-    );
-    expect(screen.getByLabelText('Application ready')).toHaveTextContent('Ready');
+    const region = screen.getByRole('status', { name: 'Application status' });
+    expect(region).toHaveAttribute('aria-live', 'polite');
+    expect(region).toHaveTextContent('No working copy open');
   });
 });
