@@ -40,7 +40,7 @@ function buildCheckoutArgs(
   path: string,
   revision?: string,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
-  options?: CheckoutOptions
+  _options?: CheckoutOptions
 ): string[] {
   const args = ['checkout', '--non-interactive'];
 
