@@ -5,10 +5,10 @@ import {
   Undo2,
   Plus,
   Trash2,
-  Settings,
   List,
   Grid3X3,
   ChevronDown,
+  Check,
   Search,
   SlidersHorizontal,
   Columns2,
@@ -20,7 +20,6 @@ import {
   Globe,
   Cloud,
   Stethoscope,
-  StickyNote,
   Wrench,
   CheckCircle2,
   Move,
@@ -28,6 +27,14 @@ import {
   Pencil,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
+
+interface ToolbarActionItem {
+  key: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}
 
 interface ToolbarProps {
   onRefresh?: () => void;
@@ -84,8 +91,6 @@ export function Toolbar({
   onMove,
   onCopy,
   onRename,
-  onSettings,
-  onSettingsPreload,
   onCommitPreload,
   onDiagnostics,
   isUpdating = false,
@@ -111,12 +116,26 @@ export function Toolbar({
   canBrowseOnline = false,
   showRemoteItems = false,
   onToggleRemoteItems,
-  onShowNotes,
   className = '',
 }: ToolbarProps) {
   const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const viewMenuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Secondary file actions, collapsed into a single "Actions" menu to keep the
+  // toolbar uncluttered. Only handlers that were provided are shown.
+  const actionItems: ToolbarActionItem[] = [];
+  if (onRevert) actionItems.push({ key: 'revert', icon: Undo2, label: 'Revert', onClick: onRevert });
+  if (onAdd) actionItems.push({ key: 'add', icon: Plus, label: 'Add to version control', onClick: onAdd });
+  if (onResolve)
+    actionItems.push({ key: 'resolve', icon: CheckCircle2, label: 'Resolve conflict', onClick: onResolve });
+  if (onMove) actionItems.push({ key: 'move', icon: Move, label: 'Move…', onClick: onMove });
+  if (onCopy) actionItems.push({ key: 'copy', icon: Copy, label: 'Copy…', onClick: onCopy });
+  if (onRename) actionItems.push({ key: 'rename', icon: Pencil, label: 'Rename…', onClick: onRename });
+  if (onCleanup) actionItems.push({ key: 'cleanup', icon: Wrench, label: 'Cleanup', onClick: onCleanup });
+  if (onDelete)
+    actionItems.push({ key: 'delete', icon: Trash2, label: 'Delete', onClick: onDelete, danger: true });
 
   // Close view menu on escape
   const handleViewMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -200,20 +219,6 @@ export function Toolbar({
         </div>
       )}
 
-      {isVersioned && browseMode === 'local' && onToggleRemoteItems && (
-        <button
-          type="button"
-          onClick={onToggleRemoteItems}
-          className={`btn-icon-sm ml-2 ${showRemoteItems ? 'text-info bg-info/10' : ''}`}
-          title={showRemoteItems ? 'Hide remote items' : 'Show remote items (sparse checkout)'}
-          aria-label={
-            showRemoteItems ? 'Hide remote items' : 'Show remote items for sparse checkout'
-          }
-          aria-pressed={showRemoteItems}
-        >
-          <Cloud className="w-4 h-4" aria-hidden="true" />
-        </button>
-      )}
 
       {isVersioned && (
         <>
@@ -247,108 +252,70 @@ export function Toolbar({
             </button>
           </div>
 
-          <div className="toolbar-divider" role="separator" aria-orientation="vertical" />
+          {actionItems.length > 0 && (
+            <>
+              <div className="toolbar-divider" role="separator" aria-orientation="vertical" />
 
-          {/* Context Actions */}
-          <div className="toolbar-group" role="group" aria-label="File actions">
-            <button
-              onClick={onRevert}
-              disabled={!hasSelection}
-              className="btn-icon-sm"
-              title="Revert selected"
-              aria-label="Revert selected files to last committed version"
-              aria-disabled={!hasSelection}
-            >
-              <Undo2 className="w-4 h-4" aria-hidden="true" />
-            </button>
+              {/* Context actions, collapsed into a single menu */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowActionsMenu((value) => !value)}
+                  className="btn btn-ghost gap-1.5"
+                  title="File actions"
+                  aria-label="File actions"
+                  aria-haspopup="menu"
+                  aria-expanded={showActionsMenu}
+                >
+                  <span>Actions</span>
+                  <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
 
-            <button
-              onClick={onAdd}
-              disabled={!hasSelection}
-              className="btn-icon-sm"
-              title="Add to version control"
-              aria-label="Add selected files to version control"
-              aria-disabled={!hasSelection}
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-            </button>
-
-            <button
-              onClick={onDelete}
-              disabled={!hasSelection}
-              className="btn-icon-sm hover:text-error"
-              title="Delete"
-              aria-label="Delete selected files"
-              aria-disabled={!hasSelection}
-            >
-              <Trash2 className="w-4 h-4" aria-hidden="true" />
-            </button>
-
-            {onCleanup && (
-              <button
-                onClick={onCleanup}
-                disabled={!hasSelection}
-                className="btn-icon-sm"
-                title="Cleanup selected"
-                aria-label="Cleanup selected working copy path"
-                aria-disabled={!hasSelection}
-              >
-                <Wrench className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-
-            {onResolve && (
-              <button
-                onClick={onResolve}
-                disabled={!hasSelection}
-                className="btn-icon-sm"
-                title="Resolve selected"
-                aria-label="Resolve selected conflict"
-                aria-disabled={!hasSelection}
-              >
-                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-
-            {onMove && (
-              <button
-                onClick={onMove}
-                disabled={!hasSelection}
-                className="btn-icon-sm"
-                title="Move selected"
-                aria-label="Move selected item"
-                aria-disabled={!hasSelection}
-              >
-                <Move className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-
-            {onCopy && (
-              <button
-                onClick={onCopy}
-                disabled={!hasSelection}
-                className="btn-icon-sm"
-                title="Copy selected"
-                aria-label="Copy selected item"
-                aria-disabled={!hasSelection}
-              >
-                <Copy className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-
-            {onRename && (
-              <button
-                onClick={onRename}
-                disabled={!hasSelection}
-                className="btn-icon-sm"
-                title="Rename selected"
-                aria-label="Rename selected item"
-                aria-disabled={!hasSelection}
-              >
-                <Pencil className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+                {showActionsMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowActionsMenu(false)}
+                      aria-hidden="true"
+                    />
+                    <div
+                      className="dropdown left-0 z-50 w-56"
+                      role="menu"
+                      aria-label="File actions"
+                      onKeyDown={(e) => e.key === 'Escape' && setShowActionsMenu(false)}
+                    >
+                      {!hasSelection && (
+                        <p className="px-3 py-1.5 text-2xs text-text-muted">
+                          Select an item to act on it
+                        </p>
+                      )}
+                      {actionItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            role="menuitem"
+                            disabled={!hasSelection}
+                            onClick={() => {
+                              item.onClick();
+                              setShowActionsMenu(false);
+                            }}
+                            className={`dropdown-item w-full disabled:opacity-40 disabled:pointer-events-none ${
+                              item.danger ? 'hover:text-error hover:bg-error/10' : ''
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" aria-hidden="true" />
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -457,7 +424,7 @@ export function Toolbar({
               />
               <div
                 ref={viewMenuRef}
-                className="dropdown right-0 z-50 w-40"
+                className="dropdown right-0 z-50 w-56"
                 role="menu"
                 aria-label="View options"
                 onKeyDown={handleViewMenuKeyDown}
@@ -486,38 +453,32 @@ export function Toolbar({
                   <Grid3X3 className="w-4 h-4" aria-hidden="true" />
                   <span>Grid View</span>
                 </button>
+
+                {isVersioned && browseMode === 'local' && onToggleRemoteItems && (
+                  <>
+                    <div className="context-menu-divider" />
+                    <button
+                      onClick={() => {
+                        onToggleRemoteItems();
+                        setShowViewMenu(false);
+                      }}
+                      className="dropdown-item w-full justify-between"
+                      role="menuitemcheckbox"
+                      aria-checked={showRemoteItems}
+                      title="Show items that exist in the repository but aren't checked out locally (sparse checkout)"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Cloud className="w-4 h-4" aria-hidden="true" />
+                        <span>Show remote items</span>
+                      </span>
+                      {showRemoteItems && <Check className="w-4 h-4 text-accent" aria-hidden="true" />}
+                    </button>
+                  </>
+                )}
               </div>
             </>
           )}
         </div>
-      )}
-
-      {/* Settings */}
-      {onSettings && (
-        <button
-          onPointerEnter={onSettingsPreload}
-          onFocus={onSettingsPreload}
-          onClick={onSettings}
-          className="btn-icon-sm"
-          title="Settings"
-          aria-label="Open settings"
-        >
-          <Settings className="w-4 h-4" aria-hidden="true" />
-        </button>
-      )}
-
-      {/* Quick Notes */}
-      {onShowNotes && (
-        <button
-          type="button"
-          onClick={onShowNotes}
-          className="btn btn-ghost"
-          title="Quick Notes"
-          aria-label="Open quick notes"
-        >
-          <StickyNote className="w-4 h-4" aria-hidden="true" />
-          <span className="hidden xl:inline">Notes</span>
-        </button>
       )}
 
       {/* Diagnostics - only show for versioned paths */}

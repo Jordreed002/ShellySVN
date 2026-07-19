@@ -18,6 +18,8 @@ import { registerWebhookHandlers } from './ipc/webhook';
 import { openValidatedExternalUrl } from './utils/external-url';
 import { shutdownSharedWorkerPool } from './workers/WorkerPool';
 import { startLocalStatusServer, stopLocalStatusServer } from './services/local-status-server';
+import { bootstrapApprovedPaths } from './utils/approved-paths';
+import { getSettingsManager } from './settings-manager';
 
 let mainWindow: BrowserWindow | null = null;
 const isSmokeTest = process.argv.includes('--smoke-test');
@@ -175,6 +177,19 @@ app.whenReady().then(() => {
     app.quit();
     return;
   }
+
+  // Approve the home directory and recent repositories so the file explorer is
+  // browsable, restoring previously-approved roots persisted across sessions.
+  void (async () => {
+    try {
+      const settingsManager = getSettingsManager();
+      await settingsManager.ready();
+      const recentRepos = settingsManager.getSettings().recentRepositories ?? [];
+      await bootstrapApprovedPaths(recentRepos);
+    } catch (error) {
+      console.error('[approved-paths] Bootstrap failed:', error);
+    }
+  })();
 
   createWindow();
 

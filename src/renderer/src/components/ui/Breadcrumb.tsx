@@ -11,9 +11,17 @@ interface BreadcrumbProps {
   onNavigate: (path: string) => void;
   className?: string;
   maxItems?: number;
+  /** Destination for the home button (user's home dir). Falls back to drives. */
+  homePath?: string;
 }
 
-export function Breadcrumb({ path, onNavigate, className = '', maxItems = 6 }: BreadcrumbProps) {
+export function Breadcrumb({
+  path,
+  onNavigate,
+  className = '',
+  maxItems = 6,
+  homePath,
+}: BreadcrumbProps) {
   // Handle special DRIVES:// path
   if (path === 'DRIVES://') {
     return (
@@ -66,12 +74,12 @@ export function Breadcrumb({ path, onNavigate, className = '', maxItems = 6 }: B
   return (
     <nav className={`breadcrumb ${className}`} aria-label="Breadcrumb">
       <ol className="flex items-center gap-1">
-        {/* Root / Home button */}
+        {/* Home button */}
         <li>
           <button
-            onClick={() => onNavigate('DRIVES://')}
+            onClick={() => onNavigate(homePath || 'DRIVES://')}
             className="breadcrumb-item px-1.5 py-0.5 rounded hover:bg-bg-tertiary transition-fast"
-            title="Go to drives"
+            title={homePath ? 'Go to home folder' : 'Go to drives'}
           >
             <Home className="w-4 h-4" />
           </button>

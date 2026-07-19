@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 export const FILE_CACHE_TIME = 5 * 60 * 1000;
 export const STATUS_STALE_TIME = 30 * 1000;
@@ -17,6 +17,9 @@ export function useFileExplorerDirectoryData(path: string) {
     enabled: !!path,
     staleTime: FILE_CACHE_TIME,
     gcTime: FILE_CACHE_TIME,
+    // Keep the previous folder's listing visible while the next loads, so
+    // navigating between folders doesn't flash an empty list.
+    placeholderData: keepPreviousData,
   });
 
   const { data: directoryMetadata, isFetching: isLoadingStatus } = useQuery({
@@ -25,6 +28,9 @@ export function useFileExplorerDirectoryData(path: string) {
     enabled: !!path && path !== 'DRIVES://' && !!rawFiles,
     staleTime: STATUS_STALE_TIME,
     retry: false,
+    // Prevents isVersioned (and the version-control toolbar) from flickering
+    // off/on while the new folder's metadata is fetched.
+    placeholderData: keepPreviousData,
   });
 
   const { data: deepStatusData, isFetching: isLoadingDeep } = useQuery({
@@ -34,6 +40,18 @@ export function useFileExplorerDirectoryData(path: string) {
       !!path && path !== 'DRIVES://' && directoryMetadata?.isVersioned === true && !!rawFiles,
     staleTime: DEEP_STATUS_STALE_TIME,
     refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
+  });
+
+  // Last-commit info per immediate child (offline) for the last-activity column.
+  const { data: childCommits } = useQuery({
+    queryKey: ['svn:childCommits', path],
+    queryFn: () => window.api.svn.childCommits(path),
+    enabled:
+      !!path && path !== 'DRIVES://' && directoryMetadata?.isVersioned === true && !!rawFiles,
+    staleTime: STATUS_STALE_TIME,
+    retry: false,
+    placeholderData: keepPreviousData,
   });
 
   const isVersioned = path === 'DRIVES://' ? false : directoryMetadata?.isVersioned;
@@ -46,6 +64,7 @@ export function useFileExplorerDirectoryData(path: string) {
   const effectiveUrl = svnInfo?.url || workingCopyContext?.url;
 
   return {
+    childCommits,
     deepStatusData,
     directoryMetadata,
     effectiveRepoRoot,

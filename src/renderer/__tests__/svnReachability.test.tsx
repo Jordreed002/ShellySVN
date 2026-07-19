@@ -182,20 +182,19 @@ describe('SVN workflow reachability', () => {
       />
     );
 
-    [
-      'Update working copy from repository',
-      'Commit changes',
-      'Revert selected files to last committed version',
-      'Add selected files to version control',
-      'Delete selected files',
-      'Cleanup selected working copy path',
-      'Resolve selected conflict',
-      'Move selected item',
-      'Copy selected item',
-      'Rename selected item',
-    ].forEach((name) => {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument();
-    });
+    // Update and Commit are prominent toolbar buttons.
+    expect(
+      screen.getByRole('button', { name: 'Update working copy from repository' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Commit changes' })).toBeInTheDocument();
+
+    // The remaining file actions are reachable via the "File actions" menu.
+    fireEvent.click(screen.getByRole('button', { name: 'File actions' }));
+    ['Revert', 'Add to version control', 'Delete', 'Cleanup', 'Resolve conflict', 'Move…', 'Copy…', 'Rename…'].forEach(
+      (label) => {
+        expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+      }
+    );
   });
 
   it('exposes common working-copy actions from context menus', () => {

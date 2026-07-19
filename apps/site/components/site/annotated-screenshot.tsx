@@ -25,7 +25,6 @@ export function AnnotatedScreenshot() {
               style={{
                 left: annotation.x,
                 top: annotation.y,
-                animationDelay: `${600 + idx * 120}ms`,
                 opacity: 0,
                 animation: `float-in 0.6s ease forwards`,
                 animationDelay: `${600 + idx * 150}ms`,

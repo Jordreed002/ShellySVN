@@ -26,7 +26,10 @@ function invokeCancellableWorkerJob<T>(
   signal: AbortSignal | undefined,
   invoke: (workerJobId?: string) => Promise<T>
 ): Promise<T> {
-  if (!signal) {
+  // An AbortSignal loses its prototype methods when passed across Electron's
+  // contextBridge boundary, so guard against a signal that can't register
+  // listeners and simply run without cancellation support in that case.
+  if (!signal || typeof signal.addEventListener !== 'function') {
     return invoke();
   }
 
@@ -168,6 +171,8 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       return invokeIpc('svn:cancelOperation', activeOperationId);
     },
     revert: (paths) => invokeIpc('svn:revert', paths),
+    unversion: (paths) => invokeIpc('svn:unversion', paths),
+    childCommits: (path) => invokeIpc('svn:childCommits', path),
     add: (paths) => invokeIpc('svn:add', paths),
     delete: (paths) => invokeIpc('svn:delete', paths),
     cleanup: (path) => invokeIpc('svn:cleanup', path),

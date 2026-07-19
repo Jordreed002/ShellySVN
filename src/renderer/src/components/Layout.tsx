@@ -1,14 +1,20 @@
-import { lazy, ReactNode, Suspense, useEffect, useState } from 'react';
+import { lazy, ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { GitBranch, Minus, Square, StickyNote, X } from 'lucide-react';
+import { Minus, Search, Square, StickyNote, X } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 
+import { AnimatePresence, m, springs, useMotionEnabled, variants } from '../lib/motion';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
+import { ShellMark } from './ShellMark';
 import { Sidebar } from './Sidebar';
-import { OnboardingTutorial, useOnboarding } from './tutorial';
+import { useOnboarding } from './tutorial/useOnboarding';
 import { StatusBar } from './ui/StatusBar';
+
+const OnboardingTutorial = lazy(() =>
+  import('./tutorial/OnboardingTutorial').then((m) => ({ default: m.OnboardingTutorial }))
+);
 
 const CommandPalette = lazy(() =>
   import('./ui/CommandPalette').then((m) => ({ default: m.CommandPalette }))
@@ -46,6 +52,7 @@ export function Layout({ children }: LayoutProps) {
   const [showPluginManager, setShowPluginManager] = useState(false);
   const [_isMaximized, setIsMaximized] = useState(false);
   const [forceShowTutorial, setForceShowTutorial] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { settings } = useSettings();
   const { resetTutorial } = useOnboarding();
   const navigate = useNavigate();
@@ -68,11 +75,59 @@ export function Layout({ children }: LayoutProps) {
     return () => window.removeEventListener('tutorial:restart', handleTutorialRestart);
   }, [resetTutorial]);
 
+  // Restore the persisted sidebar collapsed state
+  useEffect(() => {
+    let cancelled = false;
+    window.api.store
+      .get<boolean>('shellysvn:sidebar-collapsed')
+      .then((value) => {
+        if (!cancelled && typeof value === 'boolean') setSidebarCollapsed(value);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      void window.api.store.set('shellysvn:sidebar-collapsed', next);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Command palette: ⌘K / Ctrl+K (the advertised shortcut) and Ctrl/Cmd+Shift+P.
+      // Don't hijack ⌘K while typing in a text field.
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        !!target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'k' &&
+        !isTyping
+      ) {
+        e.preventDefault();
+        setShowCommandPalette(true);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setShowCommandPalette(true);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
         return;
       }
 
@@ -92,7 +147,7 @@ export function Layout({ children }: LayoutProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [toggleSidebar]);
 
   const handleGoToPath = (targetPath: string) => {
     navigate({ to: '/files', search: { path: targetPath } });
@@ -112,70 +167,111 @@ export function Layout({ children }: LayoutProps) {
     window.api.app.window.close();
   };
 
+  const routePath = routerState.location.pathname;
+  const motionEnabled = useMotionEnabled();
+
+  // Short, readable label for the command bar (current path tail or default)
+  const omnibarLabel = currentPath
+    ? currentPath.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).pop() || currentPath
+    : 'Search files, jump to a repo, or run a command';
+
   return (
-    <div className="flex flex-col h-screen bg-bg text-text overflow-hidden">
-      {/* Unified Title Bar - Full Width */}
-      <div
-        className={`h-[32px] bg-bg-tertiary titlebar-drag flex items-center justify-between border-b border-border flex-shrink-0 ${
-          isMac ? 'pl-20' : ''
+    <div className="flex flex-col h-screen shell-backdrop text-text overflow-hidden">
+      {/* Top Bar — glass, modern */}
+      <header
+        className={`h-[--topbar-height] glass titlebar-drag flex items-center gap-3 border-b border-border flex-shrink-0 px-3 ${
+          isMac ? 'pl-[92px]' : ''
         }`}
       >
-        {/* Left: App branding */}
-        <div className="flex items-center gap-2 px-4">
-          <GitBranch className="w-4 h-4 text-accent" />
-          <span className="text-sm font-semibold text-text">ShellySVN</span>
+        {/* Left: brand */}
+        <div className="flex items-center gap-2 pr-2 select-none">
+          <ShellMark className="w-5 h-5 text-accent" />
+          <span className="text-sm font-semibold tracking-tight">ShellySVN</span>
         </div>
 
-        {/* Center: Window title (draggable) and Quick Notes button */}
-        <div className="flex-1 flex items-center justify-center gap-4">
-          <span className="text-xs text-text-muted font-medium">Subversion Client</span>
+        {/* Center: command / search bar */}
+        <div className="flex-1 flex justify-center">
           <button
-            onClick={() => setShowNotes(!showNotes)}
-            className={`titlebar-no-drag p-1.5 rounded transition-fast ${
-              showNotes
-                ? 'bg-accent/20 text-accent'
-                : 'text-text-muted hover:text-text hover:bg-bg-elevated'
-            }`}
-            title="Quick Notes"
+            type="button"
+            onClick={() => setShowCommandPalette(true)}
+            className="omnibar titlebar-no-drag group"
+            title="Open command palette (Ctrl/Cmd+Shift+P)"
           >
-            <StickyNote className="w-4 h-4" />
+            <Search className="w-3.5 h-3.5 flex-shrink-0 text-text-muted group-hover:text-text-secondary transition-fast" />
+            <span className="flex-1 text-left text-sm truncate">{omnibarLabel}</span>
+            <span className="kbd ml-2 flex-shrink-0">⌘K</span>
           </button>
         </div>
 
-        {/* Right: Window controls (Windows/Linux) */}
-        {!isMac && (
-          <div className="flex items-center h-full titlebar-no-drag">
-            <button
-              onClick={handleMinimize}
-              className="h-full px-4 flex items-center justify-center hover:bg-bg-elevated transition-fast"
-              aria-label="Minimize"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleMaximize}
-              className="h-full px-4 flex items-center justify-center hover:bg-bg-elevated transition-fast"
-              aria-label="Maximize"
-            >
-              <Square className="w-3 h-3" />
-            </button>
-            <button
-              onClick={handleClose}
-              className="h-full px-4 flex items-center justify-center hover:bg-error hover:text-white transition-fast"
-              aria-label="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        {isMac && <div className="w-20" />}
-      </div>
+        {/* Right: actions + window controls */}
+        <div className="flex items-center gap-1 titlebar-no-drag">
+          <button
+            onClick={() => setShowNotes(!showNotes)}
+            className={`btn-icon-sm ${showNotes ? 'bg-accent/15 text-accent' : ''}`}
+            title="Quick Notes"
+            aria-pressed={showNotes}
+          >
+            <StickyNote className="w-4 h-4" />
+          </button>
+
+          {!isMac && (
+            <div className="flex items-center h-full ml-1">
+              <button
+                onClick={handleMinimize}
+                className="window-control rounded-md hover:bg-bg-elevated transition-fast"
+                aria-label="Minimize"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleMaximize}
+                className="window-control rounded-md hover:bg-bg-elevated transition-fast"
+                aria-label="Maximize"
+              >
+                <Square className="w-3 h-3" />
+              </button>
+              <button
+                onClick={handleClose}
+                className="window-control rounded-md hover:bg-error hover:text-white transition-fast"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
 
       {/* Main Content Area - Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden">{children}</div>
+        <m.div
+          className="flex-shrink-0 overflow-hidden h-full"
+          initial={false}
+          animate={{ width: sidebarCollapsed ? 56 : (settings?.sidebarWidth ?? 260) }}
+          transition={motionEnabled ? springs.smooth : { duration: 0 }}
+        >
+          <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+        </m.div>
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-hidden relative flex flex-col min-h-0 min-w-0">
+            {motionEnabled ? (
+              <AnimatePresence mode="wait" initial={false}>
+                <m.div
+                  key={routePath}
+                  className="absolute inset-0 flex flex-col overflow-hidden min-h-0"
+                  variants={variants.fadeUp}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
+                >
+                  {children}
+                </m.div>
+              </AnimatePresence>
+            ) : (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">{children}</div>
+            )}
+          </div>
           <StatusBar />
         </main>
       </div>
@@ -188,11 +284,13 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       {/* Onboarding Tutorial */}
-      <OnboardingTutorial
-        forceShow={forceShowTutorial}
-        onComplete={() => setForceShowTutorial(false)}
-        onSkip={() => setForceShowTutorial(false)}
-      />
+      <Suspense fallback={null}>
+        <OnboardingTutorial
+          forceShow={forceShowTutorial}
+          onComplete={() => setForceShowTutorial(false)}
+          onSkip={() => setForceShowTutorial(false)}
+        />
+      </Suspense>
 
       {showCommandPalette && (
         <Suspense fallback={null}>

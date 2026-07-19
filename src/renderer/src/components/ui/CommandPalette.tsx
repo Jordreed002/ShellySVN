@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { m, springs, variants } from '../../lib/motion';
 import {
   Search,
-  Command,
+  CornerDownLeft,
   Folder,
   Settings,
   Upload,
@@ -843,156 +844,119 @@ export function CommandPalette({
 
   if (!isOpen) return null;
 
+  const renderRow = (cmd: CommandItem, index: number, style?: React.CSSProperties) => {
+    const Icon = cmd.icon;
+    const isSelected = index === selectedIndex;
+    return (
+      <div
+        key={cmd.id}
+        onClick={() => handleExecute(cmd)}
+        onMouseEnter={() => handleSelect(index)}
+        style={style}
+        className={`command-palette-item ${isSelected ? 'command-palette-item-active' : 'hover:bg-bg-elevated'}`}
+      >
+        <div
+          className={`flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 transition-fast ${
+            isSelected ? 'bg-accent/20 text-accent' : 'bg-bg-tertiary text-text-muted'
+          }`}
+        >
+          <Icon className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-medium truncate ${isSelected ? 'text-accent' : 'text-text'}`}>
+              {cmd.title}
+            </span>
+            {cmd.shortcut && <span className="kbd flex-shrink-0">{cmd.shortcut}</span>}
+          </div>
+          {cmd.description && (
+            <p className="text-xs text-text-muted truncate mt-0.5">{cmd.description}</p>
+          )}
+        </div>
+        <span className="text-2xs font-medium text-text-muted px-2 py-0.5 rounded-md bg-bg-tertiary/70 flex-shrink-0">
+          {cmd.category}
+        </span>
+      </div>
+    );
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
+    <div className="command-palette">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 animate-fade-in" onClick={onClose} />
+      <m.div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        variants={variants.backdrop}
+        initial="initial"
+        animate="animate"
+        onClick={onClose}
+      />
 
       {/* Palette */}
-      <div className="relative w-[600px] max-w-[90vw] bg-bg-secondary border border-border rounded-xl shadow-2xl animate-scale-in overflow-hidden">
+      <m.div
+        className="relative w-[640px] max-w-[92vw] glass-strong border border-border rounded-2xl shadow-overlay overflow-hidden"
+        variants={variants.overlayPanel}
+        initial="initial"
+        animate="animate"
+        transition={springs.overlay}
+      >
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <Command className="w-5 h-5 text-text-muted" />
+        <div className="flex items-center gap-3 px-5 border-b border-border">
+          <Search className="w-4 h-4 text-text-muted flex-shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type a command or search..."
-            className="flex-1 bg-transparent text-text placeholder:text-text-muted outline-none text-sm"
+            placeholder="Search files, jump to a repo, or run a command…"
+            className="command-palette-input px-0"
           />
-          <kbd className="px-2 py-0.5 bg-bg-tertiary rounded text-xs text-text-muted">esc</kbd>
+          <span className="kbd flex-shrink-0">esc</span>
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="h-[400px] overflow-auto py-2">
+        <div ref={listRef} className="command-palette-list h-[400px]">
           {filteredCommands.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Search className="w-8 h-8 text-text-muted mb-2" />
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Search className="w-8 h-8 text-text-faint mb-3" />
               <p className="text-sm text-text-secondary">No commands found</p>
+              <p className="text-xs text-text-muted mt-1">Try a different search</p>
             </div>
           ) : shouldVirtualizeCommands ? (
             <div className="relative" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
-              {visibleRows.map((virtualRow) => {
-                const cmd = filteredCommands[virtualRow.index];
-                const Icon = cmd.icon;
-                const isSelected = virtualRow.index === selectedIndex;
-
-                return (
-                  <div
-                    key={virtualRow.key}
-                    onClick={() => handleExecute(cmd)}
-                    onMouseEnter={() => handleSelect(virtualRow.index)}
-                    className={`
-                      absolute left-0 top-0 flex w-full items-center gap-3 px-4 py-3 cursor-pointer transition-fast
-                      ${isSelected ? 'bg-accent/10' : 'hover:bg-bg-tertiary'}
-                    `}
-                    style={{
-                      height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                  >
-                    <div
-                      className={`
-                      flex items-center justify-center w-8 h-8 rounded-lg
-                      ${isSelected ? 'bg-accent/20 text-accent' : 'bg-bg-tertiary text-text-muted'}
-                    `}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-sm font-medium ${isSelected ? 'text-accent' : 'text-text'}`}
-                        >
-                          {cmd.title}
-                        </span>
-                        {cmd.shortcut && (
-                          <kbd className="px-1.5 py-0.5 bg-bg-tertiary rounded text-xs text-text-muted">
-                            {cmd.shortcut}
-                          </kbd>
-                        )}
-                      </div>
-                      {cmd.description && (
-                        <p className="text-xs text-text-muted truncate mt-0.5">{cmd.description}</p>
-                      )}
-                    </div>
-
-                    <span className="text-xs text-text-muted px-2 py-0.5 bg-bg-tertiary rounded">
-                      {cmd.category}
-                    </span>
-                  </div>
-                );
-              })}
+              {visibleRows.map((virtualRow) =>
+                renderRow(filteredCommands[virtualRow.index], virtualRow.index, {
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: '100%',
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                })
+              )}
             </div>
           ) : (
-            filteredCommands.map((cmd, index) => {
-              const Icon = cmd.icon;
-              const isSelected = index === selectedIndex;
-
-              return (
-                <div
-                  key={cmd.id}
-                  onClick={() => handleExecute(cmd)}
-                  onMouseEnter={() => handleSelect(index)}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 cursor-pointer transition-fast
-                    ${isSelected ? 'bg-accent/10' : 'hover:bg-bg-tertiary'}
-                  `}
-                >
-                  <div
-                    className={`
-                    flex items-center justify-center w-8 h-8 rounded-lg
-                    ${isSelected ? 'bg-accent/20 text-accent' : 'bg-bg-tertiary text-text-muted'}
-                  `}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-sm font-medium ${isSelected ? 'text-accent' : 'text-text'}`}
-                      >
-                        {cmd.title}
-                      </span>
-                      {cmd.shortcut && (
-                        <kbd className="px-1.5 py-0.5 bg-bg-tertiary rounded text-xs text-text-muted">
-                          {cmd.shortcut}
-                        </kbd>
-                      )}
-                    </div>
-                    {cmd.description && (
-                      <p className="text-xs text-text-muted truncate mt-0.5">{cmd.description}</p>
-                    )}
-                  </div>
-
-                  <span className="text-xs text-text-muted px-2 py-0.5 bg-bg-tertiary rounded">
-                    {cmd.category}
-                  </span>
-                </div>
-              );
-            })
+            filteredCommands.map((cmd, index) => renderRow(cmd, index))
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-t border-border text-xs text-text-muted">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary/50 border-t border-border text-xs text-text-muted">
           <div className="flex items-center gap-4">
-            <span>
-              <kbd className="px-1 bg-bg-elevated rounded">↑</kbd>
-              <kbd className="px-1 bg-bg-elevated rounded ml-1">↓</kbd>
-              to navigate
+            <span className="flex items-center gap-1.5">
+              <span className="kbd">↑</span>
+              <span className="kbd">↓</span>
+              navigate
             </span>
-            <span>
-              <kbd className="px-1 bg-bg-elevated rounded">Enter</kbd>
-              to select
+            <span className="flex items-center gap-1.5">
+              <span className="kbd">
+                <CornerDownLeft className="w-3 h-3" />
+              </span>
+              select
             </span>
           </div>
           <span>{filteredCommands.length} commands</span>
         </div>
-      </div>
+      </m.div>
     </div>
   );
 }

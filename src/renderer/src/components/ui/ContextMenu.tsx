@@ -29,6 +29,7 @@ import {
   Archive,
   Move,
   Pencil,
+  FileX,
 } from 'lucide-react';
 import type { SvnStatusChar } from '@shared/types';
 
@@ -229,6 +230,7 @@ export function getSvnContextMenuItems(
     onDownload?: () => void;
     onCommit?: () => void;
     onRevert?: () => void;
+    onUnversion?: () => void;
     onAdd?: () => void;
     onDelete?: () => void;
     onMove?: () => void;
@@ -334,6 +336,16 @@ export function getSvnContextMenuItems(
       icon: Undo2,
       shortcut: 'Ctrl+R',
       onClick: actions.onRevert,
+    });
+  }
+
+  // === Unversion (undo an accidental add, recursively) ===
+  if (isAdded && actions.onUnversion) {
+    items.push({
+      id: 'unversion',
+      label: isDirectory ? 'Unversion folder (undo add)' : 'Unversion (undo add)',
+      icon: FileX,
+      onClick: actions.onUnversion,
     });
   }
 

@@ -61,6 +61,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   fontSize: 'medium',
   showStatusBar: true,
+  explorerViewMode: 'miller',
   fileListHeight: 'fill',
   accentColor: '#6366f1',
   compactFileRows: false,

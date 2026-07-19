@@ -28,6 +28,7 @@ module.exports = {
           DEFAULT: 'rgb(var(--color-accent-rgb, 88 166 255) / <alpha-value>)',
           hover: 'rgb(var(--color-accent-hover-rgb, 121 184 255) / <alpha-value>)',
           muted: 'rgb(var(--color-accent-muted-rgb, 56 139 253) / <alpha-value>)',
+          soft: 'rgb(var(--color-accent-soft-rgb, 88 166 255) / <alpha-value>)',
         },
         // SVN Status Colors
         svn: {
@@ -65,12 +66,14 @@ module.exports = {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
       },
       boxShadow: {
-        'glow-accent': '0 0 12px var(--color-accent-glow, rgba(88, 166, 255, 0.4))',
-        'glow-success': '0 0 12px var(--color-success-glow, rgba(63, 185, 80, 0.4))',
-        'glow-warning': '0 0 12px var(--color-warning-glow, rgba(210, 153, 34, 0.4))',
-        'glow-error': '0 0 12px var(--color-error-glow, rgba(248, 81, 73, 0.4))',
-        dropdown: '0 8px 24px rgba(1, 4, 9, 0.85), 0 0 1px rgba(48, 54, 61, 1)',
-        card: '0 1px 3px rgba(1, 4, 9, 0.5), 0 0 1px rgba(48, 54, 61, 1)',
+        'glow-accent': '0 0 18px var(--color-accent-glow, rgba(88, 166, 255, 0.4))',
+        'glow-success': '0 0 18px var(--color-success-glow, rgba(63, 185, 80, 0.4))',
+        'glow-warning': '0 0 18px var(--color-warning-glow, rgba(210, 153, 34, 0.4))',
+        'glow-error': '0 0 18px var(--color-error-glow, rgba(248, 81, 73, 0.4))',
+        card: 'var(--shadow-card, 0 1px 3px rgba(1, 4, 9, 0.5))',
+        panel: 'var(--shadow-panel, 0 12px 32px -8px rgba(1, 4, 9, 0.7))',
+        overlay: 'var(--shadow-overlay, 0 24px 64px -12px rgba(1, 4, 9, 0.8))',
+        dropdown: 'var(--shadow-overlay, 0 8px 24px rgba(1, 4, 9, 0.85))',
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-out',

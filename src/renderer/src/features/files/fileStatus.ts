@@ -66,6 +66,44 @@ function buildFolderStatusIndex(
   return folderStatus;
 }
 
+/**
+ * Count changed items nested under each immediate folder, from the recursive
+ * deep-status result. Returns a map of normalized folder path -> change count.
+ */
+export function buildFolderChangeCounts(
+  files: FileInfo[],
+  deepStatus: FsStatusResult
+): Map<string, number> {
+  const folderPaths = new Set(
+    files.filter((file) => file.isDirectory).map((file) => normalizeStatusPath(file.path))
+  );
+  const counts = new Map<string, number>();
+
+  if (folderPaths.size === 0 || deepStatus.allEntries.length === 0) {
+    return counts;
+  }
+
+  for (const entry of deepStatus.allEntries) {
+    // Unversioned/ignored/external/remote entries aren't pending changes.
+    if (entry.status === '?' || entry.status === 'I' || entry.status === 'X') continue;
+
+    let parentPath = normalizeStatusPath(entry.fullPath);
+    const seen = new Set<string>();
+    while (parentPath) {
+      const separatorIndex = parentPath.lastIndexOf('/');
+      if (separatorIndex === -1) break;
+      parentPath = parentPath.slice(0, separatorIndex);
+      // Only count once per ancestor folder, and only for visible immediate folders.
+      if (folderPaths.has(parentPath) && !seen.has(parentPath)) {
+        seen.add(parentPath);
+        counts.set(parentPath, (counts.get(parentPath) || 0) + 1);
+      }
+    }
+  }
+
+  return counts;
+}
+
 export function applyDeepStatus(files: FileInfo[], deepStatus: FsStatusResult): FileInfo[] {
   const folderStatus = buildFolderStatusIndex(files, deepStatus);
 

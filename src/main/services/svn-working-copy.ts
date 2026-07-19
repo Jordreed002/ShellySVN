@@ -14,7 +14,7 @@ import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { getSslTrustCache } from '../ssl-trust-cache';
-import { parseSvnInfoXml } from '../svn/parsers';
+import { parseSvnInfoXml, parseSvnChildCommitsXml, type ChildCommitInfo } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
@@ -111,6 +111,21 @@ async function getCachedTrustedSslFailuresForUrl(url: string): Promise<string | 
   const cache = getSslTrustCache();
   await cache.ready();
   return cache.findForUrl(url)?.failures;
+}
+
+/** Cached credentials for a working copy's repository URL, if any. */
+async function getCachedCredentialsForWorkingCopy(
+  path: string
+): Promise<{ username: string; password: string } | undefined> {
+  try {
+    const context = await getWorkingCopyContext(path);
+    if (!context?.url) return undefined;
+    const match = getAuthCache().findForUrl(context.url);
+    return match ? { username: match.username, password: match.password } : undefined;
+  } catch (error) {
+    debug.warn('[SVN] Failed to resolve cached credentials for working copy:', error);
+    return undefined;
+  }
 }
 
 export async function getWorkingCopyContext(
@@ -279,10 +294,13 @@ async function updateUnserialized(
     return { success: false, error: preResult.error || 'Pre-update hook blocked' };
   }
 
+  const credentials = await getCachedCredentialsForWorkingCopy(path);
+
   try {
     const output = await runSvnText(buildUpdateArgs(path, depth, options), {
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,
+      credentials,
     });
     const result = {
       success: true,
@@ -319,6 +337,17 @@ async function updateUnserialized(
           'Working copy format is too old. Use the working copy upgrade prompt in ShellySVN before updating.',
       };
     }
+    if (
+      errorMsg.includes('E215004') ||
+      errorMsg.includes('E170013') ||
+      /authentication failed|no more credentials/i.test(errorMsg)
+    ) {
+      return {
+        success: false,
+        error:
+          'Authentication failed connecting to the repository. Check your credentials in Settings → Authentication and try again.',
+      };
+    }
 
     return { success: false, error: `SVN update failed: ${errorMsg}` };
   }
@@ -332,6 +361,7 @@ export async function updateWithProgress(
   options?: UpdateOptions
 ): Promise<{ success: boolean; revision: number; error?: string; output?: string }> {
   const trustedSslFailures = await getCachedTrustedSslFailuresForWorkingCopy(path);
+  const credentials = await getCachedCredentialsForWorkingCopy(path);
   const controller = new AbortController();
   activeUpdates.set(updateId, controller);
 
@@ -350,6 +380,7 @@ export async function updateWithProgress(
     const result = await runSvn(buildUpdateArgs(path, depth, options), {
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,
+      credentials,
       signal: controller.signal,
       maxStdoutBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
       maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
@@ -412,6 +443,23 @@ export function cancelUpdate(updateId: string): { success: boolean; error?: stri
   activeUpdates.delete(updateId);
   debug.log(`[SVN] Cancelled update: ${updateId}`);
   return { success: true };
+}
+
+/**
+ * Last-commit info (revision/author/date) for each immediate child of a
+ * directory, read from the working copy (offline). Used for the Explorer's
+ * last-activity column. Returns {} on failure.
+ */
+export async function getChildCommits(
+  path: string
+): Promise<Record<string, ChildCommitInfo>> {
+  try {
+    const xml = await runSvnText(['info', '--xml', '--depth', 'immediates', path]);
+    return parseSvnChildCommitsXml(xml, path);
+  } catch (error) {
+    debug.warn('[SVN] getChildCommits failed:', error);
+    return {};
+  }
 }
 
 export async function updateItem(
@@ -518,6 +566,17 @@ async function updateToRevisionUnserialized(
 export async function revert(paths: string[]): Promise<{ success: boolean }> {
   return runSerializedWorkingCopyMutation(paths[0], async () => {
     await runSvnText(['revert', ...paths]);
+    return { success: true };
+  });
+}
+
+/**
+ * Unschedule an accidental `svn add` for the given paths, recursively. The files
+ * stay on disk (becoming unversioned again); only the pending addition is undone.
+ */
+export async function unversion(paths: string[]): Promise<{ success: boolean }> {
+  return runSerializedWorkingCopyMutation(paths[0], async () => {
+    await runSvnText(['revert', '--depth', 'infinity', ...paths]);
     return { success: true };
   });
 }

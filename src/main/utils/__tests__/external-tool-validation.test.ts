@@ -5,11 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockState = vi.hoisted(() => ({
   existsSync: vi.fn(),
   statSync: vi.fn(),
+  accessSync: vi.fn(),
 }));
 
 vi.mock('node:fs', () => ({
   existsSync: mockState.existsSync,
   statSync: mockState.statSync,
+  accessSync: mockState.accessSync,
+  constants: { X_OK: 1 },
 }));
 
 import {
@@ -22,6 +25,8 @@ describe('external tool setting validation', () => {
     vi.clearAllMocks();
     mockState.existsSync.mockReturnValue(true);
     mockState.statSync.mockReturnValue({ isFile: () => true });
+    // Executable-bit check (non-Windows) succeeds unless a case overrides it.
+    mockState.accessSync.mockReturnValue(undefined);
   });
 
   it('allows empty settings and known tool aliases', () => {

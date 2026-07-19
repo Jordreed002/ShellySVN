@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, StickyNote, Plus, Trash2, Pin, PinOff } from 'lucide-react';
 
+import { m, springs, useMotionEnabled, variants } from '../../lib/motion';
+
 interface Note {
   id: string;
   text: string;
@@ -115,76 +117,94 @@ export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPane
     return true;
   });
 
+  const motionEnabled = useMotionEnabled();
+
   if (!isOpen) return null;
 
+  const tabs = [
+    { value: 'all', label: 'All' },
+    { value: 'pinned', label: 'Pinned' },
+    { value: 'current', label: 'Here' },
+  ] as const;
+
   return (
-    <div className="fixed right-0 top-8 bottom-0 w-80 bg-bg-secondary border-l border-border z-50 flex flex-col">
+    <m.div
+      className="fixed right-0 top-[--topbar-height] bottom-0 w-80 z-50 flex flex-col glass-strong border-l border-border"
+      style={{ boxShadow: 'var(--shadow-overlay)' }}
+      initial={motionEnabled ? { x: 28, opacity: 0 } : false}
+      animate={{ x: 0, opacity: 1 }}
+      transition={springs.smooth}
+      role="complementary"
+      aria-label="Quick notes"
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-bg-tertiary border-b border-border">
-        <div className="flex items-center gap-2">
-          <StickyNote className="w-4 h-4 text-accent" />
-          <span className="font-medium text-text">Quick Notes</span>
+      <div className="flex items-center justify-between px-4 h-[--topbar-height] border-b border-border flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/15 text-accent">
+            <StickyNote className="w-4 h-4" />
+          </div>
+          <span className="font-semibold text-text">Quick Notes</span>
         </div>
         <button onClick={onClose} className="btn-icon-sm" aria-label="Close quick notes">
           <X className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex border-b border-border">
-        {[
-          { value: 'all', label: 'All' },
-          { value: 'pinned', label: 'Pinned' },
-          { value: 'current', label: 'Here' },
-        ].map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setFilter(tab.value as typeof filter)}
-            className={`
-              flex-1 py-2 text-sm text-center transition-fast
-              ${
+      {/* Segmented filter */}
+      <div className="px-3 pt-3">
+        <div className="flex gap-1 p-1 bg-bg-tertiary/60 rounded-lg">
+          {tabs.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-fast ${
                 filter === tab.value
-                  ? 'text-accent border-b-2 border-accent'
+                  ? 'bg-bg-elevated text-text shadow-sm'
                   : 'text-text-secondary hover:text-text'
-              }
-            `}
-          >
-            {tab.label}
-          </button>
-        ))}
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Add note */}
-      <div className="p-4 border-b border-border">
+      <div className="px-3 py-3">
         <div className="flex gap-2">
           <input
             type="text"
             value={newNoteText}
             onChange={(e) => setNewNoteText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addNote()}
-            placeholder="Add a quick note..."
+            placeholder="Add a quick note…"
             className="input flex-1 text-sm"
           />
           <button
             onClick={addNote}
             disabled={!newNoteText.trim()}
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary btn-sm px-3 disabled:opacity-40 disabled:pointer-events-none"
           >
             <Plus className="w-4 h-4" />
           </button>
         </div>
         {currentPath && (
-          <p className="text-xs text-text-muted mt-2">
-            Note will be attached to: {currentPath.split(/[/\\]/).pop()}
+          <p className="text-2xs text-text-muted mt-2 truncate">
+            Attaches to{' '}
+            <span className="text-text-secondary font-medium">
+              {currentPath.split(/[/\\]/).pop()}
+            </span>
           </p>
         )}
       </div>
 
       {/* Notes list */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto scrollbar-overlay px-3 pb-3">
         {filteredNotes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <StickyNote className="w-8 h-8 text-text-muted mb-2" />
+          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-bg-tertiary/70 mb-3">
+              <StickyNote className="w-6 h-6 text-text-faint" />
+            </div>
             <p className="text-sm text-text-secondary">
               {filter === 'all'
                 ? 'No notes yet'
@@ -192,25 +212,33 @@ export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPane
                   ? 'No pinned notes'
                   : 'No notes for this location'}
             </p>
+            <p className="text-xs text-text-muted mt-1">Jot down anything worth remembering</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <m.div
+            className="space-y-2"
+            variants={variants.staggerList}
+            initial={motionEnabled ? 'initial' : false}
+            animate="animate"
+          >
             {filteredNotes.map((note) => (
-              <div
+              <m.div
                 key={note.id}
-                className={`
-                  p-4 hover:bg-bg-tertiary transition-fast
-                  ${note.pinned ? 'bg-accent/5' : ''}
-                `}
+                variants={variants.listItem}
+                className={`group rounded-xl border p-3 transition-fast ${
+                  note.pinned
+                    ? 'border-accent/30 bg-accent/5'
+                    : 'border-border bg-bg-secondary/50 hover:border-border-focus/40'
+                }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-text whitespace-pre-wrap break-words flex-1">
                     {note.text}
                   </p>
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => togglePin(note.id)}
-                      className={`btn-icon-sm ${note.pinned ? 'text-accent' : 'text-text-muted'}`}
+                      className={`btn-icon-sm ${note.pinned ? 'text-accent opacity-100' : 'text-text-muted'}`}
                       title={note.pinned ? 'Unpin' : 'Pin'}
                     >
                       {note.pinned ? (
@@ -229,21 +257,22 @@ export function QuickNotesPanel({ isOpen, currentPath, onClose }: QuickNotesPane
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs text-text-muted">{formatNoteDate(note.timestamp)}</span>
+                  {note.pinned && <Pin className="w-3 h-3 text-accent flex-shrink-0" />}
+                  <span className="text-2xs text-text-muted">{formatNoteDate(note.timestamp)}</span>
                   {note.path && (
                     <>
-                      <span className="text-xs text-text-faint">•</span>
-                      <span className="text-xs text-text-faint truncate">
+                      <span className="text-2xs text-text-faint">•</span>
+                      <span className="text-2xs text-text-faint truncate">
                         {note.path.split(/[/\\]/).pop()}
                       </span>
                     </>
                   )}
                 </div>
-              </div>
+              </m.div>
             ))}
-          </div>
+          </m.div>
         )}
       </div>
-    </div>
+    </m.div>
   );
 }

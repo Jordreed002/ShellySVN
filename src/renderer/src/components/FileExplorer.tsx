@@ -10,9 +10,12 @@ import {
   Suspense,
   useDeferredValue,
 } from 'react';
-import { FolderX, AlertCircle, Loader, ArrowUp, Globe } from 'lucide-react';
+import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Columns3, List } from 'lucide-react';
 import type { DeepStatusProgress, SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
+import { MillerColumns } from './files/MillerColumns';
+import { BranchSwitcher } from '../features/branches/BranchSwitcher';
+import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
 import { FileRow, FileListHeader } from './ui/FileRow';
@@ -21,8 +24,13 @@ import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialo
 import { useDualPane } from './ui/DualPaneView';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
+import { useHomePath } from '../hooks/useHomePath';
 import { useFolderSizes } from '../hooks/useFolderSizes';
-import { applyDeepStatus, fileInfoToEntry } from '../features/files/fileStatus';
+import {
+  applyDeepStatus,
+  buildFolderChangeCounts,
+  fileInfoToEntry,
+} from '../features/files/fileStatus';
 import { createSvnListQueryKey, getAuthPresenceKey } from '../features/files/authQueryKeys';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
 import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
@@ -93,7 +101,9 @@ export function FileExplorer() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const parentRef = useRef<HTMLDivElement>(null);
-  const { settings, addRecentPath, addBookmark, removeBookmark } = useSettings();
+  const homePath = useHomePath();
+  const { settings, updateSettings, addRecentPath, addBookmark, removeBookmark } = useSettings();
+  const explorerViewMode = settings.explorerViewMode ?? 'miller';
 
   // Track recent paths on navigation
   useEffect(() => {
@@ -208,6 +218,7 @@ export function FileExplorer() {
   const { isDualPane, toggleDualPane } = useDualPane(path || '');
 
   const {
+    childCommits,
     deepStatusData,
     effectiveRepoRoot,
     effectiveUrl,
@@ -443,9 +454,65 @@ export function FileExplorer() {
   ]);
 
   // Convert to entries for virtualizer
+  // Base directory for Miller columns: the working-copy root (or home) when the
+  // current path is inside it, so we don't render empty unapproved /…/ columns.
+  const millerBase = useMemo(() => {
+    const isUnder = (root?: string) => {
+      if (!root) return false;
+      const base = root.replace(/[\\/]+$/, '');
+      return path === root || path.startsWith(base + '/') || path.startsWith(base + '\\');
+    };
+    const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot;
+    if (isUnder(wcRoot)) return wcRoot ?? null;
+    // Fall back to the recent repository that contains the current path, so the
+    // columns start at the repo root rather than walking up from home.
+    const repo = (settings?.recentRepositories || []).find(isUnder);
+    if (repo) return repo;
+    if (isUnder(homePath)) return homePath;
+    return null;
+  }, [
+    path,
+    svnInfo?.workingCopyRoot,
+    workingCopyContext?.workingCopyRoot,
+    settings?.recentRepositories,
+    homePath,
+  ]);
+
+  const folderChangeCounts = useMemo(
+    () => (deepStatusData ? buildFolderChangeCounts(files || [], deepStatusData) : null),
+    [files, deepStatusData]
+  );
+
   const entries = useMemo(() => {
-    return (files || []).map(fileInfoToEntry);
-  }, [files]);
+    let list = (files || []).map(fileInfoToEntry);
+
+    // Merge last-commit info (revision/author/date) for clean items.
+    if (childCommits) {
+      list = list.map((entry) => {
+        const name = entry.path.split(/[\\/]/).filter(Boolean).pop() || '';
+        const commit = childCommits[name];
+        if (!commit) return entry;
+        return {
+          ...entry,
+          revision: entry.revision ?? commit.revision,
+          author: entry.author || commit.author,
+          date: entry.date || commit.date,
+        };
+      });
+    }
+
+    // Attach recursive change-count rollups to folders.
+    if (folderChangeCounts && folderChangeCounts.size > 0) {
+      list = list.map((entry) => {
+        if (!entry.isDirectory) return entry;
+        const key = entry.path.replace(/\\/g, '/').replace(/\/+$/, '');
+        const count = folderChangeCounts.get(key);
+        return count ? { ...entry, childChangeCount: count } : entry;
+      });
+    }
+
+    return list;
+  }, [files, childCommits, folderChangeCounts]);
 
   // Calculate folder sizes when enabled
   const { folderSizes } = useFolderSizes(entries, settings.showFolderSizes);
@@ -633,6 +700,20 @@ export function FileExplorer() {
           // Actions now supports batch operations
           await actions.handleRevertSelected();
         }
+      },
+      onUnversion: async (entry: SvnStatusEntry) => {
+        const name = entry.path.split(/[/\\]/).pop() || entry.path;
+        const confirmed = await confirmAppAction({
+          type: 'warning',
+          title: 'Unversion item',
+          message: `Undo the pending add for "${name}"?`,
+          detail: 'The files stay on disk and become unversioned again — nothing is deleted.',
+          confirmLabel: 'Unversion',
+        });
+        if (!confirmed) return;
+        await window.api.svn.unversion([entry.path]);
+        invalidateCurrentPath();
+        queryClient.invalidateQueries({ queryKey: ['svn:list'] });
       },
       onAdd: async () => {
         if (selectedEntry) await actions.handleAddSelected();
@@ -1018,13 +1099,29 @@ export function FileExplorer() {
                   <ArrowUp className="w-4 h-4" />
                 </button>
               )}
-              <Breadcrumb path={path} onNavigate={handleNavigate} />
+              <Breadcrumb path={path} onNavigate={handleNavigate} homePath={homePath} />
             </>
           )}
           {isFetching && (
             <span title="Loading status...">
               <Loader className="w-4 h-4 text-accent animate-spin ml-2" />
             </span>
+          )}
+          {browseMode === 'local' && (
+            <div className="ml-auto pl-3">
+              <BranchSwitcher
+                url={effectiveUrl}
+                localPath={path}
+                onSwitched={() => {
+                  invalidateCurrentPath();
+                  queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+                }}
+                onCreateBranch={() =>
+                  window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG))
+                }
+                onCreateTag={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG))}
+              />
+            </div>
           )}
         </div>
 
@@ -1121,8 +1218,48 @@ export function FileExplorer() {
           </div>
         )}
 
+        {/* View mode toggle (list vs Miller columns) */}
+        {browseMode === 'local' && (
+          <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-border">
+            <button
+              type="button"
+              onClick={() => void updateSettings({ explorerViewMode: 'list' })}
+              className={`btn-icon-sm ${explorerViewMode === 'list' ? 'text-accent bg-accent/10' : ''}`}
+              title="List view"
+              aria-label="List view"
+              aria-pressed={explorerViewMode === 'list'}
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void updateSettings({ explorerViewMode: 'miller' })}
+              className={`btn-icon-sm ${explorerViewMode === 'miller' ? 'text-accent bg-accent/10' : ''}`}
+              title="Columns view"
+              aria-label="Columns view"
+              aria-pressed={explorerViewMode === 'miller'}
+            >
+              <Columns3 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {explorerViewMode === 'miller' && browseMode === 'local' && (
+          <div className="relative flex-1 min-h-0 min-w-0">
+            <MillerColumns
+              path={path}
+              baseRoot={millerBase}
+              selectedPath={selectedEntry?.path}
+              onNavigate={handleNavigate}
+              onSelect={handleSelect}
+              actions={fileRowActions}
+              workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
+            />
+          </div>
+        )}
+
         {/* Filter Bar */}
-        {showFilters && (
+        {!(explorerViewMode === 'miller' && browseMode === 'local') && showFilters && (
           <FilterBar
             activeFileType={fileTypeFilter}
             activeStatus={statusFilter}
@@ -1133,15 +1270,18 @@ export function FileExplorer() {
         )}
 
         {/* File List Header */}
-        <FileListHeader
-          columnWidths={columnWidths}
-          onColumnWidthChange={handleColumnWidthChange}
-          onSort={handleSort}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-        />
+        {!(explorerViewMode === 'miller' && browseMode === 'local') && (
+          <FileListHeader
+            columnWidths={columnWidths}
+            onColumnWidthChange={handleColumnWidthChange}
+            onSort={handleSort}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+          />
+        )}
 
         {/* File list */}
+        {!(explorerViewMode === 'miller' && browseMode === 'local') && (
         <div
           ref={parentRef}
           className={`scrollbar-overlay ${settings.fileListHeight === 'fill' ? 'flex-1 overflow-auto' : 'flex-none overflow-auto'}`}
@@ -1242,6 +1382,7 @@ export function FileExplorer() {
             </div>
           )}
         </div>
+        )}
 
         {/* Status Bar */}
         <div className="status-bar">

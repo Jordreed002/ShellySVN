@@ -34,6 +34,7 @@ export interface FileRowActions {
   onDownload?: (entry: SvnStatusEntry) => void;
   onCommit?: (entry: SvnStatusEntry) => void;
   onRevert?: (entry: SvnStatusEntry) => void;
+  onUnversion?: (entry: SvnStatusEntry) => void;
   onAdd?: (entry: SvnStatusEntry) => void;
   onDelete?: (entry: SvnStatusEntry) => void;
   onMove?: (entry: SvnStatusEntry) => void;
@@ -62,6 +63,62 @@ export interface FileRowActions {
   onSwitch?: (entry: SvnStatusEntry) => void;
   onMerge?: (entry: SvnStatusEntry) => void;
   onRelocate?: (entry: SvnStatusEntry) => void;
+}
+
+/**
+ * Build the SVN context-menu items for an entry, binding each FileRowActions
+ * callback to that entry. Shared by the list view and the Miller columns.
+ */
+export function buildSvnContextMenuItems(
+  entry: SvnStatusEntry,
+  actions: FileRowActions,
+  workingCopyRoot?: string
+) {
+  const isWorkingCopyRoot = workingCopyRoot === entry.path;
+  return getSvnContextMenuItems(
+    entry.status,
+    entry.isDirectory,
+    {
+      onUpdate: actions.onUpdate ? () => actions.onUpdate!(entry) : undefined,
+      onDownload: actions.onDownload ? () => actions.onDownload!(entry) : undefined,
+      onCommit: actions.onCommit ? () => actions.onCommit!(entry) : undefined,
+      onRevert: actions.onRevert ? () => actions.onRevert!(entry) : undefined,
+      onUnversion: actions.onUnversion ? () => actions.onUnversion!(entry) : undefined,
+      onAdd: actions.onAdd ? () => actions.onAdd!(entry) : undefined,
+      onDelete: actions.onDelete ? () => actions.onDelete!(entry) : undefined,
+      onMove: actions.onMove ? () => actions.onMove!(entry) : undefined,
+      onCopy: actions.onCopy ? () => actions.onCopy!(entry) : undefined,
+      onRename: actions.onRename ? () => actions.onRename!(entry) : undefined,
+      onShowLog: actions.onShowLog ? () => actions.onShowLog!(entry) : undefined,
+      onDiff: actions.onDiff ? () => actions.onDiff!(entry) : undefined,
+      onOpenInExplorer: actions.onOpenInExplorer
+        ? () => actions.onOpenInExplorer!(entry)
+        : undefined,
+      onCopyPath: actions.onCopyPath
+        ? () => actions.onCopyPath!(entry)
+        : () => navigator.clipboard.writeText(entry.path),
+      onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
+      onGetLock: actions.onGetLock ? () => actions.onGetLock!(entry) : undefined,
+      onReleaseLock: actions.onReleaseLock ? () => actions.onReleaseLock!(entry) : undefined,
+      onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
+      onCleanup: actions.onCleanup ? () => actions.onCleanup!(entry) : undefined,
+      onCreatePatch: actions.onCreatePatch ? () => actions.onCreatePatch!(entry) : undefined,
+      onApplyPatch: actions.onApplyPatch ? () => actions.onApplyPatch!(entry) : undefined,
+      onBlame: actions.onBlame ? () => actions.onBlame!(entry) : undefined,
+      onExport: actions.onExport ? () => actions.onExport!(entry) : undefined,
+      onImport: actions.onImport ? () => actions.onImport!(entry) : undefined,
+      onRepoBrowser: actions.onRepoBrowser ? () => actions.onRepoBrowser!(entry) : undefined,
+      onRevisionGraph: actions.onRevisionGraph ? () => actions.onRevisionGraph!(entry) : undefined,
+      onBranchTag: actions.onBranchTag ? () => actions.onBranchTag!(entry) : undefined,
+      onTag: actions.onTag ? () => actions.onTag!(entry) : undefined,
+      onSwitch: actions.onSwitch ? () => actions.onSwitch!(entry) : undefined,
+      onMerge: actions.onMerge ? () => actions.onMerge!(entry) : undefined,
+      onRelocate: actions.onRelocate ? () => actions.onRelocate!(entry) : undefined,
+      onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
+      onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
+    },
+    isWorkingCopyRoot
+  );
 }
 
 // File type to icon mapping
@@ -238,43 +295,7 @@ export const FileRow = memo(function FileRow({
   };
 
   // Context menu items with action callbacks
-  const isWorkingCopyRoot = workingCopyRoot === entry.path;
-  const contextMenuItems = getSvnContextMenuItems(entry.status, entry.isDirectory, {
-    onUpdate: actions.onUpdate ? () => actions.onUpdate!(entry) : undefined,
-    onDownload: actions.onDownload ? () => actions.onDownload!(entry) : undefined,
-    onCommit: actions.onCommit ? () => actions.onCommit!(entry) : undefined,
-    onRevert: actions.onRevert ? () => actions.onRevert!(entry) : undefined,
-    onAdd: actions.onAdd ? () => actions.onAdd!(entry) : undefined,
-    onDelete: actions.onDelete ? () => actions.onDelete!(entry) : undefined,
-    onMove: actions.onMove ? () => actions.onMove!(entry) : undefined,
-    onCopy: actions.onCopy ? () => actions.onCopy!(entry) : undefined,
-    onRename: actions.onRename ? () => actions.onRename!(entry) : undefined,
-    onShowLog: actions.onShowLog ? () => actions.onShowLog!(entry) : undefined,
-    onDiff: actions.onDiff ? () => actions.onDiff!(entry) : undefined,
-    onOpenInExplorer: actions.onOpenInExplorer ? () => actions.onOpenInExplorer!(entry) : undefined,
-    onCopyPath: actions.onCopyPath
-      ? () => actions.onCopyPath!(entry)
-      : () => navigator.clipboard.writeText(entry.path),
-    onPreview: actions.onPreview ? () => actions.onPreview!(entry) : undefined,
-    onGetLock: actions.onGetLock ? () => actions.onGetLock!(entry) : undefined,
-    onReleaseLock: actions.onReleaseLock ? () => actions.onReleaseLock!(entry) : undefined,
-    onManageLocks: actions.onManageLocks ? () => actions.onManageLocks!(entry) : undefined,
-    onCleanup: actions.onCleanup ? () => actions.onCleanup!(entry) : undefined,
-    onCreatePatch: actions.onCreatePatch ? () => actions.onCreatePatch!(entry) : undefined,
-    onApplyPatch: actions.onApplyPatch ? () => actions.onApplyPatch!(entry) : undefined,
-    onBlame: actions.onBlame ? () => actions.onBlame!(entry) : undefined,
-    onExport: actions.onExport ? () => actions.onExport!(entry) : undefined,
-    onImport: actions.onImport ? () => actions.onImport!(entry) : undefined,
-    onRepoBrowser: actions.onRepoBrowser ? () => actions.onRepoBrowser!(entry) : undefined,
-    onRevisionGraph: actions.onRevisionGraph ? () => actions.onRevisionGraph!(entry) : undefined,
-    onBranchTag: actions.onBranchTag ? () => actions.onBranchTag!(entry) : undefined,
-    onTag: actions.onTag ? () => actions.onTag!(entry) : undefined,
-    onSwitch: actions.onSwitch ? () => actions.onSwitch!(entry) : undefined,
-    onMerge: actions.onMerge ? () => actions.onMerge!(entry) : undefined,
-    onRelocate: actions.onRelocate ? () => actions.onRelocate!(entry) : undefined,
-    onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
-    onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
-  }, isWorkingCopyRoot);
+  const contextMenuItems = buildSvnContextMenuItems(entry, actions, workingCopyRoot);
 
   return (
     <>
@@ -329,9 +350,9 @@ export const FileRow = memo(function FileRow({
           )}
         </div>
 
-        {/* Status Icon */}
+        {/* Status dot — quiet when clean, only shown for changed/special items */}
         <div className="flex items-center justify-center w-6 flex-shrink-0">
-          <StatusDot status={entry.status} />
+          {entry.status !== ' ' && <StatusDot status={entry.status} />}
         </div>
 
         {/* Name Column */}
@@ -340,6 +361,15 @@ export const FileRow = memo(function FileRow({
           style={{ minWidth: columnWidths.name - 80 }}
         >
           <span className={entry.isDirectory ? 'font-medium' : ''}>{filename}</span>
+          {entry.isDirectory && entry.childChangeCount ? (
+            <span
+              className="flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full bg-svn-modified/15 text-svn-modified text-2xs font-semibold tabular-nums"
+              title={`${entry.childChangeCount} changed item${entry.childChangeCount === 1 ? '' : 's'} inside`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-svn-modified" />
+              {entry.childChangeCount}
+            </span>
+          ) : null}
           {entry.lock && (
             <Lock
               className="w-3 h-3 text-warning flex-shrink-0"
@@ -352,12 +382,12 @@ export const FileRow = memo(function FileRow({
         {/* Additional Columns */}
         {showColumns && (
           <>
-            {/* Status */}
+            {/* Status — blank for clean items to keep the list calm */}
             <div
               className="flex items-center justify-center flex-shrink-0"
               style={{ width: columnWidths.status }}
             >
-              <StatusIcon status={entry.status} size="sm" />
+              {entry.status !== ' ' && <StatusIcon status={entry.status} size="sm" />}
             </div>
 
             {/* Revision */}
