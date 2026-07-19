@@ -80,6 +80,7 @@ import {
   rename as renameWorkingCopyItem,
   revert as revertWorkingCopyItems,
   unversion as unversionWorkingCopyItems,
+  getChildCommits,
   update as updateWorkingCopy,
   updateWithProgress,
   upgradeWorkingCopy,
@@ -250,6 +251,11 @@ export function registerSvnHandlers(): void {
   // SVN Unversion (recursively undo an accidental add)
   ipcMain.handle('svn:unversion', async (_, paths: string[]) => {
     return invalidateStatusAfter(paths, unversionWorkingCopyItems(paths));
+  });
+
+  // Last-commit info for a directory's immediate children (Explorer last-activity)
+  ipcMain.handle('svn:childCommits', async (_, path: string) => {
+    return getChildCommits(path);
   });
 
   // SVN Add

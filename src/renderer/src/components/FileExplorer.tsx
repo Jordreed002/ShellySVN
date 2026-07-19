@@ -218,6 +218,7 @@ export function FileExplorer() {
   const { isDualPane, toggleDualPane } = useDualPane(path || '');
 
   const {
+    childCommits,
     deepStatusData,
     effectiveRepoRoot,
     effectiveUrl,
@@ -483,15 +484,35 @@ export function FileExplorer() {
   );
 
   const entries = useMemo(() => {
-    const list = (files || []).map(fileInfoToEntry);
-    if (!folderChangeCounts || folderChangeCounts.size === 0) return list;
-    return list.map((entry) => {
-      if (!entry.isDirectory) return entry;
-      const key = entry.path.replace(/\\/g, '/').replace(/\/+$/, '');
-      const count = folderChangeCounts.get(key);
-      return count ? { ...entry, childChangeCount: count } : entry;
-    });
-  }, [files, folderChangeCounts]);
+    let list = (files || []).map(fileInfoToEntry);
+
+    // Merge last-commit info (revision/author/date) for clean items.
+    if (childCommits) {
+      list = list.map((entry) => {
+        const name = entry.path.split(/[\\/]/).filter(Boolean).pop() || '';
+        const commit = childCommits[name];
+        if (!commit) return entry;
+        return {
+          ...entry,
+          revision: entry.revision ?? commit.revision,
+          author: entry.author || commit.author,
+          date: entry.date || commit.date,
+        };
+      });
+    }
+
+    // Attach recursive change-count rollups to folders.
+    if (folderChangeCounts && folderChangeCounts.size > 0) {
+      list = list.map((entry) => {
+        if (!entry.isDirectory) return entry;
+        const key = entry.path.replace(/\\/g, '/').replace(/\/+$/, '');
+        const count = folderChangeCounts.get(key);
+        return count ? { ...entry, childChangeCount: count } : entry;
+      });
+    }
+
+    return list;
+  }, [files, childCommits, folderChangeCounts]);
 
   // Calculate folder sizes when enabled
   const { folderSizes } = useFolderSizes(entries, settings.showFolderSizes);

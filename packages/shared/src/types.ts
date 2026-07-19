@@ -783,6 +783,9 @@ export interface ElectronAPI {
     cancelOperation: () => Promise<{ success: boolean; error?: string }>;
     revert: (paths: string[]) => Promise<{ success: boolean }>;
     unversion: (paths: string[]) => Promise<{ success: boolean }>;
+    childCommits: (
+      path: string
+    ) => Promise<Record<string, { revision: number; author: string; date: string }>>;
     add: (paths: string[]) => Promise<{ success: boolean }>;
     delete: (paths: string[]) => Promise<{ success: boolean }>;
     cleanup: (path: string) => Promise<{ success: boolean }>;

@@ -103,6 +103,53 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
   }
 }
 
+export interface ChildCommitInfo {
+  revision: number;
+  author: string;
+  date: string;
+}
+
+/**
+ * Parse `svn info --xml --depth immediates <dir>` into a map of child name ->
+ * last-commit info. The directory's own entry is skipped.
+ */
+export function parseSvnChildCommitsXml(xml: string, dirPath: string): Record<string, ChildCommitInfo> {
+  const result: Record<string, ChildCommitInfo> = {};
+  const basename = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean).pop() || '';
+  const dirName = basename(dirPath);
+
+  try {
+    const parsed = xmlParser.parse(xml) as {
+      info?: {
+        entry?:
+          | Array<Record<string, unknown>>
+          | Record<string, unknown>;
+      };
+    };
+    const rawEntries = parsed.info?.entry;
+    if (!rawEntries) return result;
+    const entries = Array.isArray(rawEntries) ? rawEntries : [rawEntries];
+
+    for (const entry of entries) {
+      const entryPath = String((entry as { '@_path'?: unknown })['@_path'] ?? '');
+      const name = basename(entryPath);
+      if (!name || name === dirName || name === '.') continue;
+      const commit = (entry as { commit?: { '@_revision'?: unknown; author?: unknown; date?: unknown } })
+        .commit;
+      if (!commit) continue;
+      result[name] = {
+        revision: commit['@_revision'] ? parseInt(String(commit['@_revision']), 10) : 0,
+        author: commit.author ? String(commit.author) : '',
+        date: commit.date ? String(commit.date) : '',
+      };
+    }
+  } catch (error) {
+    debug.error('[SVN] Failed to parse child commits XML:', error);
+  }
+
+  return result;
+}
+
 export function parseSvnDiff(diffOutput: string): SvnDiffResult {
   if (!diffOutput || diffOutput.trim() === '') {
     return { files: [], hasChanges: false };

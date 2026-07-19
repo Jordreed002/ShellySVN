@@ -43,6 +43,17 @@ export function useFileExplorerDirectoryData(path: string) {
     placeholderData: keepPreviousData,
   });
 
+  // Last-commit info per immediate child (offline) for the last-activity column.
+  const { data: childCommits } = useQuery({
+    queryKey: ['svn:childCommits', path],
+    queryFn: () => window.api.svn.childCommits(path),
+    enabled:
+      !!path && path !== 'DRIVES://' && directoryMetadata?.isVersioned === true && !!rawFiles,
+    staleTime: STATUS_STALE_TIME,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+
   const isVersioned = path === 'DRIVES://' ? false : directoryMetadata?.isVersioned;
   const parentPath = path === 'DRIVES://' ? null : directoryMetadata?.parentPath;
   const statusData = directoryMetadata?.statusData;
@@ -53,6 +64,7 @@ export function useFileExplorerDirectoryData(path: string) {
   const effectiveUrl = svnInfo?.url || workingCopyContext?.url;
 
   return {
+    childCommits,
     deepStatusData,
     directoryMetadata,
     effectiveRepoRoot,

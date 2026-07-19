@@ -14,7 +14,7 @@ import { getAuthCache } from '../auth-cache';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { getSslTrustCache } from '../ssl-trust-cache';
-import { parseSvnInfoXml } from '../svn/parsers';
+import { parseSvnInfoXml, parseSvnChildCommitsXml, type ChildCommitInfo } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
@@ -443,6 +443,23 @@ export function cancelUpdate(updateId: string): { success: boolean; error?: stri
   activeUpdates.delete(updateId);
   debug.log(`[SVN] Cancelled update: ${updateId}`);
   return { success: true };
+}
+
+/**
+ * Last-commit info (revision/author/date) for each immediate child of a
+ * directory, read from the working copy (offline). Used for the Explorer's
+ * last-activity column. Returns {} on failure.
+ */
+export async function getChildCommits(
+  path: string
+): Promise<Record<string, ChildCommitInfo>> {
+  try {
+    const xml = await runSvnText(['info', '--xml', '--depth', 'immediates', path]);
+    return parseSvnChildCommitsXml(xml, path);
+  } catch (error) {
+    debug.warn('[SVN] getChildCommits failed:', error);
+    return {};
+  }
 }
 
 export async function updateItem(
