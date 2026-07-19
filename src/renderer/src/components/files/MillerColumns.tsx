@@ -83,8 +83,10 @@ export function MillerColumns({
   return (
     <div ref={scrollRef} className="absolute inset-0 flex overflow-x-auto overflow-y-hidden">
       {columns.map((dirPath, index) => (
+        // Key is position within a base so sibling clicks update a column in
+        // place (no remount flash), but changing baseRoot yields fresh columns.
         <MillerColumn
-          key={index}
+          key={`${baseRoot ?? 'root'}:${index}`}
           dirPath={dirPath}
           activeChildPath={columns[index + 1]}
           selectedPath={selectedPath}

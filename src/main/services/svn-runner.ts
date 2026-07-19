@@ -164,8 +164,11 @@ export async function runResolvedSvn(
     if (options.credentials?.username) {
       finalArgs.push('--username', options.credentials.username);
     }
-    if (options.credentials?.password) {
-      finalArgs.push('--password', options.credentials.password);
+    // Feed the password through stdin (svn 1.10+) rather than as a CLI
+    // argument, so it never appears in `ps`/`/proc/<pid>/cmdline`.
+    const passwordViaStdin = options.credentials?.password || null;
+    if (passwordViaStdin !== null) {
+      finalArgs.push('--password-from-stdin');
     }
 
     if (options.context.clientCertificatePath?.trim()) {
@@ -185,6 +188,14 @@ export async function runResolvedSvn(
       shell: useWindowsShell,
       windowsHide: true,
     });
+
+    if (passwordViaStdin !== null && proc.stdin) {
+      // Swallow EPIPE if svn closes stdin early (e.g. cached credentials mean
+      // it never reads the password prompt).
+      proc.stdin.on('error', () => {});
+      proc.stdin.write(`${passwordViaStdin}\n`);
+      proc.stdin.end();
+    }
 
     let stdout = '';
     let stderr = '';

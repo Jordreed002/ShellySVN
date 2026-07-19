@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type MouseEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   ExternalLink,
@@ -66,6 +66,9 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // Set when the rail's Search button expands the sidebar so we can focus search.
+  const pendingSearchFocus = useRef(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; repo: string } | null>(
     null
   );
@@ -88,6 +91,14 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
 
   // Preload the settings dialog when the app is idle.
   useEffect(() => runWhenIdle(() => void loadSettingsDialog()), []);
+
+  // When the rail's Search button expands the sidebar, focus the search field.
+  useEffect(() => {
+    if (!collapsed && pendingSearchFocus.current) {
+      pendingSearchFocus.current = false;
+      searchInputRef.current?.focus();
+    }
+  }, [collapsed]);
 
   // Close the repo context menu on any outside click.
   useEffect(() => {
@@ -154,7 +165,10 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </button>
           <button
             type="button"
-            onClick={onToggleCollapse}
+            onClick={() => {
+              pendingSearchFocus.current = true;
+              onToggleCollapse?.();
+            }}
             className="rail-item"
             title="Search repositories"
             aria-label="Search repositories"
@@ -241,6 +255,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           <div className="relative flex-1 group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted group-focus-within:text-accent transition-fast" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

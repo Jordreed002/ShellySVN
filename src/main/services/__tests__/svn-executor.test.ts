@@ -27,10 +27,18 @@ function createMockProcess() {
   const proc = new EventEmitter() as EventEmitter & {
     stdout: EventEmitter;
     stderr: EventEmitter;
+    stdin: EventEmitter & { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
     kill: ReturnType<typeof vi.fn>;
   };
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
+  const stdin = new EventEmitter() as EventEmitter & {
+    write: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+  };
+  stdin.write = vi.fn();
+  stdin.end = vi.fn();
+  proc.stdin = stdin;
   proc.kill = vi.fn();
   return proc;
 }
@@ -348,11 +356,10 @@ describe('svn-executor', () => {
 
     await expect(promise).resolves.toBe('<log />');
     expect(mockState.authFindForUrl).toHaveBeenCalledWith('https://svn.example.com/project/trunk');
-    expect(mockState.spawn).toHaveBeenCalledWith(
-      'custom-svn',
-      expect.arrayContaining(['--username', 'alice', '--password', 'secret']),
-      expect.any(Object)
-    );
+    const spawnedArgs = mockState.spawn.mock.calls.at(-1)?.[1] as string[];
+    expect(spawnedArgs).toEqual(expect.arrayContaining(['--username', 'alice', '--password-from-stdin']));
+    expect(spawnedArgs).not.toContain('--password');
+    expect(proc.stdin.write).toHaveBeenCalledWith('secret\n');
   });
 
   it('applies cached SSL trust to URL-based SVN commands', async () => {
@@ -387,11 +394,12 @@ describe('svn-executor', () => {
 
     await expect(promise).resolves.toBe('');
     expect(mockState.authFindForUrl).not.toHaveBeenCalled();
-    expect(mockState.spawn).toHaveBeenCalledWith(
-      'custom-svn',
-      expect.arrayContaining(['--username', 'explicit', '--password', 'explicit-pass']),
-      expect.any(Object)
+    const spawnedArgs = mockState.spawn.mock.calls.at(-1)?.[1] as string[];
+    expect(spawnedArgs).toEqual(
+      expect.arrayContaining(['--username', 'explicit', '--password-from-stdin'])
     );
+    expect(spawnedArgs).not.toContain('--password');
+    expect(proc.stdin.write).toHaveBeenCalledWith('explicit-pass\n');
   });
 
   it('kills the SVN process when the operation is aborted', async () => {

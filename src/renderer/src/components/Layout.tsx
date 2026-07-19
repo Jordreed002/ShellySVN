@@ -99,6 +99,26 @@ export function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Command palette: ⌘K / Ctrl+K (the advertised shortcut) and Ctrl/Cmd+Shift+P.
+      // Don't hijack ⌘K while typing in a text field.
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        !!target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'k' &&
+        !isTyping
+      ) {
+        e.preventDefault();
+        setShowCommandPalette(true);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setShowCommandPalette(true);
