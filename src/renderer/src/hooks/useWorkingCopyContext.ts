@@ -3,8 +3,11 @@ import { DEFAULT_QUERY_STALE_TIME_MS } from '@shared/constants';
 
 export interface WorkingCopyContext {
   repositoryRoot: string;
+  repositoryUuid: string;
   workingCopyRoot: string;
-  relativePath: string;
+  mappingLocalPath: string;
+  workingCopyUrl: string;
+  derived: boolean;
 }
 
 export function useWorkingCopyContext(localPath: string | null | undefined) {
@@ -14,18 +17,19 @@ export function useWorkingCopyContext(localPath: string | null | undefined) {
       if (!localPath) return null;
 
       try {
-        const info = await window.api.svn.info(localPath);
+        const context = await window.api.svn.getWorkingCopyContext(localPath);
 
-        if (!info.workingCopyRoot || !info.repositoryRoot) {
+        if (!context) {
           return null;
         }
 
-        const relativePath = localPath.slice(info.workingCopyRoot.length).replace(/^[/\\]+/, '');
-
         return {
-          repositoryRoot: info.repositoryRoot,
-          workingCopyRoot: info.workingCopyRoot,
-          relativePath,
+          repositoryRoot: context.repositoryRoot,
+          repositoryUuid: context.repositoryUuid,
+          workingCopyRoot: context.workingCopyRoot,
+          mappingLocalPath: context.localPath,
+          workingCopyUrl: context.url,
+          derived: context.derived,
         };
       } catch {
         return null;

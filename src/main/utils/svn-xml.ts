@@ -49,6 +49,8 @@ export interface SvnShelveXmlEntry {
 export interface SvnPropertyXmlEntry {
   name: string;
   value: string;
+  inherited?: boolean;
+  inheritedFrom?: string;
 }
 
 function asArray<T>(value: T | T[] | undefined): T[] {
@@ -71,54 +73,59 @@ function optionalNumber(value: number | string | undefined): number | undefined 
 
 export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
   try {
+    type StatusEntry = {
+      '@_path'?: string;
+      'wc-status'?: {
+        '@_item'?: string;
+        '@_revision'?: number;
+        commit?: { '@_revision'?: number; author?: string };
+      };
+      changelist?: string;
+    };
     const parsed = svnXmlParser.parse(xml) as {
       status?: {
         target?: {
-          entry?:
-            | Array<{
-                '@_path'?: string;
-                'wc-status'?: {
-                  '@_item'?: string;
-                  '@_revision'?: number;
-                  commit?: {
-                    '@_revision'?: number;
-                    author?: string;
-                  };
-                };
-                changelist?: string;
-              }>
-            | {
-                '@_path'?: string;
-                'wc-status'?: {
-                  '@_item'?: string;
-                  '@_revision'?: number;
-                  commit?: {
-                    '@_revision'?: number;
-                    author?: string;
-                  };
-                };
-                changelist?: string;
-              };
+          entry?: StatusEntry | StatusEntry[];
+          changelist?:
+            | { '@_name'?: string; entry?: StatusEntry | StatusEntry[] }
+            | Array<{ '@_name'?: string; entry?: StatusEntry | StatusEntry[] }>;
         };
+        changelist?:
+          | { '@_name'?: string; entry?: StatusEntry | StatusEntry[] }
+          | Array<{ '@_name'?: string; entry?: StatusEntry | StatusEntry[] }>;
       };
     };
 
-    return asArray(parsed.status?.target?.entry)
-      .map((entry) => {
-        const wcStatus = entry['wc-status'];
-        if (!entry['@_path'] || !wcStatus?.['@_item']) {
-          return null;
-        }
+    const target = parsed.status?.target;
+    const entries: Array<{ entry: StatusEntry; changelist?: string }> = asArray(target?.entry).map(
+      (entry) => ({ entry })
+    );
+    for (const changelist of [
+      ...asArray(target?.changelist),
+      ...asArray(parsed.status?.changelist),
+    ]) {
+      entries.push(
+        ...asArray(changelist.entry).map((entry) => ({
+          entry,
+          changelist: changelist['@_name'],
+        }))
+      );
+    }
 
-        return {
+    const results: SvnStatusXmlEntry[] = [];
+    for (const { entry, changelist } of entries) {
+      const wcStatus = entry['wc-status'];
+      if (entry['@_path'] && wcStatus?.['@_item']) {
+        results.push({
           path: entry['@_path'],
           item: wcStatus['@_item'],
           revision: wcStatus.commit?.['@_revision'] ?? wcStatus['@_revision'],
           author: wcStatus.commit?.author,
-          changelist: entry.changelist,
-        };
-      })
-      .filter((entry): entry is SvnStatusXmlEntry => entry !== null);
+          changelist: changelist ?? entry.changelist,
+        });
+      }
+    }
+    return results;
   } catch {
     return [];
   }
@@ -228,22 +235,20 @@ export function parseSvnListEntriesXml(xml: string): SvnListXmlEntry[] {
       };
     };
 
-    return asArray(parsed.lists?.list?.entry)
-      .map((entry) => {
-        if (!entry['@_kind'] || entry.name === undefined) {
-          return null;
-        }
-
-        return {
+    const results: SvnListXmlEntry[] = [];
+    for (const entry of asArray(parsed.lists?.list?.entry)) {
+      if (entry['@_kind'] && entry.name !== undefined) {
+        results.push({
           name: entry.name,
           kind: entry['@_kind'],
           size: optionalNumber(entry.size),
           revision: entry.commit?.['@_revision'] ?? 0,
           author: entry.commit?.author ?? '',
           date: entry.commit?.date ?? '',
-        };
-      })
-      .filter((entry): entry is SvnListXmlEntry => entry !== null);
+        });
+      }
+    }
+    return results;
   } catch {
     return [];
   }
@@ -287,45 +292,49 @@ export function parseSvnShelvesXml(xml: string): SvnShelveXmlEntry[] {
 
 export function parseSvnPropertiesXml(xml: string): SvnPropertyXmlEntry[] {
   try {
+    interface PropertyNode {
+      '@_name'?: string;
+      '#text'?: string;
+    }
+    interface PropertyTarget {
+      '@_path'?: string;
+      property?: PropertyNode | PropertyNode[];
+      inherited_property?: PropertyNode | PropertyNode[];
+    }
     const parsed = svnXmlParser.parse(xml) as {
       properties?: {
-        target?: {
-          property?:
-            | Array<{
-                '@_name'?: string;
-                '#text'?: string;
-              }>
-            | {
-                '@_name'?: string;
-                '#text'?: string;
-              };
-        };
-        property?:
-          | Array<{
-              '@_name'?: string;
-              '#text'?: string;
-            }>
-          | {
-              '@_name'?: string;
-              '#text'?: string;
-            };
+        target?: PropertyTarget | PropertyTarget[];
+        property?: PropertyNode | PropertyNode[];
       };
     };
 
-    const propertyList = parsed.properties?.target?.property ?? parsed.properties?.property;
-
-    return asArray(propertyList)
-      .map((property) => {
+    const mapProperties = (
+      properties: PropertyNode | PropertyNode[] | undefined,
+      inheritedFrom?: string
+    ): SvnPropertyXmlEntry[] =>
+      asArray(properties).flatMap((property) => {
         if (!property['@_name']) {
-          return null;
+          return [];
         }
 
-        return {
-          name: property['@_name'],
-          value: property['#text'] ?? '',
-        };
-      })
-      .filter((property): property is SvnPropertyXmlEntry => property !== null);
+        return [
+          {
+            name: property['@_name'],
+            value: property['#text'] ?? '',
+            ...(inheritedFrom ? { inherited: true, inheritedFrom } : {}),
+          },
+        ];
+      });
+
+    const targets = asArray(parsed.properties?.target);
+    if (targets.length === 0) {
+      return mapProperties(parsed.properties?.property);
+    }
+
+    return targets.flatMap((target) => [
+      ...mapProperties(target.property),
+      ...mapProperties(target.inherited_property, target['@_path']),
+    ]);
   } catch {
     return [];
   }

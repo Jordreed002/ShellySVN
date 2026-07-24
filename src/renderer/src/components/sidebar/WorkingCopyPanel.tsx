@@ -44,6 +44,14 @@ export function WorkingCopyPanel({ repoPath, onContextMenu }: WorkingCopyPanelPr
         {info && (
           <span className="ml-auto flex-shrink-0 font-mono text-2xs text-text-muted">
             r{info.revision}
+            {info.source === 'cache' && (
+              <span
+                className="ml-1.5 font-sans text-warning"
+                title={`Cached working-copy information (${Math.floor(info.cacheAge / 60_000)} minutes old)`}
+              >
+                cached
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -84,7 +92,9 @@ export function WorkingCopyPanel({ repoPath, onContextMenu }: WorkingCopyPanelPr
           to="/files"
           search={{ path: repoPath }}
           className={`${tabBase} ${
-            filesActive ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:text-text hover:bg-bg-elevated'
+            filesActive
+              ? 'bg-accent/15 text-accent'
+              : 'text-text-secondary hover:text-text hover:bg-bg-elevated'
           }`}
         >
           <FolderOpen className="w-3.5 h-3.5" />
@@ -94,7 +104,9 @@ export function WorkingCopyPanel({ repoPath, onContextMenu }: WorkingCopyPanelPr
           to="/history"
           search={{ path: repoPath }}
           className={`${tabBase} ${
-            historyActive ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:text-text hover:bg-bg-elevated'
+            historyActive
+              ? 'bg-accent/15 text-accent'
+              : 'text-text-secondary hover:text-text hover:bg-bg-elevated'
           }`}
         >
           <History className="w-3.5 h-3.5" />

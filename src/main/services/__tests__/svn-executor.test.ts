@@ -94,7 +94,8 @@ vi.mock('../../ssl-trust-cache', () => ({
   }),
 }));
 
-import { runSvn, runSvnText } from '../svn-executor';
+import { runSvn, runSvnMuccText, runSvnText } from '../svn-executor';
+import { buildSvnSshCommand } from '../svn-runner';
 
 async function startSvn(args: string[], options = {}) {
   const proc = createMockProcess();
@@ -110,6 +111,16 @@ async function startSvnResult(args: string[], options = {}) {
   const proc = createMockProcess();
   mockState.spawn.mockReturnValueOnce(proc);
   const promise = runSvn(args, options);
+  while (mockState.spawn.mock.calls.length === 0) {
+    await Promise.resolve();
+  }
+  return { proc, promise };
+}
+
+async function startSvnMucc(args: string[], options = {}) {
+  const proc = createMockProcess();
+  mockState.spawn.mockReturnValueOnce(proc);
+  const promise = runSvnMuccText(args, options);
   while (mockState.spawn.mock.calls.length === 0) {
     await Promise.resolve();
   }
@@ -143,10 +154,32 @@ describe('svn-executor', () => {
     await expect(promise).resolves.toBe('ok');
     expect(mockState.spawn).toHaveBeenCalledWith(
       'custom-svn',
-      ['status', '--password', 'secret-value'],
+      ['status', '--password', 'secret-value', '--non-interactive'],
       expect.objectContaining({ windowsHide: true })
     );
     expect(mockState.debugLog.mock.calls.join('\n')).not.toContain('secret-value');
+  });
+
+  it('uses the sibling svnmucc executable for repository URL transactions', async () => {
+    mockState.getSvnClientPath.mockReturnValue('/tools/svn.exe');
+    const { proc, promise } = await startSvnMucc([
+      '-m',
+      'set property',
+      'propset',
+      'custom:owner',
+      'team',
+      'https://svn.example.com/repo/trunk',
+    ]);
+
+    proc.stdout.emit('data', Buffer.from('r12 committed'));
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('r12 committed');
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      '/tools/svnmucc.exe',
+      expect.arrayContaining(['propset', 'custom:owner', 'team']),
+      expect.objectContaining({ windowsHide: true })
+    );
   });
 
   it('waits for settings to load before spawning SVN', async () => {
@@ -170,7 +203,11 @@ describe('svn-executor', () => {
 
     proc.emit('close', 0);
     await expect(promise).resolves.toBe('');
-    expect(mockState.spawn).toHaveBeenCalledWith('custom-svn', ['status'], expect.any(Object));
+    expect(mockState.spawn).toHaveBeenCalledWith(
+      'custom-svn',
+      ['status', '--non-interactive'],
+      expect.any(Object)
+    );
   });
 
   it('redacts secret-looking stderr before returning command failures', async () => {
@@ -357,7 +394,9 @@ describe('svn-executor', () => {
     await expect(promise).resolves.toBe('<log />');
     expect(mockState.authFindForUrl).toHaveBeenCalledWith('https://svn.example.com/project/trunk');
     const spawnedArgs = mockState.spawn.mock.calls.at(-1)?.[1] as string[];
-    expect(spawnedArgs).toEqual(expect.arrayContaining(['--username', 'alice', '--password-from-stdin']));
+    expect(spawnedArgs).toEqual(
+      expect.arrayContaining(['--username', 'alice', '--password-from-stdin'])
+    );
     expect(spawnedArgs).not.toContain('--password');
     expect(proc.stdin.write).toHaveBeenCalledWith('secret\n');
   });
@@ -380,6 +419,101 @@ describe('svn-executor', () => {
     );
   });
 
+  it('uses cached credentials for svn+ssh without consulting the HTTPS trust cache', async () => {
+    mockState.authFindForUrl.mockReturnValue({
+      realm: 'svn+ssh://svn.example.com/project',
+      username: 'alice',
+      password: 'secret',
+    });
+    const { proc, promise } = await startSvn(['list', 'svn+ssh://svn.example.com/project/trunk']);
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    expect(mockState.authFindForUrl).toHaveBeenCalled();
+    expect(mockState.sslFindForUrl).not.toHaveBeenCalled();
+  });
+
+  it('applies the configured SSH client, agent policy, and host-matched key to svn+ssh', async () => {
+    mockState.getSvnExecutionContext.mockReturnValue({
+      proxySettings: { enabled: false },
+      connectionTimeout: 0,
+      sslVerify: true,
+      clientCertificatePath: '',
+      sshSettings: {
+        sshClientPath: '/opt/tools/custom ssh',
+        useAgent: false,
+        keys: [
+          {
+            id: 'fallback',
+            name: 'Fallback',
+            privateKeyPath: '/keys/default',
+            keyType: 'ed25519',
+            hasPassphrase: false,
+            createdAt: 1,
+          },
+          {
+            id: 'matched',
+            name: 'Matched',
+            privateKeyPath: '/keys/project key',
+            keyType: 'ed25519',
+            hasPassphrase: false,
+            hostPattern: '*.example.com',
+            createdAt: 2,
+          },
+        ],
+      },
+    });
+
+    const { proc, promise } = await startSvn([
+      'list',
+      'svn+ssh://alice@svn.example.com/project/trunk',
+    ]);
+    proc.emit('close', 0);
+    await promise;
+
+    const spawnOptions = mockState.spawn.mock.calls.at(-1)?.[2];
+    expect(spawnOptions.env.SVN_SSH).toBe(
+      '"/opt/tools/custom ssh" "-o" "BatchMode=yes" "-o" "IdentityAgent=none" "-i" "/keys/project key" "-o" "IdentitiesOnly=yes"'
+    );
+  });
+
+  it('rejects unsafe control characters in configured SSH paths', () => {
+    expect(() =>
+      buildSvnSshCommand(['list', 'svn+ssh://host/repo'], {
+        sshClientPath: 'ssh\nmalicious',
+        useAgent: true,
+        keys: [],
+      })
+    ).toThrow(/control characters/i);
+  });
+
+  it.each([
+    ['http://svn.example.com/project', true],
+    ['svn://svn.example.com/project', true],
+    ['svn+ssh://svn.example.com/project', true],
+    ['file:///tmp/repository', false],
+  ])('applies protocol-appropriate auth and never HTTPS trust for %s', async (url, usesAuth) => {
+    mockState.authFindForUrl.mockReturnValue({
+      realm: url,
+      username: 'alice',
+      password: 'secret',
+    });
+    const { proc, promise } = await startSvn(['list', url]);
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    if (usesAuth) {
+      expect(mockState.authFindForUrl).toHaveBeenCalledWith(url);
+      expect(mockState.spawn.mock.calls.at(-1)?.[1]).toEqual(
+        expect.arrayContaining(['--username', 'alice', '--password-from-stdin'])
+      );
+    } else {
+      expect(mockState.authFindForUrl).not.toHaveBeenCalled();
+      expect(mockState.spawn.mock.calls.at(-1)?.[1]).not.toContain('--username');
+    }
+    expect(mockState.sslFindForUrl).not.toHaveBeenCalled();
+  });
+
   it('keeps explicit credentials ahead of cached realm credentials', async () => {
     mockState.authFindForUrl.mockReturnValue({
       realm: 'https://svn.example.com',
@@ -400,6 +534,37 @@ describe('svn-executor', () => {
     );
     expect(spawnedArgs).not.toContain('--password');
     expect(proc.stdin.write).toHaveBeenCalledWith('explicit-pass\n');
+  });
+
+  it('inserts generated auth and trust options before the target separator', async () => {
+    mockState.getSvnExecutionContext.mockReturnValue({
+      proxySettings: { enabled: false },
+      connectionTimeout: 0,
+      sslVerify: true,
+      clientCertificatePath: 'C:\\certs\\client.p12',
+    });
+    const url = 'https://svn.example.com/repo';
+    const { proc, promise } = await startSvn(['info', '--xml', '--', url], {
+      credentials: { username: 'alice', password: 'secret' },
+      trustSslFailures: true,
+      trustedSslFailures: 'unknown-ca',
+    });
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('');
+    const spawnedArgs = mockState.spawn.mock.calls.at(-1)?.[1] as string[];
+    const separatorIndex = spawnedArgs.indexOf('--');
+    for (const option of [
+      '--non-interactive',
+      '--trust-server-cert-failures',
+      '--username',
+      '--password-from-stdin',
+      '--certificate',
+    ]) {
+      expect(spawnedArgs.indexOf(option)).toBeGreaterThanOrEqual(0);
+      expect(spawnedArgs.indexOf(option)).toBeLessThan(separatorIndex);
+    }
+    expect(spawnedArgs.slice(separatorIndex)).toEqual(['--', url]);
   });
 
   it('kills the SVN process when the operation is aborted', async () => {

@@ -61,4 +61,38 @@ describe('resolveRemoteUpdateTarget', () => {
       localPath: 'C:\\wc\\src\\new.ts',
     });
   });
+
+  it('rejects a sibling of the current switched subtree', () => {
+    const target = resolveRemoteUpdateTarget({
+      entry: {
+        path: '/branches/other/new.ts',
+        remoteUrl: 'https://svn.example.com/repo/branches/other/new.ts',
+        status: 'O',
+        isDirectory: false,
+      },
+      repositoryRoot: 'https://svn.example.com/repo',
+      workingCopyUrl: 'https://svn.example.com/repo/branches/release',
+      workingCopyRoot: 'C:\\wc',
+      currentPath: 'C:\\wc\\switched',
+    });
+
+    expect(target.localPath).toBeNull();
+  });
+
+  it('rejects a different repository unless it has its own external context', () => {
+    const target = resolveRemoteUpdateTarget({
+      entry: {
+        path: '/project/new.ts',
+        remoteUrl: 'https://external.example.com/project/new.ts',
+        status: 'O',
+        isDirectory: false,
+      },
+      repositoryRoot: 'https://svn.example.com/repo',
+      workingCopyUrl: 'https://svn.example.com/repo/trunk',
+      workingCopyRoot: 'C:\\wc',
+      currentPath: 'C:\\wc',
+    });
+
+    expect(target.localPath).toBeNull();
+  });
 });

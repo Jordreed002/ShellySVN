@@ -126,16 +126,31 @@ export function Toolbar({
   // Secondary file actions, collapsed into a single "Actions" menu to keep the
   // toolbar uncluttered. Only handlers that were provided are shown.
   const actionItems: ToolbarActionItem[] = [];
-  if (onRevert) actionItems.push({ key: 'revert', icon: Undo2, label: 'Revert', onClick: onRevert });
-  if (onAdd) actionItems.push({ key: 'add', icon: Plus, label: 'Add to version control', onClick: onAdd });
+  if (onRevert)
+    actionItems.push({ key: 'revert', icon: Undo2, label: 'Revert', onClick: onRevert });
+  if (onAdd)
+    actionItems.push({ key: 'add', icon: Plus, label: 'Add to version control', onClick: onAdd });
   if (onResolve)
-    actionItems.push({ key: 'resolve', icon: CheckCircle2, label: 'Resolve conflict', onClick: onResolve });
+    actionItems.push({
+      key: 'resolve',
+      icon: CheckCircle2,
+      label: 'Resolve conflict',
+      onClick: onResolve,
+    });
   if (onMove) actionItems.push({ key: 'move', icon: Move, label: 'Move…', onClick: onMove });
   if (onCopy) actionItems.push({ key: 'copy', icon: Copy, label: 'Copy…', onClick: onCopy });
-  if (onRename) actionItems.push({ key: 'rename', icon: Pencil, label: 'Rename…', onClick: onRename });
-  if (onCleanup) actionItems.push({ key: 'cleanup', icon: Wrench, label: 'Cleanup', onClick: onCleanup });
+  if (onRename)
+    actionItems.push({ key: 'rename', icon: Pencil, label: 'Rename…', onClick: onRename });
+  if (onCleanup)
+    actionItems.push({ key: 'cleanup', icon: Wrench, label: 'Cleanup', onClick: onCleanup });
   if (onDelete)
-    actionItems.push({ key: 'delete', icon: Trash2, label: 'Delete', onClick: onDelete, danger: true });
+    actionItems.push({
+      key: 'delete',
+      icon: Trash2,
+      label: 'Delete',
+      onClick: onDelete,
+      danger: true,
+    });
 
   // Close view menu on escape
   const handleViewMenuKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -218,7 +233,6 @@ export function Toolbar({
           </button>
         </div>
       )}
-
 
       {isVersioned && (
         <>
@@ -471,7 +485,9 @@ export function Toolbar({
                         <Cloud className="w-4 h-4" aria-hidden="true" />
                         <span>Show remote items</span>
                       </span>
-                      {showRemoteItems && <Check className="w-4 h-4 text-accent" aria-hidden="true" />}
+                      {showRemoteItems && (
+                        <Check className="w-4 h-4 text-accent" aria-hidden="true" />
+                      )}
                     </button>
                   </>
                 )}

@@ -1,9 +1,11 @@
 import { lazy, ReactNode, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Minus, Search, Square, StickyNote, X } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
+import { invalidateAfterSvnMutation } from '@renderer/utils/mutationInvalidation';
 
 import { AnimatePresence, m, springs, useMotionEnabled, variants } from '../lib/motion';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
@@ -56,6 +58,7 @@ export function Layout({ children }: LayoutProps) {
   const { settings } = useSettings();
   const { resetTutorial } = useOnboarding();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const isMac = navigator.platform.toLowerCase().includes('mac');
 
@@ -63,6 +66,37 @@ export function Layout({ children }: LayoutProps) {
   const currentPath = (routerState.location.search as CommonSearchSchema)?.path;
 
   useVisualSettings(settings);
+
+  useEffect(() => {
+    const subscribe = window.api.svn.onMutation;
+    if (typeof subscribe !== 'function') {
+      return undefined;
+    }
+
+    return subscribe((notification) => {
+      void invalidateAfterSvnMutation(queryClient, notification);
+    });
+  }, [queryClient]);
+
+  useEffect(() => {
+    const handleCacheCleared = () => {
+      queryClient.removeQueries({
+        predicate: ({ queryKey }) => {
+          const scope = String(queryKey[0] || '');
+          return (
+            scope.startsWith('svn:') ||
+            scope.startsWith('sidebar:') ||
+            scope.startsWith('fs:') ||
+            scope === 'repo-browser' ||
+            scope === 'repo:list' ||
+            scope === 'branches'
+          );
+        },
+      });
+    };
+    window.addEventListener('svn-cache-cleared', handleCacheCleared);
+    return () => window.removeEventListener('svn-cache-cleared', handleCacheCleared);
+  }, [queryClient]);
 
   // Listen for tutorial restart event from Settings
   useEffect(() => {
@@ -104,9 +138,7 @@ export function Layout({ children }: LayoutProps) {
       const target = e.target as HTMLElement | null;
       const isTyping =
         !!target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable);
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (
         (e.ctrlKey || e.metaKey) &&
         !e.shiftKey &&
@@ -172,7 +204,11 @@ export function Layout({ children }: LayoutProps) {
 
   // Short, readable label for the command bar (current path tail or default)
   const omnibarLabel = currentPath
-    ? currentPath.replace(/[/\\]+$/, '').split(/[/\\]/).filter(Boolean).pop() || currentPath
+    ? currentPath
+        .replace(/[/\\]+$/, '')
+        .split(/[/\\]/)
+        .filter(Boolean)
+        .pop() || currentPath
     : 'Search files, jump to a repo, or run a command';
 
   return (

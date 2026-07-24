@@ -96,13 +96,19 @@ vi.mock('node:fs/promises', () => ({
 
 // Mock node:fs for sync operations
 vi.mock('node:fs', () => ({
-  default: {},
+  default: {
+    existsSync: mockState.existsSync,
+    statSync: mockState.statSync,
+  },
   existsSync: mockState.existsSync,
   statSync: mockState.statSync,
 }));
 
 vi.mock('fs', () => ({
-  default: {},
+  default: {
+    existsSync: mockState.existsSync,
+    statSync: mockState.statSync,
+  },
   existsSync: mockState.existsSync,
   statSync: mockState.statSync,
 }));
@@ -199,9 +205,11 @@ describe('FS IPC Handlers', () => {
     mockState.workerCancel.mockReturnValue(true);
 
     // Capture registered handlers
-    mockState.ipcMainHandle.mockImplementation((channel: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(channel, handler);
-    });
+    mockState.ipcMainHandle.mockImplementation(
+      (channel: string, handler: (...args: unknown[]) => unknown) => {
+        handlers.set(channel, handler);
+      }
+    );
 
     // Register handlers
     registerFsHandlers();
@@ -425,7 +433,7 @@ describe('FS IPC Handlers', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject absolute paths (security)', async () => {
+    it('should reject absolute paths outside approved roots', async () => {
       const handler = handlers.get('fs:readFile');
       const result = (await handler!({}, '/etc/passwd')) as {
         success: boolean;
@@ -433,20 +441,39 @@ describe('FS IPC Handlers', () => {
       };
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Absolute');
+      expect(result.error).toContain('only allowed inside a folder selected through ShellySVN');
+      expect(mockState.readFile).not.toHaveBeenCalled();
     });
 
-    it('should reject Windows absolute, drive-relative, and UNC paths', async () => {
+    it('should read an absolute file path inside an approved root', async () => {
+      approvePathForIpc('/workspace');
+      mockState.readFile.mockResolvedValue('preview content');
+
+      const handler = handlers.get('fs:readFile');
+      const result = (await handler!({}, '/workspace/readme.txt')) as {
+        success: boolean;
+        content?: string;
+      };
+
+      expect(result).toEqual({ success: true, content: 'preview content' });
+      expect(mockState.readFile).toHaveBeenCalledWith('/workspace/readme.txt', 'utf-8');
+    });
+
+    it('should reject unapproved Windows absolute, drive-relative, and UNC paths', async () => {
       const handler = handlers.get('fs:readFile');
 
-      for (const path of ['C:\\Windows\\win.ini', 'C:Windows\\win.ini', '\\\\server\\share\\file.txt']) {
+      for (const path of [
+        'C:\\Windows\\win.ini',
+        'C:Windows\\win.ini',
+        '\\\\server\\share\\file.txt',
+      ]) {
         const result = (await handler!({}, path)) as {
           success: boolean;
           error?: string;
         };
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain('Absolute');
+        expect(result.error).toContain('only allowed inside a folder selected through ShellySVN');
       }
     });
 
@@ -495,7 +522,6 @@ describe('FS IPC Handlers', () => {
 
       expect(result.success).toBe(false);
     });
-
   });
 
   describe('fs:writeFile - security validation', () => {
@@ -662,10 +688,9 @@ describe('FS IPC Handlers', () => {
       approvePathForIpc('/test/path');
 
       const handler = handlers.get('fs:watch');
-      const result = (await handler!(
-        { sender: { send: vi.fn() } },
-        '/test/path'
-      )) as { success: boolean };
+      const result = (await handler!({ sender: { send: vi.fn() } }, '/test/path')) as {
+        success: boolean;
+      };
 
       expect(result.success).toBe(true);
       expect(mockState.chokidarWatch).toHaveBeenCalledWith(
@@ -690,10 +715,10 @@ describe('FS IPC Handlers', () => {
       approvePathForIpc('C:\\workspace');
 
       const handler = handlers.get('fs:watch');
-      const result = (await handler!(
-        { sender: { send: vi.fn() } },
-        'C:\\Windows\\System32'
-      )) as { success: boolean; error?: string };
+      const result = (await handler!({ sender: { send: vi.fn() } }, 'C:\\Windows\\System32')) as {
+        success: boolean;
+        error?: string;
+      };
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('selected through ShellySVN');
@@ -755,10 +780,7 @@ describe('FS IPC Handlers', () => {
       expect(mockState.workerRun).toHaveBeenCalledWith(
         'fs:folderSizes',
         {
-          folderPaths: [
-            expect.stringContaining('folder1'),
-            expect.stringContaining('folder2'),
-          ],
+          folderPaths: [expect.stringContaining('folder1'), expect.stringContaining('folder2')],
         },
         expect.objectContaining({ priority: 'background' })
       );

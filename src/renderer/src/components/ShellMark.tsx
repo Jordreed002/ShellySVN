@@ -28,10 +28,34 @@ export function ShellMark({ className = '' }: { className?: string }) {
         fill="none"
         opacity="0.65"
       />
-      <path d="M24 20V32" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
-      <path d="M18 24H30" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
-      <path d="M19 19L29 29" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.3" />
-      <path d="M29 19L19 29" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.3" />
+      <path
+        d="M24 20V32"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.4"
+      />
+      <path
+        d="M18 24H30"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.4"
+      />
+      <path
+        d="M19 19L29 29"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.3"
+      />
+      <path
+        d="M29 19L19 29"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.3"
+      />
       <defs>
         <linearGradient
           id="shellmark-gradient"

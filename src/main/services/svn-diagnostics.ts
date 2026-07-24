@@ -7,7 +7,7 @@ import { getSslTrustCache } from '../ssl-trust-cache';
 import { getSettingsManager } from '../settings-manager';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
-import { runSvnText } from './svn-executor';
+import { runSvnMuccText, runSvnText } from './svn-executor';
 
 const MINIMUM_SVN_VERSION = '1.14';
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
@@ -120,6 +120,12 @@ export async function trustServerCertificate(
   if (!trimmedUrl) {
     return { success: false, error: 'Repository URL is required.' };
   }
+  if (!/^https:\/\//i.test(trimmedUrl)) {
+    return {
+      success: false,
+      error: 'Server-certificate trust is only available for HTTPS repository URLs.',
+    };
+  }
 
   const trustedSslFailures = parseTrustedSslFailures(errorText);
   const authCache = getAuthCache();
@@ -136,11 +142,7 @@ export async function trustServerCertificate(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (
-      message.includes('SSL') ||
-      message.includes('certificate') ||
-      message.includes('E230001')
-    ) {
+    if (message.includes('SSL') || message.includes('certificate') || message.includes('E230001')) {
       return { success: false, error: message };
     }
     if (!isAuthenticationError(message)) {
@@ -257,4 +259,20 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
   }
 
   return result;
+}
+
+export async function getSvnCapabilities(): Promise<{
+  shelving: boolean;
+  nativeShelving: boolean;
+  remoteProperties: boolean;
+}> {
+  const [shelving, remoteProperties] = await Promise.allSettled([
+    runSvnText(['help', 'shelve']),
+    runSvnMuccText(['--version', '--quiet']),
+  ]);
+  return {
+    shelving: true,
+    nativeShelving: shelving.status === 'fulfilled',
+    remoteProperties: remoteProperties.status === 'fulfilled',
+  };
 }

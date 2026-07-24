@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
+  getWorkingCopyContext: vi.fn(),
+  getNetworkOptionsForUrl: vi.fn(),
 }));
 
 vi.mock('../svn-executor', () => ({
@@ -12,6 +14,18 @@ vi.mock('../svn-executor', () => ({
 
 vi.mock('../svn-progress', () => ({
   runSvnOperationWithProgress: vi.fn(),
+}));
+vi.mock('../svn-working-copy', () => ({
+  getWorkingCopyContext: mockState.getWorkingCopyContext,
+}));
+vi.mock('../svn-network-context', () => ({
+  getNetworkOptionsForUrl: mockState.getNetworkOptionsForUrl,
+  getNetworkOptionsForWorkingCopyPath: vi.fn().mockResolvedValue({ trustSslFailures: false }),
+}));
+vi.mock('../svn-mutation-queue', () => ({
+  runSerializedWorkingCopyMutation: vi.fn(
+    async (_key: string, task: () => Promise<unknown>) => task()
+  ),
 }));
 
 import {
@@ -25,13 +39,27 @@ import {
   switchWorkingCopy,
 } from '../svn-repository-ops';
 
+function infoXml(
+  url: string,
+  uuid = 'repo-uuid',
+  root = 'https://example.test/svn/repo',
+  kind: 'file' | 'dir' = 'dir'
+): string {
+  return `<info><entry kind="${kind}" path="target" revision="41"><url>${url}</url><repository><root>${root}</root><uuid>${uuid}</uuid></repository></entry></info>`;
+}
+
+function isCreatedDestination(target: string): boolean {
+  return /\/(?:feature|v1|Feature%20Folder|new)$/.test(target);
+}
+
 describe('svn-repository-ops copyRepositoryItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockState.runSvnText.mockImplementation(async (args: string[]) => {
-      if (args[0] === 'list') {
+      if (args[0] === 'info' && isCreatedDestination(args.at(-1) || '')) {
         throw new Error('not found');
       }
+      if (args[0] === 'info') return infoXml(args.at(-1) || '');
       return 'Committed revision 42.';
     });
   });
@@ -49,6 +77,7 @@ describe('svn-repository-ops copyRepositoryItem', () => {
       'copy',
       '-m',
       'msg',
+      '--',
       'C:\\wc\\trunk',
       'https://example.test/svn/repo/branches/feature',
     ]);
@@ -82,7 +111,10 @@ describe('svn-repository-ops copyRepositoryItem', () => {
   });
 
   it('rejects existing branch or tag destinations before copying', async () => {
-    mockState.runSvnText.mockResolvedValueOnce('existing target');
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'info') return infoXml(args.at(-1) || '');
+      return 'Committed revision 42.';
+    });
 
     const result = await copyRepositoryItem(
       'https://example.test/svn/repo/trunk',
@@ -92,17 +124,96 @@ describe('svn-repository-ops copyRepositoryItem', () => {
 
     expect(result).toEqual({
       success: false,
-      revision: 0,
+      revision: null,
       error: 'Branch/tag destination already exists.',
     });
     expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['copy']));
+  });
+
+  it('does not mistake authentication failures for a missing copy destination', async () => {
+    mockState.runSvnText.mockRejectedValueOnce(new Error('svn: E215004: Authentication failed'));
+
+    await expect(
+      copyRepositoryItem(
+        'https://example.test/svn/repo/trunk',
+        'https://example.test/svn/repo/tags/v1',
+        'release v1'
+      )
+    ).rejects.toThrow('Authentication failed');
+    expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['copy']));
+  });
+
+  it('rejects copies whose source and destination parent have different repository UUIDs', async () => {
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      const target = args.at(-1) || '';
+      if (args[0] === 'info' && target.endsWith('/trunk')) return infoXml(target, 'source-uuid');
+      if (args[0] === 'info') return infoXml(target, 'destination-uuid');
+      return 'Committed revision 42.';
+    });
+
+    await expect(
+      copyRepositoryItem(
+        'https://example.test/svn/repo/trunk',
+        'https://example.test/svn/repo/tags/v1',
+        'release v1'
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Branch/tag copy source and destination must belong to the same repository.',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['copy']));
+  });
+
+  it('reports a missing copy source before invoking copy', async () => {
+    mockState.runSvnText.mockRejectedValueOnce(new Error('svn: E160013: path not found'));
+
+    await expect(
+      copyRepositoryItem(
+        'https://example.test/svn/repo/missing',
+        'https://example.test/svn/repo/tags/v1',
+        'release v1'
+      )
+    ).rejects.toThrow('Branch/tag source does not exist.');
+  });
+
+  it('preserves source peg revisions and encoded destination-parent segments', async () => {
+    await copyRepositoryItem(
+      'https://example.test/svn/repo/trunk@41',
+      'https://example.test/svn/repo/branches/Feature%20Space/new',
+      'copy historical trunk'
+    );
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'info',
+        '--xml',
+        '--non-interactive',
+        '--',
+        'https://example.test/svn/repo/branches/Feature%20Space',
+      ],
+      { credentials: undefined }
+    );
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'copy',
+      '-m',
+      'copy historical trunk',
+      '--',
+      'https://example.test/svn/repo/trunk@41',
+      'https://example.test/svn/repo/branches/Feature%20Space/new',
+    ]);
   });
 });
 
 describe('svn-repository-ops createRemoteFolder', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockState.runSvnText.mockResolvedValue('Committed revision 56.');
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'info' && args.at(-1)?.endsWith('/Feature%20Folder')) {
+        throw new Error('svn: E160013: path not found');
+      }
+      if (args[0] === 'info') return infoXml(args.at(-1) || '');
+      return 'Committed revision 56.';
+    });
   });
 
   it('creates a remote folder with commit message and executor credentials', async () => {
@@ -118,13 +229,17 @@ describe('svn-repository-ops createRemoteFolder', () => {
       revision: 56,
       output: 'Committed revision 56.',
     });
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'mkdir',
-      '-m',
-      'Add feature folder',
-      '--non-interactive',
-      'https://example.test/svn/repo/trunk/Feature%20Folder',
-    ], { credentials: { username: 'alice', password: 'secret' } });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'mkdir',
+        '-m',
+        'Add feature folder',
+        '--non-interactive',
+        '--',
+        'https://example.test/svn/repo/trunk/Feature%20Folder',
+      ],
+      { credentials: { username: 'alice', password: 'secret' } }
+    );
   });
 
   it('rejects invalid parent URLs, folder names, and missing messages', async () => {
@@ -146,12 +261,40 @@ describe('svn-repository-ops createRemoteFolder', () => {
     });
     expect(mockState.runSvnText).not.toHaveBeenCalled();
   });
+
+  it('verifies the parent and destination using the mutation credentials', async () => {
+    const credentials = { username: 'alice', password: 'secret' };
+    await createRemoteFolder(
+      'https://example.test/svn/repo/trunk',
+      'Feature Folder',
+      'Add feature folder',
+      credentials
+    );
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['info', '--xml', '--non-interactive', '--', 'https://example.test/svn/repo/trunk'],
+      { credentials }
+    );
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'info',
+        '--xml',
+        '--non-interactive',
+        '--',
+        'https://example.test/svn/repo/trunk/Feature%20Folder',
+      ],
+      { credentials }
+    );
+  });
 });
 
 describe('svn-repository-ops deleteRemoteItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockState.runSvnText.mockResolvedValue('Committed revision 57.');
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'info') return infoXml(args.at(-1) || '');
+      return 'Committed revision 57.';
+    });
   });
 
   it('deletes a remote repository item with commit message and credentials', async () => {
@@ -165,13 +308,17 @@ describe('svn-repository-ops deleteRemoteItem', () => {
       revision: 57,
       output: 'Committed revision 57.',
     });
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'delete',
-      '-m',
-      'Remove old',
-      '--non-interactive',
-      'https://example.test/svn/repo/trunk/old',
-    ], { credentials: { username: 'alice', password: 'secret' } });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'delete',
+        '-m',
+        'Remove old',
+        '--non-interactive',
+        '--',
+        'https://example.test/svn/repo/trunk/old',
+      ],
+      { credentials: { username: 'alice', password: 'secret' } }
+    );
   });
 
   it('rejects invalid remote delete targets and missing messages', async () => {
@@ -179,7 +326,9 @@ describe('svn-repository-ops deleteRemoteItem', () => {
       success: false,
       error: 'Remote delete target must be a valid SVN URL.',
     });
-    await expect(deleteRemoteItem('https://example.test/svn/repo/trunk/old', '   ')).resolves.toMatchObject({
+    await expect(
+      deleteRemoteItem('https://example.test/svn/repo/trunk/old', '   ')
+    ).resolves.toMatchObject({
       success: false,
       error: 'Remote delete requires a log message.',
     });
@@ -190,7 +339,13 @@ describe('svn-repository-ops deleteRemoteItem', () => {
 describe('svn-repository-ops moveRemoteItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockState.runSvnText.mockResolvedValue('Committed revision 58.');
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'info' && args.at(-1)?.endsWith('/new')) {
+        throw new Error('svn: E160013: path not found');
+      }
+      if (args[0] === 'info') return infoXml(args.at(-1) || '');
+      return 'Committed revision 58.';
+    });
   });
 
   it('moves or renames a remote repository item with commit message and credentials', async () => {
@@ -206,14 +361,18 @@ describe('svn-repository-ops moveRemoteItem', () => {
       revision: 58,
       output: 'Committed revision 58.',
     });
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'move',
-      '-m',
-      'Rename old to new',
-      '--non-interactive',
-      'https://example.test/svn/repo/trunk/old',
-      'https://example.test/svn/repo/trunk/new',
-    ], { credentials: { username: 'alice', password: 'secret' } });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'move',
+        '-m',
+        'Rename old to new',
+        '--non-interactive',
+        '--',
+        'https://example.test/svn/repo/trunk/old',
+        'https://example.test/svn/repo/trunk/new',
+      ],
+      { credentials: { username: 'alice', password: 'secret' } }
+    );
   });
 
   it('rejects invalid move destinations and missing messages', async () => {
@@ -224,7 +383,11 @@ describe('svn-repository-ops moveRemoteItem', () => {
       error: 'Remote move destination must be a valid SVN URL.',
     });
     await expect(
-      moveRemoteItem('https://example.test/svn/repo/trunk/old', 'https://example.test/svn/repo/trunk/new', '   ')
+      moveRemoteItem(
+        'https://example.test/svn/repo/trunk/old',
+        'https://example.test/svn/repo/trunk/new',
+        '   '
+      )
     ).resolves.toMatchObject({
       success: false,
       error: 'Remote move requires a log message.',
@@ -241,6 +404,27 @@ describe('svn-repository-ops moveRemoteItem', () => {
     });
     expect(mockState.runSvnText).not.toHaveBeenCalled();
   });
+
+  it('rejects a cross-repository move before invoking svn move', async () => {
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      const target = args.at(-1) || '';
+      if (args[0] === 'info' && target.endsWith('/old')) return infoXml(target, 'source-uuid');
+      if (args[0] === 'info') return infoXml(target, 'destination-uuid');
+      return 'Committed revision 58.';
+    });
+
+    await expect(
+      moveRemoteItem(
+        'https://example.test/svn/repo/trunk/old',
+        'https://mirror.example.test/svn/other/trunk/new',
+        'Move item'
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Remote move source and destination must belong to the same repository.',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['move']));
+  });
 });
 
 describe('svn-repository-ops switch and relocate', () => {
@@ -251,7 +435,11 @@ describe('svn-repository-ops switch and relocate', () => {
   it('switches a whole working copy to a URL and optional revision', async () => {
     mockState.runSvnText.mockResolvedValue('Updated to revision 77.');
 
-    const result = await switchWorkingCopy('C:\\wc', 'https://example.test/svn/repo/branches/a', '77');
+    const result = await switchWorkingCopy(
+      'C:\\wc',
+      'https://example.test/svn/repo/branches/a',
+      '77'
+    );
 
     expect(result).toEqual({
       success: true,
@@ -277,18 +465,24 @@ describe('svn-repository-ops switch and relocate', () => {
     );
 
     expect(result).toEqual({ success: true, output: 'Relocated C:\\wc' });
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'relocate',
-      'https://old.example.test/svn/repo',
-      'https://new.example.test/svn/repo',
-      'C:\\wc',
-    ]);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'relocate',
+        '--',
+        'https://old.example.test/svn/repo',
+        'https://new.example.test/svn/repo',
+        'C:\\wc',
+      ],
+      { trustSslFailures: false }
+    );
   });
 });
 
 describe('svn-repository-ops mergeRepositoryRange', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState.getWorkingCopyContext.mockResolvedValue({ workingCopyRoot: 'C:\\wc' });
+    mockState.getNetworkOptionsForUrl.mockResolvedValue({ trustSslFailures: false });
     mockState.runSvnText.mockResolvedValue('C src/conflict.txt\nU src/app.ts');
   });
 
@@ -320,9 +514,51 @@ describe('svn-repository-ops mergeRepositoryRange', () => {
       '155',
       '-r',
       '100:150',
+      '--',
       'https://example.test/svn/repo/branches/feature',
       'C:\\wc',
-    ]);
+    ], { trustSslFailures: false });
+  });
+
+  it('rejects a merge target that is not a working copy before mutation', async () => {
+    mockState.getWorkingCopyContext.mockResolvedValue(null);
+    await expect(
+      mergeRepositoryRange('https://example.test/svn/repo/branches/feature', 'C:\\plain')
+    ).rejects.toThrow(/valid svn working copy/i);
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+
+  it('builds SVN two-source merge form without cherry-pick options', async () => {
+    await mergeRepositoryRange(
+      'https://example.test/svn/repo/vendor/old',
+      'C:\\wc',
+      undefined,
+      undefined,
+      { secondSource: 'https://example.test/svn/repo/vendor/new' }
+    );
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'merge',
+        '--',
+        'https://example.test/svn/repo/vendor/old',
+        'https://example.test/svn/repo/vendor/new',
+        'C:\\wc',
+      ],
+      { trustSslFailures: false }
+    );
+  });
+
+  it('rejects revision ranges mixed with SVN two-source merge form', async () => {
+    await expect(
+      mergeRepositoryRange(
+        'https://example.test/svn/repo/vendor/old',
+        'C:\\wc',
+        ['5'],
+        undefined,
+        { secondSource: 'https://example.test/svn/repo/vendor/new' }
+      )
+    ).rejects.toThrow(/cannot also specify/i);
   });
 });
 
@@ -339,12 +575,32 @@ describe('svn-repository-ops resolveConflict', () => {
         success: true,
       });
 
-      expect(mockState.runSvnText).toHaveBeenCalledWith([
-        'resolve',
-        '--accept',
-        resolution,
-        'C:\\wc\\conflict.txt',
-      ]);
+      expect(mockState.runSvnText).toHaveBeenCalledWith(
+        ['resolve', '--accept', resolution, '--', 'C:\\wc\\conflict.txt'],
+        { trustSslFailures: false }
+      );
     }
   );
+
+  it('uses the working file for manual merges and rejects a still-conflicted result', async () => {
+    mockState.runSvnText
+      .mockResolvedValueOnce('')
+      .mockResolvedValueOnce(
+        '<?xml version="1.0"?><status><target path="C:\\wc"><entry path="C:\\wc\\conflict.txt"><wc-status item="conflicted" /></entry></target></status>'
+      );
+
+    await expect(resolveConflict('C:\\wc\\conflict.txt', 'working')).rejects.toThrow(
+      /still reports an unresolved conflict/i
+    );
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      1,
+      ['resolve', '--accept', 'working', '--', 'C:\\wc\\conflict.txt'],
+      { trustSslFailures: false }
+    );
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      2,
+      ['status', '--xml', '--', 'C:\\wc\\conflict.txt'],
+      { trustSslFailures: false }
+    );
+  });
 });

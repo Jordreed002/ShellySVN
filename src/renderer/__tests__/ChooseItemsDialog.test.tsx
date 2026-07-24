@@ -127,7 +127,7 @@ const defaultProps = {
 // NOTE: This test suite is skipped due to React/jsdom compatibility issues
 // The "Should not already be working" error occurs when rendering React components
 // in jsdom environment. See useLazyTreeLoader.test.tsx for similar issues.
-describe.skip('ChooseItemsDialog', () => {
+describe('ChooseItemsDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHookState.isLoading = false;
@@ -262,20 +262,20 @@ describe.skip('ChooseItemsDialog', () => {
   });
 
   describe('error handling', () => {
-    it('shows error message and Retry button when error is present', () => {
+    it('shows error message and Retry button when error is present', async () => {
       mockHookState.error = 'Failed to load repository';
       mockHookState.roots = [];
       mockHookState.nodes = new Map();
       render(<ChooseItemsDialog {...defaultProps} />);
-      expect(screen.getByText('Retry')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument();
     });
 
-    it('calls refreshTree when Retry is clicked', () => {
+    it('calls refreshTree when Retry is clicked', async () => {
       mockHookState.error = 'Failed to load repository';
       mockHookState.roots = [];
       mockHookState.nodes = new Map();
       render(<ChooseItemsDialog {...defaultProps} />);
-      fireEvent.click(screen.getByText('Retry'));
+      fireEvent.click(await screen.findByRole('button', { name: /try again/i }));
       expect(mockHookState.refreshTree).toHaveBeenCalled();
     });
   });

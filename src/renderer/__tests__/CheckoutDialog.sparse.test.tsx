@@ -1,11 +1,15 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
 import { CheckoutDialog } from '../src/components/ui/CheckoutDialog';
 import { ChooseItemsDialog } from '../src/components/ui/ChooseItemsDialog';
+
+vi.mock('@renderer/hooks/useSettings', () => ({
+  useSettings: () => ({ settings: { defaultCheckoutDirectory: '' } }),
+}));
 
 // Mock the ChooseItemsDialog component
 vi.mock('../src/components/ui/ChooseItemsDialog', () => ({
@@ -19,6 +23,7 @@ vi.mock('../src/components/ui/ChooseItemsDialog', () => ({
         <button onClick={() => onSelect(['/trunk/src/file1.ts', '/trunk/src/file2.ts'])}>
           Select Files
         </button>
+        <button onClick={() => onSelect([])}>Empty Selection</button>
         <button onClick={onCancel}>Cancel</button>
       </div>
     );
@@ -101,10 +106,7 @@ const renderWithProviders = (component: React.ReactElement) => {
   return render(<QueryClientProvider client={queryClient}>{component}</QueryClientProvider>);
 };
 
-// NOTE: This test suite is skipped due to React/jsdom compatibility issues
-// The "Should not already be working" error occurs when rendering React components
-// in jsdom environment. See useLazyTreeLoader.test.tsx for similar issues.
-describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
+describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -114,7 +116,8 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCheckout.mockClear();
+    mockCheckout.mockReset();
+    mockCheckout.mockResolvedValue({ success: true, revision: 123, output: '' });
     mockOnComplete.mockClear();
   });
 
@@ -137,19 +140,16 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
     const propsWithoutUrl = { ...defaultProps, initialUrl: '' };
 
     renderWithProviders(<CheckoutDialog {...propsWithoutUrl} />);
-    // The button should be disabled when URL is empty, but still present
-    const chooseButton = screen.getByText('Choose items...');
-    expect(chooseButton).toBeInTheDocument();
-    expect(chooseButton).toBeDisabled();
+    expect(screen.queryByText('Choose items...')).not.toBeInTheDocument();
   });
 
-  it('opens ChooseItemsDialog when "Choose items..." button is clicked', () => {
+  it('opens ChooseItemsDialog when "Choose items..." button is clicked', async () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     const chooseButton = screen.getByText('Choose items...');
     fireEvent.click(chooseButton);
 
-    expect(screen.getByTestId('choose-items-dialog')).toBeInTheDocument();
+    expect(await screen.findByTestId('choose-items-dialog')).toBeInTheDocument();
     expect(ChooseItemsDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         isOpen: true,
@@ -167,8 +167,8 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
     const authButton = screen.getByText('Authentication');
     fireEvent.click(authButton);
 
-    const usernameInput = screen.getByPlaceholderText('Optional');
-    const passwordInput = screen.getByPlaceholderText('Optional');
+    const usernameInput = screen.getByLabelText('Username');
+    const passwordInput = screen.getByLabelText('Password');
 
     fireEvent.change(usernameInput, { target: { value: 'testuser' } });
     fireEvent.change(passwordInput, { target: { value: 'testpass' } });
@@ -222,20 +222,6 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
   });
 
   it('calls checkout with depth when no items selected', async () => {
-    // Mock ChooseItemsDialog to return empty selection
-    const ChooseItemsDialogMock = vi.fn(({ onSelect, ..._props }) => {
-      return (
-        <div data-testid="choose-items-dialog">
-          <button onClick={() => onSelect([])}>Empty Selection</button>
-          <button onClick={() => onSelect(['/trunk/file.txt'])}>Valid Selection</button>
-        </div>
-      );
-    });
-
-    vi.doMock('../src/components/ui/ChooseItemsDialog', () => ({
-      ChooseItemsDialog: ChooseItemsDialogMock,
-    }));
-
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     // Set a path for the checkout
@@ -246,7 +232,7 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
     const chooseButton = screen.getByText('Choose items...');
     fireEvent.click(chooseButton);
 
-    const emptyButton = screen.getByText('Empty Selection');
+    const emptyButton = await screen.findByText('Empty Selection');
     fireEvent.click(emptyButton);
 
     // Submit the form
@@ -318,7 +304,7 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
     });
   });
 
-  it('handles ChooseItemsDialog cancellation gracefully', () => {
+  it('handles ChooseItemsDialog cancellation gracefully', async () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog
@@ -326,26 +312,29 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.click(chooseButton);
 
     // Cancel ChooseItemsDialog
-    const cancelButton = screen.getByText('Cancel');
+    const chooser = await screen.findByTestId('choose-items-dialog');
+    const cancelButton = within(chooser).getByText('Cancel');
     fireEvent.click(cancelButton);
 
     expect(screen.queryByTestId('choose-items-dialog')).not.toBeInTheDocument();
   });
 
-  it('disables ChooseItemsDialog button when checking out', () => {
+  it('disables ChooseItemsDialog button when checking out', async () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
+
+    const pathInput = screen.getByPlaceholderText('C:\\Projects\\my-project');
+    fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     const chooseButton = screen.getByText('Choose items...');
     fireEvent.click(chooseButton);
 
-    // Simulate ongoing checkout
     mockCheckout.mockImplementation(() => new Promise(() => {}));
 
-    const selectButton = screen.getByText('Select Files');
+    const selectButton = await screen.findByText('Select Files');
     fireEvent.click(selectButton);
+    fireEvent.click(screen.getByText('Checkout'));
 
-    // Choose items button should be disabled during checkout
-    expect(screen.getByText('Choose items...')).toBeDisabled();
+    await waitFor(() => expect(screen.getByText('Choose items...')).toBeDisabled());
   });
 
   it('shows selected count in depth label when items are chosen', async () => {
@@ -409,7 +398,7 @@ describe.skip('CheckoutDialog - ChooseItemsDialog Integration', () => {
   });
 });
 
-describe.skip('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
+describe('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -419,7 +408,8 @@ describe.skip('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCheckout.mockClear();
+    mockCheckout.mockReset();
+    mockCheckout.mockResolvedValue({ success: true, revision: 123, output: '' });
   });
 
   afterEach(() => {
@@ -431,12 +421,16 @@ describe.skip('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
 
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
+    const pathInput = screen.getByPlaceholderText('C:\\Projects\\my-project');
+    fireEvent.change(pathInput, { target: { value: '/test/path' } });
+
     // Open ChooseItemsDialog and select files
     const chooseButton = screen.getByText('Choose items...');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
     fireEvent.click(selectButton);
+    fireEvent.click(screen.getByText('Checkout'));
 
     await waitFor(() => {
       expect(screen.getByText('SVN command failed')).toBeInTheDocument();
@@ -462,36 +456,13 @@ describe.skip('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
     );
   });
 
-  it('handles empty selected paths gracefully', () => {
-    const ChooseItemsDialogMock = vi.fn(({ onSelect, ..._props }) => {
-      return (
-        <div data-testid="choose-items-dialog">
-          <button onClick={() => onSelect([])}>Empty Selection</button>
-          <button onClick={() => onSelect(['/trunk/file.txt'])}>Valid Selection</button>
-        </div>
-      );
-    });
-
-    vi.doMock('../src/components/ui/ChooseItemsDialog', () => ({
-      ChooseItemsDialog: ChooseItemsDialogMock,
-    }));
-
-    // Mock ChooseItemsDialog to return empty array
-    ChooseItemsDialogMock.mockImplementation(({ onSelect, ..._props }) => {
-      return (
-        <div data-testid="choose-items-dialog">
-          <button onClick={() => onSelect([])}>Empty Selection</button>
-          <button onClick={() => onSelect(['/trunk/file.txt'])}>Valid Selection</button>
-        </div>
-      );
-    });
-
+  it('handles empty selected paths gracefully', async () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     const chooseButton = screen.getByText('Choose items...');
     fireEvent.click(chooseButton);
 
-    const emptyButton = screen.getByText('Empty Selection');
+    const emptyButton = await screen.findByText('Empty Selection');
     fireEvent.click(emptyButton);
 
     // Should not call checkout for empty selection (user would use normal checkout)
@@ -499,14 +470,22 @@ describe.skip('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
   });
 
   it('handles SSL prompt with sparse checkout', async () => {
-    mockCheckout.mockRejectedValue(new Error('certificate verification failed'));
-    mockCheckout.mockResolvedValueOnce({
+    mockCheckout
+      .mockRejectedValueOnce(
+        new Error(
+          'certificate verification failed: not issued by a trusted authority\nFingerprint: AA:BB'
+        )
+      )
+      .mockResolvedValueOnce({
       success: true,
       revision: 125,
       output: 'Checkout complete',
-    });
+      });
 
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
+
+    const pathInput = screen.getByPlaceholderText('C:\\Projects\\my-project');
+    fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     // Open ChooseItemsDialog and select files
     const chooseButton = screen.getByText('Choose items...');
@@ -514,6 +493,7 @@ describe.skip('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
 
     const selectButton = screen.getByText('Select Files');
     fireEvent.click(selectButton);
+    fireEvent.click(screen.getByText('Checkout'));
 
     // Should show SSL prompt
     await waitFor(() => {

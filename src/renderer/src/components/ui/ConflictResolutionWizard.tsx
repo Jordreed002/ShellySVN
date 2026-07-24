@@ -53,7 +53,11 @@ interface ConflictArtifactPaths {
   mergedPath: string;
 }
 
-function getDirectoryAndBaseName(filePath: string): { dirPath: string; baseName: string; sep: string } {
+function getDirectoryAndBaseName(filePath: string): {
+  dirPath: string;
+  baseName: string;
+  sep: string;
+} {
   const lastSepIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
   return {
     dirPath: lastSepIndex >= 0 ? filePath.substring(0, lastSepIndex) : filePath,
@@ -62,13 +66,17 @@ function getDirectoryAndBaseName(filePath: string): { dirPath: string; baseName:
   };
 }
 
-export async function resolveConflictArtifactPaths(filePath: string): Promise<ConflictArtifactPaths> {
+export async function resolveConflictArtifactPaths(
+  filePath: string
+): Promise<ConflictArtifactPaths> {
   const { dirPath, baseName, sep } = getDirectoryAndBaseName(filePath);
   const dirFiles = await window.api.fs.listDirectory(dirPath);
   const conflictFiles = dirFiles
     .filter((file) => file.name.startsWith(`${baseName}.`))
     .map((file) => file.name);
-  const revisionPattern = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.r(\\d+)$`);
+  const revisionPattern = new RegExp(
+    `^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.r(\\d+)$`
+  );
   const revisionFiles = conflictFiles
     .filter((name) => revisionPattern.test(name))
     .map((name) => ({
@@ -196,21 +204,27 @@ export function ConflictResolutionWizard({
     setIsProcessing(true);
 
     try {
-      // Update status
+      // Keep the UI provisional until SVN confirms that every conflict marker
+      // (text, property, or tree) has actually cleared.
       setConflictFiles((prev) =>
-        prev.map((f, i) => (i === currentIndex ? { ...f, status: 'resolved', resolution } : f))
+        prev.map((f, i) => (i === currentIndex ? { ...f, status: 'in-progress', resolution } : f))
       );
 
       // Apply SVN resolution
-      const resolutionMap: Record<string, 'mine-full' | 'theirs-full' | 'base'> = {
+      const resolutionMap: Record<string, 'mine-full' | 'theirs-full' | 'base' | 'working'> = {
         'mine-full': 'mine-full',
         'theirs-full': 'theirs-full',
         base: 'base',
-        merged: 'mine-full', // After merge, mark as resolved with mine
-        custom: 'mine-full',
+        merged: 'working',
+        custom: 'working',
       };
 
       await window.api.svn.resolve(currentFile.path, resolutionMap[resolution || 'mine-full']);
+      setConflictFiles((prev) =>
+        prev.map((f, i) =>
+          i === currentIndex ? { ...f, status: 'resolved', resolution, error: undefined } : f
+        )
+      );
 
       // Invalidate status cache
       queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
@@ -225,7 +239,11 @@ export function ConflictResolutionWizard({
     } catch (err) {
       console.error('Failed to resolve conflict:', err);
       setConflictFiles((prev) =>
-        prev.map((f, i) => (i === currentIndex ? { ...f, error: (err as Error).message } : f))
+        prev.map((f, i) =>
+          i === currentIndex
+            ? { ...f, status: 'pending', error: (err as Error).message }
+            : f
+        )
       );
     } finally {
       setIsProcessing(false);
@@ -272,9 +290,14 @@ export function ConflictResolutionWizard({
       // SVN creates files with patterns: filename.mine, filename.r<old-rev>, filename.r<new-rev>
 
       // Extract directory and filename using cross-platform approach
-      const lastSepIndex = Math.max(currentFile.path.lastIndexOf('/'), currentFile.path.lastIndexOf('\\'));
-      const dirPath = lastSepIndex >= 0 ? currentFile.path.substring(0, lastSepIndex) : currentFile.path;
-      const baseName = lastSepIndex >= 0 ? currentFile.path.substring(lastSepIndex + 1) : currentFile.path;
+      const lastSepIndex = Math.max(
+        currentFile.path.lastIndexOf('/'),
+        currentFile.path.lastIndexOf('\\')
+      );
+      const dirPath =
+        lastSepIndex >= 0 ? currentFile.path.substring(0, lastSepIndex) : currentFile.path;
+      const baseName =
+        lastSepIndex >= 0 ? currentFile.path.substring(lastSepIndex + 1) : currentFile.path;
 
       // Determine path separator for constructing paths
       const sep = currentFile.path.includes('\\') ? '\\' : '/';
@@ -287,18 +310,20 @@ export function ConflictResolutionWizard({
       // - filename.mine (local changes)
       // - filename.r<revision> (base and theirs - the lower revision is base, higher is theirs)
       const conflictFiles = dirFiles
-        .filter(f => f.name.startsWith(baseName + '.'))
-        .map(f => f.name);
+        .filter((f) => f.name.startsWith(baseName + '.'))
+        .map((f) => f.name);
 
       const minePattern = `${baseName}.mine`;
-      const revisionPattern = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.r(\\d+)$`);
+      const revisionPattern = new RegExp(
+        `^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.r(\\d+)$`
+      );
 
-      const mineFile = conflictFiles.find(f => f === minePattern);
+      const mineFile = conflictFiles.find((f) => f === minePattern);
       const revisionFiles = conflictFiles
-        .filter(f => revisionPattern.test(f))
-        .map(f => ({
+        .filter((f) => revisionPattern.test(f))
+        .map((f) => ({
           name: f,
-          revision: parseInt(revisionPattern.exec(f)![1], 10)
+          revision: parseInt(revisionPattern.exec(f)![1], 10),
         }))
         .toSorted((a, b) => a.revision - b.revision);
 
@@ -317,7 +342,9 @@ export function ConflictResolutionWizard({
         // Only one revision file found - use it for both (unusual but handle gracefully)
         basePath = `${dirPath}${sep}${revisionFiles[0].name}`;
         theirsPath = basePath;
-        console.warn('[ConflictWizard] Only one revision file found, using same for base and theirs');
+        console.warn(
+          '[ConflictWizard] Only one revision file found, using same for base and theirs'
+        );
       } else {
         // No revision files found - use placeholder that will fail validation
         basePath = `${currentFile.path}.rBASE`;
@@ -337,8 +364,8 @@ export function ConflictResolutionWizard({
         console.warn('[ConflictWizard] Missing conflict files:', missingFiles);
         setExternalToolError(
           `Warning: Could not find ${missingFiles.join(', ')}. ` +
-          `The conflict files may have been moved or the conflict may be resolved. ` +
-          `Please verify the conflict still exists.`
+            `The conflict files may have been moved or the conflict may be resolved. ` +
+            `Please verify the conflict still exists.`
         );
         // Still try to launch - the external tool validation will fail with a clearer error
       }

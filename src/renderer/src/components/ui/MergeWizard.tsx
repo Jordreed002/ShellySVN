@@ -9,7 +9,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { getTextConflictPathsFromSvnOutput } from '@renderer/utils/conflictDetection';
-import type { SvnMergeOptions, SvnOperationProgress } from '@shared/types';
+import type { SvnMergeInfoResult, SvnMergeOptions, SvnOperationProgress } from '@shared/types';
 
 interface MergeWizardProps {
   isOpen: boolean;
@@ -24,6 +24,7 @@ type MergePage = 1 | 2 | 3;
 interface MergeOptions {
   type: MergeType;
   sourceUrl: string;
+  secondSourceUrl: string;
   revisions: string;
   depth: 'empty' | 'files' | 'immediates' | 'infinity';
   ignoreAncestry: boolean;
@@ -85,6 +86,7 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   const [options, setOptions] = useState<MergeOptions>({
     type: 'range',
     sourceUrl: '',
+    secondSourceUrl: '',
     revisions: '',
     depth: 'infinity',
     ignoreAncestry: false,
@@ -98,6 +100,11 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [progress, setProgress] = useState<SvnOperationProgress | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isLoadingEligible, setIsLoadingEligible] = useState(false);
+  const [eligibleRevisions, setEligibleRevisions] = useState<number[] | null>(null);
+  const [mergeInfoProperties, setMergeInfoProperties] = useState<
+    SvnMergeInfoResult['properties']
+  >([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -105,6 +112,7 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
       setOptions({
         type: 'range',
         sourceUrl: '',
+        secondSourceUrl: '',
         revisions: '',
         depth: 'infinity',
         ignoreAncestry: false,
@@ -118,12 +126,22 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
       setConflicts([]);
       setProgress(null);
       setIsPreviewing(false);
+      setIsLoadingEligible(false);
+      setEligibleRevisions(null);
+      setMergeInfoProperties([]);
     }
   }, [isOpen]);
 
   const handleNext = () => {
-    if (page === 2 && !options.sourceUrl.trim()) {
-      setError('Please enter a source URL');
+    if (
+      page === 2 &&
+      (!options.sourceUrl.trim() || (options.type === 'tree' && !options.secondSourceUrl.trim()))
+    ) {
+      setError(
+        options.type === 'tree'
+          ? 'Please enter both source URLs for a two-tree merge'
+          : 'Please enter a source URL'
+      );
       return;
     }
     setError(null);
@@ -134,7 +152,31 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
     setPage((p) => Math.max(p - 1, 1) as MergePage);
   };
 
+  const handleLoadEligible = async () => {
+    if (!options.sourceUrl.trim()) {
+      setError('Please enter a source URL');
+      return;
+    }
+    setIsLoadingEligible(true);
+    setError(null);
+    try {
+      const result = await window.api.svn.mergeInfo(
+        options.sourceUrl.trim(),
+        targetPath,
+        'eligible'
+      );
+      setEligibleRevisions(result.revisions);
+      setMergeInfoProperties(result.properties);
+      setOptions((current) => ({ ...current, revisions: result.revisions.join(',') }));
+    } catch (err) {
+      setError((err as Error).message || 'Failed to load eligible revisions');
+    } finally {
+      setIsLoadingEligible(false);
+    }
+  };
+
   const buildMergeOptions = (dryRun = false): SvnMergeOptions => ({
+    ...(options.type === 'tree' ? { secondSource: options.secondSourceUrl.trim() } : {}),
     dryRun,
     depth: options.depth,
     ignoreAncestry: options.ignoreAncestry,
@@ -205,7 +247,7 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   };
 
   const handleCancelMerge = async () => {
-    await window.api.svn.cancelOperation();
+    await window.api.svn.cancelOperation(progress?.operationId);
     setIsMerging(false);
   };
 
@@ -324,7 +366,10 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
               {page === 2 && (
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="merge-source-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                    <label
+                      htmlFor="merge-source-url"
+                      className="text-sm font-medium text-text-secondary mb-1.5 block"
+                    >
                       From URL <span className="text-error">*</span>
                     </label>
                     <input
@@ -337,9 +382,37 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                     />
                   </div>
 
+                  {options.type === 'tree' && (
+                    <div>
+                      <label
+                        htmlFor="merge-second-source-url"
+                        className="text-sm font-medium text-text-secondary mb-1.5 block"
+                      >
+                        To URL <span className="text-error">*</span>
+                      </label>
+                      <input
+                        id="merge-second-source-url"
+                        type="text"
+                        value={options.secondSourceUrl}
+                        onChange={(e) =>
+                          setOptions({ ...options, secondSourceUrl: e.target.value })
+                        }
+                        placeholder="svn://example.com/repo/vendor/new"
+                        className="input"
+                      />
+                      <p className="text-xs text-text-faint mt-1">
+                        SVN will apply the difference between the two source trees to the working
+                        copy.
+                      </p>
+                    </div>
+                  )}
+
                   {options.type === 'range' && (
                     <div>
-                      <label htmlFor="merge-revision-range" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                      <label
+                        htmlFor="merge-revision-range"
+                        className="text-sm font-medium text-text-secondary mb-1.5 block"
+                      >
                         Revision range
                       </label>
                       <input
@@ -353,6 +426,38 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                       <p className="text-xs text-text-faint mt-1">
                         Leave empty to merge all unmerged revisions
                       </p>
+                      <button
+                        type="button"
+                        onClick={handleLoadEligible}
+                        disabled={isLoadingEligible}
+                        className="btn btn-secondary mt-2 text-xs"
+                      >
+                        {isLoadingEligible ? 'Loading eligible revisions...' : 'Load eligible revisions'}
+                      </button>
+                      {eligibleRevisions && (
+                        <div className="mt-2 space-y-1 text-xs text-text-secondary">
+                          <p>
+                            {eligibleRevisions.length > 0
+                              ? `${eligibleRevisions.length} eligible revision${eligibleRevisions.length === 1 ? '' : 's'} loaded.`
+                              : 'No eligible revisions.'}
+                          </p>
+                          {mergeInfoProperties.map((property, index) => (
+                            <div
+                              key={`${property.inheritedFrom || 'explicit'}-${index}`}
+                              className="rounded bg-bg-tertiary px-2 py-1"
+                            >
+                              <span className="font-medium">
+                                {property.inherited
+                                  ? `Inherited mergeinfo from ${property.inheritedFrom || 'parent'}`
+                                  : 'Explicit mergeinfo'}
+                              </span>
+                              <pre className="mt-1 whitespace-pre-wrap font-mono">
+                                {property.value}
+                              </pre>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -371,7 +476,10 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
               {page === 3 && (
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="merge-depth" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                    <label
+                      htmlFor="merge-depth"
+                      className="text-sm font-medium text-text-secondary mb-1.5 block"
+                    >
                       Depth
                     </label>
                     <select

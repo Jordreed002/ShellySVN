@@ -214,6 +214,7 @@ describe('SVN workflow reachability', () => {
     }).map((item) => item.label);
     const directoryLabels = getSvnContextMenuItems(' ', true, {
       onCleanup: vi.fn(),
+      onExclude: vi.fn(),
     }).map((item) => item.label);
 
     expect(modifiedFileLabels).toEqual(
@@ -222,5 +223,6 @@ describe('SVN workflow reachability', () => {
     expect(unversionedLabels).toEqual(expect.arrayContaining(['Add to Revision', 'Delete']));
     expect(conflictedLabels).toContain('Resolve...');
     expect(directoryLabels).toContain('Cleanup...');
+    expect(directoryLabels).toContain('Exclude and remove locally');
   });
 });

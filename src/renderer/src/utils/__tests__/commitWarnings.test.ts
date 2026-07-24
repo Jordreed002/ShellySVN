@@ -52,11 +52,7 @@ describe('commitWarnings', () => {
       ]
     );
 
-    expect(warnings.map((warning) => warning.id)).toEqual([
-      'switched-paths',
-      'locks',
-      'externals',
-    ]);
+    expect(warnings.map((warning) => warning.id)).toEqual(['switched-paths', 'locks', 'externals']);
   });
 
   it('reports unversioned selections as informational warnings', () => {

@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { X, Key, Plus, FileKey } from 'lucide-react';
-import type { ClientCertificate } from '@shared/types';
+import { useEffect, useState } from 'react';
+import { X, Key, Plus, FileKey, Trash2 } from 'lucide-react';
+import type { ClientCertificate, SvnNativeAuthEntry } from '@shared/types';
+import { confirmAppAction } from '../../utils/dialogs';
 
 interface CertificateManagerDialogProps {
   isOpen: boolean;
@@ -11,6 +12,25 @@ export function CertificateManagerDialog({ isOpen, onClose }: CertificateManager
   // Placeholder - no backend yet
   const [certificates] = useState<ClientCertificate[]>([]);
   const [selectedCertificate, setSelectedCertificate] = useState<ClientCertificate | null>(null);
+  const [nativeEntries, setNativeEntries] = useState<SvnNativeAuthEntry[]>([]);
+  const [nativeError, setNativeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    window.api.svn.nativeAuth.list().then(setNativeEntries).catch((error) => {
+      setNativeError((error as Error).message || 'Failed to read native SVN credentials');
+    });
+  }, [isOpen]);
+
+  const removeNativeEntry = async (entry: SvnNativeAuthEntry) => {
+    if (!(await confirmAppAction({
+      type: 'warning',
+      message: `Remove native SVN authentication entry for "${entry.realm}"?`,
+      confirmLabel: 'Remove',
+    }))) return;
+    await window.api.svn.nativeAuth.remove([entry.realm]);
+    setNativeEntries(await window.api.svn.nativeAuth.list());
+  };
 
   if (!isOpen) return null;
 
@@ -28,6 +48,28 @@ export function CertificateManagerDialog({ isOpen, onClose }: CertificateManager
         </div>
 
         <div className="modal-body">
+          <section className="mb-5">
+            <h3 className="mb-2 text-sm font-medium text-text">Native SVN authentication cache</h3>
+            {nativeError && <p className="text-sm text-error">{nativeError}</p>}
+            {!nativeError && nativeEntries.length === 0 && (
+              <p className="text-sm text-text-muted">No native SVN credentials are cached.</p>
+            )}
+            <div className="space-y-2">
+              {nativeEntries.map((entry) => (
+                <div key={`${entry.kind}:${entry.realm}:${entry.username || ''}`} className="flex items-center justify-between rounded border border-border p-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm text-text">{entry.realm}</div>
+                    <div className="text-xs text-text-muted">
+                      {entry.kind}{entry.username ? ` · ${entry.username}` : ''}
+                    </div>
+                  </div>
+                  <button type="button" className="btn-icon-sm text-error" onClick={() => removeNativeEntry(entry)} title="Remove cached authentication entry">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
           {certificates.length === 0 ? (
             <div className="text-center py-8 text-text-secondary">
               <FileKey className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -127,12 +169,7 @@ export function CertificateManagerDialog({ isOpen, onClose }: CertificateManager
           <button type="button" onClick={onClose} className="btn btn-secondary">
             Close
           </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled
-            title="Coming soon"
-          >
+          <button type="button" className="btn btn-primary" disabled title="Coming soon">
             <Plus className="w-4 h-4" />
             Add Certificate
           </button>

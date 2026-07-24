@@ -213,21 +213,22 @@ describe('SVN Blame Parser', () => {
 
 describe('SVN Blame Revision Range', () => {
   it('should generate correct args with revision range', () => {
-    const args = ['blame', '--xml', '-v', '-r', '1000:1234', 'src/file.ts'];
+    const args = ['blame', '--xml', '-r', '1000:1234', 'src/file.ts'];
 
     expect(args).toContain('-r');
     expect(args[args.indexOf('-r') + 1]).toBe('1000:1234');
   });
 
   it('should generate correct args without revision range', () => {
-    const args = ['blame', '--xml', '-v', 'src/file.ts'];
+    const args = ['blame', '--xml', 'src/file.ts'];
 
     expect(args).not.toContain('-r');
   });
 
-  it('should include verbose flag', () => {
-    const args = ['blame', '--xml', '-v', 'src/file.ts'];
+  it('does not combine the XML and incompatible verbose flags', () => {
+    const args = ['blame', '--xml', 'src/file.ts'];
 
-    expect(args).toContain('-v');
+    expect(args).toContain('--xml');
+    expect(args).not.toContain('-v');
   });
 });

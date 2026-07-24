@@ -30,8 +30,13 @@ function createWrapper() {
 describe('useSvnActions risky action confirmations', () => {
   const svnApi = {
     update: vi.fn().mockResolvedValue({ success: true }),
+    updateWithProgress: vi.fn().mockResolvedValue({ success: true }),
+    cancelUpdate: vi.fn().mockResolvedValue({ success: true }),
     commit: vi.fn().mockResolvedValue({ success: true, revision: 42 }),
+    commitWithProgress: vi.fn().mockResolvedValue({ success: true, revision: 42 }),
+    cancelOperation: vi.fn().mockResolvedValue({ success: true }),
     revert: vi.fn().mockResolvedValue({ success: true }),
+    revertPreview: vi.fn().mockResolvedValue({ depth: 'infinity', paths: ['C:\\wc\\file.txt'] }),
     add: vi.fn().mockResolvedValue({ success: true }),
     delete: vi.fn().mockResolvedValue({ success: true }),
     cleanup: vi.fn().mockResolvedValue({ success: true }),
@@ -83,7 +88,7 @@ describe('useSvnActions risky action confirmations', () => {
     });
 
     expect(mockConfirmAppAction).toHaveBeenCalledTimes(5);
-    expect(svnApi.revert).toHaveBeenCalledWith(['C:\\wc\\file.txt']);
+    expect(svnApi.revert).toHaveBeenCalledWith(['C:\\wc\\file.txt'], 'infinity');
     expect(svnApi.delete).toHaveBeenCalledWith(['C:\\wc\\file.txt']);
     expect(svnApi.cleanup).toHaveBeenCalledWith('C:\\wc');
     expect(svnApi.unlock).toHaveBeenCalledWith('C:\\wc\\file.txt', true);
@@ -111,7 +116,7 @@ describe('useSvnActions risky action confirmations', () => {
   });
 
   it('returns a structured failure when SVN actions throw', async () => {
-    svnApi.update.mockRejectedValueOnce(new Error('svn update failed'));
+    svnApi.updateWithProgress.mockRejectedValueOnce(new Error('svn update failed'));
     const { result } = renderHook(() => useSvnActions(), { wrapper: createWrapper() });
 
     let response: Awaited<ReturnType<typeof result.current.update>> | undefined;
@@ -124,7 +129,7 @@ describe('useSvnActions risky action confirmations', () => {
   });
 
   it('returns a structured failure when SVN reports unsuccessful results', async () => {
-    svnApi.commit.mockResolvedValueOnce({ success: false });
+    svnApi.commitWithProgress.mockResolvedValueOnce({ success: false });
     const { result } = renderHook(() => useSvnActions(), { wrapper: createWrapper() });
 
     let response: Awaited<ReturnType<typeof result.current.commit>> | undefined;
@@ -135,8 +140,25 @@ describe('useSvnActions risky action confirmations', () => {
     expect(response).toEqual({ success: false, message: 'Commit failed' });
   });
 
+  it('preserves the actionable SVN error returned by non-progress actions', async () => {
+    svnApi.add.mockResolvedValueOnce({
+      success: false,
+      error: 'svn: E155004: Working copy is locked',
+    });
+    const { result } = renderHook(() => useSvnActions(), { wrapper: createWrapper() });
+
+    await act(async () => {
+      await expect(result.current.add(['C:\\wc\\file.txt'])).resolves.toEqual({
+        success: false,
+        message: 'svn: E155004: Working copy is locked',
+      });
+    });
+
+    expect(result.current.lastError).toBe('svn: E155004: Working copy is locked');
+  });
+
   it('reports committed revision and refreshes status after successful file explorer commits', async () => {
-    svnApi.commit.mockResolvedValueOnce({ success: true, revision: 123 });
+    svnApi.commitWithProgress.mockResolvedValueOnce({ success: true, revision: 123 });
     const onRefresh = vi.fn();
     const { result } = renderHook(
       () => useFileExplorerActions('C:\\wc', null, onRefresh, new Set()),

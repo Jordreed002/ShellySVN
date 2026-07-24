@@ -6,6 +6,7 @@ import { join } from 'path';
 import type { SvnExecutionContext } from '@shared/types';
 import { debug } from '../utils/debug';
 import { redactArgs, redactValue } from '../utils/redaction';
+import { SvnCommandError } from '../utils/svn-errors';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
@@ -24,6 +25,7 @@ export interface RunResolvedSvnOptions {
   onStderr?: (chunk: string) => void;
   maxStdoutBytes?: number;
   maxStderrBytes?: number;
+  binaryStdout?: boolean;
 }
 
 export interface RunSvnResult {
@@ -32,6 +34,8 @@ export interface RunSvnResult {
   code: number | null;
   stdoutTruncated: boolean;
   stderrTruncated: boolean;
+  /** Exact stdout bytes, encoded for safe IPC transport, when binaryStdout is requested. */
+  stdoutBase64?: string;
 }
 
 function appendCappedOutput(
@@ -125,6 +129,59 @@ function normalizeTrustedSslFailures(failures?: string): string | undefined {
   return normalized.length > 0 ? Array.from(new Set(normalized)).join(',') : undefined;
 }
 
+function matchesSshHost(pattern: string | undefined, host: string): boolean {
+  if (!pattern?.trim()) return true;
+  const escaped = pattern
+    .trim()
+    .toLowerCase()
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replaceAll('*', '.*');
+  return new RegExp(`^${escaped}$`, 'i').test(host);
+}
+
+function findSvnSshHost(args: string[]): string | undefined {
+  for (const argument of args) {
+    try {
+      const url = new URL(argument);
+      if (url.protocol === 'svn+ssh:' && url.hostname) {
+        return url.hostname.toLowerCase();
+      }
+    } catch {
+      // Non-URL SVN arguments are expected.
+    }
+  }
+  return undefined;
+}
+
+function quoteSvnSshArgument(value: string): string {
+  if (value.includes('\0') || value.includes('\r') || value.includes('\n')) {
+    throw new Error('SSH executable and key paths must not contain control characters');
+  }
+  return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+}
+
+export function buildSvnSshCommand(
+  args: string[],
+  sshSettings: SvnExecutionContext['sshSettings']
+): string | undefined {
+  if (!sshSettings) return undefined;
+  const host = findSvnSshHost(args);
+  if (!host) return undefined;
+  const key = sshSettings.keys
+    .filter((candidate) => matchesSshHost(candidate.hostPattern, host))
+    .toSorted(
+      (left, right) => (right.hostPattern?.length ?? 0) - (left.hostPattern?.length ?? 0)
+    )[0];
+  const command = [
+    sshSettings.sshClientPath.trim() || 'ssh',
+    '-o',
+    'BatchMode=yes',
+    ...(sshSettings.useAgent ? [] : ['-o', 'IdentityAgent=none']),
+    ...(key ? ['-i', key.privateKeyPath, '-o', 'IdentitiesOnly=yes'] : []),
+  ];
+  return command.map(quoteSvnSshArgument).join(' ');
+}
+
 export async function runResolvedSvn(
   args: string[],
   options: RunResolvedSvnOptions
@@ -132,7 +189,15 @@ export async function runResolvedSvn(
   const tempConfigDir = await createTempSvnConfig(options.context.proxySettings);
 
   return new Promise((resolve, reject) => {
+    const commandContext = {
+      command: args[0] || 'svn',
+      target: args.at(-1),
+    };
     const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
+    const svnSshCommand = buildSvnSshCommand(args, options.context.sshSettings);
+    if (svnSshCommand) {
+      env.SVN_SSH = svnSshCommand;
+    }
     const finalArgs: string[] = [];
 
     if (tempConfigDir) {
@@ -142,17 +207,29 @@ export async function runResolvedSvn(
     }
 
     finalArgs.push(...args);
+    const addGeneratedArgs = (...generatedArgs: string[]) => {
+      const targetSeparatorIndex = finalArgs.indexOf('--');
+      if (targetSeparatorIndex >= 0) {
+        finalArgs.splice(targetSeparatorIndex, 0, ...generatedArgs);
+      } else {
+        finalArgs.push(...generatedArgs);
+      }
+    };
+
+    // ShellySVN cannot respond to terminal prompts. Apply this consistently
+    // so every command either uses configured/native credentials or fails
+    // promptly with an actionable authentication error.
+    if (!finalArgs.includes('--non-interactive')) {
+      addGeneratedArgs('--non-interactive');
+    }
 
     if (options.context.sslVerify === false || options.trustSslFailures) {
-      if (!finalArgs.includes('--non-interactive')) {
-        finalArgs.push('--non-interactive');
-      }
       const trustedFailures =
         options.context.sslVerify === false
           ? DEFAULT_SSL_FAILURES
           : normalizeTrustedSslFailures(options.trustedSslFailures);
       if (trustedFailures) {
-        finalArgs.push('--trust-server-cert-failures', trustedFailures);
+        addGeneratedArgs('--trust-server-cert-failures', trustedFailures);
         debug.warn(`[SECURITY] SSL verification bypassed for: ${options.cwd || process.cwd()}`);
       } else {
         debug.warn(
@@ -162,17 +239,17 @@ export async function runResolvedSvn(
     }
 
     if (options.credentials?.username) {
-      finalArgs.push('--username', options.credentials.username);
+      addGeneratedArgs('--username', options.credentials.username);
     }
     // Feed the password through stdin (svn 1.10+) rather than as a CLI
     // argument, so it never appears in `ps`/`/proc/<pid>/cmdline`.
     const passwordViaStdin = options.credentials?.password || null;
     if (passwordViaStdin !== null) {
-      finalArgs.push('--password-from-stdin');
+      addGeneratedArgs('--password-from-stdin');
     }
 
     if (options.context.clientCertificatePath?.trim()) {
-      finalArgs.push('--certificate', options.context.clientCertificatePath.trim());
+      addGeneratedArgs('--certificate', options.context.clientCertificatePath.trim());
     }
 
     debug.log(
@@ -198,6 +275,8 @@ export async function runResolvedSvn(
     }
 
     let stdout = '';
+    const stdoutBuffers: Buffer[] = [];
+    let stdoutBufferBytes = 0;
     let stderr = '';
     let stdoutTruncated = false;
     let stderrTruncated = false;
@@ -219,7 +298,7 @@ export async function runResolvedSvn(
 
     const abort = () => {
       proc.kill();
-      fail(new Error('SVN operation cancelled'));
+      fail(new SvnCommandError('SVN operation cancelled', commandContext));
     };
 
     if (options.signal?.aborted) {
@@ -230,6 +309,18 @@ export async function runResolvedSvn(
     options.signal?.addEventListener('abort', abort, { once: true });
 
     proc.stdout.on('data', (data) => {
+      const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      if (options.binaryStdout) {
+        const maximum = options.maxStdoutBytes;
+        const remaining =
+          maximum === undefined || maximum < 0 ? buffer.length : maximum - stdoutBufferBytes;
+        if (remaining > 0) {
+          const captured = buffer.subarray(0, remaining);
+          stdoutBuffers.push(captured);
+          stdoutBufferBytes += captured.length;
+        }
+        if (remaining < buffer.length) stdoutTruncated = true;
+      }
       const chunk = data.toString();
       const capped = appendCappedOutput(stdout, chunk, options.maxStdoutBytes);
       stdout = capped.output;
@@ -249,7 +340,10 @@ export async function runResolvedSvn(
       timeoutId = setTimeout(() => {
         proc.kill();
         fail(
-          new Error(`SVN operation timed out after ${options.context.connectionTimeout} seconds`)
+          new SvnCommandError(
+            `SVN operation timed out after ${options.context.connectionTimeout} seconds`,
+            commandContext
+          )
         );
       }, options.context.connectionTimeout * 1000);
     }
@@ -261,15 +355,29 @@ export async function runResolvedSvn(
       debug.log(`[SVN] Exit code: ${code}`);
 
       if (code === 0) {
-        resolve({ stdout, stderr, code, stdoutTruncated, stderrTruncated });
+        resolve({
+          stdout,
+          stderr,
+          code,
+          stdoutTruncated,
+          stderrTruncated,
+          ...(options.binaryStdout
+            ? { stdoutBase64: Buffer.concat(stdoutBuffers).toString('base64') }
+            : {}),
+        });
       } else {
-        reject(new Error((redactValue(stderr) as string) || `SVN exited with code ${code}`));
+        reject(
+          new SvnCommandError(
+            (redactValue(stderr) as string) || `SVN exited with code ${code}`,
+            commandContext
+          )
+        );
       }
     });
 
     proc.on('error', (error) => {
       debug.error('[SVN] Error:', error);
-      fail(error);
+      fail(new SvnCommandError(error, commandContext));
     });
   });
 }

@@ -61,14 +61,17 @@ describe('Webhook IPC Handlers', () => {
   it('rejects non-https webhook URLs before fetching', async () => {
     const handler = handlers.get('webhook:deliver');
 
-    const result = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-1',
-      url: 'http://example.com/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit' },
-    });
+    const result = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'http://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+      }
+    );
 
     expect(result).toMatchObject({
       success: false,
@@ -80,43 +83,55 @@ describe('Webhook IPC Handlers', () => {
   it('rejects localhost and private network webhook targets before fetching', async () => {
     const handler = handlers.get('webhook:deliver');
 
-    const localhost = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-1',
-      url: 'https://localhost/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit' },
-    });
+    const localhost = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://localhost/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+      }
+    );
 
-    const privateIpv4 = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-2',
-      url: 'https://192.168.1.10/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit' },
-    });
+    const privateIpv4 = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-2',
+        url: 'https://192.168.1.10/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+      }
+    );
 
-    const ipv6Loopback = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-3',
-      url: 'https://[::1]/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit' },
-    });
+    const ipv6Loopback = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-3',
+        url: 'https://[::1]/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+      }
+    );
 
     mockDnsLookup.mockReset();
     mockDnsLookup.mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }]);
-    const privateDns = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-4',
-      url: 'https://internal.example.test/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit' },
-    });
+    const privateDns = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-4',
+        url: 'https://internal.example.test/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+      }
+    );
 
     for (const result of [localhost, privateIpv4, ipv6Loopback, privateDns]) {
       expect(result).toMatchObject({
@@ -130,14 +145,17 @@ describe('Webhook IPC Handlers', () => {
   it('rejects oversized payloads before fetching', async () => {
     const handler = handlers.get('webhook:deliver');
 
-    const result = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-1',
-      url: 'https://example.com/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { data: 'x'.repeat(256 * 1024) },
-    });
+    const result = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { data: 'x'.repeat(256 * 1024) },
+      }
+    );
 
     expect(result).toMatchObject({
       success: false,
@@ -150,15 +168,18 @@ describe('Webhook IPC Handlers', () => {
     mockGet.mockReturnValue({ username: 'webhook', password: 'top-secret' });
     const handler = handlers.get('webhook:deliver');
 
-    const result = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-1',
-      url: 'https://example.com/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit', data: { revision: 42 } },
-      timeout: 5000,
-    });
+    const result = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit', data: { revision: 42 } },
+        timeout: 5000,
+      }
+    );
 
     expect(result).toMatchObject({ success: true, statusCode: 204 });
     expect(mockGet).toHaveBeenCalledWith('webhook:webhook-1');
@@ -183,14 +204,17 @@ describe('Webhook IPC Handlers', () => {
     } as Response);
     const handler = handlers.get('webhook:deliver');
 
-    const result = await handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-1',
-      url: 'https://example.com/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit' },
-    });
+    const result = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+      }
+    );
 
     expect(result).toMatchObject({
       success: false,
@@ -200,24 +224,28 @@ describe('Webhook IPC Handlers', () => {
 
   it('reports timeouts without losing configured timeout behavior', async () => {
     vi.useFakeTimers();
-    vi.mocked(fetch).mockImplementationOnce((_, init) =>
-      new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener('abort', () => {
-          reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
-        });
-      }) as Promise<Response>
+    vi.mocked(fetch).mockImplementationOnce(
+      (_, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        }) as Promise<Response>
     );
     const handler = handlers.get('webhook:deliver');
 
-    const resultPromise = handler!({}, {
-      webhookId: 'webhook-1',
-      deliveryId: 'delivery-1',
-      url: 'https://example.com/hook',
-      event: 'commit',
-      timestamp: 1704067200000,
-      payload: { event: 'commit' },
-      timeout: 1000,
-    });
+    const resultPromise = handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+        timeout: 1000,
+      }
+    );
 
     await vi.advanceTimersByTimeAsync(1000);
 

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { X, Wrench, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
+import { confirmAppAction } from '../../utils/dialogs';
+import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 
 interface CleanupIssue {
   type: 'warning' | 'error' | 'info';
@@ -27,6 +29,10 @@ export function CleanupSuggestionsDialog({
 }: CleanupSuggestionsDialogProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [runResults, setRunResults] = useState<Map<string, 'success' | 'error'>>(new Map());
+  const [removeUnversioned, setRemoveUnversioned] = useState(false);
+  const [removeIgnored, setRemoveIgnored] = useState(false);
+  const [vacuumPristines, setVacuumPristines] = useState(false);
+  const [includeExternals, setIncludeExternals] = useState(false);
 
   // Default issues if none provided
   const issues: CleanupIssue[] = propIssues || [
@@ -54,6 +60,26 @@ export function CleanupSuggestionsDialog({
   if (!isOpen) return null;
 
   const handleFixAll = async () => {
+    if (removeUnversioned || removeIgnored) {
+      const preview = await window.api.svn.cleanupPreview(workingCopyPath);
+      const targets = [
+        ...(removeUnversioned ? preview.unversioned : []),
+        ...(removeIgnored ? preview.ignored : []),
+      ];
+      const shownTargets = targets.slice(0, 10).map((target) => `• ${target}`).join('\n');
+      const remainder = targets.length > 10 ? `\n…and ${targets.length - 10} more.` : '';
+      if (
+        !(await confirmAppAction({
+        type: 'warning',
+        message: targets.length
+          ? `Cleanup will permanently remove ${targets.length} item${targets.length === 1 ? '' : 's'}:\n\n${shownTargets}${remainder}`
+          : 'No matching unversioned or ignored files were found. Run cleanup anyway?',
+        confirmLabel: 'Remove files',
+        }))
+      ) {
+        return;
+      }
+    }
     setIsRunning(true);
     setRunResults(new Map());
 
@@ -62,7 +88,12 @@ export function CleanupSuggestionsDialog({
     try {
       // Run cleanup first
       try {
-        await window.api.svn.cleanup(workingCopyPath);
+        await window.api.svn.cleanup(workingCopyPath, {
+          removeUnversioned,
+          removeIgnored,
+          vacuumPristines,
+          includeExternals,
+        });
         results.set('cleanup', 'success');
       } catch {
         results.set('cleanup', 'error');
@@ -156,6 +187,25 @@ export function CleanupSuggestionsDialog({
             </ul>
           </div>
 
+          <fieldset className="space-y-2 rounded-lg border border-border p-3">
+            <legend className="px-1 text-sm font-medium text-text">Cleanup options</legend>
+            {[
+              ['Remove unversioned files', removeUnversioned, setRemoveUnversioned],
+              ['Remove ignored files', removeIgnored, setRemoveIgnored],
+              ['Vacuum unused pristine copies', vacuumPristines, setVacuumPristines],
+              ['Include externals', includeExternals, setIncludeExternals],
+            ].map(([label, checked, setter]) => (
+              <label key={label as string} className="flex items-center gap-2 text-sm text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={checked as boolean}
+                  onChange={(event) => (setter as (value: boolean) => void)(event.target.checked)}
+                />
+                {label as string}
+              </label>
+            ))}
+          </fieldset>
+
           {/* Results */}
           {runResults.size > 0 && (
             <div className="rounded-lg border border-border p-3">
@@ -205,7 +255,7 @@ export async function checkWorkingCopyHealth(path: string): Promise<CleanupIssue
 
   try {
     // Check if we can get status
-    const status = await window.api.svn.status(path);
+    const status = assertSuccessfulSvnRead(await window.api.svn.status(path));
 
     // Check for conflicts
     const conflicts = status.entries.filter((e) => e.status === 'C');

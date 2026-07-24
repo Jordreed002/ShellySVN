@@ -1,4 +1,9 @@
-import type { SvnBlameResult, SvnDiffResult, SvnLogResult } from '@shared/types';
+import type {
+  SvnBlameResult,
+  SvnDiffResult,
+  SvnLogRequestOptions,
+  SvnLogResult,
+} from '@shared/types';
 
 import { getSharedWorkerPool } from '../workers/WorkerPool';
 import { resolveSvnExecution } from './svn-executor';
@@ -13,7 +18,8 @@ export async function getWorkerLog(
   startRev?: number,
   endRev?: number,
   useMergeHistory = false,
-  workerJobId?: string
+  workerJobId?: string,
+  options: Omit<SvnLogRequestOptions, 'signal'> = {}
 ): Promise<SvnLogResult> {
   const { svnCommand, context } = await resolveSvnExecution();
   const networkOptions = /^https?:\/\//i.test(path)
@@ -27,6 +33,10 @@ export async function getWorkerLog(
       startRev,
       endRev,
       useMergeHistory,
+      stopOnCopy: options.stopOnCopy,
+      strictNodeHistory: options.strictNodeHistory,
+      includeAllRevisionProperties: options.includeAllRevisionProperties,
+      revisionProperties: options.revisionProperties,
       svnCommand,
       context,
       ...networkOptions,
@@ -34,8 +44,19 @@ export async function getWorkerLog(
     {
       id:
         workerJobId ??
-        `svn-log:${path}:${limit}:${startRev ?? ''}:${endRev ?? ''}:${useMergeHistory}`,
+        `svn-log:${JSON.stringify([
+          path,
+          limit,
+          startRev,
+          endRev,
+          useMergeHistory,
+          options.stopOnCopy,
+          options.strictNodeHistory,
+          options.includeAllRevisionProperties,
+          options.revisionProperties,
+        ])}`,
       priority: 'interactive',
+      joinExisting: true,
     }
   );
 }
@@ -61,6 +82,7 @@ export async function getWorkerDiff(
     {
       id: workerJobId ?? `svn-diff:${path}:${revision ?? ''}`,
       priority: 'interactive',
+      joinExisting: true,
     }
   );
 }
@@ -86,6 +108,7 @@ export async function getWorkerDiffStreaming(
     {
       id: workerJobId ?? `svn-diff-streaming:${path}:${revision ?? ''}`,
       priority: 'interactive',
+      joinExisting: true,
     }
   );
 }
@@ -109,6 +132,7 @@ export async function getWorkerUrlDiff(
     {
       id: workerJobId ?? `svn-diff-urls:${leftUrl}:${rightUrl}`,
       priority: 'interactive',
+      joinExisting: true,
     }
   );
 }
@@ -136,6 +160,7 @@ export async function getWorkerBlame(
     {
       id: workerJobId ?? `svn-blame:${path}:${startRevision ?? ''}:${endRevision ?? ''}`,
       priority: 'interactive',
+      joinExisting: true,
     }
   );
 }

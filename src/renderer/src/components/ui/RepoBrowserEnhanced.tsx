@@ -11,6 +11,7 @@ import {
   Download,
   ExternalLink,
 } from 'lucide-react';
+import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 
 /**
  * Repository browser node
@@ -62,7 +63,7 @@ export function useRepoBrowser(repositoryUrl: string) {
       setLoadingPaths((prev) => new Set(prev).add(path));
 
       try {
-        const result = await window.api.svn.list(url);
+        const result = assertSuccessfulSvnRead(await window.api.svn.list(url));
 
         const nodes: RepoBrowserNode[] = result.entries.map((entry) => ({
           name: entry.name,

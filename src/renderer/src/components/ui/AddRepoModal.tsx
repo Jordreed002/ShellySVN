@@ -86,6 +86,7 @@ export function AddRepoModal({
 
   // Checkout progress state
   const [checkoutProgress, setCheckoutProgress] = useState<{
+    operationId?: string;
     currentFile?: string;
     filesProcessed: number;
     status: 'running' | 'completed' | 'cancelled' | 'error' | 'idle';
@@ -305,6 +306,7 @@ export function AddRepoModal({
             currentFile: progress.currentFile,
             filesProcessed: progress.filesProcessed,
             status: progress.status,
+            operationId: progress.operationId,
           });
 
           if (progress.status === 'completed') {
@@ -329,7 +331,7 @@ export function AddRepoModal({
             // Ignore credential save errors
           }
         }
-        setSuccess({ revision: result.revision, path: checkoutPath.trim() });
+        setSuccess({ revision: result.revision ?? 0, path: checkoutPath.trim() });
       } else {
         handleCheckoutError(result.output || 'Checkout failed');
       }
@@ -371,11 +373,11 @@ export function AddRepoModal({
   };
 
   const handleCancelCheckout = useCallback(async () => {
-    await window.api.svn.cancelCheckout();
+    await window.api.svn.cancelCheckout(checkoutProgress.operationId);
     setIsCheckingOut(false);
     setCheckoutProgress((prev) => ({ ...prev, status: 'cancelled' }));
     setError('Checkout cancelled');
-  }, []);
+  }, [checkoutProgress.operationId]);
 
   const handleClose = () => {
     if (mode === 'checkout' && isCheckingOut) return;

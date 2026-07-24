@@ -3,6 +3,7 @@ import { readdir, stat, unlink as removeFile, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { openValidatedExternalUrl } from '../utils/external-url';
 import { approvePathForIpc } from '../utils/approved-paths';
+import { getSvnCacheService } from '../services/svn-cache-service';
 
 /**
  * Cache type definitions
@@ -10,6 +11,7 @@ import { approvePathForIpc } from '../utils/approved-paths';
 interface CacheBreakdown {
   electron: number;
   logs: number;
+  offline: number;
   auth: number;
 }
 
@@ -87,13 +89,9 @@ async function getCacheBreakdown(): Promise<CacheBreakdown> {
     join(userDataPath, 'GrShaderCache'),
   ];
 
-  // Log cache directory
-  const logDir = join(userDataPath, 'shelly-cache', 'logs');
-
   const authCachePath = getAuthCachePath();
 
   let electronSize = 0;
-  let logsSize = 0;
   let authSize = 0;
 
   // Calculate Electron cache size
@@ -102,17 +100,15 @@ async function getCacheBreakdown(): Promise<CacheBreakdown> {
     electronSize += result.size;
   }
 
-  // Calculate logs size
-  const logsResult = await getDirectorySize(logDir);
-  logsSize = logsResult.size;
-
   // Calculate auth size
   const authResult = await getFileSize(authCachePath);
   authSize = authResult.size;
 
+  const svnCache = await getSvnCacheService().stats();
   return {
     electron: electronSize,
-    logs: logsSize,
+    logs: svnCache.logSize,
+    offline: svnCache.offlineSize,
     auth: authSize,
   };
 }
@@ -120,7 +116,9 @@ async function getCacheBreakdown(): Promise<CacheBreakdown> {
 /**
  * Clear specific cache types
  */
-async function clearCacheTypes(types: ('electron' | 'logs' | 'auth')[]): Promise<{ success: boolean; error?: string }> {
+async function clearCacheTypes(
+  types: ('electron' | 'logs' | 'offline' | 'auth')[]
+): Promise<{ success: boolean; error?: string }> {
   try {
     const userDataPath = app.getPath('userData');
 
@@ -138,8 +136,16 @@ async function clearCacheTypes(types: ('electron' | 'logs' | 'auth')[]): Promise
     }
 
     if (types.includes('logs')) {
-      const logDir = join(userDataPath, 'shelly-cache', 'logs');
-      await clearDirectory(logDir);
+      await getSvnCacheService().clearNamespace('log');
+    }
+
+    if (types.includes('offline')) {
+      const clearedAt = Date.now();
+      await Promise.all([
+        getSvnCacheService().clearNamespace('info', clearedAt),
+        getSvnCacheService().clearNamespace('status', clearedAt),
+        getSvnCacheService().clearNamespace('entries', clearedAt),
+      ]);
     }
 
     if (types.includes('auth')) {
@@ -175,6 +181,8 @@ export function registerAppHandlers(): void {
 
   ipcMain.handle('app:clearCache', async () => {
     try {
+      const clearedAt = Date.now();
+      await getSvnCacheService().clearAll(clearedAt);
       const userDataPath = app.getPath('userData');
 
       // Clear specific cache directories
@@ -185,10 +193,6 @@ export function registerAppHandlers(): void {
         join(userDataPath, 'DawnCache'),
         join(userDataPath, 'GrShaderCache'),
       ];
-
-      // Clear log cache (our custom cache)
-      const logCachePath = join(userDataPath, 'shelly-cache', 'logs');
-      cacheDirs.push(logCachePath);
 
       for (const cacheDir of cacheDirs) {
         await clearDirectory(cacheDir);
@@ -210,7 +214,6 @@ export function registerAppHandlers(): void {
         join(userDataPath, 'GPUCache'),
         join(userDataPath, 'DawnCache'),
         join(userDataPath, 'GrShaderCache'),
-        join(userDataPath, 'shelly-cache', 'logs'),
       ];
 
       let totalSize = 0;
@@ -221,6 +224,11 @@ export function registerAppHandlers(): void {
         totalSize += result.size;
         totalFiles += result.files;
       }
+
+      const svnCache = await getSvnCacheService().stats();
+      totalSize += svnCache.totalSize;
+      totalFiles +=
+        svnCache.infoCount + svnCache.statusCount + svnCache.logCount + svnCache.entriesCount;
 
       return { size: totalSize, files: totalFiles };
     } catch {
@@ -236,7 +244,10 @@ export function registerAppHandlers(): void {
   // Clear specific cache types
   ipcMain.handle(
     'app:clearCacheTypes',
-    async (_, types: ('electron' | 'logs' | 'auth')[]): Promise<{ success: boolean; error?: string }> => {
+    async (
+      _,
+      types: ('electron' | 'logs' | 'offline' | 'auth')[]
+    ): Promise<{ success: boolean; error?: string }> => {
       return clearCacheTypes(types);
     }
   );

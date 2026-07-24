@@ -93,7 +93,12 @@ export const FILE_MANAGER_STATUS_PRESENTATION: Record<
   M: { windowsIcon: 'modified', finderBadge: 'modified', priority: 7, label: 'Modified' },
   R: { windowsIcon: 'replaced', priority: 8, label: 'Replaced' },
   X: { windowsIcon: 'external', finderBadge: 'external', priority: 2, label: 'External' },
-  '?': { windowsIcon: 'unversioned', finderBadge: 'unversioned', priority: 1, label: 'Unversioned' },
+  '?': {
+    windowsIcon: 'unversioned',
+    finderBadge: 'unversioned',
+    priority: 1,
+    label: 'Unversioned',
+  },
   '!': { windowsIcon: 'missing', finderBadge: 'missing', priority: 9, label: 'Missing' },
   '~': { windowsIcon: 'obstructed', priority: 3, label: 'Obstructed' },
   O: { windowsIcon: 'remote-only', priority: 2, label: 'Remote only' },
@@ -202,8 +207,12 @@ export class ShellIntegrationManager {
     const limitations: string[] = [];
 
     if (!supported) {
-      repairActions.push('Use ShellySVN app actions from the file explorer, command palette, and toolbar.');
-      limitations.push('Linux file manager integration is deferred until Windows and macOS parity is stable.');
+      repairActions.push(
+        'Use ShellySVN app actions from the file explorer, command palette, and toolbar.'
+      );
+      limitations.push(
+        'Linux file manager integration is deferred until Windows and macOS parity is stable.'
+      );
     } else if (!helperExists) {
       repairActions.push(
         this.isWindows
@@ -211,7 +220,9 @@ export class ShellIntegrationManager {
           : 'Install a packaged build that includes the ShellySVN Finder Sync extension.'
       );
       repairActions.push('Run packaged-app diagnostics after installing the native helper.');
-      limitations.push('The standalone app remains fully usable for commit, update, diff, log, merge, and conflict workflows.');
+      limitations.push(
+        'The standalone app remains fully usable for commit, update, diff, log, merge, and conflict workflows.'
+      );
     } else if (!registered) {
       repairActions.push(
         this.isWindows
@@ -368,7 +379,9 @@ export class ShellIntegrationManager {
     if (!existsSync(this.helperPath)) {
       debug.log('[Shell] Windows shell helper not found at:', this.helperPath);
       debug.log('[Shell] Shell integration requires compilation of native shell extension');
-      throw new Error('Windows shell helper is missing. Native shell integration is not installed.');
+      throw new Error(
+        'Windows shell helper is missing. Native shell integration is not installed.'
+      );
     }
 
     // Register the shell extension via helper
@@ -423,7 +436,9 @@ export class ShellIntegrationManager {
     debug.log('[Shell] macOS Finder Sync requires native extension compilation');
     debug.log('[Shell] See resources/shell/ShellySVNFinderSync for implementation');
 
-    throw new Error('macOS Finder Sync helper is missing. Native shell integration is not installed.');
+    throw new Error(
+      'macOS Finder Sync helper is missing. Native shell integration is not installed.'
+    );
   }
 
   private async unregisterMacFinderSync(): Promise<void> {

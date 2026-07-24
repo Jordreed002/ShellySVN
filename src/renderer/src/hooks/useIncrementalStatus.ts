@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
+import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 
 export interface IncrementalStatusProgress {
   phase: 'idle' | 'scanning' | 'processing' | 'complete' | 'error';
@@ -82,13 +83,7 @@ interface IncrementalStatusOptions {
  * for the entire scan to complete.
  */
 export function useIncrementalStatus(options: IncrementalStatusOptions) {
-  const {
-    path,
-    batchSize = 100,
-    onUpdate,
-    enableWatch = false,
-    watchDebounce = 1000,
-  } = options;
+  const { path, batchSize = 100, onUpdate, enableWatch = false, watchDebounce = 1000 } = options;
 
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<IncrementalStatusProgress>({
@@ -131,6 +126,7 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
       const statusResult = await window.api.svn.status(path, {
         signal: abortControllerRef.current.signal,
       });
+      assertSuccessfulSvnRead(statusResult);
 
       if (abortControllerRef.current?.signal.aborted) {
         return;

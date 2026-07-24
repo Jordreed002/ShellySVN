@@ -70,7 +70,10 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
   });
 
   // Generate unique IDs for accessibility
-  const dialogId = useMemo(() => `plugin-dialog-${Math.random().toString(36).substring(2, 11)}`, []);
+  const dialogId = useMemo(
+    () => `plugin-dialog-${Math.random().toString(36).substring(2, 11)}`,
+    []
+  );
   const titleId = `${dialogId}-title`;
 
   // Selected plugin
@@ -107,7 +110,9 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
           : `${plugin.manifest.name} disabled successfully`
       );
     } catch (err) {
-      setErrorMessage(`Failed to ${newEnabled ? 'enable' : 'disable'} plugin: ${(err as Error).message}`);
+      setErrorMessage(
+        `Failed to ${newEnabled ? 'enable' : 'disable'} plugin: ${(err as Error).message}`
+      );
     } finally {
       setActionInProgress(null);
     }
@@ -125,7 +130,9 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
         setSuccessMessage(`${plugin.manifest.name} activated`);
       }
     } catch (err) {
-      setErrorMessage(`Failed to ${plugin.activated ? 'deactivate' : 'activate'} plugin: ${(err as Error).message}`);
+      setErrorMessage(
+        `Failed to ${plugin.activated ? 'deactivate' : 'activate'} plugin: ${(err as Error).message}`
+      );
     } finally {
       setActionInProgress(null);
     }
@@ -247,7 +254,10 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                         <div className="text-sm text-text truncate" title={plugin.manifest.name}>
                           {plugin.manifest.name}
                         </div>
-                        <div className="text-xs text-text-muted truncate" title={plugin.manifest.version}>
+                        <div
+                          className="text-xs text-text-muted truncate"
+                          title={plugin.manifest.version}
+                        >
                           v{plugin.manifest.version}
                         </div>
                       </div>
@@ -308,7 +318,9 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                         <Puzzle className="w-5 h-5 text-accent" aria-hidden="true" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-medium text-text">{selectedPlugin.manifest.name}</h3>
+                        <h3 className="text-lg font-medium text-text">
+                          {selectedPlugin.manifest.name}
+                        </h3>
                         <div className="flex items-center gap-2 text-sm text-text-muted">
                           <span>v{selectedPlugin.manifest.version}</span>
                           {selectedPlugin.manifest.author && (
@@ -429,10 +441,7 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                       </h4>
                       <div className="space-y-2">
                         {selectedPlugin.manifest.contributes.commands.map((cmd) => (
-                          <div
-                            key={cmd.id}
-                            className="flex items-center justify-between text-sm"
-                          >
+                          <div key={cmd.id} className="flex items-center justify-between text-sm">
                             <span className="text-text">{cmd.title}</span>
                             <span className="text-text-muted font-mono text-xs">
                               {selectedPlugin.manifest.id}.{cmd.id}
@@ -482,7 +491,10 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                     }`}
                   >
                     {actionInProgress === selectedPlugin.manifest.id ? (
-                      <Loader2 className="w-5 h-5 text-text-muted animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="w-5 h-5 text-text-muted animate-spin"
+                        aria-hidden="true"
+                      />
                     ) : selectedPlugin.enabled ? (
                       <PowerOff className="w-5 h-5 text-warning" aria-hidden="true" />
                     ) : (
@@ -521,7 +533,10 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                       }`}
                     >
                       {actionInProgress === selectedPlugin.manifest.id ? (
-                        <Loader2 className="w-5 h-5 text-text-muted animate-spin" aria-hidden="true" />
+                        <Loader2
+                          className="w-5 h-5 text-text-muted animate-spin"
+                          aria-hidden="true"
+                        />
                       ) : selectedPlugin.activated ? (
                         <Square className="w-5 h-5 text-warning" aria-hidden="true" />
                       ) : (

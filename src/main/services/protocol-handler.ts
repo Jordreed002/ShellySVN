@@ -111,7 +111,12 @@ function requiresPath(action: DeepLinkAction): boolean {
 }
 
 function isValidDeepLinkPath(path?: string): boolean {
-  return typeof path === 'string' && path.length > 0 && path.length <= MAX_PARAM_LENGTH && !path.includes('\0');
+  return (
+    typeof path === 'string' &&
+    path.length > 0 &&
+    path.length <= MAX_PARAM_LENGTH &&
+    !path.includes('\0')
+  );
 }
 
 function isAllowedRepositoryUrl(url?: string): boolean {

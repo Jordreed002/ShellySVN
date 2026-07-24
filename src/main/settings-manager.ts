@@ -23,6 +23,7 @@ import {
   KNOWN_MERGE_TOOL_ALIASES,
   validateExternalToolSetting,
 } from './utils/external-tool-validation';
+import { assertPathApprovedForIpc } from './utils/approved-paths';
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
@@ -103,6 +104,18 @@ class SettingsManager {
 
     if (version.error || version.status !== 0) {
       throw new Error('Custom SVN client path did not run `svn --version --quiet` successfully.');
+    }
+  }
+
+  private validateLogCacheSettings(path?: string, maxSize?: number): void {
+    if (path !== undefined && path.trim()) {
+      const approvedPath = assertPathApprovedForIpc(path.trim(), 'Custom SVN cache storage');
+      if (!existsSync(approvedPath) || !statSync(approvedPath).isDirectory()) {
+        throw new Error('Custom SVN cache storage must be an existing directory.');
+      }
+    }
+    if (maxSize !== undefined && (!Number.isFinite(maxSize) || maxSize < 10 || maxSize > 1000)) {
+      throw new Error('Maximum SVN log cache size must be between 10 and 1000 MB.');
     }
   }
 
@@ -246,6 +259,7 @@ class SettingsManager {
     if (updates.svnClientPath !== undefined) {
       this.validateSvnClientPath(updates.svnClientPath);
     }
+    this.validateLogCacheSettings(updates.logCachePath, updates.maxLogCacheSize);
     if (updates.diffMerge?.externalDiffTool !== undefined) {
       validateExternalToolSetting(
         updates.diffMerge.externalDiffTool,
@@ -298,6 +312,7 @@ class SettingsManager {
       sslVerify: this.settings.sslVerify,
       clientCertificatePath: this.settings.clientCertificatePath,
       svnConfigPath: this.settings.svnConfigPath,
+      sshSettings: this.settings.sshSettings,
     };
   }
 

@@ -43,10 +43,35 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [filters, setFilters] = useState<LogFilterState>(EMPTY_LOG_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [showMergeHistory, setShowMergeHistory] = useState(false);
+  const [stopOnCopy, setStopOnCopy] = useState(false);
+  const [strictNodeHistory, setStrictNodeHistory] = useState(false);
+  const [includeAllRevisionProperties, setIncludeAllRevisionProperties] = useState(false);
+  const [revisionPropertyInput, setRevisionPropertyInput] = useState('');
+  const revisionProperties = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          revisionPropertyInput
+            .split(',')
+            .map((name) => name.trim())
+            .filter(Boolean)
+        )
+      ),
+    [revisionPropertyInput]
+  );
   const listRef = useRef<HTMLDivElement>(null);
   const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, path);
+  const logRequestOptions = useMemo(
+    () => ({
+      stopOnCopy,
+      strictNodeHistory,
+      includeAllRevisionProperties,
+      revisionProperties: includeAllRevisionProperties ? [] : revisionProperties,
+    }),
+    [includeAllRevisionProperties, revisionProperties, stopOnCopy, strictNodeHistory]
+  );
   const { cachedLog, cacheInfo, hasCachedData, isRefreshing, refreshLog, clearCache } =
-    useCachedLog(isOpen ? path : null, limit, showMergeHistory);
+    useCachedLog(isOpen ? path : null, limit, showMergeHistory, logRequestOptions);
   const filteredEntries = useMemo(
     () => filterLogEntries(log?.entries || [], filters, issueTrackerConfig),
     [log, filters, issueTrackerConfig]
@@ -215,6 +240,30 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               <GitMerge className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
               Merged revisions
             </label>
+            <label className="flex items-center gap-1 text-xs text-text-secondary">
+              <input
+                type="checkbox"
+                checked={stopOnCopy}
+                onChange={(event) => setStopOnCopy(event.target.checked)}
+              />
+              Stop on copy
+            </label>
+            <label className="flex items-center gap-1 text-xs text-text-secondary">
+              <input
+                type="checkbox"
+                checked={strictNodeHistory}
+                onChange={(event) => setStrictNodeHistory(event.target.checked)}
+              />
+              Strict history
+            </label>
+            <label className="flex items-center gap-1 text-xs text-text-secondary">
+              <input
+                type="checkbox"
+                checked={includeAllRevisionProperties}
+                onChange={(event) => setIncludeAllRevisionProperties(event.target.checked)}
+              />
+              All revision properties
+            </label>
             <button onClick={loadLog} disabled={isLoading} className="btn-icon-sm" title="Refresh">
               <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -226,6 +275,18 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
 
         {/* Filters */}
         <div className="flex-shrink-0 border-b border-border bg-bg-secondary px-4 py-3">
+          <label className="mb-3 block text-xs text-text-secondary">
+            Revision properties
+            <input
+              type="text"
+              value={revisionPropertyInput}
+              onChange={(event) => setRevisionPropertyInput(event.target.value)}
+              disabled={includeAllRevisionProperties}
+              className="input ml-2 h-8 min-w-64 text-xs"
+              placeholder="e.g. review:status, build:id"
+              aria-label="Revision properties"
+            />
+          </label>
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-medium text-text-secondary">
               <Filter className="h-4 w-4 text-text-muted" aria-hidden="true" />
@@ -432,6 +493,28 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                     <IssueLinkList issues={selectedIssueLinks} onOpen={handleOpenIssue} />
                   </div>
                 )}
+
+                {selectedEntry.revisionProperties &&
+                  Object.keys(selectedEntry.revisionProperties).length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="mb-2 text-sm font-medium text-text-secondary">
+                        Revision Properties
+                      </h4>
+                      <dl className="overflow-hidden rounded-lg bg-bg-secondary">
+                        {Object.entries(selectedEntry.revisionProperties).map(([name, value]) => (
+                          <div
+                            key={name}
+                            className="grid grid-cols-[12rem_1fr] gap-3 border-b border-border px-3 py-2 text-sm last:border-0"
+                          >
+                            <dt className="truncate font-mono text-text-secondary">{name}</dt>
+                            <dd className="whitespace-pre-wrap break-words text-text">
+                              {value || <span className="italic text-text-faint">Empty</span>}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
 
                 {/* Changed paths */}
                 {selectedEntry.paths.length > 0 && (

@@ -58,11 +58,9 @@ describe('logFilters', () => {
     });
 
     expect(
-      filterLogEntries(
-        entries,
-        { ...EMPTY_LOG_FILTERS, issueId: 'app-9' },
-        issueTrackerConfig
-      ).map((entry) => entry.revision)
+      filterLogEntries(entries, { ...EMPTY_LOG_FILTERS, issueId: 'app-9' }, issueTrackerConfig).map(
+        (entry) => entry.revision
+      )
     ).toEqual([121]);
   });
 

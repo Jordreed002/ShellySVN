@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
+import type { SvnOperationProgress, SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { useSettings } from './useSettings';
 import { confirmAppAction, promptAppInput } from '../utils/dialogs';
 import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
@@ -16,6 +16,12 @@ export function useSvnActions() {
   const { settings } = useSettings();
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [operationProgress, setOperationProgress] = useState<SvnOperationProgress | null>(null);
+  const actionFailure = useCallback((result: object, fallback: string): SvnActionResult => {
+    const message = 'error' in result && typeof result.error === 'string' ? result.error : fallback;
+    setLastError(message);
+    return { success: false, message };
+  }, []);
 
   /**
    * Update overlay icon if shell integration is enabled
@@ -97,11 +103,30 @@ export function useSvnActions() {
     async (path: string): Promise<SvnActionResult> => {
       setIsUpdating(true);
       setLastError(null);
+      setOperationProgress({
+        operationId: '',
+        operation: 'update',
+        status: 'running',
+        filesProcessed: 0,
+      });
 
       try {
-        const result = await window.api.svn.update(path);
+        const result = await window.api.svn.updateWithProgress(path, (progress) => {
+          setOperationProgress({
+            ...progress,
+            operationId: progress.operationId || '',
+            operation: 'update',
+          });
+        });
 
         if (result.success) {
+          setOperationProgress((current) => ({
+            operationId: current?.operationId || '',
+            operation: 'update',
+            status: 'completed',
+            filesProcessed: current?.filesProcessed || 0,
+            ...(result.revision !== null ? { revision: result.revision } : {}),
+          }));
           // Invalidate all status caches
           invalidateStatus(path);
           // Update overlay to clean status
@@ -114,19 +139,33 @@ export function useSvnActions() {
               type: 'success',
             });
           }
-          return { success: true, revision: result.revision };
+          return { success: true, revision: result.revision ?? undefined };
         }
 
-        return { success: false, message: 'Update failed' };
+        setOperationProgress((current) => ({
+          operationId: current?.operationId || '',
+          operation: 'update',
+          status: /cancel/i.test(result.error || '') ? 'cancelled' : 'error',
+          filesProcessed: current?.filesProcessed || 0,
+          error: result.error || 'Update failed',
+        }));
+        return actionFailure(result, 'Update failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
+        setOperationProgress((current) => ({
+          operationId: current?.operationId || '',
+          operation: 'update',
+          status: /cancel/i.test(message) ? 'cancelled' : 'error',
+          filesProcessed: current?.filesProcessed || 0,
+          error: message,
+        }));
         return { success: false, message };
       } finally {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlayIfEnabled]
+    [actionFailure, invalidateStatus, updateOverlayIfEnabled]
   );
 
   /**
@@ -136,11 +175,28 @@ export function useSvnActions() {
     async (paths: string[], commitMessage: string): Promise<SvnActionResult> => {
       setIsUpdating(true);
       setLastError(null);
+      setOperationProgress({
+        operationId: '',
+        operation: 'commit',
+        status: 'running',
+        filesProcessed: 0,
+      });
 
       try {
-        const result = await window.api.svn.commit(paths, commitMessage);
+        const result = await window.api.svn.commitWithProgress(
+          paths,
+          commitMessage,
+          setOperationProgress
+        );
 
         if (result.success) {
+          setOperationProgress((current) => ({
+            operationId: current?.operationId || '',
+            operation: 'commit',
+            status: 'completed',
+            filesProcessed: current?.filesProcessed || paths.length,
+            ...(result.revision !== null ? { revision: result.revision } : {}),
+          }));
           // Invalidate all status caches for all committed paths
           for (const p of paths) {
             invalidateStatus(p);
@@ -155,29 +211,56 @@ export function useSvnActions() {
               type: 'success',
             });
           }
-          return { success: true, revision: result.revision };
+          return { success: true, revision: result.revision ?? undefined };
         }
 
-        return { success: false, message: 'Commit failed' };
+        setOperationProgress((current) => ({
+          operationId: current?.operationId || '',
+          operation: 'commit',
+          status: /cancel/i.test(result.error || '') ? 'cancelled' : 'error',
+          filesProcessed: current?.filesProcessed || 0,
+          error: result.error || 'Commit failed',
+        }));
+        return actionFailure(result, 'Commit failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
+        setOperationProgress((current) => ({
+          operationId: current?.operationId || '',
+          operation: 'commit',
+          status: /cancel/i.test(message) ? 'cancelled' : 'error',
+          filesProcessed: current?.filesProcessed || 0,
+          error: message,
+        }));
         return { success: false, message };
       } finally {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlaysIfEnabled]
+    [actionFailure, invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
    * SVN Revert
    */
   const revert = useCallback(
-    async (paths: string[]): Promise<SvnActionResult> => {
+    async (
+      paths: string[],
+      depth: import('@shared/types').SvnRevertDepth = 'infinity'
+    ): Promise<SvnActionResult> => {
+      let affectedPaths: string[];
+      try {
+        affectedPaths = (await window.api.svn.revertPreview(paths, depth)).paths;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to preview revert';
+        setLastError(message);
+        return { success: false, message };
+      }
       const confirmed = await confirmRiskyAction(
         paths.length === 1 ? `Revert "${paths[0]}"?` : `Revert ${paths.length} selected items?`,
-        'Revert discards local changes and cannot be undone by ShellySVN.',
+        depth === 'infinity'
+          ? `Revert recursively discards local changes in ${affectedPaths.length} affected path(s), including selected-folder descendants. This cannot be undone by ShellySVN.`
+          : `Revert at depth "${depth}" discards local changes in ${affectedPaths.length} affected path(s) and cannot be undone by ShellySVN.`,
         'Revert'
       );
       if (!confirmed) {
@@ -188,7 +271,7 @@ export function useSvnActions() {
       setLastError(null);
 
       try {
-        const result = await window.api.svn.revert(paths);
+        const result = await window.api.svn.revert(paths, depth);
 
         if (result.success) {
           // Invalidate all status caches for all reverted paths
@@ -200,7 +283,7 @@ export function useSvnActions() {
           return { success: true };
         }
 
-        return { success: false, message: 'Revert failed' };
+        return actionFailure(result, 'Revert failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
@@ -209,7 +292,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [confirmRiskyAction, invalidateStatus, updateOverlaysIfEnabled]
+    [actionFailure, confirmRiskyAction, invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -233,7 +316,7 @@ export function useSvnActions() {
           return { success: true };
         }
 
-        return { success: false, message: 'Add failed' };
+        return actionFailure(result, 'Add failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
@@ -242,7 +325,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlaysIfEnabled]
+    [actionFailure, invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -275,7 +358,7 @@ export function useSvnActions() {
           return { success: true };
         }
 
-        return { success: false, message: 'Delete failed' };
+        return actionFailure(result, 'Delete failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
@@ -284,7 +367,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [confirmRiskyAction, invalidateStatus, updateOverlaysIfEnabled]
+    [actionFailure, confirmRiskyAction, invalidateStatus, updateOverlaysIfEnabled]
   );
 
   /**
@@ -312,7 +395,7 @@ export function useSvnActions() {
           return { success: true };
         }
 
-        return { success: false, message: 'Cleanup failed' };
+        return actionFailure(result, 'Cleanup failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
@@ -321,7 +404,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [confirmRiskyAction, invalidateStatus]
+    [actionFailure, confirmRiskyAction, invalidateStatus]
   );
 
   /**
@@ -342,7 +425,7 @@ export function useSvnActions() {
           return { success: true };
         }
 
-        return { success: false, message: 'Lock failed' };
+        return actionFailure(result, 'Lock failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
@@ -351,7 +434,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [invalidateStatus, updateOverlayIfEnabled]
+    [actionFailure, invalidateStatus, updateOverlayIfEnabled]
   );
 
   /**
@@ -383,7 +466,7 @@ export function useSvnActions() {
           return { success: true };
         }
 
-        return { success: false, message: 'Unlock failed' };
+        return actionFailure(result, 'Unlock failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
@@ -392,7 +475,7 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [confirmRiskyAction, invalidateStatus, updateOverlayIfEnabled]
+    [actionFailure, confirmRiskyAction, invalidateStatus, updateOverlayIfEnabled]
   );
 
   /**
@@ -401,7 +484,13 @@ export function useSvnActions() {
   const resolve = useCallback(
     async (
       path: string,
-      resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict'
+      resolution:
+        | 'base'
+        | 'mine-full'
+        | 'theirs-full'
+        | 'mine-conflict'
+        | 'theirs-conflict'
+        | 'working'
     ): Promise<SvnActionResult> => {
       const confirmed = await confirmRiskyAction(
         `Mark conflict resolved for "${path}"?`,
@@ -427,7 +516,7 @@ export function useSvnActions() {
           return { success: true };
         }
 
-        return { success: false, message: 'Resolve failed' };
+        return actionFailure(result, 'Resolve failed');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setLastError(message);
@@ -436,28 +525,52 @@ export function useSvnActions() {
         setIsUpdating(false);
       }
     },
-    [confirmRiskyAction, invalidateStatus, updateOverlayIfEnabled]
+    [actionFailure, confirmRiskyAction, invalidateStatus, updateOverlayIfEnabled]
   );
 
   const clearError = useCallback(() => {
     setLastError(null);
   }, []);
 
+  const reportError = useCallback((message: string) => {
+    setLastError(message);
+  }, []);
+
+  const cancelActiveOperation = useCallback(async () => {
+    if (!operationProgress?.operationId || operationProgress.status !== 'running') return;
+
+    if (operationProgress.operation === 'update') {
+      await window.api.svn.cancelUpdate(operationProgress.operationId);
+    } else {
+      await window.api.svn.cancelOperation(operationProgress.operationId);
+    }
+  }, [operationProgress]);
+
+  const dismissOperationProgress = useCallback(() => {
+    if (operationProgress?.status !== 'running') {
+      setOperationProgress(null);
+    }
+  }, [operationProgress?.status]);
+
   return useMemo(
     () => ({
-    update,
-    commit,
-    revert,
-    add,
-    delete: del,
-    cleanup,
-    lock,
-    unlock,
-    resolve,
-    isUpdating,
-    lastError,
-    clearError,
-    invalidateStatus,
+      update,
+      commit,
+      revert,
+      add,
+      delete: del,
+      cleanup,
+      lock,
+      unlock,
+      resolve,
+      isUpdating,
+      lastError,
+      clearError,
+      reportError,
+      invalidateStatus,
+      operationProgress,
+      cancelActiveOperation,
+      dismissOperationProgress,
     }),
     [
       update,
@@ -472,7 +585,11 @@ export function useSvnActions() {
       isUpdating,
       lastError,
       clearError,
+      reportError,
       invalidateStatus,
+      operationProgress,
+      cancelActiveOperation,
+      dismissOperationProgress,
     ]
   );
 }
@@ -499,19 +616,13 @@ export function useLockManagement() {
 
   return useMemo(
     () => ({
-    lockDialogOpen,
-    lockDialogPath,
-    selectedLockPath,
-    openLockDialog,
-    closeLockDialog,
-    }),
-    [
       lockDialogOpen,
       lockDialogPath,
       selectedLockPath,
       openLockDialog,
       closeLockDialog,
-    ]
+    }),
+    [lockDialogOpen, lockDialogPath, selectedLockPath, openLockDialog, closeLockDialog]
   );
 }
 
@@ -536,17 +647,16 @@ export function useFileExplorerActions(
     isUpdating,
     lastError,
     clearError,
+    reportError,
+    operationProgress,
+    cancelActiveOperation,
+    dismissOperationProgress,
   } = svnActions;
   const [commitDialogOpen, setCommitDialogOpen] = useState(false);
   const [commitPaths, setCommitPaths] = useState<string[]>([]);
   const lockManagement = useLockManagement();
-  const {
-    lockDialogOpen,
-    lockDialogPath,
-    selectedLockPath,
-    openLockDialog,
-    closeLockDialog,
-  } = lockManagement;
+  const { lockDialogOpen, lockDialogPath, selectedLockPath, openLockDialog, closeLockDialog } =
+    lockManagement;
 
   // Get all selected paths as array
   const getSelectedPaths = useCallback(() => {
@@ -586,10 +696,28 @@ export function useFileExplorerActions(
   const handleRevertSelected = useCallback(async () => {
     const paths = getSelectedPaths();
     if (paths.length > 0) {
-      await revert(paths);
+      let depth: import('@shared/types').SvnRevertDepth = 'infinity';
+      if (selectedEntry?.isDirectory) {
+        const requestedDepth = await promptAppInput({
+          title: 'Choose folder revert depth',
+          message:
+            'Enter empty, files, immediates, or infinity. “infinity” recursively reverts every descendant.',
+          defaultValue: 'infinity',
+          placeholder: 'infinity',
+          confirmLabel: 'Continue',
+        });
+        if (requestedDepth === null) return;
+        const normalizedDepth = requestedDepth.trim().toLowerCase();
+        if (!['empty', 'files', 'immediates', 'infinity'].includes(normalizedDepth)) {
+          reportError('Revert depth must be empty, files, immediates, or infinity.');
+          return;
+        }
+        depth = normalizedDepth as import('@shared/types').SvnRevertDepth;
+      }
+      await revert(paths, depth);
       onRefresh();
     }
-  }, [getSelectedPaths, revert, onRefresh]);
+  }, [getSelectedPaths, selectedEntry, reportError, revert, onRefresh]);
 
   // Add selected (supports multiple, only unversioned files)
   const handleAddSelected = useCallback(async () => {
@@ -655,7 +783,13 @@ export function useFileExplorerActions(
   // Resolve selected conflict
   const handleResolveSelected = useCallback(
     async (
-      resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict'
+      resolution:
+        | 'base'
+        | 'mine-full'
+        | 'theirs-full'
+        | 'mine-conflict'
+        | 'theirs-conflict'
+        | 'working'
     ) => {
       const paths = getSelectedPaths();
       if (paths.length > 0) {
@@ -696,37 +830,40 @@ export function useFileExplorerActions(
 
   return useMemo(
     () => ({
-    // Actions
-    handleUpdate,
-    handleCommit,
-    handleCommitSelected,
-    handleRevertSelected,
-    handleAddSelected,
-    handleDeleteSelected,
-    handleLockSelected,
-    handleUnlockSelected,
-    handleResolveSelected,
-    handleManageLocks,
-    cleanup,
-    lock,
-    unlock,
+      // Actions
+      handleUpdate,
+      handleCommit,
+      handleCommitSelected,
+      handleRevertSelected,
+      handleAddSelected,
+      handleDeleteSelected,
+      handleLockSelected,
+      handleUnlockSelected,
+      handleResolveSelected,
+      handleManageLocks,
+      cleanup,
+      lock,
+      unlock,
 
-    // Commit dialog
-    commitDialogOpen,
-    commitPaths,
-    closeCommitDialog,
-    handleSubmitCommit,
+      // Commit dialog
+      commitDialogOpen,
+      commitPaths,
+      closeCommitDialog,
+      handleSubmitCommit,
 
-    // Lock management dialog
-    lockDialogOpen,
-    lockDialogPath,
-    selectedLockPath,
-    closeLockDialog,
+      // Lock management dialog
+      lockDialogOpen,
+      lockDialogPath,
+      selectedLockPath,
+      closeLockDialog,
 
-    // State
-    isUpdating,
-    lastError,
-    clearError,
+      // State
+      isUpdating,
+      lastError,
+      clearError,
+      operationProgress,
+      cancelActiveOperation,
+      dismissOperationProgress,
     }),
     [
       handleUpdate,
@@ -753,6 +890,9 @@ export function useFileExplorerActions(
       isUpdating,
       lastError,
       clearError,
+      operationProgress,
+      cancelActiveOperation,
+      dismissOperationProgress,
     ]
   );
 }

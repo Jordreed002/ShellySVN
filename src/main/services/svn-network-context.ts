@@ -28,9 +28,8 @@ export async function getCachedCredentialsForUrl(
   }
 }
 
-export async function getCachedTrustedSslFailuresForUrl(
-  url: string
-): Promise<string | undefined> {
+export async function getCachedTrustedSslFailuresForUrl(url: string): Promise<string | undefined> {
+  if (!/^https:\/\//i.test(url)) return undefined;
   try {
     const cache = getSslTrustCache();
     await cache.ready();

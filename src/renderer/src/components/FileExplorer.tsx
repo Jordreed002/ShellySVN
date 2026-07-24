@@ -11,16 +11,24 @@ import {
   useDeferredValue,
 } from 'react';
 import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Columns3, List } from 'lucide-react';
-import type { DeepStatusProgress, SvnStatusEntry, SvnStatusChar } from '@shared/types';
+import type {
+  DeepStatusProgress,
+  SvnListResult,
+  SvnStatusEntry,
+  SvnStatusChar,
+} from '@shared/types';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { MillerColumns } from './files/MillerColumns';
 import { BranchSwitcher } from '../features/branches/BranchSwitcher';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
+import { ProgressIndicator } from './ui/ProgressIndicator';
 import { FileRow, FileListHeader } from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
 import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialogs';
+import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
+import { readCachedList } from '../utils/cachedSvnRead';
 import { useDualPane } from './ui/DualPaneView';
 import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
@@ -92,14 +100,19 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
     return () => window.cancelIdleCallback(id);
   }
 
-  const id = window.setTimeout(callback, timeout);
-  return () => window.clearTimeout(id);
+  const id = globalThis.setTimeout(callback, timeout);
+  return () => globalThis.clearTimeout(id);
 }
 
 export function FileExplorer() {
   const { path } = useSearch({ from: '/files/' });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: svnCapabilities } = useQuery({
+    queryKey: ['svn:capabilities'],
+    queryFn: () => window.api.svn.capabilities(),
+    staleTime: Infinity,
+  });
   const parentRef = useRef<HTMLDivElement>(null);
   const homePath = useHomePath();
   const { settings, updateSettings, addRecentPath, addBookmark, removeBookmark } = useSettings();
@@ -315,11 +328,15 @@ export function FileExplorer() {
         ? { username: storedCreds.username, password: storedCreds.password }
         : undefined;
       try {
-        const result = await window.api.svn.list(onlineUrl, 'HEAD', 'immediates', creds);
-        return result;
+        return await readCachedList(onlineUrl, 'HEAD', 'immediates', creds?.username ?? '', () =>
+          window.api.svn.list(onlineUrl, 'HEAD', 'immediates', creds)
+        );
       } catch (err) {
         const errorMsg = (err as Error)?.message || '';
+        const category = (err as Error & { commandError?: { category?: string } }).commandError
+          ?.category;
         if (
+          category === 'authentication' ||
           errorMsg.includes('credentials') ||
           errorMsg.includes('Authentication') ||
           errorMsg.includes('E215004')
@@ -328,7 +345,7 @@ export function FileExplorer() {
             authPrompt.requestAuthentication(effectiveRepoRoot);
           }
         }
-        return { path: '', entries: [] };
+        throw err;
       }
     },
     enabled: !!onlineUrl && !authPrompt.isOpen && browseMode === 'online',
@@ -339,18 +356,22 @@ export function FileExplorer() {
 
   // Fetch remote items for merging with local items (sparse checkout support)
   const { data: remoteItems, isFetching: isLoadingRemoteItems } = useQuery({
-    queryKey: createSvnListQueryKey('remote', effectiveUrl, svnListAuthKey),
+    queryKey: createSvnListQueryKey('remote', effectiveUrl ?? '', svnListAuthKey),
     queryFn: async () => {
       if (!effectiveUrl) return { path: '', entries: [] };
       const creds = storedCreds
         ? { username: storedCreds.username, password: storedCreds.password }
         : undefined;
       try {
-        const result = await window.api.svn.list(effectiveUrl, 'HEAD', 'immediates', creds);
-        return result;
+        return await readCachedList(effectiveUrl, 'HEAD', 'immediates', creds?.username ?? '', () =>
+          window.api.svn.list(effectiveUrl, 'HEAD', 'immediates', creds)
+        );
       } catch (err) {
         const errorMsg = (err as Error)?.message || '';
+        const category = (err as Error & { commandError?: { category?: string } }).commandError
+          ?.category;
         if (
+          category === 'authentication' ||
           errorMsg.includes('credentials') ||
           errorMsg.includes('Authentication') ||
           errorMsg.includes('E215004')
@@ -359,7 +380,7 @@ export function FileExplorer() {
             authPrompt.requestAuthentication(effectiveRepoRoot);
           }
         }
-        return { path: '', entries: [] };
+        throw err;
       }
     },
     enabled:
@@ -374,8 +395,12 @@ export function FileExplorer() {
   });
 
   const files = useMemo(() => {
-    if (browseMode === 'online' && onlineFiles?.entries) {
-      return onlineFiles.entries.map((entry) => ({
+    const onlineFileData =
+      onlineFiles?.data ?? (onlineFiles as unknown as SvnListResult | undefined);
+    const remoteItemData =
+      remoteItems?.data ?? (remoteItems as unknown as SvnListResult | undefined);
+    if (browseMode === 'online' && onlineFileData?.entries) {
+      return onlineFileData.entries.map((entry) => ({
         name: entry.name,
         path: onlinePath === '' ? `/${entry.name}` : `${onlinePath}/${entry.name}`,
         isDirectory: entry.kind === 'dir',
@@ -417,9 +442,9 @@ export function FileExplorer() {
       result = applyDeepStatus(result, deepStatusData);
     }
 
-    if (showRemoteItems && remoteItems?.entries && svnInfo?.url) {
+    if (showRemoteItems && remoteItemData?.entries && svnInfo?.url) {
       const localFileNames = new Set(result.map((f) => f.name));
-      const remoteOnlyItems = remoteItems.entries
+      const remoteOnlyItems = remoteItemData.entries
         .filter((entry) => !localFileNames.has(entry.name))
         .map((entry) => ({
           name: entry.name,
@@ -563,6 +588,7 @@ export function FileExplorer() {
     setFocusedIndex,
     clearSelection,
     handleSelect,
+    selectedEntryFallback,
   } = useFileExplorerSelection(filteredEntries);
 
   const filteredEntryByPath = useMemo(() => {
@@ -577,8 +603,11 @@ export function FileExplorer() {
   const selectedEntry = useMemo(() => {
     const firstSelected = Array.from(selectedPaths)[0];
     if (!firstSelected) return null;
-    return filteredEntryByPath.get(firstSelected) || null;
-  }, [selectedPaths, filteredEntryByPath]);
+    return (
+      filteredEntryByPath.get(firstSelected) ||
+      (selectedEntryFallback?.path === firstSelected ? selectedEntryFallback : null)
+    );
+  }, [selectedPaths, filteredEntryByPath, selectedEntryFallback]);
 
   const actions = useFileExplorerActions(
     path || '',
@@ -715,6 +744,37 @@ export function FileExplorer() {
         invalidateCurrentPath();
         queryClient.invalidateQueries({ queryKey: ['svn:list'] });
       },
+      onExclude: async (entry: SvnStatusEntry) => {
+        const name = entry.path.split(/[/\\]/).pop() || entry.path;
+        const confirmed = await confirmAppAction({
+          type: 'warning',
+          title: 'Remove folder locally',
+          message: `Remove "${name}" from this working copy?`,
+          detail:
+            'The repository is not changed. SVN will first mark the folder as excluded. If any local folder remains, including unversioned or ignored files, it will be moved to the OS trash.',
+          confirmLabel: 'Exclude and remove',
+        });
+        if (!confirmed) return;
+
+        const result = await window.api.svn.exclude(entry.path);
+        if (!result.success) {
+          await showAppMessage({
+            type: 'error',
+            title: 'Remove locally failed',
+            message: `Could not exclude "${name}" from the working copy.`,
+            detail: result.error || 'Unknown SVN error',
+          });
+          return;
+        }
+        clearSelection();
+        const exclusionParentPath = await window.api.fs.getParent(entry.path);
+        if (exclusionParentPath) {
+          handleNavigate(exclusionParentPath);
+        }
+        invalidateCurrentPath();
+        queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory'] });
+      },
       onAdd: async () => {
         if (selectedEntry) await actions.handleAddSelected();
       },
@@ -731,7 +791,7 @@ export function FileExplorer() {
           confirmLabel: 'Copy',
         });
         if (!destination) return;
-        const result = await window.api.svn.copy(entry.path, destination, `Copy ${entry.path}`);
+        const result = await window.api.svn.copyLocal(entry.path, destination);
         if (result.success) {
           invalidateCurrentPath();
         }
@@ -742,10 +802,7 @@ export function FileExplorer() {
       onShowLog: (entry: SvnStatusEntry) => setLogViewerPath(entry.path),
       onDiff: (entry: SvnStatusEntry) => setDiffViewerPath(entry.path),
       onOpenInExplorer: (entry: SvnStatusEntry) => {
-        const separator = entry.path.includes('\\') ? '\\' : '/';
-        const lastSep = entry.path.lastIndexOf(separator);
-        const parentDir = lastSep > 0 ? entry.path.substring(0, lastSep) : entry.path;
-        window.api.app.openExternal(parentDir);
+        void window.api.external.revealPath(entry.path);
       },
       onCopyPath: (entry: SvnStatusEntry) => {
         const paths = selectedPaths.size > 1 ? Array.from(selectedPaths).join('\n') : entry.path;
@@ -777,11 +834,11 @@ export function FileExplorer() {
         const fileName = entry.path.split(/[/\\]/).pop();
         setIgnoreEntry({ path: entry.path, fileName });
       },
-      onShelve: (entry: SvnStatusEntry) => {
-        if (entry.isDirectory) {
-          setShelveDialogPath(entry.path);
-        }
-      },
+      onShelve: svnCapabilities?.shelving
+        ? (entry: SvnStatusEntry) => {
+            if (entry.isDirectory) setShelveDialogPath(entry.path);
+          }
+        : undefined,
       // Direct lock/unlock actions
       onGetLock: async (entry: SvnStatusEntry) => {
         if (!entry.isDirectory) {
@@ -795,7 +852,10 @@ export function FileExplorer() {
           }
           const result = await actions.lock(entry.path, message || undefined);
           if (result.success) {
-            invalidateWorkingCopyViews(queryClient, path, { includeParents: false, scope: 'status' });
+            invalidateWorkingCopyViews(queryClient, path, {
+              includeParents: false,
+              scope: 'status',
+            });
           } else {
             await showAppMessage({
               type: 'error',
@@ -809,7 +869,10 @@ export function FileExplorer() {
         if (!entry.isDirectory) {
           const result = await actions.unlock(entry.path);
           if (result.success) {
-            invalidateWorkingCopyViews(queryClient, path, { includeParents: false, scope: 'status' });
+            invalidateWorkingCopyViews(queryClient, path, {
+              includeParents: false,
+              scope: 'status',
+            });
           } else {
             await showAppMessage({
               type: 'error',
@@ -846,7 +909,10 @@ export function FileExplorer() {
               type: 'info',
               message: 'Cleanup completed successfully.',
             });
-            invalidateWorkingCopyViews(queryClient, path, { includeParents: false, scope: 'status' });
+            invalidateWorkingCopyViews(queryClient, path, {
+              includeParents: false,
+              scope: 'status',
+            });
           } else {
             await showAppMessage({
               type: 'error',
@@ -866,6 +932,8 @@ export function FileExplorer() {
       path,
       queryClient,
       invalidateCurrentPath,
+      clearSelection,
+      handleNavigate,
       setBranchTagPath,
       setBranchTagMode,
       setDiffViewerPath,
@@ -890,12 +958,15 @@ export function FileExplorer() {
       setRepoBrowserUrl,
       setRevisionGraphPath,
       setResolveEntry,
+      svnCapabilities?.shelving,
     ]
   );
 
   const handleUpdateToRevision = useCallback(
     async (depth: 'empty' | 'files' | 'immediates' | 'infinity', setDepthSticky: boolean) => {
-      if (!pendingUpdateEntry) return { success: false, revision: 0, error: 'No entry selected' };
+      if (!pendingUpdateEntry) {
+        return { success: false, revision: null, error: 'No entry selected' };
+      }
 
       const entry = pendingUpdateEntry;
       const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot || path;
@@ -909,6 +980,14 @@ export function FileExplorer() {
           workingCopyRoot: wcRoot,
           currentPath: path,
         });
+        if (!target.localPath) {
+          return {
+            success: false as const,
+            revision: null,
+            error:
+              'The selected repository item is outside this working-copy subtree. Open its matching switched path or external before updating it.',
+          };
+        }
 
         try {
           const result = await window.api.svn.updateToRevision(
@@ -926,7 +1005,7 @@ export function FileExplorer() {
         } catch (err) {
           return {
             success: false as const,
-            revision: 0,
+            revision: null,
             error: (err as Error).message || 'Update failed',
           };
         }
@@ -941,7 +1020,7 @@ export function FileExplorer() {
         } catch (err) {
           return {
             success: false as const,
-            revision: 0,
+            revision: null,
             error: (err as Error).message || 'Update failed',
           };
         }
@@ -1084,7 +1163,9 @@ export function FileExplorer() {
               </span>
               <span className="flex items-center gap-1.5 ml-3 px-2 py-0.5 bg-accent/10 text-accent text-xs font-medium rounded">
                 <Globe className="w-3 h-3" />
-                Online
+                {onlineFiles?.source === 'cache'
+                  ? `Cached (${Math.max(0, Math.floor(onlineFiles.age / 60_000))}m old)`
+                  : 'Online'}
               </span>
             </>
           ) : (
@@ -1116,9 +1197,7 @@ export function FileExplorer() {
                   invalidateCurrentPath();
                   queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
                 }}
-                onCreateBranch={() =>
-                  window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG))
-                }
+                onCreateBranch={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG))}
                 onCreateTag={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG))}
               />
             </div>
@@ -1155,11 +1234,7 @@ export function FileExplorer() {
               confirmLabel: 'Copy',
             });
             if (!destination) return;
-            const result = await window.api.svn.copy(
-              selectedEntry.path,
-              destination,
-              `Copy ${selectedEntry.path}`
-            );
+            const result = await window.api.svn.copyLocal(selectedEntry.path, destination);
             if (result.success) {
               invalidateCurrentPath();
             }
@@ -1195,6 +1270,25 @@ export function FileExplorer() {
           onToggleRemoteItems={() => setShowRemoteItems((prev) => !prev)}
           onShowNotes={() => setShowNotes(true)}
         />
+
+        {actions.operationProgress && (
+          <div className="border-b border-border bg-bg-secondary px-4 py-2">
+            <ProgressIndicator
+              compact
+              status={actions.operationProgress.status}
+              currentItem={actions.operationProgress.currentFile}
+              itemsCompleted={actions.operationProgress.filesProcessed}
+              error={actions.operationProgress.error}
+              operationType={
+                actions.operationProgress.operation === 'commit' ? 'upload' : 'download'
+              }
+              canCancel={actions.operationProgress.status === 'running'}
+              onCancel={() => void actions.cancelActiveOperation()}
+              onClose={actions.dismissOperationProgress}
+              indeterminate
+            />
+          </div>
+        )}
 
         {workingCopyUpgradeStatus?.required && (
           <div className="flex items-center gap-3 px-4 py-3 bg-warning/10 border-b border-warning/30">
@@ -1282,106 +1376,106 @@ export function FileExplorer() {
 
         {/* File list */}
         {!(explorerViewMode === 'miller' && browseMode === 'local') && (
-        <div
-          ref={parentRef}
-          className={`scrollbar-overlay ${settings.fileListHeight === 'fill' ? 'flex-1 overflow-auto' : 'flex-none overflow-auto'}`}
-          style={
-            settings.fileListHeight === 'auto' ? { maxHeight: 'calc(100vh - 200px)' } : undefined
-          }
-        >
-          {filteredEntries.length === 0 ? (
-            <RouteState
-              variant="empty"
-              title={
-                hasActiveFilters
-                  ? 'No Matching Files'
-                  : searchQuery
-                    ? 'No matching files'
-                    : 'Empty Directory'
-              }
-              description={
-                hasActiveFilters
-                  ? 'No files match the current filters. Try adjusting your filter settings.'
-                  : searchQuery
-                    ? `No files matching "${searchQuery}"`
-                    : 'This directory contains no files'
-              }
-              action={
-                hasActiveFilters
-                  ? {
-                      label: 'Clear Filters',
-                      onClick: () => {
-                        setFileTypeFilter('all');
-                        setStatusFilter('all');
-                      },
-                    }
-                  : undefined
-              }
-            />
-          ) : (
-            <div
-              style={{
-                height:
-                  settings.fileListHeight === 'fill' ? `${virtualizer.getTotalSize()}px` : 'auto',
-                minHeight:
-                  settings.fileListHeight === 'auto'
-                    ? `${virtualizer.getTotalSize()}px`
-                    : undefined,
-                position: settings.fileListHeight === 'fill' ? 'relative' : undefined,
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualRow) => {
-                const entry = filteredEntries[virtualRow.index];
-                return (
-                  <DraggableFileRow
-                    key={entry.path}
-                    path={entry.path}
-                    isDirectory={entry.isDirectory}
-                    selectedPaths={selectedPaths}
-                    onDrop={handleFileDrop}
-                    disabled={browseMode === 'online' || entry.status === 'O'}
-                    style={
-                      settings.fileListHeight === 'fill'
-                        ? {
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: `${virtualRow.size}px`,
-                            transform: `translateY(${virtualRow.start}px)`,
-                          }
-                        : undefined
-                    }
-                  >
-                    <FileRow
-                      entry={entry}
-                      isSelected={selectedPaths.has(entry.path)}
-                      onSelect={handleSelect}
-                      onNavigate={handleNavigateToEntry}
-                      actions={fileRowActions}
-                      columnWidths={columnWidths}
-                      compact={settings.compactFileRows}
-                      showThumbnails={settings.showThumbnails}
-                      showFolderSizes={settings.showFolderSizes}
-                      folderSizes={folderSizes}
-                      workingCopyRoot={
-                        svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot
+          <div
+            ref={parentRef}
+            className={`scrollbar-overlay ${settings.fileListHeight === 'fill' ? 'flex-1 overflow-auto' : 'flex-none overflow-auto'}`}
+            style={
+              settings.fileListHeight === 'auto' ? { maxHeight: 'calc(100vh - 200px)' } : undefined
+            }
+          >
+            {filteredEntries.length === 0 ? (
+              <RouteState
+                variant="empty"
+                title={
+                  hasActiveFilters
+                    ? 'No Matching Files'
+                    : searchQuery
+                      ? 'No matching files'
+                      : 'Empty Directory'
+                }
+                description={
+                  hasActiveFilters
+                    ? 'No files match the current filters. Try adjusting your filter settings.'
+                    : searchQuery
+                      ? `No files matching "${searchQuery}"`
+                      : 'This directory contains no files'
+                }
+                action={
+                  hasActiveFilters
+                    ? {
+                        label: 'Clear Filters',
+                        onClick: () => {
+                          setFileTypeFilter('all');
+                          setStatusFilter('all');
+                        },
                       }
+                    : undefined
+                }
+              />
+            ) : (
+              <div
+                style={{
+                  height:
+                    settings.fileListHeight === 'fill' ? `${virtualizer.getTotalSize()}px` : 'auto',
+                  minHeight:
+                    settings.fileListHeight === 'auto'
+                      ? `${virtualizer.getTotalSize()}px`
+                      : undefined,
+                  position: settings.fileListHeight === 'fill' ? 'relative' : undefined,
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualRow) => {
+                  const entry = filteredEntries[virtualRow.index];
+                  return (
+                    <DraggableFileRow
+                      key={entry.path}
+                      path={entry.path}
+                      isDirectory={entry.isDirectory}
+                      selectedPaths={selectedPaths}
+                      onDrop={handleFileDrop}
+                      disabled={browseMode === 'online' || entry.status === 'O'}
                       style={
                         settings.fileListHeight === 'fill'
                           ? {
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
                               width: '100%',
                               height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
                             }
                           : undefined
                       }
-                    />
-                  </DraggableFileRow>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                    >
+                      <FileRow
+                        entry={entry}
+                        isSelected={selectedPaths.has(entry.path)}
+                        onSelect={handleSelect}
+                        onNavigate={handleNavigateToEntry}
+                        actions={fileRowActions}
+                        columnWidths={columnWidths}
+                        compact={settings.compactFileRows}
+                        showThumbnails={settings.showThumbnails}
+                        showFolderSizes={settings.showFolderSizes}
+                        folderSizes={folderSizes}
+                        workingCopyRoot={
+                          svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot
+                        }
+                        style={
+                          settings.fileListHeight === 'fill'
+                            ? {
+                                width: '100%',
+                                height: `${virtualRow.size}px`,
+                              }
+                            : undefined
+                        }
+                      />
+                    </DraggableFileRow>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Status Bar */}
@@ -1646,8 +1740,12 @@ export function FileExplorer() {
 
               try {
                 // Get existing svn:ignore patterns
-                const existingProps = await window.api.svn.proplist(ignoreParentPath);
-                const existingIgnore = existingProps.find((p) => p.name === 'svn:ignore');
+                const existingProps = assertSuccessfulSvnRead(
+                  await window.api.svn.proplist(ignoreParentPath)
+                );
+                const existingIgnore = existingProps.properties.find(
+                  (p) => p.name === 'svn:ignore'
+                );
                 const existingPatterns = existingIgnore?.value
                   ? existingIgnore.value.split('\n').filter((p) => p.trim())
                   : [];

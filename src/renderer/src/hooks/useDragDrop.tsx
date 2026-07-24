@@ -396,7 +396,8 @@ export function DraggableFileRow({
       // Filter out self
       const validPaths = sourcePaths.filter((p) => p !== path);
       if (validPaths.length > 0 && onDrop) {
-        const operation = e.ctrlKey || e.metaKey || e.dataTransfer.dropEffect === 'copy' ? 'copy' : 'move';
+        const operation =
+          e.ctrlKey || e.metaKey || e.dataTransfer.dropEffect === 'copy' ? 'copy' : 'move';
         onDrop(validPaths, path, operation);
       }
     }

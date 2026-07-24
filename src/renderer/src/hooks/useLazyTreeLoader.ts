@@ -7,6 +7,7 @@ import type {
   LazyTreeNode,
   SvnListResult,
 } from '@shared/types';
+import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
 
 /**
  * Cached tree data structure for TanStack Query
@@ -25,6 +26,7 @@ function getTreeQueryKey(rootUrl: string, credentials?: AuthCredential) {
 }
 
 function svnListToLazyTreeNode(result: SvnListResult): LazyTreeNode[] {
+  assertSuccessfulSvnRead(result);
   const nodes: LazyTreeNode[] = [];
 
   for (const entry of result.entries) {

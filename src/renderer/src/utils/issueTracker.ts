@@ -59,10 +59,7 @@ export function buildIssueUrl(issueId: string, template: string): string | undef
     .replaceAll('{issue}', encodeURIComponent(issueId));
 }
 
-export function extractIssueLinks(
-  message: string,
-  config: IssueTrackerConfig
-): IssueLink[] {
+export function extractIssueLinks(message: string, config: IssueTrackerConfig): IssueLink[] {
   if (!config.enabled) return [];
 
   return extractIssueIds(message, config.issueIdPattern).map((id) => ({

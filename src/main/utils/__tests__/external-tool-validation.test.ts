@@ -15,10 +15,7 @@ vi.mock('node:fs', () => ({
   constants: { X_OK: 1 },
 }));
 
-import {
-  KNOWN_DIFF_TOOL_ALIASES,
-  validateExternalToolSetting,
-} from '../external-tool-validation';
+import { KNOWN_DIFF_TOOL_ALIASES, validateExternalToolSetting } from '../external-tool-validation';
 
 describe('external tool setting validation', () => {
   beforeEach(() => {
@@ -42,23 +39,39 @@ describe('external tool setting validation', () => {
 
   it('requires custom executable paths to exist and be files', () => {
     expect(
-      validateExternalToolSetting('C:\\Tools\\diff.exe', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
+      validateExternalToolSetting(
+        'C:\\Tools\\diff.exe',
+        'External diff tool',
+        KNOWN_DIFF_TOOL_ALIASES
+      )
     ).toContain('diff.exe');
 
     mockState.existsSync.mockReturnValueOnce(false);
     expect(() =>
-      validateExternalToolSetting('C:\\Tools\\missing.exe', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
+      validateExternalToolSetting(
+        'C:\\Tools\\missing.exe',
+        'External diff tool',
+        KNOWN_DIFF_TOOL_ALIASES
+      )
     ).toThrow('does not exist');
 
     mockState.statSync.mockReturnValueOnce({ isFile: () => false });
     expect(() =>
-      validateExternalToolSetting('C:\\Tools\\folder', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
+      validateExternalToolSetting(
+        'C:\\Tools\\folder',
+        'External diff tool',
+        KNOWN_DIFF_TOOL_ALIASES
+      )
     ).toThrow('must point to an executable file');
   });
 
   it('rejects traversal in custom executable paths', () => {
     expect(() =>
-      validateExternalToolSetting('tools\\..\\secret.exe', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
+      validateExternalToolSetting(
+        'tools\\..\\secret.exe',
+        'External diff tool',
+        KNOWN_DIFF_TOOL_ALIASES
+      )
     ).toThrow('path traversal');
   });
 });

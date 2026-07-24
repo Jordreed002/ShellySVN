@@ -1,0 +1,22 @@
+name: shellysvn-compat
+
+services:
+  svn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SVN_USERNAME: ${SHELLYSVN_PROTOCOL_USERNAME:-shellysvn}
+      SVN_PASSWORD: ${SHELLYSVN_PROTOCOL_PASSWORD:-release-test}
+      SVN_SECOND_USERNAME: ${SHELLYSVN_PROTOCOL_SECOND_USERNAME:-reviewer}
+      SVN_SECOND_PASSWORD: ${SHELLYSVN_PROTOCOL_SECOND_PASSWORD:-review-test}
+    ports:
+      - '${SHELLYSVN_SVN_PORT:-36990}:3690'
+      - '${SHELLYSVN_HTTP_PORT:-18080}:8080'
+      - '${SHELLYSVN_HTTPS_PORT:-18443}:8443'
+    volumes:
+      - svn-data:/var/lib/svn
+    restart: unless-stopped
+
+volumes:
+  svn-data:

@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
+  runSvnMuccText: vi.fn(),
   findForUrl: vi.fn(),
   isEncryptionAvailable: vi.fn().mockReturnValue(true),
   getSvnClientPath: vi.fn().mockReturnValue('svn'),
+  sslReady: vi.fn(),
+  sslSet: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -28,8 +31,16 @@ vi.mock('../../settings-manager', () => ({
   }),
 }));
 
+vi.mock('../../ssl-trust-cache', () => ({
+  getSslTrustCache: () => ({
+    ready: mockState.sslReady,
+    set: mockState.sslSet,
+  }),
+}));
+
 vi.mock('../svn-executor', () => ({
   runSvnText: mockState.runSvnText,
+  runSvnMuccText: mockState.runSvnMuccText,
 }));
 
 vi.mock('../../utils/debug', () => ({
@@ -38,7 +49,11 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
-import { getDiagnostics } from '../svn-diagnostics';
+import {
+  getDiagnostics,
+  getSvnCapabilities,
+  trustServerCertificate,
+} from '../svn-diagnostics';
 
 describe('svn-diagnostics', () => {
   beforeEach(() => {
@@ -46,6 +61,23 @@ describe('svn-diagnostics', () => {
     mockState.runSvnText.mockImplementation(async (args: string[]) => {
       if (args[0] === '--version') return '1.14.2\n';
       throw new Error('not a working copy');
+    });
+    mockState.runSvnMuccText.mockResolvedValue('1.14.2');
+  });
+
+  it('capability-gates companion-client and experimental workflows', async () => {
+    mockState.runSvnText.mockResolvedValue('shelve help');
+    await expect(getSvnCapabilities()).resolves.toEqual({
+      shelving: true,
+      nativeShelving: true,
+      remoteProperties: true,
+    });
+
+    mockState.runSvnMuccText.mockRejectedValue(new Error('svnmucc unavailable'));
+    await expect(getSvnCapabilities()).resolves.toEqual({
+      shelving: true,
+      nativeShelving: true,
+      remoteProperties: false,
     });
   });
 
@@ -70,5 +102,20 @@ describe('svn-diagnostics', () => {
     expect(diagnostics.svnVersionWarning).toBe(
       'SVN 1.14.x or newer is required for advanced workflows.'
     );
+  });
+
+  it.each([
+    'http://svn.example.com/repo',
+    'svn://svn.example.com/repo',
+    'svn+ssh://svn.example.com/repo',
+    'file:///tmp/repository',
+  ])('does not initialize HTTPS trust storage for %s', async (url) => {
+    await expect(trustServerCertificate(url, 'certificate expired')).resolves.toEqual({
+      success: false,
+      error: 'Server-certificate trust is only available for HTTPS repository URLs.',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+    expect(mockState.sslReady).not.toHaveBeenCalled();
+    expect(mockState.sslSet).not.toHaveBeenCalled();
   });
 });

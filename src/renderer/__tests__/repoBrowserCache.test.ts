@@ -14,18 +14,35 @@ describe('repo browser cache helpers', () => {
     ]);
   });
 
-  it('includes credentials in authenticated list query keys', () => {
-    expect(
-      getRepoBrowserListQueryKey('svn+ssh://svn.example.com/repo/trunk', 'HEAD', {
-        username: 'deploy',
-        password: 'secret',
-      })
-    ).toEqual([
-      'repo-browser',
+  it('uses a stable non-secret session identity for authenticated query keys', () => {
+    const credentials = { username: 'deploy', password: 'secret' };
+    const first = getRepoBrowserListQueryKey(
       'svn+ssh://svn.example.com/repo/trunk',
       'HEAD',
-      { username: 'deploy', password: 'secret' },
-    ]);
+      credentials
+    );
+    const second = getRepoBrowserListQueryKey(
+      'svn+ssh://svn.example.com/repo/trunk',
+      'HEAD',
+      credentials
+    );
+
+    expect(first).toEqual(second);
+    expect(first[3]).toEqual({ username: 'deploy', session: expect.any(Number) });
+    expect(JSON.stringify(first)).not.toContain('secret');
+  });
+
+  it('changes the query identity when credentials are replaced', () => {
+    const first = getRepoBrowserListQueryKey('https://svn.example.com/repo', 'HEAD', {
+      username: 'deploy',
+      password: 'first',
+    });
+    const replacement = getRepoBrowserListQueryKey('https://svn.example.com/repo', 'HEAD', {
+      username: 'deploy',
+      password: 'second',
+    });
+
+    expect(first[3]).not.toEqual(replacement[3]);
   });
 
   it('keeps prefetched repository lists warm for one minute', () => {

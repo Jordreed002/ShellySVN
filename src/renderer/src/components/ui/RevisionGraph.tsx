@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 import {
   X,
   GitBranch,
@@ -78,7 +79,10 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
     refetch,
   } = useQuery({
     queryKey: ['svn:log', path, 200],
-    queryFn: ({ signal }) => window.api.svn.log(path, 200, undefined, undefined, false, { signal }),
+    queryFn: async ({ signal }) =>
+      assertSuccessfulSvnRead(
+        await window.api.svn.log(path, 200, undefined, undefined, false, { signal })
+      ),
     enabled: isOpen && !!path,
   });
 

@@ -16,10 +16,7 @@ const PERF_BUDGET_MULTIPLIER =
     : 1;
 const ENFORCE_STRICT_PERF = process.env.SHELLYSVN_STRICT_PERF === '1';
 
-function entry(
-  path: string,
-  overrides: Partial<SvnStatusEntry> = {}
-): SvnStatusEntry {
+function entry(path: string, overrides: Partial<SvnStatusEntry> = {}): SvnStatusEntry {
   return {
     path,
     status: ' ',

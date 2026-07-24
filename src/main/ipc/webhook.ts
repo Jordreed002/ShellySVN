@@ -56,7 +56,10 @@ async function validateWebhookUrl(url: string): Promise<URL> {
     throw new Error('Webhook URL must not include credentials.');
   }
 
-  const hostname = parsed.hostname.toLowerCase().replace(/^\[(.*)\]$/, '$1').replace(/\.$/, '');
+  const hostname = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, '$1')
+    .replace(/\.$/, '');
   if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
     throw new Error('Webhook URL must not target local or private network addresses.');
   }
@@ -86,9 +89,7 @@ function buildSignature(secret: string, payload: string): string {
   return `sha256=${createHmac('sha256', secret).update(payload).digest('hex')}`;
 }
 
-async function deliverWebhook(
-  request: WebhookDeliverRequest
-): Promise<WebhookDeliverResult> {
+async function deliverWebhook(request: WebhookDeliverRequest): Promise<WebhookDeliverResult> {
   const startTime = Date.now();
 
   try {
@@ -148,7 +149,5 @@ async function deliverWebhook(
 }
 
 export function registerWebhookHandlers(): void {
-  ipcMain.handle('webhook:deliver', (_, request: WebhookDeliverRequest) =>
-    deliverWebhook(request)
-  );
+  ipcMain.handle('webhook:deliver', (_, request: WebhookDeliverRequest) => deliverWebhook(request));
 }

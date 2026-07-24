@@ -35,6 +35,7 @@ export interface FileRowActions {
   onCommit?: (entry: SvnStatusEntry) => void;
   onRevert?: (entry: SvnStatusEntry) => void;
   onUnversion?: (entry: SvnStatusEntry) => void;
+  onExclude?: (entry: SvnStatusEntry) => void;
   onAdd?: (entry: SvnStatusEntry) => void;
   onDelete?: (entry: SvnStatusEntry) => void;
   onMove?: (entry: SvnStatusEntry) => void;
@@ -84,6 +85,7 @@ export function buildSvnContextMenuItems(
       onCommit: actions.onCommit ? () => actions.onCommit!(entry) : undefined,
       onRevert: actions.onRevert ? () => actions.onRevert!(entry) : undefined,
       onUnversion: actions.onUnversion ? () => actions.onUnversion!(entry) : undefined,
+      onExclude: actions.onExclude ? () => actions.onExclude!(entry) : undefined,
       onAdd: actions.onAdd ? () => actions.onAdd!(entry) : undefined,
       onDelete: actions.onDelete ? () => actions.onDelete!(entry) : undefined,
       onMove: actions.onMove ? () => actions.onMove!(entry) : undefined,

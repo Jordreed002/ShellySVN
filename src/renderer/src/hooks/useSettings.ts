@@ -66,59 +66,77 @@ export function useSettings(): UseSettingsReturn {
   const { mutateAsync, isPending } = updateMutation;
 
   // Add a repository to recent list
-  const addRecentRepo = useCallback(async (repoPath: string) => {
-    // Read the latest cached value to avoid race conditions
-    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
-    const currentRecents = current.recentRepositories || [];
+  const addRecentRepo = useCallback(
+    async (repoPath: string) => {
+      // Read the latest cached value to avoid race conditions
+      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const currentRecents = current.recentRepositories || [];
 
-    // Remove if already exists (to move to top)
-    const filtered = currentRecents.filter((p) => p !== repoPath);
+      // Remove if already exists (to move to top)
+      const filtered = currentRecents.filter((p) => p !== repoPath);
 
-    // Add to beginning, limit to max
-    const updated = [repoPath, ...filtered].slice(0, MAX_RECENT_REPOS);
+      // Add to beginning, limit to max
+      const updated = [repoPath, ...filtered].slice(0, MAX_RECENT_REPOS);
 
-    await mutateAsync({ recentRepositories: updated });
-  }, [queryClient, mutateAsync]);
+      await mutateAsync({ recentRepositories: updated });
+    },
+    [queryClient, mutateAsync]
+  );
 
   // Remove a repository from recent list
-  const removeRecentRepo = useCallback(async (repoPath: string) => {
-    // Read the latest cached value to avoid race conditions
-    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
-    const updated = (current.recentRepositories || []).filter((p) => p !== repoPath);
-    await mutateAsync({ recentRepositories: updated });
-  }, [queryClient, mutateAsync]);
+  const removeRecentRepo = useCallback(
+    async (repoPath: string) => {
+      // Read the latest cached value to avoid race conditions
+      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const updated = (current.recentRepositories || []).filter((p) => p !== repoPath);
+      await mutateAsync({ recentRepositories: updated });
+    },
+    [queryClient, mutateAsync]
+  );
 
   // Add a path to recent paths
-  const addRecentPath = useCallback(async (path: string) => {
-    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
-    const currentPaths = current.recentPaths || [];
-    const filtered = currentPaths.filter((p) => p !== path);
-    const updated = [path, ...filtered].slice(0, MAX_RECENT_PATHS);
-    await mutateAsync({ recentPaths: updated });
-  }, [queryClient, mutateAsync]);
+  const addRecentPath = useCallback(
+    async (path: string) => {
+      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const currentPaths = current.recentPaths || [];
+      const filtered = currentPaths.filter((p) => p !== path);
+      const updated = [path, ...filtered].slice(0, MAX_RECENT_PATHS);
+      await mutateAsync({ recentPaths: updated });
+    },
+    [queryClient, mutateAsync]
+  );
 
   // Add a bookmark
-  const addBookmark = useCallback(async (path: string, name: string) => {
-    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
-    const currentBookmarks = current.bookmarks || [];
-    // Check if already bookmarked
-    if (currentBookmarks.some((b) => b.path === path)) return;
-    const newBookmark = { path, name, addedAt: Date.now() };
-    const updated = [newBookmark, ...currentBookmarks].slice(0, MAX_BOOKMARKS);
-    await mutateAsync({ bookmarks: updated });
-  }, [queryClient, mutateAsync]);
+  const addBookmark = useCallback(
+    async (path: string, name: string) => {
+      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const currentBookmarks = current.bookmarks || [];
+      // Check if already bookmarked
+      if (currentBookmarks.some((b) => b.path === path)) return;
+      const newBookmark = { path, name, addedAt: Date.now() };
+      const updated = [newBookmark, ...currentBookmarks].slice(0, MAX_BOOKMARKS);
+      await mutateAsync({ bookmarks: updated });
+    },
+    [queryClient, mutateAsync]
+  );
 
   // Remove a bookmark
-  const removeBookmark = useCallback(async (path: string) => {
-    const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
-    const updated = (current.bookmarks || []).filter((b) => b.path !== path);
-    await mutateAsync({ bookmarks: updated });
-  }, [queryClient, mutateAsync]);
+  const removeBookmark = useCallback(
+    async (path: string) => {
+      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const updated = (current.bookmarks || []).filter((b) => b.path !== path);
+      await mutateAsync({ bookmarks: updated });
+    },
+    [queryClient, mutateAsync]
+  );
 
   // Update any setting
-  const updateSettings = useCallback(async (updates: DeepPartial<AppSettings>) => {
-    return mutateAsync(updates);
-  }, [mutateAsync]);
+  const updateSettings = useCallback(
+    async (updates: DeepPartial<AppSettings>) => {
+      return mutateAsync(updates);
+    },
+    [mutateAsync]
+  );
 
   return useMemo(
     () => ({

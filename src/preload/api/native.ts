@@ -9,6 +9,7 @@ export function createExternalApi(invokeIpc: InvokeIpc): ElectronAPI['external']
       invokeIpc('external:openMergeTool', tool, base, mine, theirs, merged),
     openFolder: (path) => invokeIpc('external:openFolder', path),
     openFile: (path) => invokeIpc('external:openFile', path),
+    revealPath: (path) => invokeIpc('external:revealPath', path),
   };
 }
 
@@ -46,6 +47,7 @@ export function createFsApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): Ele
     getFolderSizes: (folderPaths) => invokeIpc('fs:getFolderSizes', folderPaths),
     copyFile: (source, target) => invokeIpc('fs:copyFile', source, target),
     writeFile: (path, content) => invokeIpc('fs:writeFile', path, content),
+    writeFileBase64: (path, contentBase64) => invokeIpc('fs:writeFileBase64', path, contentBase64),
     watch: (path, callback, options) => {
       const handler = (
         _: unknown,
@@ -81,6 +83,8 @@ export function createAppApi(invokeIpc: InvokeIpc): ElectronAPI['app'] {
     openExternal: (url) => invokeIpc('app:openExternal', url).then(() => undefined),
     clearCache: () => invokeIpc('app:clearCache'),
     getCacheSize: () => invokeIpc('app:getCacheSize'),
+    getCacheBreakdown: () => invokeIpc('app:getCacheBreakdown'),
+    clearCacheTypes: (types) => invokeIpc('app:clearCacheTypes', types),
     window: {
       minimize: () => invokeIpc('app:window:minimize'),
       maximize: () => invokeIpc('app:window:maximize'),

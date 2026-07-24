@@ -234,9 +234,15 @@ export type MockFn<T extends (...args: any[]) => any = (...args: any[]) => any> 
 export function setupWindowApiMock(): void {
   // Create mock API inline to avoid circular dependencies
   const mockApi = createMockElectronAPI();
-  (globalThis as Record<string, unknown>).window = {
-    api: mockApi,
-  };
+  if (typeof window === 'undefined') {
+    throw new Error('setupWindowApiMock requires a DOM test environment');
+  }
+
+  Object.defineProperty(window, 'api', {
+    configurable: true,
+    writable: true,
+    value: mockApi,
+  });
 }
 
 /**
@@ -245,6 +251,7 @@ export function setupWindowApiMock(): void {
 function createMockElectronAPI() {
   return {
     svn: {
+      capabilities: vi.fn().mockResolvedValue({ shelving: false, remoteProperties: false }),
       status: vi.fn().mockResolvedValue({ path: '/test/repo', entries: [], revision: 1 }),
       statusRemote: vi
         .fn()
@@ -318,6 +325,8 @@ function createMockElectronAPI() {
       proplist: vi.fn().mockResolvedValue([]),
       propset: vi.fn().mockResolvedValue({ success: true }),
       propdel: vi.fn().mockResolvedValue({ success: true }),
+      propsetRemote: vi.fn().mockResolvedValue({ success: true }),
+      propdelRemote: vi.fn().mockResolvedValue({ success: true }),
       blame: vi.fn().mockResolvedValue({ path: '/test/repo/file.txt', lines: [] }),
       list: vi.fn().mockResolvedValue({ path: '', entries: [] }),
       patch: {
@@ -354,6 +363,7 @@ function createMockElectronAPI() {
       openMergeTool: vi.fn().mockResolvedValue({ success: true }),
       openFolder: vi.fn().mockResolvedValue({ success: true }),
       openFile: vi.fn().mockResolvedValue({ success: true }),
+      revealPath: vi.fn().mockResolvedValue({ success: true }),
     },
     monitor: {
       getWorkingCopies: vi.fn().mockResolvedValue([]),
@@ -402,6 +412,13 @@ function createMockElectronAPI() {
       openExternal: vi.fn().mockResolvedValue(undefined),
       clearCache: vi.fn().mockResolvedValue({ success: true }),
       getCacheSize: vi.fn().mockResolvedValue({ size: 0, files: 0 }),
+      getCacheBreakdown: vi.fn().mockResolvedValue({
+        electron: 0,
+        logs: 0,
+        offline: 0,
+        auth: 0,
+      }),
+      clearCacheTypes: vi.fn().mockResolvedValue({ success: true }),
       window: {
         minimize: vi.fn().mockResolvedValue(undefined),
         maximize: vi.fn().mockResolvedValue(undefined),
@@ -442,9 +459,10 @@ function createMockElectronAPI() {
  */
 export function clearAllMocks(): void {
   vi.clearAllMocks();
-  // Also clean up window mock
-  if (typeof (globalThis as Record<string, unknown>).window !== 'undefined') {
-    delete (globalThis as Record<string, unknown>).window;
+  // Remove only the Electron API mock. Replacing/deleting jsdom's Window breaks
+  // React's active-element checks in any later test rendered in this process.
+  if (typeof window !== 'undefined') {
+    delete (window as Window & { api?: unknown }).api;
   }
 }
 

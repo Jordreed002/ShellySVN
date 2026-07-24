@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { X, User, Search, Loader2, ExternalLink } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
+import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 
 interface BlameViewerProps {
   isOpen: boolean;
@@ -52,7 +53,9 @@ export function BlameViewer({
       const startRev = startRevision ? parseInt(startRevision, 10) : undefined;
       const endRev = endRevision ? parseInt(endRevision, 10) : undefined;
 
-      const result = await window.api.svn.blame(filePath, startRev, endRev, { signal });
+      const result = assertSuccessfulSvnRead(
+        await window.api.svn.blame(filePath, startRev, endRev, { signal })
+      );
 
       return result.lines.map((line) => ({
         lineNumber: line.lineNumber,
@@ -86,10 +89,17 @@ export function BlameViewer({
 
   const { data: logData } = useQuery({
     queryKey: ['svn:log:blame-context', filePath, revisions.join(','), issueTrackerConfig],
-    queryFn: ({ signal }) =>
-      window.api.svn.log(filePath, Math.max(200, revisions.length), undefined, undefined, false, {
-        signal,
-      }),
+    queryFn: async ({ signal }) =>
+      assertSuccessfulSvnRead(
+        await window.api.svn.log(
+          filePath,
+          Math.max(200, revisions.length),
+          undefined,
+          undefined,
+          false,
+          { signal }
+        )
+      ),
     enabled: isOpen && !!filePath && revisions.length > 0,
   });
 

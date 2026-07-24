@@ -9,6 +9,7 @@ const svnApi = {
   merge: vi.fn(),
   mergeWithProgress: vi.fn(),
   cancelOperation: vi.fn(),
+  mergeInfo: vi.fn(),
 };
 
 function advanceToOptionsPage() {
@@ -37,6 +38,17 @@ describe('MergeWizard', () => {
       return { success: true, output: 'C src/conflict.txt\nU src/app.ts' };
     });
     svnApi.cancelOperation.mockResolvedValue({ success: true });
+    svnApi.mergeInfo.mockResolvedValue({
+      revisions: [101, 105],
+      properties: [
+        {
+          value: '/trunk:1-100',
+          inherited: true,
+          inheritedFrom: 'https://svn.example.com/repo',
+        },
+      ],
+      rawOutput: 'r101\nr105\n',
+    });
 
     window.api = {
       svn: svnApi,
@@ -50,6 +62,10 @@ describe('MergeWizard', () => {
         { start: 100, end: 150 },
         { start: 160, end: 170 },
       ],
+    });
+    expect(parseMergeRevisionInput('200:150,-42')).toEqual({
+      revisions: ['-42'],
+      ranges: [{ start: 200, end: 150 }],
     });
   });
 
@@ -73,6 +89,28 @@ describe('MergeWizard', () => {
     expect(screen.getByText(/U src\/app.ts/)).toBeInTheDocument();
   });
 
+  it('loads eligible mergeinfo revisions into the revision field', async () => {
+    render(<MergeWizard isOpen={true} onClose={vi.fn()} targetPath="C:/repo" />);
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.change(screen.getByLabelText(/from url/i), {
+      target: { value: 'https://svn.example.com/repo/branches/feature' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /load eligible revisions/i }));
+
+    await waitFor(() => {
+      expect(svnApi.mergeInfo).toHaveBeenCalledWith(
+        'https://svn.example.com/repo/branches/feature',
+        'C:/repo',
+        'eligible'
+      );
+    });
+    expect(screen.getByLabelText(/revision range/i)).toHaveValue('101,105');
+    expect(screen.getByText(/2 eligible revisions loaded/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/inherited mergeinfo from https:\/\/svn\.example\.com\/repo/i)
+    ).toBeInTheDocument();
+  });
+
   it('runs merge with progress, reports conflicts, and completes for post-merge refresh', async () => {
     const onComplete = vi.fn();
     render(<MergeWizard isOpen={true} onClose={vi.fn()} targetPath="C:/repo" onComplete={onComplete} />);
@@ -90,5 +128,32 @@ describe('MergeWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: /done/i }));
 
     expect(onComplete).toHaveBeenCalled();
+  });
+
+  it('wires the two-tree merge form with both source URLs', async () => {
+    render(<MergeWizard isOpen={true} onClose={vi.fn()} targetPath="C:/repo" />);
+    fireEvent.click(screen.getByRole('button', { name: /merge two different trees/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.change(screen.getByLabelText(/from url/i), {
+      target: { value: 'https://svn.example.com/repo/vendor/old' },
+    });
+    fireEvent.change(screen.getByLabelText(/to url/i), {
+      target: { value: 'https://svn.example.com/repo/vendor/new' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(screen.getByRole('button', { name: /dry-run preview/i }));
+
+    await waitFor(() => {
+      expect(svnApi.merge).toHaveBeenCalledWith(
+        'https://svn.example.com/repo/vendor/old',
+        'C:/repo',
+        undefined,
+        undefined,
+        expect.objectContaining({
+          dryRun: true,
+          secondSource: 'https://svn.example.com/repo/vendor/new',
+        })
+      );
+    });
   });
 });

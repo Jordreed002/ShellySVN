@@ -51,9 +51,7 @@ describe('usePerformanceMonitor', () => {
     });
 
     it('should not schedule FPS or memory sampling by default', () => {
-      const requestAnimationFrameSpy = vi
-        .spyOn(window, 'requestAnimationFrame')
-        .mockReturnValue(1);
+      const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
       const setIntervalSpy = vi.spyOn(window, 'setInterval');
 
       renderHook(() => usePerformanceMonitor());
@@ -66,9 +64,7 @@ describe('usePerformanceMonitor', () => {
     });
 
     it('should schedule sampling when FPS and memory monitoring are requested', () => {
-      const requestAnimationFrameSpy = vi
-        .spyOn(window, 'requestAnimationFrame')
-        .mockReturnValue(1);
+      const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
       const setIntervalSpy = vi.spyOn(window, 'setInterval');
 
       renderHook(() => usePerformanceMonitor({ fps: true, memory: true }));

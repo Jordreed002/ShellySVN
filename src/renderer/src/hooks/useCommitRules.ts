@@ -11,10 +11,7 @@ const STORAGE_KEY = 'shellysvn:commit-rules';
 
 type CommitRuleStore = Record<string, CommitRules>;
 
-export function useCommitRules(
-  workingCopyPath: string,
-  issueTrackerConfig?: IssueTrackerConfig
-) {
+export function useCommitRules(workingCopyPath: string, issueTrackerConfig?: IssueTrackerConfig) {
   const [rules, setRules] = useState<CommitRules>(DEFAULT_COMMIT_RULES);
   const [isLoading, setIsLoading] = useState(false);
 

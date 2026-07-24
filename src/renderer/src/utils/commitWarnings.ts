@@ -74,9 +74,7 @@ export function getCommitWarnings(
     });
   }
 
-  const switchedPaths = selectedFiles
-    .filter((file) => file.switched)
-    .map((file) => file.path);
+  const switchedPaths = selectedFiles.filter((file) => file.switched).map((file) => file.path);
   if (switchedPaths.length > 0) {
     warnings.push({
       id: 'switched-paths',

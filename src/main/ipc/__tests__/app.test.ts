@@ -17,6 +17,17 @@ const mockState = vi.hoisted(() => ({
   stat: vi.fn().mockResolvedValue({ size: 0, isFile: () => true, isDirectory: () => false }),
   unlink: vi.fn().mockResolvedValue(undefined),
   rmdir: vi.fn().mockResolvedValue(undefined),
+  cacheStats: vi.fn().mockResolvedValue({
+    infoCount: 2,
+    statusCount: 3,
+    logCount: 4,
+    entriesCount: 5,
+    totalSize: 1400,
+    logSize: 400,
+    offlineSize: 1000,
+  }),
+  clearCache: vi.fn().mockResolvedValue(undefined),
+  clearNamespace: vi.fn().mockResolvedValue(undefined),
   getFocusedWindow: vi.fn().mockReturnValue({
     minimize: vi.fn(),
     maximize: vi.fn(),
@@ -52,6 +63,14 @@ vi.mock('fs/promises', () => ({
   rmdir: mockState.rmdir,
 }));
 
+vi.mock('../../services/svn-cache-service', () => ({
+  getSvnCacheService: () => ({
+    stats: mockState.cacheStats,
+    clearAll: mockState.clearCache,
+    clearNamespace: mockState.clearNamespace,
+  }),
+}));
+
 // Import after mocking
 import { registerAppHandlers } from '../app';
 import { clearApprovedPathsForTests, isPathApprovedForIpc } from '../../utils/approved-paths';
@@ -72,17 +91,31 @@ describe('App IPC Handlers', () => {
     mockState.stat.mockClear();
     mockState.unlink.mockClear();
     mockState.rmdir.mockClear();
+    mockState.cacheStats.mockClear();
+    mockState.clearCache.mockClear();
+    mockState.clearNamespace.mockClear();
 
     // Reset mock implementations
     mockState.appGetVersion.mockReturnValue('1.0.0');
     mockState.appGetPath.mockReturnValue('/test/path');
     mockState.readdir.mockResolvedValue([]);
     mockState.stat.mockResolvedValue({ size: 0, isFile: () => true, isDirectory: () => false });
+    mockState.cacheStats.mockResolvedValue({
+      infoCount: 2,
+      statusCount: 3,
+      logCount: 4,
+      entriesCount: 5,
+      totalSize: 1400,
+      logSize: 400,
+      offlineSize: 1000,
+    });
 
     // Capture registered handlers
-    mockState.ipcMainHandle.mockImplementation((channel: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(channel, handler);
-    });
+    mockState.ipcMainHandle.mockImplementation(
+      (channel: string, handler: (...args: unknown[]) => unknown) => {
+        handlers.set(channel, handler);
+      }
+    );
 
     // Register handlers
     registerAppHandlers();
@@ -287,17 +320,21 @@ describe('App IPC Handlers', () => {
     it('should return total cache size', async () => {
       const handler = handlers.get('app:getCacheSize');
       mockState.readdir.mockResolvedValue([]);
-      mockState.stat.mockResolvedValue({ size: 1024, isFile: () => true, isDirectory: () => false });
+      mockState.stat.mockResolvedValue({
+        size: 1024,
+        isFile: () => true,
+        isDirectory: () => false,
+      });
 
       const result = await handler!({});
 
-      expect(result).toHaveProperty('size');
-      expect(result).toHaveProperty('files');
+      expect(result).toEqual({ size: 1400, files: 14 });
     });
 
     it('should handle errors gracefully', async () => {
       const handler = handlers.get('app:getCacheSize');
       mockState.readdir.mockRejectedValue(new Error('Read error'));
+      mockState.cacheStats.mockRejectedValue(new Error('Cache error'));
 
       const result = await handler!({});
 
@@ -313,6 +350,7 @@ describe('App IPC Handlers', () => {
       const result = await handler!({});
 
       expect(result).toEqual({ success: true });
+      expect(mockState.clearCache).toHaveBeenCalledTimes(1);
     });
 
     it('should handle errors gracefully', async () => {
@@ -337,7 +375,9 @@ describe('App IPC Handlers', () => {
 
       expect(result).toHaveProperty('electron');
       expect(result).toHaveProperty('logs');
+      expect(result).toHaveProperty('offline');
       expect(result).toHaveProperty('auth');
+      expect(result).toMatchObject({ logs: 400, offline: 1000 });
     });
   });
 
@@ -358,6 +398,18 @@ describe('App IPC Handlers', () => {
       const result = await handler!({}, ['logs']);
 
       expect(result).toEqual({ success: true });
+      expect(mockState.clearNamespace).toHaveBeenCalledWith('log');
+    });
+
+    it('should clear persistent offline cache namespaces', async () => {
+      const handler = handlers.get('app:clearCacheTypes');
+
+      const result = await handler!({}, ['offline']);
+
+      expect(result).toEqual({ success: true });
+      expect(mockState.clearNamespace).toHaveBeenCalledWith('info', expect.any(Number));
+      expect(mockState.clearNamespace).toHaveBeenCalledWith('status', expect.any(Number));
+      expect(mockState.clearNamespace).toHaveBeenCalledWith('entries', expect.any(Number));
     });
 
     it('should clear auth cache', async () => {

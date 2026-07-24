@@ -107,10 +107,7 @@ import { ChooseItemsDialog } from '../../src/components/ui/ChooseItemsDialog';
 
 afterEach(cleanup);
 
-// NOTE: This test suite is skipped due to React/jsdom compatibility issues
-// The "Should not already be working" error occurs when rendering React components
-// in jsdom environment. See useLazyTreeLoader.test.tsx for similar issues.
-describe.skip('ChooseItemsDialog Integration', () => {
+describe('ChooseItemsDialog Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHookState.isLoading = false;

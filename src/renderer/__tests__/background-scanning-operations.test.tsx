@@ -19,7 +19,7 @@ vi.mock('../src/hooks/useSettings', () => ({
 }));
 
 const svnStatus = vi.fn();
-const svnUpdate = vi.fn();
+const svnUpdateWithProgress = vi.fn();
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -46,7 +46,9 @@ beforeEach(() => {
     value: {
       svn: {
         status: svnStatus,
-        update: svnUpdate,
+        updateWithProgress: svnUpdateWithProgress,
+        cancelUpdate: vi.fn(),
+        cancelOperation: vi.fn(),
       },
       shell: {
         updateOverlay: vi.fn(),
@@ -66,7 +68,7 @@ describe('background scanning and active SVN operations', () => {
         resolveStatus = resolve;
       })
     );
-    svnUpdate.mockResolvedValue({ success: true, revision: 1234 });
+    svnUpdateWithProgress.mockResolvedValue({ success: true, revision: 1234 });
 
     const { result } = renderHook(
       () => ({
@@ -92,7 +94,7 @@ describe('background scanning and active SVN operations', () => {
       updateResult = await result.current.actions.update('/repo');
     });
 
-    expect(svnUpdate).toHaveBeenCalledWith('/repo');
+    expect(svnUpdateWithProgress).toHaveBeenCalledWith('/repo', expect.any(Function));
     expect(updateResult).toEqual({ success: true, revision: 1234 });
     expect(result.current.scan.isScanning).toBe(true);
 

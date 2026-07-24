@@ -130,27 +130,27 @@ export function ResolveDialog({
       // - filename.mine (local changes)
       // - filename.r<revision> (base and theirs - the lower revision is base, higher is theirs)
       const conflictFiles = dirFiles
-        .filter(f => f.name.startsWith(baseName + '.'))
-        .map(f => f.name);
+        .filter((f) => f.name.startsWith(baseName + '.'))
+        .map((f) => f.name);
 
       let minePath = '';
       let basePath = '';
       let theirsPath = '';
 
       // Find .mine file
-      const mineFile = conflictFiles.find(f => f === baseName + '.mine');
+      const mineFile = conflictFiles.find((f) => f === baseName + '.mine');
       if (mineFile) {
         minePath = `${dirPath}/${mineFile}`;
       }
 
       // Find .r* files (revision files)
       const revisionFiles = conflictFiles
-        .filter(f => f.startsWith(baseName + '.r'))
-        .map(f => ({
+        .filter((f) => f.startsWith(baseName + '.r'))
+        .map((f) => ({
           name: f,
-          rev: parseInt(f.replace(baseName + '.r', ''), 10)
+          rev: parseInt(f.replace(baseName + '.r', ''), 10),
         }))
-        .filter(f => !isNaN(f.rev))
+        .filter((f) => !isNaN(f.rev))
         .toSorted((a, b) => a.rev - b.rev);
 
       if (revisionFiles.length >= 2) {

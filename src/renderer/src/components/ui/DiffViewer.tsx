@@ -72,18 +72,24 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
       setIsLoading(true);
       setError(null);
       setShowImageDiff(false);
+      const controller = new AbortController();
 
       window.api.svn
-        .diff(filePath)
+        .diffStreaming(filePath, undefined, { signal: controller.signal })
         .then((result) => {
+          if (controller.signal.aborted) return;
           setDiff(result);
           setIsLoading(false);
         })
         .catch((err) => {
+          if (controller.signal.aborted) return;
           setError(err.message || 'Failed to get diff');
           setIsLoading(false);
         });
+
+      return () => controller.abort();
     }
+    return undefined;
   }, [isOpen, filePath, isImage]);
 
   // Keyboard shortcut to close

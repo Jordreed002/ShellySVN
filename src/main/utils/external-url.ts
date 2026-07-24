@@ -25,4 +25,3 @@ export async function openValidatedExternalUrl(
   await shell.openExternal(url);
   return { success: true };
 }
-

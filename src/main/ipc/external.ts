@@ -275,7 +275,10 @@ export function registerExternalHandlers(): void {
         return { success: false, error: 'Path must be a folder' };
       }
 
-      await shell.openPath(normalized);
+      const openError = await shell.openPath(normalized);
+      if (openError) {
+        return { success: false, error: openError };
+      }
       return { success: true };
     } catch (err) {
       return { success: false, error: (err as Error).message };
@@ -292,7 +295,37 @@ export function registerExternalHandlers(): void {
         return { success: false, error: validation.error };
       }
 
-      await shell.openPath(validation.normalized!);
+      const openError = await shell.openPath(validation.normalized!);
+      if (openError) {
+        return { success: false, error: openError };
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  // Open directories and reveal files in Finder/Explorer.
+  ipcMain.handle('external:revealPath', async (_, path: string) => {
+    try {
+      if (hasPathTraversal(path)) {
+        return { success: false, error: 'Path traversal not allowed' };
+      }
+      const normalized = assertPathApprovedForIpc(path, 'Revealing local files');
+
+      let stats;
+      try {
+        stats = await stat(normalized);
+      } catch {
+        return { success: false, error: 'Path does not exist' };
+      }
+
+      if (stats.isDirectory()) {
+        const openError = await shell.openPath(normalized);
+        return openError ? { success: false, error: openError } : { success: true };
+      }
+
+      shell.showItemInFolder(normalized);
       return { success: true };
     } catch (err) {
       return { success: false, error: (err as Error).message };

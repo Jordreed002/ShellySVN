@@ -17,6 +17,7 @@ import { join } from 'node:path';
 const mockState = vi.hoisted(() => ({
   ipcMainHandle: vi.fn(),
   shellOpenPath: vi.fn().mockResolvedValue(''),
+  shellShowItemInFolder: vi.fn(),
   spawn: vi.fn().mockReturnValue({ unref: vi.fn() }),
 }));
 
@@ -27,12 +28,13 @@ vi.mock('electron', () => ({
   },
   shell: {
     openPath: mockState.shellOpenPath,
+    showItemInFolder: mockState.shellShowItemInFolder,
   },
 }));
 
 // Mock child_process
 vi.mock('child_process', () => ({
-  default: {},
+  default: { spawn: mockState.spawn },
   spawn: mockState.spawn,
 }));
 
@@ -75,6 +77,7 @@ describe('External IPC Handlers', () => {
     // Reset mock call counts but keep implementations
     mockState.ipcMainHandle.mockClear();
     mockState.shellOpenPath.mockClear();
+    mockState.shellShowItemInFolder.mockClear();
     mockState.spawn.mockClear();
 
     // Reset mock implementations
@@ -83,9 +86,11 @@ describe('External IPC Handlers', () => {
     mockState.spawn.mockReturnValue({ unref: vi.fn() });
 
     // Capture registered handlers
-    mockState.ipcMainHandle.mockImplementation((channel: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(channel, handler);
-    });
+    mockState.ipcMainHandle.mockImplementation(
+      (channel: string, handler: (...args: unknown[]) => unknown) => {
+        handlers.set(channel, handler);
+      }
+    );
 
     // Register handlers
     registerExternalHandlers();
@@ -111,6 +116,10 @@ describe('External IPC Handlers', () => {
 
     it('should register external:openFile handler', () => {
       expect(handlers.has('external:openFile')).toBe(true);
+    });
+
+    it('should register external:revealPath handler', () => {
+      expect(handlers.has('external:revealPath')).toBe(true);
     });
   });
 
@@ -299,16 +308,15 @@ describe('External IPC Handlers', () => {
     });
   });
 
-  // These tests require fs mocking which doesn't work well in jsdom
-  describe.skip('tool execution (requires fs mock)', () => {
+  describe('tool execution', () => {
     it('should launch known diff tool with correct arguments', async () => {
       const handler = handlers.get('external:openDiffTool');
-      const result = await handler!({}, 'meld', '/path/left.txt', '/path/right.txt');
+      const result = await handler!({}, 'meld', approvedFile, rightFile);
 
       expect(result).toEqual({ success: true });
       expect(mockState.spawn).toHaveBeenCalledWith(
         'meld',
-        ['/path/left.txt', '/path/right.txt'],
+        [approvedFile, rightFile],
         expect.objectContaining({
           detached: true,
           stdio: 'ignore',
@@ -318,19 +326,19 @@ describe('External IPC Handlers', () => {
 
     it('should launch vscode with --diff flag', async () => {
       const handler = handlers.get('external:openDiffTool');
-      const result = await handler!({}, 'vscode', '/path/a.txt', '/path/b.txt');
+      const result = await handler!({}, 'vscode', approvedFile, rightFile);
 
       expect(result).toEqual({ success: true });
       expect(mockState.spawn).toHaveBeenCalledWith(
         'code',
-        ['--diff', '/path/a.txt', '/path/b.txt'],
+        ['--diff', approvedFile, rightFile],
         expect.any(Object)
       );
     });
 
     it('should be case-insensitive for tool aliases', async () => {
       const handler = handlers.get('external:openDiffTool');
-      const result = await handler!({}, 'MELD', '/path/left.txt', '/path/right.txt');
+      const result = await handler!({}, 'MELD', approvedFile, rightFile);
 
       expect(result).toEqual({ success: true });
       expect(mockState.spawn).toHaveBeenCalledWith('meld', expect.any(Array), expect.any(Object));
@@ -341,10 +349,10 @@ describe('External IPC Handlers', () => {
       const result = await handler!(
         {},
         'meld',
-        '/path/base.txt',
-        '/path/mine.txt',
-        '/path/theirs.txt',
-        '/path/merged.txt'
+        approvedFile,
+        rightFile,
+        approvedFile,
+        join(approvedRoot, 'merged.txt')
       );
 
       expect(result).toEqual({ success: true });
@@ -352,28 +360,65 @@ describe('External IPC Handlers', () => {
 
     it('should open existing folder', async () => {
       const handler = handlers.get('external:openFolder');
-      const result = await handler!({}, '/path/to/folder');
+      approvePathForIpc(approvedRoot);
+      const result = await handler!({}, approvedFolder);
 
       expect(result).toEqual({ success: true });
-      expect(mockState.shellOpenPath).toHaveBeenCalledWith('/path/to/folder');
+      expect(mockState.shellOpenPath).toHaveBeenCalledWith(approvedFolder);
+    });
+
+    it('should report the operating-system error when a folder cannot be opened', async () => {
+      mockState.shellOpenPath.mockResolvedValueOnce('Finder could not open the folder');
+      const handler = handlers.get('external:openFolder');
+      approvePathForIpc(approvedRoot);
+
+      await expect(handler!({}, approvedFolder)).resolves.toEqual({
+        success: false,
+        error: 'Finder could not open the folder',
+      });
     });
 
     it('should open existing file', async () => {
       const handler = handlers.get('external:openFile');
-      const result = await handler!({}, '/path/to/file.txt');
+      approvePathForIpc(approvedRoot);
+      const result = await handler!({}, approvedFile);
 
       expect(result).toEqual({ success: true });
-      expect(mockState.shellOpenPath).toHaveBeenCalledWith('/path/to/file.txt');
+      expect(mockState.shellOpenPath).toHaveBeenCalledWith(approvedFile);
+    });
+
+    it('should reveal an existing file in Finder or Explorer', async () => {
+      const handler = handlers.get('external:revealPath');
+      approvePathForIpc(approvedRoot);
+
+      await expect(handler!({}, approvedFile)).resolves.toEqual({ success: true });
+      expect(mockState.shellShowItemInFolder).toHaveBeenCalledWith(approvedFile);
+      expect(mockState.shellOpenPath).not.toHaveBeenCalled();
+    });
+
+    it('should open an existing directory when revealing it', async () => {
+      const handler = handlers.get('external:revealPath');
+      approvePathForIpc(approvedRoot);
+
+      await expect(handler!({}, approvedFolder)).resolves.toEqual({ success: true });
+      expect(mockState.shellOpenPath).toHaveBeenCalledWith(approvedFolder);
+      expect(mockState.shellShowItemInFolder).not.toHaveBeenCalled();
+    });
+
+    it('should reject reveal paths outside approved roots', async () => {
+      const handler = handlers.get('external:revealPath');
+
+      const result = await handler!({}, join(tempRoot, 'unapproved.txt'));
+
+      expect(result.success).toBe(false);
+      expect(mockState.shellOpenPath).not.toHaveBeenCalled();
+      expect(mockState.shellShowItemInFolder).not.toHaveBeenCalled();
     });
 
     it('should return error when path is a directory', async () => {
-      mockState.stat.mockResolvedValueOnce({
-        isFile: () => false,
-        isDirectory: () => true,
-      });
-
       const handler = handlers.get('external:openFile');
-      const result = await handler!({}, '/path/to/folder');
+      approvePathForIpc(approvedRoot);
+      const result = await handler!({}, approvedFolder);
 
       expect(result.success).toBe(false);
       expect((result as { error?: string }).error).toContain('must be a file');

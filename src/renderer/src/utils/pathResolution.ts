@@ -9,9 +9,41 @@ function normalizeToForwardSlash(path: string): string {
 }
 
 function normalizeToPlatformPath(path: string): string {
-  const isWindows = typeof process !== 'undefined' && process.platform === 'win32';
   const normalized = normalizeToForwardSlash(path);
+  const isWindows =
+    /^[a-zA-Z]:\//.test(normalized) ||
+    normalized.startsWith('//') ||
+    (typeof process !== 'undefined' && process.platform === 'win32');
   return isWindows ? normalized.replace(/\//g, '\\') : normalized;
+}
+
+interface ParsedSvnUrl {
+  authority: string;
+  segments: string[];
+}
+
+function parseSvnUrl(value: string): ParsedSvnUrl | null {
+  try {
+    const url = new URL(value);
+    const authority = `${url.protocol.toLowerCase()}//${url.username ? `${url.username}@` : ''}${url.host.toLowerCase()}`;
+    const segments = url.pathname
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment));
+    if (segments.some((segment) => segment === '.' || segment === '..' || /[/\\]/.test(segment))) {
+      return null;
+    }
+    return { authority, segments };
+  } catch {
+    return null;
+  }
+}
+
+function hasUrlSegmentPrefix(candidate: ParsedSvnUrl, prefix: ParsedSvnUrl): boolean {
+  return (
+    candidate.authority === prefix.authority &&
+    prefix.segments.every((segment, index) => candidate.segments[index] === segment)
+  );
 }
 
 /**
@@ -38,11 +70,6 @@ export function getRelativePath(fullPath: string, basePath: string): string {
     return normalizedFull.slice(baseWithSlash.length);
   }
 
-  if (normalizedFull.startsWith(normalizedBase) && normalizedFull.length > normalizedBase.length) {
-    const remaining = normalizedFull.slice(normalizedBase.length);
-    return remaining.startsWith('/') ? remaining.slice(1) : remaining;
-  }
-
   return '';
 }
 
@@ -59,28 +86,32 @@ export function getRelativePath(fullPath: string, basePath: string): string {
 export function resolveRemoteUrlToLocalPath(
   remoteUrl: string,
   workingCopyRoot: string,
-  repositoryRoot: string
+  repositoryRoot: string,
+  workingCopyUrl: string = repositoryRoot
 ): string | null {
-  if (!remoteUrl || !workingCopyRoot || !repositoryRoot) {
+  if (!remoteUrl || !workingCopyRoot || !repositoryRoot || !workingCopyUrl) {
     return null;
   }
 
-  const normalizedUrl = normalizeToForwardSlash(remoteUrl);
-  const normalizedRepoRoot = normalizeToForwardSlash(repositoryRoot).replace(/\/+$/, '');
+  const parsedUrl = parseSvnUrl(remoteUrl);
+  const parsedRepoRoot = parseSvnUrl(repositoryRoot);
+  const parsedWorkingCopyUrl = parseSvnUrl(workingCopyUrl);
+  if (!parsedUrl || !parsedRepoRoot || !parsedWorkingCopyUrl) return null;
+  if (
+    !hasUrlSegmentPrefix(parsedUrl, parsedRepoRoot) ||
+    !hasUrlSegmentPrefix(parsedWorkingCopyUrl, parsedRepoRoot) ||
+    !hasUrlSegmentPrefix(parsedUrl, parsedWorkingCopyUrl)
+  ) {
+    return null;
+  }
+
   const normalizedWorkingCopyRoot = normalizeToForwardSlash(workingCopyRoot).replace(/\/+$/, '');
-
-  const repoRootWithSlash = normalizedRepoRoot + '/';
-
-  if (normalizedUrl === normalizedRepoRoot) {
-    return normalizeToPlatformPath(normalizedWorkingCopyRoot);
-  }
-
-  if (!normalizedUrl.startsWith(repoRootWithSlash)) {
-    return null;
-  }
-
-  const relativePath = normalizedUrl.slice(repoRootWithSlash.length);
-  const localPath = normalizedWorkingCopyRoot + '/' + relativePath;
+  const relativePath = parsedUrl.segments
+    .slice(parsedWorkingCopyUrl.segments.length)
+    .join('/');
+  const localPath = relativePath
+    ? `${normalizedWorkingCopyRoot}/${relativePath}`
+    : normalizedWorkingCopyRoot;
 
   return normalizeToPlatformPath(localPath);
 }
@@ -94,14 +125,7 @@ export function isUrlInRepository(remoteUrl: string, repositoryRoot: string): bo
     return false;
   }
 
-  const normalizedUrl = normalizeToForwardSlash(remoteUrl).replace(/\/+$/, '');
-  const normalizedRepoRoot = normalizeToForwardSlash(repositoryRoot).replace(/\/+$/, '');
-
-  if (normalizedUrl === normalizedRepoRoot) {
-    return true;
-  }
-
-  const repoRootWithSlash = normalizedRepoRoot + '/';
-
-  return normalizedUrl.startsWith(repoRootWithSlash);
+  const parsedUrl = parseSvnUrl(remoteUrl);
+  const parsedRepoRoot = parseSvnUrl(repositoryRoot);
+  return !!parsedUrl && !!parsedRepoRoot && hasUrlSegmentPrefix(parsedUrl, parsedRepoRoot);
 }

@@ -120,7 +120,11 @@ export function useWebhooks() {
         const migratedWebhooks = await Promise.all(
           storedWebhooks.map(async (webhook) => {
             if (webhook.secret) {
-              await window.api.auth.set(getWebhookSecretRealm(webhook.id), 'webhook', webhook.secret);
+              await window.api.auth.set(
+                getWebhookSecretRealm(webhook.id),
+                'webhook',
+                webhook.secret
+              );
             }
             return stripWebhookSecret(webhook);
           })

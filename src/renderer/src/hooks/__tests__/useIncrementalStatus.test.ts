@@ -20,9 +20,7 @@ describe('getStatusDisplay', () => {
     };
 
     for (const [status, label] of Object.entries(expectedLabels)) {
-      expect(getStatusDisplay(status as SvnStatusChar)).toEqual(
-        expect.objectContaining({ label })
-      );
+      expect(getStatusDisplay(status as SvnStatusChar)).toEqual(expect.objectContaining({ label }));
     }
   });
 });

@@ -16,9 +16,7 @@ describe('commitAutocomplete', () => {
 
   it('builds changed-path autocomplete options', () => {
     expect(
-      buildPathAutocompleteOptions('Fix checkout', [
-        { path: '/repo/src/file.ts', status: 'M' },
-      ])
+      buildPathAutocompleteOptions('Fix checkout', [{ path: '/repo/src/file.ts', status: 'M' }])
     ).toEqual([
       {
         value: 'Fix checkout /repo/src/file.ts',

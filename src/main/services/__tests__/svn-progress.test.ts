@@ -15,7 +15,7 @@ import { cancelSvnOperation, runSvnOperationWithProgress } from '../svn-progress
 
 describe('svn-progress', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockState.runSvn.mockReset();
   });
 
   it('streams file progress and uses streamed revision when stored output is capped', async () => {
@@ -72,6 +72,24 @@ describe('svn-progress', () => {
     );
   });
 
+  it('returns null when successful output has no authoritative revision', async () => {
+    mockState.runSvn.mockResolvedValue({
+      stdout: 'Summary of conflicts:\n  Text conflicts: 0\n',
+      stderr: '',
+      code: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+    await expect(
+      runSvnOperationWithProgress(
+        { sender: { send: vi.fn() } } as never,
+        'merge-no-revision',
+        'merge',
+        ['merge', 'source', 'target']
+      )
+    ).resolves.toMatchObject({ success: true, revision: null });
+  });
+
   it('cancels an active operation by aborting the executor signal', async () => {
     const send = vi.fn();
     mockState.runSvn.mockImplementation(
@@ -94,7 +112,7 @@ describe('svn-progress', () => {
     expect(cancelSvnOperation('export-1')).toEqual({ success: true });
     await expect(promise).resolves.toEqual({
       success: false,
-      revision: 0,
+      revision: null,
       error: 'SVN operation cancelled',
     });
     expect(send).toHaveBeenCalledWith(
@@ -120,15 +138,13 @@ describe('svn-progress', () => {
       });
 
     await expect(
-      runSvnOperationWithProgress(
-        { sender: { send } } as never,
-        'update-1',
+      runSvnOperationWithProgress({ sender: { send } } as never, 'update-1', 'update', [
         'update',
-        ['update', 'C:\\wc']
-      )
+        'C:\\wc',
+      ])
     ).resolves.toEqual({
       success: false,
-      revision: 0,
+      revision: null,
       error: 'process crashed unexpectedly',
     });
 
@@ -138,12 +154,10 @@ describe('svn-progress', () => {
     });
 
     await expect(
-      runSvnOperationWithProgress(
-        { sender: { send } } as never,
-        'update-1',
+      runSvnOperationWithProgress({ sender: { send } } as never, 'update-1', 'update', [
         'update',
-        ['update', 'C:\\wc']
-      )
+        'C:\\wc',
+      ])
     ).resolves.toEqual({
       success: true,
       revision: 88,
@@ -173,7 +187,7 @@ describe('svn-progress', () => {
 
     expect(result).toEqual({
       success: false,
-      revision: 0,
+      revision: null,
       error: 'commit failed password=[REDACTED] token=[REDACTED]',
     });
     expect(send).toHaveBeenCalledWith(

@@ -113,7 +113,9 @@ export function BookmarksManager({
           {isAdding ? (
             <div className="bg-bg-tertiary rounded-lg p-4 space-y-3">
               <div>
-                <label htmlFor="bookmark-path" className="block text-xs text-text-muted mb-1">Path</label>
+                <label htmlFor="bookmark-path" className="block text-xs text-text-muted mb-1">
+                  Path
+                </label>
                 <div className="flex gap-2">
                   <input
                     id="bookmark-path"
@@ -129,7 +131,9 @@ export function BookmarksManager({
                 </div>
               </div>
               <div>
-                <label htmlFor="bookmark-name" className="block text-xs text-text-muted mb-1">Name</label>
+                <label htmlFor="bookmark-name" className="block text-xs text-text-muted mb-1">
+                  Name
+                </label>
                 <input
                   id="bookmark-name"
                   type="text"

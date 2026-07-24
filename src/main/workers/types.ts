@@ -1,5 +1,6 @@
 import type {
   SvnBlameResult,
+  SvnCatResult,
   SvnDiffResult,
   SvnExecutionContext,
   SvnLogResult,
@@ -30,7 +31,8 @@ export type WorkerJobName =
   | 'svn:diffStreaming'
   | 'svn:diffUrls'
   | 'svn:log'
-  | 'svn:blame';
+  | 'svn:blame'
+  | 'svn:cat';
 
 export interface StatusPayload {
   dirPath: string;
@@ -75,6 +77,10 @@ export interface LogPayload {
   startRev?: number;
   endRev?: number;
   useMergeHistory?: boolean;
+  stopOnCopy?: boolean;
+  strictNodeHistory?: boolean;
+  includeAllRevisionProperties?: boolean;
+  revisionProperties?: string[];
   svnCommand: string;
   context: SvnExecutionContext;
   trustSslFailures?: boolean;
@@ -93,6 +99,16 @@ export interface BlamePayload {
   credentials?: { username: string; password: string };
 }
 
+export interface CatPayload {
+  target: string;
+  revision?: string;
+  svnCommand: string;
+  context: SvnExecutionContext;
+  trustSslFailures?: boolean;
+  trustedSslFailures?: string;
+  credentials?: { username: string; password: string };
+}
+
 export type WorkerJobPayloadMap = {
   'fs:folderSizes': FolderSizesPayload;
   'svn:deepStatus': DeepStatusPayload;
@@ -103,6 +119,7 @@ export type WorkerJobPayloadMap = {
   'svn:diffUrls': DiffUrlsPayload;
   'svn:log': LogPayload;
   'svn:blame': BlamePayload;
+  'svn:cat': CatPayload;
 };
 
 export type WorkerJobResultMap = {
@@ -115,6 +132,7 @@ export type WorkerJobResultMap = {
   'svn:diffUrls': SvnDiffResult;
   'svn:log': SvnLogResult;
   'svn:blame': SvnBlameResult;
+  'svn:cat': SvnCatResult;
 };
 
 export type WorkerPriority = 'interactive' | 'background';
@@ -164,4 +182,5 @@ export interface WorkerRunOptions {
   priority?: WorkerPriority;
   timeoutMs?: number;
   onProgress?: (progress: WorkerProgressEvent) => void;
+  joinExisting?: boolean;
 }

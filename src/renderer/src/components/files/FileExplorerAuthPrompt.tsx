@@ -42,7 +42,10 @@ export function FileExplorerAuthPrompt({
             </div>
           </div>
           <div>
-            <label htmlFor="file-explorer-auth-username" className="block text-sm font-medium text-text mb-1.5">
+            <label
+              htmlFor="file-explorer-auth-username"
+              className="block text-sm font-medium text-text mb-1.5"
+            >
               Username
             </label>
             <input
@@ -54,7 +57,10 @@ export function FileExplorerAuthPrompt({
             />
           </div>
           <div>
-            <label htmlFor="file-explorer-auth-password" className="block text-sm font-medium text-text mb-1.5">
+            <label
+              htmlFor="file-explorer-auth-password"
+              className="block text-sm font-medium text-text mb-1.5"
+            >
               Password
             </label>
             <input

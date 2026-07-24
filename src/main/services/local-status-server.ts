@@ -59,7 +59,9 @@ function isExpectedToken(actual: unknown, expected: string): boolean {
 
   const actualBuffer = Buffer.from(actual);
   const expectedBuffer = Buffer.from(expected);
-  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+  return (
+    actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
+  );
 }
 
 function handleRequest(request: LocalStatusRequest, authToken: string): LocalStatusResponse {

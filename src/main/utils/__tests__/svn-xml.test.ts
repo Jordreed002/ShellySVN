@@ -164,5 +164,25 @@ build &amp; dist</property>
         value: '*.o\nbuild & dist',
       },
     ]);
+
+    expect(
+      parseSvnPropertiesXml(`<?xml version="1.0" encoding="UTF-8"?>
+<properties>
+  <target path="https://svn.example.com/repo/trunk">
+    <inherited_property name="svn:mergeinfo">/branches/feature:1-3</inherited_property>
+  </target>
+  <target path="https://svn.example.com/repo/trunk/child">
+    <property name="custom:owner">team</property>
+  </target>
+</properties>`)
+    ).toEqual([
+      {
+        name: 'svn:mergeinfo',
+        value: '/branches/feature:1-3',
+        inherited: true,
+        inheritedFrom: 'https://svn.example.com/repo/trunk',
+      },
+      { name: 'custom:owner', value: 'team' },
+    ]);
   });
 });

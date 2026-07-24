@@ -21,6 +21,9 @@ export function ApplyPatchDialog({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ applied: number; skipped: number } | null>(null);
   const [preview, setPreview] = useState<string[]>([]);
+  const [reverse, setReverse] = useState(false);
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
+  const [stripCount, setStripCount] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -31,6 +34,9 @@ export function ApplyPatchDialog({
       setSuccess(null);
       setPreview([]);
       setIsApplying(false);
+      setReverse(false);
+      setIgnoreWhitespace(false);
+      setStripCount(0);
     }
   }, [isOpen]);
 
@@ -66,7 +72,11 @@ export function ApplyPatchDialog({
       }
 
       // Use dry run to preview
-      const result = await window.api.svn.patch.apply(patchPath, targetPath, true);
+      const result = await window.api.svn.patch.apply(patchPath, targetPath, true, {
+        reverse,
+        ignoreWhitespace,
+        stripCount,
+      });
 
       if (result.success) {
         // Parse output to get affected files
@@ -103,7 +113,11 @@ export function ApplyPatchDialog({
     setError(null);
 
     try {
-      const result = await window.api.svn.patch.apply(patchPath, targetPath, dryRun);
+      const result = await window.api.svn.patch.apply(patchPath, targetPath, dryRun, {
+        reverse,
+        ignoreWhitespace,
+        stripCount,
+      });
 
       if (result.success) {
         setSuccess({ applied: result.filesPatched, skipped: result.rejects });
@@ -111,7 +125,14 @@ export function ApplyPatchDialog({
           onComplete();
         }
       } else {
-        setError(result.output || 'Failed to apply patch');
+        const rejectRecovery = result.appliedWithConflicts
+          ? `Patch was partially applied with ${result.rejects} conflict(s).${
+              result.rejectFiles.length > 0
+                ? ` Review reject files: ${result.rejectFiles.join(', ')}`
+                : ' Review the working copy and .svnpatch.rej files before continuing.'
+            }`
+          : '';
+        setError(rejectRecovery || result.output || 'Failed to apply patch');
       }
     } catch (err) {
       setError((err as Error).message || 'Failed to apply patch');
@@ -156,7 +177,10 @@ export function ApplyPatchDialog({
             <>
               {/* Patch file selection */}
               <div>
-                <label htmlFor="apply-patch-file" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="apply-patch-file"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Patch file
                 </label>
                 <div className="flex gap-2">
@@ -177,7 +201,10 @@ export function ApplyPatchDialog({
 
               {/* Or paste content */}
               <div>
-                <label htmlFor="apply-patch-content" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="apply-patch-content"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Or paste patch content
                 </label>
                 <textarea
@@ -214,6 +241,32 @@ export function ApplyPatchDialog({
                 />
                 <span className="text-sm">Dry run (preview changes only)</span>
               </label>
+              <div className="grid grid-cols-2 gap-3 rounded border border-border p-3 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={reverse} onChange={(e) => setReverse(e.target.checked)} />
+                  Reverse patch
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={ignoreWhitespace}
+                    onChange={(e) => setIgnoreWhitespace(e.target.checked)}
+                  />
+                  Ignore whitespace
+                </label>
+                <label className="col-span-2 flex items-center gap-2">
+                  Strip path components
+                  <input
+                    aria-label="Strip path components"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={stripCount}
+                    onChange={(e) => setStripCount(Number(e.target.value))}
+                    className="input w-20"
+                  />
+                </label>
+              </div>
 
               {/* Preview */}
               {preview.length > 0 && (

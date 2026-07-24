@@ -7,6 +7,7 @@ import {
   type IssueTrackerConfig,
 } from '@renderer/utils/issueTracker';
 import debug from '@shared/utils/debug';
+import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
 
 const STORAGE_KEY = 'shellysvn:issue-trackers';
 
@@ -35,8 +36,10 @@ export function useIssueTrackerConfig(workingCopyPath: string, lookupPath = work
           return;
         }
 
-        const bugtraqConfig = await loadInheritedBugtraqConfig(lookupPath, workingCopyPath, () =>
-          cancelled
+        const bugtraqConfig = await loadInheritedBugtraqConfig(
+          lookupPath,
+          workingCopyPath,
+          () => cancelled
         );
         if (cancelled) return;
         setConfig(bugtraqConfig || DEFAULT_ISSUE_TRACKER_CONFIG);
@@ -87,8 +90,8 @@ async function loadInheritedBugtraqConfig(
     if (isCancelled()) return null;
 
     try {
-      const properties = await window.api.svn.proplist(propertyPath);
-      const bugtraqConfig = issueTrackerConfigFromBugtraqProperties(properties);
+      const result = assertSuccessfulSvnRead(await window.api.svn.proplist(propertyPath));
+      const bugtraqConfig = issueTrackerConfigFromBugtraqProperties(result.properties);
       if (bugtraqConfig) {
         return bugtraqConfig;
       }

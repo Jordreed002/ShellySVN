@@ -3,20 +3,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
-import {
-  useCommitMessageHistory,
-  useCommitTemplates,
-} from '../useCommitMessageHistory';
-import {
-  setupWindowApiMock,
-  clearAllMocks,
-} from '@test-utils/test-helpers';
+import { renderHook, act } from '@testing-library/react';
+import { useCommitMessageHistory, useCommitTemplates } from '../useCommitMessageHistory';
+import { setupWindowApiMock, clearAllMocks } from '@test-utils/test-helpers';
 
 // NOTE: This test suite is skipped due to React/jsdom compatibility issues
 // The "Should not already be working" error occurs when rendering React hooks
 // in jsdom environment. See useLazyTreeLoader.test.tsx for similar issues.
-describe.skip('useCommitMessageHistory', () => {
+describe('useCommitMessageHistory', () => {
   beforeEach(() => {
     setupWindowApiMock();
     vi.useFakeTimers();
@@ -48,9 +42,7 @@ describe.skip('useCommitMessageHistory', () => {
         await vi.runAllTimersAsync();
       });
 
-      await waitFor(() => {
-        expect(result.current.history).toEqual(storedHistory);
-      });
+      expect(result.current.history).toEqual(storedHistory);
     });
 
     it('should handle storage load errors gracefully', async () => {
@@ -183,6 +175,7 @@ describe.skip('useCommitMessageHistory', () => {
       });
 
       const timestamp = result.current.history[0].timestamp;
+      vi.advanceTimersByTime(1);
 
       await act(async () => {
         await result.current.addMessage('Remove this');
@@ -301,7 +294,7 @@ describe.skip('useCommitMessageHistory', () => {
   });
 });
 
-describe.skip('useCommitTemplates', () => {
+describe('useCommitTemplates', () => {
   beforeEach(() => {
     setupWindowApiMock();
     vi.useFakeTimers();
@@ -332,9 +325,7 @@ describe.skip('useCommitTemplates', () => {
         await vi.runAllTimersAsync();
       });
 
-      await waitFor(() => {
-        expect(result.current.templates.some((t) => t.id === 'custom-1')).toBe(true);
-      });
+      expect(result.current.templates.some((t) => t.id === 'custom-1')).toBe(true);
     });
   });
 

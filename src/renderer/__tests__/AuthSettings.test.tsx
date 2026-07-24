@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSettings } from '../src/components/settings/SettingsPanels';
+import { DEFAULT_SETTINGS } from '@shared/settings-defaults';
 
 const authApi = {
   get: vi.fn(),
@@ -42,7 +43,7 @@ describe('AuthSettings credential management', () => {
   });
 
   it('updates a saved credential from the settings list', async () => {
-    render(<AuthSettings isOpen={true} />);
+    render(<AuthSettings isOpen={true} settings={DEFAULT_SETTINGS} onChange={vi.fn()} />);
 
     await screen.findByText('alice');
     fireEvent.click(screen.getByLabelText('Edit credentials for https://svn.example.com/repo'));
@@ -55,16 +56,12 @@ describe('AuthSettings credential management', () => {
     fireEvent.click(screen.getByLabelText('Save credentials for https://svn.example.com/repo'));
 
     await waitFor(() => {
-      expect(authApi.set).toHaveBeenCalledWith(
-        'https://svn.example.com/repo',
-        'bob',
-        'new-secret'
-      );
+      expect(authApi.set).toHaveBeenCalledWith('https://svn.example.com/repo', 'bob', 'new-secret');
     });
   });
 
   it('deletes and clears saved credentials from settings', async () => {
-    render(<AuthSettings isOpen={true} />);
+    render(<AuthSettings isOpen={true} settings={DEFAULT_SETTINGS} onChange={vi.fn()} />);
 
     await screen.findByText('alice');
     fireEvent.click(screen.getByLabelText('Delete credentials for https://svn.example.com/repo'));
@@ -78,6 +75,28 @@ describe('AuthSettings credential management', () => {
 
     await waitFor(() => {
       expect(authApi.clear).toHaveBeenCalled();
+    });
+  });
+
+  it('wires SSH client and agent settings into the saved application settings', async () => {
+    const onChange = vi.fn();
+    render(<AuthSettings isOpen={true} settings={DEFAULT_SETTINGS} onChange={onChange} />);
+    await screen.findByText('alice');
+
+    fireEvent.change(screen.getByLabelText('SSH client'), {
+      target: { value: '/usr/local/bin/ssh' },
+    });
+    expect(onChange).toHaveBeenCalledWith('sshSettings', {
+      sshClientPath: '/usr/local/bin/ssh',
+      useAgent: true,
+      keys: [],
+    });
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /use ssh-agent/i }));
+    expect(onChange).toHaveBeenCalledWith('sshSettings', {
+      sshClientPath: '',
+      useAgent: false,
+      keys: [],
     });
   });
 });

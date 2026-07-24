@@ -1,5 +1,6 @@
 import type {
   AuthCredential,
+  AppCacheBreakdown,
   AuthListEntry,
   CheckoutOptions,
   CheckoutProgress,
@@ -14,17 +15,37 @@ import type {
   RepoDiagnostics,
   ShellIntegrationStatus,
   SvnBlameResult,
+  SvnCatResult,
+  SvnCacheEntry,
+  SvnCacheNamespace,
+  SvnCacheStats,
   SvnChangelistResult,
+  SvnCleanupOptions,
+  SvnCleanupPreview,
   SvnDiffResult,
   SvnExternal,
+  SvnExternalsResult,
   SvnInfoResult,
   SvnListResult,
-  SvnLockInfo,
+  SvnLockInfoResult,
+  SvnLockListResult,
   SvnLockResult,
+  SvnMergeInfoKind,
+  SvnMergeInfoResult,
+  SvnMutationNotification,
+  SvnNativeAuthEntry,
+  SvnOperationRevision,
   SvnOperationProgress,
+  SvnPatchApplyOptions,
   SvnPatchResult,
+  SvnPropertyGetOptions,
+  SvnPropertyListResult,
+  SvnPropertyValueResult,
+  SvnRevertDepth,
+  SvnRevertPreview,
   SvnShelveListResult,
   SvnUnlockResult,
+  SvnWorkingCopyContext,
   UpdateOptions,
   WebhookDeliverRequest,
   WebhookDeliverResult,
@@ -37,9 +58,21 @@ type IpcCall<Args extends unknown[], Result> = {
 };
 
 type OperationResult = { success: boolean; error?: string };
-type RevisionResult = { success: boolean; revision: number; error?: string; output?: string };
+type RevisionResult = {
+  success: boolean;
+  revision: SvnOperationRevision;
+  error?: string;
+  output?: string;
+};
 
 export interface IpcInvokeContract {
+  'svn:capabilities': IpcCall<
+    [],
+    { shelving: boolean; nativeShelving: boolean; remoteProperties: boolean }
+  >;
+  'svn:nativeAuth:list': IpcCall<[patterns?: string[]], SvnNativeAuthEntry[]>;
+  'svn:nativeAuth:remove': IpcCall<[patterns: string[]], { success: boolean; output?: string }>;
+  'svn:cat': IpcCall<[target: string, revision?: string, workerJobId?: string], SvnCatResult>;
   'svn:status': IpcCall<[path: string, workerJobId?: string], import('./types').SvnStatusResult>;
   'svn:statusRemote': IpcCall<
     [path: string, workerJobId?: string],
@@ -61,15 +94,17 @@ export interface IpcInvokeContract {
       endRev?: number,
       useMergeHistory?: boolean,
       workerJobId?: string,
+      options?: Omit<import('./types').SvnLogRequestOptions, 'signal'>,
     ],
     import('./types').SvnLogResult
   >;
+  'svn:mergeInfo': IpcCall<
+    [source: string, target: string, kind: SvnMergeInfoKind],
+    SvnMergeInfoResult
+  >;
   'svn:info': IpcCall<[path: string], SvnInfoResult>;
   'svn:infoUrl': IpcCall<[url: string], SvnInfoResult>;
-  'svn:getWorkingCopyContext': IpcCall<
-    [path: string],
-    { workingCopyRoot: string; repositoryRoot: string; url: string } | null
-  >;
+  'svn:getWorkingCopyContext': IpcCall<[path: string], SvnWorkingCopyContext | null>;
   'svn:diff': IpcCall<[path: string, revision?: string, workerJobId?: string], SvnDiffResult>;
   'svn:diffUrls': IpcCall<[leftUrl: string, rightUrl: string, workerJobId?: string], SvnDiffResult>;
   'svn:diffStreaming': IpcCall<
@@ -108,16 +143,24 @@ export interface IpcInvokeContract {
     RevisionResult
   >;
   'svn:cancelOperation': IpcCall<[operationId: string], OperationResult>;
-  'svn:revert': IpcCall<[paths: string[]], OperationResult>;
+  'svn:revert': IpcCall<[paths: string[], depth?: SvnRevertDepth], OperationResult>;
+  'svn:revertPreview': IpcCall<[paths: string[], depth?: SvnRevertDepth], SvnRevertPreview>;
+  'svn:unversion': IpcCall<[paths: string[]], OperationResult>;
+  'svn:exclude': IpcCall<[path: string], OperationResult>;
+  'svn:childCommits': IpcCall<
+    [path: string],
+    Record<string, { revision: number; author: string; date: string }>
+  >;
   'svn:add': IpcCall<[paths: string[]], OperationResult>;
   'svn:delete': IpcCall<[paths: string[]], OperationResult>;
-  'svn:cleanup': IpcCall<[path: string], OperationResult>;
+  'svn:cleanup': IpcCall<[path: string, options?: SvnCleanupOptions], OperationResult>;
+  'svn:cleanupPreview': IpcCall<[path: string], SvnCleanupPreview>;
   'svn:lock': IpcCall<[path: string, message?: string], OperationResult>;
   'svn:unlock': IpcCall<[path: string, force?: boolean], OperationResult>;
-  'svn:lockInfo': IpcCall<[path: string], SvnLockInfo | null>;
+  'svn:lockInfo': IpcCall<[path: string], SvnLockInfoResult>;
   'svn:lockForce': IpcCall<[path: string, message?: string], SvnLockResult>;
   'svn:unlockForce': IpcCall<[path: string], SvnUnlockResult>;
-  'svn:lockList': IpcCall<[path: string], SvnLockInfo[]>;
+  'svn:lockList': IpcCall<[path: string], SvnLockListResult>;
   'svn:checkout': IpcCall<
     [
       url: string,
@@ -137,7 +180,7 @@ export interface IpcInvokeContract {
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions,
     ],
-    { success: boolean; revision: number; output?: string }
+    RevisionResult
   >;
   'svn:cancelCheckout': IpcCall<[checkoutId: string], OperationResult>;
   'svn:export': IpcCall<[url: string, path: string, revision?: string], RevisionResult>;
@@ -188,19 +231,36 @@ export interface IpcInvokeContract {
   >;
   'svn:relocate': IpcCall<[from: string, to: string, path: string], OperationResult>;
   'svn:move': IpcCall<[src: string, dst: string], OperationResult>;
-  'svn:rename': IpcCall<[src: string, dst: string], OperationResult>;
+  'svn:copyLocal': IpcCall<[src: string, dst: string], OperationResult>;
   'svn:changelist:add': IpcCall<[paths: string[], changelist: string], OperationResult>;
   'svn:changelist:remove': IpcCall<[paths: string[]], OperationResult>;
   'svn:changelist:list': IpcCall<[path: string], SvnChangelistResult>;
-  'svn:changelist:create': IpcCall<[name: string, comment?: string], OperationResult>;
   'svn:changelist:delete': IpcCall<[name: string, path: string], OperationResult>;
   'svn:shelve:list': IpcCall<[path: string], SvnShelveListResult>;
   'svn:shelve:save': IpcCall<[name: string, path: string, message?: string], OperationResult>;
   'svn:shelve:apply': IpcCall<[name: string, path: string], OperationResult>;
   'svn:shelve:delete': IpcCall<[name: string, path: string], OperationResult>;
-  'svn:proplist': IpcCall<[path: string], { name: string; value: string }[]>;
+  'svn:proplist': IpcCall<[path: string, options?: SvnPropertyGetOptions], SvnPropertyListResult>;
+  'svn:propget': IpcCall<
+    [target: string, name: string, options?: SvnPropertyGetOptions],
+    SvnPropertyValueResult
+  >;
   'svn:propset': IpcCall<[path: string, name: string, value: string], OperationResult>;
   'svn:propdel': IpcCall<[path: string, name: string], OperationResult>;
+  'svn:propsetRemote': IpcCall<
+    [url: string, name: string, value: string, message: string],
+    OperationResult
+  >;
+  'svn:propdelRemote': IpcCall<[url: string, name: string, message: string], OperationResult>;
+  'svn:revpropget': IpcCall<
+    [target: string, name: string, revision: string],
+    SvnPropertyValueResult
+  >;
+  'svn:revpropset': IpcCall<
+    [target: string, name: string, value: string, revision: string],
+    OperationResult
+  >;
+  'svn:revpropdel': IpcCall<[target: string, name: string, revision: string], OperationResult>;
   'svn:blame': IpcCall<
     [path: string, startRevision?: number, endRevision?: number, workerJobId?: string],
     SvnBlameResult
@@ -209,7 +269,7 @@ export interface IpcInvokeContract {
     [
       url: string,
       revision?: string,
-      depth?: 'empty' | 'immediates' | 'infinity',
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       credentials?: AuthCredential,
     ],
     SvnListResult
@@ -219,14 +279,21 @@ export interface IpcInvokeContract {
     { success: boolean; output: string }
   >;
   'svn:patch:apply': IpcCall<
-    [patchPath: string, targetPath: string, dryRun?: boolean],
+    [patchPath: string, targetPath: string, dryRun?: boolean, options?: SvnPatchApplyOptions],
     SvnPatchResult
   >;
-  'svn:externals:list': IpcCall<[path: string], SvnExternal[]>;
-  'svn:externals:add': IpcCall<[workingCopyPath: string, external: SvnExternal], OperationResult>;
+  'svn:externals:list': IpcCall<[path: string], SvnExternalsResult>;
+  'svn:externals:add': IpcCall<
+    [workingCopyPath: string, external: Omit<SvnExternal, 'name'> & { name?: string }],
+    OperationResult
+  >;
   'svn:externals:remove': IpcCall<[workingCopyPath: string, externalPath: string], OperationResult>;
   'svn:externals:edit': IpcCall<
-    [workingCopyPath: string, externalPath: string, external: SvnExternal],
+    [
+      workingCopyPath: string,
+      externalPath: string,
+      external: Omit<SvnExternal, 'name'> & { name?: string },
+    ],
     OperationResult
   >;
   'svn:externals:update': IpcCall<
@@ -234,6 +301,10 @@ export interface IpcInvokeContract {
     OperationResult
   >;
   'svn:diagnostics': IpcCall<[workingCopyPath: string], RepoDiagnostics>;
+  'svn:trustServerCertificate': IpcCall<
+    [url: string, errorText: string],
+    { success: boolean; error?: string }
+  >;
 
   'fs:listDirectory': IpcCall<[path: string], FileInfo[]>;
   'fs:listDrives': IpcCall<[], FileInfo[]>;
@@ -259,6 +330,7 @@ export interface IpcInvokeContract {
   'fs:getFolderSizes': IpcCall<[folderPaths: string[]], Record<string, number>>;
   'fs:copyFile': IpcCall<[source: string, target: string], OperationResult>;
   'fs:writeFile': IpcCall<[path: string, content: string], OperationResult>;
+  'fs:writeFileBase64': IpcCall<[path: string, contentBase64: string], OperationResult>;
   'fs:watch': IpcCall<[path: string, options?: { watchSvnOnly?: boolean }], OperationResult>;
   'fs:unwatch': IpcCall<[path: string], OperationResult>;
   'fs:exists': IpcCall<[path: string], boolean>;
@@ -274,6 +346,11 @@ export interface IpcInvokeContract {
   'app:openExternal': IpcCall<[url: string], OperationResult>;
   'app:clearCache': IpcCall<[], OperationResult>;
   'app:getCacheSize': IpcCall<[], { size: number; files: number }>;
+  'app:getCacheBreakdown': IpcCall<[], AppCacheBreakdown>;
+  'app:clearCacheTypes': IpcCall<
+    [types: Array<'electron' | 'logs' | 'offline' | 'auth'>],
+    OperationResult
+  >;
   'app:window:minimize': IpcCall<[], void>;
   'app:window:maximize': IpcCall<[], void>;
   'app:window:close': IpcCall<[], void>;
@@ -282,6 +359,25 @@ export interface IpcInvokeContract {
   'store:get': IpcCall<[key: string], unknown>;
   'store:set': IpcCall<[key: string, value: unknown], void>;
   'store:delete': IpcCall<[key: string], void>;
+
+  'svnCache:get': IpcCall<[namespace: SvnCacheNamespace, key: string], SvnCacheEntry | null>;
+  'svnCache:list': IpcCall<[namespace: SvnCacheNamespace], SvnCacheEntry[]>;
+  'svnCache:set': IpcCall<
+    [
+      namespace: SvnCacheNamespace,
+      key: string,
+      path: string,
+      data: unknown,
+      ttlMs: number,
+      operationStartedAt?: number,
+    ],
+    { success: boolean; error?: string; stale?: boolean }
+  >;
+  'svnCache:delete': IpcCall<[namespace: SvnCacheNamespace, key: string], void>;
+  'svnCache:clearNamespace': IpcCall<[namespace: SvnCacheNamespace, clearedAt?: number], void>;
+  'svnCache:clearPath': IpcCall<[path: string, clearedAt?: number], void>;
+  'svnCache:clearAll': IpcCall<[clearedAt?: number], void>;
+  'svnCache:stats': IpcCall<[], SvnCacheStats>;
 
   'auth:get': IpcCall<[realm: string], AuthCredential | null>;
   'auth:set': IpcCall<[realm: string, username: string, password: string], OperationResult>;
@@ -305,6 +401,7 @@ export interface IpcInvokeContract {
   >;
   'external:openFolder': IpcCall<[path: string], OperationResult>;
   'external:openFile': IpcCall<[path: string], OperationResult>;
+  'external:revealPath': IpcCall<[path: string], OperationResult>;
 
   'webhook:deliver': IpcCall<[request: WebhookDeliverRequest], WebhookDeliverResult>;
   'notification:show': IpcCall<[options: NotificationOptions], boolean>;
@@ -323,6 +420,7 @@ export type IpcInvokeArgs<C extends IpcInvokeChannel> = IpcInvokeContract[C]['ar
 export type IpcInvokeResult<C extends IpcInvokeChannel> = IpcInvokeContract[C]['result'];
 
 export type IpcEventContract = {
+  'svn:mutation': SvnMutationNotification;
   'svn:checkout:progress': CheckoutProgress & { checkoutId?: string };
   'svn:update:progress': CheckoutProgress & { updateId?: string };
   'svn:operation:progress': SvnOperationProgress;

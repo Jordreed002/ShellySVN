@@ -71,6 +71,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   bookmarks: [],
   recentPaths: [],
   savedCredentials: [],
+  sshSettings: {
+    sshClientPath: '',
+    useAgent: true,
+    keys: [],
+  },
   logLevel: 'info',
   svnConfigPath: '',
   logCachePath: '',

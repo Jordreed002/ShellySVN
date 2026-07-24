@@ -1,5 +1,13 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import type { SvnInfoResult, SvnLogResult, SvnStatusResult, SvnStatusEntry } from '@shared/types';
+import { useState, useCallback, useEffect } from 'react';
+import type {
+  SvnCacheEntry,
+  SvnCacheNamespace,
+  SvnCacheStats,
+  SvnInfoResult,
+  SvnLogResult,
+  SvnStatusResult,
+  SvnStatusEntry,
+} from '@shared/types';
 import { formatBytes } from '@shared/utils/formatBytes';
 import { formatDuration } from '@shared/utils/formatTime';
 import {
@@ -7,27 +15,7 @@ import {
   OFFLINE_CACHE_SIZE_BYTES,
   OFFLINE_DURATION_UPDATE_INTERVAL_MS,
 } from '@shared/constants';
-
-/**
- * Offline cache entry with metadata
- */
-interface CacheEntry<T> {
-  data: T;
-  cachedAt: number;
-  expiresAt: number;
-  path: string;
-  checksum?: string;
-}
-
-/**
- * Offline cache structure
- */
-interface OfflineCache {
-  info: Map<string, CacheEntry<SvnInfoResult>>;
-  status: Map<string, CacheEntry<SvnStatusResult>>;
-  log: Map<string, CacheEntry<SvnLogResult>>;
-  entries: Map<string, CacheEntry<SvnStatusEntry[]>>;
-}
+import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
 
 /**
  * Cache configuration
@@ -52,6 +40,118 @@ const DEFAULT_CONFIG: OfflineCacheConfig = {
 
 // Module-level constant for default config to avoid new instances on every render
 const EMPTY_PARTIAL_CONFIG: Partial<OfflineCacheConfig> = {};
+const CACHE_NAMESPACES: SvnCacheNamespace[] = ['info', 'status', 'log', 'entries'];
+const sharedEntries: Record<SvnCacheNamespace, Map<string, SvnCacheEntry>> = {
+  info: new Map(),
+  status: new Map(),
+  log: new Map(),
+  entries: new Map(),
+};
+const listeners = new Set<() => void>();
+let initialized = false;
+let initialization: Promise<void> | null = null;
+let cacheGeneration = 0;
+let sharedStats: SvnCacheStats = {
+  infoCount: 0,
+  statusCount: 0,
+  logCount: 0,
+  entriesCount: 0,
+  totalSize: 0,
+  logSize: 0,
+  offlineSize: 0,
+  logBudgetBytes: 100 * 1024 * 1024,
+  offlineBudgetBytes: OFFLINE_CACHE_SIZE_BYTES,
+  filePath: '',
+};
+
+function notifyCacheConsumers(): void {
+  for (const listener of listeners) listener();
+}
+
+function clearSharedRendererCache(): void {
+  cacheGeneration++;
+  for (const namespace of CACHE_NAMESPACES) sharedEntries[namespace].clear();
+  sharedStats = {
+    ...sharedStats,
+    infoCount: 0,
+    statusCount: 0,
+    logCount: 0,
+    entriesCount: 0,
+    totalSize: 0,
+    logSize: 0,
+    offlineSize: 0,
+  };
+  notifyCacheConsumers();
+}
+
+async function refreshSharedCache(
+  namespaces: SvnCacheNamespace[] = CACHE_NAMESPACES
+): Promise<void> {
+  const generation = cacheGeneration;
+  const [loaded, stats] = await Promise.all([
+    Promise.all(namespaces.map((namespace) => window.api.svnCache.list(namespace))),
+    window.api.svnCache.stats(),
+  ]);
+  if (generation !== cacheGeneration) return;
+
+  namespaces.forEach((namespace, index) => {
+    sharedEntries[namespace] = new Map(loaded[index].map((entry) => [entry.key, entry]));
+  });
+  sharedStats = stats;
+  notifyCacheConsumers();
+}
+
+async function initializeSharedCache(): Promise<void> {
+  if (initialized) return;
+  initialization ??= (async () => {
+    try {
+      await refreshSharedCache();
+    } catch (error) {
+      console.error('Failed to load offline cache:', error);
+    } finally {
+      initialized = true;
+      notifyCacheConsumers();
+    }
+  })();
+  await initialization;
+}
+
+function getSharedValue<T>(namespace: SvnCacheNamespace, key: string): T | null {
+  const entry = sharedEntries[namespace].get(key);
+  return entry && entry.expiresAt > Date.now() ? (entry.data as T) : null;
+}
+
+async function setSharedValue<T>(
+  namespace: SvnCacheNamespace,
+  key: string,
+  path: string,
+  data: T,
+  ttlMs: number
+): Promise<void> {
+  const operationStartedAt = Date.now();
+  const result = await window.api.svnCache.set(
+    namespace,
+    key,
+    path,
+    data,
+    ttlMs,
+    operationStartedAt
+  );
+  if (!result.success) {
+    if (!result.stale) console.error(`Failed to cache ${namespace}:`, result.error);
+    return;
+  }
+  await refreshSharedCache([namespace]);
+}
+
+function hasSharedValue(namespace: SvnCacheNamespace, key: string): boolean {
+  return getSharedValue(namespace, key) !== null;
+}
+
+function getSharedAge(namespace: SvnCacheNamespace, key: string): number | null {
+  const entry = sharedEntries[namespace].get(key);
+  return entry && entry.expiresAt > Date.now() ? Date.now() - entry.cachedAt : null;
+}
 
 /**
  * Hook for managing offline cache of SVN data
@@ -61,201 +161,90 @@ const EMPTY_PARTIAL_CONFIG: Partial<OfflineCacheConfig> = {};
  */
 export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PARTIAL_CONFIG) {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const cacheRef = useRef<OfflineCache>({
-    info: new Map(),
-    status: new Map(),
-    log: new Map(),
-    entries: new Map(),
-  });
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [, setVersion] = useState(0);
 
-  /**
-   * Initialize cache from disk
-   */
-  const initialize = useCallback(async () => {
-    if (!cfg.persistToDisk) {
-      setIsInitialized(true);
-      return;
-    }
-
-    try {
-      const stored = await window.api.store.get<string>(cfg.storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored) as {
-          info: Array<[string, CacheEntry<SvnInfoResult>]>;
-          status: Array<[string, CacheEntry<SvnStatusResult>]>;
-          log: Array<[string, CacheEntry<SvnLogResult>]>;
-          entries: Array<[string, CacheEntry<SvnStatusEntry[]>]>;
-        };
-
-        // Only load non-expired entries
-        const now = Date.now();
-
-        for (const [key, entry] of parsed.info || []) {
-          if (entry.expiresAt > now) {
-            cacheRef.current.info.set(key, entry);
-          }
-        }
-
-        for (const [key, entry] of parsed.status || []) {
-          if (entry.expiresAt > now) {
-            cacheRef.current.status.set(key, entry);
-          }
-        }
-
-        for (const [key, entry] of parsed.log || []) {
-          if (entry.expiresAt > now) {
-            cacheRef.current.log.set(key, entry);
-          }
-        }
-
-        for (const [key, entry] of parsed.entries || []) {
-          if (entry.expiresAt > now) {
-            cacheRef.current.entries.set(key, entry);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load offline cache:', error);
-    }
-
-    setIsInitialized(true);
-  }, [cfg.persistToDisk, cfg.storageKey]);
-
-  /**
-   * Persist cache to disk
-   */
-  const persist = useCallback(async () => {
-    if (!cfg.persistToDisk) return;
-
-    try {
-      const data = {
-        info: Array.from(cacheRef.current.info.entries()),
-        status: Array.from(cacheRef.current.status.entries()),
-        log: Array.from(cacheRef.current.log.entries()),
-        entries: Array.from(cacheRef.current.entries.entries()),
-      };
-
-      await window.api.store.set(cfg.storageKey, JSON.stringify(data));
-    } catch (error) {
-      console.error('Failed to persist offline cache:', error);
-    }
-  }, [cfg.persistToDisk, cfg.storageKey]);
+  useEffect(() => {
+    const listener = () => setVersion((version) => version + 1);
+    const handleExternalClear = () => clearSharedRendererCache();
+    listeners.add(listener);
+    window.addEventListener('svn-cache-cleared', handleExternalClear);
+    void initializeSharedCache();
+    return () => {
+      listeners.delete(listener);
+      window.removeEventListener('svn-cache-cleared', handleExternalClear);
+    };
+  }, []);
 
   /**
    * Get cached info
    */
-  const getInfo = useCallback((path: string): SvnInfoResult | null => {
-    const entry = cacheRef.current.info.get(path);
-    if (entry && entry.expiresAt > Date.now()) {
-      return entry.data;
-    }
-    return null;
-  }, []);
+  const getInfo = useCallback(
+    (path: string): SvnInfoResult | null => getSharedValue('info', path),
+    []
+  );
 
   /**
    * Set cached info
    */
   const setInfo = useCallback(
     async (path: string, data: SvnInfoResult, ttl?: number) => {
-      const now = Date.now();
-      const entry: CacheEntry<SvnInfoResult> = {
-        data,
-        cachedAt: now,
-        expiresAt: now + (ttl || cfg.defaultTtl),
-        path,
-      };
-      cacheRef.current.info.set(path, entry);
-      await persist();
+      await setSharedValue('info', path, path, data, ttl || cfg.defaultTtl);
     },
-    [cfg.defaultTtl, persist]
+    [cfg.defaultTtl]
   );
 
   /**
    * Get cached status
    */
-  const getStatus = useCallback((path: string): SvnStatusResult | null => {
-    const entry = cacheRef.current.status.get(path);
-    if (entry && entry.expiresAt > Date.now()) {
-      return entry.data;
-    }
-    return null;
-  }, []);
+  const getStatus = useCallback(
+    (path: string): SvnStatusResult | null => getSharedValue('status', path),
+    []
+  );
 
   /**
    * Set cached status
    */
   const setStatus = useCallback(
     async (path: string, data: SvnStatusResult, ttl?: number) => {
-      const now = Date.now();
-      const entry: CacheEntry<SvnStatusResult> = {
-        data,
-        cachedAt: now,
-        expiresAt: now + (ttl || cfg.defaultTtl),
-        path,
-      };
-      cacheRef.current.status.set(path, entry);
-      await persist();
+      await setSharedValue('status', path, path, data, ttl || cfg.defaultTtl);
     },
-    [cfg.defaultTtl, persist]
+    [cfg.defaultTtl]
   );
 
   /**
    * Get cached log
    */
-  const getLog = useCallback((path: string): SvnLogResult | null => {
-    const entry = cacheRef.current.log.get(path);
-    if (entry && entry.expiresAt > Date.now()) {
-      return entry.data;
-    }
-    return null;
-  }, []);
+  const getLog = useCallback(
+    (path: string): SvnLogResult | null => getSharedValue('log', path),
+    []
+  );
 
   /**
    * Set cached log
    */
   const setLog = useCallback(
     async (path: string, data: SvnLogResult, ttl?: number) => {
-      const now = Date.now();
-      const entry: CacheEntry<SvnLogResult> = {
-        data,
-        cachedAt: now,
-        expiresAt: now + (ttl || cfg.defaultTtl),
-        path,
-      };
-      cacheRef.current.log.set(path, entry);
-      await persist();
+      await setSharedValue('log', path, path, data, ttl || cfg.defaultTtl);
     },
-    [cfg.defaultTtl, persist]
+    [cfg.defaultTtl]
   );
 
   /**
    * Get cached status entries
    */
-  const getEntries = useCallback((path: string): SvnStatusEntry[] | null => {
-    const entry = cacheRef.current.entries.get(path);
-    if (entry && entry.expiresAt > Date.now()) {
-      return entry.data;
-    }
-    return null;
-  }, []);
+  const getEntries = useCallback(
+    (path: string): SvnStatusEntry[] | null => getSharedValue('entries', path),
+    []
+  );
 
   /**
    * Set cached status entries
    */
   const setEntries = useCallback(
     async (path: string, data: SvnStatusEntry[], ttl?: number) => {
-      const now = Date.now();
-      const entry: CacheEntry<SvnStatusEntry[]> = {
-        data,
-        cachedAt: now,
-        expiresAt: now + (ttl || cfg.defaultTtl),
-        path,
-      };
-      cacheRef.current.entries.set(path, entry);
-      await persist();
+      await setSharedValue('entries', path, path, data, ttl || cfg.defaultTtl);
     },
-    [cfg.defaultTtl, persist]
+    [cfg.defaultTtl]
   );
 
   /**
@@ -263,9 +252,7 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PART
    */
   const hasCache = useCallback(
     (type: 'info' | 'status' | 'log' | 'entries', path: string): boolean => {
-      const map = cacheRef.current[type];
-      const entry = map.get(path);
-      return entry !== undefined && entry.expiresAt > Date.now();
+      return hasSharedValue(type, path);
     },
     []
   );
@@ -275,12 +262,7 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PART
    */
   const getCacheAge = useCallback(
     (type: 'info' | 'status' | 'log' | 'entries', path: string): number | null => {
-      const map = cacheRef.current[type];
-      const entry = map.get(path);
-      if (entry && entry.expiresAt > Date.now()) {
-        return Date.now() - entry.cachedAt;
-      }
-      return null;
+      return getSharedAge(type, path);
     },
     []
   );
@@ -289,78 +271,36 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PART
    * Clear all cache
    */
   const clearAll = useCallback(async () => {
-    cacheRef.current.info.clear();
-    cacheRef.current.status.clear();
-    cacheRef.current.log.clear();
-    cacheRef.current.entries.clear();
-    await persist();
-  }, [persist]);
+    cacheGeneration++;
+    await window.api.svnCache.clearAll(Date.now());
+    clearSharedRendererCache();
+  }, []);
 
   /**
    * Clear cache for a specific path
    */
-  const clearPath = useCallback(
-    async (path: string) => {
-      cacheRef.current.info.delete(path);
-      cacheRef.current.status.delete(path);
-      cacheRef.current.log.delete(path);
-      cacheRef.current.entries.delete(path);
-      await persist();
-    },
-    [persist]
-  );
+  const clearPath = useCallback(async (path: string) => {
+    cacheGeneration++;
+    await window.api.svnCache.clearPath(path, Date.now());
+    await refreshSharedCache();
+  }, []);
 
   /**
    * Get cache statistics
    * PERFORMANCE: Uses estimated entry size to avoid O(n) JSON.stringify calls
    */
   const getStats = useCallback(() => {
-    const now = Date.now();
-    let validInfo = 0;
-    let validStatus = 0;
-    let validLog = 0;
-    let validEntries = 0;
-
-    // Count valid entries - O(n) but just iteration, no serialization
-    for (const entry of cacheRef.current.info.values()) {
-      if (entry.expiresAt > now) validInfo++;
-    }
-
-    for (const entry of cacheRef.current.status.values()) {
-      if (entry.expiresAt > now) validStatus++;
-    }
-
-    for (const entry of cacheRef.current.log.values()) {
-      if (entry.expiresAt > now) validLog++;
-    }
-
-    for (const entry of cacheRef.current.entries.values()) {
-      if (entry.expiresAt > now) validEntries++;
-    }
-
-    // Estimate size based on average entry size (~2KB per entry)
-    // This avoids expensive JSON.stringify for each entry
-    const totalEntries = validInfo + validStatus + validLog + validEntries;
-    const estimatedSize = totalEntries * 2048;
-
     return {
-      infoCount: validInfo,
-      statusCount: validStatus,
-      logCount: validLog,
-      entriesCount: validEntries,
-      totalSize: estimatedSize,
-      formattedSize: formatBytes(estimatedSize),
-      isEstimated: true,
+      ...sharedStats,
+      formattedSize: formatBytes(sharedStats.totalSize),
+      isEstimated: false,
     };
   }, []);
 
-  // Initialize on mount
-  useEffect(() => {
-    initialize();
-  }, [initialize]);
+  const persist = useCallback(() => refreshSharedCache(), []);
 
   return {
-    isInitialized,
+    isInitialized: initialized,
     getInfo,
     setInfo,
     getStatus,
@@ -376,6 +316,24 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PART
     getStats,
     persist,
   };
+}
+
+export function resetOfflineCacheForTests(): void {
+  for (const namespace of CACHE_NAMESPACES) sharedEntries[namespace].clear();
+  initialized = false;
+  initialization = null;
+  cacheGeneration = 0;
+  sharedStats = {
+    ...sharedStats,
+    infoCount: 0,
+    statusCount: 0,
+    logCount: 0,
+    entriesCount: 0,
+    totalSize: 0,
+    logSize: 0,
+    offlineSize: 0,
+  };
+  listeners.clear();
 }
 
 /**
@@ -459,7 +417,7 @@ export function useOfflineAware(path: string) {
     }
 
     try {
-      const result = await window.api.svn.status(path);
+      const result = assertSuccessfulSvnRead(await window.api.svn.status(path));
       await cache.setStatus(path, result);
       return result;
     } catch {
@@ -480,7 +438,7 @@ export function useOfflineAware(path: string) {
       }
 
       try {
-        const result = await window.api.svn.log(path, limit);
+        const result = assertSuccessfulSvnRead(await window.api.svn.log(path, limit));
         await cache.setLog(cacheKey, result);
         return result;
       } catch {

@@ -41,8 +41,8 @@ describe('lock conflict detection and recovery', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    lockList.mockResolvedValue([lockInfo]);
-    lockInfoApi.mockResolvedValue(lockInfo);
+    lockList.mockResolvedValue({ locks: [lockInfo] });
+    lockInfoApi.mockResolvedValue({ lock: lockInfo });
     lockForce.mockResolvedValue({ success: true, lock: { ...lockInfo, owner: 'current-user' } });
     unlockForce.mockResolvedValue({ success: true });
 

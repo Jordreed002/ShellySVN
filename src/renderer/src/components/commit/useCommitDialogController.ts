@@ -9,6 +9,7 @@ import { buildPathAutocompleteOptions } from '@renderer/utils/commitAutocomplete
 import { getCommitWarnings } from '@renderer/utils/commitWarnings';
 import { validateCommitRules } from '@renderer/utils/commitRules';
 import { extractIssueLinks } from '@renderer/utils/issueTracker';
+import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
 import type { FsStatusResult, SvnStatusChar, SvnStatusEntry } from '@shared/types';
 import type { AutocompleteOption } from '../ui/AutoCompleteInput';
@@ -136,7 +137,8 @@ export function useCommitDialogController({
     refetch,
   } = useQuery({
     queryKey: ['svn:status', workingCopyPath],
-    queryFn: ({ signal }) => window.api.svn.status(workingCopyPath, { signal }),
+    queryFn: async ({ signal }) =>
+      assertSuccessfulSvnRead(await window.api.svn.status(workingCopyPath, { signal })),
     enabled: isOpen && !!workingCopyPath,
     staleTime: 0,
     refetchOnMount: 'always',
@@ -157,12 +159,10 @@ export function useCommitDialogController({
   });
 
   const statusEntries = useMemo(
-    () =>
-      statusData?.entries?.length ? statusData.entries : deepStatusToEntries(deepStatusData),
+    () => (statusData?.entries?.length ? statusData.entries : deepStatusToEntries(deepStatusData)),
     [deepStatusData, statusData?.entries]
   );
-  const isLoadingStatus =
-    isLoadingSvnStatus || (statusEntries.length === 0 && isLoadingDeepStatus);
+  const isLoadingStatus = isLoadingSvnStatus || (statusEntries.length === 0 && isLoadingDeepStatus);
 
   useEffect(() => {
     if (statusEntries.length > 0) {

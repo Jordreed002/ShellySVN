@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { debug } from '@shared/utils/debug';
 import type { SvnLogEntry, SvnLogResult } from '@shared/types';
 
-const LOG_CACHE_KEY = 'shellysvn:log-cache';
 const MAX_CACHE_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface CachedLog {
@@ -13,10 +12,6 @@ interface CachedLog {
   revision: number;
 }
 
-interface LogCacheStore {
-  [path: string]: CachedLog;
-}
-
 /**
  * Hook for managing log caching
  */
@@ -24,56 +19,76 @@ export function useLogCache(path: string | null, cacheScope = 'default') {
   const [cachedLog, setCachedLog] = useState<CachedLog | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const cachePath = path ? getLogCachePath(path, cacheScope) : null;
+  const activeCachePathRef = useRef(cachePath);
+  activeCachePathRef.current = cachePath;
 
   // Load cached log from storage
   useEffect(() => {
+    let active = true;
+    setCachedLog(null);
+
     const loadCache = async () => {
       if (!path || !cachePath) {
-        setCachedLog(null);
         return;
       }
 
       try {
-        const store = await window.api.store.get<LogCacheStore>(LOG_CACHE_KEY);
-        if (store && store[cachePath]) {
-          const cached = store[cachePath];
-          // Check if cache is still valid
-          if (Date.now() - cached.cachedAt < MAX_CACHE_AGE) {
-            setCachedLog(cached);
-          } else {
-            // Remove expired cache
-            delete store[cachePath];
-            await window.api.store.set(LOG_CACHE_KEY, store);
-            setCachedLog(null);
-          }
-        } else {
-          setCachedLog(null);
+        const entry = await window.api.svnCache.get<SvnLogResult>('log', cachePath);
+        if (active) {
+          setCachedLog(
+            entry
+              ? {
+                  path,
+                  data: entry.data,
+                  cachedAt: entry.cachedAt,
+                  revision: entry.data.entries[0]?.revision ?? 0,
+                }
+              : null
+          );
         }
       } catch {
-        setCachedLog(null);
+        if (active) setCachedLog(null);
       }
     };
 
-    loadCache();
+    void loadCache();
+    return () => {
+      active = false;
+    };
   }, [cachePath, path]);
+
+  useEffect(() => {
+    const handleExternalClear = () => setCachedLog(null);
+    window.addEventListener('svn-cache-cleared', handleExternalClear);
+    return () => window.removeEventListener('svn-cache-cleared', handleExternalClear);
+  }, []);
 
   // Save log to cache
   const saveToCache = useCallback(
     async (logData: SvnLogResult) => {
       if (!path || !cachePath || !logData.entries.length) return;
 
+      const operationStartedAt = Date.now();
       try {
-        const store = (await window.api.store.get<LogCacheStore>(LOG_CACHE_KEY)) || {};
-
-        store[cachePath] = {
+        const cached: CachedLog = {
           path,
           data: logData,
-          cachedAt: Date.now(),
+          cachedAt: operationStartedAt,
           revision: logData.entries[0]?.revision || 0,
         };
-
-        await window.api.store.set(LOG_CACHE_KEY, store);
-        setCachedLog(store[cachePath]);
+        const result = await window.api.svnCache.set(
+          'log',
+          cachePath,
+          path,
+          logData,
+          MAX_CACHE_AGE,
+          operationStartedAt
+        );
+        if (result.success && activeCachePathRef.current === cachePath) {
+          setCachedLog(cached);
+        } else if (!result.success && !result.stale) {
+          debug.error('Failed to cache log:', result.error);
+        }
       } catch (err) {
         debug.error('Failed to cache log:', err);
       }
@@ -86,10 +101,8 @@ export function useLogCache(path: string | null, cacheScope = 'default') {
     if (!path || !cachePath) return;
 
     try {
-      const store = await window.api.store.get<LogCacheStore>(LOG_CACHE_KEY);
-      if (store && store[cachePath]) {
-        delete store[cachePath];
-        await window.api.store.set(LOG_CACHE_KEY, store);
+      await window.api.svnCache.clearPath(path, Date.now());
+      if (activeCachePathRef.current === cachePath) {
         setCachedLog(null);
       }
     } catch (err) {
@@ -100,7 +113,7 @@ export function useLogCache(path: string | null, cacheScope = 'default') {
   // Clear all caches
   const clearAllCaches = useCallback(async () => {
     try {
-      await window.api.store.delete(LOG_CACHE_KEY);
+      await window.api.svnCache.clearNamespace('log', Date.now());
       setCachedLog(null);
     } catch (err) {
       debug.error('Failed to clear all caches:', err);
@@ -142,8 +155,25 @@ export function useLogCache(path: string | null, cacheScope = 'default') {
 /**
  * Fetches log with cache fallback for offline support
  */
-export function useCachedLog(path: string | null, limit: number = 100, useMergeHistory = false) {
+export function useCachedLog(
+  path: string | null,
+  limit: number = 100,
+  useMergeHistory = false,
+  options: {
+    stopOnCopy?: boolean;
+    strictNodeHistory?: boolean;
+    includeAllRevisionProperties?: boolean;
+    revisionProperties?: string[];
+  } = {}
+) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasAdvancedOptions = Boolean(
+    options.stopOnCopy ||
+    options.strictNodeHistory ||
+    options.includeAllRevisionProperties ||
+    options.revisionProperties?.length
+  );
+  const cacheScope = buildLogCacheScope(limit, useMergeHistory, options);
   const {
     cachedLog,
     cachedEntries,
@@ -153,7 +183,7 @@ export function useCachedLog(path: string | null, limit: number = 100, useMergeH
     saveToCache,
     setIsOffline,
     clearCache,
-  } = useLogCache(path, useMergeHistory ? 'merge-history' : 'default');
+  } = useLogCache(path, cacheScope);
 
   // Fetch fresh log data
   const refreshLog = useCallback(async (): Promise<SvnLogResult | null> => {
@@ -163,7 +193,15 @@ export function useCachedLog(path: string | null, limit: number = 100, useMergeH
     setIsOffline(false);
 
     try {
-      const result = await window.api.svn.log(path, limit, undefined, undefined, useMergeHistory);
+      const result = hasAdvancedOptions
+        ? await window.api.svn.log(path, limit, undefined, undefined, useMergeHistory, options)
+        : await window.api.svn.log(path, limit, undefined, undefined, useMergeHistory);
+      if (result.cancelled) {
+        throw new Error(result.error || 'Log request was cancelled');
+      }
+      if (result.error || result.parseError) {
+        throw new Error(result.error || `Failed to parse SVN log: ${result.parseError}`);
+      }
       await saveToCache(result);
       setIsRefreshing(false);
       return result;
@@ -182,7 +220,17 @@ export function useCachedLog(path: string | null, limit: number = 100, useMergeH
 
       throw err;
     }
-  }, [path, limit, useMergeHistory, saveToCache, setIsOffline, hasCachedData, cachedLog]);
+  }, [
+    path,
+    limit,
+    useMergeHistory,
+    options,
+    hasAdvancedOptions,
+    saveToCache,
+    setIsOffline,
+    hasCachedData,
+    cachedLog,
+  ]);
 
   return {
     refreshLog,
@@ -198,4 +246,28 @@ export function useCachedLog(path: string | null, limit: number = 100, useMergeH
 
 function getLogCachePath(path: string, cacheScope: string): string {
   return cacheScope === 'default' ? path : `${path}::${cacheScope}`;
+}
+
+export function buildLogCacheScope(
+  limit: number,
+  useMergeHistory: boolean,
+  options: {
+    stopOnCopy?: boolean;
+    strictNodeHistory?: boolean;
+    includeAllRevisionProperties?: boolean;
+    revisionProperties?: string[];
+  }
+): string {
+  const revisionProperties = Array.from(
+    new Set((options.revisionProperties ?? []).map((property) => property.trim()).filter(Boolean))
+  ).toSorted();
+
+  return `log:${JSON.stringify([
+    limit,
+    useMergeHistory,
+    Boolean(options.stopOnCopy),
+    Boolean(options.strictNodeHistory),
+    Boolean(options.includeAllRevisionProperties),
+    revisionProperties,
+  ])}`;
 }

@@ -7,6 +7,7 @@ import {
   createNotificationApi,
   createShellApi,
   createStoreApi,
+  createSvnCacheApi,
   createWebhookApi,
 } from './api/data';
 import { createInvokeIpc } from './api/ipc';
@@ -29,6 +30,7 @@ const api: ElectronAPI = {
   dialog: createDialogApi(invokeIpc),
   app: createAppApi(invokeIpc),
   store: createStoreApi(invokeIpc),
+  svnCache: createSvnCacheApi(invokeIpc),
   auth: createAuthApi(invokeIpc),
   webhook: createWebhookApi(invokeIpc),
   shell: createShellApi(invokeIpc),

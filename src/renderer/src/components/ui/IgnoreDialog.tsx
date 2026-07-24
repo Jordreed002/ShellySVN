@@ -126,7 +126,10 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
 
           {/* Custom pattern input */}
           <div>
-            <label htmlFor="ignore-pattern-input" className="text-sm font-medium text-text-secondary mb-1.5 block">
+            <label
+              htmlFor="ignore-pattern-input"
+              className="text-sm font-medium text-text-secondary mb-1.5 block"
+            >
               Add pattern
             </label>
             <div className="flex gap-2">
@@ -157,9 +160,7 @@ export function IgnoreDialog({ isOpen, onClose, path, fileName, onApply }: Ignor
           {/* Patterns to add */}
           {patterns.length > 0 && (
             <div>
-              <div className="text-sm font-medium text-text-secondary mb-1.5">
-                Patterns to add:
-              </div>
+              <div className="text-sm font-medium text-text-secondary mb-1.5">Patterns to add:</div>
               <div className="flex flex-wrap gap-2">
                 {patterns.map((pattern, index) => (
                   <div

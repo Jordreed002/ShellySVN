@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync } from 'child_process';
-import { rmSync, writeFileSync, unlinkSync } from 'fs';
+import { realpathSync, rmSync, symlinkSync, writeFileSync, unlinkSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -94,13 +94,30 @@ describeIfSvn('svn-working-copy real SVN integration', () => {
 
     expect(info.url).toBe(repoUrl);
     expect(info.path).toBe(workingCopyPath);
-    expect(context).toEqual({
-      workingCopyRoot: workingCopyPath,
+    const canonicalWorkingCopyPath = realpathSync.native(workingCopyPath);
+    expect(context).toMatchObject({
+      workingCopyRoot: canonicalWorkingCopyPath,
       repositoryRoot: repoUrl,
       url: `${repoUrl}/modified.txt`,
+      localPath: join(canonicalWorkingCopyPath, 'modified.txt'),
+      nearestVersionedPath: join(canonicalWorkingCopyPath, 'modified.txt'),
+      nearestVersionedUrl: `${repoUrl}/modified.txt`,
+      derived: false,
     });
     expect(entriesByName.get('modified.txt')?.status).toBe('M');
     expect(entriesByName.get('missing.txt')?.status).toBe('!');
     expect(entriesByName.get('unversioned.txt')?.status).toBe('?');
   });
+
+  it.skipIf(process.platform === 'win32')(
+    'does not map a symlink that escapes the working-copy root',
+    async () => {
+      const outsidePath = join(tempRoot, 'outside');
+      writeFileSync(outsidePath, 'outside\n');
+      const linkPath = join(workingCopyPath, 'outside-link');
+      symlinkSync(outsidePath, linkPath);
+
+      await expect(getWorkingCopyContext(linkPath)).resolves.toBeNull();
+    }
+  );
 });

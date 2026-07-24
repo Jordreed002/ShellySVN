@@ -8,7 +8,45 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseSvnStatusXml, parseSvnInfoXml, parseSvnLogXml, parseSvnDiff } from '@main/svn/parsers';
+import {
+  parseSvnStatusXml,
+  parseSvnInfoXml,
+  parseSvnLogXml,
+  parseSvnDiff,
+  parseSvnExternals,
+} from '@main/svn/parsers';
+
+describe('SVN externals parser', () => {
+  it('parses quoted, relative, peg, operative-revision, and legacy definitions', () => {
+    const output = [
+      '# comment',
+      '-r 7 ^/vendor/lib@11 "local library"',
+      '"legacy tools" --revision 8 ../tools@HEAD',
+      'svn+ssh://user@example.test/repo/plain plain',
+    ].join('\n');
+
+    expect(parseSvnExternals(output, '/wc')).toEqual([
+      {
+        name: 'local library',
+        path: '/wc/local library',
+        revision: 7,
+        url: '^/vendor/lib@11',
+      },
+      {
+        name: 'legacy tools',
+        path: '/wc/legacy tools',
+        revision: 8,
+        url: '../tools@HEAD',
+      },
+      {
+        name: 'plain',
+        path: '/wc/plain',
+        revision: undefined,
+        url: 'svn+ssh://user@example.test/repo/plain',
+      },
+    ]);
+  });
+});
 
 describe('SVN Status XML Parser', () => {
   describe('parseSvnStatusXml', () => {
@@ -461,6 +499,37 @@ describe('SVN Log XML Parser', () => {
 
       expect(result.entries[0].paths).toHaveLength(1);
       expect(result.entries[0].paths[0].path).toBe('/trunk/src/file.ts');
+    });
+
+    it('parses copy origins and requested custom revision properties', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<log>
+  <logentry revision="1234">
+    <author>developer</author>
+    <date>2024-01-15T10:30:00.000000Z</date>
+    <msg>Copy branch</msg>
+    <paths>
+      <path action="A" kind="dir" copyfrom-path="/trunk" copyfrom-rev="1233">/branches/release</path>
+    </paths>
+    <revprops>
+      <property name="review:status">approved</property>
+      <property name="build:id"></property>
+    </revprops>
+  </logentry>
+</log>`;
+
+      const result = parseSvnLogXml(xml);
+
+      expect(result.entries[0].paths[0]).toEqual({
+        action: 'A',
+        path: '/branches/release',
+        copyFromPath: '/trunk',
+        copyFromRev: 1233,
+      });
+      expect(result.entries[0].revisionProperties).toEqual({
+        'review:status': 'approved',
+        'build:id': '',
+      });
     });
 
     it('should handle missing author', () => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, List, Plus, AlertCircle, Loader2, FileText } from 'lucide-react';
+import { X, List, Plus, AlertCircle, Loader2, FileText, Trash2, Unlink } from 'lucide-react';
 
 interface ChangelistDialogProps {
   isOpen: boolean;
@@ -40,6 +40,25 @@ export function ChangelistDialog({
     onError: (err) => {
       setError((err as Error).message || 'Failed to add to changelist');
     },
+  });
+
+  const removeFromChangelist = useMutation({
+    mutationFn: (files: string[]) => window.api.svn.changelist.remove(files),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['svn:changelist:list', path] });
+      queryClient.invalidateQueries({ queryKey: ['svn:status', path] });
+    },
+    onError: (err) => setError((err as Error).message || 'Failed to remove from changelist'),
+  });
+
+  const deleteChangelist = useMutation({
+    mutationFn: (name: string) => window.api.svn.changelist.delete(name, path),
+    onSuccess: () => {
+      setSelectedChangelist(null);
+      queryClient.invalidateQueries({ queryKey: ['svn:changelist:list', path] });
+      queryClient.invalidateQueries({ queryKey: ['svn:status', path] });
+    },
+    onError: (err) => setError((err as Error).message || 'Failed to delete changelist'),
   });
 
   useEffect(() => {
@@ -104,6 +123,12 @@ export function ChangelistDialog({
             </div>
           ) : (
             <>
+              {changelistData?.error && (
+                <div className="flex items-center gap-2 rounded bg-error/10 p-3 text-sm text-error" role="alert">
+                  <AlertCircle className="h-4 w-4" />
+                  {changelistData.error}
+                </div>
+              )}
               {/* Selected files info */}
               {selectedFiles.length > 0 && (
                 <div className="bg-bg-tertiary rounded-lg p-3">
@@ -140,9 +165,22 @@ export function ChangelistDialog({
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium text-text">{cl.name}</span>
-                          <span className="text-xs text-text-faint">
-                            {cl.files.length} file{cl.files.length !== 1 ? 's' : ''}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-text-faint">
+                              {cl.files.length} file{cl.files.length !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn-icon-sm text-error"
+                              title={`Delete changelist ${cl.name}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                deleteChangelist.mutate(cl.name);
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {cl.files.slice(0, 3).map((f) => (
@@ -215,6 +253,20 @@ export function ChangelistDialog({
 
         {/* Footer */}
         <div className="modal-footer">
+          {selectedFiles.length > 0 && (
+            <button
+              onClick={() => removeFromChangelist.mutate(selectedFiles)}
+              disabled={removeFromChangelist.isPending}
+              className="btn btn-secondary"
+            >
+              {removeFromChangelist.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Unlink className="w-4 h-4" />
+              )}
+              Remove selected
+            </button>
+          )}
           <button onClick={onClose} className="btn btn-secondary">
             Cancel
           </button>

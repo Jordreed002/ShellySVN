@@ -15,11 +15,15 @@ const mockFsState = vi.hoisted(() => ({
   statSyncResult: { isDirectory: () => false, isFile: () => false, size: 0 },
 }));
 
-vi.mock('node:fs', () => ({
-  default: {},
-  existsSync: () => mockFsState.existsSyncResult,
-  statSync: () => mockFsState.statSyncResult,
-}));
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  const mocked = {
+    ...actual,
+    existsSync: () => mockFsState.existsSyncResult,
+    statSync: () => mockFsState.statSyncResult,
+  };
+  return { ...mocked, default: mocked };
+});
 
 // Import after mocking
 import {
@@ -117,15 +121,13 @@ describe('validatePath', () => {
     });
   });
 
-  // Note: Tests that require fs mocking (existsSync, statSync) are skipped in jsdom environment
-  // These should be tested in Node.js environment or integration tests
-  describe.skip('existence validation (requires Node.js environment)', () => {
+  describe('existence validation', () => {
     it('should check path existence when mustExist is true', () => {
       mockFsState.existsSyncResult = false;
 
-      expect(() =>
-        validatePath('/path/to/file', { mustExist: true, allowAbsolute: true })
-      ).toThrow('Path does not exist');
+      expect(() => validatePath('/path/to/file', { mustExist: true, allowAbsolute: true })).toThrow(
+        'Path does not exist'
+      );
     });
 
     it('should pass when path exists', () => {
@@ -137,7 +139,7 @@ describe('validatePath', () => {
     });
   });
 
-  describe.skip('directory validation (requires Node.js environment)', () => {
+  describe('directory validation', () => {
     it('should validate directory type', () => {
       mockFsState.existsSyncResult = true;
       mockFsState.statSyncResult = { isDirectory: () => true, isFile: () => false, size: 0 } as any;
@@ -166,7 +168,7 @@ describe('validatePath', () => {
     });
   });
 
-  describe.skip('file validation (requires Node.js environment)', () => {
+  describe('file validation', () => {
     it('should validate file type', () => {
       mockFsState.existsSyncResult = true;
       mockFsState.statSyncResult = { isFile: () => true, isDirectory: () => false, size: 0 } as any;
@@ -180,25 +182,33 @@ describe('validatePath', () => {
       mockFsState.existsSyncResult = true;
       mockFsState.statSyncResult = { isFile: () => false, isDirectory: () => true, size: 0 } as any;
 
-      expect(() =>
-        validatePath('/path/to/dir', { mustBeFile: true, allowAbsolute: true })
-      ).toThrow('Path must be a file');
+      expect(() => validatePath('/path/to/dir', { mustBeFile: true, allowAbsolute: true })).toThrow(
+        'Path must be a file'
+      );
     });
   });
 
-  describe.skip('file size validation (requires Node.js environment)', () => {
+  describe('file size validation', () => {
     it('should reject files larger than maxSize', () => {
       mockFsState.existsSyncResult = true;
-      mockFsState.statSyncResult = { isFile: () => true, isDirectory: () => false, size: 2048 } as any;
+      mockFsState.statSyncResult = {
+        isFile: () => true,
+        isDirectory: () => false,
+        size: 2048,
+      } as any;
 
-      expect(() =>
-        validatePath('/path/to/file', { maxSize: 1024, allowAbsolute: true })
-      ).toThrow('File too large');
+      expect(() => validatePath('/path/to/file', { maxSize: 1024, allowAbsolute: true })).toThrow(
+        'File too large'
+      );
     });
 
     it('should allow files within maxSize', () => {
       mockFsState.existsSyncResult = true;
-      mockFsState.statSyncResult = { isFile: () => true, isDirectory: () => false, size: 512 } as any;
+      mockFsState.statSyncResult = {
+        isFile: () => true,
+        isDirectory: () => false,
+        size: 512,
+      } as any;
 
       expect(() =>
         validatePath('/path/to/file', { maxSize: 1024, allowAbsolute: true })
@@ -444,7 +454,9 @@ describe('validateSvnPropertyName', () => {
   it('should reject invalid property names', () => {
     expect(() => validateSvnPropertyName('')).toThrow('propertyName must be at least 1 characters');
     expect(() => validateSvnPropertyName('123property')).toThrow('propertyName has invalid format');
-    expect(() => validateSvnPropertyName('property name')).toThrow('propertyName has invalid format');
+    expect(() => validateSvnPropertyName('property name')).toThrow(
+      'propertyName has invalid format'
+    );
   });
 
   it('should reject property names that are too long', () => {

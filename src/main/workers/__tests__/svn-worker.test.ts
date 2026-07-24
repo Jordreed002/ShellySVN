@@ -6,7 +6,7 @@ import { basename, join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { WorkerPool } from '../WorkerPool';
-import type { StatusPayload } from '../types';
+import type { LogPayload, StatusPayload } from '../types';
 
 let tempDirs: string[] = [];
 
@@ -38,7 +38,14 @@ function makeStatusPayload(dirPath: string, svnCommand: string): StatusPayload {
     dirPath,
     svnCommand,
     context: {
-      proxySettings: { enabled: false },
+      proxySettings: {
+        enabled: false,
+        host: '',
+        port: 0,
+        username: '',
+        password: '',
+        bypassForLocal: true,
+      },
       connectionTimeout: 0,
       sslVerify: true,
       clientCertificatePath: '',
@@ -122,6 +129,85 @@ process.exit(1);
       expect(error?.message).toContain('token=[REDACTED]');
       expect(error?.message).not.toContain('hunter2');
       expect(error?.message).not.toContain('abc123');
+    } finally {
+      await pool.shutdown();
+    }
+  });
+
+  it('builds advanced log arguments and preserves custom revision properties', async () => {
+    const workingCopy = await createTempDir();
+    const expectedArgs = [
+      'log',
+      '--xml',
+      '-v',
+      '-l',
+      '25',
+      '-r',
+      '10:20',
+      '--use-merge-history',
+      '--stop-on-copy',
+      '--strict',
+      '--with-revprop',
+      'review:status',
+      workingCopy,
+      '--non-interactive',
+    ];
+    const svnCommand = await createFakeSvnCommand(`
+const actual = process.argv.slice(2);
+const expected = ${JSON.stringify(expectedArgs)};
+if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+  process.stderr.write('Unexpected arguments: ' + JSON.stringify(actual));
+  process.exit(2);
+}
+process.stdout.write(${JSON.stringify(`<?xml version="1.0" encoding="UTF-8"?>
+<log>
+  <logentry revision="20">
+    <author>alice</author>
+    <date>2026-07-23T10:00:00.000000Z</date>
+    <msg>Reviewed change</msg>
+    <revprops><property name="review:status">approved</property></revprops>
+  </logentry>
+</log>`)});
+`);
+    const payload: LogPayload = {
+      path: workingCopy,
+      limit: 25,
+      startRev: 10,
+      endRev: 20,
+      useMergeHistory: true,
+      stopOnCopy: true,
+      strictNodeHistory: true,
+      revisionProperties: ['review:status'],
+      svnCommand,
+      context: {
+        proxySettings: {
+          enabled: false,
+          host: '',
+          port: 0,
+          username: '',
+          password: '',
+          bypassForLocal: true,
+        },
+        connectionTimeout: 0,
+        sslVerify: true,
+        clientCertificatePath: '',
+        svnConfigPath: '',
+      },
+    };
+    const pool = new WorkerPool({ maxWorkers: 1 });
+
+    try {
+      const result = await pool.run('svn:log', payload, { id: 'advanced-log-options' });
+      expect(result).toEqual(
+        expect.objectContaining({
+          entries: [
+            expect.objectContaining({
+              revision: 20,
+              revisionProperties: { 'review:status': 'approved' },
+            }),
+          ],
+        })
+      );
     } finally {
       await pool.shutdown();
     }

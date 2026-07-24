@@ -66,12 +66,10 @@ describe('svn-commit', () => {
       'pre-commit',
       expect.objectContaining({ message: 'fix: message' })
     );
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'commit',
-      '-m',
-      'fix: message',
-      'C:\\wc\\file.txt',
-    ], { trustSslFailures: false });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['commit', '-m', 'fix: message', '--', 'C:\\wc\\file.txt'],
+      { trustSslFailures: false }
+    );
   });
 
   it('uses sanitized messages for progress commits', async () => {
@@ -79,12 +77,13 @@ describe('svn-commit', () => {
 
     await commitWithProgress(event, 'commit-1', ['C:\\wc\\file.txt'], 'feat\0: progress');
 
-    expect(mockState.runSvnOperationWithProgress).toHaveBeenCalledWith(event, 'commit-1', 'commit', [
+    expect(mockState.runSvnOperationWithProgress).toHaveBeenCalledWith(
+      event,
+      'commit-1',
       'commit',
-      '-m',
-      'feat: progress',
-      'C:\\wc\\file.txt',
-    ], { trustSslFailures: false });
+      ['commit', '-m', 'feat: progress', '--', 'C:\\wc\\file.txt'],
+      { trustSslFailures: false }
+    );
   });
 
   it('runs start, pre, svn, and post commit in order', async () => {
@@ -146,7 +145,7 @@ describe('svn-commit', () => {
 
     expect(mockState.getNetworkOptionsForWorkingCopyPath).toHaveBeenCalledWith('C:\\wc\\file.txt');
     expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['commit', '-m', 'networked commit', 'C:\\wc\\file.txt'],
+      ['commit', '-m', 'networked commit', '--', 'C:\\wc\\file.txt'],
       {
         credentials: { username: 'alice', password: 'secret' },
         trustSslFailures: true,

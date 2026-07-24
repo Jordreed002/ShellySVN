@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_COMMIT_RULES,
-  normalizeCommitRules,
-  validateCommitRules,
-} from '../commitRules';
+import { DEFAULT_COMMIT_RULES, normalizeCommitRules, validateCommitRules } from '../commitRules';
 
 describe('commitRules', () => {
   it('normalizes missing rules to defaults', () => {

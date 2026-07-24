@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Download, Loader2, CheckCircle, AlertCircle, FolderOpen } from 'lucide-react';
 import { ChooseItemsDialog } from './ChooseItemsDialog';
-import type { AuthCredential } from '@shared/types';
+import type { AuthCredential, SvnOperationRevision } from '@shared/types';
 
 type UpdateDepth = 'empty' | 'files' | 'immediates' | 'infinity';
 
 interface UpdateResult {
   success: boolean;
-  revision?: number;
+  revision: SvnOperationRevision;
   error?: string;
 }
 
@@ -19,7 +19,7 @@ interface UpdateToRevisionDialogProps {
   onConfirm: (
     depth: UpdateDepth,
     setDepthSticky: boolean
-  ) => Promise<{ success: boolean; revision: number; error?: string }>;
+  ) => Promise<{ success: boolean; revision: SvnOperationRevision; error?: string }>;
   repoUrl?: string;
   credentials?: AuthCredential;
   workingCopyRoot?: string;
@@ -123,7 +123,7 @@ export function UpdateToRevisionDialog({
       const result = await onConfirm(depth, setDepthSticky);
 
       if (result.success) {
-        setSuccess({ revision: result.revision });
+        setSuccess({ revision: result.revision ?? 0 });
       } else {
         setError(result.error || 'Update failed');
       }

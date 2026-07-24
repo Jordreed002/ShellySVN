@@ -125,12 +125,53 @@ describe('LogViewer', () => {
     render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />);
 
     await screen.findByText('r300');
-    expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, false);
+    expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, false, {
+      stopOnCopy: false,
+      strictNodeHistory: false,
+      includeAllRevisionProperties: false,
+      revisionProperties: [],
+    });
 
     fireEvent.click(screen.getByLabelText('Merged revisions'));
 
     await waitFor(() => {
-      expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, true);
+      expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, true, {
+        stopOnCopy: false,
+        strictNodeHistory: false,
+        includeAllRevisionProperties: false,
+        revisionProperties: [],
+      });
     });
+  });
+
+  it('requests and displays selected revision properties', async () => {
+    logCacheMocks.refreshLog.mockResolvedValue(
+      makeLog([
+        {
+          ...makeEntry(401, '/trunk/src/app.ts'),
+          revisionProperties: { 'review:status': 'approved' },
+        },
+      ])
+    );
+
+    render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />);
+
+    await screen.findByText('r401');
+    fireEvent.change(screen.getByLabelText('Revision properties'), {
+      target: { value: 'review:status, build:id' },
+    });
+
+    await waitFor(() => {
+      expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, false, {
+        stopOnCopy: false,
+        strictNodeHistory: false,
+        includeAllRevisionProperties: false,
+        revisionProperties: ['review:status', 'build:id'],
+      });
+    });
+
+    fireEvent.click(screen.getByText('r401'));
+    expect(screen.getByText('review:status')).toBeInTheDocument();
+    expect(screen.getByText('approved')).toBeInTheDocument();
   });
 });

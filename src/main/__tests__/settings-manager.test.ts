@@ -5,8 +5,13 @@ const mockReadFile = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockAccess = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockMkdir = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-const mockGetPath = vi.hoisted(() => vi.fn().mockReturnValue('C:\\Users\\test\\AppData\\ShellySVN'));
+const mockGetPath = vi.hoisted(() =>
+  vi.fn().mockReturnValue('C:\\Users\\test\\AppData\\ShellySVN')
+);
 const mockIsEncryptionAvailable = vi.hoisted(() => vi.fn().mockReturnValue(true));
+const mockExistsSync = vi.hoisted(() => vi.fn().mockReturnValue(false));
+const mockStatSync = vi.hoisted(() => vi.fn());
+const mockAssertPathApproved = vi.hoisted(() => vi.fn((path: string) => path));
 
 vi.mock('electron', () => ({
   app: {
@@ -27,12 +32,16 @@ vi.mock('fs/promises', () => ({
 }));
 
 vi.mock('fs', () => ({
-  existsSync: vi.fn().mockReturnValue(false),
-  statSync: vi.fn(),
+  existsSync: mockExistsSync,
+  statSync: mockStatSync,
 }));
 
 vi.mock('child_process', () => ({
   spawnSync: vi.fn(),
+}));
+
+vi.mock('../utils/approved-paths', () => ({
+  assertPathApprovedForIpc: mockAssertPathApproved,
 }));
 
 import { SettingsManager } from '../settings-manager';
@@ -49,6 +58,9 @@ describe('SettingsManager migration and persistence', () => {
     mockReadFile.mockResolvedValue('{}');
     mockWriteFile.mockResolvedValue(undefined);
     mockIsEncryptionAvailable.mockReturnValue(true);
+    mockExistsSync.mockReturnValue(false);
+    mockStatSync.mockReset();
+    mockAssertPathApproved.mockImplementation((path: string) => path);
   });
 
   it('deep-merges old settings files with current defaults', async () => {
@@ -114,5 +126,41 @@ describe('SettingsManager migration and persistence', () => {
     expect(settings.diffMerge.externalToolOverrides).toEqual([]);
     expect(settings.diffMerge.contextLines).toBe(3);
     expect(mockWriteFile).toHaveBeenCalled();
+  });
+
+  it('accepts an approved cache directory and bounded log-cache size', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockStatSync.mockReturnValue({ isDirectory: () => true });
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+
+    await manager.updateSettings({
+      logCachePath: '/approved/cache',
+      maxLogCacheSize: 250,
+    });
+
+    expect(manager.getSettings()).toMatchObject({
+      logCachePath: '/approved/cache',
+      maxLogCacheSize: 250,
+    });
+    expect(mockAssertPathApproved).toHaveBeenCalledWith(
+      '/approved/cache',
+      'Custom SVN cache storage'
+    );
+  });
+
+  it('rejects unapproved or out-of-range cache settings', async () => {
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+    mockAssertPathApproved.mockImplementation(() => {
+      throw new Error('not approved');
+    });
+
+    await expect(manager.updateSettings({ logCachePath: '/unapproved/cache' })).rejects.toThrow(
+      'not approved'
+    );
+    await expect(manager.updateSettings({ maxLogCacheSize: 1 })).rejects.toThrow(
+      'between 10 and 1000 MB'
+    );
   });
 });

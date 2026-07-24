@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 
 const mockUpdateToRevision = vi.fn();
+const mockCat = vi.fn();
 
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({ url: '' }),
@@ -11,6 +12,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useQuery: vi.fn(() => ({
     data: {
       entries: [
@@ -41,6 +43,21 @@ vi.mock('@tanstack/react-query', () => ({
   })),
 }));
 
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, index) => ({
+        index,
+        key: index,
+        start: index * 37,
+        size: 37,
+      })),
+    getTotalSize: () => count * 37,
+    measureElement: vi.fn(),
+    scrollToIndex: vi.fn(),
+  }),
+}));
+
 vi.mock('@renderer/components/ui/CheckoutDialog', () => ({
   CheckoutDialog: () => null,
 }));
@@ -49,6 +66,7 @@ const mockWorkingCopyContext = {
   data: null as {
     repositoryRoot: string;
     workingCopyRoot: string;
+    workingCopyUrl: string;
     relativePath: string;
   } | null,
   isLoading: false,
@@ -59,20 +77,24 @@ vi.mock('@renderer/hooks/useWorkingCopyContext', () => ({
 }));
 
 vi.mock('@renderer/utils/pathResolution', () => ({
-  resolveRemoteUrlToLocalPath: vi.fn((remoteUrl: string, workingCopyRoot: string) => {
-    if (remoteUrl.includes('repo/trunk')) {
-      return workingCopyRoot + remoteUrl.split('repo')[1];
+  resolveRemoteUrlToLocalPath: vi.fn(
+    (remoteUrl: string, workingCopyRoot: string, _repositoryRoot: string, workingCopyUrl: string) => {
+      if (remoteUrl === workingCopyUrl || remoteUrl.startsWith(`${workingCopyUrl}/`)) {
+        return workingCopyRoot + remoteUrl.slice(workingCopyUrl.length);
+      }
+      return null;
     }
-    return null;
-  }),
+  ),
 }));
 
-vi.stubGlobal('window', {
-  api: {
+Object.defineProperty(window, 'api', {
+  configurable: true,
+  value: {
     svn: {
       list: vi.fn().mockResolvedValue({ entries: [] }),
       info: vi.fn(),
       updateToRevision: mockUpdateToRevision,
+      cat: mockCat,
     },
     auth: {
       get: vi.fn().mockResolvedValue(null),
@@ -85,20 +107,27 @@ vi.stubGlobal('window', {
 
 import { RepoBrowserContent } from '../src/routes/repo-browser/-RepoBrowserContent';
 
-// NOTE: This test suite is skipped due to React/jsdom compatibility issues
-// The "Should not already be working" error occurs when rendering React components
-// in jsdom environment. See useLazyTreeLoader.test.tsx for similar issues.
-describe.skip('RepoBrowserContent Add to Working Copy', () => {
+async function renderConnected(localPath: string) {
+  render(<RepoBrowserContent localPath={localPath} />);
+  fireEvent.change(screen.getByPlaceholderText(/Enter repository URL/i), {
+    target: { value: 'https://svn.example.com/repo/trunk' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+  await screen.findByText('src');
+}
+
+describe('RepoBrowserContent Add to Working Copy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockWorkingCopyContext.data = null;
     mockUpdateToRevision.mockReset();
+    mockCat.mockReset();
   });
 
   describe('Add to Working Copy button visibility', () => {
     it('does not show Add to Working Copy when no working copy context', async () => {
       mockWorkingCopyContext.data = null;
-      render(<RepoBrowserContent localPath="/some/path" />);
+      await renderConnected('/some/path');
 
       const srcRow = await screen.findByText('src');
       fireEvent.click(srcRow);
@@ -112,9 +141,10 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
       mockWorkingCopyContext.data = {
         repositoryRoot: 'https://svn.example.com/repo',
         workingCopyRoot: '/Users/test/project',
+        workingCopyUrl: 'https://svn.example.com/repo/trunk',
         relativePath: '',
       };
-      render(<RepoBrowserContent localPath="/Users/test/project" />);
+      await renderConnected('/Users/test/project');
 
       const fileRow = await screen.findByText('README.md');
       fireEvent.click(fileRow);
@@ -128,9 +158,10 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
       mockWorkingCopyContext.data = {
         repositoryRoot: 'https://svn.example.com/repo',
         workingCopyRoot: '/Users/test/project',
+        workingCopyUrl: 'https://svn.example.com/repo/trunk',
         relativePath: '',
       };
-      render(<RepoBrowserContent localPath="/Users/test/project" />);
+      await renderConnected('/Users/test/project');
 
       const srcRow = await screen.findByText('src');
       fireEvent.click(srcRow);
@@ -146,6 +177,7 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
       mockWorkingCopyContext.data = {
         repositoryRoot: 'https://svn.example.com/repo',
         workingCopyRoot: '/Users/test/project',
+        workingCopyUrl: 'https://svn.example.com/repo/trunk',
         relativePath: '',
       };
       mockUpdateToRevision.mockResolvedValueOnce({
@@ -153,7 +185,7 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
         revision: 123,
       });
 
-      render(<RepoBrowserContent localPath="/Users/test/project" />);
+      await renderConnected('/Users/test/project');
 
       const srcRow = await screen.findByText('src');
       fireEvent.click(srcRow);
@@ -167,7 +199,7 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
         expect(mockUpdateToRevision).toHaveBeenCalledWith(
           '/Users/test/project',
           'https://svn.example.com/repo/trunk/src',
-          '/Users/test/project/trunk/src',
+          '/Users/test/project/src',
           'infinity',
           true
         );
@@ -178,13 +210,14 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
       mockWorkingCopyContext.data = {
         repositoryRoot: 'https://svn.example.com/repo',
         workingCopyRoot: '/Users/test/project',
+        workingCopyUrl: 'https://svn.example.com/repo/trunk',
         relativePath: '',
       };
       mockUpdateToRevision.mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 100))
       );
 
-      render(<RepoBrowserContent localPath="/Users/test/project" />);
+      await renderConnected('/Users/test/project');
 
       const srcRow = await screen.findByText('src');
       fireEvent.click(srcRow);
@@ -203,6 +236,7 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
       mockWorkingCopyContext.data = {
         repositoryRoot: 'https://svn.example.com/repo',
         workingCopyRoot: '/Users/test/project',
+        workingCopyUrl: 'https://svn.example.com/repo/trunk',
         relativePath: '',
       };
       mockUpdateToRevision.mockResolvedValueOnce({
@@ -210,7 +244,7 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
         revision: 123,
       });
 
-      render(<RepoBrowserContent localPath="/Users/test/project" />);
+      await renderConnected('/Users/test/project');
 
       const srcRow = await screen.findByText('src');
       fireEvent.click(srcRow);
@@ -229,6 +263,7 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
       mockWorkingCopyContext.data = {
         repositoryRoot: 'https://svn.example.com/repo',
         workingCopyRoot: '/Users/test/project',
+        workingCopyUrl: 'https://svn.example.com/repo/trunk',
         relativePath: '',
       };
       mockUpdateToRevision.mockResolvedValueOnce({
@@ -237,7 +272,7 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
         error: 'Network error',
       });
 
-      render(<RepoBrowserContent localPath="/Users/test/project" />);
+      await renderConnected('/Users/test/project');
 
       const srcRow = await screen.findByText('src');
       fireEvent.click(srcRow);
@@ -251,5 +286,28 @@ describe.skip('RepoBrowserContent Add to Working Copy', () => {
         expect(screen.getByText(/network error/i)).toBeInTheDocument();
       });
     });
+  });
+
+  it('retrieves and previews a repository file at its listed revision', async () => {
+    mockCat.mockResolvedValue({
+      target: 'https://svn.example.com/repo/trunk/README.md',
+      revision: '122',
+      contentBase64: btoa('repository readme'),
+      byteLength: 17,
+      binary: false,
+      truncated: false,
+    });
+    await renderConnected('/Users/test/project');
+    fireEvent.click(await screen.findByText('README.md'));
+    fireEvent.click(await screen.findByRole('button', { name: /view file/i }));
+
+    await waitFor(() => {
+      expect(mockCat).toHaveBeenCalledWith(
+        'https://svn.example.com/repo/trunk/README.md',
+        '122',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+    });
+    expect(await screen.findByText('repository readme')).toBeInTheDocument();
   });
 });

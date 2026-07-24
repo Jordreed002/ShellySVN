@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, renderHook, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import '@testing-library/jest-dom';
@@ -7,7 +7,7 @@ import { ProgressIndicator, useProgressTracker } from '../src/components/ui/Prog
 // NOTE: This test suite is skipped due to React/jsdom compatibility issues
 // The "Should not already be working" error occurs when rendering React components
 // in jsdom environment. See useLazyTreeLoader.test.tsx for similar issues.
-describe.skip('ProgressIndicator', () => {
+describe('ProgressIndicator', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -22,7 +22,7 @@ describe.skip('ProgressIndicator', () => {
     it('renders running state with spinner', () => {
       render(<ProgressIndicator status="running" totalItems={10} itemsCompleted={3} />);
 
-      expect(screen.getByText('Processing...')).toBeInTheDocument();
+      expect(screen.getAllByText('Processing...')).not.toHaveLength(0);
       expect(screen.getByText('3')).toBeInTheDocument();
       expect(screen.getByText('10')).toBeInTheDocument();
       expect(screen.getByText('items')).toBeInTheDocument();
@@ -401,12 +401,12 @@ describe.skip('ProgressIndicator', () => {
     it('handles missing total gracefully', () => {
       render(<ProgressIndicator status="running" itemsCompleted={5} />);
 
-      expect(screen.getByText('Processing...')).toBeInTheDocument();
+      expect(screen.getAllByText('Processing...')).toHaveLength(2);
     });
   });
 });
 
-describe.skip('useProgressTracker', () => {
+describe('useProgressTracker', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -448,18 +448,3 @@ describe.skip('useProgressTracker', () => {
     expect(result.current.estimatedTime).toBeUndefined();
   });
 });
-
-function renderHook<T>(hook: () => T) {
-  const result = { current: null as T | null };
-
-  function TestComponent() {
-    result.current = hook();
-    return null;
-  }
-
-  const utils = render(<TestComponent />);
-
-  const rerender = () => utils.rerender(<TestComponent />);
-
-  return { result, rerender };
-}

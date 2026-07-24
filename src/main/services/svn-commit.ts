@@ -1,4 +1,5 @@
 import type { IpcMainInvokeEvent } from 'electron';
+import type { SvnOperationRevision } from '@shared/types';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { debug } from '../utils/debug';
@@ -6,6 +7,7 @@ import { runSvnText } from './svn-executor';
 import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
 import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 import { runSvnOperationWithProgress } from './svn-progress';
+import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
   try {
@@ -27,7 +29,8 @@ function sanitizeCommitMessage(message: string): string {
 export async function commit(
   paths: string[],
   message: string
-): Promise<{ success: boolean; revision?: number; error?: string }> {
+): Promise<{ success: boolean; revision?: SvnOperationRevision; error?: string }> {
+  validateSvnTargets(paths, 'Commit target');
   const workingCopyPath = paths[0];
   return runSerializedWorkingCopyMutation(workingCopyPath, async () => {
     return commitUnserialized(paths, message);
@@ -37,7 +40,7 @@ export async function commit(
 async function commitUnserialized(
   paths: string[],
   message: string
-): Promise<{ success: boolean; revision?: number; error?: string }> {
+): Promise<{ success: boolean; revision?: SvnOperationRevision; error?: string }> {
   const workingCopyPath = paths[0];
   const cleanMessage = sanitizeCommitMessage(message);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
@@ -67,11 +70,14 @@ async function commitUnserialized(
   }
 
   const networkOptions = await getNetworkOptionsForWorkingCopyPath(workingCopyPath);
-  const output = await runSvnText(['commit', '-m', cleanMessage, ...paths], networkOptions);
+  const output = await runSvnText(
+    withSvnTargets(['commit', '-m', cleanMessage], paths),
+    networkOptions
+  );
   const match = output.match(/Committed revision (\d+)\./);
   const result = {
     success: true,
-    revision: match ? parseInt(match[1], 10) : 0,
+    revision: match ? parseInt(match[1], 10) : null,
   };
 
   executeHooksForType(hooks, 'post-commit', {
@@ -89,7 +95,30 @@ export async function commitWithProgress(
   operationId: string,
   paths: string[],
   message: string
-): Promise<{ success: boolean; revision: number; error?: string; output?: string }> {
+): Promise<{
+  success: boolean;
+  revision: SvnOperationRevision;
+  error?: string;
+  output?: string;
+}> {
+  validateSvnTargets(paths, 'Commit target');
+  const workingCopyPath = paths[0];
+  return runSerializedWorkingCopyMutation(workingCopyPath, async () =>
+    commitWithProgressUnserialized(event, operationId, paths, message)
+  );
+}
+
+async function commitWithProgressUnserialized(
+  event: IpcMainInvokeEvent,
+  operationId: string,
+  paths: string[],
+  message: string
+): Promise<{
+  success: boolean;
+  revision: SvnOperationRevision;
+  error?: string;
+  output?: string;
+}> {
   const workingCopyPath = paths[0];
   const cleanMessage = sanitizeCommitMessage(message);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
@@ -102,7 +131,7 @@ export async function commitWithProgress(
   if (!startResult.allSucceeded) {
     return {
       success: false,
-      revision: 0,
+      revision: null,
       error: startResult.error || 'Start-commit hook blocked the operation',
     };
   }
@@ -115,18 +144,19 @@ export async function commitWithProgress(
   if (!preResult.allSucceeded) {
     return {
       success: false,
-      revision: 0,
+      revision: null,
       error: preResult.error || 'Pre-commit hook blocked the operation',
     };
   }
 
   const networkOptions = await getNetworkOptionsForWorkingCopyPath(workingCopyPath);
-  const result = await runSvnOperationWithProgress(event, operationId, 'commit', [
+  const result = await runSvnOperationWithProgress(
+    event,
+    operationId,
     'commit',
-    '-m',
-    cleanMessage,
-    ...paths,
-  ], networkOptions);
+    withSvnTargets(['commit', '-m', cleanMessage], paths),
+    networkOptions
+  );
 
   if (result.success) {
     executeHooksForType(hooks, 'post-commit', {

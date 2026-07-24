@@ -91,7 +91,7 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
       return { path: basePath, entries: [], revision: 0 };
     }
 
-    const entriesArray = [
+    const entriesArray: Array<{ entry: StatusXmlEntry; changelist?: string }> = [
       ...asArray(target.entry).map((entry) => ({ entry })),
       ...asArray(target.changelist).flatMap((changelist) =>
         asArray(changelist.entry).map((entry) => ({
@@ -108,17 +108,23 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
       const wcStatus = entry['wc-status'];
       if (!wcStatus) continue;
       const reposStatus = entry['repos-status'];
+      const propsStatus = mapPropsStatus(wcStatus['@_props']);
+      const hasTreeConflict = Boolean(wcStatus['tree-conflict']);
+      const itemStatus = mapSvnStatus(wcStatus['@_item']);
 
       entries.push({
         path: entry['@_path'] || '',
-        status: mapSvnStatus(wcStatus['@_item']),
+        // A property-only conflict is reported in the second status column
+        // while the text item may merely be "modified". Promote every SVN
+        // conflict kind to the primary UI status without discarding its detail.
+        status: itemStatus === 'C' || propsStatus === 'C' || hasTreeConflict ? 'C' : itemStatus,
         revision: wcStatus.commit?.['@_revision']
           ? parseInt(wcStatus.commit['@_revision'], 10)
           : undefined,
         author: wcStatus.commit?.author,
         date: wcStatus.commit?.date,
         isDirectory: false,
-        propsStatus: mapPropsStatus(wcStatus['@_props']),
+        propsStatus,
         remoteStatus: reposStatus ? mapSvnStatus(reposStatus['@_item']) : undefined,
         remotePropsStatus: reposStatus ? mapPropsStatus(reposStatus['@_props']) : undefined,
         remoteRevision: reposStatus?.commit?.['@_revision']
@@ -176,6 +182,11 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
               date?: string;
               msg?: string;
               paths?: { path?: Array<Record<string, string>> | Record<string, string> };
+              revprops?: {
+                property?:
+                  | Array<{ '@_name'?: string; '#text'?: string }>
+                  | { '@_name'?: string; '#text'?: string };
+              };
             }>
           | {
               '@_revision': string;
@@ -183,6 +194,11 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
               date?: string;
               msg?: string;
               paths?: { path?: Array<Record<string, string>> | Record<string, string> };
+              revprops?: {
+                property?:
+                  | Array<{ '@_name'?: string; '#text'?: string }>
+                  | { '@_name'?: string; '#text'?: string };
+              };
             };
       };
     };
@@ -198,6 +214,16 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
           ? entry.paths.path
           : [entry.paths.path]
         : [];
+      const revisionPropertyList = entry.revprops?.property
+        ? Array.isArray(entry.revprops.property)
+          ? entry.revprops.property
+          : [entry.revprops.property]
+        : [];
+      const revisionProperties = Object.fromEntries(
+        revisionPropertyList
+          .filter((property) => Boolean(property['@_name']))
+          .map((property) => [property['@_name'] as string, property['#text'] ?? ''])
+      );
 
       entries.push({
         revision: parseInt(entry['@_revision'], 10) || 0,
@@ -207,8 +233,12 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
         paths: pathList.map((p) => ({
           path: p['#text'] || '',
           action: (p['@_action'] || '') as 'A' | 'D' | 'M' | 'R',
-          kind: p['@_kind'] || '',
+          ...(p['@_copyfrom-path'] && { copyFromPath: p['@_copyfrom-path'] }),
+          ...(p['@_copyfrom-rev'] && {
+            copyFromRev: parseInt(p['@_copyfrom-rev'], 10) || 0,
+          }),
         })),
+        ...(Object.keys(revisionProperties).length > 0 && { revisionProperties }),
       });
     }
   } catch (error) {

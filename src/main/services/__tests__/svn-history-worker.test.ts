@@ -74,7 +74,11 @@ describe('svn-history-worker', () => {
   });
 
   it('passes working-copy-derived credentials to local-path worker jobs', async () => {
-    await getWorkerLog('C:\\wc\\src\\file.ts', 25, 1, 5, true);
+    await getWorkerLog('C:\\wc\\src\\file.ts', 25, 1, 5, true, undefined, {
+      stopOnCopy: true,
+      strictNodeHistory: true,
+      revisionProperties: ['review:status'],
+    });
     await getWorkerDiff('C:\\wc\\src\\file.ts', '42');
     await getWorkerDiffStreaming('C:\\wc\\src\\file.ts', '42');
     await getWorkerBlame('C:\\wc\\src\\file.ts', 1, 5);
@@ -88,6 +92,9 @@ describe('svn-history-worker', () => {
         path: 'C:\\wc\\src\\file.ts',
         credentials: { username: 'bob', password: 'wc-secret' },
         trustSslFailures: false,
+        stopOnCopy: true,
+        strictNodeHistory: true,
+        revisionProperties: ['review:status'],
       }),
       expect.any(Object)
     );

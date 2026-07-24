@@ -864,7 +864,9 @@ export function CommandPalette({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`text-sm font-medium truncate ${isSelected ? 'text-accent' : 'text-text'}`}>
+            <span
+              className={`text-sm font-medium truncate ${isSelected ? 'text-accent' : 'text-text'}`}
+            >
               {cmd.title}
             </span>
             {cmd.shortcut && <span className="kbd flex-shrink-0">{cmd.shortcut}</span>}

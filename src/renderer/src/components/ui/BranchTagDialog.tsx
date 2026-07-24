@@ -81,7 +81,7 @@ export function BranchTagDialog({
       );
 
       if (result.success) {
-        setSuccess({ revision: result.revision, url: destUrl.trim() });
+        setSuccess({ revision: result.revision ?? 0, url: destUrl.trim() });
         if (switchToNew) {
           await window.api.svn.switch(sourcePath, destUrl.trim());
         }
@@ -153,9 +153,7 @@ export function BranchTagDialog({
 
               {/* Source Revision */}
               <div>
-                <div className="text-sm font-medium text-text-secondary mb-1.5">
-                  Revision
-                </div>
+                <div className="text-sm font-medium text-text-secondary mb-1.5">Revision</div>
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -200,7 +198,10 @@ export function BranchTagDialog({
 
               {/* Destination URL */}
               <div>
-                <label htmlFor="branch-tag-destination-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="branch-tag-destination-url"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   To URL <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
@@ -231,7 +232,10 @@ export function BranchTagDialog({
 
               {/* Log Message */}
               <div>
-                <label htmlFor="branch-tag-log-message" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="branch-tag-log-message"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Log message <span className="text-error">*</span>
                 </label>
                 <textarea

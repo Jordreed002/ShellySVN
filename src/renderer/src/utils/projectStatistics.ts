@@ -21,8 +21,14 @@ function classifyBranchTag(path: string): 'branch' | 'tag' | null {
 export function buildProjectStatistics(entries: SvnLogEntry[]): ProjectStatistics {
   const commitsByDate = new Map<string, number>();
   const authors = new Map<string, number>();
-  const churn = new Map<string, { path: string; changes: number; additions: number; deletions: number }>();
-  const branchTagActivity = new Map<string, { path: string; type: 'branch' | 'tag'; revisions: Set<number> }>();
+  const churn = new Map<
+    string,
+    { path: string; changes: number; additions: number; deletions: number }
+  >();
+  const branchTagActivity = new Map<
+    string,
+    { path: string; type: 'branch' | 'tag'; revisions: Set<number> }
+  >();
 
   for (const entry of entries) {
     const dateKey = toDateKey(entry.date);
@@ -41,9 +47,9 @@ export function buildProjectStatistics(entries: SvnLogEntry[]): ProjectStatistic
       if (changedPath.action === 'D') item.deletions += 1;
       churn.set(changedPath.path, item);
 
-      const branchTagType = classifyBranchTag(changedPath.path) ?? (
-        changedPath.copyFromPath ? classifyBranchTag(changedPath.copyFromPath) : null
-      );
+      const branchTagType =
+        classifyBranchTag(changedPath.path) ??
+        (changedPath.copyFromPath ? classifyBranchTag(changedPath.copyFromPath) : null);
       if (branchTagType) {
         const activity = branchTagActivity.get(changedPath.path) ?? {
           path: changedPath.path,

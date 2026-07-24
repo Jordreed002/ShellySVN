@@ -13,6 +13,7 @@ type VirtualizerLike = {
 
 export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [selectedEntryFallback, setSelectedEntryFallback] = useState<SvnStatusEntry | null>(null);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const pathIndex = useMemo(() => {
@@ -25,6 +26,7 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
 
   const clearSelection = useCallback(() => {
     setSelectedPaths(new Set());
+    setSelectedEntryFallback(null);
     setFocusedIndex(-1);
     setLastSelectedIndex(-1);
   }, []);
@@ -32,7 +34,17 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
   const handleSelect = useCallback(
     (entry: SvnStatusEntry, event?: SelectEvent) => {
       const entryIndex = pathIndex.get(entry.path) ?? -1;
-      if (entryIndex < 0) return;
+
+      // Miller columns can select a file from an ancestor column while the
+      // current list contains the opened descendant folder. Preserve that
+      // entry instead of discarding the click because it is not in `entries`.
+      if (entryIndex < 0) {
+        setSelectedPaths(new Set([entry.path]));
+        setSelectedEntryFallback(entry);
+        setFocusedIndex(-1);
+        setLastSelectedIndex(-1);
+        return;
+      }
 
       if (event?.shiftKey && lastSelectedIndex >= 0) {
         const start = Math.min(lastSelectedIndex, entryIndex);
@@ -42,6 +54,7 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
           rangePaths.add(entries[index].path);
         }
         setSelectedPaths(rangePaths);
+        setSelectedEntryFallback(null);
         setFocusedIndex(entryIndex);
         return;
       }
@@ -56,12 +69,14 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
           }
           return next;
         });
+        setSelectedEntryFallback(null);
         setLastSelectedIndex(entryIndex);
         setFocusedIndex(entryIndex);
         return;
       }
 
       setSelectedPaths(new Set([entry.path]));
+      setSelectedEntryFallback(entry);
       setLastSelectedIndex(entryIndex);
       setFocusedIndex(entryIndex);
     },
@@ -75,6 +90,7 @@ export function useFileExplorerSelection(entries: SvnStatusEntry[]) {
     setFocusedIndex,
     clearSelection,
     handleSelect,
+    selectedEntryFallback,
   };
 }
 

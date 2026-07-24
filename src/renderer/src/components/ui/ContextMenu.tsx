@@ -30,6 +30,7 @@ import {
   Move,
   Pencil,
   FileX,
+  FolderMinus,
 } from 'lucide-react';
 import type { SvnStatusChar } from '@shared/types';
 
@@ -231,6 +232,7 @@ export function getSvnContextMenuItems(
     onCommit?: () => void;
     onRevert?: () => void;
     onUnversion?: () => void;
+    onExclude?: () => void;
     onAdd?: () => void;
     onDelete?: () => void;
     onMove?: () => void;
@@ -346,6 +348,15 @@ export function getSvnContextMenuItems(
       label: isDirectory ? 'Unversion folder (undo add)' : 'Unversion (undo add)',
       icon: FileX,
       onClick: actions.onUnversion,
+    });
+  }
+
+  if (isDirectory && isVersioned && !isWorkingCopyRoot && actions.onExclude) {
+    items.push({
+      id: 'exclude',
+      label: 'Exclude and remove locally',
+      icon: FolderMinus,
+      onClick: actions.onExclude,
     });
   }
 
@@ -588,7 +599,6 @@ export function getSvnContextMenuItems(
 
   // Apply Patch - only for directories
   if (isDirectory && isVersioned) {
-
     // === Apply Patch ===
     if (actions.onApplyPatch) {
       items.push({

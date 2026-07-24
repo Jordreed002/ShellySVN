@@ -266,12 +266,11 @@ export function ChooseItemsDialog({
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
     }
-    retryTimeoutRef.current = setTimeout(
-      () => {
-        refreshTree();
-      },
-      isNetworkError(error) ? 1000 : 0
-    );
+    if (!isNetworkError(error)) {
+      refreshTree();
+      return;
+    }
+    retryTimeoutRef.current = setTimeout(() => refreshTree(), 1000);
   }, [error, refreshTree]);
 
   const handleSelectAll = useCallback(() => {
@@ -310,7 +309,6 @@ export function ChooseItemsDialog({
       setPendingPath(null);
       setAuthLoading(false);
       setAuthError(null);
-      setClassifiedError(null);
       const cached = credentialCache.get(repoUrl);
       setActiveCredentials(credentials || cached);
     }

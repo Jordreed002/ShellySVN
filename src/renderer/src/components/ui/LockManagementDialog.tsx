@@ -16,6 +16,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
+import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 import type { SvnLockInfo } from '@shared/types';
 
 interface LockManagementDialogProps {
@@ -89,7 +90,7 @@ export function LockManagementDialog({
 
   // Fetch all locks in the working copy
   const {
-    data: locks = [],
+    data: lockResult,
     isLoading,
     refetch,
   } = useQuery({
@@ -97,11 +98,13 @@ export function LockManagementDialog({
     queryFn: () => window.api.svn.lockList(workingCopyPath),
     enabled: isOpen && !!workingCopyPath,
   });
+  const locks = useMemo(() => lockResult?.locks ?? [], [lockResult?.locks]);
+  const displayedError = errorMessage || lockResult?.error;
 
   // Fetch lock info for selected path if provided
   const { data: selectedLockInfo } = useQuery({
     queryKey: ['svn:lockInfo', selectedPath],
-    queryFn: () => window.api.svn.lockInfo(selectedPath!),
+    queryFn: async () => assertSuccessfulSvnRead(await window.api.svn.lockInfo(selectedPath!)),
     enabled: isOpen && !!selectedPath,
   });
 
@@ -119,8 +122,8 @@ export function LockManagementDialog({
 
   // Auto-select lock info for the selected path
   useEffect(() => {
-    if (selectedLockInfo) {
-      setSelectedLock(selectedLockInfo);
+    if (selectedLockInfo?.lock) {
+      setSelectedLock(selectedLockInfo.lock);
     } else if (selectedPath && locks.length > 0) {
       const lock = locks.find((l) => l.path === selectedPath);
       if (lock) setSelectedLock(lock);
@@ -323,14 +326,14 @@ export function LockManagementDialog({
               </div>
             )}
 
-            {errorMessage && (
+            {displayedError && (
               <div
                 className="mx-4 mt-4 flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2"
                 role="alert"
                 aria-live="assertive"
               >
                 <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-                <span>{errorMessage}</span>
+                <span>{displayedError}</span>
                 <button
                   type="button"
                   onClick={() => setErrorMessage(null)}

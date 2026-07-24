@@ -38,7 +38,8 @@ export function CheckoutSslPrompt({
 
         <div className="modal-body space-y-4">
           <p className="text-text-secondary text-sm">
-            The server's SSL certificate could not be verified. Review the certificate details below:
+            The server's SSL certificate could not be verified. Review the certificate details
+            below:
           </p>
 
           <div className="bg-surface-elevated rounded-lg p-4 space-y-2 font-mono text-xs">

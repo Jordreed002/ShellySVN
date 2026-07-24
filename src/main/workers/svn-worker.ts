@@ -14,6 +14,7 @@ import { parseDiffStreaming } from '../utils/diff-parser';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import type {
   BlamePayload,
+  CatPayload,
   DiffPayload,
   DiffUrlsPayload,
   FolderSizesPayload,
@@ -23,6 +24,8 @@ import type {
   WorkerJobMessage,
   WorkerParentMessage,
 } from './types';
+
+const MAX_CAT_BYTES = 32 * 1024 * 1024;
 
 const SVN_STATUS_MAP: Record<string, SvnStatusChar> = {
   normal: ' ',
@@ -151,29 +154,39 @@ function buildDiffArgs(payload: DiffPayload): string[] {
   if (payload.revision) {
     args.push('-c', payload.revision);
   }
-  args.push(payload.path);
+  args.push('--', payload.path);
   return args;
 }
 
 async function runDiff(job: WorkerJobMessage<'svn:diff'>) {
-  const output = await runSvnXml(job.id, buildDiffArgs(job.payload), {
-    svnCommand: job.payload.svnCommand,
-    context: job.payload.context,
-    trustSslFailures: job.payload.trustSslFailures,
-    trustedSslFailures: job.payload.trustedSslFailures,
-    credentials: job.payload.credentials,
-  }, process.cwd());
+  const output = await runSvnXml(
+    job.id,
+    buildDiffArgs(job.payload),
+    {
+      svnCommand: job.payload.svnCommand,
+      context: job.payload.context,
+      trustSslFailures: job.payload.trustSslFailures,
+      trustedSslFailures: job.payload.trustedSslFailures,
+      credentials: job.payload.credentials,
+    },
+    process.cwd()
+  );
   return parseSvnDiff(output);
 }
 
 async function runDiffStreaming(job: WorkerJobMessage<'svn:diffStreaming'>) {
-  const output = await runSvnXml(job.id, buildDiffArgs(job.payload), {
-    svnCommand: job.payload.svnCommand,
-    context: job.payload.context,
-    trustSslFailures: job.payload.trustSslFailures,
-    trustedSslFailures: job.payload.trustedSslFailures,
-    credentials: job.payload.credentials,
-  }, process.cwd());
+  const output = await runSvnXml(
+    job.id,
+    buildDiffArgs(job.payload),
+    {
+      svnCommand: job.payload.svnCommand,
+      context: job.payload.context,
+      trustSslFailures: job.payload.trustSslFailures,
+      trustedSslFailures: job.payload.trustedSslFailures,
+      credentials: job.payload.credentials,
+    },
+    process.cwd()
+  );
 
   if (output.includes('Cannot display: file marked as a binary type')) {
     return {
@@ -189,13 +202,18 @@ async function runDiffStreaming(job: WorkerJobMessage<'svn:diffStreaming'>) {
 
 async function runDiffUrls(job: WorkerJobMessage<'svn:diffUrls'>) {
   const payload: DiffUrlsPayload = job.payload;
-  const output = await runSvnXml(job.id, ['diff', payload.leftUrl, payload.rightUrl], {
-    svnCommand: payload.svnCommand,
-    context: payload.context,
-    trustSslFailures: payload.trustSslFailures,
-    trustedSslFailures: payload.trustedSslFailures,
-    credentials: payload.credentials,
-  }, process.cwd());
+  const output = await runSvnXml(
+    job.id,
+    ['diff', '--', payload.leftUrl, payload.rightUrl],
+    {
+      svnCommand: payload.svnCommand,
+      context: payload.context,
+      trustSslFailures: payload.trustSslFailures,
+      trustedSslFailures: payload.trustedSslFailures,
+      credentials: payload.credentials,
+    },
+    process.cwd()
+  );
   return parseSvnDiff(output);
 }
 
@@ -209,34 +227,88 @@ async function runLog(job: WorkerJobMessage<'svn:log'>) {
   if (payload.useMergeHistory) {
     args.push('--use-merge-history');
   }
+  if (payload.stopOnCopy) args.push('--stop-on-copy');
+  if (payload.strictNodeHistory) args.push('--strict');
+  if (payload.includeAllRevisionProperties) {
+    args.push('--with-all-revprops');
+  } else {
+    for (const property of payload.revisionProperties ?? []) {
+      const name = property.trim();
+      if (name) args.push('--with-revprop', name);
+    }
+  }
   args.push(payload.path);
 
-  const xml = await runSvnXml(job.id, args, {
-    svnCommand: payload.svnCommand,
-    context: payload.context,
-    trustSslFailures: payload.trustSslFailures,
-    trustedSslFailures: payload.trustedSslFailures,
-    credentials: payload.credentials,
-  }, process.cwd());
+  const xml = await runSvnXml(
+    job.id,
+    args,
+    {
+      svnCommand: payload.svnCommand,
+      context: payload.context,
+      trustSslFailures: payload.trustSslFailures,
+      trustedSslFailures: payload.trustedSslFailures,
+      credentials: payload.credentials,
+    },
+    process.cwd()
+  );
   return parseSvnLogXml(xml);
 }
 
 async function runBlame(job: WorkerJobMessage<'svn:blame'>) {
   const payload: BlamePayload = job.payload;
-  const args = ['blame', '--xml', '-v'];
+  const args = ['blame', '--xml'];
   if (payload.startRevision !== undefined && payload.endRevision !== undefined) {
     args.push('-r', `${payload.startRevision}:${payload.endRevision}`);
   }
   args.push(payload.path);
 
-  const xml = await runSvnXml(job.id, args, {
-    svnCommand: payload.svnCommand,
-    context: payload.context,
-    trustSslFailures: payload.trustSslFailures,
-    trustedSslFailures: payload.trustedSslFailures,
-    credentials: payload.credentials,
-  }, process.cwd());
+  const xml = await runSvnXml(
+    job.id,
+    args,
+    {
+      svnCommand: payload.svnCommand,
+      context: payload.context,
+      trustSslFailures: payload.trustSslFailures,
+      trustedSslFailures: payload.trustedSslFailures,
+      credentials: payload.credentials,
+    },
+    process.cwd()
+  );
   return parseSvnBlameXml(xml, payload.path);
+}
+
+async function runCat(job: WorkerJobMessage<'svn:cat'>) {
+  const payload: CatPayload = job.payload;
+  const controller = new AbortController();
+  runningControllers.set(job.id, controller);
+  try {
+    const args = ['cat'];
+    if (payload.revision) args.push('-r', payload.revision);
+    args.push('--', payload.target);
+    const result = await runResolvedSvn(args, {
+      svnCommand: payload.svnCommand,
+      context: payload.context,
+      trustSslFailures: payload.trustSslFailures,
+      trustedSslFailures: payload.trustedSslFailures,
+      credentials: payload.credentials,
+      signal: controller.signal,
+      binaryStdout: true,
+      maxStdoutBytes: MAX_CAT_BYTES,
+    });
+    const contentBase64 = result.stdoutBase64 ?? '';
+    const bytes = Buffer.from(contentBase64, 'base64');
+    const text = bytes.toString('utf8');
+    return {
+      target: payload.target,
+      revision: payload.revision,
+      contentBase64,
+      byteLength: bytes.length,
+      binary: bytes.includes(0) || !Buffer.from(text, 'utf8').equals(bytes),
+      truncated: result.stdoutTruncated,
+    };
+  } finally {
+    runningControllers.delete(job.id);
+  }
 }
 
 async function calculateFolderSize(folderPath: string): Promise<number> {
@@ -291,7 +363,7 @@ function cancelJob(id: string) {
 }
 
 parentPort?.on('message', (message: WorkerParentMessage) => {
-  if ('type' in message && message.type === 'cancel') {
+  if (!('name' in message)) {
     cancelJob(message.id);
     return;
   }
@@ -343,6 +415,12 @@ parentPort?.on('message', (message: WorkerParentMessage) => {
 
         if (message.name === 'svn:blame') {
           const result = await runBlame(message as WorkerJobMessage<'svn:blame'>);
+          parentPort?.postMessage({ type: 'result', id: message.id, result });
+          return;
+        }
+
+        if (message.name === 'svn:cat') {
+          const result = await runCat(message as WorkerJobMessage<'svn:cat'>);
           parentPort?.postMessage({ type: 'result', id: message.id, result });
           return;
         }

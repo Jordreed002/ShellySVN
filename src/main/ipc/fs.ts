@@ -560,6 +560,7 @@ async function calculateFolderSizes(folderPaths: string[]): Promise<Record<strin
       id: `fs-folder-sizes:${approvedPaths.join('|')}`,
       priority: 'background',
       timeoutMs: FOLDER_SIZE_WORKER_TIMEOUT_MS,
+      joinExisting: true,
     }
   );
 }
@@ -706,8 +707,11 @@ export function registerFsHandlers(): void {
     'fs:readFile',
     async (_, path: string): Promise<{ success: boolean; content?: string; error?: string }> => {
       try {
-        // SECURITY: Validate path input
-        const validatedPath = validatePath(path, {
+        // File explorer entries are absolute paths. Keep reads constrained to roots
+        // selected through ShellySVN, then apply the file-specific validation.
+        const approvedPath = assertApprovedFsPath(path, 'File preview');
+        const validatedPath = validatePath(approvedPath, {
+          allowAbsolute: true,
           mustExist: true,
           mustBeFile: true,
           maxSize: MAX_FILE_PREVIEW_SIZE_BYTES,
@@ -849,6 +853,39 @@ export function registerFsHandlers(): void {
           return { success: false, error: `Validation error: ${err.message}` };
         }
         console.error('[FS] Write file error:', err);
+        return { success: false, error: (err as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'fs:writeFileBase64',
+    async (
+      _,
+      path: string,
+      contentBase64: string
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        if (
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(contentBase64)
+        ) {
+          return { success: false, error: 'Invalid base64 file content' };
+        }
+        const content = Buffer.from(contentBase64, 'base64');
+        if (content.byteLength > 32 * 1024 * 1024) {
+          return { success: false, error: 'Content too large (max 32MB)' };
+        }
+
+        const validatedPath = validatePath(path, { allowAbsolute: true });
+        const approvedPath = assertPathApprovedForIpc(validatedPath, 'Binary file write');
+        await mkdir(dirname(approvedPath), { recursive: true });
+        await fsWriteFile(approvedPath, content);
+        return { success: true };
+      } catch (err) {
+        if (err instanceof InputValidationError) {
+          return { success: false, error: `Validation error: ${err.message}` };
+        }
+        console.error('[FS] Binary file write error:', err);
         return { success: false, error: (err as Error).message };
       }
     }

@@ -35,7 +35,7 @@ describe('svn-patch createPatch', () => {
     const result = await createPatch(['C:\\wc\\src\\file.txt'], 'C:\\patches\\selected.patch');
 
     expect(result).toEqual({ success: true, output: diff });
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['diff', 'C:\\wc\\src\\file.txt']);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['diff', '--', 'C:\\wc\\src\\file.txt']);
     expect(writeFile).toHaveBeenCalledWith('C:\\patches\\selected.patch', diff, 'utf-8');
   });
 
@@ -48,7 +48,7 @@ describe('svn-patch createPatch', () => {
       output: diff,
     });
 
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['diff', 'C:\\wc']);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['diff', '--', 'C:\\wc']);
     expect(writeFile).toHaveBeenCalledWith('C:\\patches\\working-copy.patch', diff, 'utf-8');
   });
 
@@ -69,21 +69,28 @@ describe('svn-patch applyPatch', () => {
   });
 
   it('applies patch dry-runs and reports patched file counts', async () => {
-    mockState.runSvnText.mockResolvedValue('U         src/a.txt\nU         src/b.txt\nPatched 2 files.');
+    mockState.runSvnText.mockResolvedValue(
+      'U         src/a.txt\nU         src/b.txt\nPatched 2 files.'
+    );
 
     const result = await applyPatch('C:\\patches\\changes.patch', 'C:\\wc', true);
 
     expect(result).toEqual({
       success: true,
+      appliedWithConflicts: false,
       filesPatched: 2,
       rejects: 0,
+      rejectFiles: [],
+      offsetHunks: 0,
+      fuzzedHunks: 0,
       output: 'U         src/a.txt\nU         src/b.txt\nPatched 2 files.',
     });
     expect(mockState.runSvnText).toHaveBeenCalledWith([
       'patch',
+      '--dry-run',
+      '--',
       'C:\\patches\\changes.patch',
       'C:\\wc',
-      '--dry-run',
     ]);
   });
 
@@ -99,10 +106,33 @@ describe('svn-patch applyPatch', () => {
 
     await expect(applyPatch('C:\\patches\\changes.patch', 'C:\\wc')).resolves.toEqual({
       success: false,
+      appliedWithConflicts: true,
       filesPatched: 1,
       rejects: 1,
+      rejectFiles: [],
+      offsetHunks: 0,
+      fuzzedHunks: 0,
       output,
     });
+  });
+
+  it('passes reverse, whitespace, and strip options to SVN', async () => {
+    mockState.runSvnText.mockResolvedValue('U         src/a.txt');
+    await applyPatch('C:\\patches\\changes.patch', 'C:\\wc', false, {
+      reverse: true,
+      ignoreWhitespace: true,
+      stripCount: 2,
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'patch',
+      '--reverse-diff',
+      '--ignore-whitespace',
+      '--strip',
+      '2',
+      '--',
+      'C:\\patches\\changes.patch',
+      'C:\\wc',
+    ]);
   });
 
   it('returns binary patch failures without losing the SVN message', async () => {
@@ -112,9 +142,34 @@ describe('svn-patch applyPatch', () => {
 
     await expect(applyPatch('C:\\patches\\binary.patch', 'C:\\wc')).resolves.toEqual({
       success: false,
+      appliedWithConflicts: false,
       filesPatched: 0,
       rejects: 0,
+      rejectFiles: [],
+      offsetHunks: 0,
+      fuzzedHunks: 0,
       output: 'svn: E200009: Cannot apply textual patch to binary file assets/logo.png',
+    });
+  });
+
+  it('reports conflict recovery files, offsets, and fuzz separately', async () => {
+    const output = [
+      'C         src/file.txt',
+      '>         applied hunk @@ -1,3 +1,3 @@ with offset 2 and fuzz 1.',
+      '>         rejected hunk @@ -8,3 +8,3 @@',
+      'Rejected hunk saved to src/file.txt.svnpatch.rej',
+    ].join('\n');
+    mockState.runSvnText.mockResolvedValue(output);
+
+    await expect(applyPatch('changes.patch', 'wc')).resolves.toEqual({
+      success: false,
+      appliedWithConflicts: true,
+      filesPatched: 1,
+      rejects: 2,
+      rejectFiles: ['src/file.txt.svnpatch.rej'],
+      offsetHunks: 1,
+      fuzzedHunks: 1,
+      output,
     });
   });
 });

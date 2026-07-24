@@ -15,6 +15,7 @@ import { registerShellIntegrationHandlers } from './shell/ShellIntegration';
 import { setupProtocolHandler, registerDeepLinkHandler } from './services/protocol-handler';
 import { registerNotificationHandlers } from './ipc/notification';
 import { registerWebhookHandlers } from './ipc/webhook';
+import { registerSvnCacheHandlers } from './ipc/svn-cache';
 import { openValidatedExternalUrl } from './utils/external-url';
 import { shutdownSharedWorkerPool } from './workers/WorkerPool';
 import { startLocalStatusServer, stopLocalStatusServer } from './services/local-status-server';
@@ -135,6 +136,7 @@ app.whenReady().then(() => {
   registerDialogHandlers();
   registerAppHandlers();
   registerStoreHandlers();
+  registerSvnCacheHandlers();
   registerFsHandlers();
   registerAuthHandlers();
   registerExternalHandlers();

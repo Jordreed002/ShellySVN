@@ -14,6 +14,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import type { SvnStatusChar, SvnStatusEntry } from '@shared/types';
+import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 import { StatusIcon, StatusDot } from './StatusIcon';
 
 interface ModificationsViewProps {
@@ -44,10 +45,12 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
     isFetching,
   } = useQuery({
     queryKey: ['svn:status', path, includeRemote],
-    queryFn: ({ signal }) =>
-      includeRemote
-        ? window.api.svn.statusRemote(path, { signal })
-        : window.api.svn.status(path, { signal }),
+    queryFn: async ({ signal }) => {
+      const result = includeRemote
+        ? await window.api.svn.statusRemote(path, { signal })
+        : await window.api.svn.status(path, { signal });
+      return assertSuccessfulSvnRead(result);
+    },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 

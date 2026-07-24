@@ -22,7 +22,8 @@ export interface HookContext {
   workingCopyPath: string;
   files?: string[];
   message?: string;
-  revision?: number;
+  revision?: number | null;
+  force?: boolean;
 }
 
 export interface HookResult {
@@ -49,6 +50,10 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
 
     if (context.revision) {
       args.push('--revision', String(context.revision));
+    }
+
+    if (context.force) {
+      args.push('--force');
     }
 
     const proc = spawn(hook.path, args, {

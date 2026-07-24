@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, FileOutput, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import type { SvnOperationProgress } from '@shared/types';
 
 interface ExportDialogProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ revision: number; path: string } | null>(null);
+  const [progress, setProgress] = useState<SvnOperationProgress | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -24,6 +26,7 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
       setError(null);
       setSuccess(null);
       setIsExporting(false);
+      setProgress(null);
     }
   }, [isOpen, initialPath]);
 
@@ -49,16 +52,18 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
     setIsExporting(true);
     setError(null);
+    setProgress(null);
 
     try {
-      const result = await window.api.svn.export(
+      const result = await window.api.svn.exportWithProgress(
         sourceUrl.trim(),
         destPath.trim(),
+        setProgress,
         revision === 'HEAD' ? undefined : revision
       );
 
       if (result.success) {
-        setSuccess({ revision: result.revision, path: destPath.trim() });
+        setSuccess({ revision: result.revision ?? 0, path: destPath.trim() });
       } else {
         setError('Export failed');
       }
@@ -67,6 +72,11 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleCancel = async () => {
+    if (!isExporting) return handleClose();
+    if (progress?.operationId) await window.api.svn.cancelOperation(progress.operationId);
   };
 
   const handleClose = () => {
@@ -118,7 +128,10 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Source URL/Path */}
               <div>
-                <label htmlFor="export-source-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="export-source-url"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Source URL or path <span className="text-error">*</span>
                 </label>
                 <input
@@ -134,7 +147,10 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Destination Path */}
               <div>
-                <label htmlFor="export-destination-path" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="export-destination-path"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Export to directory <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
@@ -161,7 +177,10 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Revision */}
               <div>
-                <label htmlFor="export-revision" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="export-revision"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Revision
                 </label>
                 <input
@@ -183,17 +202,21 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                   <span>{error}</span>
                 </div>
               )}
+              {isExporting && progress && (
+                <div
+                  className="rounded bg-bg-tertiary p-2 text-xs text-text-secondary"
+                  aria-live="polite"
+                >
+                  {progress.currentFile || `Processed ${progress.filesProcessed} path(s)`}
+                  {progress.percentage !== undefined && ` — ${progress.percentage}%`}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
             <div className="modal-footer">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="btn btn-secondary"
-                disabled={isExporting}
-              >
-                Cancel
+              <button type="button" onClick={handleCancel} className="btn btn-secondary">
+                {isExporting ? 'Cancel export' : 'Cancel'}
               </button>
               <button
                 type="submit"

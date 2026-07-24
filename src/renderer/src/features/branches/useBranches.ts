@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SvnRepoEntry } from '@shared/types';
+import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 
 export interface BranchEntry {
   name: string;
@@ -34,11 +35,14 @@ function toBranchEntry(entry: SvnRepoEntry): BranchEntry {
 
 async function listDirs(url: string): Promise<BranchEntry[]> {
   try {
-    const res = await window.api.svn.list(url);
+    const res = assertSuccessfulSvnRead(await window.api.svn.list(url));
     return (res.entries || []).filter((e) => e.kind === 'dir').map(toBranchEntry);
-  } catch {
+  } catch (error) {
     // branches/ or tags/ may not exist for this project — treat as empty.
-    return [];
+    const category = (error as Error & { commandError?: { category?: string } }).commandError
+      ?.category;
+    if (category === 'not-found') return [];
+    throw error;
   }
 }
 

@@ -202,7 +202,10 @@ export function HookScriptsDialog({ isOpen, onClose, workingCopyPath }: HookScri
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="hook-script-name" className="text-xs font-medium text-text-secondary mb-1 block">
+                  <label
+                    htmlFor="hook-script-name"
+                    className="text-xs font-medium text-text-secondary mb-1 block"
+                  >
                     Name <span className="text-error">*</span>
                   </label>
                   <input
@@ -216,7 +219,10 @@ export function HookScriptsDialog({ isOpen, onClose, workingCopyPath }: HookScri
                 </div>
 
                 <div>
-                  <label htmlFor="hook-script-type" className="text-xs font-medium text-text-secondary mb-1 block">
+                  <label
+                    htmlFor="hook-script-type"
+                    className="text-xs font-medium text-text-secondary mb-1 block"
+                  >
                     Hook Type
                   </label>
                   <select
@@ -240,7 +246,10 @@ export function HookScriptsDialog({ isOpen, onClose, workingCopyPath }: HookScri
               </div>
 
               <div>
-                <label htmlFor="hook-script-path" className="text-xs font-medium text-text-secondary mb-1 block">
+                <label
+                  htmlFor="hook-script-path"
+                  className="text-xs font-medium text-text-secondary mb-1 block"
+                >
                   Script Path <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">

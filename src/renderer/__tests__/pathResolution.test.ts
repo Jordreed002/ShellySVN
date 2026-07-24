@@ -75,6 +75,59 @@ describe('resolveRemoteUrlToLocalPath', () => {
   const repositoryRoot = 'https://svn.example.com/repo';
 
   describe('standard path resolution', () => {
+    it('maps descendants relative to a checked-out subtree, not the repository root', () => {
+      const result = resolveRemoteUrlToLocalPath(
+        'https://svn.example.com/repo/trunk/src',
+        workingCopyRoot,
+        repositoryRoot,
+        'https://svn.example.com/repo/trunk'
+      );
+      expect(result).toBe(platformPath('/Users/user/project/src'));
+    });
+
+    it('rejects repository siblings outside the checked-out subtree', () => {
+      const result = resolveRemoteUrlToLocalPath(
+        'https://svn.example.com/repo/branches/feature',
+        workingCopyRoot,
+        repositoryRoot,
+        'https://svn.example.com/repo/trunk'
+      );
+      expect(result).toBeNull();
+    });
+
+    it('does not map a repository ancestor onto a checked-out subtree root', () => {
+      expect(
+        resolveRemoteUrlToLocalPath(
+          repositoryRoot,
+          workingCopyRoot,
+          repositoryRoot,
+          'https://svn.example.com/repo/trunk'
+        )
+      ).toBeNull();
+    });
+
+    it('compares decoded URL segments and returns decoded local names', () => {
+      expect(
+        resolveRemoteUrlToLocalPath(
+          'https://SVN.EXAMPLE.COM/repo/trunk/%E6%97%A5%E6%9C%AC%20%E8%AA%9E',
+          workingCopyRoot,
+          repositoryRoot,
+          'https://svn.example.com/repo/trunk'
+        )
+      ).toBe(platformPath('/Users/user/project/日本 語'));
+    });
+
+    it('rejects encoded path separators instead of creating an ambiguous local path', () => {
+      expect(
+        resolveRemoteUrlToLocalPath(
+          'https://svn.example.com/repo/trunk/folder%2Fescape',
+          workingCopyRoot,
+          repositoryRoot,
+          'https://svn.example.com/repo/trunk'
+        )
+      ).toBeNull();
+    });
+
     it('resolves URL to local path', () => {
       const result = resolveRemoteUrlToLocalPath(
         'https://svn.example.com/repo/trunk/src/file.ts',
@@ -95,7 +148,9 @@ describe('resolveRemoteUrlToLocalPath', () => {
         workingCopyRoot,
         repositoryRoot
       );
-      expect(result).toBe(platformPath('/Users/user/project/branches/feature/src/components/Button.tsx'));
+      expect(result).toBe(
+        platformPath('/Users/user/project/branches/feature/src/components/Button.tsx')
+      );
     });
   });
 
@@ -219,5 +274,14 @@ describe('isUrlInRepository', () => {
 
   it('returns false for similar but different repository', () => {
     expect(isUrlInRepository('https://svn.example.com/repo2/file.ts', repositoryRoot)).toBe(false);
+  });
+
+  it('treats repository membership as a decoded segment comparison', () => {
+    expect(
+      isUrlInRepository(
+        'https://SVN.EXAMPLE.COM/repo/my%20project/file.ts',
+        'https://svn.example.com/repo/my project'
+      )
+    ).toBe(true);
   });
 });

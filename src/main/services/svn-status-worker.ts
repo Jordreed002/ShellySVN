@@ -12,24 +12,42 @@ export interface FsStatusResult {
   allEntries: FsSvnStatusEntry[];
 }
 
-export async function getWorkerFsStatus(
+const activeFsStatusRequests = new Map<string, Promise<FsStatusResult>>();
+
+export function getWorkerFsStatus(
   dirPath: string,
   depth: FsStatusDepth = 'immediates'
 ): Promise<FsStatusResult> {
-  const { svnCommand, context } = await resolveSvnExecution();
-  return getSharedWorkerPool().run(
-    'svn:fsStatus',
-    {
-      dirPath,
-      svnCommand,
-      context,
-      depth,
-    },
-    {
-      id: `fs-status:${depth}:${dirPath}`,
-      priority: 'interactive',
+  const jobId = `fs-status:${depth}:${dirPath}`;
+  const activeRequest = activeFsStatusRequests.get(jobId);
+  if (activeRequest) return activeRequest;
+
+  const request = (async () => {
+    const { svnCommand, context } = await resolveSvnExecution();
+    return getSharedWorkerPool().run(
+      'svn:fsStatus',
+      {
+        dirPath,
+        svnCommand,
+        context,
+        depth,
+      },
+      {
+        id: jobId,
+        priority: 'interactive',
+        joinExisting: true,
+      }
+    );
+  })();
+
+  activeFsStatusRequests.set(jobId, request);
+  const removeCompletedRequest = () => {
+    if (activeFsStatusRequests.get(jobId) === request) {
+      activeFsStatusRequests.delete(jobId);
     }
-  );
+  };
+  void request.then(removeCompletedRequest, removeCompletedRequest);
+  return request;
 }
 
 export interface WorkerSvnStatusOptions {
@@ -60,6 +78,7 @@ export async function getWorkerSvnStatus(
       id:
         options.jobId ?? (options.showUpdates ? `svn-status-remote:${path}` : `svn-status:${path}`),
       priority: 'interactive',
+      joinExisting: true,
     }
   );
 

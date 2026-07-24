@@ -51,7 +51,10 @@ beforeEach(() => {
 
 describe('useFolderSizes', () => {
   it('chunks folder paths into bounded batches', () => {
-    const paths = Array.from({ length: FOLDER_SIZE_BATCH_SIZE + 1 }, (_, index) => `/repo/${index}`);
+    const paths = Array.from(
+      { length: FOLDER_SIZE_BATCH_SIZE + 1 },
+      (_, index) => `/repo/${index}`
+    );
 
     expect(chunkFolderPaths(paths)).toEqual([
       paths.slice(0, FOLDER_SIZE_BATCH_SIZE),
@@ -88,7 +91,9 @@ describe('useFolderSizes', () => {
     expect(getFolderSizes).toHaveBeenCalledTimes(
       Math.ceil(MAX_FOLDER_SIZE_PATHS / FOLDER_SIZE_BATCH_SIZE)
     );
-    expect(getFolderSizes.mock.calls.flatMap(([paths]) => paths)).toHaveLength(MAX_FOLDER_SIZE_PATHS);
+    expect(getFolderSizes.mock.calls.flatMap(([paths]) => paths)).toHaveLength(
+      MAX_FOLDER_SIZE_PATHS
+    );
     expect(result.current.folderSizes['/repo/folder-0']).toBe('/repo/folder-0'.length);
     expect(result.current.folderSizes['/repo/folder-524']).toBeUndefined();
   });

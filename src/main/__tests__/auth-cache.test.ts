@@ -7,13 +7,17 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock modules using vi.mock (hoisted)
-vi.mock('node:fs/promises', () => ({
-  default: {},
-  access: vi.fn(),
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-}));
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  const mocked = {
+    ...actual,
+    access: vi.fn(),
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+    mkdir: vi.fn(),
+  };
+  return { ...mocked, default: mocked };
+});
 
 vi.mock('electron', () => ({
   safeStorage: {
@@ -118,8 +122,7 @@ describe('AuthCache', () => {
       expect(mockWriteFile).not.toHaveBeenCalled();
     });
 
-    // Note: Requires Node.js environment for fs/promises mocking
-    it.skip('should load existing credentials on init', async () => {
+    it('should load existing credentials on init', async () => {
       const existingData = {
         version: 1,
         credentials: [
@@ -436,15 +439,14 @@ describe('AuthCache', () => {
     });
   });
 
-  // Note: Requires Node.js environment for fs/promises mocking
-  describe.skip('persistence', () => {
+  describe('persistence', () => {
     it('should save credentials to disk', async () => {
       authCache.set('https://svn.example.com', 'testuser', 'testpass');
       await vi.runAllTimersAsync();
 
       expect(mockWriteFile).toHaveBeenCalledWith(
         '/test/user-data/auth-cache.json',
-        expect.stringContaining('"version":1'),
+        expect.stringContaining('"version": 1'),
         'utf-8'
       );
 
@@ -452,7 +454,9 @@ describe('AuthCache', () => {
       expect(savedData.credentials).toHaveLength(1);
       expect(savedData.credentials[0].realm).toBe('https://svn.example.com');
       expect(savedData.credentials[0].username).toBe('testuser');
-      expect(savedData.credentials[0].password).toBe('encrypted:testpass');
+      expect(savedData.credentials[0].password).toBe(
+        Buffer.from('encrypted:testpass').toString('base64')
+      );
     });
 
     it('should create directory if it does not exist', async () => {
@@ -479,8 +483,7 @@ describe('AuthCache', () => {
     });
   });
 
-  // Note: Requires Node.js environment for fs/promises mocking
-  describe.skip('concurrent operations', () => {
+  describe('concurrent operations', () => {
     it('should handle sequential saves correctly', async () => {
       // First save
       authCache.set('https://svn1.example.com', 'user1', 'pass1');

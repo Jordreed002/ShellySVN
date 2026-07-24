@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
 
@@ -19,6 +19,7 @@ vi.mock('../src/components/ui/ChooseItemsDialog', () => ({
         <button onClick={() => onSelect(['/trunk/src/file1.ts', '/trunk/src/file2.ts'])}>
           Select Files
         </button>
+        <button onClick={() => onSelect([])}>Empty Selection</button>
         <button onClick={onCancel}>Cancel</button>
       </div>
     );
@@ -38,10 +39,7 @@ const mockOnConfirm = vi
   .mockResolvedValueOnce({ success: true, revision: 123 })
   .mockResolvedValueOnce({ success: false, revision: 0, error: 'Update failed' });
 
-// NOTE: This test suite is skipped due to React/jsdom compatibility issues
-// The "Should not already be working" error occurs when rendering React components
-// in jsdom environment. See useLazyTreeLoader.test.tsx for similar issues.
-describe.skip('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
+describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -55,7 +53,8 @@ describe.skip('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUpdateToRevision.mockClear();
+    mockUpdateToRevision.mockReset();
+    mockUpdateToRevision.mockResolvedValue({ success: true, revision: 123 });
     mockOnConfirm.mockClear();
   });
 
@@ -186,9 +185,10 @@ describe.skip('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
   });
 
   it('preserves existing depth and sticky settings for sparse checkout', async () => {
-    const propsWithDepth = { ...defaultProps, depth: 'files' as const };
+    render(<UpdateToRevisionDialog {...defaultProps} />);
 
-    render(<UpdateToRevisionDialog {...propsWithDepth} />);
+    fireEvent.click(screen.getByLabelText('Files only update depth'));
+    fireEvent.click(screen.getByLabelText('Make depth sticky'));
 
     // Open ChooseItemsDialog and select files
     const chooseButton = screen.getByText('Choose items...');
@@ -203,12 +203,12 @@ describe.skip('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
         'https://svn.example.com/repo/trunk',
         '/trunk/src/file1.ts',
         'files',
-        false
+        true
       );
     });
   });
 
-  it('handles ChooseItemsDialog cancellation gracefully', () => {
+  it('handles ChooseItemsDialog cancellation gracefully', async () => {
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog
@@ -216,7 +216,8 @@ describe.skip('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     fireEvent.click(chooseButton);
 
     // Cancel ChooseItemsDialog
-    const cancelButton = screen.getByText('Cancel');
+    const chooser = await screen.findByTestId('choose-items-dialog');
+    const cancelButton = within(chooser).getByText('Cancel');
     fireEvent.click(cancelButton);
 
     expect(screen.queryByTestId('choose-items-dialog')).not.toBeInTheDocument();
@@ -250,7 +251,7 @@ describe.skip('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
   });
 });
 
-describe.skip('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => {
+describe('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -264,7 +265,8 @@ describe.skip('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => 
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUpdateToRevision.mockClear();
+    mockUpdateToRevision.mockReset();
+    mockUpdateToRevision.mockResolvedValue({ success: true, revision: 123 });
   });
 
   it('handles API errors gracefully during sparse checkout', async () => {
@@ -300,8 +302,13 @@ describe.skip('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => 
     );
   });
 
-  // NOTE: Skipped because vi.requireMock is not available in vitest
-  it.skip('handles empty selected paths gracefully', () => {
-    // This test requires vi.requireMock which is not available in vitest
+  it('handles empty selected paths gracefully', async () => {
+    render(<UpdateToRevisionDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('Choose items...'));
+    fireEvent.click(await screen.findByText('Empty Selection'));
+
+    expect(mockUpdateToRevision).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('choose-items-dialog')).not.toBeInTheDocument();
   });
 });

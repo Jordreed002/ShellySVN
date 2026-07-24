@@ -239,7 +239,13 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
                 {activeTab === 'appearance' && (
                   <AppearanceSettings settings={localSettings} onChange={updateLocalSetting} />
                 )}
-                {activeTab === 'auth' && <AuthSettings isOpen={isOpen} />}
+                {activeTab === 'auth' && (
+                  <AuthSettings
+                    isOpen={isOpen}
+                    settings={localSettings}
+                    onChange={updateLocalSetting}
+                  />
+                )}
                 {activeTab === 'advanced' && (
                   <AdvancedSettings
                     settings={localSettings}

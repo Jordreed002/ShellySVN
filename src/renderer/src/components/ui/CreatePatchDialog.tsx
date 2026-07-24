@@ -158,7 +158,10 @@ export function CreatePatchDialog({
               {/* Output path */}
               {patchContent && (
                 <div>
-                  <label htmlFor="create-patch-output" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label
+                    htmlFor="create-patch-output"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block"
+                  >
                     Save to
                   </label>
                   <div className="flex gap-2">
@@ -188,7 +191,10 @@ export function CreatePatchDialog({
               {/* Patch content */}
               {patchContent && (
                 <div>
-                  <label htmlFor="create-patch-content" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                  <label
+                    htmlFor="create-patch-content"
+                    className="text-sm font-medium text-text-secondary mb-1.5 block"
+                  >
                     Patch content
                   </label>
                   <textarea

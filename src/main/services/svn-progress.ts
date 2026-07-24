@@ -5,9 +5,9 @@ import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, type RunSvnOptions } fro
 
 const activeOperations = new Map<string, AbortController>();
 
-export function parseSvnOutputRevision(output: string): number {
+export function parseSvnOutputRevision(output: string): number | null {
   const match = output.match(/(?:Committed|Exported|Updated to|Checked out) revision (\d+)\./);
-  return match ? parseInt(match[1], 10) : 0;
+  return match ? parseInt(match[1], 10) : null;
 }
 
 function parseProgressPath(line: string): string | null {
@@ -34,14 +34,16 @@ export async function runSvnOperationWithProgress(
   operation: SvnOperationProgress['operation'],
   args: string[],
   options: RunSvnOptions = {}
-): Promise<{ success: boolean; revision: number; output?: string; error?: string }> {
+): Promise<{ success: boolean; revision: number | null; output?: string; error?: string }> {
   const controller = new AbortController();
   activeOperations.set(operationId, controller);
 
   let filesProcessed = 0;
   let currentFile = '';
-  let revision = 0;
+  let revision: number | null = null;
   let revisionBuffer = '';
+  let lineBuffer = '';
+  const processedPaths = new Set<string>();
 
   const sendProgress = (progress: CheckoutProgress) => {
     event.sender.send(
@@ -61,12 +63,16 @@ export async function runSvnOperationWithProgress(
       onStdout: (chunk) => {
         options.onStdout?.(chunk);
         revisionBuffer = (revisionBuffer + chunk).slice(-2000);
-        revision = parseSvnOutputRevision(revisionBuffer) || revision;
+        revision = parseSvnOutputRevision(revisionBuffer) ?? revision;
 
-        for (const line of chunk.split(/\r?\n/)) {
+        lineBuffer += chunk;
+        const lines = lineBuffer.split(/\r?\n/);
+        lineBuffer = lines.pop() ?? '';
+        for (const line of lines) {
           const parsedPath = parseProgressPath(line);
-          if (!parsedPath) continue;
+          if (!parsedPath || processedPaths.has(parsedPath)) continue;
 
+          processedPaths.add(parsedPath);
           currentFile = parsedPath;
           filesProcessed++;
           sendProgress({
@@ -81,7 +87,7 @@ export async function runSvnOperationWithProgress(
       },
     });
 
-    revision = revision || parseSvnOutputRevision(result.stdout);
+    revision = revision ?? parseSvnOutputRevision(result.stdout);
     sendProgress({
       status: 'completed',
       currentFile,
@@ -100,7 +106,7 @@ export async function runSvnOperationWithProgress(
       filesProcessed,
       error: message,
     });
-    return { success: false, revision: 0, error: message };
+    return { success: false, revision: null, error: message };
   } finally {
     if (activeOperations.get(operationId) === controller) {
       activeOperations.delete(operationId);

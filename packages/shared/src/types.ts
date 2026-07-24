@@ -3,6 +3,33 @@
  * Used by both main process and renderer
  */
 
+export type SvnCommandErrorCategory =
+  | 'authentication'
+  | 'certificate'
+  | 'network'
+  | 'working-copy'
+  | 'conflict'
+  | 'locked'
+  | 'out-of-date'
+  | 'not-found'
+  | 'cancelled'
+  | 'timeout'
+  | 'validation'
+  | 'command';
+
+export interface SvnCommandErrorDetails {
+  message: string;
+  svnErrorCode?: string;
+  category: SvnCommandErrorCategory;
+  command?: string;
+  target?: string;
+  retryable: boolean;
+  authenticationRequired: boolean;
+  certificateError: boolean;
+  /** Redacted stderr/message safe to cross IPC and display. */
+  safeStderr: string;
+}
+
 // ============================================
 // SVN Status Types
 // ============================================
@@ -60,6 +87,11 @@ export interface SvnStatusResult {
   remoteChecked?: boolean;
   /** Set when XML parsing failed - entries may be incomplete or empty */
   parseError?: string;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
 }
 
 export interface WorkingCopyUpgradeStatus {
@@ -79,6 +111,8 @@ export interface SvnLogEntry {
   date: string;
   message: string;
   paths: SvnLogPath[];
+  /** Non-standard revision properties requested with --with-revprop/--with-all-revprops. */
+  revisionProperties?: Record<string, string>;
 }
 
 export interface SvnLogPath {
@@ -94,6 +128,98 @@ export interface SvnLogResult {
   endRevision: number;
   /** Set when XML parsing failed - entries may be incomplete or empty */
   parseError?: string;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+export type SvnMergeInfoKind = 'merged' | 'eligible';
+
+export interface SvnMergeInfoResult {
+  source: string;
+  target: string;
+  kind: SvnMergeInfoKind;
+  revisions: number[];
+  properties: Array<{
+    value: string;
+    inherited: boolean;
+    inheritedFrom?: string;
+  }>;
+  rawOutput: string;
+}
+
+export interface SvnCatResult {
+  target: string;
+  revision?: string;
+  contentBase64: string;
+  byteLength: number;
+  binary: boolean;
+  truncated: boolean;
+}
+
+export interface SvnPropertyGetOptions {
+  revision?: string;
+  depth?: 'empty' | 'files' | 'immediates' | 'infinity';
+  showInherited?: boolean;
+}
+
+export interface SvnProperty {
+  name: string;
+  value: string;
+  inherited?: boolean;
+  inheritedFrom?: string;
+}
+
+export interface SvnPropertyListResult {
+  properties: SvnProperty[];
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+export interface SvnPropertyValueResult {
+  value?: string;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+export interface SvnCleanupOptions {
+  removeUnversioned?: boolean;
+  removeIgnored?: boolean;
+  vacuumPristines?: boolean;
+  includeExternals?: boolean;
+}
+
+export interface SvnCleanupPreview {
+  unversioned: string[];
+  ignored: string[];
+}
+
+/** A verified repository revision, or null when SVN produced no authoritative revision. */
+export type SvnOperationRevision = number | null;
+export type SvnRevertDepth = 'empty' | 'files' | 'immediates' | 'infinity';
+export interface SvnRevertPreview {
+  depth: SvnRevertDepth;
+  paths: string[];
+}
+
+export interface SvnMutationNotification {
+  localPaths: string[];
+  repositoryUrls: string[];
+}
+
+export interface SvnNativeAuthEntry {
+  kind: string;
+  realm: string;
+  username?: string;
+  certificate?: string;
 }
 
 // ============================================
@@ -127,6 +253,8 @@ export interface SvnDiffResult {
   hasChanges: boolean;
   isBinary?: boolean;
   rawDiff?: string; // For binary files or when parsing fails
+  error?: string;
+  commandError?: SvnCommandErrorDetails;
 }
 
 // ============================================
@@ -149,6 +277,35 @@ export interface SvnInfoResult {
   parseError?: string;
 }
 
+export interface SvnWorkingCopyContext {
+  /** Administrative root of the working copy containing the selected path. */
+  workingCopyRoot: string;
+  repositoryRoot: string;
+  repositoryUuid: string;
+  /** Actual or derived repository URL corresponding exactly to `localPath`. */
+  url: string;
+  /** Normalized local path requested by the caller. */
+  localPath: string;
+  /** Nearest existing/versioned ancestor used to derive sparse or missing targets. */
+  nearestVersionedPath: string;
+  /** Actual SVN URL of `nearestVersionedPath` (respects switches and externals). */
+  nearestVersionedUrl: string;
+  /** True when `url` was derived for a path not directly described by `svn info`. */
+  derived: boolean;
+}
+
+export interface SvnMutationResult {
+  success: boolean;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  output?: string;
+  commandError?: SvnCommandErrorDetails;
+}
+
+/** Canonical result for SVN actions that do not return domain-specific data. */
+export type OperationResult = SvnMutationResult;
+
 // ============================================
 // SVN Lock Types
 // ============================================
@@ -168,19 +325,35 @@ export interface SvnLockInfo {
   isOwner?: boolean;
 }
 
+export interface SvnLockInfoResult {
+  lock?: SvnLockInfo;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
 export interface SvnLockResult {
   success: boolean;
   lock?: SvnLockInfo;
   error?: string;
+  commandError?: SvnCommandErrorDetails;
 }
 
 export interface SvnUnlockResult {
   success: boolean;
   error?: string;
+  commandError?: SvnCommandErrorDetails;
 }
 
 export interface SvnLockListResult {
   locks: SvnLockInfo[];
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
 }
 
 // ============================================
@@ -219,7 +392,7 @@ export type SvnChannels = {
     options?: UpdateOptions
   ) => { success: boolean; revision: number };
   'svn:commit': (paths: string[], message: string) => { success: boolean; revision: number };
-  'svn:revert': (paths: string[]) => { success: boolean };
+  'svn:revert': (paths: string[], depth?: SvnRevertDepth) => { success: boolean };
   'svn:add': (paths: string[]) => { success: boolean };
   'svn:delete': (paths: string[]) => { success: boolean };
   'svn:cleanup': (path: string) => { success: boolean };
@@ -244,6 +417,18 @@ export type AppChannels = {
 export interface FileFilter {
   name: string;
   extensions: string[];
+}
+
+export interface MessageDialogOptions {
+  type?: 'info' | 'warning' | 'error';
+  title?: string;
+  message: string;
+  detail?: string;
+}
+
+export interface ConfirmDialogOptions extends MessageDialogOptions {
+  confirmLabel?: string;
+  cancelLabel?: string;
 }
 
 // ============================================
@@ -415,6 +600,39 @@ export interface AppSettings {
   tutorialStep: number; // Current step for resume capability
 }
 
+export type SvnCacheNamespace = 'info' | 'status' | 'log' | 'entries';
+
+export interface SvnCacheEntry<T = unknown> {
+  namespace: SvnCacheNamespace;
+  key: string;
+  path: string;
+  data: T;
+  cachedAt: number;
+  expiresAt: number;
+  lastAccessedAt: number;
+  sizeBytes: number;
+}
+
+export interface SvnCacheStats {
+  infoCount: number;
+  statusCount: number;
+  logCount: number;
+  entriesCount: number;
+  totalSize: number;
+  logSize: number;
+  offlineSize: number;
+  logBudgetBytes: number;
+  offlineBudgetBytes: number;
+  filePath: string;
+}
+
+export interface AppCacheBreakdown {
+  electron: number;
+  logs: number;
+  offline: number;
+  auth: number;
+}
+
 // ============================================
 // SVN Checkout Options
 // ============================================
@@ -445,6 +663,8 @@ export interface UpdateOptions {
  * Checkout progress information for streaming updates
  */
 export interface CheckoutProgress {
+  /** Stable ID that can be passed to the matching cancellation API. */
+  operationId?: string;
   /** Current file being checked out */
   currentFile?: string;
   /** Number of files processed so far */
@@ -462,15 +682,17 @@ export interface CheckoutProgress {
   /** Error message if status is 'error' */
   error?: string;
   /** Final revision when completed */
-  revision?: number;
+  revision?: SvnOperationRevision;
 }
 
 export interface SvnOperationProgress extends CheckoutProgress {
   operationId: string;
-  operation: 'commit' | 'export' | 'import' | 'merge';
+  operation: 'checkout' | 'update' | 'commit' | 'export' | 'import' | 'merge';
 }
 
 export interface SvnMergeOptions {
+  /** Second source for SVN's two-source/tree merge form. */
+  secondSource?: string;
   dryRun?: boolean;
   depth?: 'empty' | 'files' | 'immediates' | 'infinity';
   ignoreAncestry?: boolean;
@@ -559,6 +781,11 @@ export interface SvnChangelist {
 export interface SvnChangelistResult {
   changelists: SvnChangelist[];
   defaultFiles: string[]; // Files not in any changelist
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
 }
 
 // ============================================
@@ -575,6 +802,11 @@ export interface SvnShelve {
 export interface SvnShelveListResult {
   shelves: SvnShelve[];
   unsupportedReason?: string;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
 }
 
 // ============================================
@@ -594,6 +826,11 @@ export interface SvnBlameResult {
   lines: SvnBlameLine[];
   startRevision: number;
   endRevision: number;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
 }
 
 // ============================================
@@ -614,6 +851,11 @@ export interface SvnRepoEntry {
 export interface SvnListResult {
   path: string;
   entries: SvnRepoEntry[];
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
 }
 
 // ============================================
@@ -622,9 +864,19 @@ export interface SvnListResult {
 
 export interface SvnPatchResult {
   success: boolean;
+  appliedWithConflicts: boolean;
   filesPatched: number;
   rejects: number;
+  rejectFiles: string[];
+  offsetHunks: number;
+  fuzzedHunks: number;
   output: string;
+}
+
+export interface SvnPatchApplyOptions {
+  reverse?: boolean;
+  ignoreWhitespace?: boolean;
+  stripCount?: number;
 }
 
 // ============================================
@@ -640,6 +892,15 @@ export interface SvnExternal {
   depth?: 'empty' | 'files' | 'immediates' | 'infinity';
 }
 
+export interface SvnExternalsResult {
+  externals: SvnExternal[];
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
 // ============================================
 // SVN Execution Context (Settings Enforcement)
 // ============================================
@@ -650,6 +911,7 @@ export interface SvnExecutionContext {
   sslVerify?: boolean;
   clientCertificatePath?: string;
   svnConfigPath?: string;
+  sshSettings?: SSHSettings;
 }
 
 // ============================================
@@ -694,7 +956,7 @@ export interface DirectoryMetadataResult {
   statusData: FsStatusResult;
   svnInfo: SvnInfoResult | null;
   workingCopyUpgradeStatus: WorkingCopyUpgradeStatus | null;
-  workingCopyContext: { workingCopyRoot: string; repositoryRoot: string; url: string } | null;
+  workingCopyContext: SvnWorkingCopyContext | null;
 }
 
 export interface WebhookDeliverRequest {
@@ -718,8 +980,25 @@ export interface CancellableRequestOptions {
   signal?: AbortSignal;
 }
 
+export interface SvnLogRequestOptions extends CancellableRequestOptions {
+  stopOnCopy?: boolean;
+  strictNodeHistory?: boolean;
+  includeAllRevisionProperties?: boolean;
+  revisionProperties?: string[];
+}
+
 export interface ElectronAPI {
   svn: {
+    capabilities: () => Promise<{
+      shelving: boolean;
+      nativeShelving: boolean;
+      remoteProperties: boolean;
+    }>;
+    onMutation: (callback: (notification: SvnMutationNotification) => void) => () => void;
+    nativeAuth: {
+      list: (patterns?: string[]) => Promise<SvnNativeAuthEntry[]>;
+      remove: (patterns: string[]) => Promise<{ success: boolean; output?: string }>;
+    };
     status: (path: string, options?: CancellableRequestOptions) => Promise<SvnStatusResult>;
     statusRemote: (path: string, options?: CancellableRequestOptions) => Promise<SvnStatusResult>;
     workingCopyUpgradeStatus: (path: string) => Promise<WorkingCopyUpgradeStatus>;
@@ -732,13 +1011,21 @@ export interface ElectronAPI {
       startRev?: number,
       endRev?: number,
       useMergeHistory?: boolean,
-      options?: CancellableRequestOptions
+      options?: SvnLogRequestOptions
     ) => Promise<SvnLogResult>;
+    mergeInfo: (
+      source: string,
+      target: string,
+      kind: SvnMergeInfoKind
+    ) => Promise<SvnMergeInfoResult>;
+    cat: (
+      target: string,
+      revision?: string,
+      options?: CancellableRequestOptions
+    ) => Promise<SvnCatResult>;
     info: (path: string) => Promise<SvnInfoResult>;
     infoUrl: (url: string) => Promise<SvnInfoResult>;
-    getWorkingCopyContext: (
-      path: string
-    ) => Promise<{ workingCopyRoot: string; repositoryRoot: string; url: string } | null>;
+    getWorkingCopyContext: (path: string) => Promise<SvnWorkingCopyContext | null>;
     diff: (
       path: string,
       revision?: string,
@@ -758,50 +1045,68 @@ export interface ElectronAPI {
       path: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: UpdateOptions
-    ) => Promise<{ success: boolean; revision: number; error?: string }>;
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; error?: string }>;
     updateWithProgress: (
       path: string,
       onProgress: (progress: CheckoutProgress) => void,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: UpdateOptions
-    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
-    cancelUpdate: () => Promise<{ success: boolean; error?: string }>;
-    updateItem: (path: string) => Promise<{ success: boolean; revision: number; error?: string }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      error?: string;
+      output?: string;
+    }>;
+    cancelUpdate: (operationId?: string) => Promise<{ success: boolean; error?: string }>;
+    updateItem: (
+      path: string
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; error?: string }>;
+    exclude: (path: string) => Promise<{ success: boolean; error?: string }>;
     updateToRevision: (
       workingCopyRoot: string,
       url: string,
       localPath: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       setDepthSticky?: boolean
-    ) => Promise<{ success: boolean; revision: number; error?: string }>;
-    commit: (paths: string[], message: string) => Promise<{ success: boolean; revision: number }>;
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; error?: string }>;
+    commit: (
+      paths: string[],
+      message: string
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision }>;
     commitWithProgress: (
       paths: string[],
       message: string,
       onProgress: (progress: SvnOperationProgress) => void
-    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
-    cancelOperation: () => Promise<{ success: boolean; error?: string }>;
-    revert: (paths: string[]) => Promise<{ success: boolean }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      error?: string;
+      output?: string;
+    }>;
+    cancelOperation: (operationId?: string) => Promise<{ success: boolean; error?: string }>;
+    revert: (paths: string[], depth?: SvnRevertDepth) => Promise<{ success: boolean }>;
+    revertPreview: (paths: string[], depth?: SvnRevertDepth) => Promise<SvnRevertPreview>;
     unversion: (paths: string[]) => Promise<{ success: boolean }>;
     childCommits: (
       path: string
     ) => Promise<Record<string, { revision: number; author: string; date: string }>>;
     add: (paths: string[]) => Promise<{ success: boolean }>;
     delete: (paths: string[]) => Promise<{ success: boolean }>;
-    cleanup: (path: string) => Promise<{ success: boolean }>;
+    cleanup: (path: string, options?: SvnCleanupOptions) => Promise<{ success: boolean }>;
+    cleanupPreview: (path: string) => Promise<SvnCleanupPreview>;
     lock: (path: string, message?: string) => Promise<{ success: boolean; output?: string }>;
     unlock: (path: string, force?: boolean) => Promise<{ success: boolean; output?: string }>;
-    lockInfo: (path: string) => Promise<SvnLockInfo | null>;
+    lockInfo: (path: string) => Promise<SvnLockInfoResult>;
     lockForce: (path: string, message?: string) => Promise<SvnLockResult>;
     unlockForce: (path: string) => Promise<SvnUnlockResult>;
-    lockList: (path: string) => Promise<SvnLockInfo[]>;
+    lockList: (path: string) => Promise<SvnLockListResult>;
     checkout: (
       url: string,
       path: string,
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
     checkoutWithProgress: (
       url: string,
       path: string,
@@ -809,61 +1114,97 @@ export interface ElectronAPI {
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) => Promise<{ success: boolean; revision: number; output?: string }>;
-    cancelCheckout: () => Promise<{ success: boolean; error?: string }>;
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
+    cancelCheckout: (operationId?: string) => Promise<{ success: boolean; error?: string }>;
     export: (
       url: string,
       path: string,
       revision?: string
-    ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
     exportWithProgress: (
       url: string,
       path: string,
       onProgress: (progress: SvnOperationProgress) => void,
       revision?: string
-    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      error?: string;
+      output?: string;
+    }>;
     import: (
       path: string,
       url: string,
       message: string
-    ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
     importWithProgress: (
       path: string,
       url: string,
       message: string,
       onProgress: (progress: SvnOperationProgress) => void
-    ) => Promise<{ success: boolean; revision: number; error?: string; output?: string }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      error?: string;
+      output?: string;
+    }>;
     resolve: (
       path: string,
-      resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict'
+      resolution:
+        | 'base'
+        | 'mine-full'
+        | 'theirs-full'
+        | 'mine-conflict'
+        | 'theirs-conflict'
+        | 'working'
     ) => Promise<{ success: boolean }>;
     switch: (
       path: string,
       url: string,
       revision?: string
-    ) => Promise<{ success: boolean; revision: number; output?: string }>;
+    ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
     copy: (
       src: string,
       dst: string,
       message: string
-    ) => Promise<{ success: boolean; revision: number; output?: string; error?: string }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      output?: string;
+      error?: string;
+    }>;
     remoteCreateFolder: (
       parentUrl: string,
       folderName: string,
       message: string,
       credentials?: { username: string; password: string }
-    ) => Promise<{ success: boolean; revision: number; output?: string; error?: string }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      output?: string;
+      error?: string;
+    }>;
     remoteDelete: (
       url: string,
       message: string,
       credentials?: { username: string; password: string }
-    ) => Promise<{ success: boolean; revision: number; output?: string; error?: string }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      output?: string;
+      error?: string;
+    }>;
     remoteMove: (
       srcUrl: string,
       dstUrl: string,
       message: string,
       credentials?: { username: string; password: string }
-    ) => Promise<{ success: boolean; revision: number; output?: string; error?: string }>;
+    ) => Promise<{
+      success: boolean;
+      revision: SvnOperationRevision;
+      output?: string;
+      error?: string;
+    }>;
     merge: (
       source: string,
       target: string,
@@ -885,23 +1226,42 @@ export interface ElectronAPI {
       path: string
     ) => Promise<{ success: boolean; output?: string }>;
     changelist: {
-      add: (paths: string[], changelist: string) => Promise<{ success: boolean }>;
-      remove: (paths: string[]) => Promise<{ success: boolean }>;
+      add: (paths: string[], changelist: string) => Promise<SvnMutationResult>;
+      remove: (paths: string[]) => Promise<SvnMutationResult>;
       list: (path: string) => Promise<SvnChangelistResult>;
-      create: (name: string, comment?: string) => Promise<{ success: boolean }>;
-      delete: (name: string, path: string) => Promise<{ success: boolean }>;
+      delete: (name: string, path: string) => Promise<SvnMutationResult>;
     };
     move: (src: string, dst: string) => Promise<{ success: boolean; output?: string }>;
-    rename: (src: string, dst: string) => Promise<{ success: boolean; output?: string }>;
+    copyLocal: (src: string, dst: string) => Promise<{ success: boolean; output?: string }>;
     shelve: {
       list: (path: string) => Promise<SvnShelveListResult>;
-      save: (name: string, path: string, message?: string) => Promise<{ success: boolean }>;
-      apply: (name: string, path: string) => Promise<{ success: boolean }>;
-      delete: (name: string, path: string) => Promise<{ success: boolean }>;
+      save: (name: string, path: string, message?: string) => Promise<SvnMutationResult>;
+      apply: (name: string, path: string) => Promise<SvnMutationResult>;
+      delete: (name: string, path: string) => Promise<SvnMutationResult>;
     };
-    proplist: (path: string) => Promise<{ name: string; value: string }[]>;
-    propset: (path: string, name: string, value: string) => Promise<{ success: boolean }>;
-    propdel: (path: string, name: string) => Promise<{ success: boolean }>;
+    proplist: (path: string, options?: SvnPropertyGetOptions) => Promise<SvnPropertyListResult>;
+    propget: (
+      target: string,
+      name: string,
+      options?: SvnPropertyGetOptions
+    ) => Promise<SvnPropertyValueResult>;
+    propset: (path: string, name: string, value: string) => Promise<SvnMutationResult>;
+    propdel: (path: string, name: string) => Promise<SvnMutationResult>;
+    propsetRemote: (
+      url: string,
+      name: string,
+      value: string,
+      message: string
+    ) => Promise<SvnMutationResult>;
+    propdelRemote: (url: string, name: string, message: string) => Promise<SvnMutationResult>;
+    revpropget: (target: string, name: string, revision: string) => Promise<SvnPropertyValueResult>;
+    revpropset: (
+      target: string,
+      name: string,
+      value: string,
+      revision: string
+    ) => Promise<SvnMutationResult>;
+    revpropdel: (target: string, name: string, revision: string) => Promise<SvnMutationResult>;
     blame: (
       path: string,
       startRevision?: number,
@@ -919,21 +1279,26 @@ export interface ElectronAPI {
         paths: string[],
         outputPath: string
       ) => Promise<{ success: boolean; output: string }>;
-      apply: (patchPath: string, targetPath: string, dryRun?: boolean) => Promise<SvnPatchResult>;
+      apply: (
+        patchPath: string,
+        targetPath: string,
+        dryRun?: boolean,
+        options?: SvnPatchApplyOptions
+      ) => Promise<SvnPatchResult>;
     };
     externals: {
-      list: (path: string) => Promise<SvnExternal[]>;
+      list: (path: string) => Promise<SvnExternalsResult>;
       add: (
         workingCopyPath: string,
         external: Omit<SvnExternal, 'name'> & { name?: string }
-      ) => Promise<{ success: boolean }>;
+      ) => Promise<SvnMutationResult>;
       edit: (
         workingCopyPath: string,
         externalPath: string,
         external: Omit<SvnExternal, 'name'> & { name?: string }
-      ) => Promise<{ success: boolean }>;
-      remove: (workingCopyPath: string, externalPath: string) => Promise<{ success: boolean }>;
-      update: (workingCopyPath: string, externalPath?: string) => Promise<{ success: boolean }>;
+      ) => Promise<SvnMutationResult>;
+      remove: (workingCopyPath: string, externalPath: string) => Promise<SvnMutationResult>;
+      update: (workingCopyPath: string, externalPath?: string) => Promise<SvnMutationResult>;
     };
     diagnostics: (workingCopyPath: string) => Promise<RepoDiagnostics>;
     trustServerCertificate: (
@@ -954,8 +1319,9 @@ export interface ElectronAPI {
       theirs: string,
       merged: string
     ) => Promise<{ success: boolean; error?: string }>;
-    openFolder: (path: string) => Promise<{ success: boolean }>;
-    openFile: (path: string) => Promise<{ success: boolean }>;
+    openFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
+    openFile: (path: string) => Promise<{ success: boolean; error?: string }>;
+    revealPath: (path: string) => Promise<{ success: boolean; error?: string }>;
   };
   monitor: {
     getWorkingCopies: () => Promise<WorkingCopyInfo[]>;
@@ -987,6 +1353,10 @@ export interface ElectronAPI {
     getFolderSizes: (folderPaths: string[]) => Promise<Record<string, number>>;
     copyFile: (source: string, target: string) => Promise<{ success: boolean; error?: string }>;
     writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
+    writeFileBase64: (
+      path: string,
+      contentBase64: string
+    ) => Promise<{ success: boolean; error?: string }>;
     watch: (
       path: string,
       callback: (event: { path: string; eventType: string; changedPath: string }) => void,
@@ -1020,6 +1390,10 @@ export interface ElectronAPI {
     openExternal: (url: string) => Promise<void>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
     getCacheSize: () => Promise<{ size: number; files: number }>;
+    getCacheBreakdown: () => Promise<AppCacheBreakdown>;
+    clearCacheTypes: (
+      types: Array<'electron' | 'logs' | 'offline' | 'auth'>
+    ) => Promise<{ success: boolean; error?: string }>;
     window: {
       minimize: () => Promise<void>;
       maximize: () => Promise<void>;
@@ -1031,6 +1405,23 @@ export interface ElectronAPI {
     get: <T>(key: string) => Promise<T | undefined>;
     set: <T>(key: string, value: T) => Promise<void>;
     delete: (key: string) => Promise<void>;
+  };
+  svnCache: {
+    get: <T>(namespace: SvnCacheNamespace, key: string) => Promise<SvnCacheEntry<T> | null>;
+    list: <T>(namespace: SvnCacheNamespace) => Promise<Array<SvnCacheEntry<T>>>;
+    set: <T>(
+      namespace: SvnCacheNamespace,
+      key: string,
+      path: string,
+      data: T,
+      ttlMs: number,
+      operationStartedAt?: number
+    ) => Promise<{ success: boolean; error?: string; stale?: boolean }>;
+    delete: (namespace: SvnCacheNamespace, key: string) => Promise<void>;
+    clearNamespace: (namespace: SvnCacheNamespace, clearedAt?: number) => Promise<void>;
+    clearPath: (path: string, clearedAt?: number) => Promise<void>;
+    clearAll: (clearedAt?: number) => Promise<void>;
+    stats: () => Promise<SvnCacheStats>;
   };
   auth: {
     get: (realm: string) => Promise<AuthCredential | null>;
@@ -1171,7 +1562,11 @@ export interface LazyTreeLoaderState {
 
 declare global {
   interface Window {
-    electron: ElectronAPI;
+    electron: {
+      process: {
+        platform: NodeJS.Platform;
+      };
+    };
     api: ElectronAPI;
   }
 }

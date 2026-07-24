@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { RefreshCw, Folder, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 
 interface RepoBrowserProps {
   isOpen?: boolean;
@@ -40,7 +41,9 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
   } = useQuery({
     queryKey: ['repo:list', currentUrl],
     queryFn: async (): Promise<RepoEntry[]> => {
-      const result = await window.api.svn.list(currentUrl, undefined, 'immediates');
+      const result = assertSuccessfulSvnRead(
+        await window.api.svn.list(currentUrl, undefined, 'immediates')
+      );
       return result.entries.map((entry) => ({
         name: entry.name,
         path: entry.url,

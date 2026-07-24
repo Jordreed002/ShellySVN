@@ -53,9 +53,7 @@ export function isPathApprovedForIpc(path: string): boolean {
 export function assertPathApprovedForIpc(path: string, operation: string): string {
   const normalized = normalizePath(path);
   if (!isPathApprovedForIpc(normalized)) {
-    throw new Error(
-      `${operation} is only allowed inside a folder selected through ShellySVN.`
-    );
+    throw new Error(`${operation} is only allowed inside a folder selected through ShellySVN.`);
   }
 
   return normalized;

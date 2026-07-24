@@ -34,10 +34,12 @@ import {
   Trash2,
   Edit3,
   Copy,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { RouteState } from '@renderer/components/ui/RouteState';
 import { useWorkingCopyContext } from '@renderer/hooks/useWorkingCopyContext';
 import { resolveRemoteUrlToLocalPath } from '@renderer/utils/pathResolution';
+import { readCachedList } from '@renderer/utils/cachedSvnRead';
 import {
   isRepoBrowserAuthError,
   loadRepoBrowserCredentials,
@@ -48,6 +50,11 @@ import { normalizeRepoBrowserRevision } from './-repoBrowserRevision';
 
 const CheckoutDialog = lazy(() =>
   import('@renderer/components/ui/CheckoutDialog').then((m) => ({ default: m.CheckoutDialog }))
+);
+const PropertiesDialog = lazy(() =>
+  import('@renderer/components/ui/PropertiesDialog').then((module) => ({
+    default: module.PropertiesDialog,
+  }))
 );
 
 interface RepoNode {
@@ -96,6 +103,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const listRef = useRef<HTMLDivElement>(null);
+  const filePreviewControllerRef = useRef<AbortController | null>(null);
 
   const [repoUrl, setRepoUrl] = useState(search.url || '');
   const [revision, setRevision] = useState('HEAD');
@@ -103,9 +111,20 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [selectedNode, setSelectedNode] = useState<RepoNode | null>(null);
+  const [filePreview, setFilePreview] = useState<{
+    name: string;
+    contentBase64: string;
+    text?: string;
+    binary: boolean;
+    byteLength: number;
+  } | null>(null);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [filePreviewError, setFilePreviewError] = useState<string | null>(null);
+  const [fileRevisionDiff, setFileRevisionDiff] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [propertiesTarget, setPropertiesTarget] = useState<RepoNode | null>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderMessage, setNewFolderMessage] = useState('');
@@ -176,6 +195,11 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     () => getRepoBrowserListQueryKey(currentUrl, selectedRevision, credentials),
     [currentUrl, selectedRevision, credentials]
   );
+  const { data: svnCapabilities } = useQuery({
+    queryKey: ['svn:capabilities'],
+    queryFn: () => window.api.svn.capabilities(),
+    staleTime: Infinity,
+  });
 
   const {
     data: directoryData,
@@ -184,13 +208,14 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   } = useQuery({
     queryKey: listQueryKey,
     queryFn: async () => {
-      const result = await getRepoBrowserRuntime().svnList(
+      const runtime = getRepoBrowserRuntime();
+      return readCachedList(
         currentUrl,
         selectedRevision,
         'immediates',
-        credentials || undefined
+        credentials?.username ?? '',
+        () => runtime.svnList(currentUrl, selectedRevision, 'immediates', credentials || undefined)
       );
-      return result;
     },
     enabled: isConnected && Boolean(isValidUrl) && !showAuthPrompt,
     staleTime: REPO_BROWSER_LIST_STALE_TIME_MS,
@@ -198,9 +223,12 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   });
 
   const entries = useMemo(() => {
-    if (!directoryData?.entries) return [];
+    const directoryEntries =
+      directoryData?.data?.entries ??
+      (directoryData as unknown as SvnListResult | undefined)?.entries;
+    if (!directoryEntries) return [];
 
-    let items = directoryData.entries.map((entry) => ({
+    let items = directoryEntries.map((entry) => ({
       name: entry.name,
       path: currentPath === '/' ? `/${entry.name}` : `${currentPath}/${entry.name}`,
       url: entry.url,
@@ -234,22 +262,12 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     (entry: RepoNode): boolean => {
       if (!workingCopyContext || !repoUrl) return false;
 
-      const normalizedEntryPath = entry.path.replace(/^\/+/, '');
-      const normalizedWcPath = workingCopyContext.relativePath.replace(/^\/+/, '');
-
-      const normalizedRepoRoot = workingCopyContext.repositoryRoot.replace(/\/$/, '');
-      const normalizedBrowserRoot = repoUrl.replace(/\/$/, '');
-
-      if (normalizedRepoRoot !== normalizedBrowserRoot) return false;
-
-      if (normalizedWcPath) {
-        return (
-          normalizedEntryPath === normalizedWcPath ||
-          normalizedEntryPath.startsWith(normalizedWcPath + '/')
-        );
-      }
-
-      return true;
+      const normalizedWorkingCopyUrl = workingCopyContext.workingCopyUrl.replace(/\/$/, '');
+      const normalizedEntryUrl = entry.url.replace(/\/$/, '');
+      return (
+        normalizedEntryUrl === normalizedWorkingCopyUrl ||
+        normalizedEntryUrl.startsWith(`${normalizedWorkingCopyUrl}/`)
+      );
     },
     [workingCopyContext, repoUrl]
   );
@@ -301,8 +319,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       const { svnList } = getRepoBrowserRuntime();
       queryClient.prefetchQuery({
         queryKey: getRepoBrowserListQueryKey(node.url, selectedRevision, credentials),
-        queryFn: () =>
-          svnList(node.url, selectedRevision, 'immediates', credentials || undefined),
+        queryFn: () => svnList(node.url, selectedRevision, 'immediates', credentials || undefined),
         staleTime: REPO_BROWSER_LIST_STALE_TIME_MS,
       });
     },
@@ -312,6 +329,89 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleViewFile = useCallback(async (entry: RepoNode) => {
+    filePreviewControllerRef.current?.abort();
+    const controller = new AbortController();
+    filePreviewControllerRef.current = controller;
+    setIsLoadingFile(true);
+    setFilePreviewError(null);
+    setFilePreview(null);
+    setFileRevisionDiff(null);
+    try {
+      const result = await window.api.svn.cat(entry.url, String(entry.revision), {
+        signal: controller.signal,
+      });
+      const bytes = Uint8Array.from(atob(result.contentBase64), (character) =>
+        character.charCodeAt(0)
+      );
+      setFilePreview({
+        name: entry.name,
+        contentBase64: result.contentBase64,
+        binary: result.binary,
+        byteLength: result.byteLength,
+        ...(!result.binary ? { text: new TextDecoder().decode(bytes) } : {}),
+      });
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        setFilePreviewError((err as Error).message || 'Failed to retrieve repository file');
+      }
+    } finally {
+      if (filePreviewControllerRef.current === controller) {
+        filePreviewControllerRef.current = null;
+        setIsLoadingFile(false);
+      }
+    }
+  }, []);
+
+  const handleCompareFileWithHead = useCallback(async (entry: RepoNode) => {
+    setIsLoadingFile(true);
+    setFilePreviewError(null);
+    setFileRevisionDiff(null);
+    try {
+      const result = await window.api.svn.diffUrls(
+        `${entry.url}@${entry.revision}`,
+        `${entry.url}@HEAD`
+      );
+      const formattedDiff = result.files
+        .flatMap((file) => [
+          `--- ${file.oldPath}`,
+          `+++ ${file.newPath}`,
+          ...file.hunks.flatMap((hunk) => [
+            `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`,
+            ...hunk.lines.map((line) => {
+              const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
+              return `${prefix}${line.content}`;
+            }),
+          ]),
+        ])
+        .join('\n');
+      setFileRevisionDiff(
+        result.rawDiff || formattedDiff || 'No content changes between these revisions.'
+      );
+    } catch (err) {
+      setFilePreviewError((err as Error).message || 'Failed to compare repository revisions');
+    } finally {
+      setIsLoadingFile(false);
+    }
+  }, []);
+
+  const handleSaveFilePreview = useCallback(async () => {
+    if (!filePreview) return;
+    const destination = await window.api.dialog.saveFile(filePreview.name);
+    if (!destination) return;
+    const result = await window.api.fs.writeFileBase64(destination, filePreview.contentBase64);
+    if (!result.success) {
+      setFilePreviewError(result.error || 'Failed to save repository file');
+    }
+  }, [filePreview]);
+
+  useEffect(
+    () => () => {
+      filePreviewControllerRef.current?.abort();
+    },
+    []
+  );
 
   const handleOpenCreateFolder = useCallback(() => {
     setNewFolderName('');
@@ -354,8 +454,6 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       setNewFolderName('');
       setNewFolderMessage('');
       setSelectedNode(null);
-      await queryClient.invalidateQueries({ queryKey: listQueryKey });
-      refetch();
     } catch (error) {
       setCreateFolderError((error as Error)?.message || 'Failed to create remote folder.');
     } finally {
@@ -409,8 +507,6 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       setDeleteTarget(null);
       setDeleteMessage('');
       setSelectedNode(null);
-      await queryClient.invalidateQueries({ queryKey: listQueryKey });
-      refetch();
     } catch (error) {
       setDeleteRemoteError((error as Error)?.message || 'Failed to delete remote item.');
     } finally {
@@ -460,8 +556,6 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       setMoveDestinationUrl('');
       setMoveMessage('');
       setSelectedNode(null);
-      await queryClient.invalidateQueries({ queryKey: listQueryKey });
-      refetch();
     } catch (error) {
       setMoveRemoteError((error as Error)?.message || 'Failed to move remote item.');
     } finally {
@@ -513,8 +607,6 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
       setCopyTarget(null);
       setCopyDestinationUrl('');
       setCopyMessage('');
-      await queryClient.invalidateQueries({ queryKey: listQueryKey });
-      refetch();
     } catch (error) {
       setCopyRemoteError((error as Error)?.message || 'Failed to copy remote item.');
     } finally {
@@ -537,7 +629,9 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setCredentials(creds);
 
     try {
-      await svnList(repoUrl, selectedRevision, 'immediates', creds || undefined);
+      await readCachedList(repoUrl, selectedRevision, 'immediates', creds?.username ?? '', () =>
+        svnList(repoUrl, selectedRevision, 'immediates', creds || undefined)
+      );
       setIsConnected(true);
       refetch();
     } catch (err) {
@@ -559,7 +653,9 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setConnectionError(null);
 
     try {
-      await getRepoBrowserRuntime().svnList(currentUrl, selectedRevision, 'immediates', creds);
+      await readCachedList(currentUrl, selectedRevision, 'immediates', creds.username, () =>
+        getRepoBrowserRuntime().svnList(currentUrl, selectedRevision, 'immediates', creds)
+      );
       setIsConnected(true);
       refetch();
     } catch (err) {
@@ -581,8 +677,9 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
 
       const resolvedLocalPath = resolveRemoteUrlToLocalPath(
         entry.url,
-        workingCopyContext.workingCopyRoot,
-        workingCopyContext.repositoryRoot
+        workingCopyContext.mappingLocalPath || workingCopyContext.workingCopyRoot,
+        workingCopyContext.repositoryRoot,
+        workingCopyContext.workingCopyUrl
       );
 
       if (!resolvedLocalPath) {
@@ -753,6 +850,19 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
             </div>
           </div>
 
+          {directoryData?.source === 'cache' && (
+            <div
+              className="px-4 py-2 border-b border-warning/40 bg-warning/10 text-xs text-warning"
+              role="status"
+            >
+              Showing cached repository entries from{' '}
+              {directoryData.age < 60_000
+                ? 'less than a minute ago'
+                : `${Math.floor(directoryData.age / 60_000)} minutes ago`}
+              . Refresh when the server is available.
+            </div>
+          )}
+
           <div className="flex-1 flex overflow-hidden">
             <div ref={listRef} className="flex-1 overflow-auto">
               {connectionError && !showAuthPrompt ? (
@@ -909,6 +1019,28 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                 </div>
 
                 <div className="mt-6 space-y-2">
+                  {selectedNode.kind === 'file' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleViewFile(selectedNode)}
+                        disabled={isLoadingFile}
+                        className="w-full btn btn-primary text-sm"
+                      >
+                        <FileText className="w-4 h-4" />
+                        {isLoadingFile ? 'Loading file...' : 'View File'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCompareFileWithHead(selectedNode)}
+                        disabled={isLoadingFile}
+                        className="w-full btn btn-secondary text-sm"
+                      >
+                        <History className="w-4 h-4" />
+                        Compare r{selectedNode.revision} with HEAD
+                      </button>
+                    </>
+                  )}
                   {selectedNode.kind === 'dir' && (
                     <button
                       type="button"
@@ -919,21 +1051,28 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                       Checkout
                     </button>
                   )}
-                  {workingCopyContext && !isInWorkingCopy(selectedNode) && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddToWorkingCopy(selectedNode)}
-                      disabled={isAddingToWc}
-                      className="w-full btn btn-secondary text-sm"
-                    >
-                      {isAddingToWc ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <PlusCircle className="w-4 h-4" />
-                      )}
-                      {isAddingToWc ? 'Adding...' : 'Add to Working Copy'}
-                    </button>
-                  )}
+                  {workingCopyContext &&
+                    selectedNode.kind === 'dir' &&
+                    resolveRemoteUrlToLocalPath(
+                      selectedNode.url,
+                      workingCopyContext.mappingLocalPath || workingCopyContext.workingCopyRoot,
+                      workingCopyContext.repositoryRoot,
+                      workingCopyContext.workingCopyUrl
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddToWorkingCopy(selectedNode)}
+                        disabled={isAddingToWc}
+                        className="w-full btn btn-secondary text-sm"
+                      >
+                        {isAddingToWc ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <PlusCircle className="w-4 h-4" />
+                        )}
+                        {isAddingToWc ? 'Adding...' : 'Add to Working Copy'}
+                      </button>
+                    )}
                   {addWcSuccess && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-success/20 rounded text-sm text-success">
                       <Check className="w-4 h-4" />
@@ -944,6 +1083,47 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                     <div className="flex items-center gap-2 px-3 py-2 bg-error/20 rounded text-sm text-error">
                       <AlertCircle className="w-4 h-4" />
                       {addWcError}
+                    </div>
+                  )}
+                  {filePreviewError && (
+                    <div className="rounded bg-error/20 px-3 py-2 text-sm text-error">
+                      {filePreviewError}
+                    </div>
+                  )}
+                  {filePreview && (
+                    <div className="rounded border border-border bg-bg-tertiary p-3 text-left">
+                      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-text-secondary">
+                        <span>
+                          {filePreview.name} · {formatSize(filePreview.byteLength)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-secondary px-2 py-1 text-xs"
+                          onClick={handleSaveFilePreview}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Save
+                        </button>
+                      </div>
+                      {filePreview.binary ? (
+                        <div className="text-xs text-text-muted">
+                          Binary preview is not available.
+                        </div>
+                      ) : (
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs text-text">
+                          {filePreview.text}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                  {fileRevisionDiff && (
+                    <div className="rounded border border-border bg-bg-tertiary p-3 text-left">
+                      <div className="mb-2 text-xs font-medium text-text-secondary">
+                        Historical comparison
+                      </div>
+                      <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs text-text">
+                        {fileRevisionDiff}
+                      </pre>
                     </div>
                   )}
                   <button
@@ -958,6 +1138,15 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
                   >
                     <History className="w-4 h-4" />
                     Show Log
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPropertiesTarget(selectedNode)}
+                    title="View or edit repository properties"
+                    className="w-full btn btn-secondary text-sm"
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                    Properties
                   </button>
                   <button
                     type="button"
@@ -1019,6 +1208,18 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
             onClose={handleCloseCheckout}
             initialUrl={selectedNode?.url || repoUrl}
             onComplete={handleCloseCheckout}
+          />
+        </Suspense>
+      )}
+
+      {propertiesTarget && (
+        <Suspense fallback={null}>
+          <PropertiesDialog
+            isOpen
+            path={propertiesTarget.url}
+            revision={selectedRevision}
+            allowRemoteChanges={svnCapabilities?.remoteProperties === true}
+            onClose={() => setPropertiesTarget(null)}
           />
         </Suspense>
       )}

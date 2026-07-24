@@ -90,17 +90,11 @@ describe('svn-checkout progress', () => {
   it('passes checkout revision, depth, credentials, and SSL trust through executor options', async () => {
     mockState.runSvnText.mockResolvedValue('Checked out revision 321.');
 
-    const result = await checkout(
-      'https://example.test/svn/project',
-      'C:\\wc',
-      '123',
-      'files',
-      {
-        trustSsl: true,
-        sslFailures: ['hostname-mismatch'],
-        credentials: { username: 'alice', password: 'secret' },
-      }
-    );
+    const result = await checkout('https://example.test/svn/project', 'C:\\wc', '123', 'files', {
+      trustSsl: true,
+      sslFailures: ['hostname-mismatch'],
+      credentials: { username: 'alice', password: 'secret' },
+    });
 
     expect(result).toEqual({
       success: true,
@@ -141,24 +135,54 @@ describe('svn-checkout progress', () => {
     );
   });
 
+  it.each([
+    'http://example.test/svn/project',
+    'svn://example.test/project',
+    'svn+ssh://example.test/project',
+    'file:///tmp/repository',
+  ])('does not apply or persist HTTPS certificate trust for %s', async (url) => {
+    mockState.runSvnText.mockResolvedValue('Checked out revision 321.');
+
+    await checkout(url, 'C:\\wc', undefined, 'files', {
+      trustSsl: true,
+      trustPermanently: true,
+      sslFailures: ['hostname-mismatch'],
+    });
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        trustSslFailures: false,
+        trustedSslFailures: undefined,
+      })
+    );
+    expect(mockState.sslReady).not.toHaveBeenCalled();
+    expect(mockState.sslSet).not.toHaveBeenCalled();
+  });
+
   it('implements sparse checkout as empty checkout plus targeted updates', async () => {
     mockState.runSvnText
       .mockResolvedValueOnce('Checked out revision 12.')
       .mockResolvedValueOnce('Updated to revision 12.')
       .mockResolvedValueOnce('Updated to revision 12.');
 
-    const result = await checkout('https://example.test/svn/project/trunk', 'C:\\wc', undefined, 'empty', {
-      sparsePaths: [
-        'https://example.test/svn/project/trunk/src/file1.ts',
-        'https://example.test/svn/project/trunk/src/file2.ts',
-      ],
-    });
+    const result = await checkout(
+      'https://example.test/svn/project/trunk',
+      'C:\\wc',
+      undefined,
+      'empty',
+      {
+        sparsePaths: [
+          'https://example.test/svn/project/trunk/src/file1.ts',
+          'https://example.test/svn/project/trunk/src/file2.ts',
+        ],
+      }
+    );
 
     expect(result).toEqual({
       success: true,
       revision: 12,
-      output:
-        'Checked out revision 12.Updated to revision 12.Updated to revision 12.',
+      output: 'Checked out revision 12.Updated to revision 12.Updated to revision 12.',
     });
     expect(mockState.runSvnText).toHaveBeenNthCalledWith(
       1,
@@ -182,6 +206,39 @@ describe('svn-checkout progress', () => {
       ['update', '--parents', '--depth', 'infinity', 'src/file2.ts'],
       expect.objectContaining({ cwd: 'C:\\wc' })
     );
+  });
+
+  it('rejects sparse selections outside the checkout URL before checkout starts', async () => {
+    const result = await checkout(
+      'https://example.test/svn/project/trunk',
+      'C:\\wc',
+      undefined,
+      'empty',
+      {
+        sparsePaths: ['https://example.test/svn/project/branches/sibling'],
+      }
+    );
+
+    expect(result).toMatchObject({ success: false, revision: null });
+    expect(result.output).toContain('outside the checkout URL');
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['https://other.test/svn/project/trunk/src', 'different server'],
+    ['../branches/sibling', 'relative traversal'],
+    ['C:\\outside\\src', 'absolute Windows path'],
+  ])('rejects unsafe sparse target %s (%s)', async (sparsePath) => {
+    const result = await checkout(
+      'https://example.test/svn/project/trunk',
+      'C:\\wc',
+      undefined,
+      'empty',
+      { sparsePaths: [sparsePath] }
+    );
+
+    expect(result.success).toBe(false);
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
   });
 
   it('does not duplicate credentials or SSL trust flags during progress checkouts', async () => {
@@ -249,7 +306,7 @@ describe('svn-checkout progress', () => {
     expect(cancelCheckout('checkout-cancel')).toEqual({ success: true });
     await expect(promise).resolves.toEqual({
       success: false,
-      revision: 0,
+      revision: null,
       output: 'SVN operation cancelled',
     });
   });

@@ -19,6 +19,7 @@ interface ExternalsManagerProps {
 export function ExternalsManager({ isOpen, workingCopyPath, onClose }: ExternalsManagerProps) {
   const [externals, setExternals] = useState<ExternalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [editingExternal, setEditingExternal] = useState<ExternalEntry | null>(null);
   const [newExternal, setNewExternal] = useState<Partial<ExternalEntry>>({
@@ -36,10 +37,16 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
 
   const loadExternals = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const result = await window.api.svn.externals.list(workingCopyPath);
 
-      const parsed: ExternalEntry[] = result.map((ext) => ({
+      if (result.error) {
+        setLoadError(result.error);
+        setExternals([]);
+        return;
+      }
+      const parsed: ExternalEntry[] = result.externals.map((ext) => ({
         path: ext.path,
         url: ext.url,
         revision: ext.revision?.toString(),
@@ -50,6 +57,7 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
       setExternals(parsed);
     } catch (err) {
       console.error('Failed to load externals:', err);
+      setLoadError((err as Error).message || 'Failed to load externals');
       setExternals([]);
     } finally {
       setIsLoading(false);
@@ -184,6 +192,10 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-text-muted" />
               </div>
+            ) : loadError ? (
+              <div className="px-4 py-3 text-sm text-error bg-error/10" role="alert">
+                {loadError}
+              </div>
             ) : externals.length === 0 && !isAdding ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <ExternalLink className="w-8 h-8 text-text-muted mb-2" />
@@ -239,7 +251,12 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                   <div className="px-4 py-4 bg-bg-tertiary">
                     <div className="space-y-3">
                       <div>
-                        <label htmlFor="external-local-path" className="block text-xs text-text-muted mb-1">Local Path</label>
+                        <label
+                          htmlFor="external-local-path"
+                          className="block text-xs text-text-muted mb-1"
+                        >
+                          Local Path
+                        </label>
                         <input
                           id="external-local-path"
                           type="text"
@@ -252,7 +269,12 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                         />
                       </div>
                       <div>
-                        <label htmlFor="external-repository-url" className="block text-xs text-text-muted mb-1">Repository URL</label>
+                        <label
+                          htmlFor="external-repository-url"
+                          className="block text-xs text-text-muted mb-1"
+                        >
+                          Repository URL
+                        </label>
                         <input
                           id="external-repository-url"
                           type="text"
@@ -266,7 +288,10 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                       </div>
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <label htmlFor="external-revision" className="block text-xs text-text-muted mb-1">
+                          <label
+                            htmlFor="external-revision"
+                            className="block text-xs text-text-muted mb-1"
+                          >
                             Revision (optional)
                           </label>
                           <input
@@ -299,8 +324,10 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
                         >
                           {isLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : editingExternal ? (
+                            'Save External'
                           ) : (
-                            editingExternal ? 'Save External' : 'Add External'
+                            'Add External'
                           )}
                         </button>
                       </div>

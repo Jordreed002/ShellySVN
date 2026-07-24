@@ -9,10 +9,7 @@ import type {
   SvnListResult,
   SvnLockInfo,
 } from '@shared/types';
-import {
-  parseSvnBlameEntriesXml,
-  parseSvnListEntriesXml,
-} from '../utils/svn-xml';
+import { parseSvnBlameEntriesXml, parseSvnListEntriesXml } from '../utils/svn-xml';
 import { debug } from '../utils/debug';
 
 export { parseSvnLogXml, parseSvnStatusXml } from '@shared/svn-parsers';
@@ -34,6 +31,7 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
         entry?: {
           '@_path'?: string;
           '@_revision'?: string;
+          '@_kind'?: 'file' | 'dir';
           url?: string;
           repository?: { root?: string; uuid?: string };
           commit?: { '@_revision'?: string; author?: string; date?: string };
@@ -77,7 +75,7 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
       repositoryRoot: entry.repository?.root || '',
       repositoryUuid: entry.repository?.uuid || '',
       revision: entry['@_revision'] ? parseInt(entry['@_revision'], 10) : 0,
-      nodeKind: 'dir',
+      nodeKind: entry['@_kind'] === 'file' ? 'file' : 'dir',
       lastChangedAuthor: entry.commit?.author || '',
       lastChangedRevision: entry.commit?.['@_revision']
         ? parseInt(entry.commit['@_revision'], 10)
@@ -113,17 +111,23 @@ export interface ChildCommitInfo {
  * Parse `svn info --xml --depth immediates <dir>` into a map of child name ->
  * last-commit info. The directory's own entry is skipped.
  */
-export function parseSvnChildCommitsXml(xml: string, dirPath: string): Record<string, ChildCommitInfo> {
+export function parseSvnChildCommitsXml(
+  xml: string,
+  dirPath: string
+): Record<string, ChildCommitInfo> {
   const result: Record<string, ChildCommitInfo> = {};
-  const basename = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean).pop() || '';
+  const basename = (p: string) =>
+    p
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .filter(Boolean)
+      .pop() || '';
   const dirName = basename(dirPath);
 
   try {
     const parsed = xmlParser.parse(xml) as {
       info?: {
-        entry?:
-          | Array<Record<string, unknown>>
-          | Record<string, unknown>;
+        entry?: Array<Record<string, unknown>> | Record<string, unknown>;
       };
     };
     const rawEntries = parsed.info?.entry;
@@ -134,8 +138,9 @@ export function parseSvnChildCommitsXml(xml: string, dirPath: string): Record<st
       const entryPath = String((entry as { '@_path'?: unknown })['@_path'] ?? '');
       const name = basename(entryPath);
       if (!name || name === dirName || name === '.') continue;
-      const commit = (entry as { commit?: { '@_revision'?: unknown; author?: unknown; date?: unknown } })
-        .commit;
+      const commit = (
+        entry as { commit?: { '@_revision'?: unknown; author?: unknown; date?: unknown } }
+      ).commit;
       if (!commit) continue;
       result[name] = {
         revision: commit['@_revision'] ? parseInt(String(commit['@_revision']), 10) : 0,
@@ -272,18 +277,67 @@ export function parseSvnExternals(output: string, basePath: string): SvnExternal
 }
 
 function parseExternalDef(def: string, basePath: string): SvnExternal | null {
+  if (!def.trim() || def.trimStart().startsWith('#')) return null;
+  const parts = tokenizeExternalDef(def);
+  if (parts.length < 2) return null;
+
   let revision: number | undefined;
-  let remaining = def;
-  const revMatch = remaining.match(/^-r(\d+)\s*/);
-  if (revMatch) {
-    revision = parseInt(revMatch[1], 10);
-    remaining = remaining.substring(revMatch[0].length);
+  let definitionIndex = 0;
+  const readRevision = (index: number): number | undefined => {
+    const compact = /^(?:-r|--revision=)(\d+)$/.exec(parts[index] || '');
+    if (compact) return Number(compact[1]);
+    if ((parts[index] === '-r' || parts[index] === '--revision') && /^\d+$/.test(parts[index + 1] || '')) {
+      return Number(parts[index + 1]);
+    }
+    return undefined;
+  };
+
+  revision = readRevision(0);
+  if (revision !== undefined) definitionIndex = parts[0] === '-r' || parts[0] === '--revision' ? 2 : 1;
+  if (parts.length - definitionIndex < 2) return null;
+
+  const first = parts[definitionIndex];
+  const newSyntax = /^(?:\^\/|\.\.?\/|\/|https?:\/\/|svn(?:\+ssh)?:\/\/|file:\/\/)/i.test(first);
+  const localPath = newSyntax ? parts[parts.length - 1] : first;
+  const url = newSyntax ? first : parts[parts.length - 1];
+  if (!newSyntax) {
+    for (let index = definitionIndex + 1; index < parts.length - 1; index += 1) {
+      revision ??= readRevision(index);
+    }
   }
-
-  const parts = remaining.trim().split(/\s+/);
-  if (parts.length < 1) return null;
-
-  const url = parts[0];
-  const localPath = parts.length > 1 ? parts[parts.length - 1] : url.split('/').pop() || 'external';
   return { name: localPath, url, path: basePath + '/' + localPath, revision };
+}
+
+function tokenizeExternalDef(value: string): string[] {
+  const tokens: string[] = [];
+  let token = '';
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  const source = value.trim();
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (escaped) {
+      token += character;
+      escaped = false;
+    } else if (
+      character === '\\' &&
+      quote &&
+      (source[index + 1] === quote || source[index + 1] === '\\')
+    ) {
+      escaped = true;
+    } else if (quote) {
+      if (character === quote) quote = null;
+      else token += character;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (/\s/.test(character)) {
+      if (token) tokens.push(token);
+      token = '';
+    } else {
+      token += character;
+    }
+  }
+  if (token) tokens.push(token);
+  return tokens;
 }

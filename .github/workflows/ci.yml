@@ -88,10 +88,14 @@ jobs:
   # Real SVN Workflow Verification
   # ============================================
   real-svn-workflows:
-    name: Real SVN Workflows
-    runs-on: ubuntu-latest
+    name: Real SVN Workflows (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     needs: clean-install
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout
@@ -105,13 +109,45 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install SVN toolchain
+      - name: Install SVN toolchain (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y subversion
 
+      - name: Start reusable SVN compatibility lab (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker compose -f tests/fixtures/svn-compat-server/compose.yml up -d --build --wait
+          echo "SHELLYSVN_DOCKER_SVN_TEST_URL=svn://127.0.0.1:36990/repo/sandbox" >> "$GITHUB_ENV"
+          echo "SHELLYSVN_HTTP_TEST_URL=http://127.0.0.1:18080/svn/trunk" >> "$GITHUB_ENV"
+          echo "SHELLYSVN_HTTPS_TEST_URL=https://127.0.0.1:18443/svn/trunk" >> "$GITHUB_ENV"
+          echo "SHELLYSVN_PROTOCOL_USERNAME=shellysvn" >> "$GITHUB_ENV"
+          echo "SHELLYSVN_PROTOCOL_PASSWORD=release-test" >> "$GITHUB_ENV"
+
+      - name: Install SVN toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          svn --version --quiet && svnadmin --version --quiet || brew install subversion
+
+      - name: Install SVN toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command svn -ErrorAction SilentlyContinue) -or -not (Get-Command svnadmin -ErrorAction SilentlyContinue)) {
+            choco install subversion -y --no-progress
+          }
+
       - name: Verify real SVN workflows
         run: bun run verify:svn-workflows
+
+      - name: Show SVN compatibility lab logs on failure
+        if: failure() && runner.os == 'Linux'
+        run: docker compose -f tests/fixtures/svn-compat-server/compose.yml logs --tail=300
+
+      - name: Stop SVN compatibility lab
+        if: always() && runner.os == 'Linux'
+        run: docker compose -f tests/fixtures/svn-compat-server/compose.yml down --volumes
 
   # ============================================
   # Unit Tests with Coverage

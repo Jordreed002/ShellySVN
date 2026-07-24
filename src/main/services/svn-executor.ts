@@ -1,13 +1,10 @@
 import type { SvnExecutionContext } from '@shared/types';
+import { dirname, extname, join } from 'node:path';
 import { getSettingsManager } from '../settings-manager';
 import { getAuthCache } from '../auth-cache';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
-import {
-  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
-  runResolvedSvn,
-  type RunSvnResult,
-} from './svn-runner';
+import { runResolvedSvn, type RunSvnResult } from './svn-runner';
 
 export { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, type RunSvnResult } from './svn-runner';
 
@@ -22,6 +19,7 @@ export interface RunSvnOptions {
   onStderr?: (chunk: string) => void;
   maxStdoutBytes?: number;
   maxStderrBytes?: number;
+  binaryStdout?: boolean;
 }
 
 export interface ResolvedSvnExecution {
@@ -30,7 +28,11 @@ export interface ResolvedSvnExecution {
 }
 
 function getRepositoryUrlArgs(args: string[]): string[] {
-  return args.filter((arg) => /^https?:\/\//i.test(arg));
+  return args.filter((arg) => /^(?:https?|svn(?:\+ssh)?):\/\//i.test(arg));
+}
+
+function getHttpsUrlArgs(args: string[]): string[] {
+  return args.filter((arg) => /^https:\/\//i.test(arg));
 }
 
 async function getCachedCredentialsForArgs(
@@ -59,7 +61,7 @@ async function getCachedCredentialsForArgs(
 }
 
 async function getCachedTrustedSslFailuresForArgs(args: string[]): Promise<string | undefined> {
-  const urls = getRepositoryUrlArgs(args);
+  const urls = getHttpsUrlArgs(args);
   if (urls.length === 0) {
     return undefined;
   }
@@ -95,6 +97,7 @@ export async function resolveSvnExecution(
     clientCertificatePath:
       options.operationContext?.clientCertificatePath ?? globalContext.clientCertificatePath,
     svnConfigPath: options.operationContext?.svnConfigPath ?? globalContext.svnConfigPath,
+    sshSettings: options.operationContext?.sshSettings ?? globalContext.sshSettings,
   };
 
   return {
@@ -105,6 +108,22 @@ export async function resolveSvnExecution(
 
 export async function runSvn(args: string[], options: RunSvnOptions = {}): Promise<RunSvnResult> {
   const { svnCommand, context } = await resolveSvnExecution(options);
+  return runResolvedCommand(args, svnCommand, context, options);
+}
+
+function getSvnMuccCommand(svnCommand: string): string {
+  const extension = extname(svnCommand);
+  const muccName = `svnmucc${extension}`;
+  const commandDirectory = dirname(svnCommand);
+  return commandDirectory === '.' ? muccName : join(commandDirectory, muccName);
+}
+
+async function runResolvedCommand(
+  args: string[],
+  svnCommand: string,
+  context: SvnExecutionContext,
+  options: RunSvnOptions
+): Promise<RunSvnResult> {
   const cachedCredentials =
     options.credentials === undefined ? await getCachedCredentialsForArgs(args) : null;
   const cachedTrustedSslFailures =
@@ -128,10 +147,21 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
     onStderr: options.onStderr,
     maxStdoutBytes: options.maxStdoutBytes,
     maxStderrBytes: options.maxStderrBytes,
+    binaryStdout: options.binaryStdout,
   });
 }
 
 export async function runSvnText(args: string[], options: RunSvnOptions = {}): Promise<string> {
   const result = await runSvn(args, options);
+  return result.stdout;
+}
+
+/**
+ * Run the companion `svnmucc` client with the same credentials, SSL, proxy,
+ * timeout, cancellation, and output handling as normal SVN commands.
+ */
+export async function runSvnMuccText(args: string[], options: RunSvnOptions = {}): Promise<string> {
+  const { svnCommand, context } = await resolveSvnExecution(options);
+  const result = await runResolvedCommand(args, getSvnMuccCommand(svnCommand), context, options);
   return result.stdout;
 }

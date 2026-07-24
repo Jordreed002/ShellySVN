@@ -27,6 +27,27 @@ describe('text conflict detection', () => {
     expect(getTextConflictPathsFromStatus(status.entries)).toEqual(['/repo/src/conflict.txt']);
   });
 
+  it('promotes property-only conflicts to an actionable conflict status', () => {
+    const status = parseSvnStatusXml(
+      `<?xml version="1.0"?>
+      <status>
+        <target path="/repo">
+          <entry path="/repo/src/property.txt">
+            <wc-status item="modified" props="conflicted" />
+          </entry>
+        </target>
+      </status>`,
+      '/repo'
+    );
+
+    expect(status.entries[0]).toMatchObject({
+      path: '/repo/src/property.txt',
+      status: 'C',
+      propsStatus: 'C',
+    });
+    expect(getTextConflictPathsFromStatus(status.entries)).toEqual(['/repo/src/property.txt']);
+  });
+
   it('detects text conflicts from update and merge output lines', () => {
     expect(
       getTextConflictPathsFromSvnOutput(

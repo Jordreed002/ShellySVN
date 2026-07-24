@@ -1,13 +1,5 @@
 import { useState } from 'react';
-import {
-  Check,
-  ChevronDown,
-  GitBranch,
-  GitBranchPlus,
-  Loader2,
-  Plus,
-  Tag,
-} from 'lucide-react';
+import { Check, ChevronDown, GitBranch, GitBranchPlus, Loader2, Plus, Tag } from 'lucide-react';
 
 import { mapSubPathToBranch, resolveBranchContext, type BranchKind } from './branchDetection';
 import { useBranchList, useInvalidateBranches } from './useBranches';

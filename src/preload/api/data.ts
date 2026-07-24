@@ -10,6 +10,27 @@ export function createStoreApi(invokeIpc: InvokeIpc): ElectronAPI['store'] {
   };
 }
 
+export function createSvnCacheApi(invokeIpc: InvokeIpc): ElectronAPI['svnCache'] {
+  return {
+    get: <T>(namespace, key) =>
+      invokeIpc('svnCache:get', namespace, key) as Promise<
+        import('@shared/types').SvnCacheEntry<T> | null
+      >,
+    list: <T>(namespace) =>
+      invokeIpc('svnCache:list', namespace) as Promise<
+        Array<import('@shared/types').SvnCacheEntry<T>>
+      >,
+    set: (namespace, key, path, data, ttlMs, operationStartedAt) =>
+      invokeIpc('svnCache:set', namespace, key, path, data, ttlMs, operationStartedAt),
+    delete: (namespace, key) => invokeIpc('svnCache:delete', namespace, key),
+    clearNamespace: (namespace, clearedAt) =>
+      invokeIpc('svnCache:clearNamespace', namespace, clearedAt),
+    clearPath: (path, clearedAt) => invokeIpc('svnCache:clearPath', path, clearedAt),
+    clearAll: (clearedAt) => invokeIpc('svnCache:clearAll', clearedAt),
+    stats: () => invokeIpc('svnCache:stats'),
+  };
+}
+
 export function createAuthApi(invokeIpc: InvokeIpc): ElectronAPI['auth'] {
   return {
     get: (realm) => invokeIpc('auth:get', realm),

@@ -118,7 +118,10 @@ interface MillerColumnProps {
 }
 
 function basename(p: string): string {
-  const parts = p.replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean);
+  const parts = p
+    .replace(/[\\/]+$/, '')
+    .split(/[\\/]/)
+    .filter(Boolean);
   return parts[parts.length - 1] || p;
 }
 

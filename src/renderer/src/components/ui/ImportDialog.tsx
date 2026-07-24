@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import type { SvnOperationProgress } from '@shared/types';
 
 interface ImportDialogProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ revision: number } | null>(null);
+  const [progress, setProgress] = useState<SvnOperationProgress | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -24,6 +26,7 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
       setError(null);
       setSuccess(null);
       setIsImporting(false);
+      setProgress(null);
     }
   }, [isOpen, initialPath]);
 
@@ -54,12 +57,18 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
     setIsImporting(true);
     setError(null);
+    setProgress(null);
 
     try {
-      const result = await window.api.svn.import(sourcePath.trim(), destUrl.trim(), message.trim());
+      const result = await window.api.svn.importWithProgress(
+        sourcePath.trim(),
+        destUrl.trim(),
+        message.trim(),
+        setProgress
+      );
 
       if (result.success) {
-        setSuccess({ revision: result.revision });
+        setSuccess({ revision: result.revision ?? 0 });
       } else {
         setError('Import failed');
       }
@@ -68,6 +77,11 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
     } finally {
       setIsImporting(false);
     }
+  };
+
+  const handleCancel = async () => {
+    if (!isImporting) return handleClose();
+    if (progress?.operationId) await window.api.svn.cancelOperation(progress.operationId);
   };
 
   const handleClose = () => {
@@ -118,7 +132,10 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Source Path */}
               <div>
-                <label htmlFor="import-source-path" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="import-source-path"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Source folder <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
@@ -145,7 +162,10 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Destination URL */}
               <div>
-                <label htmlFor="import-destination-url" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="import-destination-url"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Repository URL <span className="text-error">*</span>
                 </label>
                 <input
@@ -161,7 +181,10 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
               {/* Commit Message */}
               <div>
-                <label htmlFor="import-log-message" className="text-sm font-medium text-text-secondary mb-1.5 block">
+                <label
+                  htmlFor="import-log-message"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
                   Log message <span className="text-error">*</span>
                 </label>
                 <textarea
@@ -181,17 +204,21 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                   <span>{error}</span>
                 </div>
               )}
+              {isImporting && progress && (
+                <div
+                  className="rounded bg-bg-tertiary p-2 text-xs text-text-secondary"
+                  aria-live="polite"
+                >
+                  {progress.currentFile || `Processed ${progress.filesProcessed} path(s)`}
+                  {progress.percentage !== undefined && ` — ${progress.percentage}%`}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
             <div className="modal-footer">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="btn btn-secondary"
-                disabled={isImporting}
-              >
-                Cancel
+              <button type="button" onClick={handleCancel} className="btn btn-secondary">
+                {isImporting ? 'Cancel import' : 'Cancel'}
               </button>
               <button
                 type="submit"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { SvnStatusChar } from '@shared/types';
+import { readCachedInfo, readCachedStatus } from '@renderer/utils/cachedSvnRead';
 
 const PINNED_KEY = 'shellysvn:pinned-repos';
 
@@ -18,6 +19,8 @@ const NON_CHANGE: ReadonlySet<SvnStatusChar> = new Set([' ', '?', 'I', 'X'] as S
 export interface RepoStatusCounts {
   changes: number;
   conflicts: number;
+  source: 'network' | 'cache';
+  cacheAge: number;
 }
 
 /**
@@ -28,7 +31,8 @@ export function useRepoStatus(path: string, enabled = true) {
   return useQuery<RepoStatusCounts>({
     queryKey: ['sidebar:status', path],
     queryFn: async () => {
-      const result = await window.api.svn.status(path);
+      const cachedRead = await readCachedStatus(path);
+      const result = cachedRead.data;
       let changes = 0;
       let conflicts = 0;
       for (const entry of result.entries) {
@@ -39,7 +43,12 @@ export function useRepoStatus(path: string, enabled = true) {
           changes += 1;
         }
       }
-      return { changes, conflicts };
+      return {
+        changes,
+        conflicts,
+        source: cachedRead.source,
+        cacheAge: cachedRead.age,
+      };
     },
     enabled: enabled && Boolean(path),
     retry: false,
@@ -54,10 +63,15 @@ export interface WorkingCopyInfo {
   revision: number;
   branch: string;
   branchKind: 'trunk' | 'branch' | 'tag' | 'other';
+  source: 'network' | 'cache';
+  cacheAge: number;
 }
 
 /** Derive a friendly branch label from an SVN URL using standard layout conventions. */
-export function deriveBranch(url: string): { branch: string; branchKind: WorkingCopyInfo['branchKind'] } {
+export function deriveBranch(url: string): {
+  branch: string;
+  branchKind: WorkingCopyInfo['branchKind'];
+} {
   if (/\/trunk(\/|$)/i.test(url)) return { branch: 'trunk', branchKind: 'trunk' };
   const branch = url.match(/\/branches\/([^/]+)/i);
   if (branch) return { branch: branch[1], branchKind: 'branch' };
@@ -72,9 +86,17 @@ export function useWorkingCopyInfo(path: string | undefined) {
   return useQuery<WorkingCopyInfo>({
     queryKey: ['sidebar:info', path],
     queryFn: async () => {
-      const info = await window.api.svn.info(path as string);
+      const cachedRead = await readCachedInfo(path as string);
+      const info = cachedRead.data;
       const { branch, branchKind } = deriveBranch(info.url);
-      return { url: info.url, revision: info.revision, branch, branchKind };
+      return {
+        url: info.url,
+        revision: info.revision,
+        branch,
+        branchKind,
+        source: cachedRead.source,
+        cacheAge: cachedRead.age,
+      };
     },
     enabled: Boolean(path),
     retry: false,

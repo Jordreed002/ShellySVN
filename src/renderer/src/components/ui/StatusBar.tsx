@@ -27,12 +27,7 @@ export function StatusBar() {
   const BranchIcon = info?.branchKind === 'tag' ? Tag : GitBranch;
 
   return (
-    <footer
-      className="status-bar"
-      role="status"
-      aria-live="polite"
-      aria-label="Application status"
-    >
+    <footer className="status-bar" role="status" aria-live="polite" aria-label="Application status">
       {/* Left — active working copy */}
       <div className="flex items-center gap-3 min-w-0">
         {repoName ? (
@@ -48,6 +43,14 @@ export function StatusBar() {
                   {info.branch}
                 </span>
                 <span className="text-text-muted font-mono">r{info.revision}</span>
+                {info.source === 'cache' && (
+                  <span
+                    className="text-warning"
+                    title={`Cached ${Math.floor(info.cacheAge / 60_000)} minutes ago`}
+                  >
+                    Cached
+                  </span>
+                )}
               </>
             )}
           </>

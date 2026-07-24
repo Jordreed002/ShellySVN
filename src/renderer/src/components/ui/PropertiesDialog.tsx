@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { X, Settings, Plus, Trash2, AlertCircle, Loader2, Check, Save } from 'lucide-react';
 import { confirmAppAction } from '../../utils/dialogs';
+import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 
 interface PropertiesDialogProps {
   isOpen: boolean;
   onClose: () => void;
   path: string;
+  revision?: string;
+  allowRemoteChanges?: boolean;
 }
 
 interface SvnProperty {
   name: string;
   value: string;
+  inherited?: boolean;
+  inheritedFrom?: string;
 }
 
 const COMMON_PROPERTIES = [
@@ -24,7 +29,14 @@ const COMMON_PROPERTIES = [
   { name: 'svn:executable', description: 'Set executable bit' },
 ];
 
-export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProps) {
+export function PropertiesDialog({
+  isOpen,
+  onClose,
+  path,
+  revision = 'HEAD',
+  allowRemoteChanges = true,
+}: PropertiesDialogProps) {
+  const isRemote = /^(?:https?|svn(?:\+ssh)?|file):\/\//i.test(path);
   const [properties, setProperties] = useState<SvnProperty[]>([]);
   const [originalProperties, setOriginalProperties] = useState<SvnProperty[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,9 +48,18 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [revisionPropertyName, setRevisionPropertyName] = useState('svn:log');
+  const [revisionPropertyValue, setRevisionPropertyValue] = useState('');
+  const [isRevisionPropertyLoaded, setIsRevisionPropertyLoaded] = useState(false);
+  const [isSavingRevisionProperty, setIsSavingRevisionProperty] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
+      setCommitMessage('');
+      setRevisionPropertyName('svn:log');
+      setRevisionPropertyValue('');
+      setIsRevisionPropertyLoaded(false);
       loadProperties();
     }
   }, [isOpen, path]);
@@ -49,13 +70,20 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
     setSuccess(null);
 
     try {
-      const props = await window.api.svn.proplist(path);
-      const propList: SvnProperty[] = props.map((p) => ({
+      const result = assertSuccessfulSvnRead(
+        await window.api.svn.proplist(
+          path,
+          isRemote ? { revision, showInherited: true } : undefined
+        )
+      );
+      const propList: SvnProperty[] = result.properties.map((p) => ({
         name: p.name,
         value: p.value,
+        inherited: p.inherited,
+        inheritedFrom: p.inheritedFrom,
       }));
       setProperties(propList);
-      setOriginalProperties(propList);
+      setOriginalProperties(propList.map((property) => ({ ...property })));
     } catch (err) {
       setError((err as Error).message || 'Failed to load properties');
       setProperties([]);
@@ -81,9 +109,11 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
 
   const handleSaveEdit = () => {
     if (editingIndex !== null) {
-      const newProps = [...properties];
-      newProps[editingIndex].value = editValue;
-      setProperties(newProps);
+      setProperties((currentProperties) =>
+        currentProperties.map((property, index) =>
+          index === editingIndex ? { ...property, value: editValue } : property
+        )
+      );
       setEditingIndex(null);
       setEditValue('');
     }
@@ -103,6 +133,16 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
       })
     ) {
       const propName = properties[index].name;
+      if (properties[index].inherited) {
+        setError('Inherited properties must be changed on the parent where they are defined.');
+        return;
+      }
+
+      if (isRemote) {
+        setProperties(properties.filter((_, propertyIndex) => propertyIndex !== index));
+        return;
+      }
+
       setIsSaving(true);
       setError(null);
 
@@ -144,31 +184,117 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
     setSuccess(null);
 
     try {
+      if (isRemote && !commitMessage.trim()) {
+        setError('A commit message is required for repository property changes.');
+        return;
+      }
+
       // Find properties to add/update
-      for (const prop of properties) {
+      for (const prop of properties.filter((property) => !property.inherited)) {
         const original = originalProperties.find((o) => o.name === prop.name);
         if (!original) {
           // New property
-          await window.api.svn.propset(path, prop.name, prop.value);
+          if (isRemote) {
+            await window.api.svn.propsetRemote(path, prop.name, prop.value, commitMessage.trim());
+          } else {
+            await window.api.svn.propset(path, prop.name, prop.value);
+          }
         } else if (original.value !== prop.value) {
           // Updated property
-          await window.api.svn.propset(path, prop.name, prop.value);
+          if (isRemote) {
+            await window.api.svn.propsetRemote(path, prop.name, prop.value, commitMessage.trim());
+          } else {
+            await window.api.svn.propset(path, prop.name, prop.value);
+          }
         }
       }
 
       // Find properties to delete
-      for (const original of originalProperties) {
+      for (const original of originalProperties.filter((property) => !property.inherited)) {
         if (!properties.find((p) => p.name === original.name)) {
-          await window.api.svn.propdel(path, original.name);
+          if (isRemote) {
+            await window.api.svn.propdelRemote(path, original.name, commitMessage.trim());
+          } else {
+            await window.api.svn.propdel(path, original.name);
+          }
         }
       }
 
       setOriginalProperties([...properties]);
+      setCommitMessage('');
       setSuccess('All properties saved successfully');
     } catch (err) {
       setError((err as Error).message || 'Failed to save properties');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleLoadRevisionProperty = async () => {
+    if (!revisionPropertyName.trim()) {
+      setError('Revision property name is required');
+      return;
+    }
+    setIsSavingRevisionProperty(true);
+    setError(null);
+    try {
+      const result = assertSuccessfulSvnRead(
+        await window.api.svn.revpropget(path, revisionPropertyName.trim(), revision)
+      );
+      setRevisionPropertyValue(result.value ?? '');
+      setIsRevisionPropertyLoaded(true);
+    } catch (err) {
+      setError((err as Error).message || 'Failed to load revision property');
+      setIsRevisionPropertyLoaded(false);
+    } finally {
+      setIsSavingRevisionProperty(false);
+    }
+  };
+
+  const handleSaveRevisionProperty = async () => {
+    const confirmed = await confirmAppAction({
+      type: 'warning',
+      message: `Change revision property "${revisionPropertyName}" on r${revision}? This rewrites repository revision metadata and may be blocked by server hooks.`,
+      confirmLabel: 'Change Revision Property',
+    });
+    if (!confirmed) return;
+
+    setIsSavingRevisionProperty(true);
+    setError(null);
+    try {
+      await window.api.svn.revpropset(
+        path,
+        revisionPropertyName.trim(),
+        revisionPropertyValue,
+        revision
+      );
+      setSuccess(`Revision property "${revisionPropertyName}" saved`);
+    } catch (err) {
+      setError((err as Error).message || 'Failed to save revision property');
+    } finally {
+      setIsSavingRevisionProperty(false);
+    }
+  };
+
+  const handleDeleteRevisionProperty = async () => {
+    const confirmed = await confirmAppAction({
+      type: 'warning',
+      message: `Delete revision property "${revisionPropertyName}" from r${revision}? This rewrites repository revision metadata and may be blocked by server hooks.`,
+      confirmLabel: 'Delete Revision Property',
+    });
+    if (!confirmed) return;
+
+    setIsSavingRevisionProperty(true);
+    setError(null);
+    try {
+      await window.api.svn.revpropdel(path, revisionPropertyName.trim(), revision);
+      setRevisionPropertyValue('');
+      setIsRevisionPropertyLoaded(false);
+      setSuccess(`Revision property "${revisionPropertyName}" deleted`);
+    } catch (err) {
+      setError((err as Error).message || 'Failed to delete revision property');
+    } finally {
+      setIsSavingRevisionProperty(false);
     }
   };
 
@@ -206,21 +332,30 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
                 <div key={prop.name} className="bg-bg-tertiary rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-text">{prop.name}</span>
+                    {prop.inherited && (
+                      <span className="ml-2 text-xs text-text-muted">
+                        Inherited from {prop.inheritedFrom || 'parent'}
+                      </span>
+                    )}
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleEdit(index)}
-                        className="btn-icon-sm"
-                        title="Edit"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(index)}
-                        className="btn-icon-sm hover:text-error"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!prop.inherited && (!isRemote || allowRemoteChanges) && (
+                        <>
+                          <button
+                            onClick={() => handleEdit(index)}
+                            className="btn-icon-sm"
+                            title="Edit"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(index)}
+                            className="btn-icon-sm hover:text-error"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -252,7 +387,10 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
               {isAdding ? (
                 <div className="bg-bg-tertiary rounded-lg p-3 space-y-3">
                   <div>
-                    <label htmlFor="property-name" className="text-xs font-medium text-text-secondary mb-1 block">
+                    <label
+                      htmlFor="property-name"
+                      className="text-xs font-medium text-text-secondary mb-1 block"
+                    >
                       Property name
                     </label>
                     <input
@@ -272,7 +410,10 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
                   </div>
 
                   <div>
-                    <label htmlFor="property-value" className="text-xs font-medium text-text-secondary mb-1 block">
+                    <label
+                      htmlFor="property-value"
+                      className="text-xs font-medium text-text-secondary mb-1 block"
+                    >
                       Value
                     </label>
                     <textarea
@@ -311,6 +452,7 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
               ) : (
                 <button
                   onClick={() => setIsAdding(true)}
+                  disabled={isRemote && !allowRemoteChanges}
                   className="w-full py-2 border-2 border-dashed border-border rounded-lg text-sm text-text-muted hover:border-accent hover:text-accent transition-fast"
                 >
                   <Plus className="w-4 h-4 inline mr-1" />
@@ -319,6 +461,93 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
               )}
 
               {/* Common properties help */}
+              {isRemote && (
+                <div>
+                  {!allowRemoteChanges && (
+                    <p className="mb-2 rounded bg-warning/10 px-2 py-1 text-xs text-warning">
+                      Repository properties are read-only because the svnmucc companion client is
+                      unavailable.
+                    </p>
+                  )}
+                  <label
+                    htmlFor="property-commit-message"
+                    className="text-xs font-medium text-text-secondary mb-1 block"
+                  >
+                    Commit message
+                  </label>
+                  <textarea
+                    id="property-commit-message"
+                    value={commitMessage}
+                    onChange={(event) => setCommitMessage(event.target.value)}
+                    placeholder="Describe the repository property changes"
+                    className="input h-20 resize-y text-sm"
+                  />
+                  {revision !== 'HEAD' && (
+                    <p className="mt-1 text-xs text-warning">
+                      Properties are shown at r{revision}; saved changes apply to HEAD.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {isRemote && (
+                <div className="space-y-2 rounded-lg border border-border p-3">
+                  <div>
+                    <p className="text-sm font-medium text-text">Revision properties</p>
+                    <p className="text-xs text-text-muted">
+                      Read or explicitly rewrite unversioned metadata on r{revision}.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      aria-label="Revision property name"
+                      value={revisionPropertyName}
+                      onChange={(event) => {
+                        setRevisionPropertyName(event.target.value);
+                        setIsRevisionPropertyLoaded(false);
+                      }}
+                      className="input flex-1 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleLoadRevisionProperty}
+                      disabled={isSavingRevisionProperty || !revisionPropertyName.trim()}
+                      className="btn btn-secondary text-xs"
+                    >
+                      Load
+                    </button>
+                  </div>
+                  {isRevisionPropertyLoaded && (
+                    <>
+                      <textarea
+                        aria-label="Revision property value"
+                        value={revisionPropertyValue}
+                        onChange={(event) => setRevisionPropertyValue(event.target.value)}
+                        className="input h-24 resize-y text-sm"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={handleDeleteRevisionProperty}
+                          disabled={isSavingRevisionProperty}
+                          className="btn btn-secondary text-xs text-error"
+                        >
+                          Delete Revision Property
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveRevisionProperty}
+                          disabled={isSavingRevisionProperty}
+                          className="btn btn-primary text-xs"
+                        >
+                          Save Revision Property
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="text-xs text-text-faint">
                 <p className="font-medium mb-1">Common properties:</p>
                 <ul className="space-y-1">
@@ -347,7 +576,12 @@ export function PropertiesDialog({ isOpen, onClose, path }: PropertiesDialogProp
             </button>
             <button
               onClick={handleSaveAll}
-              disabled={!hasChanges() || isSaving}
+              disabled={
+                !hasChanges() ||
+                isSaving ||
+                (isRemote && !commitMessage.trim()) ||
+                (isRemote && !allowRemoteChanges)
+              }
               className="btn btn-primary"
             >
               {isSaving ? (

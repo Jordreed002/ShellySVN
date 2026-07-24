@@ -16,7 +16,7 @@ export interface FileExplorerOperationContext {
 }
 
 interface UseFileExplorerCommandEventsOptions {
-  operationContextRef: RefObject<FileExplorerOperationContext>;
+  operationContextRef: RefObject<FileExplorerOperationContext | null>;
   setApplyPatchPath: Dispatch<SetStateAction<string | null>>;
   setBlamePath: Dispatch<SetStateAction<string | null>>;
   setBranchTagCompareOpen: Dispatch<SetStateAction<boolean>>;
@@ -28,9 +28,7 @@ interface UseFileExplorerCommandEventsOptions {
   setImportDialogOpen: Dispatch<SetStateAction<boolean>>;
   setLockManagementPath: Dispatch<SetStateAction<string | null>>;
   setMergePath: Dispatch<SetStateAction<string | null>>;
-  setMoveRenameTarget: Dispatch<
-    SetStateAction<{ path: string; mode: 'move' | 'rename' } | null>
-  >;
+  setMoveRenameTarget: Dispatch<SetStateAction<{ path: string; mode: 'move' | 'rename' } | null>>;
   setPropertiesPath: Dispatch<SetStateAction<string | null>>;
   setRelocatePath: Dispatch<SetStateAction<string | null>>;
   setRepoBrowserUrl: Dispatch<SetStateAction<string | null>>;
@@ -63,7 +61,7 @@ export function useFileExplorerCommandEvents({
   setSwitchPath,
 }: UseFileExplorerCommandEventsOptions): void {
   useEffect(() => {
-    const getContext = () => operationContextRef.current;
+    const getContext = () => operationContextRef.current!;
     const getSelectedOrCurrentPath = () => {
       const context = getContext();
       return context.selectedEntry?.path || context.path;

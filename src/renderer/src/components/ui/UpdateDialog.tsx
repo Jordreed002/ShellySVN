@@ -59,8 +59,10 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
       );
 
       if (result.success) {
-        setSuccess({ revision: result.revision, filesUpdated: filesProcessed });
-        onComplete?.(result.revision);
+        setSuccess({ revision: result.revision ?? 0, filesUpdated: filesProcessed });
+        if (result.revision !== null) {
+          onComplete?.(result.revision);
+        }
       } else {
         setError(result.error || 'Update failed');
       }
@@ -83,7 +85,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
       return;
     }
 
-    await window.api.svn.cancelUpdate();
+    await window.api.svn.cancelUpdate(progress?.operationId);
     setProgress((current) => ({
       ...(current || { filesProcessed: 0 }),
       status: 'cancelled',
@@ -133,7 +135,10 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
 
             {/* Revision */}
             <div>
-              <label htmlFor="update-revision" className="text-sm font-medium text-text-secondary mb-1.5 block">
+              <label
+                htmlFor="update-revision"
+                className="text-sm font-medium text-text-secondary mb-1.5 block"
+              >
                 Revision
               </label>
               <input
@@ -152,7 +157,10 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
 
             {/* Depth */}
             <div>
-              <label htmlFor="update-depth" className="text-sm font-medium text-text-secondary mb-1.5 block">
+              <label
+                htmlFor="update-depth"
+                className="text-sm font-medium text-text-secondary mb-1.5 block"
+              >
                 <Layers className="w-4 h-4 inline mr-1" />
                 Update depth
               </label>
@@ -225,11 +233,7 @@ export function UpdateDialog({ isOpen, onClose, path, onComplete }: UpdateDialog
         {/* Footer */}
         {!success && (
           <div className="modal-footer">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="btn btn-secondary"
-            >
+            <button type="button" onClick={handleCancel} className="btn btn-secondary">
               {isUpdating ? 'Stop' : 'Cancel'}
             </button>
             <button onClick={handleUpdate} disabled={isUpdating} className="btn btn-primary">

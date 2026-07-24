@@ -1,12 +1,15 @@
 import { XMLParser } from 'fast-xml-parser';
 
-import type { SvnLockInfo } from '@shared/types';
+import type { SvnLockInfo, SvnLockInfoResult, SvnLockListResult } from '@shared/types';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
+import { getSvnReadError } from '../utils/svn-errors';
 import { runSvnText } from './svn-executor';
 import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
+import { getWorkingCopyContext } from './svn-working-copy';
+import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -36,8 +39,16 @@ function getParentPath(path: string): string {
   return lastSepIndex >= 0 ? path.substring(0, lastSepIndex) : path;
 }
 
-export async function lock(path: string, message?: string): Promise<{ success: boolean; output?: string; error?: string }> {
-  const workingCopyPath = getParentPath(path);
+async function getWorkingCopyRoot(path: string): Promise<string> {
+  return (await getWorkingCopyContext(path))?.workingCopyRoot ?? getParentPath(path);
+}
+
+export async function lock(
+  path: string,
+  message?: string
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  validateSvnTargets([path], 'Lock target');
+  const workingCopyPath = await getWorkingCopyRoot(path);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
   const preResult = await executeHooksForType(hooks, 'pre-lock', {
@@ -51,13 +62,19 @@ export async function lock(path: string, message?: string): Promise<{ success: b
 
   const args = ['lock'];
   if (message) args.push('-m', message);
-  args.push(path);
-  const output = await runSvnText(args, await getNetworkOptionsForWorkingCopyPath(path));
+  const output = await runSvnText(
+    withSvnTargets(args, [path]),
+    await getNetworkOptionsForWorkingCopyPath(path)
+  );
   return { success: true, output };
 }
 
-export async function unlock(path: string, force?: boolean): Promise<{ success: boolean; output?: string; error?: string }> {
-  const workingCopyPath = getParentPath(path);
+export async function unlock(
+  path: string,
+  force?: boolean
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  validateSvnTargets([path], 'Unlock target');
+  const workingCopyPath = await getWorkingCopyRoot(path);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
   const preResult = await executeHooksForType(hooks, 'pre-unlock', {
@@ -70,24 +87,30 @@ export async function unlock(path: string, force?: boolean): Promise<{ success: 
 
   const args = ['unlock'];
   if (force) args.push('--force');
-  args.push(path);
-  const output = await runSvnText(args, await getNetworkOptionsForWorkingCopyPath(path));
+  const output = await runSvnText(
+    withSvnTargets(args, [path]),
+    await getNetworkOptionsForWorkingCopyPath(path)
+  );
   return { success: true, output };
 }
 
-export async function getLockInfo(path: string): Promise<SvnLockInfo | null> {
+export async function getLockInfo(path: string): Promise<SvnLockInfoResult> {
   try {
-    const xml = await runSvnText(['info', '--xml', path]);
+    const xml = await runSvnText(withSvnTargets(['info', '--xml'], [path]));
     const info = parseSvnInfoXml(xml);
-    return info.lock || null;
+    return info.lock ? { lock: info.lock } : {};
   } catch (error) {
     debug.error('[SVN] Lock info error:', error);
-    return null;
+    return { ...getSvnReadError(error, { command: 'info', target: path }) };
   }
 }
 
-export async function forceLock(path: string, message?: string): Promise<{ success: boolean; lock?: SvnLockInfo; error?: string }> {
-  const workingCopyPath = getParentPath(path);
+export async function forceLock(
+  path: string,
+  message?: string
+): Promise<{ success: boolean; lock?: SvnLockInfo; error?: string }> {
+  validateSvnTargets([path], 'Lock target');
+  const workingCopyPath = await getWorkingCopyRoot(path);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
   const preResult = await executeHooksForType(hooks, 'pre-lock', {
@@ -104,10 +127,9 @@ export async function forceLock(path: string, message?: string): Promise<{ succe
     const networkOptions = await getNetworkOptionsForWorkingCopyPath(path);
     const args = ['lock', '--force'];
     if (message) args.push('-m', message);
-    args.push(path);
-    await runSvnText(args, networkOptions);
+    await runSvnText(withSvnTargets(args, [path]), networkOptions);
 
-    const xml = await runSvnText(['info', '--xml', path], networkOptions);
+    const xml = await runSvnText(withSvnTargets(['info', '--xml'], [path]), networkOptions);
     const info = parseSvnInfoXml(xml);
 
     return { success: true, lock: info.lock };
@@ -119,7 +141,8 @@ export async function forceLock(path: string, message?: string): Promise<{ succe
 }
 
 export async function forceUnlock(path: string): Promise<{ success: boolean; error?: string }> {
-  const workingCopyPath = getParentPath(path);
+  validateSvnTargets([path], 'Unlock target');
+  const workingCopyPath = await getWorkingCopyRoot(path);
   const hooks = await getHooksForWorkingCopy(workingCopyPath);
 
   const preResult = await executeHooksForType(hooks, 'pre-unlock', {
@@ -132,7 +155,10 @@ export async function forceUnlock(path: string): Promise<{ success: boolean; err
   }
 
   try {
-    await runSvnText(['unlock', '--force', path], await getNetworkOptionsForWorkingCopyPath(path));
+    await runSvnText(
+      withSvnTargets(['unlock', '--force'], [path]),
+      await getNetworkOptionsForWorkingCopyPath(path)
+    );
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -141,9 +167,12 @@ export async function forceUnlock(path: string): Promise<{ success: boolean; err
   }
 }
 
-export async function listLocks(path: string): Promise<SvnLockInfo[]> {
+export async function listLocks(path: string): Promise<SvnLockListResult> {
   try {
-    const xml = await runSvnText(['status', '--xml', path]);
+    const xml = await runSvnText(
+      ['status', '--show-updates', '--xml', path],
+      await getNetworkOptionsForWorkingCopyPath(path)
+    );
     const locks: SvnLockInfo[] = [];
 
     const parsed = xmlParser.parse(xml) as {
@@ -154,6 +183,14 @@ export async function listLocks(path: string): Promise<SvnLockInfo[]> {
                 '@_path': string;
                 'wc-status'?: {
                   '@_item': string;
+                  lock?: {
+                    owner?: string;
+                    comment?: string;
+                    creationdate?: string;
+                    token?: string;
+                  };
+                };
+                'repos-status'?: {
                   lock?: {
                     owner?: string;
                     comment?: string;
@@ -173,32 +210,40 @@ export async function listLocks(path: string): Promise<SvnLockInfo[]> {
                     token?: string;
                   };
                 };
+                'repos-status'?: {
+                  lock?: {
+                    owner?: string;
+                    comment?: string;
+                    creationdate?: string;
+                    token?: string;
+                  };
+                };
               };
         };
       };
     };
 
     const entries = parsed.status?.target?.entry;
-    if (!entries) return [];
+    if (!entries) return { locks: [] };
 
     const entriesArray = Array.isArray(entries) ? entries : [entries];
 
     for (const entry of entriesArray) {
-      const wcStatus = entry['wc-status'];
-      if (wcStatus?.lock) {
+      const repositoryLock = entry['repos-status']?.lock ?? entry['wc-status']?.lock;
+      if (repositoryLock) {
         locks.push({
           path: entry['@_path'] || '',
-          owner: wcStatus.lock.owner || '',
-          comment: wcStatus.lock.comment || '',
-          date: wcStatus.lock.creationdate || '',
-          token: wcStatus.lock.token,
+          owner: repositoryLock.owner || '',
+          comment: repositoryLock.comment || '',
+          date: repositoryLock.creationdate || '',
+          token: repositoryLock.token,
         });
       }
     }
 
-    return locks;
+    return { locks };
   } catch (error) {
     debug.error('[SVN] Lock list error:', error);
-    return [];
+    return { locks: [], ...getSvnReadError(error) };
   }
 }

@@ -110,8 +110,8 @@ export function WelcomeScreen() {
             <div>
               <h1 className="text-4xl font-bold text-text tracking-tight">ShellySVN</h1>
               <p className="text-text-secondary mt-2">
-                A modern Subversion client — press{' '}
-                <span className="kbd align-middle">⌘K</span> to get started
+                A modern Subversion client — press <span className="kbd align-middle">⌘K</span> to
+                get started
               </p>
             </div>
           </m.div>

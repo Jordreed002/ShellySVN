@@ -190,7 +190,7 @@ export function CheckoutDialog({
       );
 
       if (result.success) {
-        setSuccess({ revision: result.revision, path: path.trim() });
+        setSuccess({ revision: result.revision ?? 0, path: path.trim() });
       } else {
         // Check for auth error after SSL trust
         const parsedAuthRealm = parseAuthError(result.output || '');
@@ -251,7 +251,7 @@ export function CheckoutDialog({
       );
 
       if (result.success) {
-        setSuccess({ revision: result.revision, path: path.trim() });
+        setSuccess({ revision: result.revision ?? 0, path: path.trim() });
       } else {
         setError(result.output || 'Checkout failed');
       }
@@ -340,7 +340,7 @@ export function CheckoutDialog({
             // Ignore credential save errors
           }
         }
-        setSuccess({ revision: result.revision, path: path.trim() });
+        setSuccess({ revision: result.revision ?? 0, path: path.trim() });
       } else {
         handleCheckoutError(result.output || 'Checkout failed');
       }

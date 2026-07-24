@@ -63,6 +63,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
 
   const shelves = shelveData?.shelves || [];
   const unsupportedReason = shelveData?.unsupportedReason;
+  const readError = shelveData?.error;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -85,7 +86,9 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
             <p>
               Shelving allows you to temporarily save your local changes without committing them.
             </p>
-            <p className="mt-1 text-xs text-info/80">Requires SVN shelving command support.</p>
+            <p className="mt-1 text-xs text-info/80">
+              Uses native SVN shelving when available, with a portable ShellySVN fallback.
+            </p>
           </div>
 
           {unsupportedReason && (
@@ -99,7 +102,10 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
           {showCreate ? (
             <div className="bg-bg-tertiary rounded-lg p-3 space-y-3">
               <div>
-                <label htmlFor="shelve-name" className="text-xs font-medium text-text-secondary mb-1 block">
+                <label
+                  htmlFor="shelve-name"
+                  className="text-xs font-medium text-text-secondary mb-1 block"
+                >
                   Shelve Name <span className="text-error">*</span>
                 </label>
                 <input
@@ -112,7 +118,10 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
                 />
               </div>
               <div>
-                <label htmlFor="shelve-message" className="text-xs font-medium text-text-secondary mb-1 block">
+                <label
+                  htmlFor="shelve-message"
+                  className="text-xs font-medium text-text-secondary mb-1 block"
+                >
                   Message (optional)
                 </label>
                 <textarea
@@ -160,7 +169,12 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
           )}
 
           {/* Shelves list */}
-          {isLoading ? (
+          {readError ? (
+            <div className="flex items-center gap-2 rounded bg-error/10 p-3 text-sm text-error" role="alert">
+              <AlertCircle className="h-4 w-4" />
+              {readError}
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 text-text-muted animate-spin" />
             </div>

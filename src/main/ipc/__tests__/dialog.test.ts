@@ -36,9 +36,11 @@ describe('Dialog IPC Handlers', () => {
     handlers.clear();
 
     // Capture registered handlers
-    mockIpcMainHandle.mockImplementation((channel: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(channel, handler);
-    });
+    mockIpcMainHandle.mockImplementation(
+      (channel: string, handler: (...args: unknown[]) => unknown) => {
+        handlers.set(channel, handler);
+      }
+    );
 
     // Register handlers
     registerDialogHandlers();

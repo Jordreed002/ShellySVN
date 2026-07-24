@@ -415,7 +415,9 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
           {settings.proxySettings.enabled && (
             <div className="grid grid-cols-2 gap-3 pl-6">
               <div>
-                <label htmlFor="settings-proxy-host" className="text-xs text-text-muted">Host</label>
+                <label htmlFor="settings-proxy-host" className="text-xs text-text-muted">
+                  Host
+                </label>
                 <input
                   id="settings-proxy-host"
                   type="text"
@@ -426,7 +428,9 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
                 />
               </div>
               <div>
-                <label htmlFor="settings-proxy-port" className="text-xs text-text-muted">Port</label>
+                <label htmlFor="settings-proxy-port" className="text-xs text-text-muted">
+                  Port
+                </label>
                 <input
                   id="settings-proxy-port"
                   type="number"
@@ -943,7 +947,11 @@ interface IntegrationSettingsProps extends NestedSettingsProps {
   onOpenShellIntegration: () => void;
 }
 
-export function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIntegration }: IntegrationSettingsProps) {
+export function IntegrationSettingsTab({
+  settings,
+  onChangeNested,
+  onOpenShellIntegration,
+}: IntegrationSettingsProps) {
   const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -1025,7 +1033,10 @@ export function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIn
   return (
     <div className="space-y-6">
       {/* Shell Integration */}
-      <SettingsGroup title="Shell Integration" description="Configure shell extension, icon overlays, and context menu integration">
+      <SettingsGroup
+        title="Shell Integration"
+        description="Configure shell extension, icon overlays, and context menu integration"
+      >
         <div className="space-y-4">
           {/* Status indicator */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-bg-tertiary border border-border">
@@ -1039,7 +1050,11 @@ export function IntegrationSettingsTab({ settings, onChangeNested, onOpenShellIn
               )}
               <div>
                 <p className="text-sm font-medium text-text">
-                  {isLoading ? 'Checking status...' : isRegistered ? 'Registered' : 'Not Registered'}
+                  {isLoading
+                    ? 'Checking status...'
+                    : isRegistered
+                      ? 'Registered'
+                      : 'Not Registered'}
                 </p>
                 <p className="text-xs text-text-muted">
                   {isRegistered
@@ -1431,6 +1446,8 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
 
 interface AuthSettingsProps {
   isOpen: boolean;
+  settings: AppSettings;
+  onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
 
 export function getCredentialEncryptionStatusCopy(
@@ -1461,7 +1478,7 @@ export function getCredentialEncryptionStatusCopy(
   return `Credential encryption is unavailable on ${platformName}. SVN credentials stay memory-only and are not saved persistently.`;
 }
 
-export function AuthSettings({ isOpen }: AuthSettingsProps) {
+export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) {
   const [credentials, setCredentials] = useState<AuthListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEncryptionAvailable, setIsEncryptionAvailable] = useState<boolean | null>(null);
@@ -1470,6 +1487,11 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
   const [editPassword, setEditPassword] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const platform = window.electron?.process?.platform;
+  const sshSettings = settings.sshSettings ?? {
+    sshClientPath: '',
+    useAgent: true,
+    keys: [],
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1543,6 +1565,49 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
     } finally {
       setIsSavingEdit(false);
     }
+  };
+
+  const handleBrowseSshClient = async () => {
+    const path = await window.api.dialog.openFile([
+      { name: 'SSH clients', extensions: ['exe', 'cmd', 'bat', 'sh'] },
+      { name: 'All Files', extensions: ['*'] },
+    ]);
+    if (path) {
+      onChange('sshSettings', { ...sshSettings, sshClientPath: path });
+    }
+  };
+
+  const handleAddSshKey = async () => {
+    const privateKeyPath = await window.api.dialog.openFile([
+      { name: 'SSH private keys', extensions: ['pem', 'key', 'ppk'] },
+      { name: 'All Files', extensions: ['*'] },
+    ]);
+    if (!privateKeyPath) return;
+
+    const hostPattern = await promptAppInput({
+      title: 'SSH key host',
+      message: 'Host pattern for this key (for example svn.example.com or *.example.com).',
+      placeholder: '*.example.com',
+      confirmLabel: 'Add Key',
+    });
+    if (hostPattern === null) return;
+
+    const name = privateKeyPath.split(/[/\\]/).pop() || 'SSH key';
+    onChange('sshSettings', {
+      ...sshSettings,
+      keys: [
+        ...sshSettings.keys,
+        {
+          id: `ssh-key-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name,
+          privateKeyPath,
+          keyType: 'unknown',
+          hasPassphrase: true,
+          ...(hostPattern.trim() ? { hostPattern: hostPattern.trim() } : {}),
+          createdAt: Date.now(),
+        },
+      ],
+    });
   };
 
   return (
@@ -1694,9 +1759,7 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
         <p className="text-xs text-text-secondary">
           Client certificate management coming soon. For now, configure certificates in the SVN tab.
         </p>
-        <div className="text-xs text-text-faint">
-          Current certificate path: Not configured
-        </div>
+        <div className="text-xs text-text-faint">Current certificate path: Not configured</div>
       </div>
 
       {/* SSH Keys Section */}
@@ -1706,8 +1769,76 @@ export function AuthSettings({ isOpen }: AuthSettingsProps) {
           SSH Keys
         </h4>
         <p className="text-xs text-text-secondary">
-          SSH key management coming soon. SVN+SSH connections will use your system's ssh-agent.
+          SVN+SSH runs non-interactively. Configure an SSH client and host-specific private keys, or
+          use your system ssh-agent for unlocked keys.
         </p>
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-client-path">
+            SSH client
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="ssh-client-path"
+              value={sshSettings.sshClientPath}
+              onChange={(event) =>
+                onChange('sshSettings', {
+                  ...sshSettings,
+                  sshClientPath: event.target.value,
+                })
+              }
+              className="input flex-1"
+              placeholder="ssh (system default)"
+            />
+            <button type="button" className="btn btn-secondary" onClick={handleBrowseSshClient}>
+              Browse
+            </button>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-text-secondary">
+          <input
+            type="checkbox"
+            checked={sshSettings.useAgent}
+            onChange={(event) =>
+              onChange('sshSettings', {
+                ...sshSettings,
+                useAgent: event.target.checked,
+              })
+            }
+          />
+          Use ssh-agent or Pageant
+        </label>
+        <div className="space-y-2">
+          {sshSettings.keys.map((sshKey) => (
+            <div
+              key={sshKey.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-tertiary p-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text">{sshKey.name}</p>
+                <p className="truncate text-xs text-text-muted">
+                  {sshKey.hostPattern || 'All SVN+SSH hosts'} · {sshKey.privateKeyPath}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-icon-sm text-error hover:bg-error/10"
+                aria-label={`Remove SSH key ${sshKey.name}`}
+                onClick={() =>
+                  onChange('sshSettings', {
+                    ...sshSettings,
+                    keys: sshSettings.keys.filter((candidate) => candidate.id !== sshKey.id),
+                  })
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          <button type="button" className="btn btn-secondary" onClick={handleAddSshKey}>
+            <Key className="h-4 w-4" />
+            Add SSH Key
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1787,6 +1918,7 @@ export function AdvancedSettings({
     try {
       const result = await window.api.app.clearCache();
       if (result.success) {
+        window.dispatchEvent(new CustomEvent('svn-cache-cleared'));
         setCacheCleared(true);
         setCacheSize({ size: 0, files: 0 });
         setTimeout(() => setCacheCleared(false), 3000);
@@ -1999,4 +2131,3 @@ export function SettingsGroup({ title, description, children }: SettingsGroupPro
 // ============================================
 // Convenience Components
 // ============================================
-

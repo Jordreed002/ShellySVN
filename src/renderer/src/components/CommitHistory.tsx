@@ -4,6 +4,8 @@ import { useRef, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { History, GitCommit, User, Clock, FileDiff } from 'lucide-react';
 import type { SvnLogEntry, SvnLogPath } from '@shared/types';
+import { readCachedLog } from '../utils/cachedSvnRead';
+import { buildLogCacheScope } from '../hooks/useLogCache';
 
 const MAX_VISIBLE_PATHS = 8;
 
@@ -95,11 +97,14 @@ export function CommitHistory() {
   // Fetch commit history (verbose: includes changed paths per revision)
   const { data, isLoading, error } = useQuery({
     queryKey: ['svn:log', path],
-    queryFn: ({ signal }) => window.api.svn.log(path, 100, undefined, undefined, false, { signal }),
+    queryFn: async ({ signal }) =>
+      readCachedLog(path, `${path}::${buildLogCacheScope(100, false, {})}`, () =>
+        window.api.svn.log(path, 100, undefined, undefined, false, { signal })
+      ),
     enabled: !!path && path !== '/',
   });
 
-  const entries = data?.entries ?? [];
+  const entries = data?.data.entries ?? [];
 
   // Virtualizer with dynamic row measurement (rows vary with the path list)
   const virtualizer = useVirtualizer({
@@ -148,6 +153,14 @@ export function CommitHistory() {
         <History className="w-4 h-4 text-accent" />
         <span className="text-sm font-medium text-text">Commit History</span>
         <span className="text-xs text-text-muted truncate">· {path.split(/[/\\]/).pop()}</span>
+        {data?.source === 'cache' && (
+          <span
+            className="text-xs text-warning"
+            title={`Cached history from ${Math.floor(data.age / 60_000)} minutes ago`}
+          >
+            Cached
+          </span>
+        )}
         <span className="ml-auto text-xs text-text-muted tabular-nums">
           {entries.length} commits
         </span>

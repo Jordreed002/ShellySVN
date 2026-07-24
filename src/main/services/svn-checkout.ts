@@ -1,5 +1,5 @@
 import type { IpcMainInvokeEvent } from 'electron';
-import type { CheckoutOptions, SvnExecutionContext } from '@shared/types';
+import type { CheckoutOptions, SvnExecutionContext, SvnOperationRevision } from '@shared/types';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
@@ -7,6 +7,28 @@ import { debug } from '../utils/debug';
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 
 const activeCheckouts = new Map<string, AbortController>();
+
+function isHttpsRepositoryUrl(url: string): boolean {
+  return /^https:\/\//i.test(url);
+}
+
+async function persistSslTrust(
+  url: string,
+  options: CheckoutOptions | undefined,
+  trustedSslFailures: string | undefined
+): Promise<void> {
+  if (
+    !isHttpsRepositoryUrl(url) ||
+    !options?.trustSsl ||
+    !options.trustPermanently ||
+    !trustedSslFailures
+  ) {
+    return;
+  }
+  const cache = getSslTrustCache();
+  await cache.ready();
+  cache.set(url, trustedSslFailures);
+}
 
 function normalizeSslFailures(failures?: string[]): string {
   const mapped = new Set<(typeof ALLOWED_SSL_FAILURES)[number]>();
@@ -51,9 +73,9 @@ function buildCheckoutArgs(
   return args;
 }
 
-function parseSvnRevision(output: string): number {
+function parseSvnRevision(output: string): number | null {
   const match = output.match(/(?:Checked out|Updated to|At) revision (\d+)\./);
-  return match ? parseInt(match[1], 10) : 0;
+  return match ? parseInt(match[1], 10) : null;
 }
 
 function normalizeUrlPath(pathname: string): string {
@@ -73,9 +95,20 @@ function toSparseRelativePath(baseUrl: string, sparsePath: string): string | nul
   let candidatePath: string;
   try {
     const candidateUrl = new URL(trimmed);
+    if (candidateUrl.protocol !== base.protocol || candidateUrl.host !== base.host) {
+      throw new Error('Sparse checkout target is outside the checkout repository');
+    }
     candidatePath = normalizeUrlPath(candidateUrl.pathname);
   } catch {
     candidatePath = normalizeCandidate(trimmed);
+  }
+
+  if (
+    candidatePath.split('/').includes('..') ||
+    /^[a-zA-Z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith('\\\\')
+  ) {
+    throw new Error('Sparse checkout target is outside the checkout URL');
   }
 
   if (candidatePath === basePath) {
@@ -86,12 +119,17 @@ function toSparseRelativePath(baseUrl: string, sparsePath: string): string | nul
     return candidatePath.slice(basePath.length + 1);
   }
 
-  const baseTail = normalizeCandidate(basePath.split('/').filter(Boolean).slice(-1)[0] || '');
-  if (baseTail && candidatePath.startsWith(`/${baseTail}/`)) {
-    return candidatePath.slice(baseTail.length + 2);
+  const relativeCandidate = candidatePath.replace(/^\/+/, '');
+  const baseRelative = basePath.replace(/^\/+/, '');
+  if (relativeCandidate.startsWith(`${baseRelative}/`)) {
+    return relativeCandidate.slice(baseRelative.length + 1);
   }
 
-  return trimmed.replace(/^\/+/, '');
+  if (!trimmed.includes('://') && !trimmed.startsWith('/')) {
+    return relativeCandidate;
+  }
+
+  throw new Error('Sparse checkout target is outside the checkout URL');
 }
 
 function getSparseRelativePaths(baseUrl: string, sparsePaths?: string[]): string[] {
@@ -111,10 +149,10 @@ async function runSparseCheckout(
   revision: string | undefined,
   options: CheckoutOptions | undefined,
   trustedSslFailures: string | undefined
-): Promise<{ success: boolean; revision: number; output?: string }> {
+): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }> {
   const sparseRelativePaths = getSparseRelativePaths(url, options?.sparsePaths);
   const bootstrapOutput = await runSvnText(buildCheckoutArgs(url, path, revision, 'empty'), {
-    trustSslFailures: options?.trustSsl,
+    trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
     trustedSslFailures,
     credentials: options?.credentials,
   });
@@ -127,12 +165,12 @@ async function runSparseCheckout(
       ['update', '--parents', '--depth', 'infinity', sparseRelativePath],
       {
         cwd: path,
-        trustSslFailures: options?.trustSsl,
+        trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
         trustedSslFailures,
         credentials: options?.credentials,
       }
     );
-    revisionNumber = parseSvnRevision(updateOutput) || revisionNumber;
+    revisionNumber = parseSvnRevision(updateOutput) ?? revisionNumber;
     outputs.push(updateOutput);
   }
 
@@ -154,9 +192,9 @@ function parseCheckoutProgress(line: string): {
   return { action: null, path: null };
 }
 
-function parseCheckoutRevision(output: string): number {
+function parseCheckoutRevision(output: string): number | null {
   const match = output.match(/Checked out revision (\d+)\./);
-  return match ? parseInt(match[1], 10) : 0;
+  return match ? parseInt(match[1], 10) : null;
 }
 
 export async function checkout(
@@ -165,33 +203,28 @@ export async function checkout(
   revision?: string,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   options?: CheckoutOptions
-): Promise<{ success: boolean; revision: number; output?: string }> {
+): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }> {
   const operationContext: Partial<SvnExecutionContext> = {};
 
   try {
-    const trustedSslFailures = options?.trustSsl ? normalizeSslFailures(options.sslFailures) : undefined;
+    const trustedSslFailures = options?.trustSsl
+      && isHttpsRepositoryUrl(url)
+      ? normalizeSslFailures(options.sslFailures)
+      : undefined;
     if (options?.sparsePaths?.length) {
       const result = await runSparseCheckout(url, path, revision, options, trustedSslFailures);
-      if (options?.trustSsl && options.trustPermanently && trustedSslFailures) {
-        const cache = getSslTrustCache();
-        await cache.ready();
-        cache.set(url, trustedSslFailures);
-      }
+      await persistSslTrust(url, options, trustedSslFailures);
       return result;
     }
 
     const args = buildCheckoutArgs(url, path, revision, depth, options);
     const output = await runSvnText(args, {
       operationContext,
-      trustSslFailures: options?.trustSsl,
+      trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
       trustedSslFailures,
       credentials: options?.credentials,
     });
-    if (options?.trustSsl && options.trustPermanently && trustedSslFailures) {
-      const cache = getSslTrustCache();
-      await cache.ready();
-      cache.set(url, trustedSslFailures);
-    }
+    await persistSslTrust(url, options, trustedSslFailures);
     return {
       success: true,
       revision: parseCheckoutRevision(output),
@@ -200,7 +233,7 @@ export async function checkout(
   } catch (error) {
     return {
       success: false,
-      revision: 0,
+      revision: null,
       output: error instanceof Error ? error.message : 'Checkout failed',
     };
   }
@@ -214,7 +247,12 @@ export async function checkoutWithProgress(
   revision?: string,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   options?: CheckoutOptions
-): Promise<{ success: boolean; revision: number; output?: string; filesProcessed?: number }> {
+): Promise<{
+  success: boolean;
+  revision: SvnOperationRevision;
+  output?: string;
+  filesProcessed?: number;
+}> {
   const operationContext: Partial<SvnExecutionContext> = {};
   const controller = new AbortController();
   activeCheckouts.set(checkoutId, controller);
@@ -223,30 +261,31 @@ export async function checkoutWithProgress(
   const progressThrottleMs = 500;
   let filesProcessed = 0;
   let currentPath = '';
-  let streamedRevision = 0;
+  let streamedRevision: number | null = null;
   let revisionBuffer = '';
-  const trustedSslFailures = options?.trustSsl ? normalizeSslFailures(options.sslFailures) : undefined;
+  let lineBuffer = '';
+  const processedPaths = new Set<string>();
+  const trustedSslFailures = options?.trustSsl && isHttpsRepositoryUrl(url)
+    ? normalizeSslFailures(options.sslFailures)
+    : undefined;
 
   try {
     if (options?.sparsePaths?.length) {
       const sparseRelativePaths = getSparseRelativePaths(url, options.sparsePaths);
-      const result = await runSvn(
-        buildCheckoutArgs(url, path, revision, 'empty'),
-        {
-          cwd: process.cwd(),
-          operationContext,
-          trustSslFailures: options?.trustSsl,
-          trustedSslFailures,
-          credentials: options?.credentials,
-          signal: controller.signal,
-          maxStdoutBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
-          maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
-          onStdout: (chunk) => {
-            revisionBuffer = (revisionBuffer + chunk).slice(-2000);
-            streamedRevision = parseSvnRevision(revisionBuffer) || streamedRevision;
-          },
-        }
-      );
+      const result = await runSvn(buildCheckoutArgs(url, path, revision, 'empty'), {
+        cwd: process.cwd(),
+        operationContext,
+        trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
+        trustedSslFailures,
+        credentials: options?.credentials,
+        signal: controller.signal,
+        maxStdoutBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+        maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+        onStdout: (chunk) => {
+          revisionBuffer = (revisionBuffer + chunk).slice(-2000);
+          streamedRevision = parseSvnRevision(revisionBuffer) ?? streamedRevision;
+        },
+      });
 
       for (const sparseRelativePath of sparseRelativePaths) {
         currentPath = sparseRelativePath;
@@ -262,24 +301,21 @@ export async function checkoutWithProgress(
           ['update', '--parents', '--depth', 'infinity', sparseRelativePath],
           {
             cwd: path,
-            trustSslFailures: options?.trustSsl,
+            trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
             trustedSslFailures,
             credentials: options?.credentials,
             signal: controller.signal,
           }
         );
-        streamedRevision = parseSvnRevision(updateOutput) || streamedRevision;
+        streamedRevision = parseSvnRevision(updateOutput) ?? streamedRevision;
+        result.stdout += updateOutput;
       }
 
-      if (options?.trustSsl && options.trustPermanently && trustedSslFailures) {
-        const cache = getSslTrustCache();
-        await cache.ready();
-        cache.set(url, trustedSslFailures);
-      }
+      await persistSslTrust(url, options, trustedSslFailures);
 
       return {
         success: true,
-        revision: streamedRevision || parseSvnRevision(result.stdout),
+        revision: streamedRevision ?? parseSvnRevision(result.stdout),
         output: result.stdout,
         filesProcessed,
       };
@@ -289,7 +325,7 @@ export async function checkoutWithProgress(
     const result = await runSvn(args, {
       cwd: process.cwd(),
       operationContext,
-      trustSslFailures: options?.trustSsl,
+      trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
       trustedSslFailures,
       credentials: options?.credentials,
       signal: controller.signal,
@@ -297,11 +333,15 @@ export async function checkoutWithProgress(
       maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
       onStdout: (chunk) => {
         revisionBuffer = (revisionBuffer + chunk).slice(-2000);
-        streamedRevision = parseCheckoutRevision(revisionBuffer) || streamedRevision;
+        streamedRevision = parseCheckoutRevision(revisionBuffer) ?? streamedRevision;
 
-        for (const line of chunk.split('\n')) {
+        lineBuffer += chunk;
+        const lines = lineBuffer.split(/\r?\n/);
+        lineBuffer = lines.pop() ?? '';
+        for (const line of lines) {
           const progress = parseCheckoutProgress(line);
-          if (progress.action && progress.path) {
+          if (progress.action && progress.path && !processedPaths.has(progress.path)) {
+            processedPaths.add(progress.path);
             filesProcessed++;
             currentPath = progress.path;
 
@@ -329,11 +369,7 @@ export async function checkoutWithProgress(
       });
     }
 
-    if (options?.trustSsl && options.trustPermanently && trustedSslFailures) {
-      const cache = getSslTrustCache();
-      await cache.ready();
-      cache.set(url, trustedSslFailures);
-    }
+    await persistSslTrust(url, options, trustedSslFailures);
 
     return {
       success: true,
@@ -344,7 +380,7 @@ export async function checkoutWithProgress(
   } catch (error) {
     return {
       success: false,
-      revision: 0,
+      revision: null,
       output: error instanceof Error ? error.message : 'Checkout failed',
     };
   } finally {
