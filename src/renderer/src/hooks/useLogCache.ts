@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { debug } from '@shared/utils/debug';
 import type { SvnLogEntry, SvnLogResult } from '@shared/types';
@@ -167,13 +167,30 @@ export function useCachedLog(
   } = {}
 ) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const hasAdvancedOptions = Boolean(
-    options.stopOnCopy ||
-    options.strictNodeHistory ||
-    options.includeAllRevisionProperties ||
-    options.revisionProperties?.length
+  const revisionPropertiesKey = JSON.stringify(
+    normalizeRevisionProperties(options.revisionProperties)
   );
-  const cacheScope = buildLogCacheScope(limit, useMergeHistory, options);
+  const requestOptions = useMemo(
+    () => ({
+      stopOnCopy: Boolean(options.stopOnCopy),
+      strictNodeHistory: Boolean(options.strictNodeHistory),
+      includeAllRevisionProperties: Boolean(options.includeAllRevisionProperties),
+      revisionProperties: JSON.parse(revisionPropertiesKey) as string[],
+    }),
+    [
+      options.includeAllRevisionProperties,
+      options.stopOnCopy,
+      options.strictNodeHistory,
+      revisionPropertiesKey,
+    ]
+  );
+  const hasAdvancedOptions = Boolean(
+    requestOptions.stopOnCopy ||
+    requestOptions.strictNodeHistory ||
+    requestOptions.includeAllRevisionProperties ||
+    requestOptions.revisionProperties.length
+  );
+  const cacheScope = buildLogCacheScope(limit, useMergeHistory, requestOptions);
   const {
     cachedLog,
     cachedEntries,
@@ -184,6 +201,8 @@ export function useCachedLog(
     setIsOffline,
     clearCache,
   } = useLogCache(path, cacheScope);
+  const cachedLogRef = useRef(cachedLog);
+  cachedLogRef.current = cachedLog;
 
   // Fetch fresh log data
   const refreshLog = useCallback(async (): Promise<SvnLogResult | null> => {
@@ -194,7 +213,14 @@ export function useCachedLog(
 
     try {
       const result = hasAdvancedOptions
-        ? await window.api.svn.log(path, limit, undefined, undefined, useMergeHistory, options)
+        ? await window.api.svn.log(
+            path,
+            limit,
+            undefined,
+            undefined,
+            useMergeHistory,
+            requestOptions
+          )
         : await window.api.svn.log(path, limit, undefined, undefined, useMergeHistory);
       if (result.cancelled) {
         throw new Error(result.error || 'Log request was cancelled');
@@ -214,8 +240,8 @@ export function useCachedLog(
       }
 
       // Return cached data if available
-      if (hasCachedData && cachedLog) {
-        return cachedLog;
+      if (cachedLogRef.current) {
+        return cachedLogRef.current;
       }
 
       throw err;
@@ -224,12 +250,10 @@ export function useCachedLog(
     path,
     limit,
     useMergeHistory,
-    options,
+    requestOptions,
     hasAdvancedOptions,
     saveToCache,
     setIsOffline,
-    hasCachedData,
-    cachedLog,
   ]);
 
   return {
@@ -258,9 +282,7 @@ export function buildLogCacheScope(
     revisionProperties?: string[];
   }
 ): string {
-  const revisionProperties = Array.from(
-    new Set((options.revisionProperties ?? []).map((property) => property.trim()).filter(Boolean))
-  ).toSorted();
+  const revisionProperties = normalizeRevisionProperties(options.revisionProperties);
 
   return `log:${JSON.stringify([
     limit,
@@ -270,4 +292,10 @@ export function buildLogCacheScope(
     Boolean(options.includeAllRevisionProperties),
     revisionProperties,
   ])}`;
+}
+
+function normalizeRevisionProperties(revisionProperties?: string[]): string[] {
+  return Array.from(
+    new Set((revisionProperties ?? []).map((property) => property.trim()).filter(Boolean))
+  ).toSorted();
 }

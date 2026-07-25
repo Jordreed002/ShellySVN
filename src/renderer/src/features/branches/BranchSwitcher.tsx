@@ -60,6 +60,7 @@ export function BranchSwitcher({
   const invalidate = useInvalidateBranches();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   if (!ctx) return null;
 
@@ -68,15 +69,21 @@ export function BranchSwitcher({
     ctx.branch === name && ctx.branchKind === kind;
 
   const doSwitch = async (targetBranchUrl: string) => {
+    if (switching) return;
     setOpen(false);
     setSwitching(true);
+    setSwitchError(null);
     try {
       const target = mapSubPathToBranch(targetBranchUrl, ctx.subPath);
       const result = await window.api.svn.switch(localPath, target);
       if (result.success) {
         invalidate(ctx.branchRootUrl);
         onSwitched?.();
+      } else {
+        setSwitchError('SVN could not switch this working copy.');
       }
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : 'SVN could not switch this working copy.');
     } finally {
       setSwitching(false);
     }
@@ -100,6 +107,14 @@ export function BranchSwitcher({
           <ChevronDown className="w-3 h-3" />
         )}
       </button>
+      {switchError && (
+        <div
+          role="alert"
+          className="absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-danger/30 bg-bg-elevated px-3 py-2 text-xs text-danger shadow-lg"
+        >
+          Branch switch failed: {switchError}
+        </div>
+      )}
 
       {open && (
         <>

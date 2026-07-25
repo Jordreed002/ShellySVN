@@ -444,7 +444,7 @@ export function ThreeWayMergeEditor({
         }
       }
 
-      if (e.key === 'F3' || (e.ctrlKey && e.key === 'n')) {
+      if (e.key === 'F3' && !e.shiftKey) {
         e.preventDefault();
         handleNextConflict();
       }

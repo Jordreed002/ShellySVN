@@ -9,7 +9,13 @@ import { buildSvnContextMenuItems, type FileRowActions } from '../ui/FileRow';
 const FILE_CACHE_TIME = 5 * 60 * 1000;
 
 function toEntry(file: FileInfo): SvnStatusEntry {
-  return { path: file.path, status: ' ', isDirectory: file.isDirectory };
+  return {
+    path: file.path,
+    status: file.svnStatus?.status ?? ' ',
+    isDirectory: file.isDirectory,
+    revision: file.svnStatus?.revision,
+    author: file.svnStatus?.author,
+  };
 }
 
 function detectSeparator(path: string): string {
@@ -157,9 +163,34 @@ function MillerColumn({
     // Keep the column's current entries visible while a sibling/new path loads.
     placeholderData: keepPreviousData,
   });
+  const { data: statusData } = useQuery({
+    queryKey: ['fs:getStatus', dirPath],
+    queryFn: () => window.api.fs.getStatus(dirPath),
+    enabled: !!dirPath,
+    staleTime: FILE_CACHE_TIME,
+  });
 
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
-  const entries = useMemo(() => sortEntries(data || []), [data]);
+  const entries = useMemo(() => {
+    const files = data || [];
+    if (!statusData) return sortEntries(files);
+    const byPath = new Map(statusData.allEntries.map((entry) => [entry.fullPath, entry]));
+    return sortEntries(
+      files.map((file) => {
+        const status = statusData.directStatus[file.name] ?? byPath.get(file.path);
+        return {
+          ...file,
+          svnStatus: status
+            ? {
+                ...status,
+                path: file.path,
+                isDirectory: file.isDirectory,
+              }
+            : undefined,
+        };
+      })
+    );
+  }, [data, statusData]);
   const showSkeleton = isLoading && entries.length === 0;
   // Columns along the active trail (all but the deepest) get a faint tint.
   const onActiveTrail = activeChildPath !== undefined;
@@ -199,7 +230,9 @@ function MillerColumn({
                 }
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  showContextMenu(e, toEntry(entry));
+                  const svnEntry = toEntry(entry);
+                  onSelect(svnEntry);
+                  showContextMenu(e, svnEntry);
                 }}
                 className={`group relative flex items-center gap-2.5 w-full pl-3.5 pr-2.5 py-1.5 rounded-lg text-sm text-left transition-fast ${
                   isActive

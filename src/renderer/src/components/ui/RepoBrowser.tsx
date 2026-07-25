@@ -4,6 +4,10 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { RefreshCw, Folder, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 
+/**
+ * Compact repository-path picker used by BranchTagDialog.
+ * Full browsing and working-copy integration live in the /repo-browser route.
+ */
 interface RepoBrowserProps {
   isOpen?: boolean;
   repoUrl?: string;

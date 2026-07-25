@@ -7,9 +7,9 @@ export interface FocusTrapOptions {
   /** Whether the focus trap is active */
   active?: boolean;
   /** Initial element to focus when trap activates */
-  initialFocus?: string | RefObject<HTMLElement | null>;
+  initialFocus?: string | RefObject<HTMLElement>;
   /** Element to return focus to when trap deactivates */
-  returnFocus?: boolean | string | RefObject<HTMLElement | null>;
+  returnFocus?: boolean | string | RefObject<HTMLElement>;
   /** Whether to allow focus to escape with Tab/Shift+Tab */
   allowOutsideClick?: boolean;
   /** Called when focus attempts to escape */
@@ -79,7 +79,7 @@ function getFocusEdges(container: HTMLElement): {
  */
 export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
   options: FocusTrapOptions = {}
-): RefObject<T | null> {
+): RefObject<T> {
   const {
     active = true,
     initialFocus,

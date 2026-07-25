@@ -688,7 +688,8 @@ describe('FS IPC Handlers', () => {
       approvePathForIpc('/test/path');
 
       const handler = handlers.get('fs:watch');
-      const result = (await handler!({ sender: { send: vi.fn() } }, '/test/path')) as {
+      const sender = { id: 1, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() };
+      const result = (await handler!({ sender }, '/test/path')) as {
         success: boolean;
       };
 
@@ -702,7 +703,7 @@ describe('FS IPC Handlers', () => {
     it('should return success if already watching', async () => {
       approvePathForIpc('/test/path');
 
-      const sender = { send: vi.fn() };
+      const sender = { id: 2, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() };
       const handler = handlers.get('fs:watch');
 
       await handler!({ sender }, '/test/path');
@@ -730,12 +731,12 @@ describe('FS IPC Handlers', () => {
     it('should close and remove watcher', async () => {
       approvePathForIpc('/test/path');
 
-      const sender = { send: vi.fn() };
+      const sender = { id: 3, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() };
       const watchHandler = handlers.get('fs:watch');
       const unwatchHandler = handlers.get('fs:unwatch');
 
       await watchHandler!({ sender }, '/test/path');
-      const result = (await unwatchHandler!({}, '/test/path')) as { success: boolean };
+      const result = (await unwatchHandler!({ sender }, '/test/path')) as { success: boolean };
 
       expect(result.success).toBe(true);
     });
@@ -744,7 +745,8 @@ describe('FS IPC Handlers', () => {
       approvePathForIpc('/nonexistent');
 
       const handler = handlers.get('fs:unwatch');
-      const result = (await handler!({}, '/nonexistent')) as { success: boolean };
+      const sender = { id: 4, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() };
+      const result = (await handler!({ sender }, '/nonexistent')) as { success: boolean };
 
       expect(result.success).toBe(true);
     });

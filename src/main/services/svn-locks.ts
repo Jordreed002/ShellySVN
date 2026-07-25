@@ -170,7 +170,7 @@ export async function forceUnlock(path: string): Promise<{ success: boolean; err
 export async function listLocks(path: string): Promise<SvnLockListResult> {
   try {
     const xml = await runSvnText(
-      ['status', '--show-updates', '--xml', path],
+      withSvnTargets(['status', '--show-updates', '--xml'], [path]),
       await getNetworkOptionsForWorkingCopyPath(path)
     );
     const locks: SvnLockInfo[] = [];

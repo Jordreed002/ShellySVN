@@ -1,11 +1,16 @@
 import { existsSync, statSync } from 'fs';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdir, mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { createConnection } from 'net';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { LocalStatusServer, getDefaultLocalStatusSocketPath } from '../local-status-server';
+import {
+  LocalStatusServer,
+  getDefaultLocalStatusSocketPath,
+  startLocalStatusServer,
+  stopLocalStatusServer,
+} from '../local-status-server';
 import { getStatusService } from '../status-service';
 
 let server: LocalStatusServer | null = null;
@@ -56,6 +61,7 @@ async function createStartedServer(options: { maxMessageBytes?: number } = {}) {
 
 afterEach(async () => {
   await server?.stop();
+  await stopLocalStatusServer();
   server = null;
   if (tempDir) {
     await rm(tempDir, { recursive: true, force: true });
@@ -167,5 +173,45 @@ describe('LocalStatusServer', () => {
     server = null;
 
     expect(existsSync(socketPath)).toBe(false);
+  });
+
+  it('can retry the same instance after listen fails', async () => {
+    if (process.platform === 'win32') return;
+
+    tempDir = await mkdtemp(join(tmpdir(), 'shellysvn-status-server-'));
+    const missingParent = join(tempDir, 'missing');
+    const socketPath = join(missingParent, 'status.sock');
+    server = new LocalStatusServer({
+      userDataPath: missingParent,
+      socketPath,
+      authToken: TEST_TOKEN,
+    });
+
+    await expect(server.start()).rejects.toMatchObject({ code: 'EACCES' });
+    await mkdir(missingParent);
+    await expect(server.start()).resolves.toBeUndefined();
+    await expect(
+      request(socketPath, {
+        id: 'retry',
+        token: TEST_TOKEN,
+        type: 'status.getCached',
+        path: 'C:\\repo',
+      })
+    ).resolves.toMatchObject({ id: 'retry', ok: true });
+  });
+
+  it('replaces the singleton after startup fails', async () => {
+    if (process.platform === 'win32') return;
+
+    // Unix-domain socket paths are short (about 104 bytes on macOS), so keep
+    // this path compact while still starting with a missing parent directory.
+    tempDir = await mkdtemp(join(tmpdir(), 'ss-'));
+    const missingUserData = join(tempDir, 'm');
+
+    await expect(startLocalStatusServer(missingUserData)).rejects.toBeInstanceOf(Error);
+    await mkdir(missingUserData);
+
+    const recoveredServer = await startLocalStatusServer(missingUserData);
+    expect(recoveredServer.socketPath).toBe(getDefaultLocalStatusSocketPath(missingUserData));
   });
 });

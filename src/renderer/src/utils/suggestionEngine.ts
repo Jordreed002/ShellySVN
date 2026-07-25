@@ -75,7 +75,7 @@ export interface TemplateRecommendation {
 /**
  * File extension to category mapping
  */
-const EXTENSION_CATEGORIES: Record<string, FileCategory[]> = {
+const EXTENSION_CATEGORIES: Record<FileCategory, string[]> = {
   javascript: ['js', 'jsx', 'mjs', 'cjs'],
   typescript: ['ts', 'tsx', 'mts', 'cts'],
   web: ['html', 'htm', 'vue', 'svelte'],
@@ -87,12 +87,13 @@ const EXTENSION_CATEGORIES: Record<string, FileCategory[]> = {
   backend: ['py', 'rb', 'go', 'rs', 'java', 'kt', 'php', 'cs', 'swift', 'c', 'cpp', 'h'],
   assets: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'woff', 'woff2', 'ttf', 'eot'],
   build: ['dockerfile', 'makefile', 'cmake', 'gradle', 'sh', 'bash', 'ps1', 'bat'],
+  other: [],
 };
 
 /**
  * Extension to change type hints
  */
-const EXTENSION_CHANGE_HINTS: Record<string, ChangeType[]> = {
+const EXTENSION_CHANGE_HINTS: Record<FileCategory, ChangeType[]> = {
   javascript: ['feature', 'bugfix', 'refactor'],
   typescript: ['feature', 'bugfix', 'refactor'],
   web: ['feature', 'style'],
@@ -102,8 +103,9 @@ const EXTENSION_CHANGE_HINTS: Record<string, ChangeType[]> = {
   tests: ['test'],
   database: ['feature', 'refactor'],
   backend: ['feature', 'bugfix', 'refactor', 'perf'],
-  assets: ['assets', 'style'],
+  assets: ['style'],
   build: ['chore'],
+  other: ['chore'],
 };
 
 /**
@@ -284,10 +286,7 @@ function generateSuggestions(
     const prefixInfo = COMMIT_PREFIXES[type];
 
     // Generate description based on files
-    const description = generateDescription(
-      type,
-      analyses.filter((a) => a.changeType === type)
-    );
+    const description = generateDescription(analyses.filter((a) => a.changeType === type));
 
     suggestions.push({
       type,
@@ -307,13 +306,9 @@ function generateSuggestions(
 /**
  * Generate a description for a set of files
  */
-function generateDescription(type: ChangeType, files: FileAnalysis[]): string {
+function generateDescription(files: FileAnalysis[]): string {
   if (files.length === 0) return '';
 
-  // Get unique categories
-  const _categories = new Set(files.map((f) => f.category));
-
-  // Generate description based on type and categories
   if (files.length === 1) {
     const file = files[0];
     const filename = file.path.split(/[/\\]/).pop() || file.path;
@@ -391,7 +386,7 @@ function getRecommendedTemplate(
 export function getTemplatesWithRecommendations(
   files: Array<{ path: string; status: SvnStatusChar }>
 ): TemplateRecommendation[] {
-  const { _analyses, recommendedTemplate } = analyzeFiles(files);
+  const { recommendedTemplate } = analyzeFiles(files);
   const recommendations: TemplateRecommendation[] = [];
 
   // Add recommended template first

@@ -19,7 +19,7 @@ const CodeHighlighter = lazy(() =>
   import('./CodeHighlighter').then((m) => ({ default: m.CodeHighlighter }))
 );
 
-interface FilePreviewProps {
+export interface FilePreviewProps {
   filePath: string | null;
   isOpen: boolean;
   onClose: () => void;

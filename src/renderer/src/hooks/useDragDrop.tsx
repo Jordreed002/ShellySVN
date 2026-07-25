@@ -544,9 +544,15 @@ export async function performSvnOperation(
 
     try {
       if (operation === 'copy') {
-        await api.svn.copy(source, destination, `Copy from ${source}`);
+        const result = await api.svn.copy(source, destination, `Copy from ${source}`);
+        if (!result.success) {
+          throw new Error(result.error || `Failed to copy ${source}`);
+        }
       } else if (operation === 'move') {
-        await api.svn.move(source, destination);
+        const result = await api.svn.move(source, destination);
+        if (!result.success) {
+          throw new Error(`Failed to move ${source}`);
+        }
       } else if (operation === 'link') {
         // Create SVN external
         const externalName = fileName || source.split(/[/\\]/).pop() || 'external';

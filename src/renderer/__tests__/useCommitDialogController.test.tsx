@@ -61,6 +61,7 @@ const statusEntries = [
   { path: 'src/modified.ts', status: 'M', isDirectory: false },
   { path: 'src/added.ts', status: 'A', isDirectory: false },
   { path: 'src/deleted.ts', status: 'D', isDirectory: false },
+  { path: 'src/conflicted.ts', status: 'C', isDirectory: false },
   { path: 'src/unversioned.ts', status: '?', isDirectory: false },
   { path: 'src/missing.ts', status: '!', isDirectory: false },
   { path: 'vendor/external', status: 'X', isDirectory: true },
@@ -110,6 +111,10 @@ describe('useCommitDialogController file selection and filtering', () => {
     );
     expect(result.current.files.find((file) => file.path === 'src/unversioned.ts')).toMatchObject({
       committable: true,
+      selected: false,
+    });
+    expect(result.current.files.find((file) => file.path === 'src/conflicted.ts')).toMatchObject({
+      committable: false,
       selected: false,
     });
     expect(result.current.files.find((file) => file.path === 'src/missing.ts')).toMatchObject({

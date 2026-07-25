@@ -37,7 +37,7 @@ const loadSettingsDialog = () =>
 const SettingsDialog = lazy(loadSettingsDialog);
 
 function runWhenIdle(callback: () => void, timeout = 1500): () => void {
-  if ('requestIdleCallback' in window) {
+  if (typeof window.requestIdleCallback === 'function') {
     const id = window.requestIdleCallback(callback, { timeout });
     return () => window.cancelIdleCallback(id);
   }
@@ -67,6 +67,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   // Set when the rail's Search button expands the sidebar so we can focus search.
   const pendingSearchFocus = useRef(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; repo: string } | null>(
@@ -144,6 +145,17 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
     setSettingsTab('general');
     setIsSettingsDialogOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const frame = requestAnimationFrame(() => contextMenuRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [contextMenu]);
+
+  useEffect(() => {
+    window.addEventListener('shellysvn:open-settings', openSettings);
+    return () => window.removeEventListener('shellysvn:open-settings', openSettings);
+  }, [openSettings]);
 
   return (
     <>
@@ -390,7 +402,9 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
       {/* Repository context menu */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           role="menu"
+          tabIndex={-1}
           aria-label="Repository actions"
           className="context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
@@ -400,7 +414,10 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           <button
             type="button"
             role="menuitem"
-            onClick={() => handleOpenRepo(contextMenu.repo)}
+            onClick={() => {
+              handleOpenRepo(contextMenu.repo);
+              setContextMenu(null);
+            }}
             className="context-menu-item w-full"
           >
             <FolderOpen className="w-4 h-4" />

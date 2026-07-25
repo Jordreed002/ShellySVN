@@ -7,7 +7,9 @@ import { getSslTrustCache } from '../ssl-trust-cache';
 import { getSettingsManager } from '../settings-manager';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
+import { withSvnTargets } from '../utils/svn-targets';
 import { runSvnMuccText, runSvnText } from './svn-executor';
+import { getNetworkOptionsForUrl } from './svn-network-context';
 
 const MINIMUM_SVN_VERSION = '1.14';
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
@@ -135,7 +137,7 @@ export async function trustServerCertificate(
     : undefined;
 
   try {
-    await runSvnText(['info', '--xml', '--non-interactive', trimmedUrl], {
+    await runSvnText(withSvnTargets(['info', '--xml', '--non-interactive'], [trimmedUrl]), {
       trustSslFailures: true,
       trustedSslFailures,
       credentials,
@@ -214,11 +216,9 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
       }
 
       try {
-        const credentials = credentialMatch
-          ? { username: credentialMatch.username, password: credentialMatch.password }
-          : undefined;
-
-        await runSvnText(['list', '--xml', result.repositoryRoot], { credentials });
+        await runSvnText(withSvnTargets(['list', '--xml'], [result.repositoryRoot]), {
+          ...(await getNetworkOptionsForUrl(result.repositoryRoot)),
+        });
         result.connectionStatus = 'ok';
       } catch (connError) {
         const errorMsg = (connError as Error)?.message || '';

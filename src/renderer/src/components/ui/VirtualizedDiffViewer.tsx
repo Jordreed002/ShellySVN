@@ -264,12 +264,10 @@ function collapseContextLines(
  */
 const DiffFileHeader = memo(function DiffFileHeader({
   file,
-  _fileIndex,
   isCollapsed,
   onToggle,
 }: {
   file: SvnDiffFile;
-  _fileIndex: number;
   isCollapsed: boolean;
   onToggle: () => void;
 }) {
@@ -618,7 +616,6 @@ export function VirtualizedDiffViewer({
                 {line.type === 'file-header' && showFileHeaders && line.file && (
                   <DiffFileHeader
                     file={line.file}
-                    _fileIndex={line.fileIndex}
                     isCollapsed={isCollapsed}
                     onToggle={() => toggleFileCollapse(line.fileIndex)}
                   />
@@ -637,7 +634,7 @@ export function VirtualizedDiffViewer({
                         line={line.line}
                         onClick={() => {
                           if (onLineClick) {
-                            onLineClick(line.line, line.fileIndex, line.hunkIndex, line.lineIndex);
+                            onLineClick(line.line!, line.fileIndex, line.hunkIndex, line.lineIndex);
                           }
                         }}
                       />

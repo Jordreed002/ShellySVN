@@ -84,7 +84,6 @@ import {
   PropertiesDialog,
   QuickNotesPanel,
   RelocateDialog,
-  RepoBrowser,
   RepoDiagnosticsPanel,
   ResolveDialog,
   RevisionGraph,
@@ -166,7 +165,6 @@ export function FileExplorer() {
     pendingUpdateEntry,
     propertiesPath,
     relocatePath,
-    repoBrowserUrl,
     resolveEntry,
     revisionGraphPath,
     setApplyPatchPath,
@@ -188,7 +186,6 @@ export function FileExplorer() {
     setPendingUpdateEntry,
     setPropertiesPath,
     setRelocatePath,
-    setRepoBrowserUrl,
     setResolveEntry,
     setRevisionGraphPath,
     setSettingsDialogOpen,
@@ -205,6 +202,26 @@ export function FileExplorer() {
     updateDialogOpen,
   } = useFileExplorerDialogState();
   const [deepStatusProgress, setDeepStatusProgress] = useState<DeepStatusProgress | null>(null);
+
+  const openRepositoryBrowser = useCallback(
+    async (localPath: string) => {
+      const context = await window.api.svn.getWorkingCopyContext(localPath);
+      navigate({
+        to: '/repo-browser',
+        search: {
+          url: context?.url || context?.repositoryRoot || '',
+          localPath,
+        },
+      });
+    },
+    [navigate]
+  );
+  const setRepoBrowserUrl = useCallback(
+    (next: React.SetStateAction<string | null>) => {
+      if (typeof next === 'string') void openRepositoryBrowser(next);
+    },
+    [openRepositoryBrowser]
+  );
 
   const authPrompt = useFileExplorerAuthPrompt();
 
@@ -323,7 +340,14 @@ export function FileExplorer() {
   const { data: onlineFiles, isFetching: isLoadingOnline } = useQuery({
     queryKey: createSvnListQueryKey('online', onlineUrl, svnListAuthKey),
     queryFn: async () => {
-      if (!onlineUrl) return { path: '', entries: [] };
+      if (!onlineUrl) {
+        return {
+          data: { path: '', entries: [] },
+          source: 'network' as const,
+          cachedAt: Date.now(),
+          age: 0,
+        };
+      }
       const creds = storedCreds
         ? { username: storedCreds.username, password: storedCreds.password }
         : undefined;
@@ -358,7 +382,14 @@ export function FileExplorer() {
   const { data: remoteItems, isFetching: isLoadingRemoteItems } = useQuery({
     queryKey: createSvnListQueryKey('remote', effectiveUrl ?? '', svnListAuthKey),
     queryFn: async () => {
-      if (!effectiveUrl) return { path: '', entries: [] };
+      if (!effectiveUrl) {
+        return {
+          data: { path: '', entries: [] },
+          source: 'network' as const,
+          cachedAt: Date.now(),
+          age: 0,
+        };
+      }
       const creds = storedCreds
         ? { username: storedCreds.username, password: storedCreds.password }
         : undefined;
@@ -885,7 +916,9 @@ export function FileExplorer() {
       onManageLocks: (entry: SvnStatusEntry) => setLockManagementPath(entry.path),
       onExport: (entry: SvnStatusEntry) => setExportPath(entry.path),
       onImport: () => setIsImportDialogOpen(true),
-      onRepoBrowser: (entry: SvnStatusEntry) => setRepoBrowserUrl(entry.path),
+      onRepoBrowser: async (entry: SvnStatusEntry) => {
+        await openRepositoryBrowser(entry.path);
+      },
       onRevisionGraph: (entry: SvnStatusEntry) => setRevisionGraphPath(entry.path),
       // Resolve - only for conflicted files
       onResolve: (entry: SvnStatusEntry) => {
@@ -930,6 +963,7 @@ export function FileExplorer() {
       selectedPaths,
       actions,
       path,
+      openRepositoryBrowser,
       queryClient,
       invalidateCurrentPath,
       clearSelection,
@@ -955,7 +989,6 @@ export function FileExplorer() {
       setShelveDialogPath,
       setLockManagementPath,
       setExportPath,
-      setRepoBrowserUrl,
       setRevisionGraphPath,
       setResolveEntry,
       svnCapabilities?.shelving,
@@ -1830,17 +1863,6 @@ export function FileExplorer() {
             isOpen={!!revisionGraphPath}
             path={revisionGraphPath}
             onClose={() => setRevisionGraphPath(null)}
-          />
-        </Suspense>
-      )}
-
-      {/* Repo Browser */}
-      {repoBrowserUrl && (
-        <Suspense fallback={<DialogLoader />}>
-          <RepoBrowser
-            isOpen={!!repoBrowserUrl}
-            repoUrl={repoBrowserUrl}
-            onClose={() => setRepoBrowserUrl(null)}
           />
         </Suspense>
       )}

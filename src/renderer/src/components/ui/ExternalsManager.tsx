@@ -203,8 +203,11 @@ export function ExternalsManager({ isOpen, workingCopyPath, onClose }: Externals
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {externals.map((external, index) => (
-                  <div key={index} className="px-4 py-3 hover:bg-bg-tertiary">
+                {externals.map((external) => (
+                  <div
+                    key={`${external.localPath}\0${external.url}`}
+                    className="px-4 py-3 hover:bg-bg-tertiary"
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

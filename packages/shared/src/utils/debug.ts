@@ -5,8 +5,12 @@
 
 // Detect environment - works in both main and renderer processes
 const isMainProcess = typeof process !== 'undefined' && !!process.versions?.electron;
+const resourcesPath =
+  typeof process !== 'undefined'
+    ? (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+    : undefined;
 const isDev = isMainProcess
-  ? process.env.NODE_ENV === 'development' || !process.resourcesPath?.includes('app.asar')
+  ? process.env.NODE_ENV === 'development' || !resourcesPath?.includes('app.asar')
   : typeof import.meta !== 'undefined' && import.meta.env?.DEV;
 
 function formatMessage(category: string, ...args: unknown[]): unknown[] {

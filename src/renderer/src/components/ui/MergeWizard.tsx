@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   X,
   GitMerge,
@@ -94,6 +94,7 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
     onlyRecordMerge: false,
   });
   const [isMerging, setIsMerging] = useState(false);
+  const mergeInFlightRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [mergeOutput, setMergeOutput] = useState('');
@@ -214,6 +215,8 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   };
 
   const handleMerge = async () => {
+    if (mergeInFlightRef.current) return;
+    mergeInFlightRef.current = true;
     setIsMerging(true);
     setError(null);
     setMergeOutput('');
@@ -242,13 +245,13 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
     } catch (err) {
       setError((err as Error).message || 'Merge failed');
     } finally {
+      mergeInFlightRef.current = false;
       setIsMerging(false);
     }
   };
 
   const handleCancelMerge = async () => {
     await window.api.svn.cancelOperation(progress?.operationId);
-    setIsMerging(false);
   };
 
   const handleClose = () => {

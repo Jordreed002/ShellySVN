@@ -7,7 +7,7 @@ import { registerSvnHandlers } from './ipc/svn';
 import { registerDialogHandlers } from './ipc/dialog';
 import { registerAppHandlers } from './ipc/app';
 import { registerStoreHandlers } from './ipc/store';
-import { registerFsHandlers } from './ipc/fs';
+import { closeAllFileWatchers, registerFsHandlers } from './ipc/fs';
 import { registerAuthHandlers } from './ipc/auth';
 import { registerExternalHandlers } from './ipc/external';
 import { registerMonitorHandlers } from './ipc/monitor';
@@ -21,6 +21,7 @@ import { shutdownSharedWorkerPool } from './workers/WorkerPool';
 import { startLocalStatusServer, stopLocalStatusServer } from './services/local-status-server';
 import { bootstrapApprovedPaths } from './utils/approved-paths';
 import { getSettingsManager } from './settings-manager';
+import { sendToRenderer } from './utils/safe-renderer-send';
 
 let mainWindow: BrowserWindow | null = null;
 const isSmokeTest = process.argv.includes('--smoke-test');
@@ -165,7 +166,9 @@ app.whenReady().then(() => {
   ] as const;
   deepLinkActions.forEach((action) => {
     registerDeepLinkHandler(action, (link) => {
-      mainWindow?.webContents.send('deep-link', link);
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        sendToRenderer(mainWindow.webContents, 'deep-link', link);
+      }
     });
   });
 
@@ -209,6 +212,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  void closeAllFileWatchers();
   void stopLocalStatusServer();
   void shutdownSharedWorkerPool();
 });

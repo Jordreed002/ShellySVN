@@ -68,9 +68,6 @@ export const ExportDialog = lazy(() =>
 export const RevisionGraph = lazy(() =>
   import('../ui/RevisionGraph').then((m) => ({ default: m.RevisionGraph }))
 );
-export const RepoBrowser = lazy(() =>
-  import('../ui/RepoBrowser').then((m) => ({ default: m.RepoBrowser }))
-);
 export const ImportDialog = lazy(() =>
   import('../ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
 );

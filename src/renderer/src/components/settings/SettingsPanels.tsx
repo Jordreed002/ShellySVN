@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -36,6 +36,11 @@ import type {
 import { formatBytes } from '@shared/utils/formatBytes';
 
 import { promptAppInput } from '../../utils/dialogs';
+
+function clampedInteger(value: string, minimum: number, maximum: number, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.min(Math.max(parsed, minimum), maximum) : fallback;
+}
 // ============================================
 // General Settings Tab
 // ============================================
@@ -360,7 +365,9 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
             min="0"
             max="3600"
             value={settings.autoRefreshInterval}
-            onChange={(e) => onChange('autoRefreshInterval', parseInt(e.target.value) || 0)}
+            onChange={(e) =>
+              onChange('autoRefreshInterval', clampedInteger(e.target.value, 0, 3600, 0))
+            }
             className="input w-24 text-center"
           />
           <span className="text-sm text-text-secondary">seconds</span>
@@ -377,7 +384,9 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
             <div className="flex flex-wrap gap-2">
               {settings.globalIgnorePatterns.map((pattern, index) => (
                 <span
-                  key={index}
+                  key={`${pattern}:${settings.globalIgnorePatterns
+                    .slice(0, index)
+                    .filter((candidate) => candidate === pattern).length}`}
                   className="inline-flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded text-sm"
                 >
                   {pattern}
@@ -436,7 +445,11 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
                   type="number"
                   value={settings.proxySettings.port}
                   onChange={(e) =>
-                    onChangeNested('proxySettings', 'port', parseInt(e.target.value) || 8080)
+                    onChangeNested(
+                      'proxySettings',
+                      'port',
+                      clampedInteger(e.target.value, 1, 65535, 8080)
+                    )
                   }
                   className="input"
                 />
@@ -493,7 +506,9 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
             min="5"
             max="300"
             value={settings.connectionTimeout}
-            onChange={(e) => onChange('connectionTimeout', parseInt(e.target.value) || 30)}
+            onChange={(e) =>
+              onChange('connectionTimeout', clampedInteger(e.target.value, 5, 300, 30))
+            }
             className="input w-20 text-center"
           />
           <span className="text-sm text-text-muted">seconds</span>
@@ -548,6 +563,11 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
 
 export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
   const toolOverrides = settings.diffMerge.externalToolOverrides ?? [];
+  const toolOverrideIds = useRef<string[]>([]);
+  while (toolOverrideIds.current.length < toolOverrides.length) {
+    toolOverrideIds.current.push(crypto.randomUUID());
+  }
+  toolOverrideIds.current.length = toolOverrides.length;
 
   const handleBrowseDiffTool = async () => {
     const path = await window.api.dialog.openFile([
@@ -581,6 +601,7 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
   };
 
   const addToolOverride = () => {
+    toolOverrideIds.current.push(crypto.randomUUID());
     onChangeNested('diffMerge', 'externalToolOverrides', [
       ...toolOverrides,
       { extension: '', diffTool: '', mergeTool: '' },
@@ -588,6 +609,7 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
   };
 
   const removeToolOverride = (index: number) => {
+    toolOverrideIds.current.splice(index, 1);
     onChangeNested(
       'diffMerge',
       'externalToolOverrides',
@@ -647,7 +669,10 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
       >
         <div className="space-y-3">
           {toolOverrides.map((override, index) => (
-            <div key={index} className="grid grid-cols-[96px_1fr_1fr_auto] gap-2 items-center">
+            <div
+              key={toolOverrideIds.current[index]}
+              className="grid grid-cols-[96px_1fr_1fr_auto] gap-2 items-center"
+            >
               <input
                 type="text"
                 value={override.extension}
@@ -737,7 +762,11 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
             max="20"
             value={settings.diffMerge.contextLines}
             onChange={(e) =>
-              onChangeNested('diffMerge', 'contextLines', parseInt(e.target.value) || 3)
+              onChangeNested(
+                'diffMerge',
+                'contextLines',
+                clampedInteger(e.target.value, 0, 20, 3)
+              )
             }
             className="input w-20 text-center"
           />
@@ -827,7 +856,11 @@ export function DialogsSettingsTab({ settings, onChangeNested }: NestedSettingsP
               max="500"
               value={settings.dialogs.logMessagesPerPage}
               onChange={(e) =>
-                onChangeNested('dialogs', 'logMessagesPerPage', parseInt(e.target.value) || 100)
+                onChangeNested(
+                  'dialogs',
+                  'logMessagesPerPage',
+                  clampedInteger(e.target.value, 10, 500, 100)
+                )
               }
               className="input w-24 text-center"
             />
@@ -841,7 +874,11 @@ export function DialogsSettingsTab({ settings, onChangeNested }: NestedSettingsP
               step="100"
               value={settings.dialogs.maxCachedMessages}
               onChange={(e) =>
-                onChangeNested('dialogs', 'maxCachedMessages', parseInt(e.target.value) || 1000)
+                onChangeNested(
+                  'dialogs',
+                  'maxCachedMessages',
+                  clampedInteger(e.target.value, 100, 10000, 1000)
+                )
               }
               className="input w-24 text-center"
             />
@@ -925,7 +962,11 @@ export function NotificationsSettingsTab({ settings, onChangeNested }: NestedSet
             max="600"
             value={settings.notifications.monitorPollInterval}
             onChange={(e) =>
-              onChangeNested('notifications', 'monitorPollInterval', parseInt(e.target.value) || 60)
+              onChangeNested(
+                'notifications',
+                'monitorPollInterval',
+                clampedInteger(e.target.value, 10, 600, 60)
+              )
             }
             className="input w-24 text-center"
           />
@@ -1486,6 +1527,7 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
   const platform = window.electron?.process?.platform;
   const sshSettings = settings.sshSettings ?? {
     sshClientPath: '',
@@ -1516,6 +1558,7 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
   }, [isOpen]);
 
   const handleRemove = async (realm: string) => {
+    setCredentialError(null);
     try {
       await window.api.auth.delete(realm);
       const list = await window.api.auth.list();
@@ -1526,16 +1569,17 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
         setEditPassword('');
       }
     } catch {
-      setCredentials([]);
+      setCredentialError('Could not remove the saved credential.');
     }
   };
 
   const handleClearAll = async () => {
+    setCredentialError(null);
     try {
       await window.api.auth.clear();
       setCredentials([]);
     } catch {
-      setCredentials([]);
+      setCredentialError('Could not clear saved credentials.');
     }
   };
 
@@ -1555,13 +1599,14 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
     if (!editingRealm || !editUsername.trim() || !editPassword) return;
 
     setIsSavingEdit(true);
+    setCredentialError(null);
     try {
       await window.api.auth.set(editingRealm, editUsername.trim(), editPassword);
       const list = await window.api.auth.list();
       setCredentials(list);
       handleCancelEdit();
     } catch {
-      setCredentials([]);
+      setCredentialError('Could not update the saved credential.');
     } finally {
       setIsSavingEdit(false);
     }
@@ -1612,6 +1657,11 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
 
   return (
     <div className="space-y-6">
+      {credentialError && (
+        <div role="alert" className="rounded-lg border border-error/20 bg-error/10 p-3 text-sm text-error">
+          {credentialError}
+        </div>
+      )}
       {isEncryptionAvailable === null ? (
         <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
           <div className="flex items-center gap-2">
@@ -1759,7 +1809,9 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
         <p className="text-xs text-text-secondary">
           Client certificate management coming soon. For now, configure certificates in the SVN tab.
         </p>
-        <div className="text-xs text-text-faint">Current certificate path: Not configured</div>
+        <div className="text-xs text-text-faint">
+          Current certificate path: {settings.clientCertificatePath || 'Not configured'}
+        </div>
       </div>
 
       {/* SSH Keys Section */}
@@ -2017,7 +2069,9 @@ export function AdvancedSettings({
               max="1000"
               step="10"
               value={settings.maxLogCacheSize}
-              onChange={(e) => onChange('maxLogCacheSize', parseInt(e.target.value) || 100)}
+              onChange={(e) =>
+                onChange('maxLogCacheSize', clampedInteger(e.target.value, 10, 1000, 100))
+              }
               className="input w-24 text-center"
             />
             <span className="text-sm text-text-muted">MB</span>
@@ -2089,19 +2143,6 @@ export function AdvancedSettings({
         )}
       </SettingsGroup>
 
-      {/* Danger Zone */}
-      <div className="pt-4 border-t border-border">
-        <div className="p-4 rounded-lg border border-error/20 bg-error/5">
-          <h4 className="text-sm font-medium text-error mb-2">Danger Zone</h4>
-          <p className="text-xs text-text-muted mb-3">
-            These actions cannot be undone. Be careful.
-          </p>
-          <button onClick={() => setShowResetConfirm(true)} className="btn btn-danger">
-            <AlertTriangle className="w-4 h-4" />
-            Factory Reset
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

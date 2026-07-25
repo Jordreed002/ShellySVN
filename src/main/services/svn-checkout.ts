@@ -3,6 +3,7 @@ import type { CheckoutOptions, SvnExecutionContext, SvnOperationRevision } from 
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
+import { sendToRenderer } from '../utils/safe-renderer-send';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 
@@ -290,7 +291,7 @@ export async function checkoutWithProgress(
       for (const sparseRelativePath of sparseRelativePaths) {
         currentPath = sparseRelativePath;
         filesProcessed++;
-        event.sender.send('svn:checkout:progress', {
+        sendToRenderer(event.sender, 'svn:checkout:progress', {
           checkoutId,
           action: null,
           path: sparseRelativePath,
@@ -348,7 +349,7 @@ export async function checkoutWithProgress(
             const now = Date.now();
             if (now - lastProgressTime >= progressThrottleMs) {
               lastProgressTime = now;
-              event.sender.send('svn:checkout:progress', {
+              sendToRenderer(event.sender, 'svn:checkout:progress', {
                 checkoutId,
                 action: progress.action,
                 path: progress.path,
@@ -361,7 +362,7 @@ export async function checkoutWithProgress(
     });
 
     if (currentPath) {
-      event.sender.send('svn:checkout:progress', {
+      sendToRenderer(event.sender, 'svn:checkout:progress', {
         checkoutId,
         action: null,
         path: currentPath,

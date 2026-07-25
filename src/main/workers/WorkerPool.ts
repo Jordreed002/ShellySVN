@@ -52,6 +52,7 @@ interface ActiveJob {
   payload: WorkerJobPayloadMap[WorkerJobName];
   worker: Worker;
   timeout: NodeJS.Timeout | null;
+  cancellationTimeout: NodeJS.Timeout | null;
   resolve: (result: WorkerJobResultMap[WorkerJobName]) => void;
   reject: (error: Error) => void;
   onProgress?: (progress: WorkerProgressEvent) => void;
@@ -63,10 +64,13 @@ export interface WorkerPoolOptions {
   workerScript?: string;
   maxQueuedJobs?: number;
   backgroundAgingMs?: number;
+  cancellationGraceMs?: number;
 }
 
 export const DEFAULT_MAX_QUEUED_WORKER_JOBS = 1000;
 export const DEFAULT_BACKGROUND_WORKER_AGING_MS = 5_000;
+export const DEFAULT_WORKER_CANCELLATION_GRACE_MS = 1_000;
+export const DEFAULT_READ_WORKER_TIMEOUT_MS = 5 * 60_000;
 
 const COALESCIBLE_READ_JOBS = new Set<WorkerJobName>([
   'fs:folderSizes',
@@ -133,6 +137,7 @@ export class WorkerPool {
   private readonly workerScript: string;
   private readonly maxQueuedJobs: number;
   private readonly backgroundAgingMs: number;
+  private readonly cancellationGraceMs: number;
   private readonly queue: QueuedJob[] = [];
   private readonly activeJobs = new Map<string, ActiveJob>();
   private readonly workers = new Set<Worker>();
@@ -143,6 +148,8 @@ export class WorkerPool {
     this.workerScript = options.workerScript ?? getDefaultWorkerScript();
     this.maxQueuedJobs = options.maxQueuedJobs ?? DEFAULT_MAX_QUEUED_WORKER_JOBS;
     this.backgroundAgingMs = options.backgroundAgingMs ?? DEFAULT_BACKGROUND_WORKER_AGING_MS;
+    this.cancellationGraceMs =
+      options.cancellationGraceMs ?? DEFAULT_WORKER_CANCELLATION_GRACE_MS;
   }
 
   run<N extends WorkerJobName>(
@@ -209,8 +216,9 @@ export class WorkerPool {
         payload,
         priority,
         queuedAt: Date.now(),
-        timeoutMs: options.timeoutMs,
-        resolve,
+        timeoutMs:
+          options.timeoutMs ?? (COALESCIBLE_READ_JOBS.has(name) ? DEFAULT_READ_WORKER_TIMEOUT_MS : undefined),
+        resolve: resolve as (result: WorkerJobResultMap[WorkerJobName]) => void,
         reject,
         onProgress: options.onProgress,
         subscribers: [],
@@ -235,6 +243,13 @@ export class WorkerPool {
 
     // oxlint-disable-next-line eslint-plugin-unicorn(require-post-message-target-origin)
     active.worker.postMessage({ type: 'cancel', id });
+    active.cancellationTimeout ??= setTimeout(() => {
+      const current = this.activeJobs.get(id);
+      if (!current || current !== active) return;
+      this.workers.delete(active.worker);
+      void active.worker.terminate();
+      active.reject(new WorkerJobCancelledError());
+    }, this.cancellationGraceMs);
     return true;
   }
 
@@ -330,10 +345,14 @@ export class WorkerPool {
   private startJob<N extends WorkerJobName>(worker: Worker, job: QueuedJob<N>) {
     let settled = false;
     let timeout: NodeJS.Timeout | null = null;
+    let cancellationTimeout: NodeJS.Timeout | null = null;
 
     const cleanup = () => {
       if (timeout) {
         clearTimeout(timeout);
+      }
+      if (cancellationTimeout) {
+        clearTimeout(cancellationTimeout);
       }
       this.activeJobs.delete(job.id);
       this.startNext();
@@ -372,6 +391,12 @@ export class WorkerPool {
     this.activeJobs.set(job.id, {
       worker,
       timeout,
+      get cancellationTimeout() {
+        return cancellationTimeout;
+      },
+      set cancellationTimeout(value: NodeJS.Timeout | null) {
+        cancellationTimeout = value;
+      },
       reject,
       resolve: resolve as (result: WorkerJobResultMap[WorkerJobName]) => void,
       onProgress: job.onProgress,
@@ -395,6 +420,9 @@ export class WorkerPool {
     if (active.timeout) {
       clearTimeout(active.timeout);
     }
+    if (active.cancellationTimeout) {
+      clearTimeout(active.cancellationTimeout);
+    }
     this.activeJobs.delete(id);
     active.resolve(result);
   }
@@ -406,6 +434,9 @@ export class WorkerPool {
     if (active.timeout) {
       clearTimeout(active.timeout);
     }
+    if (active.cancellationTimeout) {
+      clearTimeout(active.cancellationTimeout);
+    }
     this.activeJobs.delete(id);
     active.reject(error);
   }
@@ -415,6 +446,9 @@ export class WorkerPool {
       if (active.worker === worker) {
         if (active.timeout) {
           clearTimeout(active.timeout);
+        }
+        if (active.cancellationTimeout) {
+          clearTimeout(active.cancellationTimeout);
         }
         this.activeJobs.delete(id);
         active.reject(error);
@@ -441,6 +475,9 @@ export class WorkerPool {
     for (const [id, active] of this.activeJobs) {
       if (active.timeout) {
         clearTimeout(active.timeout);
+      }
+      if (active.cancellationTimeout) {
+        clearTimeout(active.cancellationTimeout);
       }
       active.reject(new WorkerJobCancelledError('Worker pool is shutting down'));
       // oxlint-disable-next-line eslint-plugin-unicorn(require-post-message-target-origin)

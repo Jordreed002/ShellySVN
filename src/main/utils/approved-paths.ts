@@ -1,5 +1,5 @@
-import { writeFileSync, readFileSync } from 'fs';
-import { isAbsolute, join, relative, resolve } from 'path';
+import { existsSync, realpathSync, writeFileSync, readFileSync } from 'fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'path';
 
 const approvedRoots = new Set<string>();
 
@@ -8,7 +8,20 @@ const approvedRoots = new Set<string>();
 let persistenceFile: string | null = null;
 
 function normalizePath(path: string): string {
-  return resolve(path);
+  const normalized = resolve(path);
+  let existingAncestor = normalized;
+  while (!existsSync(existingAncestor)) {
+    const parent = dirname(existingAncestor);
+    if (parent === existingAncestor) return normalized;
+    existingAncestor = parent;
+  }
+
+  try {
+    const canonicalAncestor = realpathSync.native(existingAncestor);
+    return resolve(canonicalAncestor, relative(existingAncestor, normalized));
+  } catch {
+    return normalized;
+  }
 }
 
 function isInsideRoot(root: string, candidate: string): boolean {
@@ -62,8 +75,11 @@ export function assertPathApprovedForIpc(path: string, operation: string): strin
 /**
  * Initialize the approved-roots registry for the running app:
  * - restores roots persisted from previous sessions,
- * - approves the user's home directory (so the file explorer is browsable),
  * - approves the supplied recent repository roots.
+ *
+ * Roots remain approved across restarts until the persisted registry is cleared.
+ * Canonical real paths prevent symlinks inside an approved root from escaping it;
+ * moved or replaced roots must be selected again.
  *
  * Lazily imports Electron so this module stays dependency-free for unit tests.
  */
@@ -80,12 +96,6 @@ export async function bootstrapApprovedPaths(recentRepoRoots: string[] = []): Pr
     }
   } catch {
     // No persisted file yet (or unreadable) — start fresh.
-  }
-
-  try {
-    approvedRoots.add(normalizePath(app.getPath('home')));
-  } catch {
-    // home not resolvable — skip
   }
 
   for (const root of recentRepoRoots) {

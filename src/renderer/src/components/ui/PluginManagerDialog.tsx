@@ -96,6 +96,7 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
       const timer = setTimeout(() => setSuccessMessage(null), 3000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [successMessage]);
 
   const handleEnableDisable = async (plugin: PluginInstance) => {

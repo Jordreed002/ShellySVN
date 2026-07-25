@@ -13,7 +13,7 @@
 
 import { app, safeStorage } from 'electron';
 import { readFile, writeFile, access, mkdir } from 'fs/promises';
-import { existsSync, statSync } from 'fs';
+import { accessSync, constants, existsSync, statSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join } from 'path';
 import type { AppSettings, SvnExecutionContext, ProxySettings } from '@shared/types';
@@ -41,6 +41,9 @@ class SettingsManager {
   private savePromise: Promise<void> = Promise.resolve();
   private listeners: Set<(settings: AppSettings) => void> = new Set();
   private encryptionAvailable: boolean;
+  private validatedSvnClient:
+    | { path: string; size: number; modifiedAt: number }
+    | null = null;
 
   private constructor() {
     const userDataPath = app.getPath('userData');
@@ -85,18 +88,28 @@ class SettingsManager {
 
   private validateSvnClientPath(path: string): void {
     const trimmedPath = path.trim();
+    this.validatedSvnClient = null;
     if (!trimmedPath) return;
 
-    if (!existsSync(trimmedPath)) {
+    const approvedPath = assertPathApprovedForIpc(trimmedPath, 'Custom SVN client selection');
+
+    if (!existsSync(approvedPath)) {
       throw new Error('Custom SVN client path does not exist.');
     }
 
-    const stats = statSync(trimmedPath);
+    const stats = statSync(approvedPath);
     if (!stats.isFile()) {
       throw new Error('Custom SVN client path must point to an executable file.');
     }
+    if (process.platform !== 'win32') {
+      try {
+        accessSync(approvedPath, constants.X_OK);
+      } catch {
+        throw new Error('Custom SVN client path is not executable.');
+      }
+    }
 
-    const version = spawnSync(trimmedPath, ['--version', '--quiet'], {
+    const version = spawnSync(approvedPath, ['--version', '--quiet'], {
       timeout: 3000,
       windowsHide: true,
       encoding: 'utf-8',
@@ -104,6 +117,23 @@ class SettingsManager {
 
     if (version.error || version.status !== 0) {
       throw new Error('Custom SVN client path did not run `svn --version --quiet` successfully.');
+    }
+
+    this.validatedSvnClient = {
+      path: approvedPath,
+      size: stats.size,
+      modifiedAt: stats.mtimeMs,
+    };
+  }
+
+  private isSvnClientValidationCurrent(path: string): boolean {
+    const cached = this.validatedSvnClient;
+    if (!cached || cached.path !== path) return false;
+    try {
+      const stats = statSync(path);
+      return stats.isFile() && stats.size === cached.size && stats.mtimeMs === cached.modifiedAt;
+    } catch {
+      return false;
     }
   }
 
@@ -322,8 +352,14 @@ class SettingsManager {
   getSvnClientPath(): string {
     if (this.settings.svnClientPath && this.settings.svnClientPath.trim()) {
       try {
-        this.validateSvnClientPath(this.settings.svnClientPath);
-        return this.settings.svnClientPath.trim();
+        const approvedPath = assertPathApprovedForIpc(
+          this.settings.svnClientPath.trim(),
+          'Custom SVN client selection'
+        );
+        if (!this.isSvnClientValidationCurrent(approvedPath)) {
+          this.validateSvnClientPath(approvedPath);
+        }
+        return approvedPath;
       } catch (error) {
         console.warn(
           '[SECURITY] Ignoring invalid custom SVN client path:',

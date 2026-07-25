@@ -1,7 +1,8 @@
 import { createHmac } from 'crypto';
 import { lookup } from 'dns/promises';
 import { ipcMain } from 'electron';
-import { BlockList, isIP } from 'net';
+import { request as httpsRequest } from 'https';
+import { BlockList, isIP, type LookupFunction } from 'net';
 import type { WebhookDeliverRequest, WebhookDeliverResult } from '@shared/types';
 import { getAuthCache } from '../auth-cache';
 import { redactForLog } from '../utils/redaction';
@@ -36,6 +37,10 @@ function normalizeTimeout(timeout?: number): number {
 }
 
 function isBlockedWebhookAddress(address: string): boolean {
+  const mappedIpv4 = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address)?.[1];
+  if (mappedIpv4) {
+    return isBlockedWebhookAddress(mappedIpv4);
+  }
   const ipVersion = isIP(address);
   if (ipVersion !== 4 && ipVersion !== 6) {
     return true;
@@ -44,7 +49,13 @@ function isBlockedWebhookAddress(address: string): boolean {
   return BLOCKED_WEBHOOK_ADDRESSES.check(address, ipVersion === 4 ? 'ipv4' : 'ipv6');
 }
 
-async function validateWebhookUrl(url: string): Promise<URL> {
+interface ValidatedWebhookTarget {
+  url: URL;
+  address: string;
+  family: 4 | 6;
+}
+
+async function validateWebhookUrl(url: string): Promise<ValidatedWebhookTarget> {
   const parsed = new URL(url);
   if (parsed.protocol !== 'https:') {
     throw new Error('Webhook URL must use https.');
@@ -68,10 +79,10 @@ async function validateWebhookUrl(url: string): Promise<URL> {
     if (isBlockedWebhookAddress(hostname)) {
       throw new Error('Webhook URL must not target local or private network addresses.');
     }
-    return parsed;
+    return { url: parsed, address: hostname, family: isIP(hostname) as 4 | 6 };
   }
 
-  let addresses: Array<{ address: string }>;
+  let addresses: Array<{ address: string; family: number }>;
   try {
     addresses = await lookup(hostname, { all: true, verbatim: true });
   } catch {
@@ -82,18 +93,70 @@ async function validateWebhookUrl(url: string): Promise<URL> {
     throw new Error('Webhook URL must not target local or private network addresses.');
   }
 
-  return parsed;
+  const selected = addresses.find(
+    (entry): entry is { address: string; family: 4 | 6 } =>
+      entry.family === 4 || entry.family === 6
+  );
+  if (!selected) {
+    throw new Error('Webhook hostname could not be resolved.');
+  }
+
+  return { url: parsed, address: selected.address, family: selected.family };
 }
 
 function buildSignature(secret: string, payload: string): string {
   return `sha256=${createHmac('sha256', secret).update(payload).digest('hex')}`;
 }
 
+function postWebhook(
+  target: ValidatedWebhookTarget,
+  headers: Record<string, string>,
+  payload: string,
+  timeout: number
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const pinnedLookup = ((_: string, options: unknown, callback: (...args: unknown[]) => void) => {
+      if (typeof options === 'object' && options !== null && 'all' in options && options.all) {
+        callback(null, [{ address: target.address, family: target.family }]);
+      } else {
+        callback(null, target.address, target.family);
+      }
+    }) as LookupFunction;
+
+    const request = httpsRequest(
+      target.url,
+      {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Length': String(Buffer.byteLength(payload, 'utf8')),
+        },
+        lookup: pinnedLookup,
+      },
+      (response) => {
+        response.resume();
+        const status = response.statusCode ?? 0;
+        if (status >= 300 && status < 400) {
+          reject(new Error('Webhook redirects are not allowed.'));
+          return;
+        }
+        resolve(status);
+      }
+    );
+
+    request.setTimeout(timeout, () => {
+      request.destroy(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+    });
+    request.on('error', reject);
+    request.end(payload);
+  });
+}
+
 async function deliverWebhook(request: WebhookDeliverRequest): Promise<WebhookDeliverResult> {
   const startTime = Date.now();
 
   try {
-    const url = await validateWebhookUrl(request.url);
+    const target = await validateWebhookUrl(request.url);
     const timeout = normalizeTimeout(request.timeout);
     const payload = JSON.stringify(request.payload);
     if (typeof payload !== 'string') {
@@ -114,25 +177,12 @@ async function deliverWebhook(request: WebhookDeliverRequest): Promise<WebhookDe
       headers['X-ShellySVN-Signature-256'] = buildSignature(storedSecret.password, payload);
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    try {
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers,
-        body: payload,
-        signal: controller.signal,
-      });
-
-      return {
-        success: response.ok,
-        statusCode: response.status,
-        responseTime: Date.now() - startTime,
-      };
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const statusCode = await postWebhook(target, headers, payload, timeout);
+    return {
+      success: statusCode >= 200 && statusCode < 300,
+      statusCode,
+      responseTime: Date.now() - startTime,
+    };
   } catch (error) {
     const message =
       error instanceof Error && error.name === 'AbortError'

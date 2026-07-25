@@ -353,6 +353,7 @@ export function FileTreeView({
       '?': 'Unversioned',
       '!': 'Missing',
       '~': 'Obstructed',
+      O: 'Remote Only',
     };
     return labels[status];
   }

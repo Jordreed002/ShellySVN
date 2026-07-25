@@ -169,6 +169,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
+        const target = e.target as HTMLElement | null;
+        if (target?.matches('input, select, textarea, [contenteditable="true"]')) return;
         onClose();
       }
     };

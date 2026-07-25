@@ -477,13 +477,6 @@ export function registerShellIntegrationHandlers(): void {
     return { success: true };
   });
 
-  // Update overlays batch
-  ipcMain.handle('shell:updateOverlays', async (_, overlays: OverlayIcon[]) => {
-    const shell = getShellIntegration();
-    await shell.updateOverlays(overlays);
-    return { success: true };
-  });
-
   // Clear overlay
   ipcMain.handle('shell:clearOverlay', async (_, path: string) => {
     const shell = getShellIntegration();

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 /**
  * Default timeout for webhook requests (10 seconds)
@@ -92,6 +92,8 @@ function isValidWebhookUrl(url: string): boolean {
 export function useWebhooks() {
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
+  const deliveriesRef = useRef<WebhookDelivery[]>([]);
+  const deliverySavePromiseRef = useRef<Promise<void>>(Promise.resolve());
   const [isLoading, setIsLoading] = useState(true);
 
   /**
@@ -135,7 +137,10 @@ export function useWebhooks() {
           await saveWebhooks(migratedWebhooks);
         }
       }
-      if (storedDeliveries) setDeliveries(storedDeliveries);
+      if (storedDeliveries) {
+        deliveriesRef.current = storedDeliveries;
+        setDeliveries(storedDeliveries);
+      }
     } catch (error) {
       console.error('Failed to load webhooks:', error);
     } finally {
@@ -147,13 +152,27 @@ export function useWebhooks() {
    * Save deliveries to storage
    */
   const saveDeliveries = useCallback(async (newDeliveries: WebhookDelivery[]) => {
+    const trimmed = newDeliveries.slice(-100);
+    const save = deliverySavePromiseRef.current
+      .catch(() => undefined)
+      .then(() => window.api.store.set(DELIVERIES_KEY, trimmed));
+    deliverySavePromiseRef.current = save;
     try {
-      // Keep only last 100 deliveries
-      const trimmed = newDeliveries.slice(-100);
-      await window.api.store.set(DELIVERIES_KEY, trimmed);
+      await save;
     } catch (error) {
       console.error('Failed to save deliveries:', error);
     }
+  }, []);
+
+  const mergeDelivery = useCallback((delivery: WebhookDelivery): WebhookDelivery[] => {
+    const current = deliveriesRef.current;
+    const exists = current.some((item) => item.id === delivery.id);
+    const next = exists
+      ? current.map((item) => (item.id === delivery.id ? delivery : item))
+      : [...current, delivery];
+    deliveriesRef.current = next;
+    setDeliveries(next);
+    return next;
   }, []);
 
   /**
@@ -262,7 +281,7 @@ export function useWebhooks() {
       if (!webhook.enabled) return false;
 
       const delivery: WebhookDelivery = {
-        id: `delivery-${Date.now()}`,
+        id: `delivery-${crypto.randomUUID()}`,
         webhookId: webhook.id,
         event: payload.event,
         timestamp: Date.now(),
@@ -271,8 +290,7 @@ export function useWebhooks() {
       };
 
       // Add to deliveries
-      const newDeliveries = [...deliveries, delivery];
-      setDeliveries(newDeliveries);
+      mergeDelivery(delivery);
 
       try {
         if (!isValidWebhookUrl(webhook.url)) {
@@ -298,10 +316,7 @@ export function useWebhooks() {
           error: result.error,
         };
 
-        const updatedDeliveries = newDeliveries.map((d) =>
-          d.id === delivery.id ? updatedDelivery : d
-        );
-        setDeliveries(updatedDeliveries);
+        const updatedDeliveries = mergeDelivery(updatedDelivery);
         await saveDeliveries(updatedDeliveries);
 
         // Update webhook last triggered
@@ -319,10 +334,7 @@ export function useWebhooks() {
           error: error instanceof Error ? error.message : 'Unknown error',
         };
 
-        const updatedDeliveries = newDeliveries.map((d) =>
-          d.id === delivery.id ? updatedDelivery : d
-        );
-        setDeliveries(updatedDeliveries);
+        const updatedDeliveries = mergeDelivery(updatedDelivery);
         await saveDeliveries(updatedDeliveries);
 
         await updateWebhook(webhook.id, {
@@ -333,7 +345,7 @@ export function useWebhooks() {
         return false;
       }
     },
-    [deliveries, saveDeliveries, updateWebhook]
+    [mergeDelivery, saveDeliveries, updateWebhook]
   );
 
   /**

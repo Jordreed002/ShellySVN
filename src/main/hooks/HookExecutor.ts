@@ -1,5 +1,12 @@
 import { spawn } from 'child_process';
 import { BrowserWindow } from 'electron';
+import { accessSync, constants, statSync } from 'fs';
+import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { sendToRenderer } from '../utils/safe-renderer-send';
+
+const DEFAULT_HOOK_TIMEOUT_MS = 60_000;
+const HOOK_KILL_GRACE_MS = 1_000;
+const MAX_HOOK_OUTPUT_BYTES = 64 * 1024;
 
 export interface HookScript {
   id: string;
@@ -16,6 +23,7 @@ export interface HookScript {
   enabled: boolean;
   waitForResult: boolean;
   showConsole: boolean;
+  timeoutMs?: number;
 }
 
 export interface HookContext {
@@ -38,6 +46,23 @@ export interface HookResult {
  */
 export async function executeHook(hook: HookScript, context: HookContext): Promise<HookResult> {
   return new Promise((resolve) => {
+    let hookPath: string;
+    try {
+      hookPath = assertPathApprovedForIpc(hook.path, `Hook "${hook.name}"`);
+      if (!statSync(hookPath).isFile()) {
+        throw new Error('Hook path must point to a file.');
+      }
+      if (process.platform !== 'win32') {
+        accessSync(hookPath, constants.X_OK);
+      }
+    } catch (error) {
+      resolve({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+
     const args = [context.workingCopyPath];
 
     if (context.files && context.files.length > 0) {
@@ -56,8 +81,8 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
       args.push('--force');
     }
 
-    const proc = spawn(hook.path, args, {
-      detached: !hook.waitForResult,
+    const proc = spawn(hookPath, args, {
+      detached: true,
       stdio: hook.showConsole ? 'inherit' : 'pipe',
       env: {
         ...process.env,
@@ -68,17 +93,46 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
 
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    let forceKillTimer: NodeJS.Timeout | null = null;
+
+    const appendBounded = (current: string, data: unknown): string => {
+      const next = current + String(data);
+      return Buffer.byteLength(next) <= MAX_HOOK_OUTPUT_BYTES
+        ? next
+        : Buffer.from(next).subarray(0, MAX_HOOK_OUTPUT_BYTES).toString();
+    };
+
+    const finish = (result: HookResult, preserveForceKill = false) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (forceKillTimer && !preserveForceKill) clearTimeout(forceKillTimer);
+      resolve(result);
+    };
+
+    const terminateProcessTree = (signal: NodeJS.Signals) => {
+      try {
+        if (process.platform !== 'win32' && proc.pid) {
+          process.kill(-proc.pid, signal);
+        } else {
+          proc.kill(signal);
+        }
+      } catch {
+        // The process may already have exited.
+      }
+    };
 
     proc.stdout?.on('data', (data) => {
-      stdout += data.toString();
+      stdout = appendBounded(stdout, data);
     });
 
     proc.stderr?.on('data', (data) => {
-      stderr += data.toString();
+      stderr = appendBounded(stderr, data);
     });
 
     proc.on('close', (code) => {
-      resolve({
+      finish({
         success: code === 0,
         output: stdout,
         error: stderr || undefined,
@@ -87,16 +141,31 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
     });
 
     proc.on('error', (err) => {
-      resolve({
+      finish({
         success: false,
         error: err.message,
       });
     });
 
+    const timeoutMs = Math.min(Math.max(hook.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS, 1_000), 600_000);
+    const timeout = setTimeout(() => {
+      terminateProcessTree('SIGTERM');
+      forceKillTimer = setTimeout(() => terminateProcessTree('SIGKILL'), HOOK_KILL_GRACE_MS);
+      finish(
+        {
+          success: false,
+          output: stdout || undefined,
+          error: `Hook timed out after ${timeoutMs / 1000} seconds.`,
+        },
+        true
+      );
+    }, timeoutMs);
+
     // If not waiting for result, resolve immediately
     if (!hook.waitForResult) {
+      clearTimeout(timeout);
       proc.unref();
-      resolve({ success: true });
+      finish({ success: true });
     }
   });
 }
@@ -138,5 +207,7 @@ export function notifyHookExecution(
   hookId: string,
   result: HookResult
 ): void {
-  window?.webContents.send('hook:executed', { hookId, result });
+  if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+    sendToRenderer(window.webContents, 'hook:executed', { hookId, result });
+  }
 }

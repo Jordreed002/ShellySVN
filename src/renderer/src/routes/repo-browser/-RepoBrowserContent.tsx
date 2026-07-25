@@ -160,6 +160,14 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
 
   const { data: workingCopyContext } = useWorkingCopyContext(localPath);
 
+  useEffect(() => {
+    setUsername('');
+    setPassword('');
+    setCredentials(null);
+    setAuthRealm('');
+    setShowAuthPrompt(false);
+  }, [repoUrl]);
+
   // Auto-fill saved credentials when auth prompt appears
   useEffect(() => {
     if (showAuthPrompt && authRealm) {
@@ -597,7 +605,12 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     setCopyRemoteError(null);
 
     try {
-      const result = await window.api.svn.copy(copyTarget.url, trimmedDestination, trimmedMessage);
+      const result = await window.api.svn.copy(
+        copyTarget.url,
+        trimmedDestination,
+        trimmedMessage,
+        credentials || undefined
+      );
 
       if (!result.success) {
         setCopyRemoteError(result.error || 'Failed to copy remote item.');
@@ -612,7 +625,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
     } finally {
       setIsCopyingRemote(false);
     }
-  }, [copyDestinationUrl, copyMessage, copyTarget, listQueryKey, queryClient, refetch]);
+  }, [copyDestinationUrl, copyMessage, copyTarget, credentials, listQueryKey, queryClient, refetch]);
 
   const handleConnect = useCallback(async () => {
     if (!isValidUrl) return;
@@ -715,7 +728,7 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
   );
 
   const formatSize = (bytes?: number): string => {
-    if (!bytes) return '-';
+    if (bytes === undefined) return '-';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -738,6 +751,12 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
 
   const handleCloseAuthPrompt = useCallback(() => {
     setShowAuthPrompt(false);
+    setUsername('');
+    setPassword('');
+    setCredentials(null);
+    setAuthRealm('');
+    setIsConnected(false);
+    setConnectionError('Authentication was cancelled.');
   }, []);
 
   const handleOpenCheckout = useCallback(() => {
@@ -760,7 +779,12 @@ export function RepoBrowserContent({ localPath }: RepoBrowserContentProps = EMPT
           type="text"
           value={repoUrl}
           onChange={(e) => setRepoUrl(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              if (isConnected) void refetch();
+              else void handleConnect();
+            }
+          }}
           placeholder="Enter repository URL (https://, svn://, svn+ssh://)"
           className="flex-1 px-3 py-1.5 text-sm bg-bg-tertiary border border-border rounded-md text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
         />

@@ -6,9 +6,12 @@
     "src/preload/**/*",
     "packages/shared/src/**/*"
   ],
+  "exclude": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx", "src/__test-utils__/**"],
   "compilerOptions": {
     "composite": true,
-    "types": ["electron-vite/node"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["electron-vite/node", "node"],
     "baseUrl": ".",
     "paths": {
       "@main/*": ["src/main/*"],

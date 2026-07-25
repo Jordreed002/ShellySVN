@@ -35,9 +35,9 @@ export async function exportRepository(
   path: string,
   revision?: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
-  const args = ['export', '--non-interactive', url, path];
+  const args = ['export', '--non-interactive'];
   if (revision) args.push('-r', revision);
-  const output = await runSvnText(args);
+  const output = await runSvnText(withSvnTargets(args, [url, path]));
   const match = output.match(/Exported revision (\d+)\./);
   return {
     success: true,
@@ -53,9 +53,14 @@ export async function exportRepositoryWithProgress(
   path: string,
   revision?: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
-  const args = ['export', '--non-interactive', url, path];
+  const args = ['export', '--non-interactive'];
   if (revision) args.push('-r', revision);
-  return runSvnOperationWithProgress(event, operationId, 'export', args);
+  return runSvnOperationWithProgress(
+    event,
+    operationId,
+    'export',
+    withSvnTargets(args, [url, path])
+  );
 }
 
 export async function importRepository(
@@ -63,7 +68,9 @@ export async function importRepository(
   url: string,
   message: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
-  const output = await runSvnText(['import', '-m', message, '--non-interactive', path, url]);
+  const output = await runSvnText(
+    withSvnTargets(['import', '-m', message, '--non-interactive'], [path, url])
+  );
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -78,14 +85,12 @@ export async function importRepositoryWithProgress(
   url: string,
   message: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
-  return runSvnOperationWithProgress(event, operationId, 'import', [
+  return runSvnOperationWithProgress(
+    event,
+    operationId,
     'import',
-    '-m',
-    message,
-    '--non-interactive',
-    path,
-    url,
-  ]);
+    withSvnTargets(['import', '-m', message, '--non-interactive'], [path, url])
+  );
 }
 
 export async function resolveConflict(
@@ -128,9 +133,9 @@ export async function switchWorkingCopy(
   url: string,
   revision?: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
-  const args = ['switch', url, path];
+  const args = ['switch'];
   if (revision) args.push('-r', revision);
-  const output = await runSvnText(args);
+  const output = await runSvnText(withSvnTargets(args, [url, path]));
   return {
     success: true,
     revision: parseUpdatedRevision(output),
@@ -141,16 +146,21 @@ export async function switchWorkingCopy(
 export async function copyRepositoryItem(
   src: string,
   dst: string,
-  message: string
+  message: string,
+  credentials?: SvnCredentials
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
-  const validationError = await validateCopyTarget(src, dst, message);
+  const validationError = await validateCopyTarget(src, dst, message, credentials);
   if (validationError) {
     return { success: false, revision: null, error: validationError };
   }
 
-  const output = await runSvnText(
-    withSvnTargets(['copy', '-m', message.trim().replace(/\0/g, '')], [src, dst])
+  const args = withSvnTargets(
+    ['copy', '-m', message.trim().replace(/\0/g, ''), '--non-interactive'],
+    [src, dst]
   );
+  const output = credentials
+    ? await runSvnText(args, { credentials })
+    : await runSvnText(args);
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -255,7 +265,8 @@ export async function moveRemoteItem(
 async function validateCopyTarget(
   src: string,
   dst: string,
-  message: string
+  message: string,
+  credentials?: SvnCredentials
 ): Promise<string | null> {
   if (!message.trim()) {
     return 'Branch/tag creation requires a log message.';
@@ -273,16 +284,17 @@ async function validateCopyTarget(
     return 'Branch/tag destination must be a valid SVN URL.';
   }
 
-  const sourceIdentity = await requireRepositoryTarget(src, 'Branch/tag source');
+  const sourceIdentity = await requireRepositoryTarget(src, 'Branch/tag source', credentials);
   const parentIdentity = await requireRepositoryTarget(
     getRemoteParentUrl(dst),
-    'Branch/tag destination parent'
+    'Branch/tag destination parent',
+    credentials
   );
   const identityError = validateSameRepository(sourceIdentity, parentIdentity, 'Branch/tag copy');
   if (identityError) {
     return identityError;
   }
-  return validateDestinationDoesNotExist(dst, 'Branch/tag destination');
+  return validateDestinationDoesNotExist(dst, 'Branch/tag destination', credentials);
 }
 
 async function requireRepositoryTarget(

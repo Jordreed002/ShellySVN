@@ -12,6 +12,7 @@ import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
 const STORAGE_KEY = 'shellysvn:issue-trackers';
 
 type IssueTrackerStore = Record<string, IssueTrackerConfig>;
+const inheritedConfigCache = new Map<string, Promise<IssueTrackerConfig | null>>();
 
 export function useIssueTrackerConfig(workingCopyPath: string, lookupPath = workingCopyPath) {
   const [config, setConfig] = useState<IssueTrackerConfig>(DEFAULT_ISSUE_TRACKER_CONFIG);
@@ -71,6 +72,9 @@ export function useIssueTrackerConfig(workingCopyPath: string, lookupPath = work
         const stored = (await window.api.store.get<IssueTrackerStore>(STORAGE_KEY)) || {};
         stored[workingCopyPath] = nextConfig;
         await window.api.store.set(STORAGE_KEY, stored);
+        for (const key of inheritedConfigCache.keys()) {
+          if (key.startsWith(`${workingCopyPath}\0`)) inheritedConfigCache.delete(key);
+        }
       } catch (error) {
         debug.error('Failed to save issue tracker config:', error);
       }
@@ -82,6 +86,21 @@ export function useIssueTrackerConfig(workingCopyPath: string, lookupPath = work
 }
 
 async function loadInheritedBugtraqConfig(
+  lookupPath: string,
+  workingCopyPath: string,
+  isCancelled: () => boolean
+): Promise<IssueTrackerConfig | null> {
+  const cacheKey = `${workingCopyPath}\0${lookupPath}`;
+  const cached = inheritedConfigCache.get(cacheKey);
+  if (cached) return cached;
+
+  if (isCancelled()) return null;
+  const loadPromise = loadInheritedBugtraqConfigUncached(lookupPath, workingCopyPath, () => false);
+  inheritedConfigCache.set(cacheKey, loadPromise);
+  return loadPromise;
+}
+
+async function loadInheritedBugtraqConfigUncached(
   lookupPath: string,
   workingCopyPath: string,
   isCancelled: () => boolean

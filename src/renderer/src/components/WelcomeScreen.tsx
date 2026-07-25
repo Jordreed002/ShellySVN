@@ -30,6 +30,7 @@ export function WelcomeScreen() {
   const [addRepoModalTab, setAddRepoModalTab] = useState<'open' | 'checkout' | 'import'>('open');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
 
   const handleOpenWorkingCopy = useCallback(
     async (path: string) => {
@@ -54,22 +55,29 @@ export function WelcomeScreen() {
     async (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
+      setDropError(null);
 
-      const items = e.dataTransfer.items;
-      for (const item of items) {
-        if (item.kind === 'file') {
-          const entry = item.webkitGetAsEntry?.();
-          if (entry?.isDirectory) {
-            const path = (entry as FileSystemDirectoryEntry).fullPath;
-            // Try to verify it's a working copy
-            try {
-              await window.api.svn.info(path);
-              handleOpenWorkingCopy(path);
-            } catch {
-              console.log('Not a valid SVN working copy');
-            }
-          }
+      const file = e.dataTransfer.files.item(0);
+      if (!file) {
+        setDropError('Drop a working-copy folder to open it.');
+        return;
+      }
+
+      const path = window.api.dialog.getPathForFile(file);
+      if (!path) {
+        setDropError('The dropped folder path could not be read.');
+        return;
+      }
+
+      try {
+        const info = await window.api.svn.info(path);
+        if (!info) {
+          setDropError('That folder is not an SVN working copy.');
+          return;
         }
+        await handleOpenWorkingCopy(path);
+      } catch {
+        setDropError('That folder is not an SVN working copy.');
       }
     },
     [handleOpenWorkingCopy]
@@ -86,6 +94,11 @@ export function WelcomeScreen() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      {dropError && (
+        <div role="alert" className="mx-auto mt-4 rounded-md bg-error/10 px-4 py-2 text-sm text-error">
+          {dropError}
+        </div>
+      )}
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto scrollbar-overlay">
         <m.div

@@ -277,7 +277,10 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       ),
     resolve: (path, resolution) => invokeIpc('svn:resolve', path, resolution),
     switch: (path, url, revision?) => invokeIpc('svn:switch', path, url, revision),
-    copy: (src, dst, message) => invokeIpc('svn:copy', src, dst, message),
+    copy: (src, dst, message, credentials?) =>
+      credentials
+        ? invokeIpc('svn:copy', src, dst, message, credentials)
+        : invokeIpc('svn:copy', src, dst, message),
     remoteCreateFolder: (parentUrl, folderName, message, credentials?) =>
       invokeIpc('svn:remoteCreateFolder', parentUrl, folderName, message, credentials),
     remoteDelete: (url, message, credentials?) =>

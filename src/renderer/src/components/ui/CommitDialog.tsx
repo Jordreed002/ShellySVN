@@ -56,6 +56,7 @@ const STATUS_CONFIG: Record<SvnStatusChar, { label: string; color: string }> = {
   '?': { label: 'Unversioned', color: 'text-text-secondary' },
   '!': { label: 'Missing', color: 'text-error' },
   '~': { label: 'Obstructed', color: 'text-warning' },
+  O: { label: 'Remote only', color: 'text-info' },
 };
 
 function DiffPreviewLoader() {

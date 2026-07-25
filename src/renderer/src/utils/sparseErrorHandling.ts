@@ -34,7 +34,7 @@ export interface SparseCheckoutError {
   suggestions: string[];
   retryable: boolean;
   requiresAuth: boolean;
-  originalError?: Error | string;
+  originalError?: unknown;
 }
 
 /**

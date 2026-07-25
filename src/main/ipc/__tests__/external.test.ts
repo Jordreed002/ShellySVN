@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -364,7 +365,7 @@ describe('External IPC Handlers', () => {
       const result = await handler!({}, approvedFolder);
 
       expect(result).toEqual({ success: true });
-      expect(mockState.shellOpenPath).toHaveBeenCalledWith(approvedFolder);
+      expect(mockState.shellOpenPath).toHaveBeenCalledWith(realpathSync(approvedFolder));
     });
 
     it('should report the operating-system error when a folder cannot be opened', async () => {
@@ -392,7 +393,7 @@ describe('External IPC Handlers', () => {
       approvePathForIpc(approvedRoot);
 
       await expect(handler!({}, approvedFile)).resolves.toEqual({ success: true });
-      expect(mockState.shellShowItemInFolder).toHaveBeenCalledWith(approvedFile);
+      expect(mockState.shellShowItemInFolder).toHaveBeenCalledWith(realpathSync(approvedFile));
       expect(mockState.shellOpenPath).not.toHaveBeenCalled();
     });
 
@@ -401,7 +402,7 @@ describe('External IPC Handlers', () => {
       approvePathForIpc(approvedRoot);
 
       await expect(handler!({}, approvedFolder)).resolves.toEqual({ success: true });
-      expect(mockState.shellOpenPath).toHaveBeenCalledWith(approvedFolder);
+      expect(mockState.shellOpenPath).toHaveBeenCalledWith(realpathSync(approvedFolder));
       expect(mockState.shellShowItemInFolder).not.toHaveBeenCalled();
     });
 

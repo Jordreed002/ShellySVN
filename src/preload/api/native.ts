@@ -19,8 +19,8 @@ export function createMonitorApi(invokeIpc: InvokeIpc): ElectronAPI['monitor'] {
     addWorkingCopy: (path) => invokeIpc('monitor:addWorkingCopy', path),
     removeWorkingCopy: (path) => invokeIpc('monitor:removeWorkingCopy', path),
     refreshStatus: (path) => invokeIpc('monitor:refreshStatus', path),
-    startMonitoring: () => invokeIpc('monitor:startMonitoring').then(() => undefined),
-    stopMonitoring: () => invokeIpc('monitor:stopMonitoring').then(() => undefined),
+    startMonitoring: () => invokeIpc('monitor:startMonitoring'),
+    stopMonitoring: () => invokeIpc('monitor:stopMonitoring'),
   };
 }
 
@@ -66,7 +66,9 @@ export function createFsApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): Ele
   };
 }
 
-export function createDialogApi(invokeIpc: InvokeIpc): ElectronAPI['dialog'] {
+export function createDialogApi(
+  invokeIpc: InvokeIpc
+): Omit<ElectronAPI['dialog'], 'getPathForFile'> {
   return {
     openDirectory: () => invokeIpc('dialog:openDirectory'),
     openFile: (filters) => invokeIpc('dialog:openFile', filters),

@@ -51,14 +51,14 @@ export function AutoCompleteInput({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   const setInputRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
       inputRef.current = node;
       if (textareaRef) {
-        textareaRef.current = node;
+        (textareaRef as { current: HTMLTextAreaElement | null }).current = node;
       }
     },
     [textareaRef]

@@ -341,6 +341,7 @@ describe('svn-working-copy cleanup', () => {
       '--remove-ignored',
       '--vacuum-pristines',
       '--include-externals',
+      '--',
       'C:\\wc',
     ]);
   });
@@ -362,6 +363,7 @@ describe('svn-working-copy cleanup', () => {
       '--no-ignore',
       '--depth',
       'infinity',
+      '--',
       'C:\\wc',
     ]);
   });
@@ -609,7 +611,7 @@ describe('svn-working-copy upgrade helpers', () => {
     const result = await getWorkingCopyUpgradeStatus('/wc');
 
     expect(result).toEqual({ path: '/wc', required: false });
-    expect(mockState.runSvnText).toHaveBeenCalledWith(['info', '--xml', '/wc']);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['info', '--xml', '--', '/wc']);
   });
 
   it('detects old working copy metadata errors', async () => {

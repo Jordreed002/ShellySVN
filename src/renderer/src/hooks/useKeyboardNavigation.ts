@@ -104,7 +104,6 @@ export function useKeyboardNavigation<T = unknown>(
     columns = 1,
     getItem,
     scrollIntoView = true,
-    _containerRef,
   } = options;
 
   const focusedRef = useRef<HTMLElement | null>(null);
@@ -115,7 +114,11 @@ export function useKeyboardNavigation<T = unknown>(
 
   // Update focused index
   const setFocusedIndex = useCallback(
-    (index: number) => {
+    (indexOrUpdater: number | ((previous: number) => number)) => {
+      const index =
+        typeof indexOrUpdater === 'function'
+          ? indexOrUpdater(controlledFocusedIndex ?? internalFocusedIndex)
+          : indexOrUpdater;
       const clampedIndex = Math.max(0, Math.min(index, itemCount - 1));
 
       if (onFocusedIndexChange) {
@@ -124,7 +127,7 @@ export function useKeyboardNavigation<T = unknown>(
         setInternalFocusedIndex(clampedIndex);
       }
     },
-    [itemCount, onFocusedIndexChange]
+    [controlledFocusedIndex, internalFocusedIndex, itemCount, onFocusedIndexChange]
   );
 
   // Navigation helpers

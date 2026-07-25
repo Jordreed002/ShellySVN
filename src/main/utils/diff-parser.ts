@@ -336,6 +336,15 @@ export class StreamingDiffParser extends Transform {
    */
   private handleContentLine(parsed: LineMeta): void {
     if (!this.currentHunk) return;
+    if (
+      parsed.type !== 'added' &&
+      parsed.type !== 'removed' &&
+      parsed.type !== 'context' &&
+      parsed.type !== 'header' &&
+      parsed.type !== 'hunk'
+    ) {
+      return;
+    }
 
     // Skip context if not included
     if (!this.includeContext && parsed.type === 'context') return;
@@ -439,7 +448,7 @@ export class StreamingDiffParser extends Transform {
     this.files = [];
     this.currentFile = null;
     this.currentHunk = null;
-    return super.destroy(error);
+    return super.destroy(error ?? undefined);
   }
 }
 

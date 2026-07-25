@@ -77,6 +77,7 @@ describe('svn-repository-ops copyRepositoryItem', () => {
       'copy',
       '-m',
       'msg',
+      '--non-interactive',
       '--',
       'C:\\wc\\trunk',
       'https://example.test/svn/repo/branches/feature',
@@ -197,6 +198,7 @@ describe('svn-repository-ops copyRepositoryItem', () => {
       'copy',
       '-m',
       'copy historical trunk',
+      '--non-interactive',
       '--',
       'https://example.test/svn/repo/trunk@41',
       'https://example.test/svn/repo/branches/Feature%20Space/new',
@@ -448,10 +450,11 @@ describe('svn-repository-ops switch and relocate', () => {
     });
     expect(mockState.runSvnText).toHaveBeenCalledWith([
       'switch',
-      'https://example.test/svn/repo/branches/a',
-      'C:\\wc',
       '-r',
       '77',
+      '--',
+      'https://example.test/svn/repo/branches/a',
+      'C:\\wc',
     ]);
   });
 

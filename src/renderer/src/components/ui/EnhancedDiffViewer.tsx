@@ -97,29 +97,29 @@ export function EnhancedDiffViewer({
     (direction: 'next' | 'prev') => {
       if (searchMatches.length === 0) return;
 
-      setCurrentMatchIndex((prev) => {
-        const newIndex =
+      setCurrentMatchIndex((prev) =>
           direction === 'next'
             ? prev < searchMatches.length - 1
               ? prev + 1
               : 0
             : prev > 0
               ? prev - 1
-              : searchMatches.length - 1;
-
-        // Scroll the matched element into view
-        setTimeout(() => {
-          const matchElement = contentRef.current?.querySelector(
-            `[data-match-index="${newIndex}"]`
-          );
-          matchElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 0);
-
-        return newIndex;
-      });
+              : searchMatches.length - 1
+      );
     },
     [searchMatches.length]
   );
+
+  useEffect(() => {
+    if (searchMatches.length === 0) return;
+    const frame = requestAnimationFrame(() => {
+      const matchElement = contentRef.current?.querySelector(
+        `[data-match-index="${currentMatchIndex}"]`
+      );
+      matchElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [currentMatchIndex, searchMatches.length]);
 
   // Copy line content
   const copyLine = useCallback(async (content: string, lineNum: number) => {
@@ -358,7 +358,6 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
                       highlightStyle={highlightStyle}
                       onCopyLine={onCopyLine}
                       copiedLine={copiedLine}
-                      _isDarkTheme={isDarkTheme}
                     />
                   );
                 })}
@@ -386,7 +385,6 @@ interface UnifiedDiffLineProps {
   highlightStyle: typeof oneDark;
   onCopyLine: (content: string, lineNum: number) => void;
   copiedLine: number | null;
-  _isDarkTheme: boolean;
 }
 
 const UnifiedDiffLine = memo(function UnifiedDiffLine({
@@ -401,7 +399,6 @@ const UnifiedDiffLine = memo(function UnifiedDiffLine({
   highlightStyle,
   onCopyLine,
   copiedLine,
-  _isDarkTheme,
 }: UnifiedDiffLineProps) {
   const lineNum = line.oldLineNumber ?? line.newLineNumber ?? lineIndex;
 

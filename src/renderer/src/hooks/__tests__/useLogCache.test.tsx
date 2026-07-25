@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SvnCacheEntry, SvnLogEntry, SvnLogResult } from '@shared/types';
@@ -184,6 +185,26 @@ describe('useLogCache', () => {
       path: 'C:/repo',
       revision: 700,
     });
+  });
+
+  it('does not recreate refreshLog or refetch after a successful cache write', async () => {
+    svnApi.log.mockResolvedValue(makeLog(2, 700));
+
+    const { result } = renderHook(() => {
+      const log = useCachedLog('C:/repo', 50);
+      const refreshLog = log.refreshLog;
+      useEffect(() => {
+        void refreshLog();
+      }, [refreshLog]);
+      return log;
+    });
+    const initialRefreshLog = result.current.refreshLog;
+
+    await waitFor(() => expect(cacheApi.set).toHaveBeenCalledTimes(1));
+    await act(async () => Promise.resolve());
+
+    expect(svnApi.log).toHaveBeenCalledTimes(1);
+    expect(result.current.refreshLog).toBe(initialRefreshLog);
   });
 
   it('keeps different result limits in separate cache entries', async () => {

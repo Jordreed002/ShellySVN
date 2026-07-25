@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { electronAPI } from '@electron-toolkit/preload';
 import type { ElectronAPI } from '@shared/types';
 import {
@@ -27,7 +27,10 @@ const api: ElectronAPI = {
   external: createExternalApi(invokeIpc),
   monitor: createMonitorApi(invokeIpc),
   fs: createFsApi(ipcRenderer, invokeIpc),
-  dialog: createDialogApi(invokeIpc),
+  dialog: {
+    ...createDialogApi(invokeIpc),
+    getPathForFile: (file) => webUtils.getPathForFile(file),
+  },
   app: createAppApi(invokeIpc),
   store: createStoreApi(invokeIpc),
   svnCache: createSvnCacheApi(invokeIpc),

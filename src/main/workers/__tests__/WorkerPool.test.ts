@@ -277,6 +277,42 @@ describe('WorkerPool', () => {
     expect(pool.getStateForTests()).toMatchObject({ activeCount: 0, queuedCount: 0 });
   });
 
+  it('terminates an unresponsive worker and rejects every joined caller after cancellation', async () => {
+    const stubbornWorkerScript = join(tempDir, 'stubborn-worker.cjs');
+    await writeFile(
+      stubbornWorkerScript,
+      `
+const { parentPort } = require('worker_threads');
+parentPort.on('message', (message) => {
+  if (message.type !== 'cancel') {
+    setInterval(() => {}, 1000);
+  }
+});
+`
+    );
+    const pool = new WorkerPool({
+      maxWorkers: 1,
+      workerScript: stubbornWorkerScript,
+      cancellationGraceMs: 10,
+    });
+    const first = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/stuck', svnCommand: 'svn', context: {} },
+      { id: 'stuck' }
+    );
+    const joined = pool.run(
+      'svn:deepStatus',
+      { dirPath: '/repo/stuck', svnCommand: 'svn', context: {} },
+      { id: 'stuck' }
+    );
+
+    expect(pool.cancel('stuck')).toBe(true);
+    await expect(first).rejects.toBeInstanceOf(WorkerJobCancelledError);
+    await expect(joined).rejects.toBeInstanceOf(WorkerJobCancelledError);
+    expect(pool.getStateForTests()).toMatchObject({ activeCount: 0, workerCount: 0 });
+    await pool.shutdown();
+  });
+
   it('runs interactive jobs before queued background jobs', async () => {
     const pool = new WorkerPool({ maxWorkers: 1, workerScript });
 

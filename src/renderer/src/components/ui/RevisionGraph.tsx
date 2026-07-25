@@ -304,6 +304,7 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
+    return undefined;
   }, [isOpen]);
 
   const handleExport = useCallback(async () => {
@@ -658,14 +659,6 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() =>
-                    window.api.svn.log(path, 1, selectedNode.revision, selectedNode.revision)
-                  }
-                  className="btn btn-secondary btn-sm"
-                >
-                  View Log
-                </button>
                 <button onClick={() => setSelectedNode(null)} className="btn btn-secondary btn-sm">
                   Clear
                 </button>

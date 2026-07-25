@@ -11,6 +11,8 @@ const mockGetPath = vi.hoisted(() =>
 const mockIsEncryptionAvailable = vi.hoisted(() => vi.fn().mockReturnValue(true));
 const mockExistsSync = vi.hoisted(() => vi.fn().mockReturnValue(false));
 const mockStatSync = vi.hoisted(() => vi.fn());
+const mockAccessSync = vi.hoisted(() => vi.fn());
+const mockSpawnSync = vi.hoisted(() => vi.fn());
 const mockAssertPathApproved = vi.hoisted(() => vi.fn((path: string) => path));
 
 vi.mock('electron', () => ({
@@ -32,12 +34,14 @@ vi.mock('fs/promises', () => ({
 }));
 
 vi.mock('fs', () => ({
+  accessSync: mockAccessSync,
+  constants: { X_OK: 1 },
   existsSync: mockExistsSync,
   statSync: mockStatSync,
 }));
 
 vi.mock('child_process', () => ({
-  spawnSync: vi.fn(),
+  spawnSync: mockSpawnSync,
 }));
 
 vi.mock('../utils/approved-paths', () => ({
@@ -60,6 +64,8 @@ describe('SettingsManager migration and persistence', () => {
     mockIsEncryptionAvailable.mockReturnValue(true);
     mockExistsSync.mockReturnValue(false);
     mockStatSync.mockReset();
+    mockAccessSync.mockReset();
+    mockSpawnSync.mockReset();
     mockAssertPathApproved.mockImplementation((path: string) => path);
   });
 
@@ -162,5 +168,32 @@ describe('SettingsManager migration and persistence', () => {
     await expect(manager.updateSettings({ maxLogCacheSize: 1 })).rejects.toThrow(
       'between 10 and 1000 MB'
     );
+  });
+
+  it('validates an approved custom SVN executable once and revalidates after replacement', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockStatSync.mockReturnValue({
+      isFile: () => true,
+      isDirectory: () => false,
+      size: 1024,
+      mtimeMs: 10,
+    });
+    mockSpawnSync.mockReturnValue({ status: 0 });
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+
+    await manager.updateSettings({ svnClientPath: '/approved/svn' });
+    expect(manager.getSvnClientPath()).toBe('/approved/svn');
+    expect(manager.getSvnClientPath()).toBe('/approved/svn');
+    expect(mockSpawnSync).toHaveBeenCalledTimes(1);
+
+    mockStatSync.mockReturnValue({
+      isFile: () => true,
+      isDirectory: () => false,
+      size: 2048,
+      mtimeMs: 20,
+    });
+    expect(manager.getSvnClientPath()).toBe('/approved/svn');
+    expect(mockSpawnSync).toHaveBeenCalledTimes(2);
   });
 });

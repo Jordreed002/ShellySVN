@@ -1,6 +1,0 @@
-export { registerSvnHandlers } from './svn';
-export { registerDialogHandlers } from './dialog';
-export { registerAppHandlers } from './app';
-export { registerStoreHandlers } from './store';
-export { registerAuthHandlers } from './auth';
-export { registerWebhookHandlers } from './webhook';

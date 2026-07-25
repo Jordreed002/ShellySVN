@@ -119,18 +119,36 @@ export class LocalStatusServer {
       unlinkSync(this.socketPath);
     }
 
-    this.server = createServer((socket) => this.handleConnection(socket));
+    const server = createServer((socket) => this.handleConnection(socket));
+    this.server = server;
 
-    await new Promise<void>((resolve, reject) => {
-      this.server?.once('error', reject);
-      this.server?.listen(this.socketPath, () => {
-        this.server?.off('error', reject);
-        if (process.platform !== 'win32') {
-          chmodSync(this.socketPath, 0o600);
-        }
-        resolve();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const handleStartupError = (error: Error) => reject(error);
+        server.once('error', handleStartupError);
+        server.listen(this.socketPath, () => {
+          server.off('error', handleStartupError);
+          try {
+            if (process.platform !== 'win32') {
+              chmodSync(this.socketPath, 0o600);
+            }
+            server.on('error', this.handleServerError);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        });
       });
-    });
+    } catch (error) {
+      server.removeListener('error', this.handleServerError);
+      if (server.listening) {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+      if (this.server === server) {
+        this.server = null;
+      }
+      throw error;
+    }
   }
 
   async stop(): Promise<void> {
@@ -138,7 +156,10 @@ export class LocalStatusServer {
     this.server = null;
     if (!server) return;
 
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    server.removeListener('error', this.handleServerError);
+    if (server.listening) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
 
     if (process.platform !== 'win32' && existsSync(this.socketPath)) {
       unlinkSync(this.socketPath);
@@ -148,6 +169,10 @@ export class LocalStatusServer {
   private handleConnection(socket: Socket): void {
     socket.setEncoding('utf8');
     let buffer = '';
+
+    socket.on('error', (error) => {
+      console.warn('[local-status-server] Socket error:', error.message);
+    });
 
     socket.on('data', (chunk) => {
       buffer += chunk;
@@ -183,14 +208,26 @@ export class LocalStatusServer {
       }
     });
   }
+
+  private readonly handleServerError = (error: Error): void => {
+    console.error('[local-status-server] Server error:', error);
+  };
 }
 
 let localStatusServer: LocalStatusServer | null = null;
 
 export async function startLocalStatusServer(userDataPath: string): Promise<LocalStatusServer> {
-  localStatusServer ??= new LocalStatusServer({ userDataPath });
-  await localStatusServer.start();
-  return localStatusServer;
+  const server = localStatusServer ?? new LocalStatusServer({ userDataPath });
+  localStatusServer = server;
+  try {
+    await server.start();
+    return server;
+  } catch (error) {
+    if (localStatusServer === server) {
+      localStatusServer = null;
+    }
+    throw error;
+  }
 }
 
 export function getLocalStatusServerAuthToken(): string | null {

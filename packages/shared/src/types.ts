@@ -1166,7 +1166,8 @@ export interface ElectronAPI {
     copy: (
       src: string,
       dst: string,
-      message: string
+      message: string,
+      credentials?: { username: string; password: string }
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
@@ -1325,11 +1326,11 @@ export interface ElectronAPI {
   };
   monitor: {
     getWorkingCopies: () => Promise<WorkingCopyInfo[]>;
-    addWorkingCopy: (path: string) => Promise<{ success: boolean }>;
+    addWorkingCopy: (path: string) => Promise<{ success: boolean; error?: string }>;
     removeWorkingCopy: (path: string) => Promise<{ success: boolean }>;
     refreshStatus: (path: string) => Promise<WorkingCopyInfo | null>;
-    startMonitoring: () => Promise<void>;
-    stopMonitoring: () => Promise<void>;
+    startMonitoring: () => Promise<OperationResult>;
+    stopMonitoring: () => Promise<OperationResult>;
   };
   fs: {
     listDirectory: (path: string) => Promise<FileInfo[]>;
@@ -1366,6 +1367,7 @@ export interface ElectronAPI {
     exists: (path: string) => Promise<boolean>;
   };
   dialog: {
+    getPathForFile: (file: File) => string;
     openDirectory: () => Promise<string | null>;
     openFile: (filters?: FileFilter[]) => Promise<string | null>;
     saveFile: (defaultName?: string) => Promise<string | null>;

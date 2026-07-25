@@ -40,6 +40,11 @@ const DEFAULT_CONFIG: OfflineCacheConfig = {
 
 // Module-level constant for default config to avoid new instances on every render
 const EMPTY_PARTIAL_CONFIG: Partial<OfflineCacheConfig> = {};
+const DEFAULT_LOG_LIMIT = 100;
+
+function getLogCacheKey(path: string, limit = DEFAULT_LOG_LIMIT): string {
+  return `${path}:${limit}`;
+}
 const CACHE_NAMESPACES: SvnCacheNamespace[] = ['info', 'status', 'log', 'entries'];
 const sharedEntries: Record<SvnCacheNamespace, Map<string, SvnCacheEntry>> = {
   info: new Map(),
@@ -215,7 +220,8 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PART
    * Get cached log
    */
   const getLog = useCallback(
-    (path: string): SvnLogResult | null => getSharedValue('log', path),
+    (path: string, limit = DEFAULT_LOG_LIMIT): SvnLogResult | null =>
+      getSharedValue('log', getLogCacheKey(path, limit)),
     []
   );
 
@@ -223,8 +229,14 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PART
    * Set cached log
    */
   const setLog = useCallback(
-    async (path: string, data: SvnLogResult, ttl?: number) => {
-      await setSharedValue('log', path, path, data, ttl || cfg.defaultTtl);
+    async (path: string, data: SvnLogResult, ttl?: number, limit = DEFAULT_LOG_LIMIT) => {
+      await setSharedValue(
+        'log',
+        getLogCacheKey(path, limit),
+        path,
+        data,
+        ttl || cfg.defaultTtl
+      );
     },
     [cfg.defaultTtl]
   );
@@ -431,19 +443,17 @@ export function useOfflineAware(path: string) {
    */
   const getLog = useCallback(
     async (limit?: number): Promise<SvnLogResult | null> => {
-      const cacheKey = `${path}:${limit || 100}`;
-
       if (isOffline) {
-        return cache.getLog(cacheKey);
+        return cache.getLog(path, limit);
       }
 
       try {
         const result = assertSuccessfulSvnRead(await window.api.svn.log(path, limit));
-        await cache.setLog(cacheKey, result);
+        await cache.setLog(path, result, undefined, limit);
         return result;
       } catch {
         // Fallback to cache on error
-        return cache.getLog(cacheKey);
+        return cache.getLog(path, limit);
       }
     },
     [isOffline, path, cache]

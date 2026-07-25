@@ -253,7 +253,7 @@ export function CheckoutDialog({
       if (result.success) {
         setSuccess({ revision: result.revision ?? 0, path: path.trim() });
       } else {
-        setError(result.output || 'Checkout failed');
+        handleCheckoutError(result.output || 'Checkout failed');
       }
     } catch (err) {
       setError((err as Error).message || 'Checkout failed');
@@ -334,7 +334,8 @@ export function CheckoutDialog({
         // Save credentials if requested
         if (provideCredentials && saveCredentials && username.trim()) {
           try {
-            const realm = url.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || url.trim();
+            const realm =
+              authRealm || url.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || url.trim();
             await window.api.auth.set(realm, username.trim(), password);
           } catch {
             // Ignore credential save errors

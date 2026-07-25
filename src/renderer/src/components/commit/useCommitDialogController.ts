@@ -44,8 +44,8 @@ interface UseCommitDialogControllerOptions {
   onSubmit: CommitDialogSubmit;
 }
 
-const COMMITABLE_STATUSES: SvnStatusChar[] = ['M', 'A', 'D', 'R', 'C', '?'];
-const DISPLAY_ONLY_STATUSES: SvnStatusChar[] = ['!', '~', 'X'];
+const COMMITABLE_STATUSES: SvnStatusChar[] = ['M', 'A', 'D', 'R', '?'];
+const DISPLAY_ONLY_STATUSES: SvnStatusChar[] = ['C', '!', '~', 'X'];
 const COMMIT_MESSAGE_PREFIXES = [
   'feat: ',
   'fix: ',
@@ -111,9 +111,11 @@ export function useCommitDialogController({
   const deferredMessage = useDeferredValue(message);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const submissionInFlightRef = useRef(false);
+  const selectionScopeRef = useRef<string | null>(null);
   const { history, addMessage } = useCommitMessageHistory();
   const { templates, applyTemplate } = useCommitTemplates();
-  const issueTrackerLookupPath = files.find((file) => file.selected)?.path || workingCopyPath;
+  const issueTrackerLookupPath = workingCopyPath;
   const { config: issueTrackerConfig, updateConfig: updateIssueTrackerConfig } =
     useIssueTrackerConfig(workingCopyPath, issueTrackerLookupPath);
   const { rules, updateRules } = useCommitRules(workingCopyPath, issueTrackerConfig);
@@ -123,8 +125,9 @@ export function useCommitDialogController({
     onEscape: () => {
       if (!isSubmitting) onClose();
     },
-    initialFocus: () => textareaRef.current,
+    initialFocus: textareaRef,
     returnFocus: true,
+    allowOutsideClick: true,
   });
 
   const dialogId = useMemo(() => `commit-dialog-${Math.random().toString(36).slice(2, 11)}`, []);
@@ -187,11 +190,22 @@ export function useCommitDialogController({
             selected: committable && entry.status !== '?',
           };
         });
-      setFiles(commitFiles);
+      setFiles((previous) => {
+        const sameScope = selectionScopeRef.current === workingCopyPath;
+        selectionScopeRef.current = workingCopyPath;
+        if (!sameScope) return commitFiles;
+        const previousByPath = new Map(previous.map((file) => [file.path, file]));
+        return commitFiles.map((file) => {
+          const existing = previousByPath.get(file.path);
+          return existing
+            ? { ...file, selected: file.committable && existing.selected }
+            : file;
+        });
+      });
     } else if (isOpen) {
       setFiles([]);
     }
-  }, [isOpen, statusEntries]);
+  }, [isOpen, statusEntries, workingCopyPath]);
 
   const selectedFileSummaries = useMemo(
     () =>
@@ -366,6 +380,7 @@ export function useCommitDialogController({
     } else {
       setValidationWarnings([]);
     }
+    return undefined;
   }, [message]);
 
   const handleToggleFile = (path: string) => {
@@ -441,6 +456,7 @@ export function useCommitDialogController({
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submissionInFlightRef.current) return;
 
     if (!message.trim()) {
       setError('Please enter a commit message');
@@ -457,17 +473,24 @@ export function useCommitDialogController({
       return;
     }
 
+    submissionInFlightRef.current = true;
     setIsSubmitting(true);
     setError(null);
 
-    const pathsToCommit = selectedFiles.map((file) => file.path);
-    const result = await onSubmit(pathsToCommit, message.trim());
+    try {
+      const pathsToCommit = selectedFiles.map((file) => file.path);
+      const result = await onSubmit(pathsToCommit, message.trim());
 
-    if (result.success) {
-      addMessage(message.trim(), workingCopyPath);
-      setSuccess({ revision: result.revision || 0 });
-    } else {
-      setError(result.message || 'Commit failed');
+      if (result.success) {
+        addMessage(message.trim(), workingCopyPath);
+        setSuccess({ revision: result.revision || 0 });
+      } else {
+        setError(result.message || 'Commit failed');
+      }
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Commit failed');
+    } finally {
+      submissionInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };

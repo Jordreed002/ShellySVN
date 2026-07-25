@@ -238,9 +238,7 @@ export function generateDeepLink(
   action: DeepLinkAction,
   params: Record<string, string> = {}
 ): string {
-  const queryString = new URLSearchParams(
-    Object.entries(params).map(([k, v]) => [k, encodeURIComponent(v)])
-  ).toString();
+  const queryString = new URLSearchParams(params).toString();
 
   return queryString ? `shellysvn://${action}?${queryString}` : `shellysvn://${action}`;
 }

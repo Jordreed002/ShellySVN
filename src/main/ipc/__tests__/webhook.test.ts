@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockIpcMainHandle = vi.hoisted(() => vi.fn());
 const mockDnsLookup = vi.hoisted(() => vi.fn());
+const mockHttpsRequest = vi.hoisted(() => vi.fn());
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -16,6 +17,11 @@ vi.mock('dns/promises', () => ({
   lookup: mockDnsLookup,
 }));
 
+vi.mock('https', () => ({
+  default: { request: mockHttpsRequest },
+  request: mockHttpsRequest,
+}));
+
 const mockGet = vi.hoisted(() => vi.fn());
 
 vi.mock('../../auth-cache', () => ({
@@ -28,6 +34,8 @@ import { registerWebhookHandlers } from '../webhook';
 
 describe('Webhook IPC Handlers', () => {
   const handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
+  let responseStatus = 204;
+  let requestTimeoutHandler: (() => void) | undefined;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,12 +47,28 @@ describe('Webhook IPC Handlers', () => {
     );
     mockGet.mockReturnValue(null);
     mockDnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 204,
-      })
+    responseStatus = 204;
+    requestTimeoutHandler = undefined;
+    mockHttpsRequest.mockImplementation(
+      (
+        _url: URL,
+        _options: unknown,
+        onResponse: (response: { statusCode: number; resume: () => void }) => void
+      ) => {
+        let errorHandler: ((error: Error) => void) | undefined;
+        return {
+          setTimeout: vi.fn((_timeout: number, handler: () => void) => {
+            requestTimeoutHandler = handler;
+          }),
+          on: vi.fn((event: string, handler: (error: Error) => void) => {
+            if (event === 'error') errorHandler = handler;
+          }),
+          destroy: vi.fn((error: Error) => errorHandler?.(error)),
+          end: vi.fn(() => {
+            queueMicrotask(() => onResponse({ statusCode: responseStatus, resume: vi.fn() }));
+          }),
+        };
+      }
     );
 
     registerWebhookHandlers();
@@ -77,7 +101,7 @@ describe('Webhook IPC Handlers', () => {
       success: false,
       error: 'Webhook URL must use https.',
     });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(mockHttpsRequest).not.toHaveBeenCalled();
   });
 
   it('rejects localhost and private network webhook targets before fetching', async () => {
@@ -139,7 +163,7 @@ describe('Webhook IPC Handlers', () => {
         error: 'Webhook URL must not target local or private network addresses.',
       });
     }
-    expect(fetch).not.toHaveBeenCalled();
+    expect(mockHttpsRequest).not.toHaveBeenCalled();
   });
 
   it('rejects oversized payloads before fetching', async () => {
@@ -161,7 +185,7 @@ describe('Webhook IPC Handlers', () => {
       success: false,
       error: 'Webhook payload exceeds 256 KiB.',
     });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(mockHttpsRequest).not.toHaveBeenCalled();
   });
 
   it('adds a SHA-256 signature when a webhook secret exists', async () => {
@@ -183,8 +207,8 @@ describe('Webhook IPC Handlers', () => {
 
     expect(result).toMatchObject({ success: true, statusCode: 204 });
     expect(mockGet).toHaveBeenCalledWith('webhook:webhook-1');
-    expect(fetch).toHaveBeenCalledWith(
-      'https://example.com/hook',
+    expect(mockHttpsRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ href: 'https://example.com/hook' }),
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
@@ -193,15 +217,13 @@ describe('Webhook IPC Handlers', () => {
           'X-ShellySVN-Delivery': 'delivery-1',
           'X-ShellySVN-Event': 'commit',
         }),
-      })
+      }),
+      expect.any(Function)
     );
   });
 
   it('returns failed status details for non-2xx responses', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-    } as Response);
+    responseStatus = 500;
     const handler = handlers.get('webhook:deliver');
 
     const result = await handler!(
@@ -223,15 +245,19 @@ describe('Webhook IPC Handlers', () => {
   });
 
   it('reports timeouts without losing configured timeout behavior', async () => {
-    vi.useFakeTimers();
-    vi.mocked(fetch).mockImplementationOnce(
-      (_, init) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => {
-            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
-          });
-        }) as Promise<Response>
-    );
+    mockHttpsRequest.mockImplementationOnce(() => {
+      let errorHandler: ((error: Error) => void) | undefined;
+      return {
+        setTimeout: (_timeout: number, handler: () => void) => {
+          requestTimeoutHandler = handler;
+        },
+        on: (event: string, handler: (error: Error) => void) => {
+          if (event === 'error') errorHandler = handler;
+        },
+        destroy: (error: Error) => errorHandler?.(error),
+        end: vi.fn(),
+      };
+    });
     const handler = handlers.get('webhook:deliver');
 
     const resultPromise = handler!(
@@ -247,12 +273,98 @@ describe('Webhook IPC Handlers', () => {
       }
     );
 
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => expect(requestTimeoutHandler).toBeTypeOf('function'));
+    requestTimeoutHandler!();
 
     await expect(resultPromise).resolves.toMatchObject({
       success: false,
       error: 'Request timed out after 1 seconds',
     });
-    vi.useRealTimers();
+  });
+
+  it('rejects redirects without connecting to the redirect target', async () => {
+    responseStatus = 302;
+    const handler = handlers.get('webhook:deliver');
+
+    const result = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: { event: 'commit' },
+      }
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Webhook redirects are not allowed.',
+    });
+    expect(mockDnsLookup).toHaveBeenCalledTimes(1);
+    expect(mockHttpsRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('pins the request to the public address that passed validation', async () => {
+    mockDnsLookup.mockResolvedValueOnce([{ address: '2001:4860:4860::8888', family: 6 }]);
+    const handler = handlers.get('webhook:deliver');
+
+    await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: {},
+      }
+    );
+
+    const options = mockHttpsRequest.mock.calls[0][1] as {
+      lookup: (
+        hostname: string,
+        options: { all: boolean },
+        callback: (...args: unknown[]) => void
+      ) => void;
+    };
+    const callback = vi.fn();
+    options.lookup('example.com', { all: false }, callback);
+    expect(callback).toHaveBeenCalledWith(null, '2001:4860:4860::8888', 6);
+  });
+
+  it('rejects mixed public/private DNS answers and IPv4-mapped private addresses', async () => {
+    const handler = handlers.get('webhook:deliver');
+    mockDnsLookup.mockResolvedValueOnce([
+      { address: '93.184.216.34', family: 4 },
+      { address: '169.254.169.254', family: 4 },
+    ]);
+
+    const mixed = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-1',
+        url: 'https://example.com/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: {},
+      }
+    );
+    const mapped = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-2',
+        url: 'https://[::ffff:127.0.0.1]/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: {},
+      }
+    );
+
+    expect(mixed).toMatchObject({ success: false });
+    expect(mapped).toMatchObject({ success: false });
   });
 });

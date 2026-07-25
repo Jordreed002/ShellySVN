@@ -129,6 +129,7 @@ export function AccessibleDialog({
         onCloseComplete?.();
       };
     }
+    return undefined;
   }, [isOpen, modal, onOpen, onCloseComplete]);
 
   // Announce dialog to screen readers

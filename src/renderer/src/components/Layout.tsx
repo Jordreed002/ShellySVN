@@ -52,7 +52,7 @@ export function Layout({ children }: LayoutProps) {
   const [showNotes, setShowNotes] = useState(false);
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [showPluginManager, setShowPluginManager] = useState(false);
-  const [_isMaximized, setIsMaximized] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [forceShowTutorial, setForceShowTutorial] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { settings } = useSettings();
@@ -66,6 +66,15 @@ export function Layout({ children }: LayoutProps) {
   const currentPath = (routerState.location.search as CommonSearchSchema)?.path;
 
   useVisualSettings(settings);
+
+  useEffect(() => {
+    const refreshMaximizedState = () => {
+      void window.api.app.window.isMaximized().then(setIsMaximized);
+    };
+    refreshMaximizedState();
+    window.addEventListener('resize', refreshMaximizedState);
+    return () => window.removeEventListener('resize', refreshMaximizedState);
+  }, []);
 
   useEffect(() => {
     const subscribe = window.api.svn.onMutation;
@@ -262,9 +271,10 @@ export function Layout({ children }: LayoutProps) {
               <button
                 onClick={handleMaximize}
                 className="window-control rounded-md hover:bg-bg-elevated transition-fast"
-                aria-label="Maximize"
+                aria-label={isMaximized ? 'Restore window' : 'Maximize'}
+                title={isMaximized ? 'Restore window' : 'Maximize'}
               >
-                <Square className="w-3 h-3" />
+                <Square className={`w-3 h-3 ${isMaximized ? 'fill-current' : ''}`} />
               </button>
               <button
                 onClick={handleClose}
@@ -339,6 +349,7 @@ export function Layout({ children }: LayoutProps) {
             onGoToPath={handleGoToPath}
             onOpenSettings={() => {
               setShowCommandPalette(false);
+              window.dispatchEvent(new CustomEvent('shellysvn:open-settings'));
             }}
             onShowShortcuts={() => {
               setShowCommandPalette(false);

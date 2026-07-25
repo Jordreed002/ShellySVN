@@ -22,6 +22,7 @@ import {
 } from '../services/svn-working-copy';
 import { getStatusService } from '../services/status-service';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
+import { sendToRenderer } from '../utils/safe-renderer-send';
 
 const { readdir, stat, copyFile: fsCopyFile, writeFile: fsWriteFile, mkdir, readFile } = fs;
 
@@ -263,7 +264,31 @@ async function getDirectoryMetadata(
 const queuedScans: QueuedDeepScan[] = [];
 
 // Track active file watchers
-const activeWatchers = new Map<string, chokidar.FSWatcher>();
+interface OwnedWatcher {
+  watcher: chokidar.FSWatcher;
+  owner: WebContents;
+  path: string;
+}
+
+const activeWatchers = new Map<string, OwnedWatcher>();
+
+function watcherKey(owner: WebContents, path: string): string {
+  return `${owner.id}:${path}`;
+}
+
+async function closeWatchersOwnedBy(owner: WebContents): Promise<void> {
+  const matches = Array.from(activeWatchers.entries()).filter(
+    ([, subscription]) => subscription.owner === owner
+  );
+  await Promise.allSettled(matches.map(([, subscription]) => subscription.watcher.close()));
+  for (const [key] of matches) activeWatchers.delete(key);
+}
+
+export async function closeAllFileWatchers(): Promise<void> {
+  const subscriptions = Array.from(activeWatchers.values());
+  activeWatchers.clear();
+  await Promise.allSettled(subscriptions.map(({ watcher }) => watcher.close()));
+}
 
 function createDeepStatusProgress(
   queued: QueuedDeepScan,
@@ -659,7 +684,7 @@ export function registerFsHandlers(): void {
       const statusService = getStatusService();
       const cached = statusService.getDeepStatus(approvedPath);
       if (cached) {
-        event.sender.send('fs:deepStatus:progress', {
+        sendToRenderer(event.sender, 'fs:deepStatus:progress', {
           path: approvedPath,
           jobId: `deep-status:${approvedPath}`,
           phase: 'complete',
@@ -903,8 +928,9 @@ export function registerFsHandlers(): void {
     ): Promise<{ success: boolean; error?: string }> => {
       try {
         const approvedPath = assertPathApprovedForIpc(path, 'File watching');
+        const key = watcherKey(event.sender, approvedPath);
 
-        if (activeWatchers.has(approvedPath)) {
+        if (activeWatchers.has(key)) {
           return { success: true };
         }
 
@@ -928,18 +954,23 @@ export function registerFsHandlers(): void {
             return;
           }
 
-          event.sender.send('fs:watch:change', {
+          if (!sendToRenderer(event.sender, 'fs:watch:change', {
             path,
             eventType,
             changedPath,
-          });
+          })) {
+            void closeWatchersOwnedBy(event.sender);
+          }
         });
 
         watcher.on('error', (error) => {
           console.error('[FS] Watcher error:', error);
         });
 
-        activeWatchers.set(approvedPath, watcher);
+        activeWatchers.set(key, { watcher, owner: event.sender, path: approvedPath });
+        event.sender.once('destroyed', () => {
+          void closeWatchersOwnedBy(event.sender);
+        });
         return { success: true };
       } catch (error) {
         return { success: false, error: (error as Error).message };
@@ -947,12 +978,13 @@ export function registerFsHandlers(): void {
     }
   );
 
-  ipcMain.handle('fs:unwatch', async (_, path: string): Promise<{ success: boolean }> => {
+  ipcMain.handle('fs:unwatch', async (event, path: string): Promise<{ success: boolean }> => {
     const approvedPath = assertPathApprovedForIpc(path, 'File watching');
-    const watcher = activeWatchers.get(approvedPath);
-    if (watcher) {
-      await watcher.close();
-      activeWatchers.delete(approvedPath);
+    const key = watcherKey(event.sender, approvedPath);
+    const subscription = activeWatchers.get(key);
+    if (subscription) {
+      await subscription.watcher.close();
+      activeWatchers.delete(key);
     }
     return { success: true };
   });

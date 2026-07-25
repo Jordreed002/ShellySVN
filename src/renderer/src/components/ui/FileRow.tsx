@@ -19,7 +19,7 @@ import { FileThumbnail } from './FileThumbnail';
 // Module-level constants for default props to avoid new instances on every render
 const EMPTY_FOLDER_SIZES: Record<string, number> = {};
 const EMPTY_ACTIONS: FileRowActions = {};
-const DEFAULT_COLUMN_WIDTHS: FileRowProps['columnWidths'] = {
+const DEFAULT_COLUMN_WIDTHS: NonNullable<FileRowProps['columnWidths']> = {
   name: 300,
   status: 80,
   revision: 70,
@@ -64,6 +64,10 @@ export interface FileRowActions {
   onSwitch?: (entry: SvnStatusEntry) => void;
   onMerge?: (entry: SvnStatusEntry) => void;
   onRelocate?: (entry: SvnStatusEntry) => void;
+  onProperties?: (entry: SvnStatusEntry) => void;
+  onResolve?: (entry: SvnStatusEntry) => void;
+  onAddToIgnore?: (entry: SvnStatusEntry) => void;
+  onCheckForModifications?: (entry: SvnStatusEntry) => void;
 }
 
 /**
@@ -116,6 +120,12 @@ export function buildSvnContextMenuItems(
       onSwitch: actions.onSwitch ? () => actions.onSwitch!(entry) : undefined,
       onMerge: actions.onMerge ? () => actions.onMerge!(entry) : undefined,
       onRelocate: actions.onRelocate ? () => actions.onRelocate!(entry) : undefined,
+      onProperties: actions.onProperties ? () => actions.onProperties!(entry) : undefined,
+      onResolve: actions.onResolve ? () => actions.onResolve!(entry) : undefined,
+      onAddToIgnore: actions.onAddToIgnore ? () => actions.onAddToIgnore!(entry) : undefined,
+      onCheckForModifications: actions.onCheckForModifications
+        ? () => actions.onCheckForModifications!(entry)
+        : undefined,
       onChangelist: actions.onChangelist ? () => actions.onChangelist!(entry) : undefined,
       onShelve: actions.onShelve ? () => actions.onShelve!(entry) : undefined,
     },
@@ -286,6 +296,9 @@ export const FileRow = memo(function FileRow({
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
+    if (!isSelected) {
+      onSelect(entry);
+    }
     showContextMenu(e, entry);
   };
 
@@ -373,11 +386,14 @@ export const FileRow = memo(function FileRow({
             </span>
           ) : null}
           {entry.lock && (
-            <Lock
-              className="w-3 h-3 text-warning flex-shrink-0"
+            <span
               title={`Locked by ${entry.lock.owner}${entry.lock.comment ? `: ${entry.lock.comment}` : ''}`}
-              aria-label={`Locked by ${entry.lock.owner}`}
-            />
+            >
+              <Lock
+                className="w-3 h-3 text-warning flex-shrink-0"
+                aria-label={`Locked by ${entry.lock.owner}`}
+              />
+            </span>
           )}
         </div>
 

@@ -195,7 +195,10 @@ export interface IpcInvokeContract {
   >;
   'svn:resolve': IpcCall<[path: string, resolution: string], OperationResult>;
   'svn:switch': IpcCall<[path: string, url: string, revision?: string], RevisionResult>;
-  'svn:copy': IpcCall<[src: string, dst: string, message: string], RevisionResult>;
+  'svn:copy': IpcCall<
+    [src: string, dst: string, message: string, credentials?: AuthCredential],
+    RevisionResult
+  >;
   'svn:remoteCreateFolder': IpcCall<
     [parentUrl: string, folderName: string, message: string, credentials?: AuthCredential],
     RevisionResult

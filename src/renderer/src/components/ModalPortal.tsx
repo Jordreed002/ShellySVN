@@ -84,6 +84,7 @@ export function useModalAccessibility(isOpen: boolean, onClose?: () => void) {
       // Restore focus
       previousActiveElement.current?.focus();
     }
+    return undefined;
   }, [isOpen, onClose]);
 
   return modalRef;

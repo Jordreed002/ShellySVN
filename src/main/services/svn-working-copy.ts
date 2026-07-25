@@ -20,7 +20,8 @@ import { parseSvnInfoXml, parseSvnChildCommitsXml, type ChildCommitInfo } from '
 import { debug } from '../utils/debug';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { getSvnReadError } from '../utils/svn-errors';
-import { escapeLocalPegTargets, validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
+import { sendToRenderer } from '../utils/safe-renderer-send';
+import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
 import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
 import { getWorkerSvnStatus } from './svn-status-worker';
@@ -178,7 +179,9 @@ export async function getWorkingCopyContext(
 
   for (let attempts = 0; attempts < 50; attempts++) {
     try {
-      const info = parseSvnInfoXml(await runSvnText(['info', '--xml', currentPath]));
+      const info = parseSvnInfoXml(
+        await runSvnText(withSvnTargets(['info', '--xml'], [currentPath]))
+      );
 
       if (info.workingCopyRoot && info.repositoryRoot && info.url) {
         const nearestVersionedPath = canonicalizeLocalPath(currentPath);
@@ -268,7 +271,7 @@ export async function getRemoteStatus(
 
 export async function getWorkingCopyUpgradeStatus(path: string): Promise<WorkingCopyUpgradeStatus> {
   try {
-    await runSvnText(['info', '--xml', path]);
+    await runSvnText(withSvnTargets(['info', '--xml'], [path]));
     return { path, required: false };
   } catch (error) {
     const message = getErrorMessage(error);
@@ -301,7 +304,7 @@ export async function upgradeWorkingCopy(
 
 export async function getInfo(path: string): Promise<SvnInfoResult> {
   try {
-    const xml = await runSvnText(['info', '--xml', path]);
+    const xml = await runSvnText(withSvnTargets(['info', '--xml'], [path]));
     return parseSvnInfoXml(xml);
   } catch (error) {
     debug.error('[SVN] Info error:', error);
@@ -311,7 +314,7 @@ export async function getInfo(path: string): Promise<SvnInfoResult> {
 
 export async function getInfoUrl(url: string): Promise<SvnInfoResult> {
   try {
-    const xml = await runSvnText(['info', '--xml', '--non-interactive', url]);
+    const xml = await runSvnText(withSvnTargets(['info', '--xml', '--non-interactive'], [url]));
     return parseSvnInfoXml(xml);
   } catch (error) {
     debug.error('[SVN] Info URL error:', error);
@@ -337,7 +340,7 @@ async function updateUnserialized(
   const trustedSslFailures = await getCachedTrustedSslFailuresForWorkingCopy(path);
 
   try {
-    await runSvnText(['info', '--xml', path], {
+    await runSvnText(withSvnTargets(['info', '--xml'], [path]), {
       cwd: path,
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,
@@ -469,11 +472,11 @@ async function updateWithProgressUnserialized(
   const progressThrottleMs = 250;
 
   const sendProgress = (progress: CheckoutProgress) => {
-    event.sender.send('svn:update:progress', { updateId, ...progress });
+    sendToRenderer(event.sender, 'svn:update:progress', { updateId, ...progress });
   };
 
   try {
-    await runSvnText(['info', '--xml', path], {
+    await runSvnText(withSvnTargets(['info', '--xml'], [path]), {
       cwd: path,
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,
@@ -574,7 +577,9 @@ export function cancelUpdate(updateId: string): { success: boolean; error?: stri
  */
 export async function getChildCommits(path: string): Promise<Record<string, ChildCommitInfo>> {
   try {
-    const xml = await runSvnText(['info', '--xml', '--depth', 'immediates', path]);
+    const xml = await runSvnText(
+      withSvnTargets(['info', '--xml', '--depth', 'immediates'], [path])
+    );
     return parseSvnChildCommitsXml(xml, path);
   } catch (error) {
     debug.warn('[SVN] getChildCommits failed:', error);
@@ -846,15 +851,16 @@ export async function cleanup(
     if (options.removeIgnored) args.push('--remove-ignored');
     if (options.vacuumPristines) args.push('--vacuum-pristines');
     if (options.includeExternals) args.push('--include-externals');
-    args.push(escapeLocalPegTargets([path])[0]);
-    await runSvnText(args);
+    await runSvnText(withSvnTargets(args, [path]));
     return { success: true };
   });
 }
 
 export async function previewCleanup(path: string): Promise<SvnCleanupPreview> {
   validateSvnTargets([path], 'Cleanup target');
-  const xml = await runSvnText(['status', '--xml', '--no-ignore', '--depth', 'infinity', path]);
+  const xml = await runSvnText(
+    withSvnTargets(['status', '--xml', '--no-ignore', '--depth', 'infinity'], [path])
+  );
   const preview: SvnCleanupPreview = { unversioned: [], ignored: [] };
   for (const entry of parseSvnStatusEntriesXml(xml)) {
     if (entry.item === 'unversioned') preview.unversioned.push(entry.path);

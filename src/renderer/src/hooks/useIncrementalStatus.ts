@@ -97,6 +97,8 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const entriesRef = useRef<SvnStatusEntry[]>([]);
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
 
   /**
    * Start incremental status scan
@@ -169,14 +171,14 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
         setProgress(progressUpdate);
 
         // Notify callback
-        onUpdate?.({
+        onUpdateRef.current?.({
           type: 'progress',
           progress: progressUpdate,
         });
 
         // Emit individual entries
         for (const entry of batch) {
-          onUpdate?.({
+          onUpdateRef.current?.({
             type: 'entry',
             entry,
           });
@@ -200,11 +202,12 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
       setResult(finalResult);
       setIsScanning(false);
 
-      // Update TanStack Query cache
-      queryClient.setQueryData(['fs:getStatus', path], statusResult);
-      queryClient.setQueryData(['fs:getDeepStatus', path], entriesRef.current);
+      // These fs:* keys contain FsStatusResult, not SvnStatusResult. Mark them
+      // stale so active filesystem consumers refetch the correctly shaped data.
+      void queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
+      void queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
 
-      onUpdate?.({
+      onUpdateRef.current?.({
         type: 'complete',
         result: finalResult,
         progress: finalProgress,
@@ -219,12 +222,12 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
       }));
       setIsScanning(false);
 
-      onUpdate?.({
+      onUpdateRef.current?.({
         type: 'error',
         error: errorMessage,
       });
     }
-  }, [path, batchSize, onUpdate, queryClient]);
+  }, [path, batchSize, queryClient]);
 
   /**
    * Cancel ongoing scan

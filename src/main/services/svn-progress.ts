@@ -1,6 +1,7 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import type { CheckoutProgress, SvnOperationProgress } from '@shared/types';
 import { redactValue } from '../utils/redaction';
+import { sendToRenderer } from '../utils/safe-renderer-send';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, type RunSvnOptions } from './svn-executor';
 
 const activeOperations = new Map<string, AbortController>();
@@ -46,7 +47,8 @@ export async function runSvnOperationWithProgress(
   const processedPaths = new Set<string>();
 
   const sendProgress = (progress: CheckoutProgress) => {
-    event.sender.send(
+    sendToRenderer(
+      event.sender,
       'svn:operation:progress',
       createProgressPayload(operationId, operation, progress)
     );

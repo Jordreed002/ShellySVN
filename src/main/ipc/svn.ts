@@ -521,9 +521,22 @@ export function registerSvnHandlers(): void {
   });
 
   // SVN Copy (Branch/Tag)
-  ipcMain.handle('svn:copy', async (event, src: string, dst: string, message: string) => {
-    return invalidateRepositoryAfter(event, [src, dst], copyRepositoryItem(src, dst, message));
-  });
+  ipcMain.handle(
+    'svn:copy',
+    async (
+      event,
+      src: string,
+      dst: string,
+      message: string,
+      credentials?: { username: string; password: string }
+    ) => {
+      return invalidateRepositoryAfter(
+        event,
+        [src, dst],
+        copyRepositoryItem(src, dst, message, credentials)
+      );
+    }
+  );
 
   // SVN Remote Folder Create
   ipcMain.handle(

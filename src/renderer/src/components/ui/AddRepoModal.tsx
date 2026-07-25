@@ -325,7 +325,9 @@ export function AddRepoModal({
         if (provideCredentials && saveCredentials && username.trim()) {
           try {
             const realm =
-              checkoutUrl.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || checkoutUrl.trim();
+              authRealm ||
+              checkoutUrl.trim().match(/^(https?:\/\/[^/]+)/)?.[1] ||
+              checkoutUrl.trim();
             await window.api.auth.set(realm, username.trim(), password);
           } catch {
             // Ignore credential save errors
