@@ -4,7 +4,7 @@ import { execFileSync, spawn, type ChildProcess } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { createServer, connect } from 'net';
-import { tmpdir } from 'os';
+import { EOL, tmpdir } from 'os';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -227,7 +227,7 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
     'reads and mutates over svn:// and reports authentication failures structurally',
     async () => {
       const confPath = join(repoPath, 'conf', 'svnserve.conf');
-      writeFileSync(join(repoPath, 'conf', 'passwd'), ['[users]', 'reader = secret'].join('\n'));
+      writeFileSync(join(repoPath, 'conf', 'passwd'), ['[users]', 'reader = secret', ''].join(EOL));
       writeFileSync(
         confPath,
         [
@@ -236,7 +236,8 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
           'auth-access = write',
           'password-db = passwd',
           'realm = ShellySVN test',
-        ].join('\n')
+          '',
+        ].join(EOL)
       );
 
       const port = await reserveTcpPort();
@@ -525,6 +526,11 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
     expect(firstCommit.revision).toBeGreaterThan(1);
 
     const copiedFile = join(wcPath, 'app-copy.txt');
+    // A Windows working-copy database can remain locked briefly after commit
+    // while filesystem handles settle. Cleanup is the supported SVN recovery.
+    if (process.platform === 'win32') {
+      await expect(cleanup(wcPath)).resolves.toEqual({ success: true });
+    }
     await expect(copy(appFile, copiedFile)).resolves.toMatchObject({ success: true });
     expect(readFileSync(copiedFile, 'utf8')).toBe('line one\n');
     const copiedStatus = await getStatus(wcPath);
@@ -918,7 +924,7 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
       execFileSync('svn', ['info', '--show-item', 'repos-root-url', peerPath], {
         encoding: 'utf8',
       }).trim()
-    ).toBe(relocatedRepoUrl);
+    ).toSatisfy((actualUrl: string) => decodeURI(actualUrl) === decodeURI(relocatedRepoUrl));
     await expect(upgradeWorkingCopy(peerPath)).resolves.toMatchObject({ success: true });
 
     const controller = new AbortController();

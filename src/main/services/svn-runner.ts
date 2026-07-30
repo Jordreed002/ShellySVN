@@ -193,7 +193,12 @@ export async function runResolvedSvn(
       command: args[0] || 'svn',
       target: args.at(-1),
     };
-    const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      // Windows SVN uses the native wide-character APIs. Overriding LANG there
+      // can force paths through a lossy code-page conversion.
+      ...(process.platform === 'win32' ? {} : { LANG: 'en_US.UTF-8' }),
+    };
     const svnSshCommand = buildSvnSshCommand(args, options.context.sshSettings);
     if (svnSshCommand) {
       env.SVN_SSH = svnSshCommand;
