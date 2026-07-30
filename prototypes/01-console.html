@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShellySVN · Prototype 01 — Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   PROTOTYPE 01 — "CONSOLE"
+   Direction: industrial / utilitarian. A flight deck for version control.
+   Hairline rules, tabular data, monospace truth, zero decoration that
+   doesn't carry information. Density over comfort. Keyboard-first.
+   Layout: rail → context panel → change list → diff → operation log
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  --deck-0:#0a0d12;      /* void */
+  --deck-1:#0d1117;      /* app bg */
+  --deck-2:#11161d;      /* panel */
+  --deck-3:#161b22;      /* raised */
+  --deck-4:#1c232c;      /* hover */
+  --deck-5:#222b36;      /* active */
+
+  --line:rgba(240,246,252,.07);
+  --line-2:rgba(240,246,252,.12);
+  --line-hot:rgba(88,166,255,.45);
+
+  --ink:#e6edf3;
+  --ink-2:#8b949e;
+  --ink-3:#6e7681;
+  --ink-4:#484f58;
+
+  --acc:#58a6ff;
+  --acc-dim:#1f4e7a;
+  --acc-glow:rgba(88,166,255,.18);
+
+  --ok:#3fb950;
+  --mod:#d29922;
+  --del:#f85149;
+  --new:#58a6ff;
+  --rep:#a371f7;
+  --ext:#39c5cf;
+  --warn:#f0883e;
+
+  --r:4px;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --sans:'Archivo',system-ui,sans-serif;
+
+  --rail:48px;
+  --panel:252px;
+  --topbar:38px;
+  --toolbar:36px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--deck-1);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:13px;
+  line-height:1.45;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+}
+/* grain + faint engineering grid, so flat surfaces have tooth */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.028;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(120% 90% at 60% 0%,#000 0%,transparent 70%);
+}
+::selection{background:var(--acc-dim);color:#fff}
+
+/* scrollbars, deliberately mechanical */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#232c37;border:3px solid transparent;background-clip:content-box;border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:#313d4d;background-clip:content-box}
+
+/* ── micro type ─────────────────────────────────────────────── */
+.eyebrow{
+  font-family:var(--sans);font-size:9.5px;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-4);
+}
+.kbd{
+  font-family:var(--mono);font-size:10px;font-weight:500;
+  padding:2px 5px 1px;border-radius:3px;
+  background:var(--deck-4);border:1px solid var(--line-2);
+  border-bottom-width:2px;color:var(--ink-2);
+}
+
+/* ══ SHELL ══════════════════════════════════════════════════ */
+.app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column}
+
+/* ── titlebar ───────────────────────────────────────────────── */
+.titlebar{
+  height:var(--topbar);flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:0 10px 0 84px;
+  background:linear-gradient(180deg,#12171f,#0e131a);
+  border-bottom:1px solid var(--line);
+}
+.lights{position:absolute;left:14px;top:13px;display:flex;gap:8px}
+.lights i{width:11px;height:11px;border-radius:50%;display:block}
+.lights i:nth-child(1){background:#ff5f57}
+.lights i:nth-child(2){background:#febc2e}
+.lights i:nth-child(3){background:#28c840}
+
+.brand{display:flex;align-items:center;gap:7px;padding-right:4px}
+.brand svg{width:17px;height:17px;color:var(--acc)}
+.brand b{font-size:12.5px;font-weight:700;letter-spacing:-.01em}
+
+.crumbchip{
+  display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;
+  background:var(--deck-3);border:1px solid var(--line);border-radius:var(--r);
+  font-size:11.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap;
+}
+.crumbchip:hover{background:var(--deck-4);color:var(--ink)}
+.crumbchip strong{color:var(--ink);font-weight:600}
+.crumbchip .dot{width:5px;height:5px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px var(--ok)}
+
+.omni{
+  flex:1;max-width:420px;margin:0 auto;height:25px;display:flex;align-items:center;gap:8px;
+  padding:0 8px;background:#0a0e14;border:1px solid var(--line);border-radius:var(--r);
+  color:var(--ink-3);font-size:11.5px;cursor:text;transition:border-color .12s,box-shadow .12s;
+}
+.omni:hover{border-color:var(--line-2)}
+.omni:focus-visible,.omni.on{outline:none;border-color:var(--line-hot);box-shadow:0 0 0 3px var(--acc-glow)}
+
+.tbright{display:flex;align-items:center;gap:4px;margin-left:auto}
+.iconbtn{
+  width:26px;height:24px;display:grid;place-items:center;border-radius:var(--r);
+  background:transparent;border:1px solid transparent;color:var(--ink-2);cursor:pointer;
+}
+.iconbtn:hover{background:var(--deck-4);color:var(--ink);border-color:var(--line)}
+.iconbtn svg{width:14px;height:14px}
+
+/* ── toolbar / view switch ──────────────────────────────────── */
+.toolbar{
+  height:var(--toolbar);flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  padding:0 10px;background:var(--deck-2);border-bottom:1px solid var(--line);
+}
+.seg{display:flex;background:#0a0e14;border:1px solid var(--line);border-radius:var(--r);padding:2px;gap:2px}
+.seg button{
+  height:20px;padding:0 10px;border:0;border-radius:3px;background:transparent;
+  font-family:var(--sans);font-size:11px;font-weight:600;color:var(--ink-3);cursor:pointer;
+  letter-spacing:.01em;
+}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-selected=true]{background:var(--deck-5);color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+
+.tbsep{width:1px;height:18px;background:var(--line)}
+.act{
+  height:24px;padding:0 9px;display:flex;align-items:center;gap:6px;
+  background:var(--deck-3);border:1px solid var(--line);border-radius:var(--r);
+  color:var(--ink);font-family:var(--sans);font-size:11.5px;font-weight:500;cursor:pointer;
+  transition:background .12s,border-color .12s;
+}
+.act:hover{background:var(--deck-4);border-color:var(--line-2)}
+.act svg{width:13px;height:13px;color:var(--ink-2)}
+.act:hover svg{color:var(--ink)}
+.act.primary{background:var(--acc);border-color:#79b8ff;color:#04121f;font-weight:600}
+.act.primary svg{color:#04121f}
+.act.primary:hover{background:#79b8ff}
+.act .kbd{margin-left:2px}
+.badgen{
+  font-family:var(--mono);font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;
+  background:rgba(4,18,31,.25);
+}
+
+/* ── body grid ──────────────────────────────────────────────── */
+.body{flex:1;display:grid;grid-template-columns:var(--rail) var(--panel) minmax(340px,1fr) minmax(380px,1.2fr);min-height:0}
+
+/* rail */
+.rail{
+  background:var(--deck-0);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;
+}
+.railbtn{
+  width:34px;height:32px;display:grid;place-items:center;border-radius:var(--r);
+  color:var(--ink-4);background:transparent;border:0;cursor:pointer;position:relative;
+}
+.railbtn svg{width:16px;height:16px}
+.railbtn:hover{background:var(--deck-3);color:var(--ink-2)}
+.railbtn[aria-current=true]{color:var(--acc);background:rgba(88,166,255,.1)}
+.railbtn[aria-current=true]::before{
+  content:'';position:absolute;left:-6px;top:8px;bottom:8px;width:2px;background:var(--acc);border-radius:0 2px 2px 0;
+}
+.railbtn .cnt{
+  position:absolute;top:3px;right:2px;min-width:13px;height:13px;padding:0 3px;
+  border-radius:7px;background:var(--del);color:#fff;font-family:var(--mono);
+  font-size:9px;font-weight:700;display:grid;place-items:center;border:2px solid var(--deck-0);
+}
+.railsp{flex:1}
+
+/* panel */
+.panel{background:var(--deck-2);border-right:1px solid var(--line);overflow:auto;padding-bottom:12px}
+.psec{padding:10px 10px 4px;display:flex;align-items:center;gap:6px}
+.psec .eyebrow{flex:1}
+.psec button{background:0;border:0;color:var(--ink-4);cursor:pointer;display:grid;place-items:center}
+.psec button:hover{color:var(--ink-2)}
+.psec svg{width:12px;height:12px}
+
+.wc{margin:0 6px 8px;padding:8px 9px;background:var(--deck-3);border:1px solid var(--line);border-radius:5px;position:relative;overflow:hidden}
+.wc::after{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--acc)}
+.wc h4{font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+.wc .url{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:3px;word-break:break-all;line-height:1.5}
+.wcmeta{display:flex;gap:10px;margin-top:7px;padding-top:7px;border-top:1px solid var(--line)}
+.wcmeta div{display:flex;flex-direction:column;gap:1px}
+.wcmeta .k{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);font-weight:700}
+.wcmeta .v{font-family:var(--mono);font-size:11px;color:var(--ink)}
+.wcmeta .v.behind{color:var(--mod)}
+
+.tree{padding:0 4px}
+.trow{
+  display:flex;align-items:center;gap:7px;height:24px;padding:0 6px;border-radius:var(--r);
+  color:var(--ink-2);cursor:pointer;font-size:12px;position:relative;
+}
+.trow:hover{background:var(--deck-3);color:var(--ink)}
+.trow.sel{background:var(--deck-5);color:var(--ink)}
+.trow svg{width:13px;height:13px;flex:0 0 auto;color:var(--ink-4)}
+.trow.sel svg{color:var(--acc)}
+.trow .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow .c{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.trow.kid{padding-left:20px}
+.trow.kid::before{content:'';position:absolute;left:12px;top:0;bottom:0;width:1px;background:var(--line)}
+
+/* ── change list (center) ───────────────────────────────────── */
+.center{display:flex;flex-direction:column;min-width:0;background:var(--deck-1);border-right:1px solid var(--line)}
+.filterbar{
+  height:30px;flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:0 8px;
+  border-bottom:1px solid var(--line);background:var(--deck-2);
+}
+.filterbar input{
+  flex:1;height:20px;background:#0a0e14;border:1px solid var(--line);border-radius:3px;
+  color:var(--ink);font-family:var(--mono);font-size:11px;padding:0 7px;
+}
+.filterbar input::placeholder{color:var(--ink-4)}
+.filterbar input:focus{outline:none;border-color:var(--line-hot);box-shadow:0 0 0 2px var(--acc-glow)}
+.chip{
+  height:19px;padding:0 6px;display:flex;align-items:center;gap:4px;border-radius:3px;
+  background:var(--deck-3);border:1px solid var(--line);font-family:var(--mono);
+  font-size:10px;color:var(--ink-2);cursor:pointer;
+}
+.chip:hover{border-color:var(--line-2);color:var(--ink)}
+.chip.on{background:rgba(88,166,255,.12);border-color:var(--acc-dim);color:var(--acc)}
+
+.colhead{
+  display:grid;grid-template-columns:26px 20px 1fr 62px 74px 62px;gap:8px;align-items:center;
+  height:22px;padding:0 8px;border-bottom:1px solid var(--line);background:var(--deck-1);
+  position:sticky;top:0;z-index:2;
+}
+.colhead span{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4)}
+.colhead span.r{text-align:right}
+
+.list{flex:1;overflow:auto}
+.grouphead{
+  display:flex;align-items:center;gap:7px;height:26px;padding:0 8px;
+  background:var(--deck-2);border-bottom:1px solid var(--line);border-top:1px solid var(--line);
+  position:sticky;top:22px;z-index:1;cursor:pointer;
+}
+.grouphead:first-child{border-top:0}
+.grouphead svg{width:11px;height:11px;color:var(--ink-3)}
+.grouphead b{font-size:11px;font-weight:700;letter-spacing:.02em}
+.grouphead .n{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.grouphead .tag{
+  font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  padding:1px 5px;border-radius:3px;background:rgba(240,136,62,.12);color:var(--warn);
+  border:1px solid rgba(240,136,62,.25);margin-left:auto;
+}
+
+.frow{
+  display:grid;grid-template-columns:26px 20px 1fr 62px 74px 62px;gap:8px;align-items:center;
+  height:26px;padding:0 8px;cursor:default;border-bottom:1px solid rgba(240,246,252,.03);
+  animation:rowin .3s var(--ease,cubic-bezier(.25,1,.5,1)) backwards;
+}
+@keyframes rowin{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}
+.frow:hover{background:var(--deck-3)}
+.frow.sel{background:rgba(88,166,255,.1);box-shadow:inset 2px 0 0 var(--acc)}
+.frow.conflict{background:rgba(248,81,73,.055)}
+.frow.conflict:hover{background:rgba(248,81,73,.1)}
+.cbox{
+  width:13px;height:13px;border-radius:3px;border:1px solid var(--line-2);background:#0a0e14;
+  display:grid;place-items:center;cursor:pointer;margin-left:6px;
+}
+.cbox.on{background:var(--acc);border-color:var(--acc)}
+.cbox.on::after{content:'';width:7px;height:4px;border-left:1.5px solid #04121f;border-bottom:1.5px solid #04121f;transform:rotate(-45deg) translateY(-1px)}
+.st{
+  font-family:var(--mono);font-size:11px;font-weight:700;text-align:center;
+  width:16px;height:16px;line-height:16px;border-radius:3px;
+}
+.st.M{color:var(--mod);background:rgba(210,153,34,.13)}
+.st.A{color:var(--new);background:rgba(88,166,255,.13)}
+.st.D{color:var(--del);background:rgba(248,81,73,.13)}
+.st.C{color:var(--del);background:rgba(248,81,73,.22);box-shadow:0 0 0 1px rgba(248,81,73,.4)}
+.st.Q{color:var(--ink-3);background:rgba(110,118,129,.13)}
+.st.R{color:var(--rep);background:rgba(163,113,247,.13)}
+.st.X{color:var(--ext);background:rgba(57,197,207,.13)}
+.pathcell{display:flex;align-items:center;gap:0;min-width:0;font-family:var(--mono);font-size:11.5px}
+.pathcell .dir{color:var(--ink-4)}
+.pathcell .file{color:var(--ink);font-weight:500}
+.pathcell .lock{margin-left:6px;color:var(--mod);display:inline-grid;place-items:center}
+.pathcell .lock svg{width:11px;height:11px}
+.frow .num{font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:right}
+.frow .who{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow .delta{font-family:var(--mono);font-size:10.5px;text-align:right;display:flex;gap:4px;justify-content:flex-end}
+.frow .delta .p{color:var(--ok)}
+.frow .delta .m{color:var(--del)}
+
+/* ── diff pane (right) ─────────────────────────────────────── */
+.diff{display:flex;flex-direction:column;min-width:0;background:var(--deck-0)}
+.diffhead{
+  flex:0 0 auto;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--deck-2);
+}
+.diffhead .t{display:flex;align-items:center;gap:8px}
+.diffhead h3{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.difftabs{display:flex;gap:2px;margin-top:8px}
+.difftabs button{
+  height:20px;padding:0 8px;border:0;background:transparent;border-radius:3px;
+  font-family:var(--sans);font-size:10.5px;font-weight:600;letter-spacing:.03em;
+  text-transform:uppercase;color:var(--ink-4);cursor:pointer;
+}
+.difftabs button:hover{color:var(--ink-2)}
+.difftabs button[aria-selected=true]{background:var(--deck-4);color:var(--ink)}
+.diffmeta{display:flex;gap:14px;margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.diffmeta b{color:var(--ink-2);font-weight:500}
+
+.code{flex:1;overflow:auto;font-family:var(--mono);font-size:11.5px;line-height:1.65;padding:4px 0 24px}
+.hunk{
+  display:flex;gap:0;padding:3px 10px;margin:6px 0 2px;background:#0d1620;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  color:#4f9ad4;font-size:10.5px;letter-spacing:.02em;
+}
+.ln{display:grid;grid-template-columns:44px 44px 14px 1fr;align-items:baseline}
+.ln>i{
+  font-style:normal;color:var(--ink-4);font-size:10px;text-align:right;padding-right:9px;
+  user-select:none;
+}
+.ln>u{text-decoration:none;text-align:center;color:var(--ink-4)}
+.ln>code{white-space:pre;padding-right:14px;color:#c9d3de}
+.ln.add{background:rgba(63,185,80,.08)}
+.ln.add>u{color:var(--ok)}
+.ln.add>code{color:#9fe0ab}
+.ln.del{background:rgba(248,81,73,.08)}
+.ln.del>u{color:var(--del)}
+.ln.del>code{color:#ffb3ae}
+.ln.cf{background:rgba(248,81,73,.13);border-left:2px solid var(--del)}
+.tk{color:#ff7b72}.tk2{color:#79c0ff}.tk3{color:#a5d6ff}.tk4{color:#d2a8ff}.tk5{color:#8b949e;font-style:italic}
+
+/* ── operation console ─────────────────────────────────────── */
+.oplog{
+  flex:0 0 auto;height:126px;border-top:1px solid var(--line);background:var(--deck-0);
+  display:flex;flex-direction:column;transition:height .18s cubic-bezier(.25,1,.5,1);
+}
+.oplog.min{height:26px}
+.opbar{
+  height:26px;flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:0 10px;
+  background:var(--deck-2);border-bottom:1px solid var(--line);cursor:pointer;
+}
+.opbar .eyebrow{color:var(--ink-2)}
+.opbar .live{
+  display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--ok);
+}
+.opbar .live .p{width:5px;height:5px;border-radius:50%;background:var(--ok);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(63,185,80,.5)}50%{opacity:.55;box-shadow:0 0 0 4px rgba(63,185,80,0)}}
+.opbar .bar{flex:1;max-width:180px;height:3px;border-radius:2px;background:var(--deck-4);overflow:hidden}
+.opbar .bar i{display:block;height:100%;width:64%;background:var(--acc);border-radius:2px}
+.opbar .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.oplines{flex:1;overflow:auto;padding:6px 10px;font-family:var(--mono);font-size:11px;line-height:1.6}
+.oplines div{display:flex;gap:10px}
+.oplines .ts{color:var(--ink-4);flex:0 0 auto}
+.oplines .cmd{color:var(--acc)}
+.oplines .ok{color:var(--ok)}
+.oplines .wr{color:var(--mod)}
+.oplines .er{color:var(--del)}
+.oplines .out{color:var(--ink-2)}
+
+/* ── status bar ─────────────────────────────────────────────── */
+.status{
+  height:24px;flex:0 0 auto;display:flex;align-items:center;gap:0;
+  background:var(--deck-2);border-top:1px solid var(--line);padding:0 4px;
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+}
+.status .cell{display:flex;align-items:center;gap:5px;padding:0 9px;height:100%;border-right:1px solid var(--line)}
+.status .cell:hover{background:var(--deck-3);color:var(--ink-2)}
+.status .cell svg{width:11px;height:11px}
+.status .sp{flex:1}
+.status .cell.last{border-right:0;border-left:1px solid var(--line)}
+.status b{color:var(--ink-2);font-weight:500}
+.status .g{color:var(--ok)}
+.status .y{color:var(--mod)}
+.status .rd{color:var(--del)}
+
+/* ══ OVERLAYS ═══════════════════════════════════════════════ */
+/* context menu — flat, mechanical, with a submenu */
+.ctx{
+  position:fixed;z-index:800;min-width:216px;padding:4px;
+  background:rgba(22,27,34,.97);backdrop-filter:blur(14px) saturate(140%);
+  border:1px solid var(--line-2);border-radius:6px;
+  box-shadow:0 24px 60px -12px rgba(1,4,9,.9),0 0 0 1px rgba(0,0,0,.5);
+  animation:ctxin .1s cubic-bezier(.25,1,.5,1);
+}
+@keyframes ctxin{from{opacity:0;transform:scale(.97) translateY(-3px)}to{opacity:1;transform:none}}
+.ctx .lbl{padding:6px 8px 4px;font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-4)}
+.ctx .hd{
+  padding:5px 8px 7px;margin-bottom:3px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-2);
+}
+.ctx .hd b{color:var(--ink);font-weight:500}
+.ci{
+  display:flex;align-items:center;gap:9px;height:26px;padding:0 8px;border-radius:4px;
+  color:var(--ink);font-size:12px;cursor:pointer;position:relative;
+}
+.ci:hover{background:var(--acc);color:#04121f}
+.ci:hover svg,.ci:hover .sc{color:#04121f;opacity:.75}
+.ci svg{width:14px;height:14px;color:var(--ink-3);flex:0 0 auto}
+.ci .sc{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.ci.danger{color:var(--del)}
+.ci.danger svg{color:var(--del)}
+.ci.danger:hover{background:var(--del);color:#fff}
+.ci.danger:hover svg{color:#fff}
+.ci .caret{margin-left:auto;width:12px;height:12px}
+.csep{height:1px;background:var(--line);margin:4px 6px}
+.ci.has-sub:hover .sub{display:block}
+.sub{
+  display:none;position:absolute;left:calc(100% - 3px);top:-5px;min-width:190px;padding:4px;
+  background:rgba(22,27,34,.97);backdrop-filter:blur(14px);
+  border:1px solid var(--line-2);border-radius:6px;box-shadow:0 20px 48px -12px rgba(1,4,9,.9);
+}
+
+/* command palette */
+.scrim{
+  position:fixed;inset:0;z-index:900;background:rgba(4,7,11,.68);
+  backdrop-filter:blur(3px);display:grid;animation:fade .14s ease-out;
+}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.scrim[hidden]{display:none}
+.pal{
+  width:min(620px,92vw);margin:9vh auto auto;background:rgba(17,22,29,.94);
+  backdrop-filter:blur(24px) saturate(150%);
+  border:1px solid var(--line-2);border-radius:9px;overflow:hidden;
+  box-shadow:0 40px 90px -20px rgba(1,4,9,.95),inset 0 1px 0 rgba(255,255,255,.05);
+  animation:palin .16s cubic-bezier(.25,1,.5,1);
+}
+@keyframes palin{from{opacity:0;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:none}}
+.palin{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.palin svg{width:16px;height:16px;color:var(--acc)}
+.palin input{flex:1;background:0;border:0;outline:0;color:var(--ink);font-family:var(--sans);font-size:15px}
+.palin input::placeholder{color:var(--ink-4)}
+.palscope{
+  font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:3px;
+  background:rgba(88,166,255,.12);color:var(--acc);border:1px solid var(--acc-dim);
+}
+.palbody{max-height:min(420px,58vh);overflow:auto;padding:6px}
+.palgrp{padding:8px 8px 4px;font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-4)}
+.pi{display:flex;align-items:center;gap:11px;height:34px;padding:0 9px;border-radius:5px;cursor:pointer}
+.pi:hover,.pi.act{background:var(--deck-4)}
+.pi.act{box-shadow:inset 0 0 0 1px var(--line-2)}
+.pi>svg{width:15px;height:15px;color:var(--ink-2);flex:0 0 auto}
+.pi .tt{flex:1;min-width:0}
+.pi .tt b{display:block;font-size:12.5px;font-weight:500;color:var(--ink)}
+.pi .tt small{display:block;font-family:var(--mono);font-size:10px;color:var(--ink-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi .kbd{flex:0 0 auto}
+.palfoot{
+  display:flex;align-items:center;gap:14px;padding:7px 12px;border-top:1px solid var(--line);
+  background:rgba(10,13,18,.6);font-size:10.5px;color:var(--ink-4);
+}
+.palfoot span{display:flex;align-items:center;gap:5px}
+
+/* commit modal — a "form panel", not a bubble */
+.modal{
+  width:min(780px,94vw);max-height:86vh;margin:auto;display:flex;flex-direction:column;
+  background:var(--deck-2);border:1px solid var(--line-2);border-radius:8px;overflow:hidden;
+  box-shadow:0 40px 100px -24px rgba(1,4,9,.95),inset 0 1px 0 rgba(255,255,255,.05);
+  animation:palin .18s cubic-bezier(.25,1,.5,1);
+}
+.mhead{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--deck-3)}
+.mhead .ic{width:26px;height:26px;border-radius:5px;display:grid;place-items:center;background:rgba(88,166,255,.13);color:var(--acc);border:1px solid var(--acc-dim)}
+.mhead .ic svg{width:14px;height:14px}
+.mhead h2{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.mhead p{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:1px}
+.mbody{flex:1;overflow:auto;display:grid;grid-template-columns:1fr 268px}
+.mmain{padding:12px 14px;border-right:1px solid var(--line);min-width:0}
+.mside{padding:12px 14px;background:var(--deck-1)}
+.flab{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.flab .eyebrow{flex:1}
+.flab a{font-size:10.5px;color:var(--acc);text-decoration:none;cursor:pointer}
+.flab a:hover{text-decoration:underline}
+textarea.msg{
+  width:100%;min-height:104px;resize:vertical;background:#0a0e14;border:1px solid var(--line);
+  border-radius:5px;padding:9px 10px;color:var(--ink);font-family:var(--mono);font-size:12px;line-height:1.65;
+}
+textarea.msg:focus{outline:none;border-color:var(--line-hot);box-shadow:0 0 0 3px var(--acc-glow)}
+.msgmeta{display:flex;gap:12px;margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.msgmeta .warn{color:var(--mod)}
+.mfiles{margin-top:14px;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.mfhead{display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--deck-3);border-bottom:1px solid var(--line)}
+.mfhead .eyebrow{flex:1}
+.mflist{max-height:168px;overflow:auto}
+.mfrow{display:flex;align-items:center;gap:8px;height:25px;padding:0 8px;border-bottom:1px solid rgba(240,246,252,.03);font-family:var(--mono);font-size:11px}
+.mfrow:hover{background:var(--deck-3)}
+.mfrow .p{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.mfrow .p b{color:var(--ink);font-weight:500}
+.sidegrp{margin-bottom:14px}
+.sidegrp .eyebrow{margin-bottom:7px;display:block}
+.toggle{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;color:var(--ink-2);cursor:pointer}
+.toggle:hover{color:var(--ink)}
+.sw{width:26px;height:15px;border-radius:9px;background:var(--deck-5);border:1px solid var(--line-2);position:relative;flex:0 0 auto;transition:background .14s}
+.sw::after{content:'';position:absolute;left:2px;top:1.5px;width:10px;height:10px;border-radius:50%;background:var(--ink-3);transition:transform .14s,background .14s}
+.toggle.on .sw{background:var(--acc);border-color:#79b8ff}
+.toggle.on .sw::after{transform:translateX(11px);background:#04121f}
+.tmpl{
+  display:block;width:100%;text-align:left;padding:7px 8px;margin-bottom:5px;border-radius:4px;
+  background:var(--deck-2);border:1px solid var(--line);color:var(--ink-2);cursor:pointer;
+}
+.tmpl:hover{border-color:var(--acc-dim);color:var(--ink)}
+.tmpl b{display:block;font-size:11.5px;font-weight:600;color:var(--ink)}
+.tmpl small{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.mfoot{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 14px;
+  border-top:1px solid var(--line);background:var(--deck-3);
+}
+.mfoot .hint{flex:1;font-family:var(--mono);font-size:10.5px;color:var(--ink-4)}
+.btn{
+  height:28px;padding:0 12px;border-radius:5px;background:var(--deck-2);border:1px solid var(--line-2);
+  color:var(--ink);font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;
+}
+.btn:hover{background:var(--deck-4)}
+.btn.pri{background:var(--acc);border-color:#79b8ff;color:#04121f;font-weight:600}
+.btn.pri:hover{background:#79b8ff}
+
+/* toast */
+.toast{
+  position:fixed;right:14px;bottom:34px;z-index:950;width:308px;
+  background:rgba(22,27,34,.96);backdrop-filter:blur(14px);
+  border:1px solid var(--line-2);border-left:2px solid var(--ok);border-radius:6px;
+  box-shadow:0 20px 50px -12px rgba(1,4,9,.9);padding:10px 12px;
+  animation:tin .22s cubic-bezier(.25,1,.5,1);
+}
+@keyframes tin{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+.toast[hidden]{display:none}
+.toast h5{font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px}
+.toast h5 svg{width:13px;height:13px;color:var(--ok)}
+.toast p{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:4px;line-height:1.55}
+.toast .x{position:absolute;top:8px;right:8px;color:var(--ink-4);cursor:pointer;background:0;border:0}
+.toast .x svg{width:12px;height:12px}
+
+/* annotation flag for the prototype itself */
+.note{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:8px;z-index:990;
+  display:flex;align-items:center;gap:9px;padding:5px 12px;border-radius:99px;
+  background:rgba(10,13,18,.9);backdrop-filter:blur(10px);border:1px solid var(--line-2);
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);white-space:nowrap;
+}
+.note b{color:var(--acc);font-weight:500}
+.note kbd{font-family:var(--mono);font-size:9.5px;padding:1px 4px;border-radius:3px;background:var(--deck-4);border:1px solid var(--line-2);color:var(--ink-2)}
+</style>
+</head>
+<body>
+
+<!-- ═════ ICON DEFS ═════ -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-shell" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+    <circle cx="24" cy="24" r="20" fill="currentColor" fill-opacity=".14"/>
+    <path d="M16 16s4-4 8-4 8 4 8 8-4 8-8 8-6-2-6-4 2-4 4-4" opacity=".8"/>
+    <path d="M24 20v12M18 24h12" opacity=".38" stroke-width="1.8"/>
+  </symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 6v12M18 10c0 4-6 3-6 8"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8M8 6h4a4 4 0 0 1 4 4v0M8 18h4a4 4 0 0 0 4-4"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-diff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 20h18Z"/><path d="M12 10v5m0 3v.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+</svg>
+
+<div class="app">
+
+  <!-- ══ TITLEBAR ══ -->
+  <header class="titlebar">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="brand"><svg><use href="#i-shell"/></svg><b>ShellySVN</b></div>
+    <button class="crumbchip"><span class="dot"></span> <strong>atlas-core</strong> <svg style="width:11px;height:11px;opacity:.5"><use href="#i-chevd"/></svg></button>
+    <button class="crumbchip"><svg style="width:12px;height:12px"><use href="#i-branch"/></svg> feature/payments-v2 <svg style="width:11px;height:11px;opacity:.5"><use href="#i-chevd"/></svg></button>
+    <div class="omni" id="omni" tabindex="0">
+      <svg style="width:13px;height:13px"><use href="#i-search"/></svg>
+      <span style="flex:1">Search paths, revisions, or run a command</span>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="tbright">
+      <button class="iconbtn" title="Refresh status"><svg><use href="#i-refresh"/></svg></button>
+      <button class="iconbtn" title="Terminal output"><svg><use href="#i-term"/></svg></button>
+      <button class="iconbtn" title="Settings"><svg><use href="#i-cog"/></svg></button>
+    </div>
+  </header>
+
+  <!-- ══ TOOLBAR ══ -->
+  <div class="toolbar">
+    <div class="seg" role="tablist">
+      <button role="tab" aria-selected="true">Changes</button>
+      <button role="tab" aria-selected="false">History</button>
+      <button role="tab" aria-selected="false">Browse</button>
+      <button role="tab" aria-selected="false">Graph</button>
+      <button role="tab" aria-selected="false">Locks</button>
+    </div>
+    <div class="tbsep"></div>
+    <button class="act"><svg><use href="#i-down"/></svg> Update <span class="kbd">⌘U</span></button>
+    <button class="act primary" data-open="commit"><svg><use href="#i-up"/></svg> Commit <span class="badgen">9</span></button>
+    <div class="tbsep"></div>
+    <button class="act"><svg><use href="#i-diff"/></svg> Diff</button>
+    <button class="act"><svg><use href="#i-undo"/></svg> Revert</button>
+    <button class="act"><svg><use href="#i-merge"/></svg> Merge</button>
+    <div style="flex:1"></div>
+    <div class="eyebrow" style="display:flex;align-items:center;gap:7px">
+      <span style="color:var(--mod)">17 incoming</span><span style="color:var(--ink-4)">·</span>
+      <span style="color:var(--del)">1 conflict</span>
+    </div>
+  </div>
+
+  <!-- ══ BODY ══ -->
+  <div class="body">
+
+    <!-- rail -->
+    <nav class="rail">
+      <button class="railbtn" aria-current="true" title="Working copy"><svg><use href="#i-folder"/></svg></button>
+      <button class="railbtn" title="History"><svg><use href="#i-hist"/></svg></button>
+      <button class="railbtn" title="Repository browser"><svg><use href="#i-layers"/></svg></button>
+      <button class="railbtn" title="Branches &amp; tags"><svg><use href="#i-branch"/></svg></button>
+      <button class="railbtn" title="Conflicts"><svg><use href="#i-warn"/></svg><span class="cnt">1</span></button>
+      <button class="railbtn" title="Locks"><svg><use href="#i-lock"/></svg></button>
+      <span class="railsp"></span>
+      <button class="railbtn" title="Credentials"><svg><use href="#i-user"/></svg></button>
+      <button class="railbtn" title="Settings"><svg><use href="#i-cog"/></svg></button>
+    </nav>
+
+    <!-- context panel -->
+    <aside class="panel">
+      <div class="psec"><span class="eyebrow">Working copy</span><button title="Add"><svg><use href="#i-plus"/></svg></button></div>
+      <div class="wc">
+        <h4><svg style="width:13px;height:13px;color:var(--acc)"><use href="#i-folder"/></svg> atlas-core</h4>
+        <div class="url">svn://svn.lineindustries.com/atlas/<br>branches/feature/payments-v2</div>
+        <div class="wcmeta">
+          <div><span class="k">Local</span><span class="v">r4821</span></div>
+          <div><span class="k">Head</span><span class="v behind">r4838</span></div>
+          <div><span class="k">Depth</span><span class="v">infinity</span></div>
+        </div>
+      </div>
+
+      <div class="psec"><span class="eyebrow">Changelists</span></div>
+      <div class="tree">
+        <div class="trow sel"><svg><use href="#i-layers"/></svg><span class="n">All changes</span><span class="c">12</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">payments-ui</span><span class="c">3</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">ignore-on-commit</span><span class="c">2</span></div>
+        <div class="trow kid"><svg><use href="#i-warn"/></svg><span class="n" style="color:var(--del)">conflicts</span><span class="c">1</span></div>
+      </div>
+
+      <div class="psec"><span class="eyebrow">Tree</span></div>
+      <div class="tree">
+        <div class="trow"><svg><use href="#i-chevd"/></svg><span class="n">src</span><span class="c">7</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">main</span><span class="c">3</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">renderer</span><span class="c">3</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">preload</span><span class="c">—</span></div>
+        <div class="trow"><svg><use href="#i-chev"/></svg><span class="n">packages</span><span class="c">1</span></div>
+        <div class="trow"><svg><use href="#i-chev"/></svg><span class="n">docs</span><span class="c">1</span></div>
+        <div class="trow"><svg><use href="#i-ext"/></svg><span class="n" style="color:var(--ext)">vendor/plex-fonts</span><span class="c">ext</span></div>
+        <div class="trow"><svg><use href="#i-chev"/></svg><span class="n">notes</span><span class="c">1</span></div>
+      </div>
+
+      <div class="psec"><span class="eyebrow">Pinned</span></div>
+      <div class="tree">
+        <div class="trow"><svg><use href="#i-folder"/></svg><span class="n">atlas-core</span></div>
+        <div class="trow"><svg><use href="#i-folder"/></svg><span class="n">shelly-docs</span></div>
+        <div class="trow"><svg><use href="#i-folder"/></svg><span class="n">infra-scripts</span></div>
+      </div>
+    </aside>
+
+    <!-- change list -->
+    <section class="center">
+      <div class="filterbar">
+        <input placeholder="filter — try  status:C  or  ext:ts  or  author:mira" />
+        <button class="chip on">M 6</button>
+        <button class="chip">A 2</button>
+        <button class="chip">D 1</button>
+        <button class="chip" style="color:var(--del)">C 1</button>
+        <button class="chip">? 1</button>
+      </div>
+      <div class="colhead">
+        <span></span><span></span><span>Path</span><span class="r">Rev</span><span>Last author</span><span class="r">Δ</span>
+      </div>
+      <div class="list" id="list">
+
+        <div class="grouphead"><svg><use href="#i-chevd"/></svg><b>Conflicts</b><span class="n">1</span><span class="tag">Blocks commit</span></div>
+        <div class="frow conflict" data-file="src/main/svn/client.ts">
+          <span class="cbox" aria-disabled="true"></span><span class="st C">C</span>
+          <span class="pathcell"><span class="dir">src/main/svn/</span><span class="file">client.ts</span></span>
+          <span class="num">4802</span><span class="who">mira.k</span>
+          <span class="delta"><span class="p">+64</span><span class="m">−12</span></span>
+        </div>
+
+        <div class="grouphead"><svg><use href="#i-chevd"/></svg><b>payments-ui</b><span class="n">3</span></div>
+        <div class="frow sel" data-file="src/main/ipc/svn.ts">
+          <span class="cbox on"></span><span class="st M">M</span>
+          <span class="pathcell"><span class="dir">src/main/ipc/</span><span class="file">svn.ts</span></span>
+          <span class="num">4802</span><span class="who">jordan</span>
+          <span class="delta"><span class="p">+41</span><span class="m">−8</span></span>
+        </div>
+        <div class="frow" data-file="src/renderer/components/ui/MergePreview.tsx">
+          <span class="cbox on"></span><span class="st A">A</span>
+          <span class="pathcell"><span class="dir">src/renderer/components/ui/</span><span class="file">MergePreview.tsx</span></span>
+          <span class="num">—</span><span class="who">—</span>
+          <span class="delta"><span class="p">+218</span></span>
+        </div>
+        <div class="frow" data-file="packages/shared/src/merge.ts">
+          <span class="cbox on"></span><span class="st A">A</span>
+          <span class="pathcell"><span class="dir">packages/shared/src/</span><span class="file">merge.ts</span></span>
+          <span class="num">—</span><span class="who">—</span>
+          <span class="delta"><span class="p">+96</span></span>
+        </div>
+
+        <div class="grouphead"><svg><use href="#i-chevd"/></svg><b>Default changelist</b><span class="n">5</span></div>
+        <div class="frow" data-file="src/renderer/components/FileExplorer.tsx">
+          <span class="cbox on"></span><span class="st M">M</span>
+          <span class="pathcell"><span class="dir">src/renderer/components/</span><span class="file">FileExplorer.tsx</span></span>
+          <span class="num">4818</span><span class="who">devon</span>
+          <span class="delta"><span class="p">+27</span><span class="m">−31</span></span>
+        </div>
+        <div class="frow" data-file="src/renderer/legacy/OldTree.tsx">
+          <span class="cbox on"></span><span class="st D">D</span>
+          <span class="pathcell"><span class="dir">src/renderer/legacy/</span><span class="file">OldTree.tsx</span></span>
+          <span class="num">4744</span><span class="who">tao.n</span>
+          <span class="delta"><span class="m">−402</span></span>
+        </div>
+        <div class="frow" data-file="src/main/ipc/auth.ts">
+          <span class="cbox on"></span><span class="st R">R</span>
+          <span class="pathcell"><span class="dir">src/main/ipc/</span><span class="file">auth.ts</span></span>
+          <span class="num">4790</span><span class="who">mira.k</span>
+          <span class="delta"><span class="p">+140</span><span class="m">−138</span></span>
+        </div>
+        <div class="frow" data-file="package.json">
+          <span class="cbox on"></span><span class="st M">M</span>
+          <span class="pathcell"><span class="file">package.json</span><span class="lock" title="Locked by mira.k"><svg><use href="#i-lock"/></svg></span></span>
+          <span class="num">4838</span><span class="who">mira.k</span>
+          <span class="delta"><span class="p">+3</span><span class="m">−1</span></span>
+        </div>
+        <div class="frow" data-file="tailwind.config.js">
+          <span class="cbox on"></span><span class="st M">M</span>
+          <span class="pathcell"><span class="file">tailwind.config.js</span></span>
+          <span class="num">4811</span><span class="who">jordan</span>
+          <span class="delta"><span class="p">+12</span><span class="m">−2</span></span>
+        </div>
+
+        <div class="grouphead"><svg><use href="#i-chevd"/></svg><b>ignore-on-commit</b><span class="n">2</span><span class="tag" style="background:rgba(110,118,129,.12);color:var(--ink-3);border-color:var(--line-2)">Excluded</span></div>
+        <div class="frow" data-file="docs/CHANGELOG.md">
+          <span class="cbox"></span><span class="st M">M</span>
+          <span class="pathcell"><span class="dir">docs/</span><span class="file">CHANGELOG.md</span></span>
+          <span class="num">4835</span><span class="who">jordan</span>
+          <span class="delta"><span class="p">+9</span></span>
+        </div>
+        <div class="frow" data-file="notes/scratch.md">
+          <span class="cbox"></span><span class="st Q">?</span>
+          <span class="pathcell"><span class="dir">notes/</span><span class="file">scratch.md</span></span>
+          <span class="num">—</span><span class="who">—</span>
+          <span class="delta"></span>
+        </div>
+
+        <div class="grouphead"><svg><use href="#i-chevd"/></svg><b>Externals</b><span class="n">1</span></div>
+        <div class="frow" data-file="vendor/plex-fonts">
+          <span class="cbox" aria-disabled="true"></span><span class="st X">X</span>
+          <span class="pathcell"><span class="dir">vendor/</span><span class="file">plex-fonts</span></span>
+          <span class="num">2.4.1</span><span class="who">tao.n</span>
+          <span class="delta"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- diff -->
+    <section class="diff">
+      <div class="diffhead">
+        <div class="t">
+          <span class="st M" style="flex:0 0 auto">M</span>
+          <h3>src/main/ipc/svn.ts</h3>
+          <button class="iconbtn" title="Open externally"><svg><use href="#i-ext"/></svg></button>
+          <button class="iconbtn" title="Blame"><svg><use href="#i-user"/></svg></button>
+        </div>
+        <div class="difftabs">
+          <button aria-selected="true">Unified</button>
+          <button aria-selected="false">Split</button>
+          <button aria-selected="false">Blame</button>
+          <button aria-selected="false">Log</button>
+          <button aria-selected="false">Properties</button>
+        </div>
+        <div class="diffmeta">
+          <span>BASE <b>r4802</b></span><span>WORKING <b>modified 4m ago</b></span>
+          <span>2 hunks</span><span style="color:var(--ok)">+41</span><span style="color:var(--del)">−8</span>
+        </div>
+      </div>
+      <div class="code">
+        <div class="hunk">@@ -142,7 +142,9 @@ export function registerSvnHandlers(ipc: IpcMain) {</div>
+        <div class="ln"><i>142</i><i>142</i><u> </u><code>  <span class="tk2">ipc</span>.handle(<span class="tk3">'svn:status'</span>, <span class="tk">async</span> (_e, path) => {</code></div>
+        <div class="ln"><i>143</i><i>143</i><u> </u><code>    <span class="tk">const</span> repo = <span class="tk">await</span> resolveWorkingCopy(path);</code></div>
+        <div class="ln del"><i>144</i><i></i><u>−</u><code>    <span class="tk">return</span> runSvn([<span class="tk3">'status'</span>, <span class="tk3">'--xml'</span>], repo);</code></div>
+        <div class="ln add"><i></i><i>144</i><u>+</u><code>    <span class="tk5">// r4821: externals must be walked separately or they report as '?'</span></code></div>
+        <div class="ln add"><i></i><i>145</i><u>+</u><code>    <span class="tk">const</span> args = [<span class="tk3">'status'</span>, <span class="tk3">'--xml'</span>, <span class="tk3">'--show-updates'</span>];</code></div>
+        <div class="ln add"><i></i><i>146</i><u>+</u><code>    <span class="tk">if</span> (repo.hasExternals) args.push(<span class="tk3">'--ignore-externals'</span>);</code></div>
+        <div class="ln add"><i></i><i>147</i><u>+</u><code>    <span class="tk">return</span> runSvn(args, repo, { timeout: <span class="tk4">STATUS_TIMEOUT</span> });</code></div>
+        <div class="ln"><i>145</i><i>148</i><u> </u><code>  });</code></div>
+        <div class="ln"><i>146</i><i>149</i><u> </u><code></code></div>
+
+        <div class="hunk">@@ -201,12 +204,24 @@ async function runSvn(args: string[], repo: Repo) {</div>
+        <div class="ln"><i>201</i><i>204</i><u> </u><code>  <span class="tk">const</span> child = spawn(<span class="tk3">'svn'</span>, [...args, <span class="tk3">'--non-interactive'</span>], {</code></div>
+        <div class="ln"><i>202</i><i>205</i><u> </u><code>    cwd: repo.root,</code></div>
+        <div class="ln del"><i>203</i><i></i><u>−</u><code>    env: process.env,</code></div>
+        <div class="ln add"><i></i><i>206</i><u>+</u><code>    env: { ...process.env, <span class="tk4">LC_ALL</span>: <span class="tk3">'C'</span> },</code></div>
+        <div class="ln add"><i></i><i>207</i><u>+</u><code>    windowsHide: <span class="tk">true</span>,</code></div>
+        <div class="ln"><i>204</i><i>208</i><u> </u><code>  });</code></div>
+        <div class="ln"><i>205</i><i>209</i><u> </u><code></code></div>
+        <div class="ln del"><i>206</i><i></i><u>−</u><code>  <span class="tk">let</span> out = <span class="tk3">''</span>;</code></div>
+        <div class="ln add"><i></i><i>210</i><u>+</u><code>  <span class="tk">const</span> chunks: <span class="tk4">Buffer</span>[] = [];</code></div>
+        <div class="ln add"><i></i><i>211</i><u>+</u><code>  <span class="tk">let</span> bytes = <span class="tk4">0</span>;</code></div>
+        <div class="ln add"><i></i><i>212</i><u>+</u><code>  child.stdout.on(<span class="tk3">'data'</span>, (c) => {</code></div>
+        <div class="ln add"><i></i><i>213</i><u>+</u><code>    bytes += c.length;</code></div>
+        <div class="ln add"><i></i><i>214</i><u>+</u><code>    <span class="tk">if</span> (bytes > <span class="tk4">MAX_SVN_OUTPUT</span>) { child.kill(); <span class="tk">throw</span> <span class="tk">new</span> <span class="tk4">SvnOutputTooLarge</span>(); }</code></div>
+        <div class="ln add"><i></i><i>215</i><u>+</u><code>    chunks.push(c);</code></div>
+        <div class="ln add"><i></i><i>216</i><u>+</u><code>  });</code></div>
+        <div class="ln"><i>207</i><i>217</i><u> </u><code>}</code></div>
+      </div>
+
+      <!-- operation console -->
+      <div class="oplog" id="oplog">
+        <div class="opbar" onclick="document.getElementById('oplog').classList.toggle('min')">
+          <span class="eyebrow">Operation log</span>
+          <span class="live"><span class="p"></span>svn update — 64%</span>
+          <span class="bar"><i></i></span>
+          <span class="r"><span class="eyebrow">17 files</span><svg style="width:12px;height:12px;color:var(--ink-4)"><use href="#i-chevd"/></svg></span>
+        </div>
+        <div class="oplines">
+          <div><span class="ts">18:42:11</span><span class="cmd">$ svn update --accept postpone</span></div>
+          <div><span class="ts">18:42:12</span><span class="out">U    src/renderer/components/ui/LogViewer.tsx</span></div>
+          <div><span class="ts">18:42:12</span><span class="out">U    src/main/monitor/watcher.ts</span></div>
+          <div><span class="ts">18:42:13</span><span class="ok">A    packages/shared/src/locks.ts</span></div>
+          <div><span class="ts">18:42:13</span><span class="wr">   C src/main/svn/client.ts</span></div>
+          <div><span class="ts">18:42:13</span><span class="er">Summary of conflicts: Text conflicts: 1</span></div>
+          <div><span class="ts">18:42:14</span><span class="out">Fetching external item into 'vendor/plex-fonts'…</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══ STATUS BAR ══ -->
+  <footer class="status">
+    <span class="cell"><svg><use href="#i-branch"/></svg> feature/payments-v2</span>
+    <span class="cell"><b>r4821</b> local · <span class="y">r4838 head</span></span>
+    <span class="cell"><span class="y">9 staged</span> / 12 changed</span>
+    <span class="cell rd"><svg><use href="#i-warn"/></svg> 1 conflict</span>
+    <span class="cell"><svg><use href="#i-lock"/></svg> 2 locks held</span>
+    <span class="sp"></span>
+    <span class="cell">svn 1.14.3</span>
+    <span class="cell g"><svg><use href="#i-check"/></svg> connected</span>
+    <span class="cell last">TS · UTF-8 · LF</span>
+  </footer>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast">
+  <button class="x" onclick="document.getElementById('toast').hidden=true"><svg><use href="#i-x"/></svg></button>
+  <h5><svg><use href="#i-check"/></svg> Committed r4839</h5>
+  <p>9 files · 2.1s · feature/payments-v2<br>“Add merge preview + harden status walk”</p>
+</div>
+
+<!-- ══ CONTEXT MENU ══ -->
+<div class="ctx" id="ctx" hidden>
+  <div class="hd">1 file · <b id="ctxpath">src/main/ipc/svn.ts</b></div>
+  <div class="ci"><svg><use href="#i-diff"/></svg> Diff against BASE <span class="sc">⌘D</span></div>
+  <div class="ci"><svg><use href="#i-hist"/></svg> Show log <span class="sc">⌘L</span></div>
+  <div class="ci"><svg><use href="#i-user"/></svg> Blame</div>
+  <div class="csep"></div>
+  <div class="ci"><svg><use href="#i-up"/></svg> Commit… <span class="sc">⌘↵</span></div>
+  <div class="ci"><svg><use href="#i-down"/></svg> Update to HEAD</div>
+  <div class="ci danger"><svg><use href="#i-undo"/></svg> Revert… <span class="sc">⌘⌫</span></div>
+  <div class="csep"></div>
+  <div class="ci has-sub"><svg><use href="#i-layers"/></svg> Changelist <svg class="caret"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="lbl">Move to</div>
+      <div class="ci"><svg><use href="#i-check"/></svg> payments-ui</div>
+      <div class="ci"><svg style="opacity:0"><use href="#i-check"/></svg> ignore-on-commit</div>
+      <div class="ci"><svg style="opacity:0"><use href="#i-check"/></svg> Default</div>
+      <div class="csep"></div>
+      <div class="ci"><svg><use href="#i-plus"/></svg> New changelist…</div>
+    </div>
+  </div>
+  <div class="ci has-sub"><svg><use href="#i-lock"/></svg> Locking <svg class="caret"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="ci"><svg><use href="#i-lock"/></svg> Get lock…</div>
+      <div class="ci"><svg><use href="#i-lock"/></svg> Release lock</div>
+      <div class="ci"><svg><use href="#i-eye"/></svg> Manage locks…</div>
+    </div>
+  </div>
+  <div class="ci has-sub"><svg><use href="#i-cog"/></svg> Advanced <svg class="caret"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="ci"><svg><use href="#i-file"/></svg> Create patch…</div>
+      <div class="ci"><svg><use href="#i-layers"/></svg> Properties…</div>
+      <div class="ci"><svg><use href="#i-branch"/></svg> Revision graph</div>
+      <div class="ci"><svg><use href="#i-refresh"/></svg> Cleanup</div>
+      <div class="csep"></div>
+      <div class="ci danger"><svg><use href="#i-trash"/></svg> Delete from repo…</div>
+    </div>
+  </div>
+  <div class="csep"></div>
+  <div class="ci"><svg><use href="#i-copy"/></svg> Copy path <span class="sc">⇧⌘C</span></div>
+  <div class="ci"><svg><use href="#i-ext"/></svg> Reveal in Finder</div>
+</div>
+
+<!-- ══ COMMAND PALETTE ══ -->
+<div class="scrim" id="pal" hidden>
+  <div class="pal" onclick="event.stopPropagation()">
+    <div class="palin">
+      <svg><use href="#i-search"/></svg>
+      <input id="palq" placeholder="Type a command, path, or r-number…" />
+      <span class="palscope">atlas-core</span>
+    </div>
+    <div class="palbody">
+      <div class="palgrp">Suggested — 1 conflict blocking commit</div>
+      <div class="pi act"><svg><use href="#i-merge"/></svg><span class="tt"><b>Resolve conflict in client.ts</b><small>opens 3-way merge editor · src/main/svn/client.ts</small></span><span class="kbd">↵</span></div>
+      <div class="pi"><svg><use href="#i-down"/></svg><span class="tt"><b>Update working copy to r4838</b><small>17 incoming changes · postpone conflicts</small></span><span class="kbd">⌘U</span></div>
+      <div class="palgrp">Commands</div>
+      <div class="pi"><svg><use href="#i-up"/></svg><span class="tt"><b>Commit changes…</b><small>9 of 12 files staged</small></span><span class="kbd">⌘↵</span></div>
+      <div class="pi"><svg><use href="#i-branch"/></svg><span class="tt"><b>Create branch / tag…</b><small>svn copy from working copy</small></span><span class="kbd">⌘B</span></div>
+      <div class="pi"><svg><use href="#i-merge"/></svg><span class="tt"><b>Merge…</b><small>reintegrate, range, or two-URL</small></span></div>
+      <div class="pi"><svg><use href="#i-undo"/></svg><span class="tt"><b>Revert…</b><small>discard local modifications</small></span></div>
+      <div class="palgrp">Jump to</div>
+      <div class="pi"><svg><use href="#i-hist"/></svg><span class="tt"><b>r4835 — Harden SVN operations</b><small>jordan · yesterday 16:04 · 23 files</small></span></div>
+      <div class="pi"><svg><use href="#i-file"/></svg><span class="tt"><b>svn.ts</b><small>src/main/ipc/svn.ts · modified</small></span></div>
+      <div class="pi"><svg><use href="#i-folder"/></svg><span class="tt"><b>shelly-docs</b><small>~/dev/shelly-docs · r1207</small></span></div>
+    </div>
+    <div class="palfoot">
+      <span><span class="kbd">↑↓</span> navigate</span>
+      <span><span class="kbd">↵</span> run</span>
+      <span><span class="kbd">⇥</span> scope to file</span>
+      <span style="margin-left:auto"><span class="kbd">esc</span> dismiss</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMMIT MODAL ══ -->
+<div class="scrim" id="commit" hidden style="place-items:center">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="mhead">
+      <div class="ic"><svg><use href="#i-up"/></svg></div>
+      <div style="flex:1">
+        <h2>Commit to feature/payments-v2</h2>
+        <p>svn://svn.lineindustries.com/atlas/branches/feature/payments-v2 · r4821</p>
+      </div>
+      <button class="iconbtn" onclick="closeAll()"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="mbody">
+      <div class="mmain">
+        <div class="flab"><span class="eyebrow">Message</span><a>Insert template ⌥T</a><a>History ⌥↑</a></div>
+        <textarea class="msg">Add merge preview scaffolding + harden status walk
+
+- MergePreview surfaces conflict counts before applying a merge
+- svn status now walks externals separately (they reported as '?')
+- cap stdout at MAX_SVN_OUTPUT so huge trees can't OOM the main process
+
+Refs: ATLAS-2841</textarea>
+        <div class="msgmeta">
+          <span>3 paragraphs · 284 chars</span>
+          <span>Subject <b style="color:var(--ok)">48/72</b></span>
+          <span class="warn">Hook: requires issue ref ✓</span>
+        </div>
+
+        <div class="mfiles">
+          <div class="mfhead">
+            <span class="cbox on"></span><span class="eyebrow">9 of 12 files</span>
+            <button class="chip">Select all</button><button class="chip">Modified only</button>
+          </div>
+          <div class="mflist">
+            <div class="mfrow"><span class="cbox on"></span><span class="st M">M</span><span class="p"><span style="color:var(--ink-4)">src/main/ipc/</span><b>svn.ts</b></span><span style="color:var(--ok)">+41</span><span style="color:var(--del)">−8</span></div>
+            <div class="mfrow"><span class="cbox on"></span><span class="st A">A</span><span class="p"><span style="color:var(--ink-4)">src/renderer/components/ui/</span><b>MergePreview.tsx</b></span><span style="color:var(--ok)">+218</span></div>
+            <div class="mfrow"><span class="cbox on"></span><span class="st A">A</span><span class="p"><span style="color:var(--ink-4)">packages/shared/src/</span><b>merge.ts</b></span><span style="color:var(--ok)">+96</span></div>
+            <div class="mfrow"><span class="cbox on"></span><span class="st M">M</span><span class="p"><span style="color:var(--ink-4)">src/renderer/components/</span><b>FileExplorer.tsx</b></span><span style="color:var(--ok)">+27</span><span style="color:var(--del)">−31</span></div>
+            <div class="mfrow"><span class="cbox on"></span><span class="st D">D</span><span class="p"><span style="color:var(--ink-4)">src/renderer/legacy/</span><b>OldTree.tsx</b></span><span style="color:var(--del)">−402</span></div>
+            <div class="mfrow"><span class="cbox on"></span><span class="st R">R</span><span class="p"><span style="color:var(--ink-4)">src/main/ipc/</span><b>auth.ts</b></span><span style="color:var(--ok)">+140</span><span style="color:var(--del)">−138</span></div>
+            <div class="mfrow"><span class="cbox on"></span><span class="st M">M</span><span class="p"><b>package.json</b> <svg style="width:10px;height:10px;color:var(--mod)"><use href="#i-lock"/></svg></span><span style="color:var(--ok)">+3</span><span style="color:var(--del)">−1</span></div>
+            <div class="mfrow" style="opacity:.5"><span class="cbox"></span><span class="st C">C</span><span class="p"><span style="color:var(--ink-4)">src/main/svn/</span><b>client.ts</b> — resolve first</span></div>
+            <div class="mfrow" style="opacity:.5"><span class="cbox"></span><span class="st Q">?</span><span class="p"><span style="color:var(--ink-4)">notes/</span><b>scratch.md</b> — unversioned</span></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="mside">
+        <div class="sidegrp">
+          <span class="eyebrow">Options</span>
+          <div class="toggle on"><span class="sw"></span> Keep locks after commit</div>
+          <div class="toggle"><span class="sw"></span> Keep changelists</div>
+          <div class="toggle on"><span class="sw"></span> Run pre-commit hook</div>
+          <div class="toggle"><span class="sw"></span> Update after commit</div>
+        </div>
+        <div class="sidegrp">
+          <span class="eyebrow">Templates</span>
+          <button class="tmpl"><b>Feature</b><small>feat(scope): … + Refs</small></button>
+          <button class="tmpl"><b>Bugfix</b><small>fix: … Fixes ATLAS-####</small></button>
+          <button class="tmpl"><b>Release</b><small>chore(release): v#.#.#</small></button>
+        </div>
+        <div class="sidegrp">
+          <span class="eyebrow">Bugtraq</span>
+          <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);line-height:1.7">
+            issue-ref: <span style="color:var(--acc)">ATLAS-2841</span><br>
+            link: jira.line…/ATLAS-2841<br>
+            <span style="color:var(--ok)">✓ pattern matched</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="mfoot">
+      <span class="hint">1 conflict excluded · <b style="color:var(--mod)">working copy is 17 revisions behind</b></span>
+      <button class="btn" onclick="closeAll()">Cancel</button>
+      <button class="btn">Commit &amp; Update</button>
+      <button class="btn pri" onclick="closeAll();document.getElementById('toast').hidden=false">Commit 9 files</button>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>01 · CONSOLE</b> — flight-deck density, keyboard-first
+  <span>·</span> <kbd>right-click a row</kbd> <span>·</span> <kbd>⌘K</kbd> palette <span>·</span> <kbd>C</kbd> commit dialog
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+/* staggered row reveal on load */
+$$('.frow').forEach((r,i)=>r.style.animationDelay=(i*14)+'ms');
+
+/* row selection + diff header sync */
+$$('.frow').forEach(r=>{
+  r.addEventListener('click',e=>{
+    if(e.target.classList.contains('cbox')){e.target.classList.toggle('on');return;}
+    $$('.frow').forEach(x=>x.classList.remove('sel'));
+    r.classList.add('sel');
+    $('.diffhead h3').textContent=r.dataset.file;
+  });
+});
+
+/* context menu */
+const ctx=$('#ctx');
+function openCtx(x,y,path){
+  $('#ctxpath').textContent=path;
+  ctx.hidden=false;
+  const w=ctx.offsetWidth,h=ctx.offsetHeight;
+  ctx.style.left=Math.min(x,innerWidth-w-12)+'px';
+  ctx.style.top=Math.min(y,innerHeight-h-12)+'px';
+}
+$$('.frow, .trow').forEach(r=>{
+  r.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    if(r.classList.contains('frow')){
+      $$('.frow').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');
+    }
+    openCtx(e.clientX,e.clientY,r.dataset.file||r.querySelector('.n').textContent);
+  });
+});
+document.addEventListener('click',()=>ctx.hidden=true);
+document.addEventListener('contextmenu',e=>{if(!e.target.closest('.frow,.trow'))ctx.hidden=true});
+
+/* overlays */
+function closeAll(){$$('.scrim').forEach(s=>s.hidden=true)}
+function open(id){closeAll();$('#'+id).hidden=false;if(id==='pal')setTimeout(()=>$('#palq').focus(),20)}
+$$('[data-open]').forEach(b=>b.addEventListener('click',()=>open(b.dataset.open)));
+$('#omni').addEventListener('click',()=>open('pal'));
+$$('.scrim').forEach(s=>s.addEventListener('click',closeAll));
+
+addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();open('pal');return}
+  if(e.key==='Escape'){closeAll();ctx.hidden=true;return}
+  if(typing)return;
+  if(e.key.toLowerCase()==='c'){e.preventDefault();open('commit')}
+});
+
+/* palette keyboard nav */
+$('#palq').addEventListener('keydown',e=>{
+  const items=$$('#pal .pi');const i=items.findIndex(x=>x.classList.contains('act'));
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();items[i]?.classList.remove('act');
+    const n=e.key==='ArrowDown'?(i+1)%items.length:(i-1+items.length)%items.length;
+    items[n].classList.add('act');items[n].scrollIntoView({block:'nearest'});
+  }
+  if(e.key==='Enter'){closeAll()}
+});
+
+/* segmented control + tabs */
+$$('.seg button, .difftabs button').forEach(b=>b.addEventListener('click',()=>{
+  [...b.parentElement.children].forEach(x=>x.setAttribute('aria-selected','false'));
+  b.setAttribute('aria-selected','true');
+}));
+$$('.chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('on')));
+$$('.toggle').forEach(t=>t.addEventListener('click',()=>t.classList.toggle('on')));
+$$('.mfrow .cbox, .mfhead .cbox').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('on')));
+$$('.trow').forEach(t=>t.addEventListener('click',()=>{$$('.trow').forEach(x=>x.classList.remove('sel'));t.classList.add('sel')}));
+</script>
+</body>
+</html>

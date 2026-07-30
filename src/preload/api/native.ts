@@ -10,6 +10,8 @@ export function createExternalApi(invokeIpc: InvokeIpc): ElectronAPI['external']
     openFolder: (path) => invokeIpc('external:openFolder', path),
     openFile: (path) => invokeIpc('external:openFile', path),
     revealPath: (path) => invokeIpc('external:revealPath', path),
+    listEditors: (refresh) => invokeIpc('external:listEditors', refresh),
+    openInEditor: (editorId, path) => invokeIpc('external:openInEditor', editorId, path),
   };
 }
 

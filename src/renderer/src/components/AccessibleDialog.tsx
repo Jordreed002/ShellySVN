@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { AlertTriangle, HelpCircle, Info, X } from 'lucide-react';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 
 /**
@@ -13,6 +13,11 @@ import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
  * - Proper ARIA attributes
  * - Focus restoration
  * - Screen reader announcements
+ *
+ * Visually this is the prototype's `.modal` (`prototypes/12-browser.html`): a
+ * 14px-radius card on a hairline border, a header block led by a 36px
+ * accent-tinted icon tile, a scrolling body, and a footer on a recessed surface
+ * where a muted note sits left of the actions.
  */
 export interface AccessibleDialogProps {
   /** Whether the dialog is open */
@@ -21,8 +26,20 @@ export interface AccessibleDialogProps {
   onClose: () => void;
   /** Dialog title (required for accessibility) */
   title: ReactNode;
-  /** Optional description for screen readers */
+  /**
+   * What the dialog is for, in one sentence. Wired to `aria-describedby` and
+   * shown under the title.
+   */
   description?: string;
+  /** Icon for the header tile. Defaults to an informational glyph. */
+  icon?: React.ComponentType<{ className?: string }>;
+  /**
+   * Colour of the header tile. Use `warning` or `danger` when the dialog is
+   * about something that is wrong or destructive — an accent-tinted tile above
+   * "2 things need attention" reads as neutral information, which under-states
+   * it. Purely visual: the meaning stays in the title and body text.
+   */
+  tone?: 'accent' | 'warning' | 'danger';
   /** Whether clicking outside should close the dialog */
   closeOnOverlayClick?: boolean;
   /** Whether pressing Escape should close the dialog */
@@ -45,6 +62,13 @@ export interface AccessibleDialogProps {
   onCloseComplete?: () => void;
 }
 
+/** Header-tile tints. Complete class strings so Tailwind's scanner sees them. */
+const HEADER_TONE: Record<'accent' | 'warning' | 'danger', string> = {
+  accent: 'border-accent/40 bg-accent/10 text-accent',
+  warning: 'border-svn-modified/40 bg-svn-modified/10 text-svn-modified',
+  danger: 'border-svn-conflict/40 bg-svn-conflict/10 text-svn-conflict',
+};
+
 const sizeClasses: Record<string, string> = {
   sm: 'w-[400px] max-w-[90vw]',
   md: 'w-[600px] max-w-[90vw]',
@@ -58,6 +82,8 @@ export function AccessibleDialog({
   onClose,
   title,
   description,
+  icon: HeaderIcon = Info,
+  tone = 'accent',
   closeOnOverlayClick = true,
   closeOnEscape = true,
   size = 'md',
@@ -154,14 +180,14 @@ export function AccessibleDialog({
 
   const dialog = (
     <div
-      className="modal-overlay"
+      className="modal-overlay grid overflow-y-auto p-4"
       onClick={handleOverlayClick}
       role="presentation"
       style={{ zIndex: 1000 }}
     >
       <div
         ref={containerRef}
-        className={`modal ${sizeClasses[size]} ${className}`}
+        className={`modal m-auto flex max-h-[88vh] flex-col overflow-hidden rounded-[14px] border border-border-strong bg-bg-secondary shadow-overlay ${sizeClasses[size]} ${className}`}
         role="dialog"
         aria-modal={modal}
         aria-labelledby={titleId}
@@ -169,29 +195,38 @@ export function AccessibleDialog({
         onClick={(e) => e.stopPropagation()}
         data-portal
       >
-        {/* Header */}
-        <div className="modal-header">
-          <h2 id={titleId} className="modal-title">
+        {/* Header — icon tile, title, and what the dialog is for */}
+        <div className="modal-header relative block flex-none border-b border-border px-5 pb-[15px] pt-[18px]">
+          <span
+            className={`mb-[11px] grid h-9 w-9 place-items-center rounded-[10px] border ${HEADER_TONE[tone]}`}
+          >
+            <HeaderIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+          </span>
+          <h2
+            id={titleId}
+            className="modal-title pr-9 text-[18px] font-bold leading-tight tracking-[-0.025em] text-text"
+          >
             {title}
           </h2>
+          {description && (
+            <p
+              id={descriptionId}
+              className="mt-1.5 text-[12.5px] leading-relaxed text-text-secondary"
+            >
+              {description}
+            </p>
+          )}
           {showCloseButton && (
             <button
               type="button"
               onClick={onClose}
-              className="btn-icon-sm"
+              className="absolute right-3.5 top-3.5 grid h-8 w-8 place-items-center rounded-lg border border-transparent text-text-secondary transition-fast hover:border-border hover:bg-bg-tertiary hover:text-text"
               aria-label={closeButtonLabel}
             >
-              <X className="w-4 h-4" aria-hidden="true" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
         </div>
-
-        {/* Screen reader description */}
-        {description && (
-          <p id={descriptionId} className="sr-only">
-            {description}
-          </p>
-        )}
 
         {/* Content */}
         {children}
@@ -212,11 +247,18 @@ export function AccessibleDialogBody({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={`modal-body ${className}`}>{children}</div>;
+  return (
+    <div className={`modal-body min-h-0 flex-1 overflow-auto px-5 py-4 ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 /**
- * AccessibleDialogFooter - The footer area with actions
+ * AccessibleDialogFooter - The footer area with actions.
+ *
+ * A recessed surface: a muted note may sit on the left (give it `mr-auto`), the
+ * actions collect on the right.
  */
 export function AccessibleDialogFooter({
   children,
@@ -225,7 +267,13 @@ export function AccessibleDialogFooter({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={`modal-footer ${className}`}>{children}</div>;
+  return (
+    <div
+      className={`modal-footer flex flex-none items-center justify-end gap-2.5 border-t border-border bg-bg-tertiary px-5 py-[13px] text-[12.5px] ${className}`}
+    >
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -260,20 +308,28 @@ export function AccessibleConfirmationDialog({
       onClose={onClose}
       title={title}
       size="sm"
+      icon={variant === 'danger' ? AlertTriangle : HelpCircle}
       closeOnOverlayClick={!isLoading}
       closeOnEscape={!isLoading}
     >
       <AccessibleDialogBody>
-        <p className="text-text-secondary">{message}</p>
+        <p className="text-[12.5px] leading-relaxed text-text-secondary">{message}</p>
       </AccessibleDialogBody>
       <AccessibleDialogFooter>
-        <button type="button" onClick={onClose} className="btn btn-secondary" disabled={isLoading}>
+        <button
+          type="button"
+          onClick={onClose}
+          className="btn btn-secondary h-8 rounded-lg px-3 text-[12.5px] font-semibold"
+          disabled={isLoading}
+        >
           {cancelLabel}
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className={`btn ${variant === 'danger' ? 'btn-danger' : 'btn-primary'}`}
+          className={`btn h-8 rounded-lg px-3 text-[12.5px] font-semibold ${
+            variant === 'danger' ? 'btn-danger' : 'btn-primary'
+          }`}
           disabled={isLoading}
           aria-busy={isLoading}
         >

@@ -149,7 +149,7 @@ export function QuickCommit({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Committing...</span>
+                    <span>Committing…</span>
                   </>
                 ) : (
                   <>

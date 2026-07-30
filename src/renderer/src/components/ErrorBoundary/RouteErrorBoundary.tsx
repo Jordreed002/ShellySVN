@@ -403,7 +403,7 @@ class RouteErrorBoundaryInner extends Component<
           {isRetrying && (
             <div className="flex items-center gap-2 mb-4 text-text-secondary">
               <RefreshCw className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Retrying...</span>
+              <span className="text-sm">Retrying…</span>
             </div>
           )}
 

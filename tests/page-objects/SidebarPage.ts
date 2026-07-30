@@ -17,13 +17,13 @@ export class SidebarPage {
     this.page = page;
     this.container = page.locator('aside').first();
     this.titleBar = this.container.locator('.h-\\[--titlebar-height\\]').first();
-    this.addButton = this.container.locator('button[title="Add Repository"]').first();
+    this.addButton = this.container.locator('button[title="Add repository"]').first();
     this.searchInput = this.container.locator('input[placeholder*="Search"]').first();
     this.settingsButton = this.container
       .locator('button:has(svg[class*="Settings"]), button')
       .last();
-    this.quickAccessSection = this.container.locator('text=Quick Access').first();
-    this.repositoriesSection = this.container.locator('text=SVN Repositories').first();
+    this.quickAccessSection = this.container.locator('text=Home').first();
+    this.repositoriesSection = this.container.locator('text=Working copies').first();
   }
 
   /**

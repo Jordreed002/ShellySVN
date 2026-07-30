@@ -133,20 +133,20 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     expect(screen.getByText('Checkout directory')).toBeInTheDocument();
     expect(screen.getByText('Checkout depth')).toBeInTheDocument();
     expect(screen.getByText('Fully recursive')).toBeInTheDocument();
-    expect(screen.getByText('Choose items...')).toBeInTheDocument();
+    expect(screen.getByText('Choose items…')).toBeInTheDocument();
   });
 
-  it('does not render "Choose items..." button when URL is empty', () => {
+  it('does not render "Choose items…" button when URL is empty', () => {
     const propsWithoutUrl = { ...defaultProps, initialUrl: '' };
 
     renderWithProviders(<CheckoutDialog {...propsWithoutUrl} />);
-    expect(screen.queryByText('Choose items...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Choose items…')).not.toBeInTheDocument();
   });
 
-  it('opens ChooseItemsDialog when "Choose items..." button is clicked', async () => {
+  it('opens ChooseItemsDialog when "Choose items…" button is clicked', async () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     expect(await screen.findByTestId('choose-items-dialog')).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.change(usernameInput, { target: { value: 'testuser' } });
     fireEvent.change(passwordInput, { target: { value: 'testpass' } });
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     expect(ChooseItemsDialog).toHaveBeenCalledWith(
@@ -192,7 +192,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     // Open ChooseItemsDialog
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     // Select files and confirm
@@ -229,7 +229,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     // Open ChooseItemsDialog and select empty
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const emptyButton = await screen.findByText('Empty Selection');
@@ -263,7 +263,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -289,7 +289,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -308,7 +308,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     // Cancel ChooseItemsDialog
@@ -325,7 +325,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     const pathInput = screen.getByPlaceholderText('C:\\Projects\\my-project');
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     mockCheckout.mockImplementation(() => new Promise(() => {}));
@@ -334,14 +334,14 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.click(selectButton);
     fireEvent.click(screen.getByText('Checkout'));
 
-    await waitFor(() => expect(screen.getByText('Choose items...')).toBeDisabled());
+    await waitFor(() => expect(screen.getByText('Choose items…')).toBeDisabled());
   });
 
   it('shows selected count in depth label when items are chosen', async () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -356,7 +356,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -371,7 +371,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -394,7 +394,7 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     fireEvent.click(depthOption);
 
     expect(screen.getByText('Checkout')).toBeInTheDocument();
-    expect(screen.getByText('Choose items...')).toBeInTheDocument();
+    expect(screen.getByText('Choose items…')).toBeInTheDocument();
   });
 });
 
@@ -425,7 +425,7 @@ describe('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -445,7 +445,7 @@ describe('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
 
     renderWithProviders(<CheckoutDialog {...propsWithoutCredentials} />);
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     expect(ChooseItemsDialog).toHaveBeenCalledWith(
@@ -459,7 +459,7 @@ describe('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
   it('handles empty selected paths gracefully', async () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const emptyButton = await screen.findByText('Empty Selection');
@@ -488,7 +488,7 @@ describe('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
     fireEvent.change(pathInput, { target: { value: '/test/path' } });
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');

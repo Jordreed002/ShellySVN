@@ -371,7 +371,7 @@ export function getStatusDisplay(status: SvnStatusChar): {
     '?': { icon: '?', color: 'text-gray-500', label: 'Unversioned' },
     '!': { icon: '!', color: 'text-red-600', label: 'Missing' },
     '~': { icon: '~', color: 'text-orange-500', label: 'Obstructed' },
-    O: { icon: 'O', color: 'text-info', label: 'Remote Only' },
+    O: { icon: 'O', color: 'text-info', label: 'Not checked out' },
   };
 
   return display[status] ?? display[' '];

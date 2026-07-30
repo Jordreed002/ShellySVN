@@ -109,7 +109,7 @@ export function ProjectMonitorPanel({
                   type="text"
                   value={newPath}
                   onChange={(e) => setNewPath(e.target.value)}
-                  placeholder="Enter working copy path..."
+                  placeholder="Enter working copy path…"
                   className="input flex-1"
                 />
                 <button onClick={handleBrowse} className="btn btn-secondary">

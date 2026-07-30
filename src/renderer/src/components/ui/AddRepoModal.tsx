@@ -414,17 +414,17 @@ export function AddRepoModal({
             <div>
               <h2 className="text-lg font-semibold text-text">
                 {mode === 'checkout'
-                  ? 'Checkout from Repository'
+                  ? 'Check out from a repository'
                   : mode === 'import'
-                    ? 'Import to Repository'
-                    : 'Open Working Copy'}
+                    ? 'Import into a repository'
+                    : 'Open a working copy'}
               </h2>
               <p className="text-sm text-text-secondary">
                 {mode === 'checkout'
-                  ? 'Download a working copy from a remote repository'
+                  ? 'Create a working copy on this machine from a repository URL — svn checkout'
                   : mode === 'import'
-                    ? 'Upload a local folder to a repository'
-                    : 'Open an existing SVN working copy'}
+                    ? 'Commit an unversioned folder into the repository — svn import'
+                    : 'Point the app at a checkout already on this machine. Nothing is fetched.'}
               </p>
             </div>
           </div>
@@ -451,7 +451,7 @@ export function AddRepoModal({
                 : 'text-text-secondary hover:text-text'
             }`}
           >
-            Open Working Copy
+            Open a working copy
           </button>
           <button
             onClick={() => {
@@ -464,7 +464,7 @@ export function AddRepoModal({
                 : 'text-text-secondary hover:text-text'
             }`}
           >
-            Checkout from URL
+            Check out from URL
           </button>
           <button
             onClick={() => {
@@ -491,7 +491,7 @@ export function AddRepoModal({
                   htmlFor="add-repo-working-copy-path"
                   className="block text-sm font-medium text-text mb-2"
                 >
-                  Working Copy Path
+                  Working copy path
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -499,7 +499,7 @@ export function AddRepoModal({
                     type="text"
                     value={selectedPath}
                     onChange={(e) => setSelectedPath(e.target.value)}
-                    placeholder="Select a folder containing an SVN working copy..."
+                    placeholder="Choose a folder that already contains a working copy…"
                     className="input flex-1"
                     readOnly
                   />
@@ -510,12 +510,12 @@ export function AddRepoModal({
                 </div>
               </div>
 
-              {/* Recent Repositories */}
+              {/* Recent working copies — local checkouts, not repositories. */}
               {recentRepos.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 text-sm text-text-secondary mb-2">
                     <Clock className="w-4 h-4" />
-                    <span>Recent Repositories</span>
+                    <span>Recent working copies</span>
                   </div>
                   <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-overlay">
                     {recentRepos.map((repo) => (
@@ -583,7 +583,7 @@ export function AddRepoModal({
                       type="text"
                       value={checkoutPath}
                       onChange={(e) => setCheckoutPath(e.target.value)}
-                      placeholder="Select destination folder..."
+                      placeholder="Choose a destination folder…"
                       className="input flex-1"
                       disabled={isCheckingOut}
                     />
@@ -654,7 +654,7 @@ export function AddRepoModal({
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin text-accent" />
                       <span className="text-sm text-text-secondary">
-                        Checking out... {checkoutProgress.filesProcessed} files
+                        Checking out… {checkoutProgress.filesProcessed} files
                       </span>
                     </div>
                     {checkoutProgress.currentFile && (
@@ -674,7 +674,7 @@ export function AddRepoModal({
                       className="btn btn-ghost text-sm"
                       disabled={isCheckingOut}
                     >
-                      Choose items...
+                      Choose items…
                     </button>
                     {selectedPaths.length > 0 && (
                       <button
@@ -792,10 +792,11 @@ export function AddRepoModal({
               <div className="flex items-start gap-3 p-4 bg-accent/5 border border-accent/20 rounded-lg">
                 <Upload className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="text-sm font-medium text-text mb-1">Import to Repository</h3>
+                  <h3 className="text-sm font-medium text-text mb-1">Import into a repository</h3>
                   <p className="text-xs text-text-secondary">
-                    Upload a local folder to a repository location. This creates a new directory in
-                    the repository containing the contents of your local folder.
+                    Commits an unversioned folder straight into the repository, creating a new
+                    directory there with its contents. The folder on disk does <b>not</b> become a
+                    working copy — check the new location out afterwards if you want one.
                   </p>
                 </div>
               </div>
@@ -830,7 +831,7 @@ export function AddRepoModal({
               {isChecking ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Verifying...
+                  Verifying…
                 </>
               ) : (
                 <>

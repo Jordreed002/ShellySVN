@@ -232,6 +232,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
                 {activeTab === 'integration' && (
                   <IntegrationSettingsTab
                     settings={localSettings}
+                    onChange={updateLocalSetting}
                     onChangeNested={updateNestedSetting}
                     onOpenShellIntegration={() => setShowShellIntegrationDialog(true)}
                   />
@@ -279,8 +280,8 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
                 >
                   {isUpdating ? (
                     <>
-                      <span className="animate-spin">...</span>
-                      Saving...
+                      <span className="animate-spin">…</span>
+                      Saving…
                     </>
                   ) : (
                     <>
@@ -310,7 +311,7 @@ function SettingsPanelLoader() {
   return (
     <div className="flex h-full min-h-[220px] items-center justify-center text-text-muted">
       <Loader2 className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
-      <span className="sr-only">Loading settings...</span>
+      <span className="sr-only">Loading settings…</span>
     </div>
   );
 }

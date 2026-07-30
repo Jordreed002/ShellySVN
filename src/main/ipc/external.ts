@@ -5,6 +5,7 @@ import { access, stat } from 'fs/promises';
 import { normalize } from 'path';
 import debug from '../utils/debug';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { listCodeEditors, openInCodeEditor } from '../services/code-editors';
 
 /**
  * SECURITY: Whitelist of allowed diff tools (known aliases)
@@ -327,6 +328,32 @@ export function registerExternalHandlers(): void {
 
       shell.showItemInFolder(normalized);
       return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  // Editors installed on this machine, for the "Open in…" menu.
+  ipcMain.handle('external:listEditors', async (_, refresh?: boolean) =>
+    listCodeEditors({ refresh: refresh === true })
+  );
+
+  // Open a file or folder in one of them. The renderer names an editor by id;
+  // the command it maps to is fixed in the main process.
+  ipcMain.handle('external:openInEditor', async (_, editorId: string, path: string) => {
+    try {
+      if (hasPathTraversal(path)) {
+        return { success: false, error: 'Path traversal not allowed' };
+      }
+      const normalized = assertPathApprovedForIpc(path, 'Opening paths in an editor');
+
+      try {
+        await stat(normalized);
+      } catch {
+        return { success: false, error: 'Path does not exist' };
+      }
+
+      return await openInCodeEditor(editorId, normalized);
     } catch (err) {
       return { success: false, error: (err as Error).message };
     }

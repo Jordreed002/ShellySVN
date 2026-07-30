@@ -262,7 +262,7 @@ export function LockManagementDialog({
                   aria-label="Loading locks"
                 >
                   <Loader2 className="w-5 h-5 text-text-muted animate-spin" aria-hidden="true" />
-                  <span className="sr-only">Loading locks...</span>
+                  <span className="sr-only">Loading locks…</span>
                 </div>
               ) : locks.length === 0 ? (
                 <div

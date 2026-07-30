@@ -23,9 +23,9 @@ test.describe('Sidebar Navigation', () => {
     const sidebarVisible = await sidebarPage.isVisible();
     expect(sidebarVisible).toBe(true);
 
-    // Check for Quick Access section
-    const quickAccess = await page.locator('text=Quick Access').count();
-    expect(quickAccess).toBeGreaterThan(0);
+    // The rail leads with Home / Files, then the working-copy sections.
+    const home = await page.locator('aside').getByText('Home', { exact: true }).count();
+    expect(home).toBeGreaterThan(0);
 
     // Check for Browse section
     const browse = await page.locator('text=Browse').count();
@@ -70,12 +70,11 @@ test.describe('Sidebar Navigation', () => {
 
   test('add repository button is present', async ({ page }) => {
     // Wait for the sidebar to be fully rendered with the repositories section
-    const repositoriesHeader = page.locator('aside').getByText('Repositories', { exact: true });
+    const repositoriesHeader = page.locator('aside').getByText('Working copies', { exact: true });
     await repositoriesHeader.waitFor({ state: 'visible', timeout: 10000 });
 
-    // Check for the + button next to Repositories header using a more specific selector
-    // The button is a sibling of the Repositories span within the same container
-    const addButton = page.locator('aside button[title="Add Repository"]');
+    // The + button sits in the "Working copies" section heading.
+    const addButton = page.locator('aside button[title="Add repository"]');
 
     // Wait for the button to be visible with a timeout
     await expect(addButton).toBeVisible({ timeout: 10000 });

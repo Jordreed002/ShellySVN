@@ -61,6 +61,7 @@ vi.mock('../../utils/debug', () => ({
 }));
 
 import {
+  classifyWorkingCopyUpgradeError,
   copy,
   cleanup,
   excludeFromWorkingCopy,
@@ -286,6 +287,39 @@ describe('svn-working-copy sparse exclusion', () => {
     expect(mockState.trashItem).not.toHaveBeenCalled();
   });
 
+  it('removes a whole selection of files and folders in one command', async () => {
+    await expect(
+      excludeFromWorkingCopy(['/wc/generated', '/wc/notes.txt'])
+    ).resolves.toEqual({ success: true });
+
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'update',
+      '--set-depth',
+      'exclude',
+      '--',
+      '/wc/generated',
+      '/wc/notes.txt',
+    ]);
+  });
+
+  it('refuses an empty selection instead of running svn with no target', async () => {
+    await expect(excludeFromWorkingCopy([])).resolves.toEqual({
+      success: false,
+      error: 'Nothing selected to remove from the working copy',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+
+  it('trashes every selected leftover, not just the first', async () => {
+    mockState.existsSync.mockReturnValue(true);
+
+    await expect(excludeFromWorkingCopy(['/wc/a', '/wc/b'])).resolves.toEqual({ success: true });
+
+    expect(mockState.trashItem).toHaveBeenCalledWith('/wc/a');
+    expect(mockState.trashItem).toHaveBeenCalledWith('/wc/b');
+  });
+
   it('moves a folder left behind by unversioned content to the OS trash', async () => {
     mockState.existsSync.mockReturnValue(true);
 
@@ -317,7 +351,7 @@ describe('svn-working-copy sparse exclusion', () => {
     await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toEqual({
       success: false,
       error:
-        'SVN excluded the folder, but its remaining local files could not be moved to the trash: trash unavailable',
+        'SVN excluded the selection, but remaining local files could not be moved to the trash: trash unavailable',
     });
   });
 });
@@ -624,6 +658,41 @@ describe('svn-working-copy upgrade helpers', () => {
     expect(result.required).toBe(true);
     expect(result.path).toBe('/wc');
     expect(result.reason).toContain('older SVN client');
+  });
+
+  it('treats a path outside any checkout as needing no upgrade, without an error', async () => {
+    mockState.runSvnText.mockRejectedValue(
+      new Error("svn: E155007: '/Users/jordan/Work' is not a working copy")
+    );
+
+    const result = await getWorkingCopyUpgradeStatus('/Users/jordan/Work');
+
+    // An `error` here would surface an expected condition as a failure.
+    expect(result).toEqual({ path: '/Users/jordan/Work', required: false });
+  });
+
+  it('still reports a genuine failure to answer the upgrade question', async () => {
+    mockState.runSvnText.mockRejectedValue(new Error('svn: E170013: Unable to connect'));
+
+    const result = await getWorkingCopyUpgradeStatus('/wc');
+
+    expect(result).toMatchObject({ path: '/wc', required: false });
+    expect(result.error).toContain('E170013');
+  });
+
+  it('classifies an already-observed svn info failure without a second process', () => {
+    const notAWorkingCopy = classifyWorkingCopyUpgradeError(
+      '/Users/jordan/Work',
+      new Error("svn: E155007: '/Users/jordan/Work' is not a working copy")
+    );
+    const tooOld = classifyWorkingCopyUpgradeError(
+      '/wc',
+      new Error("svn: E155036: Please see the 'svn upgrade' command")
+    );
+
+    expect(notAWorkingCopy).toEqual({ path: '/Users/jordan/Work', required: false });
+    expect(tooOld.required).toBe(true);
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
   });
 
   it('runs svn upgrade for the selected working copy', async () => {

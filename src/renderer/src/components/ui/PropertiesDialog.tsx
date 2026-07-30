@@ -420,7 +420,7 @@ export function PropertiesDialog({
                       id="property-value"
                       value={newPropValue}
                       onChange={(e) => setNewPropValue(e.target.value)}
-                      placeholder="Enter property value..."
+                      placeholder="Enter property value…"
                       className="input h-24 resize-none text-sm"
                     />
                   </div>
@@ -587,7 +587,7 @@ export function PropertiesDialog({
               {isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
+                  Saving…
                 </>
               ) : (
                 <>

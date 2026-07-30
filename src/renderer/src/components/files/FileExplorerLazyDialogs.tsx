@@ -108,7 +108,7 @@ export function CommitDialogLoader() {
             </div>
             <div className="flex-1 flex items-center justify-center">
               <Loader className="w-5 h-5 animate-spin text-accent" aria-hidden="true" />
-              <span className="sr-only">Loading files...</span>
+              <span className="sr-only">Loading files…</span>
             </div>
           </div>
           <div className="flex-1 flex flex-col">

@@ -193,7 +193,7 @@ test.describe('Authentication - During SVN Operations', () => {
 
   test('auth prompt appears for protected repositories', async ({ page }) => {
     // Navigate to checkout dialog
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();

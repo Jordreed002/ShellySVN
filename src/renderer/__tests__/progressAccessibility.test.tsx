@@ -1,4 +1,5 @@
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -16,6 +17,10 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('../src/components/sidebar/sidebarData', () => ({
   useWorkingCopyInfo: () => ({ data: undefined }),
+  useWorkingCopyOverview: () => new Map(),
+  useWorkingCopySizes: () => ({ data: undefined }),
+  buildDiskUsage: () => null,
+  formatDiskSize: (bytes: number) => `${bytes} B`,
 }));
 
 describe('status and progress accessibility', () => {
@@ -58,10 +63,18 @@ describe('status and progress accessibility', () => {
   });
 
   it('exposes the app status bar as a polite status region', () => {
-    render(<StatusBar />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <StatusBar />
+      </QueryClientProvider>
+    );
 
     const region = screen.getByRole('status', { name: 'Application status' });
     expect(region).toHaveAttribute('aria-live', 'polite');
+    // `role="status"` implies atomic announcements; the strip opts out so a
+    // changed cell does not re-read the whole bar.
+    expect(region).toHaveAttribute('aria-atomic', 'false');
     expect(region).toHaveTextContent('No working copy open');
   });
 });

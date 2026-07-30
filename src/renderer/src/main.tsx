@@ -7,7 +7,14 @@ import { GlobalErrorBoundary } from './components/ErrorBoundary';
 import { AppMotionProvider } from './lib/motion';
 import { DEFAULT_QUERY_STALE_TIME_MS } from '@shared/constants';
 
-// Import styles
+// Import styles.
+//
+// Fonts: Archivo (sans) and JetBrains Mono (mono) are self-hosted — the app's CSP is
+// `default-src 'self'`, so a Google Fonts <link> would be blocked and silently fall back
+// to the system UI font. The woff2 files ship in @fontsource-variable/archivo and
+// @fontsource-variable/jetbrains-mono; global.css declares @font-face against the `latin`
+// subset only (importing the packages' own CSS here would pull in the cyrillic/greek/
+// latin-ext/vietnamese subsets too, roughly doubling the shipped font weight).
 import './styles/global.css';
 
 // Import the generated route tree

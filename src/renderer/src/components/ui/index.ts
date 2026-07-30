@@ -6,7 +6,6 @@ export { ContextMenu, useContextMenu, getSvnContextMenuItems } from './ContextMe
 export type { ContextMenuItem } from './ContextMenu';
 export { FileRow, FileListHeader } from './FileRow';
 export type { FileRowProps } from './FileRow';
-export { FileTreeView, useFileTreeView } from './FileTreeView';
 export { AddRepoModal, AddRepoButton } from './AddRepoModal';
 export { ProgressDialog } from './ProgressDialog';
 export type { ProgressDialogProps } from './ProgressDialog';
@@ -59,12 +58,6 @@ export type { TreeNode } from './VirtualizedList';
 export { CommitTemplateManager } from './CommitTemplateManager';
 export { BranchVisualization, BranchTreeNode, useBranchVisualization } from './BranchVisualization';
 export type { BranchNode, BranchVisualizationConfig, BranchNodeProps } from './BranchVisualization';
-export { RepoBrowserEnhanced, useRepoBrowser } from './RepoBrowserEnhanced';
-export type {
-  RepoBrowserNode,
-  BrowserState,
-  RepoBrowserEnhancedProps,
-} from './RepoBrowserEnhanced';
 export { StatusBar } from './StatusBar';
 export { ChooseItemsDialog } from './ChooseItemsDialog';
 export {

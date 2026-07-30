@@ -163,7 +163,7 @@ export function BranchTagCompareDialog({
           {isLoading && (
             <div className="flex h-full items-center justify-center text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-accent" />
-              Comparing repository URLs...
+              Comparing repository URLs…
             </div>
           )}
 

@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type {
   SvnBlameResult,
+  SvnChildCommitInfo,
   SvnDiffFile,
   SvnDiffHunk,
   SvnDiffResult,
@@ -101,15 +102,15 @@ export function parseSvnInfoXml(xml: string): SvnInfoResult {
   }
 }
 
-export interface ChildCommitInfo {
-  revision: number;
-  author: string;
-  date: string;
-}
+export type ChildCommitInfo = SvnChildCommitInfo;
 
 /**
  * Parse `svn info --xml --depth immediates <dir>` into a map of child name ->
  * last-commit info. The directory's own entry is skipped.
+ *
+ * Children excluded from the checkout are kept even though they carry no
+ * `<commit>` element: they are absent from disk, so this listing is the only
+ * offline evidence that they belong to the working copy at all.
  */
 export function parseSvnChildCommitsXml(
   xml: string,
@@ -141,11 +142,23 @@ export function parseSvnChildCommitsXml(
       const commit = (
         entry as { commit?: { '@_revision'?: unknown; author?: unknown; date?: unknown } }
       ).commit;
-      if (!commit) continue;
+      const depth = (entry as { 'wc-info'?: { depth?: unknown } })['wc-info']?.depth;
+      const excluded = String(depth ?? '') === 'exclude';
+      if (!commit && !excluded) continue;
       result[name] = {
-        revision: commit['@_revision'] ? parseInt(String(commit['@_revision']), 10) : 0,
-        author: commit.author ? String(commit.author) : '',
-        date: commit.date ? String(commit.date) : '',
+        revision: commit?.['@_revision'] ? parseInt(String(commit['@_revision']), 10) : 0,
+        author: commit?.author ? String(commit.author) : '',
+        date: commit?.date ? String(commit.date) : '',
+        ...(excluded
+          ? {
+              excluded: true,
+              url: String((entry as { url?: unknown }).url ?? ''),
+              kind:
+                String((entry as { '@_kind'?: unknown })['@_kind'] ?? '') === 'file'
+                  ? ('file' as const)
+                  : ('dir' as const),
+            }
+          : {}),
       };
     }
   } catch (error) {

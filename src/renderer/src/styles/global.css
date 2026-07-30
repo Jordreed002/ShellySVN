@@ -1,3 +1,40 @@
+/*
+ * Typefaces — self-hosted, latin subset only.
+ *
+ * The app's CSP is `default-src 'self'`, so a Google Fonts <link> is blocked and
+ * silently falls back to the system UI font. These @font-face rules point at the
+ * woff2 files vendored by @fontsource-variable/*; Vite resolves the bare package
+ * specifiers and emits the files as build assets.
+ *
+ * Only the `latin` subset and only the upright (non-italic) variable axis are
+ * declared — the extended/cyrillic/greek/vietnamese subsets would roughly double
+ * the shipped font weight for glyphs this UI never renders. Italics are
+ * synthesised by the compositor.
+ */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/archivo/files/archivo-latin-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 800;
+  src: url('@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -23,12 +60,59 @@
   --titlebar-height: 40px;
   --toolbar-height: 48px;
 
-  /* Surfaces */
+  /*
+   * Typography — ported from prototypes/12-browser.html.
+   * The Tailwind equivalents are `font-sans` / `font-mono` and `text-<px>`
+   * (text-9.5 … text-18); these variables exist for hand-written CSS.
+   */
+  --font-sans:
+    'Archivo', 'Archivo Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
+    sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, 'Fira Code',
+    Consolas, Monaco, monospace;
+  --font-size-base: 13.5px;
+  --line-height-base: 1.5;
+  --font-size-9-5: 9.5px;
+  --font-size-10: 10px;
+  --font-size-10-5: 10.5px;
+  --font-size-11: 11px;
+  --font-size-11-5: 11.5px;
+  --font-size-12: 12px;
+  --font-size-12-5: 12.5px;
+  --font-size-13: 13px;
+  --tracking-eyebrow: 0.13em;
+  --tracking-caps: 0.08em;
+
+  /* Radius scale — Tailwind equivalents are `rounded-4` … `rounded-14`, `rounded-pill`. */
+  --radius-4: 4px;
+  --radius-5: 5px;
+  --radius-6: 6px;
+  --radius-7: 7px;
+  --radius-8: 8px;
+  --radius-9: 9px;
+  --radius-10: 10px;
+  --radius-11: 11px;
+  --radius-14: 14px;
+  --radius-pill: 99px;
+
+  /* Control metrics — Tailwind equivalents are `h-control-xs` … `h-row`. */
+  --control-height-xs: 24px;
+  --control-height-sm: 26px;
+  --control-height-md: 30px;
+  --control-height: 32px;
+  --control-height-lg: 34px;
+  --row-height: 38px;
+  --row-height-tree: 27px;
+
+  /* Surfaces — recessed (sunk) < canvas (bg) < panel < fill < raised */
   --color-bg-rgb: 13 17 23;
+  --color-bg-sunk-rgb: 10 14 20;
   --color-bg-secondary-rgb: 22 27 34;
   --color-bg-tertiary-rgb: 33 38 45;
   --color-bg-elevated-rgb: 48 54 61;
   --color-bg: rgb(13 17 23);
+  --color-bg-sunk: rgb(10 14 20);
   --color-bg-secondary: rgb(22 27 34);
   --color-bg-tertiary: rgb(33 38 45);
   --color-bg-elevated: rgb(48 54 61);
@@ -37,144 +121,169 @@
   --surface-glass: rgba(33, 38, 45, 0.72);
   --surface-glass-strong: rgba(22, 27, 34, 0.9);
 
-  /* Borders */
-  --color-border-rgb: 48 54 61;
-  --color-border-muted-rgb: 33 38 45;
-  --color-border: rgb(48 54 61);
-  --color-border-muted: rgb(33 38 45);
+  /* Borders — muted (hairline) < default < strong (control outline) */
+  --color-border-rgb: 37 45 56;
+  --color-border-muted-rgb: 28 35 44;
+  --color-border-strong-rgb: 58 68 83;
+  --color-border: rgb(37 45 56);
+  --color-border-muted: rgb(28 35 44);
+  --color-border-strong: rgb(58 68 83);
 
   /* Text */
   --color-text-rgb: 230 237 243;
-  --color-text-secondary-rgb: 139 148 158;
-  --color-text-muted-rgb: 110 118 129;
-  --color-text-faint-rgb: 72 79 88;
+  --color-text-secondary-rgb: 154 164 176;
+  --color-text-muted-rgb: 114 125 138;
+  --color-text-faint-rgb: 77 88 102;
   --color-text: rgb(230 237 243);
-  --color-text-secondary: rgb(139 148 158);
-  --color-text-muted: rgb(110 118 129);
-  --color-text-faint: rgb(72 79 88);
+  --color-text-secondary: rgb(154 164 176);
+  --color-text-muted: rgb(114 125 138);
+  --color-text-faint: rgb(77 88 102);
 
   /* Accent — original blue (user-customizable) */
   --color-accent-rgb: 88 166 255;
-  --color-accent-hover-rgb: 121 184 255;
+  --color-accent-hover-rgb: 132 192 255;
   --color-accent-muted-rgb: 56 139 253;
   --color-accent-soft-rgb: 88 166 255;
   --color-accent-glow: rgba(88, 166, 255, 0.4);
   --color-accent: rgb(88 166 255);
-  --color-accent-hover: rgb(121 184 255);
+  --color-accent-hover: rgb(132 192 255);
   --color-accent-muted: rgb(56 139 253);
 
   /* SVN Status Colors */
   --color-svn-normal-rgb: 63 185 80;
-  --color-svn-added-rgb: 88 166 255;
-  --color-svn-modified-rgb: 210 153 34;
-  --color-svn-deleted-rgb: 248 81 73;
-  --color-svn-conflict-rgb: 248 81 73;
-  --color-svn-unversioned-rgb: 110 118 129;
-  --color-svn-missing-rgb: 248 81 73;
+  --color-svn-added-rgb: 70 185 90;
+  --color-svn-modified-rgb: 217 161 41;
+  --color-svn-deleted-rgb: 242 102 106;
+  --color-svn-conflict-rgb: 242 102 106;
+  --color-svn-unversioned-rgb: 114 125 138;
+  --color-svn-missing-rgb: 242 102 106;
   --color-svn-replaced-rgb: 163 113 247;
   --color-svn-external-rgb: 57 197 207;
-  --color-svn-ignored-rgb: 72 79 88;
+  --color-svn-ignored-rgb: 77 88 102;
   --color-svn-obstructed-rgb: 240 136 62;
   --color-svn-normal: rgb(63 185 80);
-  --color-svn-added: rgb(88 166 255);
-  --color-svn-modified: rgb(210 153 34);
-  --color-svn-deleted: rgb(248 81 73);
-  --color-svn-conflict: rgb(248 81 73);
-  --color-svn-unversioned: rgb(110 118 129);
-  --color-svn-missing: rgb(248 81 73);
+  --color-svn-added: rgb(70 185 90);
+  --color-svn-modified: rgb(217 161 41);
+  --color-svn-deleted: rgb(242 102 106);
+  --color-svn-conflict: rgb(242 102 106);
+  --color-svn-unversioned: rgb(114 125 138);
+  --color-svn-missing: rgb(242 102 106);
   --color-svn-replaced: rgb(163 113 247);
   --color-svn-external: rgb(57 197 207);
-  --color-svn-ignored: rgb(72 79 88);
+  --color-svn-ignored: rgb(77 88 102);
   --color-svn-obstructed: rgb(240 136 62);
 
   /* UI State Colors */
-  --color-success-rgb: 63 185 80;
-  --color-success-glow: rgba(63, 185, 80, 0.4);
-  --color-warning-rgb: 210 153 34;
-  --color-warning-glow: rgba(210, 153, 34, 0.4);
-  --color-error-rgb: 248 81 73;
-  --color-error-glow: rgba(248, 81, 73, 0.4);
+  --color-success-rgb: 70 185 90;
+  --color-success-glow: rgba(70, 185, 90, 0.4);
+  --color-warning-rgb: 217 161 41;
+  --color-warning-glow: rgba(217, 161, 41, 0.4);
+  --color-error-rgb: 242 102 106;
+  --color-error-glow: rgba(242, 102, 106, 0.4);
   --color-info-rgb: 88 166 255;
-  --color-success: rgb(63 185 80);
-  --color-warning: rgb(210 153 34);
-  --color-error: rgb(248 81 73);
+  --color-success: rgb(70 185 90);
+  --color-warning: rgb(217 161 41);
+  --color-error: rgb(242 102 106);
   --color-info: rgb(88 166 255);
 
   /* Layered shadows — soft ambient + key light */
-  --shadow-card: 0 1px 2px rgba(1, 4, 9, 0.5), 0 1px 1px rgba(1, 4, 9, 0.35);
-  --shadow-panel: 0 12px 32px -8px rgba(1, 4, 9, 0.7), 0 2px 8px rgba(1, 4, 9, 0.5);
-  --shadow-overlay: 0 24px 64px -12px rgba(1, 4, 9, 0.8), 0 8px 24px rgba(1, 4, 9, 0.5);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.3);
+  --shadow-panel: 0 4px 14px -4px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-overlay: 0 26px 60px -18px rgba(0, 0, 0, 0.8), 0 6px 18px -8px rgba(0, 0, 0, 0.55);
 }
 
 /* Light theme */
 :root.light {
-  --color-bg-rgb: 255 255 255;
-  --color-bg-secondary-rgb: 246 248 250;
-  --color-bg-tertiary-rgb: 234 238 242;
+  /* Canvas is a soft grey, raised panels are white — the prototype's ramp. */
+  --color-bg-rgb: 246 247 249;
+  --color-bg-sunk-rgb: 230 234 240;
+  --color-bg-secondary-rgb: 255 255 255;
+  --color-bg-tertiary-rgb: 238 240 244;
   --color-bg-elevated-rgb: 255 255 255;
-  --color-bg: rgb(255 255 255);
-  --color-bg-secondary: rgb(246 248 250);
-  --color-bg-tertiary: rgb(234 238 242);
+  --color-bg: rgb(246 247 249);
+  --color-bg-sunk: rgb(230 234 240);
+  --color-bg-secondary: rgb(255 255 255);
+  --color-bg-tertiary: rgb(238 240 244);
   --color-bg-elevated: rgb(255 255 255);
 
   --surface-glass: rgba(255, 255, 255, 0.72);
-  --surface-glass-strong: rgba(246, 248, 250, 0.92);
+  --surface-glass-strong: rgba(251, 252, 253, 0.92);
 
-  --color-border-rgb: 208 215 222;
-  --color-border-muted-rgb: 234 238 242;
-  --color-border: rgb(208 215 222);
-  --color-border-muted: rgb(234 238 242);
+  --color-border-rgb: 224 228 234;
+  --color-border-muted-rgb: 236 239 243;
+  --color-border-strong-rgb: 207 213 222;
+  --color-border: rgb(224 228 234);
+  --color-border-muted: rgb(236 239 243);
+  --color-border-strong: rgb(207 213 222);
 
-  --color-text-rgb: 31 35 40;
-  --color-text-secondary-rgb: 87 96 106;
-  --color-text-muted-rgb: 140 149 159;
-  --color-text-faint-rgb: 140 149 159;
-  --color-text: rgb(31 35 40);
-  --color-text-secondary: rgb(87 96 106);
-  --color-text-muted: rgb(140 149 159);
-  --color-text-faint: rgb(140 149 159);
+  --color-text-rgb: 22 26 32;
+  --color-text-secondary-rgb: 89 97 110;
+  --color-text-muted-rgb: 138 145 157;
+  --color-text-faint-rgb: 178 184 194;
+  --color-text: rgb(22 26 32);
+  --color-text-secondary: rgb(89 97 110);
+  --color-text-muted: rgb(138 145 157);
+  --color-text-faint: rgb(178 184 194);
 
-  --color-accent-soft-rgb: 88 166 255;
-  --color-accent-glow: rgba(88, 166, 255, 0.25);
-  --color-accent: rgb(88 166 255);
-  --color-accent-hover: rgb(121 184 255);
-  --color-accent-muted: rgb(56 139 253);
+  /* Accent darkens in light so white-on-accent text stays legible */
+  --color-accent-rgb: 37 99 201;
+  --color-accent-hover-rgb: 28 79 165;
+  --color-accent-muted-rgb: 26 70 145;
+  --color-accent-soft-rgb: 37 99 201;
+  --color-accent-glow: rgba(37, 99, 201, 0.25);
+  --color-accent: rgb(37 99 201);
+  --color-accent-hover: rgb(28 79 165);
+  --color-accent-muted: rgb(26 70 145);
 
   --color-svn-normal-rgb: 26 127 55;
-  --color-svn-added-rgb: 9 105 218;
-  --color-svn-modified-rgb: 154 103 0;
-  --color-svn-deleted-rgb: 207 34 46;
-  --color-svn-conflict-rgb: 207 34 46;
-  --color-svn-unversioned-rgb: 87 96 106;
+  --color-svn-added-rgb: 31 122 69;
+  --color-svn-modified-rgb: 159 100 5;
+  --color-svn-deleted-rgb: 187 58 52;
+  --color-svn-conflict-rgb: 187 58 52;
+  --color-svn-unversioned-rgb: 106 114 128;
+  --color-svn-missing-rgb: 187 58 52;
+  --color-svn-replaced-rgb: 107 78 158;
+  --color-svn-external-rgb: 15 109 120;
+  --color-svn-ignored-rgb: 138 145 157;
+  --color-svn-obstructed-rgb: 168 83 11;
   --color-svn-normal: rgb(26 127 55);
-  --color-svn-added: rgb(9 105 218);
-  --color-svn-modified: rgb(154 103 0);
-  --color-svn-deleted: rgb(207 34 46);
-  --color-svn-conflict: rgb(207 34 46);
-  --color-svn-unversioned: rgb(87 96 106);
+  --color-svn-added: rgb(31 122 69);
+  --color-svn-modified: rgb(159 100 5);
+  --color-svn-deleted: rgb(187 58 52);
+  --color-svn-conflict: rgb(187 58 52);
+  --color-svn-unversioned: rgb(106 114 128);
+  --color-svn-missing: rgb(187 58 52);
+  --color-svn-replaced: rgb(107 78 158);
+  --color-svn-external: rgb(15 109 120);
+  --color-svn-ignored: rgb(138 145 157);
+  --color-svn-obstructed: rgb(168 83 11);
 
-  --color-success-rgb: 26 127 55;
-  --color-success-glow: rgba(26, 127, 55, 0.25);
-  --color-warning-rgb: 154 103 0;
-  --color-warning-glow: rgba(154, 103, 0, 0.25);
-  --color-error-rgb: 207 34 46;
-  --color-error-glow: rgba(207, 34, 46, 0.25);
-  --color-success: rgb(26 127 55);
-  --color-warning: rgb(154 103 0);
-  --color-error: rgb(207 34 46);
+  --color-success-rgb: 31 122 69;
+  --color-success-glow: rgba(31, 122, 69, 0.25);
+  --color-warning-rgb: 159 100 5;
+  --color-warning-glow: rgba(159, 100, 5, 0.25);
+  --color-error-rgb: 187 58 52;
+  --color-error-glow: rgba(187, 58, 52, 0.25);
+  --color-info-rgb: 37 99 201;
+  --color-success: rgb(31 122 69);
+  --color-warning: rgb(159 100 5);
+  --color-error: rgb(187 58 52);
+  --color-info: rgb(37 99 201);
 
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.08), 0 1px 1px rgba(16, 24, 40, 0.04);
-  --shadow-panel: 0 12px 32px -8px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
-  --shadow-overlay: 0 24px 64px -12px rgba(16, 24, 40, 0.22), 0 8px 24px rgba(16, 24, 40, 0.1);
+  --shadow-card: 0 1px 2px rgba(22, 26, 32, 0.06);
+  --shadow-panel: 0 4px 14px -4px rgba(22, 26, 32, 0.12), 0 1px 3px rgba(22, 26, 32, 0.06);
+  --shadow-overlay: 0 26px 60px -18px rgba(22, 26, 32, 0.3), 0 6px 18px -8px rgba(22, 26, 32, 0.14);
 }
 
 /* Dark theme (explicit — mirrors :root defaults) */
 :root.dark {
   --color-bg-rgb: 13 17 23;
+  --color-bg-sunk-rgb: 10 14 20;
   --color-bg-secondary-rgb: 22 27 34;
   --color-bg-tertiary-rgb: 33 38 45;
   --color-bg-elevated-rgb: 48 54 61;
   --color-bg: rgb(13 17 23);
+  --color-bg-sunk: rgb(10 14 20);
   --color-bg-secondary: rgb(22 27 34);
   --color-bg-tertiary: rgb(33 38 45);
   --color-bg-elevated: rgb(48 54 61);
@@ -182,19 +291,21 @@
   --surface-glass: rgba(33, 38, 45, 0.72);
   --surface-glass-strong: rgba(22, 27, 34, 0.9);
 
-  --color-border-rgb: 48 54 61;
-  --color-border-muted-rgb: 33 38 45;
-  --color-border: rgb(48 54 61);
-  --color-border-muted: rgb(33 38 45);
+  --color-border-rgb: 37 45 56;
+  --color-border-muted-rgb: 28 35 44;
+  --color-border-strong-rgb: 58 68 83;
+  --color-border: rgb(37 45 56);
+  --color-border-muted: rgb(28 35 44);
+  --color-border-strong: rgb(58 68 83);
 
   --color-text-rgb: 230 237 243;
-  --color-text-secondary-rgb: 139 148 158;
-  --color-text-muted-rgb: 110 118 129;
-  --color-text-faint-rgb: 72 79 88;
+  --color-text-secondary-rgb: 154 164 176;
+  --color-text-muted-rgb: 114 125 138;
+  --color-text-faint-rgb: 77 88 102;
   --color-text: rgb(230 237 243);
-  --color-text-secondary: rgb(139 148 158);
-  --color-text-muted: rgb(110 118 129);
-  --color-text-faint: rgb(72 79 88);
+  --color-text-secondary: rgb(154 164 176);
+  --color-text-muted: rgb(114 125 138);
+  --color-text-faint: rgb(77 88 102);
 
   --color-accent-glow: rgba(88, 166, 255, 0.4);
 }
@@ -217,18 +328,25 @@ body,
 
 body {
   font-family:
-    'IBM Plex Sans',
+    'Archivo',
+    'Archivo Variable',
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
     Helvetica,
     Arial,
     sans-serif;
+  /* Prototype base: 13.5px / 1.5. */
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   background-color: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.011em;
+  /* Archivo's own metrics carry the tracking; the old -0.011em was tuned for
+     IBM Plex Sans, which never actually loaded. */
+  letter-spacing: normal;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Ambient backdrop — subtle radial accent glow anchoring the app */
@@ -250,14 +368,14 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(108, 119, 120, 0.35);
+  background: rgb(var(--color-border-strong-rgb) / 0.75);
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(108, 119, 120, 0.55);
+  background: rgb(var(--color-border-strong-rgb) / 1);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -268,15 +386,15 @@ body {
 
 .scrollbar-overlay {
   scrollbar-width: thin;
-  scrollbar-color: rgba(108, 119, 120, 0.3) transparent;
+  scrollbar-color: rgb(var(--color-border-strong-rgb) / 0.6) transparent;
 }
 
 .scrollbar-overlay::-webkit-scrollbar-thumb {
-  background: rgba(108, 119, 120, 0.28);
+  background: rgb(var(--color-border-strong-rgb) / 0.6);
 }
 
 .scrollbar-overlay::-webkit-scrollbar-thumb:hover {
-  background: rgba(108, 119, 120, 0.5);
+  background: rgb(var(--color-border-strong-rgb) / 0.9);
 }
 
 /* Electron drag regions */
@@ -320,6 +438,38 @@ body {
 }
 
 @layer components {
+  /*
+   * Typographic idioms ported from the prototype.
+   *
+   * .eyebrow — the small uppercase section label used above every pane and menu
+   *            group. Prototype: font-size:10px; font-weight:700;
+   *            letter-spacing:.13em; text-transform:uppercase; color:--ink3.
+   */
+  .eyebrow {
+    font-size: var(--font-size-10);
+    font-weight: 700;
+    letter-spacing: var(--tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  /*
+   * .code — inline monospace run used mid-prose for paths, `trunk`, SVN status
+   *         letters and commands. Sized in `em` so it tracks whatever it sits in.
+   */
+  .code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    font-variant-ligatures: none;
+  }
+
+  /* .mono — switch a run to the mono face without changing its size. */
+  .mono {
+    font-family: var(--font-mono);
+  }
+
   /* Glass surfaces */
   .glass {
     background: var(--surface-glass);
@@ -347,6 +497,27 @@ body {
 
   .btn:active {
     transform: scale(0.97);
+  }
+
+  /*
+   * A disabled button must look disabled. Without this a refused action keeps
+   * its full accent fill, its hover glow and a pointer cursor, so the only
+   * signal that it will do nothing is the tooltip — which a pointer user only
+   * sees after trying, and a keyboard user never sees at all.
+   */
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    @apply cursor-not-allowed opacity-50 shadow-none;
+  }
+
+  .btn:disabled:hover,
+  .btn[aria-disabled='true']:hover {
+    @apply shadow-none;
+  }
+
+  .btn:disabled:active,
+  .btn[aria-disabled='true']:active {
+    transform: none;
   }
 
   .btn-sm {
@@ -695,7 +866,11 @@ body {
 
 /* Grid Lines for File Explorer */
 .grid-lines {
-  background-image: linear-gradient(to right, rgba(38, 44, 46, 0.5) 1px, transparent 1px);
+  background-image: linear-gradient(
+    to right,
+    rgb(var(--color-border-rgb) / 0.6) 1px,
+    transparent 1px
+  );
   background-size: 100% 100%;
 }
 

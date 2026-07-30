@@ -36,6 +36,7 @@ import type {
 import { formatBytes } from '@shared/utils/formatBytes';
 
 import { promptAppInput } from '../../utils/dialogs';
+import { OpenWithSettings } from './OpenWithSettings';
 
 function clampedInteger(value: string, minimum: number, maximum: number, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
@@ -318,7 +319,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
         <textarea
           value={settings.defaultCommitMessage}
           onChange={(e) => onChange('defaultCommitMessage', e.target.value)}
-          placeholder="Enter default commit message..."
+          placeholder="Enter default commit message…"
           className="input h-24 resize-none font-mono text-sm"
         />
       </SettingsGroup>
@@ -986,10 +987,13 @@ export function NotificationsSettingsTab({ settings, onChangeNested }: NestedSet
 
 interface IntegrationSettingsProps extends NestedSettingsProps {
   onOpenShellIntegration: () => void;
+  /** `customOpenWithTools` is a top-level setting, not a nested one. */
+  onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
 }
 
 export function IntegrationSettingsTab({
   settings,
+  onChange,
   onChangeNested,
   onOpenShellIntegration,
 }: IntegrationSettingsProps) {
@@ -1073,6 +1077,17 @@ export function IntegrationSettingsTab({
 
   return (
     <div className="space-y-6">
+      {/* Applications for the "Open in" context menu */}
+      <SettingsGroup
+        title="Open in"
+        description="Applications offered when you right-click a file or folder"
+      >
+        <OpenWithSettings
+          tools={settings.customOpenWithTools ?? []}
+          onChange={(tools) => onChange('customOpenWithTools', tools)}
+        />
+      </SettingsGroup>
+
       {/* Shell Integration */}
       <SettingsGroup
         title="Shell Integration"
@@ -1159,7 +1174,7 @@ export function IntegrationSettingsTab({
               className="btn btn-secondary btn-sm"
             >
               <Wrench className="w-4 h-4" />
-              Advanced Setup...
+              Advanced Setup…
             </button>
           </div>
         </div>
@@ -1666,7 +1681,7 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
         <div className="p-4 rounded-lg bg-bg-tertiary border border-border">
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 text-text-muted animate-spin" />
-            <p className="text-sm text-text-muted">Checking encryption status...</p>
+            <p className="text-sm text-text-muted">Checking encryption status…</p>
           </div>
         </div>
       ) : isEncryptionAvailable ? (
@@ -1696,7 +1711,7 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
         {isLoading ? (
           <div className="py-8 text-center">
             <Loader2 className="w-8 h-8 text-text-muted mx-auto mb-3 animate-spin" />
-            <p className="text-sm text-text-muted">Loading credentials...</p>
+            <p className="text-sm text-text-muted">Loading credentials…</p>
           </div>
         ) : credentials.length === 0 ? (
           <div className="py-8 text-center">
@@ -2099,7 +2114,7 @@ export function AdvancedSettings({
             {isClearingCache ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Clearing...
+                Clearing…
               </>
             ) : (
               <>

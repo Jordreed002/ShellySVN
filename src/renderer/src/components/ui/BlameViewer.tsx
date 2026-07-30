@@ -213,7 +213,7 @@ export function BlameViewer({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search content, author, revision, message, or issue..."
+              placeholder="Search content, author, revision, message, or issue…"
               className="input pl-8"
             />
           </div>

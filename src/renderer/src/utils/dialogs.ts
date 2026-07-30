@@ -18,6 +18,11 @@ export async function confirmAppAction(options: {
   return window.api.dialog.confirm(options);
 }
 
+export interface AppPromptChoice {
+  value: string;
+  label: string;
+}
+
 export function promptAppInput(options: {
   title?: string;
   message: string;
@@ -25,6 +30,12 @@ export function promptAppInput(options: {
   placeholder?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  /**
+   * A fixed set of answers. Given these, the dialog is a `<select>` — asking
+   * someone to *type* one of four Subversion keywords invites a typo the dialog
+   * can only reject afterwards.
+   */
+  choices?: readonly AppPromptChoice[];
 }): Promise<string | null> {
   return new Promise((resolve) => {
     const dialogId = `prompt-dialog-${Date.now()}`;
@@ -57,14 +68,37 @@ export function promptAppInput(options: {
     label.className = 'block text-sm font-medium text-text-secondary';
     label.textContent = options.message;
 
-    const input = document.createElement('input');
-    input.id = `${dialogId}-input`;
-    input.className = 'input';
-    input.type = 'text';
-    input.value = options.defaultValue ?? '';
-    input.placeholder = options.placeholder ?? '';
+    const choices = options.choices;
+    let field: HTMLInputElement | HTMLSelectElement;
 
-    body.append(label, input);
+    if (choices && choices.length > 0) {
+      const select = document.createElement('select');
+      select.id = `${dialogId}-input`;
+      select.className = 'input';
+      for (const choice of choices) {
+        const option = document.createElement('option');
+        option.value = choice.value;
+        option.textContent = choice.label;
+        select.append(option);
+      }
+      // An unknown default would silently select the first option, so only a
+      // value that is actually on offer gets to win.
+      const preselect = choices.some((choice) => choice.value === options.defaultValue)
+        ? options.defaultValue
+        : choices[0].value;
+      select.value = preselect ?? choices[0].value;
+      field = select;
+    } else {
+      const input = document.createElement('input');
+      input.id = `${dialogId}-input`;
+      input.className = 'input';
+      input.type = 'text';
+      input.value = options.defaultValue ?? '';
+      input.placeholder = options.placeholder ?? '';
+      field = input;
+    }
+
+    body.append(label, field);
 
     const footer = document.createElement('div');
     footer.className = 'modal-footer';
@@ -100,15 +134,15 @@ export function promptAppInput(options: {
       }
       if (event.key === 'Enter') {
         event.preventDefault();
-        cleanup(input.value);
+        cleanup(field.value);
       }
     }
 
     overlay.addEventListener('click', () => cleanup(null));
     cancelButton.addEventListener('click', () => cleanup(null));
-    confirmButton.addEventListener('click', () => cleanup(input.value));
+    confirmButton.addEventListener('click', () => cleanup(field.value));
     document.addEventListener('keydown', handleKeyDown);
 
-    requestAnimationFrame(() => input.focus());
+    requestAnimationFrame(() => field.focus());
   });
 }

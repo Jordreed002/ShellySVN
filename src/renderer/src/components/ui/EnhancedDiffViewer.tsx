@@ -209,7 +209,7 @@ export function EnhancedDiffViewer({
                 setSearchQuery(e.target.value);
                 setCurrentMatchIndex(0);
               }}
-              placeholder="Search diff..."
+              placeholder="Search diff…"
               className="input text-xs py-1 pl-7 pr-8 w-40"
             />
             {searchQuery && (

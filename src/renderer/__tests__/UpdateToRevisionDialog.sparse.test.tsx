@@ -26,7 +26,9 @@ vi.mock('../src/components/ui/ChooseItemsDialog', () => ({
   }),
 }));
 
-// Mock window.api.svn.updateToRevision
+// The tree hands back repository URLs, which only the caller can map onto local
+// paths — the dialog delegates the fetch instead of calling IPC with a URL where
+// a working-copy path belongs.
 const mockUpdateToRevision = vi.fn();
 window.api = {
   svn: {
@@ -38,6 +40,7 @@ const mockOnConfirm = vi
   .fn()
   .mockResolvedValueOnce({ success: true, revision: 123 })
   .mockResolvedValueOnce({ success: false, revision: 0, error: 'Update failed' });
+const mockOnConfirmUrls = vi.fn();
 
 describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
   const defaultProps = {
@@ -46,6 +49,7 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     onComplete: vi.fn(),
     itemName: '/trunk/project',
     onConfirm: mockOnConfirm,
+    onConfirmUrls: mockOnConfirmUrls,
     repoUrl: 'https://svn.example.com/repo/trunk',
     credentials: { username: 'testuser', password: 'testpass' } as AuthCredential,
     workingCopyRoot: '/Users/user/workspace/project',
@@ -56,6 +60,8 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     mockUpdateToRevision.mockReset();
     mockUpdateToRevision.mockResolvedValue({ success: true, revision: 123 });
     mockOnConfirm.mockClear();
+    mockOnConfirmUrls.mockReset();
+    mockOnConfirmUrls.mockResolvedValue({ success: true, revision: 123 });
   });
 
   afterEach(() => {
@@ -69,24 +75,24 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     expect(screen.getByText('Update depth for:')).toBeInTheDocument();
     expect(screen.getByText('/trunk/project')).toBeInTheDocument();
     expect(screen.getByText('Fully recursive')).toBeInTheDocument();
-    expect(screen.getByText('Choose items...')).toBeInTheDocument();
+    expect(screen.getByText('Choose items…')).toBeInTheDocument();
   });
 
-  it('does not render "Choose items..." button when repoUrl or workingCopyRoot is missing', () => {
+  it('does not render "Choose items…" button when repoUrl or workingCopyRoot is missing', () => {
     const propsWithoutRepo = { ...defaultProps, repoUrl: undefined };
     const propsWithoutWcRoot = { ...defaultProps, workingCopyRoot: undefined };
 
     const { rerender } = render(<UpdateToRevisionDialog {...propsWithoutRepo} />);
-    expect(screen.queryByText('Choose items...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Choose items…')).not.toBeInTheDocument();
 
     rerender(<UpdateToRevisionDialog {...propsWithoutWcRoot} />);
-    expect(screen.queryByText('Choose items...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Choose items…')).not.toBeInTheDocument();
   });
 
-  it('opens ChooseItemsDialog when "Choose items..." button is clicked', () => {
+  it('opens ChooseItemsDialog when "Choose items…" button is clicked', () => {
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     expect(screen.getByTestId('choose-items-dialog')).toBeInTheDocument();
@@ -101,11 +107,11 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     );
   });
 
-  it('calls updateToRevision for selected paths when ChooseItemsDialog confirms', async () => {
+  it('hands the chosen repository URLs to the caller, never to IPC as local paths', async () => {
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     // Select files and confirm
@@ -113,30 +119,38 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     fireEvent.click(selectButton);
 
     await waitFor(() => {
-      expect(mockUpdateToRevision).toHaveBeenCalledWith(
-        '/Users/user/workspace/project',
-        'https://svn.example.com/repo/trunk',
-        '/trunk/src/file1.ts',
-        'infinity',
-        false
-      );
-      expect(mockUpdateToRevision).toHaveBeenCalledWith(
-        '/Users/user/workspace/project',
-        'https://svn.example.com/repo/trunk',
-        '/trunk/src/file2.ts',
+      expect(mockOnConfirmUrls).toHaveBeenCalledWith(
+        ['/trunk/src/file1.ts', '/trunk/src/file2.ts'],
         'infinity',
         false
       );
     });
+    // A repository path as `localPath` resolves outside the working copy, so the
+    // dialog must not make that call itself.
+    expect(mockUpdateToRevision).not.toHaveBeenCalled();
+  });
+
+  it('reports that choosing items is unavailable when the caller cannot map URLs', async () => {
+    render(<UpdateToRevisionDialog {...defaultProps} onConfirmUrls={undefined} />);
+
+    fireEvent.click(screen.getByText('Choose items…'));
+    fireEvent.click(screen.getByText('Select Files'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Choosing items is not available for this working copy.')
+      ).toBeInTheDocument();
+    });
+    expect(mockUpdateToRevision).not.toHaveBeenCalled();
   });
 
   it('handles multiple sparse checkout updates with success', async () => {
-    mockUpdateToRevision.mockResolvedValue({ success: true, revision: 124 });
+    mockOnConfirmUrls.mockResolvedValue({ success: true, revision: 124 });
 
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -149,12 +163,12 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
   });
 
   it('handles multiple sparse checkout updates with failure', async () => {
-    mockUpdateToRevision.mockRejectedValue(new Error('Network error'));
+    mockOnConfirmUrls.mockRejectedValue(new Error('Network error'));
 
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -166,14 +180,16 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
   });
 
   it('handles sparse checkout update with partial failures', async () => {
-    mockUpdateToRevision
-      .mockResolvedValueOnce({ success: true, revision: 123 })
-      .mockRejectedValueOnce(new Error('File not found'));
+    mockOnConfirmUrls.mockResolvedValue({
+      success: false,
+      revision: null,
+      error: 'File not found',
+    });
 
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -191,17 +207,15 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     fireEvent.click(screen.getByLabelText('Make depth sticky'));
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
     fireEvent.click(selectButton);
 
     await waitFor(() => {
-      expect(mockUpdateToRevision).toHaveBeenCalledWith(
-        '/Users/user/workspace/project',
-        'https://svn.example.com/repo/trunk',
-        '/trunk/src/file1.ts',
+      expect(mockOnConfirmUrls).toHaveBeenCalledWith(
+        ['/trunk/src/file1.ts', '/trunk/src/file2.ts'],
         'files',
         true
       );
@@ -212,7 +226,7 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     // Cancel ChooseItemsDialog
@@ -226,17 +240,17 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
   it('disables ChooseItemsDialog button when updating', () => {
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     // Simulate ongoing update
-    mockUpdateToRevision.mockImplementation(() => new Promise(() => {}));
+    mockOnConfirmUrls.mockImplementation(() => new Promise(() => {}));
 
     const selectButton = screen.getByText('Select Files');
     fireEvent.click(selectButton);
 
     // Choose items button should be disabled during update
-    expect(screen.getByText('Choose items...')).toBeDisabled();
+    expect(screen.getByText('Choose items…')).toBeDisabled();
   });
 
   it('integrates with existing depth selection functionality', () => {
@@ -247,7 +261,7 @@ describe('UpdateToRevisionDialog - ChooseItemsDialog Integration', () => {
     fireEvent.click(depthOption);
 
     expect(screen.getByText('Update')).toBeInTheDocument();
-    expect(screen.getByText('Choose items...')).toBeInTheDocument();
+    expect(screen.getByText('Choose items…')).toBeInTheDocument();
   });
 });
 
@@ -258,6 +272,7 @@ describe('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => {
     onComplete: vi.fn(),
     itemName: '/trunk/project',
     onConfirm: vi.fn(),
+    onConfirmUrls: mockOnConfirmUrls,
     repoUrl: 'https://svn.example.com/repo/trunk',
     credentials: { username: 'testuser', password: 'testpass' } as AuthCredential,
     workingCopyRoot: '/Users/user/workspace/project',
@@ -267,15 +282,17 @@ describe('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => {
     vi.clearAllMocks();
     mockUpdateToRevision.mockReset();
     mockUpdateToRevision.mockResolvedValue({ success: true, revision: 123 });
+    mockOnConfirmUrls.mockReset();
+    mockOnConfirmUrls.mockResolvedValue({ success: true, revision: 123 });
   });
 
   it('handles API errors gracefully during sparse checkout', async () => {
-    mockUpdateToRevision.mockRejectedValue(new Error('SVN command failed'));
+    mockOnConfirmUrls.mockRejectedValue(new Error('SVN command failed'));
 
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
     // Open ChooseItemsDialog and select files
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     const selectButton = screen.getByText('Select Files');
@@ -291,7 +308,7 @@ describe('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => {
 
     render(<UpdateToRevisionDialog {...propsWithoutCredentials} />);
 
-    const chooseButton = screen.getByText('Choose items...');
+    const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
     expect(ChooseItemsDialog).toHaveBeenCalledWith(
@@ -305,7 +322,7 @@ describe('UpdateToRevisionDialog - Sparse Checkout Error Scenarios', () => {
   it('handles empty selected paths gracefully', async () => {
     render(<UpdateToRevisionDialog {...defaultProps} />);
 
-    fireEvent.click(screen.getByText('Choose items...'));
+    fireEvent.click(screen.getByText('Choose items…'));
     fireEvent.click(await screen.findByText('Empty Selection'));
 
     expect(mockUpdateToRevision).not.toHaveBeenCalled();

@@ -10,7 +10,7 @@ test.describe('Sparse Checkout - Basic UI', () => {
   });
 
   test('can open checkout dialog via Add Repository', async ({ page }) => {
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     const modalText = await page.locator('.modal').textContent();
@@ -23,7 +23,7 @@ test.describe('Sparse Checkout - Basic UI', () => {
   });
 
   test('checkout dialog has URL input', async ({ page }) => {
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
@@ -43,7 +43,7 @@ test.describe('Sparse Checkout - Basic UI', () => {
   });
 
   test('checkout dialog has depth selector', async ({ page }) => {
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
@@ -70,7 +70,7 @@ test.describe('Sparse Checkout - ChooseItemsDialog', () => {
   });
 
   test('Choose items button appears when URL is entered', async ({ page }) => {
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
@@ -98,7 +98,7 @@ test.describe('Sparse Checkout - ChooseItemsDialog', () => {
   });
 
   test('Clicking Choose items opens item picker dialog', async ({ page }) => {
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
@@ -187,15 +187,25 @@ test.describe('Sparse Checkout - File Explorer Remote Items', () => {
     await expect(main).toBeVisible();
   });
 
-  test('File Explorer may have remote items toggle', async ({ page }) => {
+  test('File Explorer may offer the "not checked out" toggle', async ({ page }) => {
     await page.click('a:has-text("File Explorer")');
     await page.waitForTimeout(500);
 
-    const remoteToggle = page.locator('button[title*="remote"], button[title*="Remote"]');
-    const count = await remoteToggle.count();
+    // A view setting, so it lives in the View options menu — and it is only
+    // offered inside a working copy, which this fixture may not have opened.
+    const viewOptions = page.locator('button[aria-label="View options"]');
+    if ((await viewOptions.count()) > 0) {
+      await viewOptions.first().click();
+      await page.waitForTimeout(200);
+    }
+
+    const notCheckedOutToggle = page.locator(
+      '[role="menuitemcheckbox"]:has-text("Show items not checked out")'
+    );
+    const count = await notCheckedOutToggle.count();
 
     if (count > 0) {
-      await page.screenshot({ path: 'tests/results/sparse-06-remote-toggle.png' });
+      await page.screenshot({ path: 'tests/results/sparse-06-not-checked-out-toggle.png' });
     }
 
     expect(count).toBeGreaterThanOrEqual(0);

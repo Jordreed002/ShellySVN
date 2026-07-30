@@ -200,7 +200,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     revert: (paths, depth?) => invokeIpc('svn:revert', paths, depth),
     revertPreview: (paths, depth?) => invokeIpc('svn:revertPreview', paths, depth),
     unversion: (paths) => invokeIpc('svn:unversion', paths),
-    exclude: (path) => invokeIpc('svn:exclude', path),
+    exclude: (paths) => invokeIpc('svn:exclude', paths),
     childCommits: (path) => invokeIpc('svn:childCommits', path),
     add: (paths) => invokeIpc('svn:add', paths),
     delete: (paths) => invokeIpc('svn:delete', paths),

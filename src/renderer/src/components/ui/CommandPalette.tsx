@@ -48,6 +48,12 @@ interface CommandItem {
   id: string;
   title: string;
   description?: string;
+  /**
+   * The `svn` command this entry runs, shown as a mono line under the title —
+   * the same idiom as the context menu. Absent for app navigation and view
+   * toggles, which run no Subversion command.
+   */
+  command?: string;
   icon: React.ComponentType<{ className?: string }>;
   shortcut?: string;
   category: string;
@@ -171,7 +177,8 @@ export function CommandPalette({
     if (onCommit) {
       items.push({
         id: 'commit',
-        title: 'Commit Changes',
+        command: 'svn commit',
+        title: 'Commit changes',
         description: 'Commit selected files',
         icon: Upload,
         shortcut: 'Ctrl+S',
@@ -184,7 +191,8 @@ export function CommandPalette({
     if (onUpdate) {
       items.push({
         id: 'update',
-        title: 'Update Working Copy',
+        command: 'svn update',
+        title: 'Update working copy',
         description: 'Get latest changes from repository',
         icon: Download,
         shortcut: 'Ctrl+U',
@@ -197,7 +205,8 @@ export function CommandPalette({
     if (onRevert) {
       items.push({
         id: 'revert',
-        title: 'Revert Changes',
+        command: 'svn revert',
+        title: 'Revert changes',
         description: 'Discard local modifications',
         icon: Undo2,
         shortcut: 'Ctrl+R',
@@ -210,7 +219,8 @@ export function CommandPalette({
     if (onAdd) {
       items.push({
         id: 'add',
-        title: 'Add to Version Control',
+        command: 'svn add',
+        title: 'Add to version control',
         description: 'Schedule selected files for addition',
         icon: Plus,
         category: 'SVN',
@@ -222,7 +232,8 @@ export function CommandPalette({
     if (onDelete) {
       items.push({
         id: 'delete',
-        title: 'Delete Selected',
+        command: 'svn delete',
+        title: 'Delete selected',
         description: 'Delete or schedule selected files for deletion',
         icon: Trash2,
         category: 'SVN',
@@ -234,7 +245,8 @@ export function CommandPalette({
     if (onCleanup) {
       items.push({
         id: 'cleanup',
-        title: 'Cleanup Working Copy',
+        command: 'svn cleanup',
+        title: 'Clean up working copy',
         description: 'Run SVN cleanup on the selected directory',
         icon: Wrench,
         category: 'SVN',
@@ -246,7 +258,8 @@ export function CommandPalette({
     if (onResolve) {
       items.push({
         id: 'resolve',
-        title: 'Resolve Conflict',
+        command: 'svn resolve',
+        title: 'Resolve conflict',
         description: 'Open conflict resolution for the selected item',
         icon: CheckCircle2,
         category: 'SVN',
@@ -258,7 +271,8 @@ export function CommandPalette({
     if (onMove) {
       items.push({
         id: 'move',
-        title: 'Move...',
+        command: 'svn move',
+        title: 'Move…',
         description: 'Move selected item while preserving history',
         icon: Move,
         category: 'SVN',
@@ -270,7 +284,8 @@ export function CommandPalette({
     if (onCopy) {
       items.push({
         id: 'copy',
-        title: 'Copy...',
+        command: 'svn copy',
+        title: 'Copy…',
         description: 'Copy selected item while preserving history',
         icon: Copy,
         category: 'SVN',
@@ -282,7 +297,8 @@ export function CommandPalette({
     if (onRename) {
       items.push({
         id: 'rename',
-        title: 'Rename...',
+        command: 'svn move',
+        title: 'Rename…',
         description: 'Rename selected item while preserving history',
         icon: Pencil,
         category: 'SVN',
@@ -294,7 +310,8 @@ export function CommandPalette({
     if (onShowLog) {
       items.push({
         id: 'log',
-        title: 'Show Log',
+        command: 'svn log -v',
+        title: 'Show log',
         description: 'View revision history',
         icon: History,
         shortcut: 'Ctrl+L',
@@ -307,7 +324,8 @@ export function CommandPalette({
     if (onQuickCommit) {
       items.push({
         id: 'quick-commit',
-        title: 'Quick Commit',
+        command: 'svn commit',
+        title: 'Quick commit',
         description: 'Commit with auto-generated message',
         icon: Zap,
         category: 'SVN',
@@ -319,7 +337,8 @@ export function CommandPalette({
     if (onBranchTag) {
       items.push({
         id: 'branch-tag',
-        title: 'Create Branch...',
+        command: 'svn copy',
+        title: 'Create branch…',
         description: 'Create a branch in repository',
         icon: GitBranch,
         shortcut: 'Ctrl+Shift+B',
@@ -332,7 +351,8 @@ export function CommandPalette({
     if (onTag) {
       items.push({
         id: 'tag',
-        title: 'Create Tag...',
+        command: 'svn copy',
+        title: 'Create tag…',
         description: 'Create a tag in repository',
         icon: GitBranch,
         category: 'SVN',
@@ -344,7 +364,8 @@ export function CommandPalette({
     if (onBranchTagCompare) {
       items.push({
         id: 'branch-tag-compare',
-        title: 'Compare Branches/Tags...',
+        command: 'svn diff --old --new',
+        title: 'Compare branches or tags…',
         description: 'Compare two repository URLs',
         icon: GitCompare,
         category: 'SVN',
@@ -356,7 +377,8 @@ export function CommandPalette({
     if (onSwitch) {
       items.push({
         id: 'switch',
-        title: 'Switch...',
+        command: 'svn switch',
+        title: 'Switch…',
         description: 'Switch to a different branch or URL',
         icon: ArrowRightLeft,
         shortcut: 'Ctrl+Shift+S',
@@ -369,7 +391,8 @@ export function CommandPalette({
     if (onMerge) {
       items.push({
         id: 'merge',
-        title: 'Merge...',
+        command: 'svn merge',
+        title: 'Merge…',
         description: 'Merge changes from another location',
         icon: GitMerge,
         shortcut: 'Ctrl+Shift+M',
@@ -382,7 +405,8 @@ export function CommandPalette({
     if (onRelocate) {
       items.push({
         id: 'relocate',
-        title: 'Relocate...',
+        command: 'svn relocate',
+        title: 'Relocate…',
         description: 'Change repository URL of working copy',
         icon: MapPin,
         shortcut: 'Ctrl+Shift+R',
@@ -395,7 +419,8 @@ export function CommandPalette({
     if (onBlame) {
       items.push({
         id: 'blame',
-        title: 'Blame/Annotate',
+        command: 'svn blame',
+        title: 'Blame',
         description: 'Show file revision history',
         icon: User,
         category: 'SVN',
@@ -407,7 +432,8 @@ export function CommandPalette({
     if (onProperties) {
       items.push({
         id: 'properties',
-        title: 'Properties...',
+        command: 'svn proplist -v',
+        title: 'Properties…',
         description: 'Edit file or directory properties',
         icon: Settings,
         category: 'SVN',
@@ -419,7 +445,8 @@ export function CommandPalette({
     if (onChangelist) {
       items.push({
         id: 'changelist',
-        title: 'Changelist...',
+        command: 'svn changelist',
+        title: 'Changelist…',
         description: 'Manage changelists for changes',
         icon: ListChecks,
         category: 'SVN',
@@ -431,7 +458,8 @@ export function CommandPalette({
     if (onShelve) {
       items.push({
         id: 'shelve',
-        title: 'Shelve Changes...',
+        command: 'svn shelf-save',
+        title: 'Shelve changes…',
         description: 'Temporarily store changes locally',
         icon: Archive,
         category: 'SVN',
@@ -443,7 +471,8 @@ export function CommandPalette({
     if (onUnshelve) {
       items.push({
         id: 'unshelve',
-        title: 'Unshelve Changes...',
+        command: 'svn shelf-apply',
+        title: 'Unshelve changes…',
         description: 'Restore previously shelved changes',
         icon: ArchiveRestore,
         category: 'SVN',
@@ -455,7 +484,8 @@ export function CommandPalette({
     if (onLock) {
       items.push({
         id: 'lock',
-        title: 'Lock...',
+        command: 'svn lock',
+        title: 'Lock…',
         description: 'Lock selected files in repository',
         icon: Lock,
         category: 'SVN',
@@ -467,7 +497,8 @@ export function CommandPalette({
     if (onUnlock) {
       items.push({
         id: 'unlock',
-        title: 'Unlock...',
+        command: 'svn unlock',
+        title: 'Unlock…',
         description: 'Release lock on selected files',
         icon: LockOpen,
         category: 'SVN',
@@ -479,7 +510,8 @@ export function CommandPalette({
     if (onExport) {
       items.push({
         id: 'export',
-        title: 'Export...',
+        command: 'svn export',
+        title: 'Export…',
         description: 'Export directory or files from working copy',
         icon: FileOutput,
         category: 'SVN',
@@ -491,7 +523,8 @@ export function CommandPalette({
     if (onImport) {
       items.push({
         id: 'import',
-        title: 'Import...',
+        command: 'svn import',
+        title: 'Import…',
         description: 'Import files to repository',
         icon: FileInput,
         category: 'SVN',
@@ -503,7 +536,7 @@ export function CommandPalette({
     if (onRepoBrowser) {
       items.push({
         id: 'repo-browser',
-        title: 'Repository Browser',
+        title: 'Repository browser',
         description: 'Browse repository structure',
         icon: Globe,
         category: 'SVN',
@@ -515,7 +548,7 @@ export function CommandPalette({
     if (onRevisionGraph) {
       items.push({
         id: 'revision-graph',
-        title: 'Revision Graph',
+        title: 'Revision graph',
         description: 'Show revision history graph',
         icon: Network,
         category: 'SVN',
@@ -527,7 +560,8 @@ export function CommandPalette({
     if (onCreatePatch) {
       items.push({
         id: 'create-patch',
-        title: 'Create Patch...',
+        command: 'svn diff',
+        title: 'Create patch…',
         description: 'Create a patch file from changes',
         icon: GitCompare,
         category: 'SVN',
@@ -539,7 +573,8 @@ export function CommandPalette({
     if (onApplyPatch) {
       items.push({
         id: 'apply-patch',
-        title: 'Apply Patch...',
+        command: 'svn patch',
+        title: 'Apply patch…',
         description: 'Apply a patch file to working copy',
         icon: GitCompare,
         category: 'SVN',
@@ -595,7 +630,7 @@ export function CommandPalette({
     if (onAddBookmark && currentPath) {
       items.push({
         id: 'add-bookmark',
-        title: 'Add Bookmark',
+        title: 'Add bookmark',
         description: 'Bookmark current location',
         icon: StarOff,
         category: 'Bookmarks',
@@ -608,7 +643,7 @@ export function CommandPalette({
     if (onTogglePreview) {
       items.push({
         id: 'toggle-preview',
-        title: 'Toggle Preview Panel',
+        title: 'Toggle preview panel',
         description: 'Show/hide file preview',
         icon: Eye,
         shortcut: 'Ctrl+P',
@@ -621,7 +656,7 @@ export function CommandPalette({
     if (onToggleDualPane) {
       items.push({
         id: 'toggle-dual-pane',
-        title: 'Toggle Dual Pane',
+        title: 'Toggle dual pane',
         description: 'Show/hide split view',
         icon: Columns2,
         category: 'View',
@@ -633,7 +668,7 @@ export function CommandPalette({
     if (onToggleFilters) {
       items.push({
         id: 'toggle-filters',
-        title: 'Toggle Filter Bar',
+        title: 'Toggle filter bar',
         description: 'Show/hide file filters',
         icon: Layers,
         category: 'View',
@@ -646,7 +681,7 @@ export function CommandPalette({
     if (onShowNotes) {
       items.push({
         id: 'notes',
-        title: 'Quick Notes',
+        title: 'Quick notes',
         description: 'Open notes panel',
         icon: StickyNote,
         category: 'Tools',
@@ -658,7 +693,7 @@ export function CommandPalette({
     if (onShowShortcuts) {
       items.push({
         id: 'shortcuts',
-        title: 'Keyboard Shortcuts',
+        title: 'Keyboard shortcuts',
         description: 'View all keyboard shortcuts',
         icon: Keyboard,
         shortcut: '?',
@@ -671,7 +706,7 @@ export function CommandPalette({
     if (onOpenSettings) {
       items.push({
         id: 'settings',
-        title: 'Open Settings',
+        title: 'Open settings',
         description: 'Configure application preferences',
         icon: Settings,
         shortcut: 'Ctrl+,',
@@ -684,7 +719,7 @@ export function CommandPalette({
     if (onManagePlugins) {
       items.push({
         id: 'plugins',
-        title: 'Manage Plugins',
+        title: 'Manage plugins',
         description: 'Install, configure, and manage plugins',
         icon: Puzzle,
         category: 'Tools',
@@ -874,10 +909,13 @@ export function CommandPalette({
           {cmd.description && (
             <p className="text-xs text-text-muted truncate mt-0.5">{cmd.description}</p>
           )}
+          {cmd.command && (
+            /* Decorative: the title carries the meaning for assistive tech. */
+            <p className="mt-0.5 truncate font-mono text-9.5 text-text-faint" aria-hidden="true">
+              {cmd.command}
+            </p>
+          )}
         </div>
-        <span className="text-2xs font-medium text-text-muted px-2 py-0.5 rounded-md bg-bg-tertiary/70 flex-shrink-0">
-          {cmd.category}
-        </span>
       </div>
     );
   };
@@ -909,7 +947,7 @@ export function CommandPalette({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search files, jump to a repo, or run a command…"
+            placeholder="Run a command…"
             className="command-palette-input px-0"
           />
           <span className="kbd flex-shrink-0">esc</span>

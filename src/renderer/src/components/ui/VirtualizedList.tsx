@@ -111,7 +111,7 @@ export function VirtualizedFileList({
                 className="flex items-center justify-center"
               >
                 <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                <span className="ml-2 text-sm text-slate-400">Loading more...</span>
+                <span className="ml-2 text-sm text-slate-400">Loading more…</span>
               </div>
             );
           }

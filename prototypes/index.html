@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShellySVN — Visual design prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#0e0d12;--bg2:#15141b;--card:#1a1922;--raise:#232231;
+  --hair:rgba(238,236,245,.08);--hair2:rgba(238,236,245,.17);
+  --ink:#efedf6;--ink2:#a5a2b8;--ink3:#6f6c85;
+  --p4:#8b9af5;--p5:#3f8ec4;--p6:#8b8cf7;
+  --p1:#58a6ff;--p2:#c8a24a;--p3:#e9a33c;
+  --sans:'Manrope',system-ui,sans-serif;
+  --serif:'Instrument Serif',Georgia,serif;
+  --mono:'Spline Sans Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(900px 560px at 10% -8%,rgba(139,154,245,.13),transparent 62%),
+             radial-gradient(800px 520px at 92% 4%,rgba(233,163,60,.08),transparent 62%);
+}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:60px 30px 100px}
+
+header{border-bottom:1px solid var(--hair);padding-bottom:26px;margin-bottom:20px}
+.tiny{font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3)}
+h1{font-family:var(--serif);font-size:52px;font-weight:400;letter-spacing:-.02em;line-height:1.04;margin-top:14px}
+h1 em{font-style:italic;color:var(--p4)}
+header p{margin-top:16px;max-width:74ch;color:var(--ink2);font-size:15.5px}
+header p b{color:var(--ink);font-weight:600}
+.meta{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px;font-family:var(--mono);font-size:11px;color:var(--ink3)}
+.meta b{color:var(--ink2);font-weight:500}
+
+.roundhead{display:flex;align-items:baseline;gap:14px;margin:46px 0 20px;padding-bottom:10px;border-bottom:1px solid var(--hair)}
+.roundhead h2{font-size:19px;font-weight:800;letter-spacing:-.025em}
+.roundhead .k{font-family:var(--mono);font-size:11px;color:var(--ink3)}
+.roundhead .sp{flex:1}
+.roundhead .note{font-size:12.5px;color:var(--ink3);max-width:52ch;text-align:right}
+
+.grid{display:grid;gap:22px}
+.proto{
+  display:grid;grid-template-columns:400px 1fr;background:var(--card);
+  border:1px solid var(--hair);border-radius:18px;overflow:hidden;transition:border-color .2s;
+}
+.proto:hover{border-color:var(--hair2)}
+.proto.dim{opacity:.66}
+.proto.dim:hover{opacity:1}
+@media(max-width:1000px){.proto{grid-template-columns:1fr}}
+
+.shot{position:relative;height:286px;overflow:hidden;border-right:1px solid var(--hair);background:#000;cursor:pointer}
+.shot iframe{width:1500px;height:940px;border:0;transform:scale(.2667);transform-origin:0 0;position:absolute;left:0;top:0;pointer-events:none}
+.shot .veil{position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(0,0,0,.55));display:flex;align-items:flex-end;padding:14px;opacity:0;transition:opacity .2s}
+.shot:hover .veil{opacity:1}
+.shot .veil span{font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:99px;background:rgba(255,255,255,.14);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2)}
+.num{position:absolute;left:14px;top:11px;z-index:2;font-family:var(--serif);font-size:36px;line-height:1;text-shadow:0 2px 18px rgba(0,0,0,.9)}
+
+.body{padding:24px 26px}
+.body h3{font-size:23px;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:11px}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.strategy{
+  display:inline-block;margin-top:9px;padding:4px 11px;border-radius:99px;font-size:11.5px;font-weight:700;
+  background:rgba(139,154,245,.13);border:1px solid rgba(139,154,245,.3);color:var(--p4);
+}
+.tag{font-family:var(--mono);font-size:10.5px;color:var(--ink3);margin-top:9px;letter-spacing:.01em}
+.body p{margin-top:12px;color:var(--ink2);font-size:14px;max-width:60ch}
+.body p b{color:var(--ink);font-weight:600}
+.pts{list-style:none;margin-top:15px;display:grid;gap:7px}
+.pts li{display:flex;gap:11px;font-size:13px;color:var(--ink2);align-items:flex-start}
+.pts li i{
+  flex:0 0 auto;width:52px;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink3);padding-top:3px;
+}
+.pts li b{color:var(--ink);font-weight:600}
+.foot{display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap}
+.open{display:inline-flex;align-items:center;gap:9px;height:38px;padding:0 17px;border-radius:11px;text-decoration:none;font-size:13.5px;font-weight:700;color:#0f0c14;transition:transform .16s}
+.open:hover{transform:translateY(-2px)}
+.keys{display:flex;gap:6px;flex-wrap:wrap}
+.keys kbd{font-family:var(--mono);font-size:10px;padding:4px 8px;border-radius:8px;background:var(--raise);border:1px solid var(--hair);color:var(--ink2)}
+
+.matrix{margin-top:44px;border:1px solid var(--hair);border-radius:18px;overflow:hidden}
+.matrix table{width:100%;border-collapse:collapse;font-size:13px}
+.matrix th,.matrix td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--hair)}
+.matrix thead th{background:var(--bg2);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+.matrix tbody th{font-weight:700;color:var(--ink);width:190px}
+.matrix td{color:var(--ink2)}
+.matrix tr:last-child th,.matrix tr:last-child td{border-bottom:0}
+.matrix .mono{font-family:var(--mono);font-size:11.5px;color:var(--ink3)}
+
+.readme{margin-top:40px;padding:22px 26px;border:1px dashed var(--hair2);border-radius:16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.readme .t{flex:1;min-width:260px}
+.readme h4{font-size:17px;font-weight:800;letter-spacing:-.02em}
+.readme p{color:var(--ink2);font-size:13.5px;margin-top:5px}
+.readme code{font-family:var(--mono);font-size:12px;color:var(--p3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="tiny">ShellySVN · visual design exploration · July 2026</span>
+    <h1>Six directions, two rounds,<br>one <em>working copy.</em></h1>
+    <p>
+      Every prototype shows the same moment: <b>one working copy at r4821, twelve local changes, one text
+      conflict, seventeen incoming revisions, two locks and an external</b>. Each is a live HTML file —
+      right-click a file row for its context menu, press <b>⌘K</b> for its command surface, open its commit
+      dialog. Round two answers a harder brief than round one: <b>be excellent for a developer and still
+      usable by someone who has never heard the word “revision”.</b>
+    </p>
+    <div class="meta">
+      <span><b>Shared content model</b> · changelists · M A D C R ? X · locks · externals · hooks</span>
+      <span><b>Standalone files</b> · no build step</span>
+    </div>
+  </header>
+
+  <div class="roundhead">
+    <h2>Round three · current</h2>
+    <span class="k">07 – 08 · refinement</span>
+    <span class="sp"></span>
+    <span class="note">Two surfaces of one app: 07 is where you work on changes, 08 is how you find your way around a company-wide monorepo.</span>
+  </div>
+
+  <div class="grid">
+    <article class="proto">
+      <div class="shot" onclick="location.href='12-browser.html'">
+        <span class="num" style="color:#2563c9">12</span>
+        <iframe src="12-browser.html" title="Refined browser preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:#2563c9"></span>Repository browser, refined — current</h3>
+        <div class="strategy">Taken apart against how SVN actually behaves, and what teams now expect</div>
+        <div class="tag">Light + dark · supersedes 11 · six targeted refinements</div>
+        <p>
+          11 was coherent but quietly wrong in one place and silent in several others. Each change
+          below answers something Subversion actually does.
+        </p>
+        <ul class="pts">
+          <li><i>Truth</i><span><b>Two sources, visibly separate.</b> <span class="mono">svn ls</span> describes
+            the server; <span class="mono">svn status</span> describes your disk. They only overlap inside a
+            checkout — so status columns and roll-ups now appear <b>only there</b>, with a scope chip in the
+            footer naming which you're looking at. And presence is marked rather than absence: 2 of 51
+            clients read “partly checked out” instead of 46 reading “not checked out”.</span></li>
+          <li><i>Diff</i><span><b>It says what it's comparing.</b> A comparand control offers
+            WC↔BASE, WC↔HEAD, BASE↔HEAD, branch↔trunk, rev↔rev — and explains the consequence
+            (“incoming changes only — your edits are not in this diff”).</span></li>
+          <li><i>Mixed</i><span><b>Mixed revisions are shown.</b> A working copy isn't “at r4821” — it holds
+            files between r4744 and r4838. A strip in the band makes the range visible. No client does this,
+            and it's why <span class="mono">svn status</span> confuses people.</span></li>
+          <li><i>Merge</i><span><b>Eligible revisions, not just “merge”.</b> mergeinfo answers what's on trunk
+            and not here yet — 4 revisions, listed, one flagged because it touches a file you've edited.
+            Sync vs reintegrate vs record-only are distinguished, with a dry run first.</span></li>
+          <li><i>Ugly</i><span><b>A Problems surface.</b> Tree conflict, needs-cleanup, stale lock, floating
+            external — the frequent, baffling states, each with cause, consequence and the command.</span></li>
+          <li><i>Modern</i><span><b>Honestly mapped.</b> No pull requests in SVN, so review runs on
+            <b>shelves</b> (<span class="mono">svn shelf</span>). Build status and issue references ride the
+            log via <span class="mono">bugtraq:</span> properties.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="12-browser.html" style="background:#2563c9;color:#fff">Open refined browser</a>
+          <div class="keys"><kbd>the band's three flows</kbd><kbd>Compare dropdown</kbd><kbd>Problems</kbd><kbd>⌘K</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="proto dim">
+      <div class="shot" onclick="location.href='11-browser.html'">
+        <span class="num" style="color:#2563c9">11</span>
+        <iframe src="11-browser.html" title="Repository browser preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:#2563c9"></span>Repository browser <span style="font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:0">— superseded by 12</span></h3>
+        <div class="strategy">No projects · no modes · one vocabulary — Subversion's</div>
+        <div class="tag">Light + dark · Archivo / JetBrains Mono · supersedes 08–10</div>
+        <p>
+          Subversion has directories, so this has directories. It also has one vocabulary, used
+          precisely everywhere — <b>checkout, update, commit, switch, revision, BASE, HEAD, depth,
+          externals, conflicted</b> — with the status word and its code shown together
+          (<span class="mono">Modified M</span>).
+        </p>
+        <ul class="pts">
+          <li><i>Search</i><span><b>Repository-wide path search</b> replaces the project finder — flip the
+            scope chip and the contents pane lists matches from all 512k paths with their location.</span></li>
+          <li><i>Bridge</i><span>A <b>working-copy banner</b> appears whenever you browse a path you have on
+            disk: local path, BASE vs HEAD, modified/conflicted counts, and Update / Commit / Reveal.</span></li>
+          <li><i>Time</i><span>An <b>@revision peg</b> in the address bar — browse the whole tree as it was at
+            r4835 or a date, with the bar tinted so you can't forget you're in the past.</span></li>
+          <li><i>Detail</i><span>A permanent pane with <b>Diff · Blame · Log · Properties</b>. Blame marks
+            uncommitted lines; <span class="mono">⌥D</span> / <span class="mono">⌥B</span> from any row.</span></li>
+          <li><i>Bulk</i><span>Space to multi-select, with an action bar for <b>Checkout / Export / Copy URLs</b>.
+            Deep paths collapse in the middle of the breadcrumb.</span></li>
+          <li><i>Keys</i><span><span class="mono">⌘[ ⌘] ⌘↑ ⌘L ⌘K /</span> plus arrows and type-ahead —
+            Explorer/Finder parity throughout.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="11-browser.html" style="background:#2563c9;color:#fff">Open browser</a>
+          <div class="keys"><kbd>⌘K go to</kbd><kbd>scope chip → whole repo</kbd><kbd>@HEAD</kbd><kbd>⌥D / ⌥B</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="proto dim">
+      <div class="shot" onclick="location.href='10-atlas.html'">
+        <span class="num" style="color:#2563c9">10</span>
+        <iframe src="10-atlas.html" title="Atlas preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:#2563c9"></span>Atlas <span style="font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:0">— superseded by 11</span></h3>
+        <div class="strategy">Projects on top of plain SVN · one explorer · developer mode = code tools</div>
+        <div class="tag">Light + dark · Archivo / JetBrains Mono · supersedes 09</div>
+        <p>
+          Answers the honest question: <b>Subversion has no concept of a project</b>. It only stores
+          folders. So a project here is a <b>lens Shelly infers or is told about</b>, and it degrades
+          to plain folders when nothing applies.
+        </p>
+        <ul class="pts">
+          <li><i>Projects</i><span>Four sources, in order: a versioned folder property
+            (<span class="mono">shelly:project</span>), a repo config file
+            (<span class="mono">/.shelly/projects.yml</span>), <b>convention</b> — a folder containing
+            <span class="mono">trunk</span> — and your own working copies. A chip in the header says
+            <b>which one applied</b>, and any folder can be promoted or demoted by hand.</span></li>
+          <li><i>Wording</i><span>The plain phrasing and the technical facts are now <b>both always on</b> —
+            paths, revisions, sizes and status codes sit alongside “Edited”, “Needs you”,
+            “Current work <span class="mono">trunk</span>”. No vocabulary is hidden from anyone.</span></li>
+          <li><i>Dev mode</i><span>No longer changes words — it <b>promotes the code tools</b>. A third pane
+            appears with <b>Diff / Blame / History</b>, selecting a changed file opens its diff
+            immediately, every file row grows Diff and Blame buttons, and <span class="mono">⌥D</span> /
+            <span class="mono">⌥B</span> jump straight there.</span></li>
+          <li><i>Explorer</i><span>Everything from 09: expandable tree, sortable contents, back/forward/up,
+            typable address bar, search-this-folder, type-ahead, status roll-ups, download state.
+            Columns shed automatically when the diff pane takes the width.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="10-atlas.html" style="background:#2563c9;color:#fff">Open Atlas</a>
+          <div class="keys"><kbd>D — developer mode</kbd><kbd>⌥D diff</kbd><kbd>⌥B blame</kbd><kbd>⌘K</kbd><kbd>⌘L path</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="proto dim">
+      <div class="shot" onclick="location.href='09-atlas-lite.html'">
+        <span class="num" style="color:#2563c9">09</span>
+        <iframe src="09-atlas-lite.html" title="Atlas Lite preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:#2563c9"></span>Atlas Lite <span style="font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:0">— superseded by 10</span></h3>
+        <div class="strategy">Find a project, not a path</div>
+        <div class="tag">Light by default, dark on a switch · Archivo / JetBrains Mono · accent #2563c9</div>
+        <p>
+          08 simplified so a non-technical person can use it. Same repository, same facts —
+          but it opens on a <b>searchable directory of every project</b>, grouped by client,
+          instead of a wall of columns.
+        </p>
+        <ul class="pts">
+          <li><i>Explore</i><span>A <b>real file explorer</b>, and it genuinely works — expandable tree, sortable contents, back / forward / up, a breadcrumb that doubles as a typable address bar (<span class="mono">⌘L</span>), search-this-folder, and keyboard nav with type-ahead. Rendered from a live model of 51 clients and their nested projects.</span></li>
+          <li><i>Scale</i><span>Big folders say so — <i>“Showing 14 of 1,240 — use search to narrow it down”</i>, <i>“… 39 more — search instead”</i> in the tree, spinners on unlisted folders. <b>Status roll-ups</b> put <i>11 changed · 1 needs a decision</i> on <span class="mono">clients/</span> at the root.</span></li>
+          <li><i>Two</i><span><b>Two regions, never four.</b> A finder, then a project. Inside a project it's the familiar <b>folders-left / contents-right</b> browser, not Miller columns.</span></li>
+          <li><i>Words</i><span><b>trunk / branches / tags collapse into one “Version” menu</b> — “Current work”, “Work in progress · Payments v2”, “Released · v3.1.4”, each with a sentence explaining it.</span></li>
+          <li><i>State</i><span>Download state in plain words — <b>“On your computer”</b>, “Partly downloaded”, “Not downloaded” — with a disk card: <i>“You keep only the projects you work on.”</i></span></li>
+          <li><i>Switch</i><span><b>One “Developer details” toggle</b> brings back paths, URLs, revision numbers, depth, sparse-checkout editing and the <span class="mono">svn</span> command under every menu item. Nothing is removed from the product, only from the first screen.</span></li>
+          <li><i>Get</i><span>“Get a copy” instead of Check out — with size and <b>“about 3 minutes”</b> rather than depth jargon. The per-subtree depth table appears only in developer mode.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="09-atlas-lite.html" style="background:#2563c9;color:#fff">Open Atlas Lite</a>
+          <div class="keys"><kbd>D — developer details</kbd><kbd>⌘K</kbd><kbd>F — back to finder</kbd><kbd>right-click</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="proto">
+      <div class="shot" onclick="location.href='08-atlas.html'">
+        <span class="num" style="color:var(--p1)">08</span>
+        <iframe src="08-atlas.html" title="Atlas preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p1)"></span>Atlas — monorepo navigator</h3>
+        <div class="strategy">The repo browser, rethought for 50 clients and 2.1 TB</div>
+        <div class="tag">Dark · Archivo / JetBrains Mono · TortoiseSVN repo browser as the starting point</div>
+        <p>
+          One repository, <b>clients/</b> with 51 clients each holding nested projects, <b>internal/</b> with
+          its own tree, and almost none of it on your disk. Four moves:
+        </p>
+        <ul class="pts">
+          <li><i>Depth</i><span><b>Miller columns</b> — <span class="mono">clients / acme-corp / website / trunk</span> is four glances, not four expand-clicks. Each column filters independently; arrow keys walk the tree.</span></li>
+          <li><i>Slice</i><span>Every node shows whether you have it <b>fully, sparsely, or not at all</b>, plus a disk meter (18.4 GB of 2.1 TB). In a monorepo that's the most important fact on screen.</span></li>
+          <li><i>Projects</i><span>A folder holding <span class="mono">trunk/branches/tags</span> is <b>detected as a project</b> — branch switcher, last commits, checkout button — not just another folder.</span></li>
+          <li><i>Jump</i><span><b>⌘P fuzzy path jump</b> (“acm web” → clients/acme-corp/website), bookmarks, recents, saved searches, and breadcrumbs that are dropdowns to siblings.</span></li>
+          <li><i>Roll-up</i><span>Folders carry <b>status roll-ups</b> — <span class="mono">12M 1C</span> on <span class="mono">clients/</span> — so local work is visible from the root without expanding anything.</span></li>
+          <li><i>Sparse</i><span>Checkout dialog is a real <b>working-set editor</b>: per-subtree depth, size estimates, “excluding vendor and media-raw saves 5.5 GB”.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="08-atlas.html" style="background:var(--p1)">Open Atlas</a>
+          <div class="keys"><kbd>⌘P jump</kbd><kbd>← → walk columns</kbd><kbd>right-click a node</kbd><kbd>O checkout</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="proto">
+      <div class="shot" onclick="location.href='07-console-v2.html'">
+        <span class="num" style="color:var(--p1)">07</span>
+        <iframe src="07-console-v2.html" title="Console v2 preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p1)"></span>Console v2 — refined 01</h3>
+        <div class="strategy">The changes &amp; commit workbench, debugged</div>
+        <div class="tag">Dark · same token set as Atlas · accent #58a6ff</div>
+        <p>
+          01's flight deck with its real problems fixed. This is the <b>Changes</b> tab; Atlas is the
+          <b>Browse</b> tab of the same app.
+        </p>
+        <ul class="pts">
+          <li><i>Fixed</i><span>Long paths <b>truncate from the left</b> so the filename is never lost, and every column has a budget — nothing overlaps at any width (01's worst bug).</span></li>
+          <li><i>Added</i><span>An <b>“Explain” checkbox</b> puts a plain-English line under every row, in the diff hunks, and in the context menu. One control, no modes — a newcomer and a developer share one screen.</span></li>
+          <li><i>Added</i><span>Draggable list ↔ diff split, <b>narrated activity log</b> with raw svn output per line, and <b>hold ⌘</b> to light up every shortcut.</span></li>
+          <li><i>Kept</i><span>26–30px rows, tabular numerals, nested context menus, the operation log, keyboard-first flow.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="07-console-v2.html" style="background:var(--p1)">Open Console v2</a>
+          <div class="keys"><kbd>E explain</kbd><kbd>hold ⌘</kbd><kbd>drag the split</kbd><kbd>⌘K</kbd><kbd>C</kbd></div>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="roundhead">
+    <h2>Round two</h2>
+    <span class="k">04 – 06 · developer ↔ non-technical</span>
+    <span class="sp"></span>
+    <span class="note">Three different strategies for spanning both audiences, built from 01's density and 02's plain-spoken clarity.</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- 04 -->
+    <article class="proto">
+      <div class="shot" onclick="location.href='04-studio.html'">
+        <span class="num" style="color:var(--p4)">04</span>
+        <iframe src="04-studio.html" title="Studio preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p4)"></span>Studio</h3>
+        <div class="strategy">Strategy: one dial, three audiences</div>
+        <div class="tag">Light + dark · Instrument Sans / Instrument Serif · accent #3746a6</div>
+        <p>
+          A <b>Simple / Standard / Expert</b> dial in the title bar. It doesn't just hide buttons — it changes
+          <b>row density, vocabulary, column count, and which machinery exists at all</b>. Simple gets 58px rows,
+          “Edited” instead of <span class="mono">M</span>, a plain-English change summary and no log.
+          Expert gets 29px rows, mono paths, the diff, the operation log and a status bar.
+          Same layout, same data, three products.
+        </p>
+        <ul class="pts">
+          <li><i>Layout</i><span>Sidebar → change table → inspector, plus an expert-only operation log. Widths and density are driven by the dial.</span></li>
+          <li><i>Content</i><span>Status is a word or a letter depending on mode; the inspector shows a <b>plain-language “what changed”</b> summary that promotes to a real diff on request.</span></li>
+          <li><i>Modals</i><span>The commit dialog <b>reshapes</b> — Simple drops the options rail and shows a counted summary; Expert shows the full manifest, hooks and bugtraq.</span></li>
+          <li><i>Menus</i><span>The context menu is the same menu at three depths, with an “more options in Standard mode” footer so nothing feels hidden.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="04-studio.html" style="background:var(--p4)">Open Studio</a>
+          <div class="keys"><kbd>1 2 3</kbd><kbd>right-click a row</kbd><kbd>⌘K</kbd><kbd>C</kbd><kbd>theme toggle</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 05 -->
+    <article class="proto">
+      <div class="shot" onclick="location.href='05-guide.html'">
+        <span class="num" style="color:#1f5c8b">05</span>
+        <iframe src="05-guide.html" title="Guide preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p5)"></span>Guide</h3>
+        <div class="strategy">Strategy: plain by default, technical as a layer</div>
+        <div class="tag">Warm light · Newsreader / Plus Jakarta Sans · accent #1f5c8b</div>
+        <p>
+          <b>The layout never changes.</b> Everything is written in plain language for everyone, and one
+          <b>“Developer details”</b> switch layers the truth on top: revision numbers, the real
+          <span class="mono">svn</span> command under every button, file paths, and a command log dock.
+          Nobody is put in a lesser mode — the expert just sees annotation. Task-first: the page answers
+          <b>“what should I do next?”</b> before it shows a file list.
+        </p>
+        <ul class="pts">
+          <li><i>Layout</i><span>Quiet nav + a single scrolling column of cards: status hero → needs-you → your changes → coming in → locks. Detail opens in a sheet, never a new screen.</span></li>
+          <li><i>Content</i><span>Each file says <b>what it means</b> (“You changed how Shelly asks for file status”), not just its status letter. The conflict is explained as two named people's edits, side by side.</span></li>
+          <li><i>Modals</i><span>Right-hand <b>sheets</b> with a visible 3-step commit flow; the undo dialog offers “save to a file first” as the safer path.</span></li>
+          <li><i>Menus</i><span>Plain verbs, with the literal svn command underneath once developer details are on.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="05-guide.html" style="background:var(--p5);color:#fff">Open Guide</a>
+          <div class="keys"><kbd>D — developer details</kbd><kbd>right-click a file</kbd><kbd>⌘K</kbd><kbd>C</kbd><kbd>X</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 06 -->
+    <article class="proto">
+      <div class="shot" onclick="location.href='06-bench.html'">
+        <span class="num" style="color:var(--p6)">06</span>
+        <iframe src="06-bench.html" title="Bench preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p6)"></span>Bench</h3>
+        <div class="strategy">Strategy: no modes — teach the vocabulary</div>
+        <div class="tag">Warm graphite dark · Manrope / Spline Sans Mono · accent #8b8cf7</div>
+        <p>
+          No dial, no switch, no second-class mode. Console's three-column density, made <b>teachable</b>:
+          every status reads <b>“Edited · M”</b> — the plain word and the svn letter joined in one badge —
+          jargon carries a dotted underline you can hover for a plain explanation, the log is
+          <b>narrated in English</b> with raw output one click away, and <b>holding ⌘ lights up every
+          shortcut</b> in the UI. A newcomer learns the real words instead of being shielded from them.
+        </p>
+        <ul class="pts">
+          <li><i>Layout</i><span>Icon rail → file list → right column split between detail and a <b>docked commit composer</b> (no modal, no context switch).</span></li>
+          <li><i>Content</i><span>Rows carry a one-line “what this means”; group headers explain <i>why</i> files are grouped (“held back from sharing”).</span></li>
+          <li><i>Modals</i><span>Reserved for decisions that lose work — the conflict helper lists the three clashes and says which can keep both sides.</span></li>
+          <li><i>Menus</i><span>Plain label, real command, shortcut — all three on every item, plus a “what does <i>Edited</i> mean?” footer.</span></li>
+        </ul>
+        <div class="foot">
+          <a class="open" href="06-bench.html" style="background:var(--p6)">Open Bench</a>
+          <div class="keys"><kbd>hold ⌘</kbd><kbd>hover dotted words</kbd><kbd>right-click a row</kbd><kbd>⌘K</kbd><kbd>X</kbd></div>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <!-- comparison -->
+  <div class="matrix">
+    <table>
+      <thead>
+        <tr><th>How it spans both audiences</th><th>04 Studio</th><th>05 Guide</th><th>06 Bench</th></tr>
+      </thead>
+      <tbody>
+        <tr><th>Mechanism</th><td>Explicit 3-position dial</td><td>One annotation switch</td><td>None — one UI for all</td></tr>
+        <tr><th>Layout changes?</th><td>Yes — density, columns, panes</td><td>No — annotation only</td><td>No</td></tr>
+        <tr><th>Vocabulary</th><td>Swaps: “Edited” ↔ <span class="mono">M</span></td><td>Plain always; commands appear</td><td>Both at once: “Edited · M”</td></tr>
+        <tr><th>Where detail lives</th><td>Persistent inspector pane</td><td>Slide-in sheet</td><td>Persistent pane + docked composer</td></tr>
+        <tr><th>Best for</th><td>Mixed teams, per-person setting</td><td>Non-technical first, devs opt in</td><td>Devs first, newcomers learn</td></tr>
+        <tr><th>Risk</th><td>Two UIs to design and test</td><td>Density may frustrate power users</td><td>Still dense on first contact</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- round one -->
+  <div class="roundhead">
+    <h2>Round one</h2>
+    <span class="k">01 – 03 · the original spread</span>
+    <span class="sp"></span>
+    <span class="note">01 and 02 are the parents of round two. 03 is kept for the record.</span>
+  </div>
+
+  <div class="grid">
+    <article class="proto">
+      <div class="shot" onclick="location.href='01-console.html'">
+        <span class="num" style="color:var(--p1)">01</span>
+        <iframe src="01-console.html" title="Console preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p1)"></span>Console</h3>
+        <div class="tag">Industrial · deep dark · Archivo / JetBrains Mono · accent #58a6ff</div>
+        <p>
+          A flight deck: <b>rail → context panel → change list → diff</b>, with a streaming operation log
+          pinned under the diff. Hairlines, tabular numerals, 26px rows.
+          <b>Round two inherits:</b> the four-zone workbench, the operation log, nested context menus, keyboard-first flow.
+        </p>
+        <div class="foot">
+          <a class="open" href="01-console.html" style="background:var(--p1)">Open Console</a>
+          <div class="keys"><kbd>right-click a row</kbd><kbd>⌘K</kbd><kbd>C</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="proto">
+      <div class="shot" onclick="location.href='02-ledger.html'">
+        <span class="num" style="color:#2b241a">02</span>
+        <iframe src="02-ledger.html" title="Ledger preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p2)"></span>Ledger</h3>
+        <div class="tag">Editorial · light paper · Fraunces / Public Sans · accent oxblood + ink blue</div>
+        <p>
+          Subversion as a <b>record</b>: paper stock, display serif, wide measure, revision history as the
+          spine of the page, tools arriving as drawers and sheets.
+          <b>Round two inherits:</b> the plain-spoken voice, the narrative conflict notice, generous rows,
+          the commit drawer, prose over jargon.
+        </p>
+        <div class="foot">
+          <a class="open" href="02-ledger.html" style="background:var(--p2)">Open Ledger</a>
+          <div class="keys"><kbd>right-click a row</kbd><kbd>⌘K</kbd><kbd>C</kbd><kbd>R</kbd></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="proto dim">
+      <div class="shot" onclick="location.href='03-carapace.html'">
+        <span class="num" style="color:var(--p3)">03</span>
+        <iframe src="03-carapace.html" title="Carapace preview" scrolling="no" loading="lazy"></iframe>
+        <div class="veil"><span>Open prototype →</span></div>
+      </div>
+      <div class="body">
+        <h3><span class="dot" style="background:var(--p3)"></span>Carapace <span style="font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:0">— not pursued</span></h3>
+        <div class="tag">Organic · warm dark · Bricolage Grotesque / Figtree · amber + jade</div>
+        <p>
+          Floating canvas, dock instead of a toolbar, radial context menu, revision graph as hero.
+          Kept for reference; the canvas metaphor and radial menu were the wrong fit for a tool people
+          use all day.
+        </p>
+        <div class="foot">
+          <a class="open" href="03-carapace.html" style="background:var(--p3)">Open Carapace</a>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="readme">
+    <div class="t">
+      <h4>Notes, rationale and the shared content model</h4>
+      <p>Why each direction exists, what to take from each even if you don't adopt it whole, and the
+         terminology mapping used across round two — see <code>prototypes/README.md</code>.</p>
+    </div>
+    <div class="keys">
+      <kbd>04 most configurable</kbd><kbd>05 friendliest</kbd><kbd>06 most cohesive</kbd>
+    </div>
+  </div>
+</div>
+</body>
+</html>

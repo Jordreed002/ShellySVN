@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   svnClientPath: '',
   workingCopyFormat: '1.14',
   globalIgnorePatterns: [],
+  customOpenWithTools: [],
   proxySettings: {
     enabled: false,
     host: '',

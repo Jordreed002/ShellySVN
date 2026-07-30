@@ -373,8 +373,9 @@ export function registerSvnHandlers(): void {
     return invalidateStatusAfter(paths, unversionWorkingCopyItems(paths), event);
   });
 
-  ipcMain.handle('svn:exclude', async (event, path: string) => {
-    return invalidateStatusAfter([path], excludeFromWorkingCopy(path), event);
+  ipcMain.handle('svn:exclude', async (event, paths: string | string[]) => {
+    const targets = Array.isArray(paths) ? paths : [paths];
+    return invalidateStatusAfter(targets, excludeFromWorkingCopy(targets), event);
   });
 
   // Last-commit info for a directory's immediate children (Explorer last-activity)

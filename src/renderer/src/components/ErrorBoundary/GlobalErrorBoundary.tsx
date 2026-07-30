@@ -370,7 +370,7 @@ export class GlobalErrorBoundary extends Component<
             {isRetrying && (
               <div className="flex items-center justify-center gap-2 mb-6 text-text-secondary">
                 <RotateCcw className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Retrying...</span>
+                <span className="text-sm">Retrying…</span>
               </div>
             )}
 

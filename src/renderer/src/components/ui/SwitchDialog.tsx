@@ -193,7 +193,7 @@ export function SwitchDialog({
                 {isSwitching ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Switching...
+                    Switching…
                   </>
                 ) : (
                   <>

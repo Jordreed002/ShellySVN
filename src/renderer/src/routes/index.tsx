@@ -2,15 +2,20 @@ import { createFileRoute } from '@tanstack/react-router';
 import { lazy, Suspense } from 'react';
 import { RouteErrorBoundary } from '@renderer/components/ErrorBoundary';
 
-const WelcomeScreen = lazy(() =>
-  import('@renderer/components/WelcomeScreen').then((m) => ({ default: m.WelcomeScreen }))
+/**
+ * Home is a briefing, not a splash: what needs attention, what is incoming, and
+ * where you were last. Split out behind the route because it pulls in the
+ * open/checkout/import dialogs, which most launches never touch.
+ */
+const HomeScreen = lazy(() =>
+  import('@renderer/components/home/HomeScreen').then((m) => ({ default: m.HomeScreen }))
 );
 
 export const Route = createFileRoute('/')({
   component: () => (
-    <RouteErrorBoundary routeName="Welcome">
+    <RouteErrorBoundary routeName="Home">
       <Suspense fallback={null}>
-        <WelcomeScreen />
+        <HomeScreen />
       </Suspense>
     </RouteErrorBoundary>
   ),

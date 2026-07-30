@@ -1,118 +1,128 @@
-import { type MouseEvent } from 'react';
+/**
+ * Rail pieces that describe the state of the checkouts on this machine:
+ * the actions strip under the active working copy, and the disk card
+ * (`.diskcard` in `prototypes/12-browser.html`).
+ */
 import { Link, useRouterState } from '@tanstack/react-router';
-import { FolderOpen, GitBranch, History, Tag } from 'lucide-react';
+import { FolderOpen, History } from 'lucide-react';
 
 import { m, springs } from '../../lib/motion';
-import { describeRepo, useRepoStatus, useWorkingCopyInfo } from './sidebarData';
+import {
+  formatDiskSize,
+  type DiskUsage,
+  type RepoStatusCounts,
+  type WorkingCopyInfo,
+} from './sidebarData';
 
 interface WorkingCopyPanelProps {
   repoPath: string;
-  onContextMenu?: (event: MouseEvent) => void;
+  info?: WorkingCopyInfo;
+  status?: RepoStatusCounts;
 }
 
 /**
- * The active repository expands into this working-copy lozenge: name, branch/URL,
- * revision, pending-change summary, and its Files / History navigation. It stays
- * accented (active) regardless of the current route.
+ * Sits directly beneath the active working-copy row: its Files / History
+ * navigation, its change summary, and a marker when the underlying `svn info`
+ * read came from the offline cache rather than the working copy.
  */
-export function WorkingCopyPanel({ repoPath, onContextMenu }: WorkingCopyPanelProps) {
-  const { data: info } = useWorkingCopyInfo(repoPath);
-  const { data: status } = useRepoStatus(repoPath);
+export function WorkingCopyPanel({ repoPath, info, status }: WorkingCopyPanelProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const { name } = describeRepo(repoPath);
   const changes = status?.changes ?? 0;
   const conflicts = status?.conflicts ?? 0;
-  const BranchIcon = info?.branchKind === 'tag' ? Tag : GitBranch;
-
   const filesActive = pathname.startsWith('/files');
   const historyActive = pathname.startsWith('/history');
   const tabBase =
-    'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-fast';
+    'flex items-center gap-1.5 rounded-md px-2 py-1 text-2xs font-medium transition-fast';
 
   return (
     <m.div
-      className="my-0.5 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5"
+      className="mx-1.5 mb-1 flex items-center gap-1 rounded-lg border border-accent/20 bg-accent/5 px-1.5 py-1"
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springs.smooth}
-      onContextMenu={onContextMenu}
     >
-      {/* Title + revision */}
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="truncate text-sm font-semibold text-text">{name}</span>
-        {info && (
-          <span className="ml-auto flex-shrink-0 font-mono text-2xs text-text-muted">
-            r{info.revision}
-            {info.source === 'cache' && (
-              <span
-                className="ml-1.5 font-sans text-warning"
-                title={`Cached working-copy information (${Math.floor(info.cacheAge / 60_000)} minutes old)`}
-              >
-                cached
-              </span>
-            )}
+      <Link
+        to="/files"
+        search={{ path: repoPath }}
+        className={`${tabBase} ${
+          filesActive
+            ? 'bg-accent/15 text-accent'
+            : 'text-text-secondary hover:bg-bg-elevated hover:text-text'
+        }`}
+      >
+        <FolderOpen className="h-3.5 w-3.5" />
+        Files
+      </Link>
+      <Link
+        to="/history"
+        search={{ path: repoPath }}
+        className={`${tabBase} ${
+          historyActive
+            ? 'bg-accent/15 text-accent'
+            : 'text-text-secondary hover:bg-bg-elevated hover:text-text'
+        }`}
+      >
+        <History className="h-3.5 w-3.5" />
+        History
+      </Link>
+
+      <span className="ml-auto flex items-center gap-1.5 pr-1">
+        {info?.source === 'cache' && (
+          <span
+            className="text-2xs font-medium text-warning"
+            title={`Cached working-copy information (${Math.floor(info.cacheAge / 60_000)} minutes old)`}
+          >
+            cached
           </span>
         )}
-      </div>
-
-      {/* Branch + change summary */}
-      {info && (
-        <div className="mt-1.5 flex items-center gap-2 min-w-0">
-          <span className="flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md bg-bg-elevated text-2xs text-text-secondary">
-            <BranchIcon className="w-3 h-3 flex-shrink-0 text-accent" />
-            <span className="truncate">{info.branch}</span>
+        {changes === 0 && status && (
+          <span className="text-2xs font-medium text-svn-normal">No local changes</span>
+        )}
+        {conflicts > 0 && (
+          <span className="text-2xs font-medium text-svn-conflict">
+            {conflicts} conflict{conflicts === 1 ? '' : 's'}
           </span>
-          {changes > 0 ? (
-            <span
-              className={`flex items-center gap-1 text-2xs font-medium ${
-                conflicts > 0 ? 'text-svn-conflict' : 'text-svn-modified'
-              }`}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  conflicts > 0 ? 'bg-svn-conflict' : 'bg-svn-modified'
-                }`}
-              />
-              {changes} change{changes === 1 ? '' : 's'}
-              {conflicts > 0 ? ` · ${conflicts} conflict${conflicts === 1 ? '' : 's'}` : ''}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-2xs font-medium text-svn-normal">
-              <span className="w-1.5 h-1.5 rounded-full bg-svn-normal" />
-              No local changes
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Files / History navigation */}
-      <div className="mt-2.5 pt-2 border-t border-accent/15 flex items-center gap-1">
-        <Link
-          to="/files"
-          search={{ path: repoPath }}
-          className={`${tabBase} ${
-            filesActive
-              ? 'bg-accent/15 text-accent'
-              : 'text-text-secondary hover:text-text hover:bg-bg-elevated'
-          }`}
-        >
-          <FolderOpen className="w-3.5 h-3.5" />
-          Files
-        </Link>
-        <Link
-          to="/history"
-          search={{ path: repoPath }}
-          className={`${tabBase} ${
-            historyActive
-              ? 'bg-accent/15 text-accent'
-              : 'text-text-secondary hover:text-text hover:bg-bg-elevated'
-          }`}
-        >
-          <History className="w-3.5 h-3.5" />
-          History
-        </Link>
-      </div>
+        )}
+      </span>
     </m.div>
+  );
+}
+
+/**
+ * Total bytes checked out, a bar segmented by working copy and tinted by local
+ * presence, and a mono breakdown.
+ *
+ * Every figure here is measured (`fs.getFolderSizes`). The prototype's third
+ * "not fetched" segment is deliberately absent: it needs the repository's
+ * server-side size, which no API reports, and this card will not guess.
+ */
+export function DiskCard({ usage }: { usage: DiskUsage }) {
+  const breakdown = [
+    usage.fullBytes > 0 ? `full ${formatDiskSize(usage.fullBytes)}` : null,
+    usage.sparseBytes > 0 ? `sparse ${formatDiskSize(usage.sparseBytes)}` : null,
+    usage.notCheckedOut > 0 ? `${usage.notCheckedOut} not checked out` : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+
+  return (
+    <div className="mx-3.5 mt-2 rounded-[10px] border border-border bg-bg-secondary p-2.5 shadow-card">
+      <b className="block text-xs font-bold text-text">
+        {formatDiskSize(usage.totalBytes)} checked out
+      </b>
+      <div aria-hidden="true" className="mt-2 flex h-[5px] overflow-hidden rounded-full bg-bg-sunk">
+        {usage.segments.map((segment) => (
+          <span
+            key={segment.path}
+            style={{ width: `${(segment.bytes / usage.totalBytes) * 100}%` }}
+            className={segment.presence === 'sparse' ? 'bg-svn-added/45' : 'bg-svn-added'}
+          />
+        ))}
+      </div>
+      <span className="mt-1.5 block font-mono text-2xs leading-relaxed text-text-muted">
+        {breakdown}
+      </span>
+    </div>
   );
 }

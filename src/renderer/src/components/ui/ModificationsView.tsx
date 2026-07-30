@@ -211,7 +211,7 @@ export function ModificationsView({ path, onClose }: ModificationsViewProps) {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search files..."
+          placeholder="Search files…"
           className="input w-48"
         />
       </div>

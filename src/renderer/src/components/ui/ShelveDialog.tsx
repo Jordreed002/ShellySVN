@@ -128,7 +128,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
                   id="shelve-message"
                   value={shelveMessage}
                   onChange={(e) => setShelveMessage(e.target.value)}
-                  placeholder="Describe the shelved changes..."
+                  placeholder="Describe the shelved changes…"
                   className="input h-20 resize-none"
                 />
               </div>

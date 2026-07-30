@@ -216,7 +216,7 @@ export function PluginManagerDialog({ isOpen, onClose }: PluginManagerDialogProp
                   aria-label="Loading plugins"
                 >
                   <Loader2 className="w-5 h-5 text-text-muted animate-spin" aria-hidden="true" />
-                  <span className="sr-only">Loading plugins...</span>
+                  <span className="sr-only">Loading plugins…</span>
                 </div>
               ) : plugins.length === 0 ? (
                 <div

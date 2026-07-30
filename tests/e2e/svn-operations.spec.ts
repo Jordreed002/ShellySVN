@@ -17,7 +17,7 @@ test.describe('SVN Operations - Checkout', () => {
 
   test('checkout dialog opens from Add Repository button', async ({ page }) => {
     // Click Add Repository button
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
 
     // Wait for modal to appear
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
@@ -35,7 +35,7 @@ test.describe('SVN Operations - Checkout', () => {
   });
 
   test('checkout dialog has required form fields', async ({ page }) => {
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     // Switch to Checkout tab if present
@@ -61,7 +61,7 @@ test.describe('SVN Operations - Checkout', () => {
   });
 
   test('checkout dialog validates empty URL', async ({ page }) => {
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     // Switch to Checkout tab if present

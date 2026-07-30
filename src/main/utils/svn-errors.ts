@@ -69,6 +69,17 @@ export function classifySvnCommandError(
   };
 }
 
+/**
+ * `svn info`/`status` on a path outside a checkout is a normal answer, not a
+ * failure: the Explorer probes every folder the user opens. Subversion reports
+ * it as E155007 / E155010 / "is not a working copy", and callers use this to
+ * keep the expected case out of the error log.
+ */
+export function isNotAWorkingCopyError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /E155007|E155010|W155010|is not a working copy|not a versioned resource/i.test(message);
+}
+
 export class SvnCommandError extends Error {
   readonly commandError: SvnCommandErrorDetails;
 

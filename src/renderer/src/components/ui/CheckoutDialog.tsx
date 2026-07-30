@@ -503,7 +503,7 @@ export function CheckoutDialog({
                       className="btn btn-ghost text-sm"
                       disabled={isCheckingOut}
                     >
-                      Choose items...
+                      Choose items…
                     </button>
                     {selectedPaths.length > 0 && (
                       <button
@@ -633,7 +633,7 @@ export function CheckoutDialog({
                   {isCheckingOut ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Checking out...
+                      Checking out…
                     </>
                   ) : (
                     <>

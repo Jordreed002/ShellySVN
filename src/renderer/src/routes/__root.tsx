@@ -7,7 +7,7 @@ export const Route = createRootRoute({
   component: () => (
     <Layout>
       <RouteErrorBoundary routeName="Application">
-        <Suspense fallback={<div className="loading">Loading...</div>}>
+        <Suspense fallback={<div className="loading">Loading…</div>}>
           <Outlet />
         </Suspense>
       </RouteErrorBoundary>

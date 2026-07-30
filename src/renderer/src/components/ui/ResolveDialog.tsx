@@ -372,7 +372,7 @@ export function ResolveDialog({
               {isResolving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Resolving...
+                  Resolving…
                 </>
               ) : (
                 <>
