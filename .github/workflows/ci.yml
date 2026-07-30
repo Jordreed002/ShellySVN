@@ -134,9 +134,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          if (-not (Get-Command svn -ErrorAction SilentlyContinue) -or -not (Get-Command svnadmin -ErrorAction SilentlyContinue)) {
-            choco install sliksvn -y --no-progress
-          }
+          choco install tortoisesvn -y --no-progress
+          $svnBin = Join-Path $env:ProgramFiles 'TortoiseSVN\bin'
+          $env:PATH = "$svnBin;$env:PATH"
+          $svnBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           svn --version --quiet
           svnadmin --version --quiet
 
