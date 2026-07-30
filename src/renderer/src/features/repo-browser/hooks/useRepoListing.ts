@@ -102,8 +102,8 @@ export function useRepoListing(
 
   const revision = useMemo(() => pegToRevisionArg(peg), [peg]);
   const queryKey = useMemo(
-    () => getRepoBrowserListQueryKey(url, revision, credentials),
-    [url, revision, credentials]
+    () => [...getRepoBrowserListQueryKey(url, revision, credentials), depth] as const,
+    [url, revision, credentials, depth]
   );
 
   const query = useQuery({

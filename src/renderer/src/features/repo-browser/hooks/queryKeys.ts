@@ -134,7 +134,8 @@ export function repoBlameQueryKey(
 export function repoPropertiesQueryKey(
   url: string,
   revision: string,
-  credentials: RepoBrowserCredentials | null | undefined
+  credentials: RepoBrowserCredentials | null | undefined,
+  showInherited: boolean
 ) {
   return [
     REPO_BROWSER_QUERY_ROOT,
@@ -142,6 +143,7 @@ export function repoPropertiesQueryKey(
     url,
     revision,
     credentialQueryKey(credentials),
+    showInherited,
   ] as const;
 }
 

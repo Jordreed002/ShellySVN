@@ -56,7 +56,7 @@ export function useRepoProperties(
   const revision = useMemo(() => pegToRevisionArg(peg), [peg]);
 
   const query = useQuery({
-    queryKey: repoPropertiesQueryKey(url, revision, credentials),
+    queryKey: repoPropertiesQueryKey(url, revision, credentials, showInherited),
     // `svn:proplist` takes no `CancellableRequestOptions`, so there is no
     // signal to forward; the short stale time keeps it from re-running often.
     queryFn: () => window.api.svn.proplist(url, { revision, showInherited }),
