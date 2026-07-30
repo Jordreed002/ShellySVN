@@ -135,8 +135,10 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Get-Command svn -ErrorAction SilentlyContinue) -or -not (Get-Command svnadmin -ErrorAction SilentlyContinue)) {
-            choco install subversion -y --no-progress
+            choco install sliksvn -y --no-progress
           }
+          svn --version --quiet
+          svnadmin --version --quiet
 
       - name: Verify real SVN workflows
         run: bun run verify:svn-workflows
