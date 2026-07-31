@@ -1,55 +1,33 @@
 import { lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Box,
-  ChevronDown,
-  Minus,
-  Moon,
-  PanelLeft,
-  Search,
-  Settings as SettingsIcon,
-  Square,
-  StickyNote,
-  Sun,
-  User,
-  X,
-} from 'lucide-react';
+import { PanelLeft, Search, StickyNote } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
-import { invalidateAfterSvnMutation } from '@renderer/utils/mutationInvalidation';
 
-import { AnimatePresence, m, springs, useMotionEnabled, variants } from '../lib/motion';
-import { SVN_EVENTS } from '../lib/svnOperationEvents';
+import { RepositoryPillButton } from './layout/RepositoryPillButton';
+import { describeRepositoryPill } from './layout/repositoryPill';
 import { ShellMark } from './ShellMark';
-import { Sidebar } from './Sidebar';
-import {
-  collectRepositoryRoots,
-  useWorkingCopyInfo,
-  useWorkingCopyOverview,
-} from './sidebar/sidebarData';
-import { useOnboarding } from './tutorial/useOnboarding';
-import { StatusBar } from './ui/StatusBar';
 
-const OnboardingTutorial = lazy(() =>
-  import('./tutorial/OnboardingTutorial').then((m) => ({ default: m.OnboardingTutorial }))
+const Sidebar = lazy(() => import('./Sidebar').then((mod) => ({ default: mod.Sidebar })));
+const StatusBar = lazy(() => import('./ui/StatusBar').then((mod) => ({ default: mod.StatusBar })));
+const RepositoryPillControl = lazy(() =>
+  import('./layout/RepositoryPillControl').then((mod) => ({ default: mod.RepositoryPillControl }))
+);
+const TitlebarControls = lazy(() =>
+  import('./layout/TitlebarControls').then((mod) => ({ default: mod.TitlebarControls }))
 );
 
-const CommandPalette = lazy(() =>
-  import('./ui/CommandPalette').then((m) => ({ default: m.CommandPalette }))
+const OnboardingController = lazy(() =>
+  import('./tutorial/OnboardingController').then((mod) => ({ default: mod.OnboardingController }))
 );
-const KeyboardShortcutsDialog = lazy(() =>
-  import('./ui/KeyboardShortcutsDialog').then((m) => ({ default: m.KeyboardShortcutsDialog }))
+
+const CommandPaletteController = lazy(() =>
+  import('./ui/CommandPaletteController').then((m) => ({ default: m.CommandPaletteController }))
 );
-const PerformanceDashboard = lazy(() =>
-  import('./ui/PerformanceDashboard').then((m) => ({ default: m.PerformanceDashboard }))
-);
-const PluginManagerDialog = lazy(() =>
-  import('./ui/PluginManagerDialog').then((m) => ({ default: m.PluginManagerDialog }))
-);
-const QuickNotesPanel = lazy(() =>
-  import('./ui/QuickNotesPanel').then((m) => ({ default: m.QuickNotesPanel }))
+const ShellDialogs = lazy(() =>
+  import('./ui/ShellDialogs').then((m) => ({ default: m.ShellDialogs }))
 );
 
 /**
@@ -79,135 +57,34 @@ function iconButtonClass(active = false): string {
   return `${ICON_BUTTON_BASE} ${active ? ICON_BUTTON_ON : ICON_BUTTON_IDLE}`;
 }
 
-/** Host portion of an SVN URL, for the repository pill. Null for local/file URLs. */
-function repositoryHost(url: string | undefined): string | null {
-  if (!url) return null;
-  const match = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?([^/:]+)/i.exec(url);
-  return match ? match[1] : null;
-}
-
-/**
- * The repository's name: the last segment of its root URL (`…/atlas` → `atlas`).
- *
- * The authority is stripped first, so a repository served from the root of a
- * host is reported as unnamed rather than being named after the host.
- */
-function repositoryName(rootUrl: string): string | null {
-  const path = rootUrl.replace(/[?#].*$/, '').replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '');
-  const segments = path.split('/').filter(Boolean);
-  return segments.length > 0 ? segments[segments.length - 1] : null;
-}
-
-/** Is `url` inside the repository rooted at `root`? Segment-exact, not a prefix test. */
-function isWithinRepository(root: string, url: string): boolean {
-  const base = root.replace(/\/+$/, '');
-  const target = url.replace(/\/+$/, '');
-  return base.length > 0 && (target === base || target.startsWith(`${base}/`));
-}
-
-/** What the top bar's repository pill should say, and why it may say less. */
-export interface RepositoryPill {
-  /** Bold label — the repository's name, or its host when the name is unknown. */
-  label: string;
-  /** Mono secondary label: the host, shown only beside a repository name. */
-  host: string | null;
-  /** Accessible name for the pill, which is also the "switch repository" control. */
-  ariaLabel: string;
-  /** Tooltip — the fullest identifier available. */
-  title: string;
-}
-
-export interface RepositoryPillFacts {
-  /** `svn info` repository root of the active working copy, once resolved. */
-  repositoryRoot?: string;
-  /** Local path of the working copy the current location belongs to. */
-  workingCopyPath?: string;
-  /** Repository URL from the route — the browser can be open without a checkout. */
-  browsedUrl?: string;
-  /** Repository roots the user's checkouts came from, which can name a browsed URL. */
-  knownRoots?: readonly { url: string; name: string }[];
-}
-
-/**
- * Name the repository that is open, from whichever fact is available.
- *
- * The pill used to read "No repository" whenever the route carried no working
- * copy path, which is exactly the case while browsing a repository by URL. The
- * order below is by descending certainty, and it stops rather than guessing:
- * a URL from a repository the user has never checked out yields the host only,
- * because the repository root — and therefore its name — is a question only the
- * server can answer, and answering it is not a top-bar read.
- */
-export function describeRepositoryPill({
-  repositoryRoot,
-  workingCopyPath,
-  browsedUrl,
-  knownRoots = [],
-}: RepositoryPillFacts): RepositoryPill {
-  const root =
-    repositoryRoot ??
-    knownRoots.find((candidate) => !!browsedUrl && isWithinRepository(candidate.url, browsedUrl))
-      ?.url;
-
-  if (root) {
-    const name = repositoryName(root);
-    const host = repositoryHost(root);
-    const label = name ?? host;
-    if (label) {
-      return {
-        label,
-        host: name ? host : null,
-        ariaLabel: `Repository ${label}${name && host ? ` on ${host}` : ''} — switch repository`,
-        title: workingCopyPath ? `${root} — ${workingCopyPath}` : root,
-      };
-    }
-  }
-
-  if (browsedUrl) {
-    const host = repositoryHost(browsedUrl);
-    if (host) {
-      return {
-        label: host,
-        host: null,
-        ariaLabel: `Browsing a repository on ${host} — switch repository`,
-        title: browsedUrl,
-      };
-    }
-  }
-
-  // A checkout whose `svn info` has not answered yet: the folder name is a fact,
-  // the repository's name is not, so the pill says which it is showing.
-  if (workingCopyPath) {
-    const folder = pathTail(workingCopyPath);
-    return {
-      label: folder,
-      host: null,
-      ariaLabel: `Working copy ${folder} — switch repository`,
-      title: workingCopyPath,
-    };
-  }
-
-  return {
-    label: 'No repository',
-    host: null,
-    ariaLabel: 'No repository open — open the command palette to pick one',
-    title: 'No repository open',
-  };
-}
-
 /** Open the settings dialog (owned by the sidebar, reached by event). */
 function openSettings(): void {
   window.dispatchEvent(new CustomEvent('shellysvn:open-settings'));
 }
 
-/** Trailing segment of a filesystem path — the working-copy folder name. */
-function pathTail(value: string): string {
+export function SidebarFallback() {
   return (
-    value
-      .replace(/[/\\]+$/, '')
-      .split(/[/\\]/)
-      .filter(Boolean)
-      .pop() || value
+    <aside
+      className="h-full border-r border-border bg-bg-secondary/70 px-3 py-4"
+      aria-label="Loading sidebar"
+      aria-busy="true"
+    >
+      <div className="mb-5 h-8 animate-pulse rounded-lg bg-bg-tertiary/70" />
+      <div className="space-y-2" aria-hidden="true">
+        <div className="h-7 animate-pulse rounded-md bg-bg-tertiary/55" />
+        <div className="h-7 animate-pulse rounded-md bg-bg-tertiary/45" />
+        <div className="h-7 animate-pulse rounded-md bg-bg-tertiary/35" />
+      </div>
+    </aside>
+  );
+}
+
+export function StatusBarFallback() {
+  return (
+    <div
+      className="h-control-sm flex-shrink-0 border-t border-border bg-bg-secondary"
+      aria-hidden="true"
+    />
   );
 }
 
@@ -218,11 +95,9 @@ export function Layout({ children }: LayoutProps) {
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [showPluginManager, setShowPluginManager] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [forceShowTutorial, setForceShowTutorial] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(true);
   const { settings, updateSettings } = useSettings();
-  const { resetTutorial } = useOnboarding();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -246,21 +121,7 @@ export function Layout({ children }: LayoutProps) {
       (repo) => currentPath === repo || currentPath.startsWith(repo + '/')
     );
   }, [currentPath, search?.localPath, recentRepositories]);
-  const { data: workingCopyInfo } = useWorkingCopyInfo(workingCopyPath);
-  // The rail's own query, reused by key: it has already resolved which
-  // repository each checkout came from, which is what lets a browsed URL be
-  // named without asking the server again.
-  const workingCopyOverview = useWorkingCopyOverview(recentRepositories);
-  const knownRoots = useMemo(
-    () => collectRepositoryRoots(recentRepositories, workingCopyOverview),
-    [recentRepositories, workingCopyOverview]
-  );
-  const repositoryPill = describeRepositoryPill({
-    repositoryRoot: workingCopyInfo?.repositoryRoot,
-    workingCopyPath,
-    browsedUrl,
-    knownRoots,
-  });
+  const repositoryPillFallback = describeRepositoryPill({ workingCopyPath, browsedUrl });
 
   useVisualSettings(settings);
 
@@ -293,7 +154,9 @@ export function Layout({ children }: LayoutProps) {
     }
 
     return subscribe((notification) => {
-      void invalidateAfterSvnMutation(queryClient, notification);
+      void import('@renderer/utils/mutationInvalidation').then(({ invalidateAfterSvnMutation }) =>
+        invalidateAfterSvnMutation(queryClient, notification)
+      );
     });
   }, [queryClient]);
 
@@ -316,17 +179,6 @@ export function Layout({ children }: LayoutProps) {
     window.addEventListener('svn-cache-cleared', handleCacheCleared);
     return () => window.removeEventListener('svn-cache-cleared', handleCacheCleared);
   }, [queryClient]);
-
-  // Listen for tutorial restart event from Settings
-  useEffect(() => {
-    const handleTutorialRestart = async () => {
-      await resetTutorial();
-      setForceShowTutorial(true);
-    };
-
-    window.addEventListener('tutorial:restart', handleTutorialRestart);
-    return () => window.removeEventListener('tutorial:restart', handleTutorialRestart);
-  }, [resetTutorial]);
 
   // Restore the persisted sidebar collapsed state
   useEffect(() => {
@@ -422,12 +274,7 @@ export function Layout({ children }: LayoutProps) {
     void updateSettings({ theme: isDarkTheme ? 'light' : 'dark' });
   };
 
-  const routePath = routerState.location.pathname;
-  const motionEnabled = useMotionEnabled();
-
   const accountName = settings.savedCredentials?.[0]?.username ?? '';
-  const accountInitial = accountName.trim().charAt(0).toUpperCase();
-
   return (
     <div className="flex flex-col h-screen shell-backdrop text-text overflow-hidden">
       {/* Top bar — prototype `.top`: brand · repository pill · search · controls */}
@@ -445,24 +292,22 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         {/* Repository pill */}
-        <button
-          type="button"
-          onClick={() => setShowCommandPalette(true)}
-          className="titlebar-no-drag flex items-center gap-2 h-control px-[11px] flex-shrink-0 min-w-0 rounded-9 bg-bg border border-border hover:border-border-strong text-12.5 transition-fast"
-          aria-label={repositoryPill.ariaLabel}
-          title={repositoryPill.title}
+        <Suspense
+          fallback={
+            <RepositoryPillButton
+              pill={repositoryPillFallback}
+              onActivate={() => setShowCommandPalette(true)}
+              busy
+            />
+          }
         >
-          <Box className="w-3 h-3 flex-shrink-0 text-text-faint" aria-hidden="true" />
-          <span className="font-semibold text-text truncate max-w-[150px]">
-            {repositoryPill.label}
-          </span>
-          {repositoryPill.host && (
-            <span className="font-mono text-11 text-text-muted truncate max-w-[190px]">
-              {repositoryPill.host}
-            </span>
-          )}
-          <ChevronDown className="w-3 h-3 flex-shrink-0 text-text-faint" aria-hidden="true" />
-        </button>
+          <RepositoryPillControl
+            workingCopyPath={workingCopyPath}
+            browsedUrl={browsedUrl}
+            recentRepositories={recentRepositories}
+            onActivate={() => setShowCommandPalette(true)}
+          />
+        </Suspense>
 
         {/* Centred search — a button that opens the command palette */}
         <button
@@ -477,9 +322,7 @@ export function Layout({ children }: LayoutProps) {
             className="w-[15px] h-[15px] flex-shrink-0 group-hover:text-text-secondary transition-fast"
             aria-hidden="true"
           />
-          <span className="flex-1 min-w-0 truncate text-left">
-            Run a command
-          </span>
+          <span className="flex-1 min-w-0 truncate text-left">Run a command</span>
           <span className="kbd flex-shrink-0" aria-hidden="true">
             ⌘K
           </span>
@@ -509,125 +352,70 @@ export function Layout({ children }: LayoutProps) {
             <StickyNote className="w-4 h-4" aria-hidden="true" />
           </button>
 
-          <button
-            type="button"
-            onClick={handleToggleTheme}
-            className={iconButtonClass()}
-            aria-label={isDarkTheme ? 'Switch to the light theme' : 'Switch to the dark theme'}
-            title={isDarkTheme ? 'Switch to the light theme' : 'Switch to the dark theme'}
-          >
-            {isDarkTheme ? (
-              <Sun className="w-4 h-4" aria-hidden="true" />
-            ) : (
-              <Moon className="w-4 h-4" aria-hidden="true" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={openSettings}
-            className={iconButtonClass()}
-            aria-label="Settings"
-            title="Settings"
-          >
-            <SettingsIcon className="w-4 h-4" aria-hidden="true" />
-          </button>
-
-          <button
-            type="button"
-            onClick={openSettings}
-            className="titlebar-no-drag w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full bg-accent text-white text-[12.5px] font-bold transition-fast hover:bg-accent-hover"
-            aria-label={
-              accountName ? `Account: ${accountName}` : 'Account — no saved credentials yet'
+          <Suspense
+            fallback={
+              <div className={isMac ? 'h-8 w-[102px]' : 'h-8 w-[238px]'} aria-hidden="true" />
             }
-            title={accountName || 'No saved credentials yet'}
           >
-            {accountInitial || <User className="w-4 h-4" aria-hidden="true" />}
-          </button>
-
-          {!isMac && (
-            <div className="flex items-center h-full ml-1">
-              <button
-                onClick={handleMinimize}
-                className="window-control rounded-md hover:bg-bg-elevated transition-fast"
-                aria-label="Minimize"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleMaximize}
-                className="window-control rounded-md hover:bg-bg-elevated transition-fast"
-                aria-label={isMaximized ? 'Restore window' : 'Maximize'}
-                title={isMaximized ? 'Restore window' : 'Maximize'}
-              >
-                <Square className={`w-3 h-3 ${isMaximized ? 'fill-current' : ''}`} />
-              </button>
-              <button
-                onClick={handleClose}
-                className="window-control rounded-md hover:bg-error hover:text-white transition-fast"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+            <TitlebarControls
+              isMac={isMac}
+              isMaximized={isMaximized}
+              isDarkTheme={isDarkTheme}
+              accountName={accountName}
+              onToggleTheme={handleToggleTheme}
+              onOpenSettings={openSettings}
+              onMinimize={handleMinimize}
+              onMaximize={() => void handleMaximize()}
+              onClose={handleClose}
+            />
+          </Suspense>
         </div>
       </header>
 
       {/* Main Content Area - Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
-        <m.div
-          className="flex-shrink-0 overflow-hidden h-full"
-          initial={false}
-          animate={{ width: sidebarCollapsed ? 56 : (settings?.sidebarWidth ?? 260) }}
-          transition={motionEnabled ? springs.smooth : { duration: 0 }}
+        <div
+          className="h-full flex-shrink-0 overflow-hidden transition-[width] duration-200 ease-out"
+          style={{ width: sidebarCollapsed ? 56 : (settings?.sidebarWidth ?? 260) }}
         >
-          <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
-        </m.div>
+          <Suspense fallback={<SidebarFallback />}>
+            <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+          </Suspense>
+        </div>
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden relative flex flex-col min-h-0 min-w-0">
-            {motionEnabled ? (
-              <AnimatePresence mode="wait" initial={false}>
-                <m.div
-                  key={routePath}
-                  className="absolute inset-0 flex flex-col overflow-hidden min-h-0"
-                  variants={variants.fadeUp}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
-                >
-                  {children}
-                </m.div>
-              </AnimatePresence>
-            ) : (
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">{children}</div>
-            )}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">{children}</div>
           </div>
-          <StatusBar />
+          <Suspense fallback={settings?.showStatusBar ? <StatusBarFallback /> : null}>
+            <StatusBar />
+          </Suspense>
         </main>
       </div>
 
-      {/* Modals */}
-      {showShortcuts && (
+      {(showShortcuts || showNotes || showPerformanceDashboard || showPluginManager) && (
         <Suspense fallback={null}>
-          <KeyboardShortcutsDialog isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+          <ShellDialogs
+            currentPath={currentPath}
+            showShortcuts={showShortcuts}
+            showNotes={showNotes}
+            showPerformanceDashboard={showPerformanceDashboard}
+            showPluginManager={showPluginManager}
+            onCloseShortcuts={() => setShowShortcuts(false)}
+            onCloseNotes={() => setShowNotes(false)}
+            onClosePerformanceDashboard={() => setShowPerformanceDashboard(false)}
+            onClosePluginManager={() => setShowPluginManager(false)}
+          />
         </Suspense>
       )}
 
       {/* Onboarding Tutorial */}
       <Suspense fallback={null}>
-        <OnboardingTutorial
-          forceShow={forceShowTutorial}
-          onComplete={() => setForceShowTutorial(false)}
-          onSkip={() => setForceShowTutorial(false)}
-        />
+        <OnboardingController />
       </Suspense>
 
       {showCommandPalette && (
         <Suspense fallback={null}>
-          <CommandPalette
-            isOpen={showCommandPalette}
+          <CommandPaletteController
             onClose={() => setShowCommandPalette(false)}
             currentPath={currentPath}
             recentPaths={settings.recentPaths}
@@ -645,152 +433,10 @@ export function Layout({ children }: LayoutProps) {
               setShowCommandPalette(false);
               setShowNotes(true);
             }}
-            onRevert={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.REVERT));
-              setShowCommandPalette(false);
-            }}
-            onAdd={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.ADD));
-              setShowCommandPalette(false);
-            }}
-            onDelete={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.DELETE));
-              setShowCommandPalette(false);
-            }}
-            onCleanup={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.CLEANUP));
-              setShowCommandPalette(false);
-            }}
-            onResolve={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.RESOLVE));
-              setShowCommandPalette(false);
-            }}
-            onMove={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.MOVE));
-              setShowCommandPalette(false);
-            }}
-            onCopy={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.COPY));
-              setShowCommandPalette(false);
-            }}
-            onRename={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.RENAME));
-              setShowCommandPalette(false);
-            }}
-            onBranchTag={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG));
-              setShowCommandPalette(false);
-            }}
-            onTag={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG));
-              setShowCommandPalette(false);
-            }}
-            onBranchTagCompare={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG_COMPARE));
-              setShowCommandPalette(false);
-            }}
-            onSwitch={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.SWITCH));
-              setShowCommandPalette(false);
-            }}
-            onMerge={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.MERGE));
-              setShowCommandPalette(false);
-            }}
-            onRelocate={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.RELOCATE));
-              setShowCommandPalette(false);
-            }}
-            onBlame={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.BLAME));
-              setShowCommandPalette(false);
-            }}
-            onProperties={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.PROPERTIES));
-              setShowCommandPalette(false);
-            }}
-            onChangelist={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.CHANGELIST));
-              setShowCommandPalette(false);
-            }}
-            onShelve={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.SHELVE));
-              setShowCommandPalette(false);
-            }}
-            onUnshelve={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNSHELVE));
-              setShowCommandPalette(false);
-            }}
-            onLock={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.LOCK));
-              setShowCommandPalette(false);
-            }}
-            onUnlock={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.UNLOCK));
-              setShowCommandPalette(false);
-            }}
-            onExport={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.EXPORT));
-              setShowCommandPalette(false);
-            }}
-            onImport={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.IMPORT));
-              setShowCommandPalette(false);
-            }}
-            onRepoBrowser={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.REPO_BROWSER));
-              setShowCommandPalette(false);
-            }}
-            onRevisionGraph={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.REVISION_GRAPH));
-              setShowCommandPalette(false);
-            }}
-            onCreatePatch={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.CREATE_PATCH));
-              setShowCommandPalette(false);
-            }}
-            onApplyPatch={() => {
-              window.dispatchEvent(new CustomEvent(SVN_EVENTS.APPLY_PATCH));
-              setShowCommandPalette(false);
-            }}
             onManagePlugins={() => {
               setShowCommandPalette(false);
               setShowPluginManager(true);
             }}
-          />
-        </Suspense>
-      )}
-
-      {/* Quick Notes Panel */}
-      {showNotes && (
-        <Suspense fallback={null}>
-          <QuickNotesPanel
-            isOpen={showNotes}
-            currentPath={currentPath}
-            onClose={() => setShowNotes(false)}
-          />
-        </Suspense>
-      )}
-
-      {/* Performance Dashboard */}
-      {showPerformanceDashboard && (
-        <Suspense fallback={null}>
-          <div className="fixed bottom-4 right-4 z-50 w-[480px]">
-            <PerformanceDashboard
-              visible={showPerformanceDashboard}
-              onClose={() => setShowPerformanceDashboard(false)}
-              detailed
-            />
-          </div>
-        </Suspense>
-      )}
-
-      {/* Plugin Manager Dialog */}
-      {showPluginManager && (
-        <Suspense fallback={null}>
-          <PluginManagerDialog
-            isOpen={showPluginManager}
-            onClose={() => setShowPluginManager(false)}
           />
         </Suspense>
       )}

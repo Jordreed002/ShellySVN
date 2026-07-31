@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { describeRepositoryPill } from '../Layout';
+import { describeRepositoryPill } from '../layout/repositoryPill';
 
 const ATLAS = { url: 'svn://svn.lineindustries.com/atlas', name: 'atlas' };
 
@@ -25,9 +25,7 @@ describe('describeRepositoryPill', () => {
 
     expect(pill.label).toBe('atlas');
     expect(pill.host).toBe('svn.lineindustries.com');
-    expect(pill.ariaLabel).toBe(
-      'Repository atlas on svn.lineindustries.com — switch repository'
-    );
+    expect(pill.ariaLabel).toBe('Repository atlas on svn.lineindustries.com — switch repository');
     expect(pill.title).toBe('svn://svn.lineindustries.com/atlas — /wc/acme-corp');
   });
 

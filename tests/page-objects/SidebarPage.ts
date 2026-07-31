@@ -15,7 +15,7 @@ export class SidebarPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.container = page.locator('aside').first();
+    this.container = page.getByTestId('sidebar-ready');
     this.titleBar = this.container.locator('.h-\\[--titlebar-height\\]').first();
     this.addButton = this.container.locator('button[title="Add repository"]').first();
     this.searchInput = this.container.locator('input[placeholder*="Search"]').first();
@@ -38,10 +38,16 @@ export class SidebarPage {
     }
   }
 
+  /** Wait for the real lazy-loaded sidebar rather than its geometry fallback. */
+  async waitUntilReady(): Promise<void> {
+    await this.container.waitFor({ state: 'visible', timeout: 10_000 });
+  }
+
   /**
    * Click the Add Repository button
    */
   async clickAddRepository(): Promise<void> {
+    await this.waitUntilReady();
     // First close any existing modal that might be blocking
     const overlay = this.page.locator('.modal-overlay');
     if (await overlay.isVisible()) {
@@ -59,6 +65,7 @@ export class SidebarPage {
    * Search for a repository
    */
   async search(query: string): Promise<void> {
+    await this.waitUntilReady();
     await this.searchInput.fill(query);
   }
 
@@ -66,6 +73,7 @@ export class SidebarPage {
    * Clear search input
    */
   async clearSearch(): Promise<void> {
+    await this.waitUntilReady();
     await this.searchInput.clear();
   }
 
@@ -73,6 +81,7 @@ export class SidebarPage {
    * Get all navigation items
    */
   async getNavigationItems(): Promise<string[]> {
+    await this.waitUntilReady();
     const items = await this.container.locator('.tree-item, a, nav button').all();
     const texts: string[] = [];
     for (const item of items) {
@@ -86,13 +95,15 @@ export class SidebarPage {
    * Navigate to File Explorer
    */
   async navigateToFiles(): Promise<void> {
-    await this.container.locator('text=File Explorer, a:has-text("File")').first().click();
+    await this.waitUntilReady();
+    await this.container.getByRole('link', { name: 'Files', exact: true }).click();
   }
 
   /**
    * Navigate to History
    */
   async navigateToHistory(): Promise<void> {
+    await this.waitUntilReady();
     await this.container.locator('text=History, a:has-text("History")').first().click();
   }
 
@@ -100,6 +111,7 @@ export class SidebarPage {
    * Click settings button
    */
   async clickSettings(): Promise<void> {
+    await this.waitUntilReady();
     // Settings is usually the last button in the sidebar
     await this.settingsButton.click();
   }
@@ -108,6 +120,7 @@ export class SidebarPage {
    * Get repository list
    */
   async getRepositories(): Promise<string[]> {
+    await this.waitUntilReady();
     const repos = await this.container.locator('[class*="repo"], li').all();
     const texts: string[] = [];
     for (const repo of repos) {
@@ -123,6 +136,7 @@ export class SidebarPage {
    * Check if a specific repository is in the list
    */
   async hasRepository(repoPath: string): Promise<boolean> {
+    await this.waitUntilReady();
     const count = await this.container.locator(`text="${repoPath}"`).count();
     return count > 0;
   }

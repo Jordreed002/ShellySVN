@@ -27,17 +27,17 @@ test.describe('Sidebar Navigation', () => {
     const home = await page.locator('aside').getByText('Home', { exact: true }).count();
     expect(home).toBeGreaterThan(0);
 
-    // Check for Browse section
-    const browse = await page.locator('text=Browse').count();
-    expect(browse).toBeGreaterThan(0);
+    const files = await page
+      .getByTestId('sidebar-ready')
+      .getByText('Files', { exact: true })
+      .count();
+    expect(files).toBeGreaterThan(0);
 
-    // Check for File Explorer link
-    const fileExplorer = await page.locator('text=File Explorer').count();
-    expect(fileExplorer).toBeGreaterThan(0);
-
-    // Check for History link
-    const history = await page.locator('text=History').count();
-    expect(history).toBeGreaterThan(0);
+    const workingCopies = await page
+      .getByTestId('sidebar-ready')
+      .getByText('Working copies', { exact: true })
+      .count();
+    expect(workingCopies).toBeGreaterThan(0);
 
     // Take screenshot
     await page.screenshot({ path: 'tests/results/sidebar-navigation.png' });

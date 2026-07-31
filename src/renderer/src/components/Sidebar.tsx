@@ -25,7 +25,6 @@ import { useSettings } from '@renderer/hooks/useSettings';
 import { useHomePath } from '@renderer/hooks/useHomePath';
 
 import { m, useMotionEnabled, variants } from '../lib/motion';
-import { ProblemsSection, ShelvesSection } from './sidebar/LocalFacts';
 import {
   RailLinkRow,
   RailSection,
@@ -34,18 +33,14 @@ import {
   WorkingCopyRow,
 } from './sidebar/RepoRow';
 import {
-  buildDiskUsage,
-  collectProblems,
   collectRepositoryRoots,
   describeRepo,
   shortenPath,
-  usePinnedRepos,
   useWorkingCopyOverview,
-  useWorkingCopyShelves,
-  useWorkingCopySizes,
-  type SidebarPresence,
-} from './sidebar/sidebarData';
-import { DiskCard, WorkingCopyPanel } from './sidebar/WorkingCopyPanel';
+} from './sidebar/workingCopyOverview';
+import { usePinnedRepos } from './sidebar/pinnedRepositories';
+import { shouldLoadSidebarInsights } from './sidebar/sidebarInsightsGate';
+import { WorkingCopyPanel } from './sidebar/WorkingCopyPanel';
 import type { SettingsTab } from './ui/SettingsDialog';
 
 const AddRepoModal = lazy(() =>
@@ -59,6 +54,9 @@ const loadSettingsDialog = () =>
 const SettingsDialog = lazy(loadSettingsDialog);
 const ShelveDialog = lazy(() =>
   import('./ui/ShelveDialog').then((mod) => ({ default: mod.ShelveDialog }))
+);
+const SidebarInsights = lazy(() =>
+  import('./sidebar/SidebarInsightsPanel').then((mod) => ({ default: mod.SidebarInsights }))
 );
 
 /** Recent locations are a shortcut list, not a history log — keep it short. */
@@ -129,66 +127,6 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
 
   /* ── working-copy facts: one query feeds every row and the disk card ── */
   const overview = useWorkingCopyOverview(recentRepos);
-
-  const presenceOf = (repo: string): SidebarPresence => overview.get(repo)?.presence ?? 'unknown';
-
-  const presenceByPath = new Map<string, SidebarPresence>(
-    recentRepos.map((repo) => [repo, presenceOf(repo)])
-  );
-  const onDiskRepos = recentRepos.filter((repo) => {
-    const presence = presenceOf(repo);
-    return presence === 'full' || presence === 'sparse';
-  });
-  // Measuring a checkout means walking it, so this follows the user's existing
-  // "show folder sizes" preference rather than scanning on every launch.
-  const { data: workingCopySizes } = useWorkingCopySizes(
-    onDiskRepos,
-    settings?.showFolderSizes ?? false
-  );
-  const diskUsage = buildDiskUsage(workingCopySizes, presenceByPath);
-
-  /* ── local facts: problems and shelves, per working copy ── */
-
-  // Problems ride on the status read the rail already does for every row, so
-  // the section costs no extra `svn status` — the expensive call stays at one
-  // per working copy. `collectProblems` keeps "measured and clean" apart from
-  // "not measured yet", so the count is never a guess.
-  const problems = collectProblems(
-    recentRepos.filter((repo) => matchesSearch(repo)),
-    overview
-  );
-
-  // One `svn shelf-list` per checkout is a process each: hold it until the app
-  // is idle, and never ask a path that is not a working copy.
-  const shelvesOf = useWorkingCopyShelves(onDiskRepos, railIsIdle && !collapsed);
-  const shelves = shelvesOf.shelves.filter(
-    (shelf) => matchesSearch(shelf.name) || matchesSearch(shelf.workingCopyName)
-  );
-  // With one checkout in the rail there is nothing to disambiguate; with more,
-  // every problem and every shelf has to say which working copy it belongs to.
-  const attributeWorkingCopy = onDiskRepos.length > 1;
-
-  // The `+` shelves the changes of the checkout you are in — or the only one
-  // there is. With several and none active, Subversion could not tell which.
-  const shelveTargetPath =
-    activeRepo && onDiskRepos.includes(activeRepo)
-      ? activeRepo
-      : onDiskRepos.length === 1
-        ? onDiskRepos[0]
-        : undefined;
-  const shelveTarget = shelveTargetPath
-    ? {
-        path: shelveTargetPath,
-        name: describeRepo(shelveTargetPath).name,
-        // There is only something to shelve when `svn status` found local changes.
-        hasChanges: (overview.get(shelveTargetPath)?.status?.changes ?? 0) > 0,
-      }
-    : undefined;
-  // Only ever said about a checkout whose shelf list actually came back.
-  const shelvesEmptyNote =
-    shelveTarget && shelves.length === 0 && shelvesOf.measured.includes(shelveTarget.path)
-      ? `No shelves in ${shelveTarget.name}`
-      : undefined;
 
   const repositoryRoots = collectRepositoryRoots(recentRepos, overview).filter(
     (root) => matchesSearch(root.url) || root.workingCopies.some((wc) => matchesSearch(wc))
@@ -283,6 +221,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
         <aside
           className="w-[--rail-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col items-center py-2 gap-1"
           aria-label="Sidebar"
+          data-testid="sidebar-ready"
         >
           <button
             type="button"
@@ -383,6 +322,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
         <aside
           className="w-[--sidebar-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col overflow-hidden"
           aria-label="Sidebar"
+          data-testid="sidebar-ready"
         >
           {/* Search + add */}
           <div className="flex items-center gap-2 px-3 pt-3.5 pb-1">
@@ -499,9 +439,6 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               </m.div>
             )}
 
-            {/* ── Disk usage — measured figures only ── */}
-            {diskUsage && <DiskCard usage={diskUsage} />}
-
             {/* ── Repository ── */}
             {repositoryRoots.length > 0 && (
               <>
@@ -522,18 +459,18 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               </>
             )}
 
-            {/* ── Problems — only for checkouts, only what status measured ── */}
-            <ProblemsSection problems={problems} attributeWorkingCopy={attributeWorkingCopy} />
-
-            {/* ── Shelves — local to a working copy, never on the server ── */}
-            <ShelvesSection
-              shelves={shelves}
-              unsupported={shelvesOf.unsupported}
-              attributeWorkingCopy={attributeWorkingCopy}
-              onOpenShelves={setShelvesFor}
-              shelveTarget={shelveTarget}
-              emptyNote={shelvesEmptyNote}
-            />
+            {shouldLoadSidebarInsights(collapsed, railIsIdle) && (
+              <Suspense fallback={null}>
+                <SidebarInsights
+                  recentRepos={recentRepos}
+                  overview={overview}
+                  searchQuery={searchQuery}
+                  activeRepo={activeRepo}
+                  showFolderSizes={settings?.showFolderSizes ?? false}
+                  onOpenShelves={setShelvesFor}
+                />
+              </Suspense>
+            )}
 
             {/* ── Bookmarks ── */}
             {(filteredBookmarks.length > 0 || canBookmarkCurrentPath) && (

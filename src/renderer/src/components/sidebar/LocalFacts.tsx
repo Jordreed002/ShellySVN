@@ -10,7 +10,7 @@
 import { Archive, AlertTriangle, Plus } from 'lucide-react';
 
 import { RailButtonRow, RailLinkRow, RailSection } from './RepoRow';
-import type { RailProblems, RailShelf, RailUnsupportedShelving } from './sidebarData';
+import type { RailProblems, RailShelf, RailUnsupportedShelving } from './sidebarInsights';
 
 interface ProblemsSectionProps {
   problems: RailProblems;

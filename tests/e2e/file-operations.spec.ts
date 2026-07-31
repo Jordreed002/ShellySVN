@@ -20,7 +20,10 @@ test.describe('File Operations - File Explorer', () => {
   });
 
   test('can navigate to File Explorer', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     const main = page.locator('main');
@@ -30,7 +33,10 @@ test.describe('File Operations - File Explorer', () => {
   });
 
   test('file explorer shows file list or empty state', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     const content = await page.locator('main').textContent();
@@ -50,7 +56,10 @@ test.describe('File Operations - Add Files', () => {
   });
 
   test('add button is accessible in File Explorer', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Add button
@@ -61,11 +70,14 @@ test.describe('File Operations - Add Files', () => {
   });
 
   test('add dialog can be opened', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     const addButton = page.locator('button:has-text("Add")').first();
-    if ((await addButton.count()) > 0 && await addButton.isEnabled()) {
+    if ((await addButton.count()) > 0 && (await addButton.isEnabled())) {
       await addButton.click();
 
       // Check if dialog opened with a short timeout
@@ -86,7 +98,10 @@ test.describe('File Operations - Add Files', () => {
   });
 
   test('context menu has add option', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for file items to right-click
@@ -118,7 +133,10 @@ test.describe('File Operations - Delete Files', () => {
   });
 
   test('delete button is accessible', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Delete button
@@ -129,11 +147,14 @@ test.describe('File Operations - Delete Files', () => {
   });
 
   test('delete confirmation dialog appears', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     const deleteButton = page.locator('button:has-text("Delete")').first();
-    if ((await deleteButton.count()) > 0 && await deleteButton.isEnabled()) {
+    if ((await deleteButton.count()) > 0 && (await deleteButton.isEnabled())) {
       await deleteButton.click();
       await page.waitForTimeout(300);
 
@@ -166,7 +187,10 @@ test.describe('File Operations - Lock/Unlock', () => {
   });
 
   test('lock button is accessible', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Lock button
@@ -177,7 +201,10 @@ test.describe('File Operations - Lock/Unlock', () => {
   });
 
   test('lock management dialog can be opened', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for lock management option
@@ -198,7 +225,10 @@ test.describe('File Operations - Lock/Unlock', () => {
   });
 
   test('unlock option is available', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Unlock button or menu option
@@ -218,7 +248,10 @@ test.describe('File Operations - Rename/Move', () => {
   });
 
   test('rename button is accessible', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Rename button
@@ -229,7 +262,10 @@ test.describe('File Operations - Rename/Move', () => {
   });
 
   test('move button is accessible', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Move button
@@ -240,11 +276,14 @@ test.describe('File Operations - Rename/Move', () => {
   });
 
   test('rename dialog can be opened', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     const renameButton = page.locator('button:has-text("Rename")').first();
-    if ((await renameButton.count()) > 0 && await renameButton.isEnabled()) {
+    if ((await renameButton.count()) > 0 && (await renameButton.isEnabled())) {
       await renameButton.click();
 
       // Check if dialog opened with a short timeout
@@ -276,7 +315,10 @@ test.describe('File Operations - Status Display', () => {
   });
 
   test('file status icons are displayed', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for status-related elements
@@ -287,7 +329,10 @@ test.describe('File Operations - Status Display', () => {
   });
 
   test('status filter options exist', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for filter options
@@ -299,7 +344,10 @@ test.describe('File Operations - Status Display', () => {
   });
 
   test('modified files are highlighted', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for modified file styling - use a short timeout
@@ -325,7 +373,10 @@ test.describe('File Operations - Properties', () => {
   });
 
   test('properties dialog can be accessed', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Properties button or menu option
@@ -346,7 +397,10 @@ test.describe('File Operations - Properties', () => {
   });
 
   test('svn:ignore can be set via context menu', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for file items
@@ -358,7 +412,10 @@ test.describe('File Operations - Properties', () => {
 
       // Check for context menu with short timeout
       try {
-        await page.waitForSelector('.context-menu, [role="menu"]', { state: 'visible', timeout: 1000 });
+        await page.waitForSelector('.context-menu, [role="menu"]', {
+          state: 'visible',
+          timeout: 1000,
+        });
         const contextMenu = page.locator('.context-menu, [role="menu"]').first();
         const ignoreOption = contextMenu.locator('text=/ignore/i');
         expect(await ignoreOption.count()).toBeGreaterThanOrEqual(0);
@@ -382,22 +439,30 @@ test.describe('File Operations - Changelists', () => {
   });
 
   test('changelist option is available', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for changelist button or menu option
-    const changelistButton = page.locator('button:has-text("Changelist"), button:has-text("Change list")').first();
+    const changelistButton = page
+      .locator('button:has-text("Changelist"), button:has-text("Change list")')
+      .first();
     const changelistCount = await changelistButton.count();
 
     expect(changelistCount).toBeGreaterThanOrEqual(0);
   });
 
   test('add to changelist dialog can be opened', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     const changelistButton = page.locator('button:has-text("Changelist")').first();
-    if ((await changelistButton.count()) > 0 && await changelistButton.isEnabled()) {
+    if ((await changelistButton.count()) > 0 && (await changelistButton.isEnabled())) {
       await changelistButton.click();
 
       // Check if dialog opened with a short timeout
@@ -427,11 +492,16 @@ test.describe('File Operations - Blame/Annotate', () => {
   });
 
   test('blame option is available for files', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page
+      .getByTestId('sidebar-ready')
+      .getByRole('link', { name: 'Files', exact: true })
+      .click();
     await page.waitForTimeout(500);
 
     // Look for Blame button or menu option
-    const blameButton = page.locator('button:has-text("Blame"), button:has-text("Annotate")').first();
+    const blameButton = page
+      .locator('button:has-text("Blame"), button:has-text("Annotate")')
+      .first();
     const blameCount = await blameButton.count();
 
     expect(blameCount).toBeGreaterThanOrEqual(0);
