@@ -115,7 +115,7 @@ export function CommitTemplateManager({
 
   if (isLoading) {
     return (
-      <div className={`p-4 text-center text-slate-500 ${className}`}>Loading templates...</div>
+      <div className={`p-4 text-center text-slate-500 ${className}`}>Loading templates…</div>
     );
   }
 

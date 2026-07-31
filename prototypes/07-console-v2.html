@@ -1,0 +1,1431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShellySVN · 07 — Console v2 (refined 01)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   07 · CONSOLE v2 — refinement of prototype 01
+   Same flight-deck thesis, fixed and sharpened:
+     · paths truncate from the LEFT so the filename is never lost
+     · every column has a real budget; nothing overlaps at any width
+     · the list/detail split is draggable
+     · "Explain rows" adds a plain-English second line — one checkbox,
+       no modes, so a newcomer and a developer share the same screen
+     · the log is narrated, with raw svn output one click away
+     · hold ⌘ and every shortcut in the UI lights up
+   Shares its token shape with 08 · Studio v2.
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  --d0:#0a0d12; --d1:#0d1117; --d2:#11161d; --d3:#161b22; --d4:#1c232c; --d5:#232c37;
+
+  --line:rgba(240,246,252,.075);
+  --line2:rgba(240,246,252,.13);
+  --line3:rgba(240,246,252,.2);
+
+  --ink:#e6edf3; --ink2:#9aa4b0; --ink3:#727d8a; --ink4:#4d5866;
+
+  --acc:#58a6ff; --acc2:#84c0ff; --accbg:rgba(88,166,255,.13); --accln:rgba(88,166,255,.36);
+
+  --mod:#d9a129; --mod-bg:rgba(217,161,41,.13); --mod-ln:rgba(217,161,41,.3);
+  --add:#46b95a; --add-bg:rgba(70,185,90,.13);  --add-ln:rgba(70,185,90,.3);
+  --del:#f2666a; --del-bg:rgba(242,102,106,.13);--del-ln:rgba(242,102,106,.3);
+  --con:#f2666a; --con-bg:rgba(242,102,106,.16);--con-ln:rgba(242,102,106,.4);
+  --rep:#a371f7; --rep-bg:rgba(163,113,247,.13);--rep-ln:rgba(163,113,247,.3);
+  --ext:#39c5cf; --ext-bg:rgba(57,197,207,.13); --ext-ln:rgba(57,197,207,.3);
+  --unv:#727d8a; --unv-bg:rgba(114,125,138,.13);--unv-ln:rgba(114,125,138,.3);
+
+  --sans:'Archivo',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+
+  --topbar:38px; --toolbar:38px; --rail:46px; --panel:242px;
+  --split:52%;                       /* list ↔ detail, dragged at runtime */
+  --row:30px;                        /* grows when "Explain rows" is on   */
+}
+body.explain{--row:44px}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--d1);color:var(--ink);font-family:var(--sans);
+  font-size:13px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.025;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+::selection{background:rgba(88,166,255,.3)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#252e3a;border:3px solid transparent;background-clip:content-box;border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:#33404f;background-clip:content-box}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px;border-radius:4px}
+
+.eyebrow{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink4)}
+.mono{font-family:var(--mono)}
+
+/* shortcut chips — hidden until ⌘ is held */
+.sk{
+  font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:4px;
+  background:var(--d4);border:1px solid var(--line2);color:var(--ink3);
+  opacity:0;transform:scale(.92);transition:opacity .13s,transform .13s;
+  display:inline-block;pointer-events:none;flex:0 0 auto;
+}
+body.meta .sk{opacity:1;transform:none}
+.sk.always{opacity:1;transform:none}
+
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* ══ TITLEBAR ═══════════════════════════════════════════════ */
+.titlebar{
+  height:var(--topbar);flex:0 0 auto;display:flex;align-items:center;gap:9px;
+  padding:0 10px 0 82px;background:linear-gradient(180deg,#12171f,#0e131a);
+  border-bottom:1px solid var(--line);position:relative;
+}
+.lights{position:absolute;left:14px;top:13px;display:flex;gap:8px}
+.lights i{width:11px;height:11px;border-radius:50%;display:block}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+
+.brand{display:flex;align-items:center;gap:7px;padding-right:3px;flex:0 0 auto}
+.brand svg{width:17px;height:17px;color:var(--acc)}
+.brand b{font-size:12.5px;font-weight:700;letter-spacing:-.015em}
+.brand b em{font-style:normal;color:var(--acc)}
+
+.chip{
+  display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;flex:0 0 auto;
+  background:var(--d3);border:1px solid var(--line);border-radius:5px;
+  font-size:11.5px;color:var(--ink2);cursor:pointer;white-space:nowrap;
+}
+.chip:hover{background:var(--d4);color:var(--ink);border-color:var(--line2)}
+.chip strong{color:var(--ink);font-weight:600}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--mod);flex:0 0 auto}
+.chip svg{width:11px;height:11px;color:var(--ink4)}
+
+.omni{
+  flex:1 1 auto;min-width:0;max-width:430px;margin:0 auto;height:25px;display:flex;align-items:center;gap:8px;
+  padding:0 8px;background:#0a0e14;border:1px solid var(--line);border-radius:5px;
+  color:var(--ink3);font-size:11.5px;cursor:text;
+}
+.omni:hover{border-color:var(--line2)}
+.omni>svg{width:13px;height:13px;flex:0 0 auto}
+.omni span{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.tbr{display:flex;align-items:center;gap:3px;margin-left:auto;flex:0 0 auto}
+.ibtn{
+  width:26px;height:24px;display:grid;place-items:center;border-radius:5px;position:relative;
+  background:transparent;border:1px solid transparent;color:var(--ink2);cursor:pointer;
+}
+.ibtn:hover{background:var(--d4);color:var(--ink);border-color:var(--line)}
+.ibtn svg{width:14px;height:14px}
+.ibtn .n{
+  position:absolute;top:0;right:0;min-width:13px;height:13px;padding:0 3px;border-radius:7px;
+  background:var(--del);color:#160a0b;font-family:var(--mono);font-size:8.5px;font-weight:600;
+  display:grid;place-items:center;border:2px solid #0f141b;
+}
+
+/* ══ TOOLBAR ════════════════════════════════════════════════ */
+.toolbar{
+  height:var(--toolbar);flex:0 0 auto;display:flex;align-items:center;gap:7px;
+  padding:0 10px;background:var(--d2);border-bottom:1px solid var(--line);
+}
+.seg{display:flex;background:#0a0e14;border:1px solid var(--line);border-radius:6px;padding:2px;gap:2px;flex:0 0 auto}
+.seg button{
+  height:22px;padding:0 10px;border:0;border-radius:4px;background:transparent;
+  font-family:var(--sans);font-size:11.5px;font-weight:600;color:var(--ink3);cursor:pointer;
+}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-selected=true]{background:var(--d5);color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.seg button .c{font-family:var(--mono);font-size:9.5px;opacity:.65;margin-left:4px}
+.tsep{width:1px;height:20px;background:var(--line);flex:0 0 auto}
+
+.act{
+  height:26px;padding:0 9px;display:flex;align-items:center;gap:7px;flex:0 0 auto;
+  background:var(--d3);border:1px solid var(--line);border-radius:5px;
+  color:var(--ink);font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;
+  transition:background .12s,border-color .12s;
+}
+.act:hover{background:var(--d4);border-color:var(--line2)}
+.act svg{width:13px;height:13px;color:var(--ink2);flex:0 0 auto}
+.act:hover svg{color:var(--ink)}
+.act.pri{background:var(--acc);border-color:var(--acc2);color:#04121f;font-weight:600}
+.act.pri svg{color:#04121f}
+.act.pri:hover{background:var(--acc2)}
+.act.pri .sk{background:rgba(4,18,31,.2);border-color:rgba(4,18,31,.25);color:rgba(4,18,31,.75)}
+.act.att{background:var(--con-bg);border-color:var(--con-ln);color:var(--del)}
+.act.att svg{color:var(--del)}
+.act.att:hover{background:rgba(242,102,106,.24)}
+.act .n{font-family:var(--mono);font-size:10.5px;padding:0 5px;border-radius:99px;background:rgba(4,18,31,.2)}
+.act.ghost{background:transparent;border-color:transparent}
+.act.ghost:hover{background:var(--d3);border-color:var(--line)}
+
+.states{margin-left:auto;display:flex;align-items:center;gap:13px;flex:0 0 auto}
+.st{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink3);white-space:nowrap}
+.st b{font-family:var(--mono);font-size:11.5px;font-weight:500;color:var(--ink2)}
+.st.warn b{color:var(--mod)}
+.st.bad b{color:var(--del)}
+.st .d{width:6px;height:6px;border-radius:50%}
+
+/* ══ BODY ═══════════════════════════════════════════════════ */
+.body{flex:1;display:grid;grid-template-columns:var(--rail) var(--panel) minmax(320px,var(--split)) 5px minmax(340px,1fr);min-height:0}
+
+/* rail */
+.rail{background:var(--d0);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px}
+.rbtn{width:34px;height:32px;display:grid;place-items:center;border-radius:6px;position:relative;background:0;border:0;color:var(--ink4);cursor:pointer}
+.rbtn svg{width:16px;height:16px}
+.rbtn:hover{background:var(--d3);color:var(--ink2)}
+.rbtn[aria-current=true]{color:var(--acc);background:var(--accbg)}
+.rbtn[aria-current=true]::before{content:'';position:absolute;left:-6px;top:8px;bottom:8px;width:2px;background:var(--acc);border-radius:0 2px 2px 0}
+.rbtn .n{
+  position:absolute;top:2px;right:1px;min-width:13px;height:13px;padding:0 3px;border-radius:7px;
+  background:var(--del);color:#160a0b;font-family:var(--mono);font-size:8.5px;font-weight:600;
+  display:grid;place-items:center;border:2px solid var(--d0);
+}
+.rbtn .lab{
+  position:absolute;left:calc(100% + 9px);top:50%;transform:translateY(-50%) translateX(-4px);
+  padding:5px 10px;border-radius:6px;background:var(--d4);border:1px solid var(--line2);
+  font-size:11.5px;font-weight:600;white-space:nowrap;opacity:0;pointer-events:none;z-index:70;
+  transition:opacity .13s,transform .13s;box-shadow:0 8px 22px -6px rgba(0,0,0,.8);color:var(--ink);
+}
+.rbtn:hover .lab{opacity:1;transform:translateY(-50%)}
+.rsp{flex:1}
+
+/* panel */
+.panel{background:var(--d2);border-right:1px solid var(--line);overflow:auto;padding-bottom:12px}
+.psec{padding:11px 10px 5px;display:flex;align-items:center;gap:6px}
+.psec .eyebrow{flex:1}
+.psec button{background:0;border:0;color:var(--ink4);cursor:pointer;display:grid;place-items:center}
+.psec button:hover{color:var(--ink2)}
+.psec svg{width:12px;height:12px}
+
+.wc{margin:0 8px 8px;padding:9px 10px;background:var(--d3);border:1px solid var(--line);border-radius:7px;position:relative;overflow:hidden}
+.wc::after{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--acc)}
+.wc h4{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:-.01em}
+.wc h4 svg{width:13px;height:13px;color:var(--acc)}
+.wc .url{font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:4px;line-height:1.6;word-break:break-all}
+.wc .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.wc .grid3 .k{font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink4);font-weight:700;display:block}
+.wc .grid3 .v{font-family:var(--mono);font-size:11.5px;color:var(--ink);display:block;margin-top:1px}
+.wc .grid3 .v.y{color:var(--mod)}
+.wc .bar{height:3px;border-radius:2px;background:var(--d5);margin-top:9px;overflow:hidden}
+.wc .bar i{display:block;height:100%;width:32%;background:var(--mod);border-radius:2px}
+.wc .behind{font-size:10.5px;color:var(--ink3);margin-top:6px}
+.wc .behind b{color:var(--mod)}
+
+.tree{padding:0 6px}
+.trow{
+  display:flex;align-items:center;gap:8px;height:25px;padding:0 6px;border-radius:5px;
+  color:var(--ink2);cursor:pointer;font-size:12px;position:relative;
+}
+.trow:hover{background:var(--d3);color:var(--ink)}
+.trow.sel{background:var(--d5);color:var(--ink)}
+.trow>svg{width:13px;height:13px;flex:0 0 auto;color:var(--ink4)}
+.trow.sel>svg{color:var(--acc)}
+.trow .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow .c{font-family:var(--mono);font-size:10px;color:var(--ink4);flex:0 0 auto}
+.trow.kid{padding-left:19px}
+.trow.kid::before{content:'';position:absolute;left:12px;top:0;bottom:0;width:1px;background:var(--line)}
+
+/* ══ LIST COLUMN ════════════════════════════════════════════ */
+.list{display:flex;flex-direction:column;min-width:0;background:var(--d1);border-right:1px solid var(--line)}
+
+.filterbar{
+  flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:6px 8px;
+  border-bottom:1px solid var(--line);background:var(--d2);
+}
+.search{
+  flex:1;min-width:90px;height:24px;display:flex;align-items:center;gap:7px;padding:0 8px;
+  background:#0a0e14;border:1px solid var(--line);border-radius:5px;
+}
+.search svg{width:12px;height:12px;color:var(--ink4);flex:0 0 auto}
+.search input{flex:1;min-width:0;border:0;background:0;outline:0;color:var(--ink);font-family:var(--mono);font-size:11px}
+.search input::placeholder{color:var(--ink4)}
+.search:focus-within{border-color:var(--accln);box-shadow:0 0 0 2px var(--accbg)}
+
+.fchip{
+  height:22px;padding:0 7px;display:flex;align-items:center;gap:5px;border-radius:5px;flex:0 0 auto;
+  background:var(--d3);border:1px solid var(--line);font-size:11px;color:var(--ink3);cursor:pointer;
+}
+.fchip:hover{border-color:var(--line2);color:var(--ink)}
+.fchip.on{background:var(--accbg);border-color:var(--accln);color:var(--acc)}
+.fchip .k{font-family:var(--mono);font-size:10px;font-weight:600}
+.fchip.M.on{background:var(--mod-bg);border-color:var(--mod-ln);color:var(--mod)}
+.fchip.A.on{background:var(--add-bg);border-color:var(--add-ln);color:var(--add)}
+.fchip.D.on{background:var(--del-bg);border-color:var(--del-ln);color:var(--del)}
+.fchip.C.on{background:var(--con-bg);border-color:var(--con-ln);color:var(--del)}
+
+/* the audience bridge: one checkbox, no modes */
+.explaintog{
+  height:22px;padding:0 8px;display:flex;align-items:center;gap:7px;border-radius:5px;flex:0 0 auto;
+  background:var(--d3);border:1px solid var(--line);font-size:11px;color:var(--ink3);cursor:pointer;
+}
+.explaintog:hover{border-color:var(--line2);color:var(--ink)}
+body.explain .explaintog{background:var(--accbg);border-color:var(--accln);color:var(--acc)}
+.explaintog .box{width:11px;height:11px;border-radius:3px;border:1.5px solid currentColor;opacity:.6;flex:0 0 auto}
+body.explain .explaintog .box{background:var(--acc);border-color:var(--acc);opacity:1;position:relative}
+body.explain .explaintog .box::after{content:'';position:absolute;left:2px;top:1px;width:5px;height:3px;border-left:1.5px solid #04121f;border-bottom:1.5px solid #04121f;transform:rotate(-45deg)}
+
+/* column header — every column has a budget, nothing can overlap */
+.colhead,.row{
+  display:grid;
+  grid-template-columns:26px 20px minmax(0,1fr) 54px 78px 70px;
+  gap:9px;align-items:center;padding:0 9px;
+}
+.colhead{
+  height:24px;border-bottom:1px solid var(--line);background:var(--d1);
+  position:sticky;top:0;z-index:4;
+}
+.colhead span{
+  font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink4);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
+}
+.colhead span:hover{color:var(--ink2)}
+.colhead span.r{text-align:right}
+
+.rows{flex:1;overflow:auto}
+
+.ghead{
+  display:flex;align-items:center;gap:8px;height:26px;padding:0 9px;
+  background:var(--d2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  position:sticky;top:24px;z-index:3;cursor:pointer;
+}
+.ghead>svg{width:11px;height:11px;color:var(--ink3);flex:0 0 auto}
+.ghead b{font-size:11.5px;font-weight:700;letter-spacing:.01em;white-space:nowrap}
+.ghead .c{font-family:var(--mono);font-size:10px;color:var(--ink4);flex:0 0 auto}
+.ghead .sp{flex:1}
+.ghead .why{
+  font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:99px;white-space:nowrap;
+  background:var(--d4);border:1px solid var(--line2);color:var(--ink3);
+}
+.ghead .why.bad{background:var(--con-bg);border-color:var(--con-ln);color:var(--del)}
+
+.row{
+  height:var(--row);border-bottom:1px solid rgba(240,246,252,.035);cursor:default;position:relative;
+  transition:background .1s,height .22s cubic-bezier(.3,1,.4,1);
+  animation:rin .3s cubic-bezier(.25,1,.5,1) backwards;
+}
+@keyframes rin{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}
+.row:hover{background:var(--d3)}
+.row.sel{background:var(--accbg);box-shadow:inset 2px 0 0 var(--acc)}
+.row.conflict{background:rgba(242,102,106,.06)}
+.row.conflict:hover{background:rgba(242,102,106,.1)}
+.row.muted{opacity:.5}
+
+.pick{
+  width:13px;height:13px;border-radius:3px;border:1px solid var(--line3);background:#0a0e14;
+  display:grid;place-items:center;cursor:pointer;margin-left:5px;flex:0 0 auto;
+}
+.pick.on{background:var(--acc);border-color:var(--acc)}
+.pick.on::after{content:'';width:7px;height:4px;border-left:1.5px solid #04121f;border-bottom:1.5px solid #04121f;transform:rotate(-45deg) translateY(-1px)}
+.pick[aria-disabled=true]{opacity:.35;cursor:not-allowed}
+
+.badge{
+  width:18px;height:18px;line-height:18px;border-radius:4px;text-align:center;flex:0 0 auto;
+  font-family:var(--mono);font-size:10.5px;font-weight:700;border:1px solid;
+}
+.badge.M{color:var(--mod);background:var(--mod-bg);border-color:var(--mod-ln)}
+.badge.A{color:var(--add);background:var(--add-bg);border-color:var(--add-ln)}
+.badge.D{color:var(--del);background:var(--del-bg);border-color:var(--del-ln)}
+.badge.C{color:#fff;background:rgba(242,102,106,.55);border-color:var(--con-ln)}
+.badge.R{color:var(--rep);background:var(--rep-bg);border-color:var(--rep-ln)}
+.badge.X{color:var(--ext);background:var(--ext-bg);border-color:var(--ext-ln)}
+.badge.Q{color:var(--unv);background:var(--unv-bg);border-color:var(--unv-ln)}
+
+/* THE FIX: filename never truncates; the directory truncates from the left */
+.pathcell{min-width:0;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.pline{display:flex;align-items:baseline;min-width:0;font-family:var(--mono);font-size:11.5px;line-height:1.35}
+.pline .dir{
+  flex:0 1 auto;min-width:0;color:var(--ink4);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  direction:rtl;unicode-bidi:plaintext;text-align:left;
+}
+.pline .file{flex:0 0 auto;color:var(--ink);font-weight:500;white-space:nowrap}
+.pline .lock{flex:0 0 auto;margin-left:6px;color:var(--mod);display:inline-grid;place-items:center;align-self:center}
+.pline .lock svg{width:11px;height:11px}
+.say{
+  display:none;font-family:var(--sans);font-size:11px;color:var(--ink3);line-height:1.35;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+body.explain .say{display:block}
+
+.cell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cell.rev{font-family:var(--mono);font-size:11px;color:var(--ink3);text-align:right}
+.cell.who{font-size:11.5px;color:var(--ink3)}
+.cell.delta{font-family:var(--mono);font-size:10.5px;display:flex;gap:5px;justify-content:flex-end}
+.cell.delta .p{color:var(--add)}
+.cell.delta .m{color:var(--del)}
+
+.rowacts{
+  position:absolute;right:9px;top:50%;transform:translateY(-50%);display:none;gap:5px;
+  padding-left:30px;background:linear-gradient(90deg,transparent,var(--d3) 26%);
+}
+.row:hover .rowacts{display:flex}
+.row.sel .rowacts{background:linear-gradient(90deg,transparent,#151d29 26%)}
+.mini{
+  height:20px;padding:0 8px;display:flex;align-items:center;gap:5px;border-radius:4px;
+  background:var(--d4);border:1px solid var(--line2);color:var(--ink2);
+  font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;
+}
+.mini:hover{background:var(--d5);color:var(--ink)}
+.mini svg{width:11px;height:11px}
+
+/* list footer */
+.listfoot{
+  flex:0 0 auto;height:28px;display:flex;align-items:center;gap:9px;padding:0 9px;
+  border-top:1px solid var(--line);background:var(--d2);font-size:11px;color:var(--ink3);
+}
+.listfoot b{color:var(--ink2);font-weight:600}
+.listfoot .sp{flex:1}
+
+/* ══ SPLITTER ═══════════════════════════════════════════════ */
+.splitter{cursor:col-resize;background:transparent;position:relative}
+.splitter::after{content:'';position:absolute;inset:0 2px;background:var(--line);transition:background .15s}
+.splitter:hover::after,.splitter.drag::after{background:var(--acc)}
+
+/* ══ DETAIL COLUMN ══════════════════════════════════════════ */
+.detail{display:flex;flex-direction:column;min-width:0;background:var(--d0)}
+
+.dhead{flex:0 0 auto;padding:9px 12px 0;background:var(--d2);border-bottom:1px solid var(--line)}
+.dtop{display:flex;align-items:center;gap:9px;min-width:0}
+.dtop .badge{width:20px;height:20px;line-height:20px;font-size:11px}
+.dtop h3{
+  flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;font-weight:500;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;unicode-bidi:plaintext;text-align:left;
+}
+.dsay{
+  margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--d3);border:1px solid var(--line);
+  font-size:12px;color:var(--ink2);line-height:1.55;display:none;
+}
+body.explain .dsay{display:block}
+.dsay b{color:var(--ink);font-weight:600}
+.dtabs{display:flex;gap:2px;margin-top:9px}
+.dtabs button{
+  height:26px;padding:0 9px;border:0;background:transparent;border-bottom:2px solid transparent;
+  font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--ink4);
+  cursor:pointer;margin-bottom:-1px;text-transform:uppercase;
+}
+.dtabs button:hover{color:var(--ink2)}
+.dtabs button[aria-selected=true]{color:var(--acc);border-bottom-color:var(--acc)}
+
+.dmeta{
+  flex:0 0 auto;display:flex;gap:13px;padding:6px 12px;border-bottom:1px solid var(--line);
+  background:var(--d1);font-family:var(--mono);font-size:10px;color:var(--ink4);flex-wrap:wrap;
+}
+.dmeta b{color:var(--ink2);font-weight:500}
+
+.dbody{flex:1;overflow:auto;min-height:0}
+.code{font-family:var(--mono);font-size:11.5px;line-height:1.7;padding:4px 0 18px}
+.hunk{
+  display:flex;align-items:baseline;gap:11px;padding:4px 12px;margin:6px 0 2px;
+  background:#0d1620;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  color:#4f9ad4;font-size:10.5px;
+}
+.hunk .plain{font-family:var(--sans);font-size:11px;color:var(--ink3);font-weight:600;display:none}
+body.explain .hunk .plain{display:inline}
+.ln{display:grid;grid-template-columns:40px 40px 13px 1fr;align-items:baseline}
+.ln>i{font-style:normal;font-size:10px;color:var(--ink4);text-align:right;padding-right:9px;user-select:none}
+.ln>u{text-decoration:none;text-align:center;color:var(--ink4)}
+.ln>code{white-space:pre;padding-right:12px;color:#c9d3de}
+.ln.add{background:var(--add-bg)}.ln.add>u{color:var(--add)}.ln.add>code{color:#9fe0ab}
+.ln.del{background:var(--del-bg)}.ln.del>u{color:var(--del)}.ln.del>code{color:#ffb3ae}
+.k1{color:#ff7b72}.k2{color:#79c0ff}.k3{color:#a5d6ff}.k4{color:#d2a8ff}.k5{color:var(--ink4);font-style:italic}
+
+/* ══ NARRATED ACTIVITY ══════════════════════════════════════ */
+.activity{
+  flex:0 0 auto;border-top:1px solid var(--line);background:var(--d1);
+  display:flex;flex-direction:column;max-height:170px;transition:max-height .25s cubic-bezier(.3,1,.4,1);
+}
+.activity.min{max-height:26px}
+.abar{
+  height:26px;flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:0 12px;
+  background:var(--d2);border-bottom:1px solid var(--line);cursor:pointer;
+}
+.abar .live{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--add);white-space:nowrap}
+.abar .live i{width:5px;height:5px;border-radius:50%;background:var(--add);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.abar .bar{flex:0 0 130px;height:3px;border-radius:2px;background:var(--d4);overflow:hidden}
+.abar .bar i{display:block;height:100%;width:64%;background:var(--acc);border-radius:2px}
+.abar .sp{flex:1}
+.abar .chev{width:12px;height:12px;color:var(--ink4);transition:transform .25s}
+.activity.min .chev{transform:rotate(180deg)}
+
+.alines{flex:1;overflow:auto;padding:5px 12px 9px}
+.aline{display:flex;align-items:flex-start;gap:9px;padding:4px 0}
+.aline .t{font-family:var(--mono);font-size:9.5px;color:var(--ink4);flex:0 0 48px;padding-top:3px}
+.aline .ic{width:17px;height:17px;border-radius:5px;display:grid;place-items:center;flex:0 0 auto;margin-top:1px}
+.aline .ic svg{width:10px;height:10px}
+.aline.ok .ic{background:var(--add-bg);color:var(--add)}
+.aline.warn .ic{background:var(--mod-bg);color:var(--mod)}
+.aline.bad .ic{background:var(--del-bg);color:var(--del)}
+.aline.info .ic{background:var(--accbg);color:var(--acc)}
+.aline .m{flex:1;min-width:0;font-size:12px;color:var(--ink2);line-height:1.5}
+.aline .m b{color:var(--ink);font-weight:600}
+.raw{
+  margin-top:5px;padding:7px 10px;border-radius:6px;background:#0a0e14;border:1px solid var(--line);
+  font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink3);white-space:pre;overflow:auto;
+}
+.raw .c{color:var(--acc)}.raw .g{color:var(--add)}.raw .y{color:var(--mod)}.raw .r{color:var(--del)}
+.showraw{
+  background:0;border:0;padding:0;margin-top:3px;font-family:var(--sans);font-size:10.5px;font-weight:600;
+  color:var(--ink4);cursor:pointer;display:flex;align-items:center;gap:5px;
+}
+.showraw:hover{color:var(--acc)}
+.showraw svg{width:10px;height:10px}
+
+/* ══ STATUS BAR ═════════════════════════════════════════════ */
+.statusbar{
+  height:24px;flex:0 0 auto;display:flex;align-items:center;background:var(--d2);
+  border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--ink3);
+}
+.statusbar .c{display:flex;align-items:center;gap:6px;padding:0 10px;height:100%;border-right:1px solid var(--line);white-space:nowrap}
+.statusbar .c:hover{background:var(--d3);color:var(--ink2)}
+.statusbar .c svg{width:11px;height:11px}
+.statusbar b{color:var(--ink2);font-weight:500}
+.statusbar .sp{flex:1}
+.statusbar .c.last{border-right:0;border-left:1px solid var(--line)}
+.statusbar .g{color:var(--add)}.statusbar .y{color:var(--mod)}.statusbar .rd{color:var(--del)}
+
+/* ══ CONTEXT MENU ═══════════════════════════════════════════ */
+.ctx{
+  position:fixed;z-index:800;min-width:250px;padding:4px;
+  background:rgba(22,27,34,.97);backdrop-filter:blur(14px) saturate(140%);
+  border:1px solid var(--line2);border-radius:8px;
+  box-shadow:0 24px 60px -12px rgba(1,4,9,.92),0 0 0 1px rgba(0,0,0,.5);
+  animation:ctxin .1s cubic-bezier(.25,1,.5,1);
+}
+@keyframes ctxin{from{opacity:0;transform:scale(.97) translateY(-3px)}to{opacity:1;transform:none}}
+.ctx .hd{display:flex;align-items:center;gap:8px;padding:6px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:3px}
+.ctx .hd .t{flex:1;min-width:0}
+.ctx .hd b{display:block;font-size:12px;font-weight:600}
+.ctx .hd span{font-family:var(--mono);font-size:9.5px;color:var(--ink4);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.ctx .lbl{padding:6px 8px 3px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4)}
+.ci{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:5px;font-size:12.5px;color:var(--ink);cursor:pointer;position:relative}
+.ci:hover{background:var(--acc);color:#04121f}
+.ci:hover svg,.ci:hover .sc,.ci:hover .cmd{color:rgba(4,18,31,.7)}
+.ci>svg{width:14px;height:14px;color:var(--ink3);flex:0 0 auto}
+.ci .t{flex:1;min-width:0}
+.ci .cmd{display:none;font-family:var(--mono);font-size:9.5px;color:var(--ink4);margin-top:1px}
+body.explain .ci .cmd{display:block}
+.ci .sc{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink4);flex:0 0 auto}
+.ci.danger{color:var(--del)}
+.ci.danger>svg{color:var(--del)}
+.ci.danger:hover{background:var(--del);color:#160a0b}
+.ci.danger:hover>svg{color:#160a0b}
+.csep{height:1px;background:var(--line);margin:3px 6px}
+.ci.has-sub:hover .sub{display:block}
+.sub{
+  display:none;position:absolute;left:calc(100% - 3px);top:-5px;min-width:196px;padding:4px;
+  background:rgba(22,27,34,.98);backdrop-filter:blur(14px);
+  border:1px solid var(--line2);border-radius:8px;box-shadow:0 20px 48px -12px rgba(1,4,9,.9);
+}
+
+/* ══ OVERLAYS ═══════════════════════════════════════════════ */
+.scrim{position:fixed;inset:0;z-index:900;background:rgba(4,7,11,.66);backdrop-filter:blur(3px);display:grid;animation:fade .14s ease-out}
+.scrim[hidden]{display:none}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+.palette{
+  width:min(620px,93vw);margin:9vh auto auto;background:rgba(17,22,29,.96);
+  backdrop-filter:blur(24px) saturate(150%);border:1px solid var(--line2);border-radius:10px;
+  overflow:hidden;box-shadow:0 40px 90px -20px rgba(1,4,9,.95),inset 0 1px 0 rgba(255,255,255,.05);
+  animation:pop .16s cubic-bezier(.25,1,.5,1);
+}
+@keyframes pop{from{opacity:0;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:none}}
+.pin{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.pin>svg{width:16px;height:16px;color:var(--acc)}
+.pin input{flex:1;min-width:0;background:0;border:0;outline:0;color:var(--ink);font-family:var(--sans);font-size:15px}
+.pin input::placeholder{color:var(--ink4)}
+.pin .sc{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;background:var(--accbg);color:var(--acc);border:1px solid var(--accln);flex:0 0 auto}
+.pbody{max-height:min(420px,56vh);overflow:auto;padding:5px}
+.pgrp{padding:8px 8px 3px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4)}
+.pi{display:flex;align-items:center;gap:11px;padding:8px 9px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+.pi:hover,.pi.act{background:var(--d4);border-color:var(--line)}
+.pi.act{background:var(--accbg);border-color:var(--accln)}
+.pi .pic{width:27px;height:27px;border-radius:6px;display:grid;place-items:center;flex:0 0 auto;background:var(--d3);border:1px solid var(--line);color:var(--ink2)}
+.pi.act .pic{background:var(--acc);border-color:var(--acc);color:#04121f}
+.pi .pic svg{width:14px;height:14px}
+.pi .t{flex:1;min-width:0}
+.pi .t b{display:block;font-size:12.5px;font-weight:600}
+.pi .t small{display:block;font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pfoot{display:flex;gap:14px;padding:7px 12px;border-top:1px solid var(--line);background:rgba(10,13,18,.6);font-size:10.5px;color:var(--ink4);flex-wrap:wrap}
+.pfoot b{font-family:var(--mono);color:var(--ink3);font-weight:500}
+
+.modal{
+  width:min(800px,94vw);max-height:88vh;margin:auto;display:flex;flex-direction:column;
+  background:var(--d2);border:1px solid var(--line2);border-radius:10px;overflow:hidden;
+  box-shadow:0 40px 100px -24px rgba(1,4,9,.95),inset 0 1px 0 rgba(255,255,255,.05);
+  animation:pop .18s cubic-bezier(.25,1,.5,1);
+}
+.mhead{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--d3)}
+.mhead .ic{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;flex:0 0 auto;background:var(--accbg);color:var(--acc);border:1px solid var(--accln)}
+.mhead .ic svg{width:15px;height:15px}
+.mhead .t{flex:1;min-width:0}
+.mhead h2{font-size:14px;font-weight:700;letter-spacing:-.015em}
+.mhead p{font-family:var(--mono);font-size:10.5px;color:var(--ink4);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbody{flex:1;overflow:auto;display:grid;grid-template-columns:minmax(0,1fr) 262px}
+.mmain{padding:13px 15px;border-right:1px solid var(--line);min-width:0}
+.mside{padding:13px 15px;background:var(--d1)}
+.flab{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+.flab .eyebrow{flex:1}
+.flab button{background:0;border:0;font-family:var(--sans);font-size:11px;font-weight:600;color:var(--acc);cursor:pointer}
+.flab button:hover{text-decoration:underline}
+textarea.msg{
+  width:100%;min-height:108px;resize:vertical;background:#0a0e14;border:1px solid var(--line);
+  border-radius:6px;padding:10px 11px;color:var(--ink);font-family:var(--mono);font-size:12px;line-height:1.7;
+}
+textarea.msg:focus{outline:0;border-color:var(--accln);box-shadow:0 0 0 3px var(--accbg)}
+.mchips{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.mchip{padding:3px 8px;border-radius:5px;background:var(--d3);border:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.mchip.g{background:var(--add-bg);border-color:var(--add-ln);color:var(--add)}
+.mchip.y{background:var(--mod-bg);border-color:var(--mod-ln);color:var(--mod)}
+.manifest{margin-top:13px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.manh{display:flex;align-items:center;gap:8px;padding:6px 9px;background:var(--d3);border-bottom:1px solid var(--line)}
+.manh .eyebrow{flex:1}
+.manlist{max-height:172px;overflow:auto}
+.manr{display:flex;align-items:center;gap:9px;padding:6px 9px;border-bottom:1px solid rgba(240,246,252,.035)}
+.manr:last-child{border-bottom:0}
+.manr .p{flex:1;min-width:0;font-family:var(--mono);font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.manr .p b{color:var(--ink);font-weight:500}
+.manr .d{font-family:var(--mono);font-size:10px;flex:0 0 auto}
+.manr.off{opacity:.42}
+.sgroup{margin-bottom:15px}
+.sgroup>.eyebrow{display:block;margin-bottom:8px}
+.toggle{display:flex;align-items:flex-start;gap:9px;padding:5px 0;cursor:pointer;font-size:12px;color:var(--ink2)}
+.toggle:hover{color:var(--ink)}
+.toggle .t{flex:1}
+.toggle .t b{display:block;font-size:12px;font-weight:600;color:var(--ink)}
+.toggle .t small{display:block;font-size:10.5px;color:var(--ink4);margin-top:1px}
+.sw{width:26px;height:15px;border-radius:9px;background:var(--d5);border:1px solid var(--line2);position:relative;flex:0 0 auto;margin-top:2px;transition:background .15s}
+.sw::after{content:'';position:absolute;left:2px;top:1.5px;width:10px;height:10px;border-radius:50%;background:var(--ink3);transition:transform .16s,background .16s}
+.toggle.on .sw{background:var(--acc);border-color:var(--acc2)}
+.toggle.on .sw::after{transform:translateX(11px);background:#04121f}
+.mfoot{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid var(--line);background:var(--d3)}
+.mfoot .note{flex:1;font-size:11px;color:var(--ink4);line-height:1.4}
+.mfoot .note b{color:var(--mod)}
+.btn{height:30px;padding:0 13px;display:inline-flex;align-items:center;gap:7px;border-radius:6px;background:var(--d2);border:1px solid var(--line2);color:var(--ink);font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--d4)}
+.btn svg{width:14px;height:14px}
+.btn.pri{background:var(--acc);border-color:var(--acc2);color:#04121f}
+.btn.pri svg{color:#04121f}
+.btn.pri:hover{background:var(--acc2)}
+.btn.dang{background:var(--del);border-color:#ff8f93;color:#160a0b}
+.btn.dang:hover{background:#ff8f93}
+
+.toast{
+  position:fixed;right:14px;bottom:34px;z-index:950;width:320px;padding:12px 14px;
+  background:rgba(22,27,34,.97);backdrop-filter:blur(14px);border:1px solid var(--line2);
+  border-left:2px solid var(--add);border-radius:8px;box-shadow:0 22px 54px -14px rgba(1,4,9,.9);
+  animation:tin .22s cubic-bezier(.25,1.2,.4,1);
+}
+.toast[hidden]{display:none}
+@keyframes tin{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+.toast b{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.toast b svg{width:14px;height:14px;color:var(--add)}
+.toast p{font-size:11.5px;color:var(--ink2);margin-top:5px;line-height:1.5}
+.toast .cmdline{font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:7px;padding-top:7px;border-top:1px solid var(--line)}
+.toast .x{position:absolute;top:9px;right:10px;background:0;border:0;color:var(--ink4);cursor:pointer}
+.toast .x svg{width:12px;height:12px}
+
+.protonote{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:30px;z-index:990;
+  display:flex;align-items:center;gap:9px;padding:5px 13px;border-radius:99px;
+  background:rgba(10,13,18,.94);backdrop-filter:blur(10px);border:1px solid var(--line2);
+  font-size:10.5px;color:var(--ink3);white-space:nowrap;
+}
+.protonote b{color:var(--acc);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:9.5px}
+.protonote kbd{font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:4px;background:var(--d4);border:1px solid var(--line2);color:var(--ink2)}
+</style>
+</head>
+<body>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-shell" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="24" cy="24" r="20" fill="currentColor" fill-opacity=".14"/><path d="M16 16s4-4 8-4 8 4 8 8-4 8-8 8-6-2-6-4 2-4 4-4" opacity=".8"/><path d="M24 20v12M18 24h12" opacity=".38" stroke-width="1.8"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 6v12M18 10c0 4-6 3-6 8"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8M8 6h4a4 4 0 0 1 4 4M8 18h4a4 4 0 0 0 4-4"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.4"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-diff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 20h18Z"/><path d="M12 10v5m0 3v.4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.4"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.4"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3M12 17v.4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></symbol>
+</svg>
+
+<div class="app">
+
+  <!-- ══ TITLEBAR ══ -->
+  <header class="titlebar">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="brand"><svg><use href="#i-shell"/></svg><b>Shelly<em>SVN</em></b></div>
+    <button class="chip"><span class="dot"></span><strong>atlas-core</strong><svg><use href="#i-chevd"/></svg></button>
+    <button class="chip"><svg style="color:var(--ink3)"><use href="#i-branch"/></svg>feature/payments-v2<svg><use href="#i-chevd"/></svg></button>
+    <div class="omni" id="omni">
+      <svg><use href="#i-search"/></svg>
+      <span>Search paths, revisions, commands</span>
+      <span class="sk always">⌘K</span>
+    </div>
+    <div class="tbr">
+      <button class="ibtn" title="Notifications"><svg><use href="#i-bell"/></svg><span class="n">3</span></button>
+      <button class="ibtn" title="Refresh status"><svg><use href="#i-refresh"/></svg></button>
+      <button class="ibtn" title="Terminal"><svg><use href="#i-term"/></svg></button>
+      <button class="ibtn" title="Settings"><svg><use href="#i-cog"/></svg></button>
+    </div>
+  </header>
+
+  <!-- ══ TOOLBAR ══ -->
+  <div class="toolbar">
+    <div class="seg" role="tablist">
+      <button role="tab" aria-selected="true">Changes<span class="c">12</span></button>
+      <button role="tab" aria-selected="false">History</button>
+      <button role="tab" aria-selected="false">Browse</button>
+      <button role="tab" aria-selected="false">Graph</button>
+      <button role="tab" aria-selected="false">Locks<span class="c">2</span></button>
+    </div>
+    <div class="tsep"></div>
+    <button class="act"><svg><use href="#i-down"/></svg>Update<span class="sk">⌘U</span></button>
+    <button class="act pri" data-open="commit"><svg><use href="#i-up"/></svg>Commit<span class="n">9</span><span class="sk">⌘↵</span></button>
+    <button class="act att" data-open="conflict"><svg><use href="#i-warn"/></svg>1 conflict</button>
+    <div class="tsep"></div>
+    <button class="act ghost"><svg><use href="#i-diff"/></svg>Diff<span class="sk">⌘D</span></button>
+    <button class="act ghost" data-open="revert"><svg><use href="#i-undo"/></svg>Revert</button>
+    <button class="act ghost"><svg><use href="#i-merge"/></svg>Merge</button>
+
+    <div class="states">
+      <span class="st">local <b>r4821</b></span>
+      <span class="st warn">head <b>r4838</b></span>
+      <span class="st warn"><span class="d" style="background:var(--mod)"></span><b>17</b> incoming</span>
+      <span class="st"><span class="d" style="background:var(--add)"></span>connected</span>
+    </div>
+  </div>
+
+  <!-- ══ BODY ══ -->
+  <div class="body" id="bodygrid">
+
+    <nav class="rail">
+      <button class="rbtn" aria-current="true"><svg><use href="#i-layers"/></svg><span class="lab">Working copy · 12</span></button>
+      <button class="rbtn"><svg><use href="#i-warn"/></svg><span class="n">1</span><span class="lab">Conflicts · 1</span></button>
+      <button class="rbtn"><svg><use href="#i-down"/></svg><span class="lab">Incoming · 17</span></button>
+      <button class="rbtn"><svg><use href="#i-hist"/></svg><span class="lab">History</span></button>
+      <button class="rbtn"><svg><use href="#i-branch"/></svg><span class="lab">Branches &amp; tags</span></button>
+      <button class="rbtn"><svg><use href="#i-lock"/></svg><span class="lab">Locks · 2</span></button>
+      <button class="rbtn"><svg><use href="#i-folder"/></svg><span class="lab">Repository browser</span></button>
+      <span class="rsp"></span>
+      <button class="rbtn"><svg><use href="#i-user"/></svg><span class="lab">Credentials</span></button>
+      <button class="rbtn"><svg><use href="#i-cog"/></svg><span class="lab">Settings</span></button>
+    </nav>
+
+    <aside class="panel">
+      <div class="psec"><span class="eyebrow">Working copy</span><button title="Add"><svg><use href="#i-plus"/></svg></button></div>
+      <div class="wc">
+        <h4><svg><use href="#i-folder"/></svg>atlas-core</h4>
+        <div class="url">svn://svn.lineindustries.com/atlas/branches/feature/payments-v2</div>
+        <div class="grid3">
+          <div><span class="k">Local</span><span class="v">r4821</span></div>
+          <div><span class="k">Head</span><span class="v y">r4838</span></div>
+          <div><span class="k">Depth</span><span class="v">inf</span></div>
+        </div>
+        <div class="bar"><i></i></div>
+        <div class="behind"><b>17 revisions behind</b> · last synced 2 days ago</div>
+      </div>
+
+      <div class="psec"><span class="eyebrow">Changelists</span></div>
+      <div class="tree">
+        <div class="trow sel"><svg><use href="#i-layers"/></svg><span class="n">All changes</span><span class="c">12</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">payments-ui</span><span class="c">3</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">ignore-on-commit</span><span class="c">2</span></div>
+        <div class="trow kid"><svg style="color:var(--del)"><use href="#i-warn"/></svg><span class="n" style="color:var(--del)">conflicts</span><span class="c">1</span></div>
+      </div>
+
+      <div class="psec"><span class="eyebrow">Tree</span></div>
+      <div class="tree">
+        <div class="trow"><svg><use href="#i-chevd"/></svg><span class="n">src</span><span class="c">7</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">main</span><span class="c">3</span></div>
+        <div class="trow kid"><svg><use href="#i-folder"/></svg><span class="n">renderer</span><span class="c">3</span></div>
+        <div class="trow"><svg><use href="#i-chev"/></svg><span class="n">packages</span><span class="c">1</span></div>
+        <div class="trow"><svg><use href="#i-chev"/></svg><span class="n">docs</span><span class="c">1</span></div>
+        <div class="trow"><svg style="color:var(--ext)"><use href="#i-ext"/></svg><span class="n" style="color:var(--ext)">vendor/plex-fonts</span><span class="c">ext</span></div>
+        <div class="trow"><svg><use href="#i-chev"/></svg><span class="n">notes</span><span class="c">1</span></div>
+      </div>
+
+      <div class="psec"><span class="eyebrow">Locks held</span></div>
+      <div class="tree">
+        <div class="trow"><svg style="color:var(--mod)"><use href="#i-lock"/></svg><span class="n">package.json</span><span class="c">09:12</span></div>
+        <div class="trow"><svg style="color:var(--mod)"><use href="#i-lock"/></svg><span class="n">entitlements.plist</span><span class="c">Thu</span></div>
+      </div>
+    </aside>
+
+    <!-- ══ LIST ══ -->
+    <section class="list">
+      <div class="filterbar">
+        <div class="search">
+          <svg><use href="#i-search"/></svg>
+          <input placeholder="status:C  ext:ts  @mira" />
+        </div>
+        <button class="fchip M on"><span class="k">M</span>6</button>
+        <button class="fchip A on"><span class="k">A</span>2</button>
+        <button class="fchip D on"><span class="k">D</span>1</button>
+        <button class="fchip C on"><span class="k">C</span>1</button>
+        <button class="fchip"><span class="k">?</span>1</button>
+        <button class="explaintog" id="explaintog" title="Add a plain-English line to every row">
+          <span class="box"></span>Explain<span class="sk">E</span>
+        </button>
+      </div>
+
+      <div class="colhead">
+        <span></span><span></span><span>Path</span>
+        <span class="r">Rev</span><span>Author</span><span class="r">Δ</span>
+      </div>
+
+      <div class="rows" id="rows">
+
+        <div class="ghead">
+          <svg><use href="#i-chevd"/></svg><b>Conflicts</b><span class="c">1</span>
+          <span class="sp"></span><span class="why bad">Blocks commit</span>
+        </div>
+        <div class="row conflict" data-file="client.ts" data-dir="src/main/svn/" data-st="C"
+             data-say="You and mira.k changed the same 3 places — pick what to keep">
+          <span class="pick" aria-disabled="true"></span>
+          <span class="badge C">C</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">src/main/svn/</span><span class="file">client.ts</span></span>
+            <span class="say">You and mira.k changed the same 3 places — pick what to keep</span>
+          </span>
+          <span class="cell rev">4802</span><span class="cell who">mira.k</span>
+          <span class="cell delta"><span class="p">+64</span><span class="m">−12</span></span>
+          <span class="rowacts"><button class="mini" data-open="conflict"><svg><use href="#i-merge"/></svg>Resolve</button></span>
+        </div>
+
+        <div class="ghead">
+          <svg><use href="#i-chevd"/></svg><b>payments-ui</b><span class="c">3</span>
+          <span class="sp"></span><span class="why">Changelist</span>
+        </div>
+        <div class="row sel" data-file="svn.ts" data-dir="src/main/ipc/" data-st="M"
+             data-say="Status now checks linked folders separately, and caps output size">
+          <span class="pick on"></span><span class="badge M">M</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">src/main/ipc/</span><span class="file">svn.ts</span></span>
+            <span class="say">Status now checks linked folders separately, and caps output size</span>
+          </span>
+          <span class="cell rev">4802</span><span class="cell who">jordan</span>
+          <span class="cell delta"><span class="p">+41</span><span class="m">−8</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-diff"/></svg>Diff</button><button class="mini"><svg><use href="#i-hist"/></svg></button></span>
+        </div>
+        <div class="row" data-file="MergePreview.tsx" data-dir="src/renderer/components/ui/" data-st="A"
+             data-say="New screen that previews a merge before it runs">
+          <span class="pick on"></span><span class="badge A">A</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">src/renderer/components/ui/</span><span class="file">MergePreview.tsx</span></span>
+            <span class="say">New screen that previews a merge before it runs</span>
+          </span>
+          <span class="cell rev">—</span><span class="cell who">—</span>
+          <span class="cell delta"><span class="p">+218</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-eye"/></svg>Preview</button></span>
+        </div>
+        <div class="row" data-file="merge.ts" data-dir="packages/shared/src/" data-st="A"
+             data-say="Shared logic the merge preview uses">
+          <span class="pick on"></span><span class="badge A">A</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">packages/shared/src/</span><span class="file">merge.ts</span></span>
+            <span class="say">Shared logic the merge preview uses</span>
+          </span>
+          <span class="cell rev">—</span><span class="cell who">—</span>
+          <span class="cell delta"><span class="p">+96</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-eye"/></svg>Preview</button></span>
+        </div>
+
+        <div class="ghead"><svg><use href="#i-chevd"/></svg><b>Default changelist</b><span class="c">5</span></div>
+
+        <div class="row" data-file="FileExplorer.tsx" data-dir="src/renderer/components/" data-st="M"
+             data-say="Tidy-up — about as much removed as added">
+          <span class="pick on"></span><span class="badge M">M</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">src/renderer/components/</span><span class="file">FileExplorer.tsx</span></span>
+            <span class="say">Tidy-up — about as much removed as added</span>
+          </span>
+          <span class="cell rev">4818</span><span class="cell who">devon</span>
+          <span class="cell delta"><span class="p">+27</span><span class="m">−31</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-diff"/></svg>Diff</button></span>
+        </div>
+        <div class="row" data-file="OldTree.tsx" data-dir="src/renderer/legacy/" data-st="D"
+             data-say="Marked for deletion — will be removed for everyone">
+          <span class="pick on"></span><span class="badge D">D</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">src/renderer/legacy/</span><span class="file">OldTree.tsx</span></span>
+            <span class="say">Marked for deletion — will be removed for everyone</span>
+          </span>
+          <span class="cell rev">4744</span><span class="cell who">tao.n</span>
+          <span class="cell delta"><span class="m">−402</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-undo"/></svg>Restore</button></span>
+        </div>
+        <div class="row" data-file="auth.ts" data-dir="src/main/ipc/" data-st="R"
+             data-say="Deleted then re-created — its history restarts here">
+          <span class="pick on"></span><span class="badge R">R</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">src/main/ipc/</span><span class="file">auth.ts</span></span>
+            <span class="say">Deleted then re-created — its history restarts here</span>
+          </span>
+          <span class="cell rev">4790</span><span class="cell who">mira.k</span>
+          <span class="cell delta"><span class="p">+140</span><span class="m">−138</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-diff"/></svg>Diff</button></span>
+        </div>
+        <div class="row" data-file="package.json" data-dir="" data-st="M"
+             data-say="You hold the lock on this file since 09:12">
+          <span class="pick on"></span><span class="badge M">M</span>
+          <span class="pathcell">
+            <span class="pline"><span class="file">package.json</span><span class="lock" title="Locked by you"><svg><use href="#i-lock"/></svg></span></span>
+            <span class="say">You hold the lock on this file since 09:12</span>
+          </span>
+          <span class="cell rev">4838</span><span class="cell who">mira.k</span>
+          <span class="cell delta"><span class="p">+3</span><span class="m">−1</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-lock"/></svg>Release</button></span>
+        </div>
+        <div class="row" data-file="tailwind.config.js" data-dir="" data-st="M"
+             data-say="Small change to the design settings">
+          <span class="pick on"></span><span class="badge M">M</span>
+          <span class="pathcell">
+            <span class="pline"><span class="file">tailwind.config.js</span></span>
+            <span class="say">Small change to the design settings</span>
+          </span>
+          <span class="cell rev">4811</span><span class="cell who">jordan</span>
+          <span class="cell delta"><span class="p">+12</span><span class="m">−2</span></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-diff"/></svg>Diff</button></span>
+        </div>
+
+        <div class="ghead">
+          <svg><use href="#i-chevd"/></svg><b>ignore-on-commit</b><span class="c">2</span>
+          <span class="sp"></span><span class="why">Excluded</span>
+        </div>
+        <div class="row muted" data-file="CHANGELOG.md" data-dir="docs/" data-st="M"
+             data-say="You set this aside — it won't be committed">
+          <span class="pick"></span><span class="badge M">M</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">docs/</span><span class="file">CHANGELOG.md</span></span>
+            <span class="say">You set this aside — it won't be committed</span>
+          </span>
+          <span class="cell rev">4835</span><span class="cell who">jordan</span>
+          <span class="cell delta"><span class="p">+9</span></span>
+        </div>
+        <div class="row muted" data-file="scratch.md" data-dir="notes/" data-st="Q"
+             data-say="Not versioned — Shelly isn't keeping its history">
+          <span class="pick"></span><span class="badge Q">?</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">notes/</span><span class="file">scratch.md</span></span>
+            <span class="say">Not versioned — Shelly isn't keeping its history</span>
+          </span>
+          <span class="cell rev">—</span><span class="cell who">—</span><span class="cell delta"></span>
+          <span class="rowacts"><button class="mini"><svg><use href="#i-plus"/></svg>Add</button></span>
+        </div>
+
+        <div class="ghead">
+          <svg><use href="#i-chevd"/></svg><b>Externals</b><span class="c">1</span>
+          <span class="sp"></span><span class="why">Read-only</span>
+        </div>
+        <div class="row muted" data-file="plex-fonts" data-dir="vendor/" data-st="X"
+             data-say="A folder pulled in from another repository, pinned at 2.4.1">
+          <span class="pick" aria-disabled="true"></span><span class="badge X">X</span>
+          <span class="pathcell">
+            <span class="pline"><span class="dir">vendor/</span><span class="file">plex-fonts</span></span>
+            <span class="say">A folder pulled in from another repository, pinned at 2.4.1</span>
+          </span>
+          <span class="cell rev">2.4.1</span><span class="cell who">tao.n</span><span class="cell delta"></span>
+        </div>
+      </div>
+
+      <div class="listfoot">
+        <span><b>9</b> of 12 staged</span>
+        <span style="color:var(--add)">+735</span><span style="color:var(--del)">−594</span>
+        <span class="sp"></span>
+        <span>1 conflict excluded</span>
+        <span class="sk">⌘A select all</span>
+      </div>
+    </section>
+
+    <!-- ══ SPLITTER ══ -->
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+
+    <!-- ══ DETAIL ══ -->
+    <section class="detail">
+      <div class="dhead">
+        <div class="dtop">
+          <span class="badge M" id="d-badge">M</span>
+          <h3 id="d-path">src/main/ipc/svn.ts</h3>
+          <button class="ibtn" title="Open externally"><svg><use href="#i-ext"/></svg></button>
+          <button class="ibtn" title="Copy path"><svg><use href="#i-copy"/></svg></button>
+        </div>
+        <div class="dsay" id="d-say">
+          <b>In plain terms:</b> status now checks linked folders separately, and caps output size.
+        </div>
+        <div class="dtabs">
+          <button aria-selected="true">Unified</button>
+          <button aria-selected="false">Split</button>
+          <button aria-selected="false">Blame</button>
+          <button aria-selected="false">Log</button>
+          <button aria-selected="false">Props</button>
+        </div>
+      </div>
+
+      <div class="dmeta">
+        <span>BASE <b>r4802</b></span><span>working <b>modified 4m ago</b></span>
+        <span>2 hunks</span><span style="color:var(--add)">+41</span><span style="color:var(--del)">−8</span>
+        <span style="margin-left:auto">LF · UTF-8 · text/typescript</span>
+      </div>
+
+      <div class="dbody">
+        <div class="code">
+          <div class="hunk">@@ -142,7 +142,9 @@ registerSvnHandlers() <span class="plain">— how status is requested</span></div>
+          <div class="ln"><i>142</i><i>142</i><u> </u><code>  <span class="k2">ipc</span>.handle(<span class="k3">'svn:status'</span>, <span class="k1">async</span> (_e, path) =&gt; {</code></div>
+          <div class="ln"><i>143</i><i>143</i><u> </u><code>    <span class="k1">const</span> repo = <span class="k1">await</span> resolveWorkingCopy(path);</code></div>
+          <div class="ln del"><i>144</i><i></i><u>−</u><code>    <span class="k1">return</span> runSvn([<span class="k3">'status'</span>, <span class="k3">'--xml'</span>], repo);</code></div>
+          <div class="ln add"><i></i><i>144</i><u>+</u><code>    <span class="k5">// externals must be walked separately or they report as '?'</span></code></div>
+          <div class="ln add"><i></i><i>145</i><u>+</u><code>    <span class="k1">const</span> args = [<span class="k3">'status'</span>, <span class="k3">'--xml'</span>, <span class="k3">'--show-updates'</span>];</code></div>
+          <div class="ln add"><i></i><i>146</i><u>+</u><code>    <span class="k1">if</span> (repo.hasExternals) args.push(<span class="k3">'--ignore-externals'</span>);</code></div>
+          <div class="ln add"><i></i><i>147</i><u>+</u><code>    <span class="k1">return</span> runSvn(args, repo, { timeout: <span class="k4">STATUS_TIMEOUT</span> });</code></div>
+          <div class="ln"><i>145</i><i>148</i><u> </u><code>  });</code></div>
+          <div class="ln"><i>146</i><i>149</i><u> </u><code></code></div>
+
+          <div class="hunk">@@ -201,12 +204,24 @@ runSvn() <span class="plain">— running the command safely</span></div>
+          <div class="ln"><i>201</i><i>204</i><u> </u><code>  <span class="k1">const</span> child = spawn(<span class="k3">'svn'</span>, [...args, <span class="k3">'--non-interactive'</span>], {</code></div>
+          <div class="ln"><i>202</i><i>205</i><u> </u><code>    cwd: repo.root,</code></div>
+          <div class="ln del"><i>203</i><i></i><u>−</u><code>    env: process.env,</code></div>
+          <div class="ln add"><i></i><i>206</i><u>+</u><code>    env: { ...process.env, <span class="k4">LC_ALL</span>: <span class="k3">'C'</span> },</code></div>
+          <div class="ln add"><i></i><i>207</i><u>+</u><code>    windowsHide: <span class="k1">true</span>,</code></div>
+          <div class="ln"><i>204</i><i>208</i><u> </u><code>  });</code></div>
+          <div class="ln"><i>205</i><i>209</i><u> </u><code></code></div>
+          <div class="ln del"><i>206</i><i></i><u>−</u><code>  <span class="k1">let</span> out = <span class="k3">''</span>;</code></div>
+          <div class="ln add"><i></i><i>210</i><u>+</u><code>  <span class="k1">const</span> chunks: <span class="k4">Buffer</span>[] = [];</code></div>
+          <div class="ln add"><i></i><i>211</i><u>+</u><code>  <span class="k1">let</span> bytes = <span class="k4">0</span>;</code></div>
+          <div class="ln add"><i></i><i>212</i><u>+</u><code>  child.stdout.on(<span class="k3">'data'</span>, (c) =&gt; {</code></div>
+          <div class="ln add"><i></i><i>213</i><u>+</u><code>    <span class="k1">if</span> ((bytes += c.length) &gt; <span class="k4">MAX_SVN_OUTPUT</span>) child.kill();</code></div>
+          <div class="ln add"><i></i><i>214</i><u>+</u><code>    chunks.push(c);</code></div>
+          <div class="ln add"><i></i><i>215</i><u>+</u><code>  });</code></div>
+          <div class="ln"><i>207</i><i>216</i><u> </u><code>}</code></div>
+        </div>
+      </div>
+
+      <!-- narrated activity -->
+      <div class="activity" id="activity">
+        <div class="abar" id="abar">
+          <span class="eyebrow">Activity</span>
+          <span class="live"><i></i>svn update — 64%</span>
+          <span class="bar"><i></i></span>
+          <span class="sp"></span>
+          <button class="mini" id="rawall" style="height:18px;font-size:10px">Raw output</button>
+          <svg class="chev"><use href="#i-chevd"/></svg>
+        </div>
+        <div class="alines">
+          <div class="aline info">
+            <span class="t">18:42:11</span><span class="ic"><svg><use href="#i-down"/></svg></span>
+            <span class="m"><b>Updating to r4838</b> — 17 revisions, keeping your local edits.
+              <button class="showraw"><svg><use href="#i-term"/></svg>raw</button>
+              <span class="raw" hidden><span class="c">$ svn update --accept postpone ~/dev/atlas-core</span>
+Updating '.':</span>
+            </span>
+          </div>
+          <div class="aline ok">
+            <span class="t">18:42:13</span><span class="ic"><svg><use href="#i-check"/></svg></span>
+            <span class="m"><b>14 files updated cleanly</b>
+              <button class="showraw"><svg><use href="#i-term"/></svg>raw</button>
+              <span class="raw" hidden><span class="g">U    src/renderer/components/ui/LogViewer.tsx
+U    src/main/monitor/watcher.ts
+A    packages/shared/src/locks.ts</span></span>
+            </span>
+          </div>
+          <div class="aline bad">
+            <span class="t">18:42:13</span><span class="ic"><svg><use href="#i-warn"/></svg></span>
+            <span class="m"><b>client.ts conflicted</b> — both sides changed <span class="mono">runSvn()</span>. Held back until resolved.
+              <button class="showraw"><svg><use href="#i-term"/></svg>raw</button>
+              <span class="raw" hidden><span class="y">   C src/main/svn/client.ts</span>
+<span class="r">Summary of conflicts:
+  Text conflicts: 1</span></span>
+            </span>
+          </div>
+          <div class="aline info">
+            <span class="t">18:42:14</span><span class="ic"><svg><use href="#i-layers"/></svg></span>
+            <span class="m"><b>Fetching external</b> vendor/plex-fonts, pinned at 2.4.1.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══ STATUS BAR ══ -->
+  <footer class="statusbar">
+    <span class="c"><svg><use href="#i-branch"/></svg>feature/payments-v2</span>
+    <span class="c"><b>r4821</b> → <span class="y">r4838</span></span>
+    <span class="c"><span class="y">9 staged</span> / 12 changed</span>
+    <span class="c rd"><svg><use href="#i-warn"/></svg>1 conflict</span>
+    <span class="c"><svg><use href="#i-lock"/></svg>2 locks</span>
+    <span class="sp"></span>
+    <span class="c">svn 1.14.3</span>
+    <span class="c g"><svg><use href="#i-check"/></svg>connected</span>
+    <span class="c last">TS · UTF-8 · LF</span>
+  </footer>
+</div>
+
+<!-- ══ CONTEXT MENU ══ -->
+<div class="ctx" id="ctx" hidden>
+  <div class="hd">
+    <span class="badge M" id="ctxbadge">M</span>
+    <span class="t"><b id="ctxname">svn.ts</b><span id="ctxdir">src/main/ipc/</span></span>
+  </div>
+  <div class="ci"><svg><use href="#i-diff"/></svg><span class="t">Diff against BASE<span class="cmd">svn diff -r BASE</span></span><span class="sc">⌘D</span></div>
+  <div class="ci"><svg><use href="#i-hist"/></svg><span class="t">Show log<span class="cmd">svn log -v</span></span><span class="sc">⌘L</span></div>
+  <div class="ci"><svg><use href="#i-user"/></svg><span class="t">Blame<span class="cmd">svn blame</span></span></div>
+  <div class="csep"></div>
+  <div class="ci" data-open="commit"><svg><use href="#i-up"/></svg><span class="t">Commit…<span class="cmd">svn commit</span></span><span class="sc">⌘↵</span></div>
+  <div class="ci"><svg><use href="#i-down"/></svg><span class="t">Update to HEAD<span class="cmd">svn update</span></span></div>
+  <div class="ci danger" data-open="revert"><svg><use href="#i-undo"/></svg><span class="t">Revert…<span class="cmd">svn revert</span></span><span class="sc">⌘⌫</span></div>
+  <div class="csep"></div>
+  <div class="ci has-sub"><svg><use href="#i-layers"/></svg><span class="t">Changelist<span class="cmd">svn changelist</span></span><svg style="margin-left:auto;width:12px;height:12px"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="lbl">Move to</div>
+      <div class="ci"><svg><use href="#i-check"/></svg><span class="t">payments-ui</span></div>
+      <div class="ci"><svg style="opacity:0"><use href="#i-check"/></svg><span class="t">ignore-on-commit</span></div>
+      <div class="ci"><svg style="opacity:0"><use href="#i-check"/></svg><span class="t">Default</span></div>
+      <div class="csep"></div>
+      <div class="ci"><svg><use href="#i-plus"/></svg><span class="t">New changelist…</span></div>
+    </div>
+  </div>
+  <div class="ci has-sub"><svg><use href="#i-lock"/></svg><span class="t">Locking<span class="cmd">svn lock / unlock</span></span><svg style="margin-left:auto;width:12px;height:12px"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="ci"><span class="t">Get lock…</span></div>
+      <div class="ci"><span class="t">Release lock</span></div>
+      <div class="ci"><span class="t">Steal lock…</span></div>
+      <div class="ci"><span class="t">Manage locks…</span></div>
+    </div>
+  </div>
+  <div class="ci has-sub"><svg><use href="#i-cog"/></svg><span class="t">Advanced</span><svg style="margin-left:auto;width:12px;height:12px"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="ci"><svg><use href="#i-file"/></svg><span class="t">Create patch…</span><span class="sc">⇧⌘P</span></div>
+      <div class="ci"><svg><use href="#i-layers"/></svg><span class="t">Properties…</span></div>
+      <div class="ci"><svg><use href="#i-branch"/></svg><span class="t">Revision graph</span></div>
+      <div class="ci"><svg><use href="#i-refresh"/></svg><span class="t">Cleanup</span></div>
+      <div class="csep"></div>
+      <div class="ci danger"><svg><use href="#i-trash"/></svg><span class="t">Delete from repo…</span></div>
+    </div>
+  </div>
+  <div class="csep"></div>
+  <div class="ci"><svg><use href="#i-copy"/></svg><span class="t">Copy path</span><span class="sc">⇧⌘C</span></div>
+  <div class="ci"><svg><use href="#i-ext"/></svg><span class="t">Reveal in Finder</span></div>
+</div>
+
+<!-- ══ PALETTE ══ -->
+<div class="scrim" id="palette" hidden>
+  <div class="palette" onclick="event.stopPropagation()">
+    <div class="pin">
+      <svg><use href="#i-search"/></svg>
+      <input id="pq" placeholder="Command, path, or r-number…" />
+      <span class="sc">atlas-core</span>
+    </div>
+    <div class="pbody">
+      <div class="pgrp">Suggested — 1 conflict blocks commit</div>
+      <div class="pi act"><span class="pic"><svg><use href="#i-merge"/></svg></span>
+        <span class="t"><b>Resolve conflict in client.ts</b><small>3 marker blocks · opens 3-way editor</small></span><span class="sk always">↵</span></div>
+      <div class="pi"><span class="pic"><svg><use href="#i-down"/></svg></span>
+        <span class="t"><b>Update working copy to r4838</b><small>17 incoming · svn update --accept postpone</small></span><span class="sk always">⌘U</span></div>
+      <div class="pgrp">Commands</div>
+      <div class="pi"><span class="pic"><svg><use href="#i-up"/></svg></span>
+        <span class="t"><b>Commit changes…</b><small>9 of 12 staged · svn commit</small></span><span class="sk always">⌘↵</span></div>
+      <div class="pi"><span class="pic"><svg><use href="#i-branch"/></svg></span>
+        <span class="t"><b>Create branch / tag…</b><small>svn copy → branches/</small></span><span class="sk always">⌘B</span></div>
+      <div class="pi"><span class="pic"><svg><use href="#i-merge"/></svg></span>
+        <span class="t"><b>Merge…</b><small>reintegrate · range · two-URL</small></span></div>
+      <div class="pi"><span class="pic"><svg><use href="#i-eye"/></svg></span>
+        <span class="t"><b>Toggle plain-English row summaries</b><small>adds a second line to every row</small></span><span class="sk always">E</span></div>
+      <div class="pgrp">Jump to</div>
+      <div class="pi"><span class="pic"><svg><use href="#i-hist"/></svg></span>
+        <span class="t"><b>r4835 — Harden SVN operations</b><small>jordan · yesterday 16:04 · 23 files</small></span></div>
+      <div class="pi"><span class="pic"><svg><use href="#i-file"/></svg></span>
+        <span class="t"><b>client.ts</b><small>src/main/svn/client.ts · conflicted</small></span></div>
+    </div>
+    <div class="pfoot">
+      <span><b>↑↓</b> navigate</span><span><b>↵</b> run</span>
+      <span><b>r4835</b> by revision</span><span><b>@mira</b> by author</span>
+      <span style="margin-left:auto"><b>esc</b> dismiss</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMMIT ══ -->
+<div class="scrim" id="commit" hidden style="place-items:center">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="mhead">
+      <span class="ic"><svg><use href="#i-up"/></svg></span>
+      <div class="t">
+        <h2>Commit 9 files to feature/payments-v2</h2>
+        <p>svn://svn.lineindustries.com/atlas/branches/feature/payments-v2 · from r4821</p>
+      </div>
+      <button class="ibtn" onclick="closeAll()"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="mbody">
+      <div class="mmain">
+        <div class="flab"><span class="eyebrow">Message</span><button>Templates ⌥T</button><button>Recent ⌥↑</button></div>
+        <textarea class="msg">Add merge preview scaffolding + harden status walk
+
+MergePreview surfaces conflict counts before a merge is applied. svn status now
+walks externals separately — they were reporting as unversioned. Caps stdout at
+MAX_SVN_OUTPUT so very large trees can't exhaust the main process.
+
+Refs: ATLAS-2841</textarea>
+        <div class="mchips">
+          <span class="mchip g">✓ subject 48/72</span>
+          <span class="mchip g">✓ issue ref ATLAS-2841</span>
+          <span class="mchip y">pre-commit hook will run</span>
+          <span class="mchip">318 chars</span>
+        </div>
+
+        <div class="manifest">
+          <div class="manh"><span class="pick on"></span><span class="eyebrow">9 of 12 files</span><span class="mchip">+735 −594</span></div>
+          <div class="manlist">
+            <div class="manr"><span class="pick on"></span><span class="badge M">M</span><span class="p">src/main/ipc/<b>svn.ts</b></span><span class="d" style="color:var(--add)">+41</span><span class="d" style="color:var(--del)">−8</span></div>
+            <div class="manr"><span class="pick on"></span><span class="badge A">A</span><span class="p">src/renderer/components/ui/<b>MergePreview.tsx</b></span><span class="d" style="color:var(--add)">+218</span></div>
+            <div class="manr"><span class="pick on"></span><span class="badge A">A</span><span class="p">packages/shared/src/<b>merge.ts</b></span><span class="d" style="color:var(--add)">+96</span></div>
+            <div class="manr"><span class="pick on"></span><span class="badge M">M</span><span class="p">src/renderer/components/<b>FileExplorer.tsx</b></span><span class="d" style="color:var(--add)">+27</span><span class="d" style="color:var(--del)">−31</span></div>
+            <div class="manr"><span class="pick on"></span><span class="badge D">D</span><span class="p">src/renderer/legacy/<b>OldTree.tsx</b></span><span class="d" style="color:var(--del)">−402</span></div>
+            <div class="manr"><span class="pick on"></span><span class="badge R">R</span><span class="p">src/main/ipc/<b>auth.ts</b></span><span class="d" style="color:var(--add)">+140</span><span class="d" style="color:var(--del)">−138</span></div>
+            <div class="manr"><span class="pick on"></span><span class="badge M">M</span><span class="p"><b>package.json</b></span><span class="d" style="color:var(--add)">+3</span><span class="d" style="color:var(--del)">−1</span></div>
+            <div class="manr off"><span class="pick"></span><span class="badge C">C</span><span class="p"><b>client.ts</b> — resolve first</span></div>
+            <div class="manr off"><span class="pick"></span><span class="badge Q">?</span><span class="p"><b>scratch.md</b> — unversioned</span></div>
+          </div>
+        </div>
+      </div>
+      <aside class="mside">
+        <div class="sgroup">
+          <span class="eyebrow">Options</span>
+          <div class="toggle on"><span class="sw"></span><span class="t"><b>Keep locks</b><small>package.json stays locked</small></span></div>
+          <div class="toggle"><span class="sw"></span><span class="t"><b>Keep changelists</b><small>don't dissolve payments-ui</small></span></div>
+          <div class="toggle on"><span class="sw"></span><span class="t"><b>Run pre-commit hook</b><small>validate before sending</small></span></div>
+          <div class="toggle"><span class="sw"></span><span class="t"><b>Update after commit</b><small>pull the 17 incoming</small></span></div>
+        </div>
+        <div class="sgroup">
+          <span class="eyebrow">Bugtraq</span>
+          <div class="mono" style="font-size:10.5px;color:var(--ink3);line-height:1.8">
+            issue-ref: <span style="color:var(--acc)">ATLAS-2841</span><br>
+            url: jira.line…/ATLAS-2841<br>
+            <span style="color:var(--add)">✓ pattern matched</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="mfoot">
+      <span class="note">1 conflict excluded · <b>working copy is 17 revisions behind</b></span>
+      <button class="btn" onclick="closeAll()">Cancel</button>
+      <button class="btn">Commit &amp; Update</button>
+      <button class="btn pri" onclick="closeAll();document.getElementById('toast').hidden=false">Commit 9 files</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CONFLICT ══ -->
+<div class="scrim" id="conflict" hidden style="place-items:center">
+  <div class="modal" style="width:min(560px,94vw)" onclick="event.stopPropagation()">
+    <div class="mhead">
+      <span class="ic" style="background:var(--con-bg);border-color:var(--con-ln);color:var(--del)"><svg><use href="#i-merge"/></svg></span>
+      <div class="t"><h2>Resolve client.ts</h2><p>text conflict · 3 marker blocks · .mine / .r4802 / .r4838</p></div>
+      <button class="ibtn" onclick="closeAll()"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="mmain" style="border-right:0;padding:14px 16px">
+      <div class="manifest" style="margin-top:0">
+        <div class="manh"><span class="eyebrow" style="flex:1">3 conflicting blocks</span></div>
+        <div class="manr"><span class="badge M">1</span><span class="p" style="direction:ltr">line 206 — you added a byte cap, they added lock error handling</span><span class="d" style="color:var(--add)">both</span></div>
+        <div class="manr"><span class="badge M">2</span><span class="p" style="direction:ltr">line 231 — both renamed the same variable</span><span class="d" style="color:var(--mod)">pick</span></div>
+        <div class="manr"><span class="badge M">3</span><span class="p" style="direction:ltr">line 288 — you removed a line they edited</span><span class="d" style="color:var(--mod)">pick</span></div>
+      </div>
+      <div class="mchips" style="margin-top:12px">
+        <span class="mchip g">nothing lost — all three versions kept on disk</span>
+      </div>
+    </div>
+    <div class="mfoot">
+      <span class="note mono">svn resolve --accept …</span>
+      <button class="btn" onclick="closeAll()">Postpone</button>
+      <button class="btn">Take mine</button>
+      <button class="btn">Take theirs</button>
+      <button class="btn pri" onclick="closeAll()"><svg><use href="#i-merge"/></svg>3-way editor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REVERT ══ -->
+<div class="scrim" id="revert" hidden style="place-items:center">
+  <div class="modal" style="width:min(470px,94vw)" onclick="event.stopPropagation()">
+    <div class="mhead">
+      <span class="ic" style="background:var(--del-bg);border-color:var(--del-ln);color:var(--del)"><svg><use href="#i-undo"/></svg></span>
+      <div class="t"><h2>Revert svn.ts?</h2><p>restores BASE r4802 · discards 49 modified lines</p></div>
+    </div>
+    <div class="mmain" style="border-right:0;padding:14px 16px">
+      <div class="manifest" style="margin-top:0">
+        <div class="manr"><span class="badge D">−</span><span class="p" style="direction:ltr">49 lines you wrote</span><span class="d" style="color:var(--del)">lost</span></div>
+        <div class="manr"><span class="badge D">−</span><span class="p" style="direction:ltr">externals walk + output cap</span><span class="d" style="color:var(--del)">lost</span></div>
+      </div>
+      <div style="margin-top:12px;padding:10px 12px;border-radius:6px;background:var(--accbg);border:1px solid var(--accln);font-size:12px;color:var(--ink2);line-height:1.55">
+        <b style="color:var(--acc2)">Safer:</b> create a patch first — <span class="mono" style="font-size:11px">svn diff &gt; svn-ts.patch</span> — so the work can come back.
+      </div>
+    </div>
+    <div class="mfoot">
+      <span class="note mono">⌘⌫ to confirm</span>
+      <button class="btn" onclick="closeAll()">Cancel</button>
+      <button class="btn">Create patch first</button>
+      <button class="btn dang" onclick="closeAll()">Revert</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast" hidden>
+  <button class="x" onclick="document.getElementById('toast').hidden=true"><svg><use href="#i-x"/></svg></button>
+  <b><svg><use href="#i-check"/></svg>Committed r4839</b>
+  <p>9 files · 2.1s · feature/payments-v2. Lock on package.json kept; 1 conflict still open.</p>
+  <div class="cmdline">svn commit -m "Add merge preview scaffolding…" → r4839</div>
+</div>
+
+<div class="protonote">
+  <b>07 · Console v2</b>
+  <kbd>hold ⌘</kbd><kbd>E — explain rows</kbd><kbd>drag the split</kbd><kbd>right-click</kbd><kbd>⌘K</kbd>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const body=document.body;
+
+/* hold ⌘/Ctrl to reveal shortcuts */
+addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey)body.classList.add('meta')});
+addEventListener('keyup',e=>{if(!e.metaKey&&!e.ctrlKey)body.classList.remove('meta')});
+addEventListener('blur',()=>body.classList.remove('meta'));
+
+/* the audience bridge */
+$('#explaintog').addEventListener('click',()=>body.classList.toggle('explain'));
+
+/* rows */
+$$('.row').forEach((r,i)=>r.style.animationDelay=(i*14)+'ms');
+$$('.row').forEach(r=>r.addEventListener('click',e=>{
+  if(e.target.classList.contains('pick')){e.target.classList.toggle('on');return}
+  if(e.target.closest('.mini'))return;
+  $$('.row').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');
+  $('#d-path').textContent=(r.dataset.dir||'')+r.dataset.file;
+  $('#d-badge').className='badge '+r.dataset.st;
+  $('#d-badge').textContent=r.dataset.st==='Q'?'?':r.dataset.st;
+  $('#d-say').innerHTML='<b>In plain terms:</b> '+(r.dataset.say||'')+'.';
+}));
+
+/* context menu */
+const ctx=$('#ctx');
+$$('.row, .trow, .rbtn').forEach(el=>el.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  if(el.classList.contains('row')){
+    $$('.row').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');
+    $('#ctxname').textContent=el.dataset.file;
+    $('#ctxdir').textContent=el.dataset.dir||'project root';
+    const b=$('#ctxbadge');
+    b.className='badge '+el.dataset.st;
+    b.textContent=el.dataset.st==='Q'?'?':el.dataset.st;
+  }
+  ctx.hidden=false;
+  ctx.style.left=Math.min(e.clientX,innerWidth-ctx.offsetWidth-12)+'px';
+  ctx.style.top=Math.min(e.clientY,innerHeight-ctx.offsetHeight-12)+'px';
+}));
+document.addEventListener('click',()=>ctx.hidden=true);
+document.addEventListener('contextmenu',e=>{if(!e.target.closest('.row,.trow,.rbtn'))ctx.hidden=true});
+
+/* draggable splitter */
+(function(){
+  const sp=$('#splitter'), grid=$('#bodygrid');
+  let drag=false;
+  sp.addEventListener('pointerdown',e=>{
+    drag=true;sp.classList.add('drag');sp.setPointerCapture(e.pointerId);
+    document.body.style.cursor='col-resize';document.body.style.userSelect='none';
+  });
+  sp.addEventListener('pointermove',e=>{
+    if(!drag)return;
+    const r=grid.getBoundingClientRect();
+    const fixed=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail'))
+              + parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel'));
+    const avail=r.width-fixed-5;
+    const pct=Math.min(78,Math.max(24,((e.clientX-r.left-fixed)/avail)*100));
+    document.documentElement.style.setProperty('--split',pct+'%');
+  });
+  sp.addEventListener('pointerup',e=>{
+    drag=false;sp.classList.remove('drag');sp.releasePointerCapture(e.pointerId);
+    document.body.style.cursor='';document.body.style.userSelect='';
+  });
+})();
+
+/* activity */
+$('#abar').addEventListener('click',e=>{
+  if(e.target.id==='rawall')return;
+  $('#activity').classList.toggle('min');
+});
+$('#rawall').addEventListener('click',e=>{
+  e.stopPropagation();
+  const raws=$$('.raw'), anyHidden=raws.some(r=>r.hidden);
+  raws.forEach(r=>r.hidden=!anyHidden);
+});
+$$('.showraw').forEach(b=>b.addEventListener('click',()=>{
+  const raw=b.nextElementSibling;raw.hidden=!raw.hidden;
+}));
+
+/* overlays */
+function closeAll(){$$('.scrim').forEach(s=>s.hidden=true)}
+function open(id){closeAll();$('#'+id).hidden=false;if(id==='palette')setTimeout(()=>$('#pq').focus(),20)}
+$$('[data-open]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();ctx.hidden=true;open(b.dataset.open)}));
+$('#omni').addEventListener('click',()=>open('palette'));
+$$('.scrim').forEach(s=>s.addEventListener('click',closeAll));
+
+addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();open('palette');return}
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();open('commit');return}
+  if(e.key==='Escape'){closeAll();ctx.hidden=true;return}
+  if(typing)return;
+  if(e.key.toLowerCase()==='e'){e.preventDefault();body.classList.toggle('explain')}
+  if(e.key.toLowerCase()==='c'){e.preventDefault();open('commit')}
+  if(e.key.toLowerCase()==='x'){e.preventDefault();open('conflict')}
+  if(e.key.toLowerCase()==='r'){e.preventDefault();open('revert')}
+});
+$('#pq').addEventListener('keydown',e=>{
+  const items=$$('#palette .pi');const i=items.findIndex(x=>x.classList.contains('act'));
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();items[i]?.classList.remove('act');
+    const n=e.key==='ArrowDown'?(i+1)%items.length:(i-1+items.length)%items.length;
+    items[n].classList.add('act');items[n].scrollIntoView({block:'nearest'});
+  }
+  if(e.key==='Enter')closeAll();
+});
+
+/* small controls */
+$$('.seg button, .dtabs button').forEach(b=>b.addEventListener('click',()=>{
+  [...b.parentElement.children].forEach(x=>x.setAttribute('aria-selected','false'));
+  b.setAttribute('aria-selected','true');
+}));
+$$('.fchip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('on')));
+$$('.trow').forEach(t=>t.addEventListener('click',()=>{$$('.trow').forEach(x=>x.classList.remove('sel'));t.classList.add('sel')}));
+$$('.rbtn').forEach(t=>t.addEventListener('click',()=>{$$('.rbtn').forEach(x=>x.removeAttribute('aria-current'));t.setAttribute('aria-current','true')}));
+$$('.toggle').forEach(t=>t.addEventListener('click',()=>t.classList.toggle('on')));
+$$('.manr .pick, .manh .pick').forEach(p=>p.addEventListener('click',()=>p.classList.toggle('on')));
+</script>
+</body>
+</html>

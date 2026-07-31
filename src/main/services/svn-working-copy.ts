@@ -19,7 +19,7 @@ import { getSslTrustCache } from '../ssl-trust-cache';
 import { parseSvnInfoXml, parseSvnChildCommitsXml, type ChildCommitInfo } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
-import { getSvnReadError } from '../utils/svn-errors';
+import { getSvnReadError, isNotAWorkingCopyError } from '../utils/svn-errors';
 import { sendToRenderer } from '../utils/safe-renderer-send';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
@@ -269,23 +269,41 @@ export async function getRemoteStatus(
   }
 }
 
+/**
+ * Turn a failed `svn info` into an upgrade verdict. Exported so callers that
+ * already ran (and lost to) `svn info` can classify their own error instead of
+ * paying for a second identical process.
+ */
+export function classifyWorkingCopyUpgradeError(
+  path: string,
+  error: unknown
+): WorkingCopyUpgradeStatus {
+  if (isWorkingCopyUpgradeRequired(error)) {
+    return {
+      path,
+      required: true,
+      reason:
+        'This working copy was created by an older SVN client and must be upgraded before normal operations can continue.',
+    };
+  }
+
+  // A path outside any checkout cannot need an upgrade, and saying so is not a
+  // failure to report — the Explorer asks this of every folder it opens.
+  if (isNotAWorkingCopyError(error)) {
+    debug.log('[SVN] Upgrade status: not a working copy:', path);
+    return { path, required: false };
+  }
+
+  debug.error('[SVN] Working copy upgrade status check failed:', error);
+  return { path, required: false, error: getErrorMessage(error) };
+}
+
 export async function getWorkingCopyUpgradeStatus(path: string): Promise<WorkingCopyUpgradeStatus> {
   try {
     await runSvnText(withSvnTargets(['info', '--xml'], [path]));
     return { path, required: false };
   } catch (error) {
-    const message = getErrorMessage(error);
-    if (isWorkingCopyUpgradeRequired(error)) {
-      return {
-        path,
-        required: true,
-        reason:
-          'This working copy was created by an older SVN client and must be upgraded before normal operations can continue.',
-      };
-    }
-
-    debug.error('[SVN] Working copy upgrade status check failed:', error);
-    return { path, required: false, error: message };
+    return classifyWorkingCopyUpgradeError(path, error);
   }
 }
 
@@ -307,7 +325,13 @@ export async function getInfo(path: string): Promise<SvnInfoResult> {
     const xml = await runSvnText(withSvnTargets(['info', '--xml'], [path]));
     return parseSvnInfoXml(xml);
   } catch (error) {
-    debug.error('[SVN] Info error:', error);
+    // Callers use `getInfo` to ask "is this versioned?", so an unversioned path
+    // is an answer, not an error. Only real failures reach the error log.
+    if (isNotAWorkingCopyError(error)) {
+      debug.log('[SVN] Info: not a working copy:', path);
+    } else {
+      debug.error('[SVN] Info error:', error);
+    }
     throw error;
   }
 }
@@ -582,7 +606,11 @@ export async function getChildCommits(path: string): Promise<Record<string, Chil
     );
     return parseSvnChildCommitsXml(xml, path);
   } catch (error) {
-    debug.warn('[SVN] getChildCommits failed:', error);
+    if (isNotAWorkingCopyError(error)) {
+      debug.log('[SVN] Child commits: not a working copy:', path);
+    } else {
+      debug.warn('[SVN] getChildCommits failed:', error);
+    }
     return {};
   }
 }
@@ -772,36 +800,91 @@ export async function unversion(paths: string[]): Promise<{ success: boolean }> 
  * repository unchanged. SVN records a sticky `exclude` depth so later updates
  * do not bring the folder back automatically.
  */
-export async function excludeFromWorkingCopy(
-  path: string
-): Promise<{ success: boolean; error?: string }> {
-  validateSvnTargets([path], 'Sparse exclude target');
-  return runSerializedWorkingCopyMutation(path, async () => {
+/**
+ * Unversioned and ignored files inside a target, deepest first so trashing a
+ * child never removes the ground under a later entry.
+ */
+async function listLocalOnlyContent(targets: string[]): Promise<string[]> {
+  const found = new Set<string>();
+  for (const target of targets) {
+    if (!existsSync(target)) continue;
     try {
-      await runSvnText(withSvnTargets(['update', '--set-depth', 'exclude'], [path]));
+      const xml = await runSvnText(
+        withSvnTargets(['status', '--xml', '--no-ignore', '--depth', 'infinity'], [target])
+      );
+      for (const entry of parseSvnStatusEntriesXml(xml)) {
+        if (entry.item === 'unversioned' || entry.item === 'ignored') found.add(entry.path);
+      }
+    } catch (error) {
+      debug.warn('[SVN] Could not list local-only content before excluding:', error);
+    }
+  }
+  return Array.from(found).sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Drop files or folders from this checkout without touching the repository:
+ * `--set-depth exclude` is sticky, so `svn status` stays quiet about them and a
+ * later update does not bring them back — and `svn update --depth infinity` on
+ * the same target is the way back. SVN accepts several targets at once, so a
+ * whole selection costs one process.
+ *
+ * Order matters, and getting it wrong corrupts the working copy: unversioned or
+ * ignored content stops SVN from removing the directory, and it then leaves the
+ * exclusion half-applied — the working copy locked, the entry recorded at depth
+ * `empty` instead of `exclude`, and the folder reported as missing (`!`) forever
+ * after. Exiting 0 while doing that gives no signal to check for. So the local-
+ * only content goes to the trash first, and SVN gets a directory it can remove.
+ */
+export async function excludeFromWorkingCopy(
+  paths: string | string[]
+): Promise<{ success: boolean; error?: string }> {
+  const targets = Array.isArray(paths) ? paths : [paths];
+  if (targets.length === 0) {
+    return { success: false, error: 'Nothing selected to remove from the working copy' };
+  }
+  validateSvnTargets(targets, 'Sparse exclude target');
+  return runSerializedWorkingCopyMutation(targets[0], async () => {
+    for (const localOnlyPath of await listLocalOnlyContent(targets)) {
+      if (!existsSync(localOnlyPath)) continue;
+      try {
+        await shell.trashItem(localOnlyPath);
+      } catch (error) {
+        return {
+          success: false,
+          error: `Nothing was removed from the working copy: local-only files inside it could not be moved to the trash first (${
+            (error as Error)?.message || 'Unknown filesystem error'
+          }).`,
+        };
+      }
+    }
+
+    try {
+      await runSvnText(withSvnTargets(['update', '--set-depth', 'exclude'], targets));
     } catch (error) {
       return {
         success: false,
-        error: (error as Error)?.message || 'Failed to exclude folder from working copy',
+        error: (error as Error)?.message || 'Failed to exclude from working copy',
       };
     }
 
-    // A clean sparse exclusion normally removes the directory itself. If
-    // unversioned or ignored content caused SVN to leave it behind, move the
-    // remainder to the OS trash only after SVN confirmed the exclusion.
-    try {
-      if (existsSync(path)) {
-        await shell.trashItem(path);
+    // With the local-only content gone SVN removes the item itself. Anything
+    // still here (a file appearing mid-operation, say) is trashed so the view
+    // matches the exclusion rather than showing a phantom.
+    const leftBehind = targets.filter((target) => existsSync(target));
+    for (const target of leftBehind) {
+      try {
+        await shell.trashItem(target);
+      } catch (error) {
+        return {
+          success: false,
+          error: `SVN excluded the selection, but remaining local files could not be moved to the trash: ${
+            (error as Error)?.message || 'Unknown filesystem error'
+          }`,
+        };
       }
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: `SVN excluded the folder, but its remaining local files could not be moved to the trash: ${
-          (error as Error)?.message || 'Unknown filesystem error'
-        }`,
-      };
     }
+    return { success: true };
   });
 }
 

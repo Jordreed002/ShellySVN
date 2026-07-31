@@ -631,7 +631,7 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                     {isPreviewing ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Previewing...
+                        Previewing…
                       </>
                     ) : (
                       'Dry-run Preview'

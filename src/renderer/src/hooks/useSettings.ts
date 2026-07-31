@@ -28,6 +28,12 @@ const MAX_RECENT_REPOS = 10;
 const MAX_RECENT_PATHS = 20;
 const MAX_BOOKMARKS = 50;
 
+const SETTINGS_QUERY_KEY = ['settings'] as const;
+
+async function loadStoredSettings(): Promise<AppSettings> {
+  return mergeSettings(await window.api.store.get<AppSettings>('settings'));
+}
+
 export function useSettings(): UseSettingsReturn {
   const queryClient = useQueryClient();
 
@@ -36,21 +42,36 @@ export function useSettings(): UseSettingsReturn {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['settings'],
-    queryFn: async () => {
-      const stored = await window.api.store.get<AppSettings>('settings');
-      return mergeSettings(stored);
-    },
+    queryKey: SETTINGS_QUERY_KEY,
+    queryFn: loadStoredSettings,
     staleTime: Infinity, // Settings don't change often
     refetchOnMount: false, // Don't refetch when component mounts if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
+  /**
+   * The settings as they are actually stored — read from the cache when it is
+   * warm, otherwise from disk.
+   *
+   * Never fall back to `DEFAULT_SETTINGS` here. Every writer below merges onto
+   * this value and then persists the whole object, so defaulting would mean a
+   * write that lands before the settings query resolves **erases** the user's
+   * real recent repositories and bookmarks from disk. A route that records a
+   * recent path on mount (`/files` does) loses that race easily on a cold start.
+   */
+  const readCurrentSettings = useCallback(
+    (): Promise<AppSettings> =>
+      queryClient.ensureQueryData({
+        queryKey: SETTINGS_QUERY_KEY,
+        queryFn: loadStoredSettings,
+      }),
+    [queryClient]
+  );
+
   // Mutation for updating settings
   const updateMutation = useMutation({
     mutationFn: async (updates: DeepPartial<AppSettings>) => {
-      // Read the LATEST cached value directly from queryClient to avoid stale closures
-      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const current = await readCurrentSettings();
       const updated = mergeDeep(
         current as unknown as Record<string, unknown>,
         updates as Partial<Record<string, unknown>>
@@ -60,7 +81,7 @@ export function useSettings(): UseSettingsReturn {
     },
     onSuccess: (updated) => {
       // Update the cache immediately
-      queryClient.setQueryData(['settings'], updated);
+      queryClient.setQueryData(SETTINGS_QUERY_KEY, updated);
     },
   });
   const { mutateAsync, isPending } = updateMutation;
@@ -69,7 +90,7 @@ export function useSettings(): UseSettingsReturn {
   const addRecentRepo = useCallback(
     async (repoPath: string) => {
       // Read the latest cached value to avoid race conditions
-      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const current = await readCurrentSettings();
       const currentRecents = current.recentRepositories || [];
 
       // Remove if already exists (to move to top)
@@ -80,36 +101,36 @@ export function useSettings(): UseSettingsReturn {
 
       await mutateAsync({ recentRepositories: updated });
     },
-    [queryClient, mutateAsync]
+    [readCurrentSettings, mutateAsync]
   );
 
   // Remove a repository from recent list
   const removeRecentRepo = useCallback(
     async (repoPath: string) => {
       // Read the latest cached value to avoid race conditions
-      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const current = await readCurrentSettings();
       const updated = (current.recentRepositories || []).filter((p) => p !== repoPath);
       await mutateAsync({ recentRepositories: updated });
     },
-    [queryClient, mutateAsync]
+    [readCurrentSettings, mutateAsync]
   );
 
   // Add a path to recent paths
   const addRecentPath = useCallback(
     async (path: string) => {
-      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const current = await readCurrentSettings();
       const currentPaths = current.recentPaths || [];
       const filtered = currentPaths.filter((p) => p !== path);
       const updated = [path, ...filtered].slice(0, MAX_RECENT_PATHS);
       await mutateAsync({ recentPaths: updated });
     },
-    [queryClient, mutateAsync]
+    [readCurrentSettings, mutateAsync]
   );
 
   // Add a bookmark
   const addBookmark = useCallback(
     async (path: string, name: string) => {
-      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const current = await readCurrentSettings();
       const currentBookmarks = current.bookmarks || [];
       // Check if already bookmarked
       if (currentBookmarks.some((b) => b.path === path)) return;
@@ -117,17 +138,17 @@ export function useSettings(): UseSettingsReturn {
       const updated = [newBookmark, ...currentBookmarks].slice(0, MAX_BOOKMARKS);
       await mutateAsync({ bookmarks: updated });
     },
-    [queryClient, mutateAsync]
+    [readCurrentSettings, mutateAsync]
   );
 
   // Remove a bookmark
   const removeBookmark = useCallback(
     async (path: string) => {
-      const current = queryClient.getQueryData<AppSettings>(['settings']) || DEFAULT_SETTINGS;
+      const current = await readCurrentSettings();
       const updated = (current.bookmarks || []).filter((b) => b.path !== path);
       await mutateAsync({ bookmarks: updated });
     },
-    [queryClient, mutateAsync]
+    [readCurrentSettings, mutateAsync]
   );
 
   // Update any setting

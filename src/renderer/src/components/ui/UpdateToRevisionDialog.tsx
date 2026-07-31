@@ -11,15 +11,25 @@ interface UpdateResult {
   error?: string;
 }
 
+type ConfirmUpdate = (depth: UpdateDepth, setDepthSticky: boolean) => Promise<UpdateResult>;
+
 interface UpdateToRevisionDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete?: () => void;
   itemName: string;
-  onConfirm: (
+  onConfirm: ConfirmUpdate;
+  /**
+   * Fetch the given repository URLs into their matching local paths. The mapping
+   * from URL to working-copy path depends on which folder is open (and on any
+   * switched subtree or external below it), so it is the caller's to make — this
+   * dialog only knows the URLs the tree handed back.
+   */
+  onConfirmUrls?: (
+    repoUrls: string[],
     depth: UpdateDepth,
     setDepthSticky: boolean
-  ) => Promise<{ success: boolean; revision: SvnOperationRevision; error?: string }>;
+  ) => Promise<UpdateResult>;
   repoUrl?: string;
   credentials?: AuthCredential;
   workingCopyRoot?: string;
@@ -31,6 +41,7 @@ export function UpdateToRevisionDialog({
   onComplete,
   itemName,
   onConfirm,
+  onConfirmUrls,
   repoUrl,
   credentials,
   workingCopyRoot,
@@ -59,38 +70,18 @@ export function UpdateToRevisionDialog({
       setError(null);
 
       try {
-        // Update each selected path individually
-        const results = await Promise.allSettled(
-          paths.map((path) =>
-            window.api.svn.updateToRevision(workingCopyRoot, repoUrl, path, depth, setDepthSticky)
-          )
-        );
+        // The tree yields repository URLs; only the caller can say which local
+        // path each one belongs to, so it does the fetching.
+        if (!onConfirmUrls) {
+          setError('Choosing items is not available for this working copy.');
+          return;
+        }
 
-        // Check if all updates were successful
-        const allSuccessful = results.every(
-          (result) => result.status === 'fulfilled' && (result.value as UpdateResult).success
-        );
-
-        if (allSuccessful) {
-          // Show success for individual updates
-          const lastSuccessful = results[
-            results.length - 1
-          ] as PromiseFulfilledResult<UpdateResult>;
-          setSuccess({ revision: lastSuccessful.value.revision || 0 });
+        const result = await onConfirmUrls(paths, depth, setDepthSticky);
+        if (result.success) {
+          setSuccess({ revision: result.revision ?? 0 });
         } else {
-          // Show error if any update failed
-          const firstError = results.find(
-            (result) => result.status === 'rejected' || !(result.value as UpdateResult).success
-          );
-          if (firstError) {
-            if (firstError.status === 'rejected') {
-              setError((firstError.reason as Error).message || 'Sparse checkout update failed');
-            } else {
-              setError((firstError.value as UpdateResult).error || 'Sparse checkout update failed');
-            }
-          } else {
-            setError('Sparse checkout update failed');
-          }
+          setError(result.error || 'Sparse checkout update failed');
         }
       } catch (err) {
         setError((err as Error).message || 'Sparse checkout update failed');
@@ -100,7 +91,7 @@ export function UpdateToRevisionDialog({
         setShowChooseItemsDialog(false);
       }
     },
-    [repoUrl, workingCopyRoot, depth, setDepthSticky]
+    [repoUrl, workingCopyRoot, depth, setDepthSticky, onConfirmUrls]
   );
 
   useEffect(() => {
@@ -199,7 +190,7 @@ export function UpdateToRevisionDialog({
                         disabled={isUpdating || isUpdatingMultiple}
                       >
                         <FolderOpen className="w-4 h-4" />
-                        Choose items...
+                        Choose items…
                       </button>
                     )}
                   </div>
@@ -319,7 +310,7 @@ export function UpdateToRevisionDialog({
                   {isUpdating ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Updating...
+                      Updating…
                     </>
                   ) : (
                     <>

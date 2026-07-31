@@ -191,7 +191,7 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                   id="import-log-message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Initial import of project files..."
+                  placeholder="Initial import of project files…"
                   className="input h-24 resize-none"
                   disabled={isImporting}
                 />
@@ -228,7 +228,7 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                 {isImporting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Importing...
+                    Importing…
                   </>
                 ) : (
                   <>

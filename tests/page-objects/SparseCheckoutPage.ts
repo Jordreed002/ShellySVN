@@ -321,25 +321,29 @@ export class RepoBrowserPage {
 }
 
 /**
- * Page object for File Explorer with remote items support
+ * Page object for the File Explorer's sparse-checkout affordances: the entries
+ * the repository has in this folder that are not on disk here.
+ *
+ * They are "not checked out" (presence), never "remote" — and the toggle for
+ * them is a view setting, so it lives in the View options menu.
  */
-export class FileExplorerWithRemotePage {
+export class FileExplorerNotCheckedOutPage {
   readonly page: Page;
   readonly container: Locator;
-  readonly showRemoteToggle: Locator;
+  readonly viewOptionsButton: Locator;
+  readonly showNotCheckedOutToggle: Locator;
   readonly fileTable: Locator;
-  readonly remoteItemIndicator: Locator;
 
   constructor(page: Page) {
     this.page = page;
     this.container = page
       .locator('[data-testid="file-explorer"], main:has-text("File Explorer")')
       .first();
-    this.showRemoteToggle = this.container
-      .locator('button[title*="remote"], button[title*="Remote"]')
+    this.viewOptionsButton = page.locator('button[aria-label="View options"]').first();
+    this.showNotCheckedOutToggle = page
+      .locator('[role="menuitemcheckbox"]:has-text("Show items not checked out")')
       .first();
     this.fileTable = this.container.locator('table, .file-list, [role="grid"]').first();
-    this.remoteItemIndicator = this.container.locator('[class*="remote"], .text-muted').first();
   }
 
   /**
@@ -350,20 +354,27 @@ export class FileExplorerWithRemotePage {
     await this.container.waitFor({ state: 'visible' });
   }
 
-  /**
-   * Toggle show remote items
-   */
-  async toggleShowRemote(): Promise<void> {
-    await this.showRemoteToggle.click();
-    await this.page.waitForTimeout(500); // Wait for items to load
+  /** Open the View options menu, where the presence toggle lives. */
+  async openViewOptions(): Promise<void> {
+    await this.viewOptionsButton.click();
   }
 
   /**
-   * Check if remote items toggle exists
+   * Toggle "Show items not checked out"
    */
-  async hasRemoteToggle(): Promise<boolean> {
+  async toggleShowNotCheckedOut(): Promise<void> {
+    await this.openViewOptions();
+    await this.showNotCheckedOutToggle.click();
+    await this.page.waitForTimeout(500); // Wait for `svn list` to answer
+  }
+
+  /**
+   * Check whether the toggle is offered (it only is inside a working copy)
+   */
+  async hasNotCheckedOutToggle(): Promise<boolean> {
     try {
-      await this.showRemoteToggle.waitFor({ state: 'visible', timeout: 2000 });
+      await this.openViewOptions();
+      await this.showNotCheckedOutToggle.waitFor({ state: 'visible', timeout: 2000 });
       return true;
     } catch {
       return false;

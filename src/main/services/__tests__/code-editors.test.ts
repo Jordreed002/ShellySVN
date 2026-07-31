@@ -1,0 +1,325 @@
+// @vitest-environment node
+/**
+ * The menu must only offer editors that will actually launch, which means the
+ * launcher has to be found on `PATH` exactly as a shell would find it.
+ */
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { delimiter, join } from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const spawn = vi.hoisted(() => vi.fn());
+const spawnSync = vi.hoisted(() => vi.fn(() => ({ stdout: '' })));
+vi.mock('child_process', () => ({ spawn, spawnSync }));
+
+const customTools = vi.hoisted(() => ({ value: [] as unknown[] }));
+vi.mock('../../settings-manager', () => ({
+  getSettingsManager: () => ({ get: () => customTools.value }),
+}));
+
+vi.mock('../../utils/debug', () => ({
+  debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  default: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+import {
+  buildCustomArgs,
+  listCodeEditors,
+  openInCodeEditor,
+  resetCodeEditorCacheForTests,
+  setEditorSearchDirectoriesForTests,
+} from '../code-editors';
+
+const originalPath = process.env.PATH;
+let binDir = '';
+
+function fakeExecutable(name: string) {
+  const file = join(binDir, name);
+  writeFileSync(file, '#!/bin/sh\nexit 0\n');
+  chmodSync(file, 0o755);
+}
+
+function fakeNonExecutable(name: string) {
+  const file = join(binDir, name);
+  writeFileSync(file, 'not runnable\n');
+  chmodSync(file, 0o644);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  spawnSync.mockReturnValue({ stdout: '' });
+  resetCodeEditorCacheForTests();
+  // Otherwise the answer depends on what is installed on this machine.
+  setEditorSearchDirectoriesForTests([]);
+  customTools.value = [];
+  binDir = mkdtempSync(join(tmpdir(), 'shelly-editors-'));
+  mkdirSync(binDir, { recursive: true });
+  process.env.PATH = binDir;
+  // A spawn that reports a successful start.
+  spawn.mockImplementation(() => {
+    const handlers: Record<string, (arg?: unknown) => void> = {};
+    const child = {
+      once(event: string, handler: (arg?: unknown) => void) {
+        handlers[event] = handler;
+        if (event === 'spawn') setTimeout(() => handler(), 0);
+        return child;
+      },
+      unref: vi.fn(),
+    };
+    return child;
+  });
+});
+
+afterEach(() => {
+  process.env.PATH = originalPath;
+  setEditorSearchDirectoriesForTests(null);
+});
+
+describe('listCodeEditors', () => {
+  it('offers only the editors whose launcher is on PATH', async () => {
+    fakeExecutable('code');
+    fakeExecutable('subl');
+
+    const editors = await listCodeEditors({ refresh: true });
+
+    expect(editors.map((editor) => editor.id)).toEqual(['vscode', 'sublime']);
+    expect(editors[0]).toEqual({ id: 'vscode', label: 'VS Code', command: 'code' });
+  });
+
+  it('ignores a file that is present but not executable', async () => {
+    fakeNonExecutable('cursor');
+
+    await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
+  });
+
+  it('offers nothing when PATH holds no editor at all', async () => {
+    await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
+  });
+
+  it('searches every PATH entry, not just the first', async () => {
+    const second = mkdtempSync(join(tmpdir(), 'shelly-editors-2-'));
+    writeFileSync(join(second, 'zed'), '#!/bin/sh\n');
+    chmodSync(join(second, 'zed'), 0o755);
+    process.env.PATH = [binDir, second].join(delimiter);
+
+    const editors = await listCodeEditors({ refresh: true });
+    expect(editors.map((editor) => editor.id)).toEqual(['zed']);
+  });
+
+  /*
+   * The bug this guards: launched from Finder or the dock, the app inherits
+   * launchd's `/usr/bin:/bin:/usr/sbin:/sbin` — not the shell's PATH — so an
+   * editor in `/usr/local/bin` looked uninstalled and the menu was empty.
+   */
+  it('finds an editor the shell knows about but the GUI PATH does not', async () => {
+    fakeExecutable('code');
+    // What a Finder-launched app actually sees.
+    process.env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+    spawnSync.mockReturnValue({ stdout: `/usr/bin:${binDir}\n` });
+
+    const editors = await listCodeEditors({ refresh: true });
+
+    expect(editors.map((editor) => editor.id)).toEqual(['vscode']);
+    expect(spawnSync).toHaveBeenCalledWith(
+      process.env.SHELL,
+      ['-ilc', 'printf %s "$PATH"'],
+      expect.objectContaining({ timeout: 3000 })
+    );
+  });
+
+  it('asks the login shell once, not per editor and not per right-click', async () => {
+    await listCodeEditors({ refresh: true });
+    await listCodeEditors({ refresh: true });
+
+    expect(spawnSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('still works when the login shell cannot be read', async () => {
+    fakeExecutable('code');
+    spawnSync.mockImplementation(() => {
+      throw new Error('no shell here');
+    });
+
+    await expect(listCodeEditors({ refresh: true })).resolves.toMatchObject([{ id: 'vscode' }]);
+  });
+
+  it('holds the PATH scan for the session instead of rescanning per right-click', async () => {
+    fakeExecutable('code');
+    expect((await listCodeEditors()).map((editor) => editor.id)).toEqual(['vscode']);
+
+    fakeExecutable('cursor');
+    // Not rescanned, so the newcomer is not there yet…
+    expect((await listCodeEditors()).map((editor) => editor.id)).toEqual(['vscode']);
+    // …until asked.
+    expect((await listCodeEditors({ refresh: true })).map((editor) => editor.id)).toEqual([
+      'vscode',
+      'cursor',
+    ]);
+  });
+});
+
+describe('custom applications from Settings', () => {
+  const tool = {
+    id: 'bc',
+    name: 'Beyond Compare',
+    command: '/usr/local/bin/bcomp',
+    appliesTo: 'both' as const,
+  };
+
+  it('offers them after the detected editors, marked as the user’s own', async () => {
+    fakeExecutable('code');
+    customTools.value = [tool];
+
+    const editors = await listCodeEditors({ refresh: true });
+
+    expect(editors.map((editor) => editor.id)).toEqual(['vscode', 'custom:bc']);
+    expect(editors[1]).toMatchObject({
+      label: 'Beyond Compare',
+      command: '/usr/local/bin/bcomp',
+      appliesTo: 'both',
+      custom: true,
+    });
+  });
+
+  it('picks up an edit without a rescan, since the PATH cache is separate', async () => {
+    await listCodeEditors({ refresh: true });
+    customTools.value = [tool];
+
+    // No `refresh`: the new application is still there.
+    expect((await listCodeEditors()).map((editor) => editor.id)).toEqual(['custom:bc']);
+  });
+
+  it('ignores half-filled rows rather than offering a blank menu item', async () => {
+    customTools.value = [
+      { id: 'a', name: '', command: '/bin/true' },
+      { id: 'b', name: 'No command', command: '   ' },
+    ];
+
+    await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
+  });
+
+  it('carries the kind it applies to, so the menu can filter by entry', async () => {
+    customTools.value = [{ ...tool, appliesTo: 'folders' }];
+    const [entry] = await listCodeEditors({ refresh: true });
+    expect(entry.appliesTo).toBe('folders');
+  });
+
+  it('runs the command from settings, with the path appended', async () => {
+    customTools.value = [tool];
+    await listCodeEditors({ refresh: true });
+
+    await expect(openInCodeEditor('custom:bc', '/wc/file.txt')).resolves.toEqual({ success: true });
+    expect(spawn).toHaveBeenCalledWith(
+      '/usr/local/bin/bcomp',
+      ['/wc/file.txt'],
+      expect.objectContaining({ detached: true })
+    );
+  });
+
+  it('substitutes {path} in the middle of an argument list', async () => {
+    customTools.value = [{ ...tool, arguments: '--flag {path} --after' }];
+    await listCodeEditors({ refresh: true });
+
+    await openInCodeEditor('custom:bc', '/wc/file.txt');
+    expect(spawn).toHaveBeenCalledWith(
+      '/usr/local/bin/bcomp',
+      ['--flag', '/wc/file.txt', '--after'],
+      expect.anything()
+    );
+  });
+
+  it('refuses an id that is no longer configured', async () => {
+    customTools.value = [];
+    await expect(openInCodeEditor('custom:gone', '/wc/file.txt')).resolves.toEqual({
+      success: false,
+      error: 'That application is no longer configured in Settings.',
+    });
+    expect(spawn).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildCustomArgs', () => {
+  it('appends the path when no template says otherwise', () => {
+    expect(buildCustomArgs(undefined, '/wc/x')).toEqual(['/wc/x']);
+    expect(buildCustomArgs('   ', '/wc/x')).toEqual(['/wc/x']);
+    expect(buildCustomArgs('--new-window', '/wc/x')).toEqual(['--new-window', '/wc/x']);
+  });
+
+  it('puts the path exactly where {path} is', () => {
+    expect(buildCustomArgs('--diff {path} --wait', '/wc/x')).toEqual([
+      '--diff',
+      '/wc/x',
+      '--wait',
+    ]);
+  });
+
+  it('keeps a quoted argument in one piece', () => {
+    expect(buildCustomArgs('--title "My Files" {path}', '/wc/x')).toEqual([
+      '--title',
+      'My Files',
+      '/wc/x',
+    ]);
+  });
+
+  it('handles a path with spaces without quoting games', () => {
+    expect(buildCustomArgs('{path}', '/wc/Gatsby dev workspace')).toEqual([
+      '/wc/Gatsby dev workspace',
+    ]);
+  });
+});
+
+describe('openInCodeEditor', () => {
+  it('runs the launcher the id maps to, detached, with the path as its argument', async () => {
+    fakeExecutable('code');
+    await listCodeEditors({ refresh: true });
+
+    await expect(openInCodeEditor('vscode', '/wc/src')).resolves.toEqual({ success: true });
+
+    // The absolute launcher, not the bare name: a GUI-launched app cannot rely
+    // on `code` resolving against the PATH it inherited.
+    expect(spawn).toHaveBeenCalledWith(
+      join(binDir, 'code'),
+      ['/wc/src'],
+      expect.objectContaining({ detached: true, stdio: 'ignore' })
+    );
+    expect(spawn.mock.calls[0][2].env.PATH).toContain(binDir);
+  });
+
+  it('refuses an editor id it does not know, without spawning anything', async () => {
+    await expect(openInCodeEditor('rm -rf /', '/wc/src')).resolves.toEqual({
+      success: false,
+      error: 'Unknown editor: rm -rf /',
+    });
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('refuses a known editor that is not installed here', async () => {
+    await listCodeEditors({ refresh: true });
+
+    await expect(openInCodeEditor('vscode', '/wc/src')).resolves.toMatchObject({
+      success: false,
+      error: 'VS Code was not found on this machine.',
+    });
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('reports a launcher that fails to start', async () => {
+    fakeExecutable('code');
+    await listCodeEditors({ refresh: true });
+    spawn.mockImplementation(() => {
+      const child = {
+        once(event: string, handler: (arg?: unknown) => void) {
+          if (event === 'error') setTimeout(() => handler(new Error('spawn EACCES')), 0);
+          return child;
+        },
+        unref: vi.fn(),
+      };
+      return child;
+    });
+
+    await expect(openInCodeEditor('vscode', '/wc/src')).resolves.toEqual({
+      success: false,
+      error: 'spawn EACCES',
+    });
+  });
+});

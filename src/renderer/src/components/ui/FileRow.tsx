@@ -1,3 +1,13 @@
+/**
+ * One row of the working-copy file list, and the list's column header.
+ *
+ * Design source: `prototypes/12-browser.html` (`.chead`, `.crow`, `.cname`,
+ * `.cnum`, `.ctxt`, `.cst`, `.rowtools`) — the same density the repository
+ * browser already renders in `features/repo-browser/components/RepoContentsRow`.
+ * Status chips are that feature's `RepoStatusFlag`, imported rather than
+ * re-invented, so a modified file reads `Modified M` wherever it appears.
+ */
+
 import { memo, useRef } from 'react';
 import {
   Folder,
@@ -8,13 +18,63 @@ import {
   FileArchive,
   FileSpreadsheet,
   FileJson,
+  ArrowUp,
   ChevronRight,
-  Lock,
+  CloudOff,
 } from 'lucide-react';
-import type { SvnStatusEntry } from '@shared/types';
-import { StatusIcon, StatusDot } from './StatusIcon';
+import type { CodeEditorInfo, SvnStatusChar, SvnStatusEntry } from '@shared/types';
+import {
+  RepoLockFlag,
+  RepoStatusFlag,
+} from '../../features/repo-browser/components/RepoStatusFlag';
+import type { RepoStatusCode } from '../../features/repo-browser/types';
 import { useContextMenu, getSvnContextMenuItems, ContextMenu } from './ContextMenu';
 import { FileThumbnail } from './FileThumbnail';
+
+/** Row heights, from the prototype's `.crow`. Exported for the virtualizer. */
+export const FILE_ROW_HEIGHT = 38;
+export const FILE_ROW_HEIGHT_COMPACT = 30;
+
+/**
+ * Every `svn status` code that has a spelled-out flag. `' '` (clean) and `'O'`
+ * (in the repository, not in this working copy) are ours, not Subversion's, and
+ * are handled separately — a made-up letter in a status column would be a lie.
+ */
+const FLAGGED_STATUS = new Set<string>(['M', 'A', 'D', 'C', 'R', 'X', '?', 'I', '!', '~']);
+
+function toRepoStatusCode(status: SvnStatusChar): RepoStatusCode | null {
+  return FLAGGED_STATUS.has(status) ? (status as RepoStatusCode) : null;
+}
+
+/**
+ * The prototype's `.flag` shell. `RepoStatusFlag` owns the status chips; this
+ * is only for the two marks that are not `svn status` codes (a folder's
+ * roll-up count, and "not in this working copy"), so they sit on the same
+ * baseline as the real ones.
+ */
+const FLAG_SHELL =
+  'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-1.5 py-px text-xs font-bold leading-5';
+
+/**
+ * The grid track list shared by `FileListHeader` and every `FileRow`, from the
+ * prototype's `.chead, .crow` rule. Widths past the name come from the
+ * resizable column state so dragging a header edge still works.
+ */
+export function fileRowGridTemplate(
+  columnWidths: NonNullable<FileRowProps['columnWidths']>,
+  showColumns = true
+): string {
+  const lead = '22px 20px minmax(120px, 1fr)';
+  if (!showColumns) return lead;
+  return [
+    lead,
+    `${columnWidths.revision}px`,
+    `${columnWidths.author}px`,
+    `${columnWidths.date}px`,
+    `${columnWidths.size}px`,
+    `${columnWidths.status}px`,
+  ].join(' ');
+}
 
 // Module-level constants for default props to avoid new instances on every render
 const EMPTY_FOLDER_SIZES: Record<string, number> = {};
@@ -68,6 +128,11 @@ export interface FileRowActions {
   onResolve?: (entry: SvnStatusEntry) => void;
   onAddToIgnore?: (entry: SvnStatusEntry) => void;
   onCheckForModifications?: (entry: SvnStatusEntry) => void;
+  /** Editors found on `PATH`; the menu lists only these. */
+  editors?: readonly CodeEditorInfo[];
+  onOpenInEditor?: (entry: SvnStatusEntry, editorId: string) => void;
+  /** Opens Settings at the list of applications. */
+  onConfigureOpenWith?: () => void;
 }
 
 /**
@@ -123,6 +188,11 @@ export function buildSvnContextMenuItems(
       onProperties: actions.onProperties ? () => actions.onProperties!(entry) : undefined,
       onResolve: actions.onResolve ? () => actions.onResolve!(entry) : undefined,
       onAddToIgnore: actions.onAddToIgnore ? () => actions.onAddToIgnore!(entry) : undefined,
+      editors: actions.editors,
+      onOpenInEditor: actions.onOpenInEditor
+        ? (editorId: string) => actions.onOpenInEditor!(entry, editorId)
+        : undefined,
+      onConfigureOpenWith: actions.onConfigureOpenWith,
       onCheckForModifications: actions.onCheckForModifications
         ? () => actions.onCheckForModifications!(entry)
         : undefined,
@@ -312,42 +382,99 @@ export const FileRow = memo(function FileRow({
   // Context menu items with action callbacks
   const contextMenuItems = buildSvnContextMenuItems(entry, actions, workingCopyRoot);
 
+  const statusCode = toRepoStatusCode(entry.status);
+
+  /*
+   * The status cell, in the prototype's order of precedence: the item's own
+   * `svn status` first, then a folder's roll-up of what changed beneath it.
+   */
+  let statusCell: React.ReactNode = null;
+  if (statusCode) {
+    statusCell = <RepoStatusFlag code={statusCode} />;
+  } else if (entry.status === 'O') {
+    statusCell = (
+      <span
+        className={`${FLAG_SHELL} border-border bg-bg-tertiary text-text-muted`}
+        title="In the repository but not in this working copy — svn update fetches it"
+      >
+        <CloudOff className="h-3 w-3 shrink-0" aria-hidden="true" />
+        Not checked out
+      </span>
+    );
+  } else if (entry.isDirectory && entry.childChangeCount) {
+    statusCell = (
+      <span
+        className={`${FLAG_SHELL} border-svn-modified/40 bg-svn-modified/10 tabular-nums text-svn-modified`}
+        title={`${entry.childChangeCount} changed item${
+          entry.childChangeCount === 1 ? '' : 's'
+        } below this directory`}
+      >
+        {entry.childChangeCount}
+        <span className="sr-only">
+          {' '}
+          changed item{entry.childChangeCount === 1 ? '' : 's'} below this directory
+        </span>
+      </span>
+    );
+  }
+
+  /*
+   * Row tools take the status cell's place on hover — the row has no spare
+   * column. `focus-within` keeps them reachable from the keyboard, which a
+   * `display:none` button would not be.
+   */
+  const tools: Array<{ label: string; hint: string; run: () => void }> = [];
+  if (!entry.isDirectory && actions.onDiff) {
+    tools.push({ label: 'Diff', hint: 'svn diff', run: () => actions.onDiff?.(entry) });
+  }
+  if (actions.onShowLog) {
+    tools.push({ label: 'Log', hint: 'svn log', run: () => actions.onShowLog?.(entry) });
+  }
+  const hasTools = showColumns && tools.length > 0;
+
   return (
     <>
       <div
         className={`
-          file-row
-          ${isSelected ? 'file-row-selected' : ''}
+          file-row group/row grid items-center gap-[9px] mx-0 rounded-none border-b border-border-muted px-3 py-0
+          outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent
+          ${compact ? 'h-[30px]' : 'h-[38px]'}
+          ${isSelected ? 'file-row-selected' : 'hover:bg-bg-secondary'}
           ${entry.isDirectory ? 'text-text' : 'text-text-secondary'}
-          ${entry.status === 'O' ? 'opacity-70 italic' : ''}
-          ${compact ? 'py-1' : 'py-2'}
+          ${entry.status === 'O' ? 'opacity-60' : ''}
         `}
-        style={style}
+        style={{
+          ...style,
+          gridTemplateColumns: fileRowGridTemplate(columnWidths, showColumns),
+          paddingLeft: depth > 0 ? depth * 16 + 12 : undefined,
+        }}
         onClick={handleClick}
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         data-path={entry.path}
+        /* Roving tab stop: the selected row is the list's way in from the
+           keyboard, and focusing it reveals the row tools via `focus-within`. */
+        tabIndex={isSelected ? 0 : -1}
       >
         {/* Expand/Collapse Toggle */}
-        <div
-          className="flex items-center justify-center w-5 flex-shrink-0"
-          style={{ marginLeft: depth * 16 }}
-        >
+        <div className="flex items-center justify-center">
           {entry.isDirectory && hasChildren && (
             <button
+              type="button"
               onClick={handleToggle}
-              className="p-0.5 hover:bg-bg-elevated rounded transition-fast"
+              aria-label={isExpanded ? `Collapse ${filename}` : `Expand ${filename}`}
+              className="rounded p-0.5 transition-fast hover:bg-bg-elevated"
             >
               <ChevronRight
-                className={`w-3.5 h-3.5 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                className={`h-3.5 w-3.5 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
               />
             </button>
           )}
         </div>
 
-        {/* File Icon */}
-        <div className="flex items-center justify-center w-6 flex-shrink-0">
+        {/* Kind icon */}
+        <div className="flex items-center justify-center">
           {showThumbnails ? (
             <FileThumbnail
               filePath={entry.path}
@@ -357,91 +484,90 @@ export const FileRow = memo(function FileRow({
             />
           ) : (
             <Icon
-              className={`
-                w-4 h-4
-                ${entry.isDirectory ? 'text-accent' : 'text-text-muted'}
-              `}
+              className={`h-[17px] w-[17px] ${entry.isDirectory ? 'text-accent' : 'text-text-muted'}`}
             />
           )}
         </div>
 
-        {/* Status dot — quiet when clean, only shown for changed/special items */}
-        <div className="flex items-center justify-center w-6 flex-shrink-0">
-          {entry.status !== ' ' && <StatusDot status={entry.status} />}
-        </div>
-
-        {/* Name Column */}
-        <div
-          className="flex-1 truncate pr-4 flex items-center gap-1.5"
-          style={{ minWidth: columnWidths.name - 80 }}
-        >
-          <span className={entry.isDirectory ? 'font-medium' : ''}>{filename}</span>
-          {entry.isDirectory && entry.childChangeCount ? (
-            <span
-              className="flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 rounded-full bg-svn-modified/15 text-svn-modified text-2xs font-semibold tabular-nums"
-              title={`${entry.childChangeCount} changed item${entry.childChangeCount === 1 ? '' : 's'} inside`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-svn-modified" />
-              {entry.childChangeCount}
-            </span>
-          ) : null}
+        {/* Name */}
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[13px] font-semibold text-text" title={entry.path}>
+            {filename}
+          </span>
           {entry.lock && (
-            <span
-              title={`Locked by ${entry.lock.owner}${entry.lock.comment ? `: ${entry.lock.comment}` : ''}`}
-            >
-              <Lock
-                className="w-3 h-3 text-warning flex-shrink-0"
-                aria-label={`Locked by ${entry.lock.owner}`}
-              />
-            </span>
+            <RepoLockFlag
+              lock={{
+                owner: entry.lock.owner,
+                comment: entry.lock.comment,
+                created: entry.lock.date,
+              }}
+            />
           )}
         </div>
 
         {/* Additional Columns */}
         {showColumns && (
           <>
-            {/* Status — blank for clean items to keep the list calm */}
+            {/* Last changed revision */}
             <div
-              className="flex items-center justify-center flex-shrink-0"
-              style={{ width: columnWidths.status }}
+              className="overflow-hidden text-right font-mono text-[11px] text-text-muted"
+              title={entry.revision ? `Last changed revision r${entry.revision}` : undefined}
             >
-              {entry.status !== ' ' && <StatusIcon status={entry.status} size="sm" />}
-            </div>
-
-            {/* Revision */}
-            <div
-              className="text-right text-sm text-text-secondary font-mono flex-shrink-0"
-              style={{ width: columnWidths.revision }}
-            >
-              {entry.revision || '-'}
+              {entry.revision ? `r${entry.revision}` : '—'}
             </div>
 
             {/* Author */}
             <div
-              className="truncate text-sm text-text-secondary flex-shrink-0"
-              style={{ width: columnWidths.author }}
+              className="truncate text-[12.5px] text-text-secondary"
+              title={entry.author || undefined}
             >
-              {entry.author || '-'}
+              {entry.author || '—'}
             </div>
 
             {/* Date */}
-            <div
-              className="text-sm text-text-secondary flex-shrink-0"
-              style={{ width: columnWidths.date }}
-            >
+            <div className="truncate text-[12.5px] text-text-secondary" title={entry.date}>
               {formatDate(entry.date)}
             </div>
 
             {/* Size (files only) */}
-            <div
-              className="text-right text-sm text-text-secondary font-mono flex-shrink-0"
-              style={{ width: columnWidths.size }}
-            >
+            <div className="overflow-hidden text-right font-mono text-[11px] text-text-muted">
               {entry.isDirectory
                 ? showFolderSizes && folderSizes[entry.path]
                   ? formatSize(folderSizes[entry.path])
-                  : '-'
-                : '-'}
+                  : '—'
+                : '—'}
+            </div>
+
+            {/* Status, swapped for the row tools on hover or focus */}
+            <div className="flex min-w-0 items-center justify-end">
+              <span
+                className={`items-center justify-end gap-1 ${
+                  hasTools
+                    ? 'flex group-hover/row:hidden group-focus-within/row:hidden'
+                    : 'flex'
+                }`}
+              >
+                {statusCell}
+              </span>
+              {hasTools && (
+                <span className="hidden items-center justify-end gap-1 group-hover/row:flex group-focus-within/row:flex">
+                  {tools.map((tool) => (
+                    <button
+                      key={tool.label}
+                      type="button"
+                      className="rounded-md border border-border bg-bg-secondary px-2 py-0.5 text-2xs font-semibold text-text hover:border-accent hover:text-accent"
+                      title={`${tool.label} — ${tool.hint}`}
+                      aria-label={`${tool.label} ${filename}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        tool.run();
+                      }}
+                    >
+                      {tool.label}
+                    </button>
+                  ))}
+                </span>
+              )}
             </div>
           </>
         )}
@@ -459,7 +585,12 @@ export const FileRow = memo(function FileRow({
   );
 });
 
-// Header row for the file list
+/**
+ * The list's column header — the prototype's `.chead`: 32px, sticky, 10px
+ * uppercase labels, and one sorted column marked with `aria-sort` as well as an
+ * arrow. Column order matches the row: the status column sits last, where the
+ * row tools appear on hover.
+ */
 export function FileListHeader({
   columnWidths = DEFAULT_COLUMN_WIDTHS,
   onColumnWidthChange,
@@ -473,107 +604,63 @@ export function FileListHeader({
   sortColumn?: string;
   sortDirection?: 'asc' | 'desc';
 }) {
+  const columns: Array<{
+    key: keyof NonNullable<FileRowProps['columnWidths']>;
+    label: string;
+    align: 'left' | 'right';
+    resizable: boolean;
+  }> = [
+    { key: 'name', label: 'Name', align: 'left', resizable: false },
+    { key: 'revision', label: 'Rev', align: 'right', resizable: true },
+    { key: 'author', label: 'Author', align: 'left', resizable: true },
+    { key: 'date', label: 'Date', align: 'left', resizable: true },
+    { key: 'size', label: 'Size', align: 'right', resizable: true },
+    { key: 'status', label: 'Status', align: 'right', resizable: false },
+  ];
+
   return (
-    <div className="flex items-center px-4 py-2 bg-bg-tertiary border-b border-border text-xs font-medium text-text-secondary uppercase tracking-wider select-none">
-      {/* Toggle + Icon + Status placeholder */}
-      <div className="w-5 flex-shrink-0" />
-      <div className="w-6 flex-shrink-0" />
-      <div className="w-6 flex-shrink-0" />
-
-      {/* Name */}
-      <div
-        className="flex-1 cursor-pointer hover:text-text transition-fast relative group"
-        onClick={() => onSort?.('name')}
-      >
-        Name
-        {sortColumn === 'name' && (
-          <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-        )}
-      </div>
-
-      {/* Status */}
-      <HeaderColumn
-        width={columnWidths.status}
-        onWidthChange={(w) => onColumnWidthChange?.('status', w)}
-        onSort={() => onSort?.('status')}
-        isSorted={sortColumn === 'status'}
-        sortDirection={sortDirection}
-        resizable
-      >
-        Status
-      </HeaderColumn>
-
-      {/* Revision */}
-      <HeaderColumn
-        width={columnWidths.revision}
-        onWidthChange={(w) => onColumnWidthChange?.('revision', w)}
-        onSort={() => onSort?.('revision')}
-        isSorted={sortColumn === 'revision'}
-        sortDirection={sortDirection}
-        resizable
-        align="right"
-      >
-        Rev
-      </HeaderColumn>
-
-      {/* Author */}
-      <HeaderColumn
-        width={columnWidths.author}
-        onWidthChange={(w) => onColumnWidthChange?.('author', w)}
-        onSort={() => onSort?.('author')}
-        isSorted={sortColumn === 'author'}
-        sortDirection={sortDirection}
-        resizable
-      >
-        Author
-      </HeaderColumn>
-
-      {/* Date */}
-      <HeaderColumn
-        width={columnWidths.date}
-        onWidthChange={(w) => onColumnWidthChange?.('date', w)}
-        onSort={() => onSort?.('date')}
-        isSorted={sortColumn === 'date'}
-        sortDirection={sortDirection}
-        resizable
-      >
-        Modified
-      </HeaderColumn>
-
-      {/* Size */}
-      <HeaderColumn
-        width={columnWidths.size}
-        onWidthChange={(w) => onColumnWidthChange?.('size', w)}
-        onSort={() => onSort?.('size')}
-        isSorted={sortColumn === 'size'}
-        sortDirection={sortDirection}
-        align="right"
-      >
-        Size
-      </HeaderColumn>
+    <div
+      role="row"
+      className="sticky top-0 z-[2] grid h-8 flex-none select-none items-center gap-[9px] border-b border-border bg-bg-secondary px-3"
+      style={{ gridTemplateColumns: fileRowGridTemplate(columnWidths) }}
+    >
+      <span />
+      <span />
+      {columns.map((column) => (
+        <HeaderColumn
+          key={column.key}
+          label={column.label}
+          align={column.align}
+          width={columnWidths[column.key]}
+          onWidthChange={
+            column.resizable ? (w) => onColumnWidthChange?.(column.key, w) : undefined
+          }
+          onSort={() => onSort?.(column.key)}
+          isSorted={sortColumn === column.key}
+          sortDirection={sortDirection}
+        />
+      ))}
     </div>
   );
 }
 
-// Resizable header column
+/** One header cell: a sort button, plus a drag handle when the column resizes. */
 function HeaderColumn({
+  label,
   width,
   onWidthChange,
   onSort,
   isSorted,
   sortDirection,
-  resizable = false,
   align = 'left',
-  children,
 }: {
+  label: string;
   width: number;
   onWidthChange?: (width: number) => void;
   onSort?: () => void;
   isSorted?: boolean;
   sortDirection?: 'asc' | 'desc';
-  resizable?: boolean;
-  align?: 'left' | 'right' | 'center';
-  children: React.ReactNode;
+  align?: 'left' | 'right';
 }) {
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
@@ -604,15 +691,29 @@ function HeaderColumn({
 
   return (
     <div
-      className={`relative cursor-pointer hover:text-text transition-fast ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : ''}`}
-      style={{ width }}
-      onClick={onSort}
+      role="columnheader"
+      aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className="relative flex h-8 min-w-0 items-center"
     >
-      {children}
-      {isSorted && <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-      {resizable && (
+      <button
+        type="button"
+        onClick={onSort}
+        className={`flex w-full items-center gap-[5px] overflow-hidden whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.08em] transition-fast ${
+          align === 'right' ? 'justify-end' : 'justify-start'
+        } ${isSorted ? 'text-accent' : 'text-text-faint hover:text-text-secondary'}`}
+      >
+        {label}
+        <ArrowUp
+          aria-hidden="true"
+          className={`h-[9px] w-[9px] shrink-0 transition-transform ${
+            isSorted ? 'opacity-100' : 'opacity-0'
+          } ${isSorted && sortDirection === 'desc' ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {onWidthChange && (
         <div
-          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/50 active:bg-accent transition-fast group-hover:bg-border"
+          aria-hidden="true"
+          className="absolute -right-[5px] top-0 h-8 w-[9px] cursor-col-resize transition-fast hover:bg-accent/40 active:bg-accent"
           onMouseDown={handleMouseDown}
         />
       )}

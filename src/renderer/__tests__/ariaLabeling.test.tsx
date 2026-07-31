@@ -19,15 +19,16 @@ describe('primary workflow ARIA labeling', () => {
         onSettings={vi.fn()}
         onDiagnostics={vi.fn()}
         onToggleBookmark={vi.fn()}
-        onBrowseModeChange={vi.fn()}
+        onBrowseOnline={vi.fn()}
         canBrowseOnline={true}
-        onToggleRemoteItems={vi.fn()}
+        onToggleNotCheckedOut={vi.fn()}
         onToggleFilters={vi.fn()}
         showFilters={false}
         onToggleDualPane={vi.fn()}
         onTogglePreview={vi.fn()}
         onSearchChange={vi.fn()}
-        onViewModeChange={vi.fn()}
+        explorerViewMode="list"
+        onExplorerViewModeChange={vi.fn()}
         onShowNotes={vi.fn()}
         hasChanges={false}
         hasSelection={false}
@@ -36,7 +37,8 @@ describe('primary workflow ARIA labeling', () => {
     );
 
     // Direct toolbar controls. Secondary file actions live in the "File actions"
-    // menu; remote-items lives in the View options menu; Settings/Notes moved to
+    // menu; "Show items not checked out" lives in the View options menu;
+    // Settings/Notes moved to
     // the sidebar and top bar respectively.
     [
       'Refresh files (F5)',

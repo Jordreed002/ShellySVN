@@ -700,14 +700,22 @@ export function useFileExplorerActions(
       if (selectedEntry?.isDirectory) {
         const requestedDepth = await promptAppInput({
           title: 'Choose folder revert depth',
-          message:
-            'Enter empty, files, immediates, or infinity. “infinity” recursively reverts every descendant.',
+          message: 'How much of this folder should be reverted?',
           defaultValue: 'infinity',
-          placeholder: 'infinity',
           confirmLabel: 'Continue',
+          // Subversion's four depths, worded as the checkout dialog words them
+          // so the same concept reads the same way throughout the app.
+          choices: [
+            { value: 'infinity', label: 'Fully recursive — this folder and everything inside it' },
+            { value: 'immediates', label: 'Immediate children — this folder, its files and subfolders' },
+            { value: 'files', label: 'Files only — this folder and the files directly in it' },
+            { value: 'empty', label: 'Only this item — the folder itself, nothing inside' },
+          ],
         });
         if (requestedDepth === null) return;
         const normalizedDepth = requestedDepth.trim().toLowerCase();
+        // The select cannot offer anything else; this only guards against a
+        // caller passing choices and expectations that have drifted apart.
         if (!['empty', 'files', 'immediates', 'infinity'].includes(normalizedDepth)) {
           reportError('Revert depth must be empty, files, immediates, or infinity.');
           return;

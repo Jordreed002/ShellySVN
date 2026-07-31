@@ -230,7 +230,7 @@ export function RelocateDialog({
               {isRelocating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Relocating...
+                  Relocating…
                 </>
               ) : (
                 <>

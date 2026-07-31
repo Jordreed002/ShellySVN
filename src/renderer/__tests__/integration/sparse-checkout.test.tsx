@@ -184,7 +184,7 @@ describe('ChooseItemsDialog Integration', () => {
       />
     );
 
-    expect(screen.getByText('Loading repository structure...')).toBeInTheDocument();
+    expect(screen.getByText('Loading repository structure…')).toBeInTheDocument();
   });
 
   it('shows error state with Try Again button', () => {
@@ -217,7 +217,7 @@ describe('ChooseItemsDialog Integration', () => {
       />
     );
 
-    const searchInput = screen.getByPlaceholderText('Search files and folders...');
+    const searchInput = screen.getByPlaceholderText('Search files and folders…');
     fireEvent.change(searchInput, { target: { value: 'README' } });
     expect(screen.getByText('README.md')).toBeInTheDocument();
   });
@@ -232,7 +232,7 @@ describe('ChooseItemsDialog Integration', () => {
       />
     );
 
-    const searchInput = screen.getByPlaceholderText('Search files and folders...');
+    const searchInput = screen.getByPlaceholderText('Search files and folders…');
     fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
     expect(screen.getByText('No matching files or folders')).toBeInTheDocument();
   });

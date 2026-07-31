@@ -7,24 +7,40 @@ import {
   useCallback,
   useMemo,
   useEffect,
+  lazy,
   Suspense,
   useDeferredValue,
 } from 'react';
-import { FolderX, AlertCircle, Loader, ArrowUp, Globe, Columns3, List } from 'lucide-react';
+import {
+  FolderX,
+  AlertCircle,
+  ClipboardCopy,
+  FolderDown,
+  Loader,
+  RotateCcw,
+  Upload,
+  X,
+} from 'lucide-react';
 import type {
   DeepStatusProgress,
   SvnListResult,
+  SvnOperationRevision,
   SvnStatusEntry,
   SvnStatusChar,
 } from '@shared/types';
-import { Breadcrumb } from './ui/Breadcrumb';
+import { PathAddressBar } from './ui/Breadcrumb';
 import { MillerColumns } from './files/MillerColumns';
 import { BranchSwitcher } from '../features/branches/BranchSwitcher';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
 import { ProgressIndicator } from './ui/ProgressIndicator';
-import { FileRow, FileListHeader } from './ui/FileRow';
+import {
+  FILE_ROW_HEIGHT,
+  FILE_ROW_HEIGHT_COMPACT,
+  FileRow,
+  FileListHeader,
+} from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
 import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialogs';
 import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
@@ -34,11 +50,16 @@ import { useFileExplorerActions } from '../hooks/useSvnActions';
 import { useSettings } from '../hooks/useSettings';
 import { useHomePath } from '../hooks/useHomePath';
 import { useFolderSizes } from '../hooks/useFolderSizes';
+import { useCodeEditors } from '../hooks/useCodeEditors';
 import {
   applyDeepStatus,
   buildFolderChangeCounts,
   fileInfoToEntry,
 } from '../features/files/fileStatus';
+import {
+  appendExcludedChildren,
+  isInsideWorkingCopy,
+} from '../features/files/excludedChildren';
 import { createSvnListQueryKey, getAuthPresenceKey } from '../features/files/authQueryKeys';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
 import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
@@ -61,6 +82,8 @@ import {
   useFileExplorerDirectoryData,
 } from './files/useFileExplorerDirectoryData';
 import { resolveRemoteUpdateTarget } from './files/remoteUpdateTarget';
+import { isNotOnDisk } from './files/entryPresence';
+import { resolveRemoteUrlToLocalPath } from '../utils/pathResolution';
 import { useFileExplorerCommandEvents } from './files/useFileExplorerCommandEvents';
 import {
   ApplyPatchDialog,
@@ -92,6 +115,43 @@ import {
   UpdateToRevisionDialog,
   loadCommitDialog,
 } from './files/FileExplorerLazyDialogs';
+import {
+  TREE_PANE_MAX_WIDTH,
+  TREE_PANE_MIN_WIDTH,
+  useWorkingCopyTreePane,
+} from './files/useWorkingCopyTreePane';
+
+/**
+ * The folder tree pulls in the repository browser's `RepoTree`. Loading it on
+ * demand keeps that code out of the renderer's initial chunk, which is already
+ * at its budget, and costs nothing when the pane is collapsed.
+ */
+const WorkingCopyTree = lazy(() =>
+  import('./files/WorkingCopyTree').then((m) => ({ default: m.WorkingCopyTree }))
+);
+
+function WorkingCopyTreeFallback() {
+  return (
+    <div className="flex-1 space-y-1 px-2 pt-2" aria-hidden="true">
+      {[70, 88, 54, 76, 62, 84, 58].map((width) => (
+        <div
+          key={width}
+          className="h-[27px] rounded-md bg-bg-elevated/50 animate-pulse"
+          style={{ width: `${width}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Buttons inside the floating selection bar. The bar sits on an elevated surface
+ * like every other panel in the app, so these are the app's own small buttons —
+ * the previous pair (`text-bg` on `bg-text`) inverted the whole strip to near
+ * white, which is the one thing in the window that did not look like the app.
+ */
+const SELECTION_BUTTON =
+  'inline-flex h-7 flex-none items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-bg-secondary px-2.5 text-xs font-semibold text-text-secondary transition-fast hover:border-accent/40 hover:bg-bg-tertiary hover:text-text disabled:pointer-events-none disabled:opacity-50';
 
 function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   if ('requestIdleCallback' in window) {
@@ -137,13 +197,16 @@ export function FileExplorer() {
     }
   }, [path, isBookmarked, addBookmark, removeBookmark]);
 
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [browseMode, setBrowseMode] = useState<'local' | 'online'>('local');
-  const [onlinePath, setOnlinePath] = useState<string>('');
-  const [showRemoteItems, setShowRemoteItems] = useState(false);
+  /**
+   * Include the repository's entries that are not on disk here — presence
+   * `none` in the repository browser's vocabulary. They are server facts, so
+   * they carry no `svn status`.
+   */
+  const [showNotCheckedOut, setShowNotCheckedOut] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [isUpgradingWorkingCopy, setIsUpgradingWorkingCopy] = useState(false);
+  const [isAddingToWorkingCopy, setIsAddingToWorkingCopy] = useState(false);
 
   const {
     applyPatchPath,
@@ -201,6 +264,8 @@ export function FileExplorer() {
     switchPath,
     updateDialogOpen,
   } = useFileExplorerDialogState();
+  /* Editors on PATH, for the context menu's "Open in" section. */
+  const codeEditors = useCodeEditors();
   const [deepStatusProgress, setDeepStatusProgress] = useState<DeepStatusProgress | null>(null);
 
   const openRepositoryBrowser = useCallback(
@@ -314,12 +379,55 @@ export function FileExplorer() {
     }
   }, [path, queryClient, invalidateCurrentPath]);
 
-  const onlineUrl = useMemo(() => {
-    if (!effectiveRepoRoot) return '';
-    if (!onlinePath) return effectiveRepoRoot;
-    const baseUrl = effectiveRepoRoot.replace(/\/$/, '');
-    return `${baseUrl}${onlinePath}`;
-  }, [effectiveRepoRoot, onlinePath]);
+  /**
+   * Local → Online.
+   *
+   * This route is about your disk. The server is the repository browser's
+   * subject, and it is strictly the better tool for it — folder tree, peg
+   * revisions, diff/blame/log/properties, presence marking, "Add to working
+   * copy" — so choosing Online goes there rather than listing the server twice.
+   *
+   * The URL handed over is the one the old online mode would have listed: the
+   * **repository root** behind this folder, which is an `svn info` fact
+   * (`svnInfo.repositoryRoot`, or the working-copy context when the folder is
+   * inside a checkout but is not itself its root). When neither has resolved
+   * yet, ask `svn info` directly rather than assembling a URL from the path.
+   * If Subversion has no answer, stay here and say so — a browser opened on a
+   * guessed URL is worse than not opening.
+   */
+  const handleBrowseOnline = useCallback(async () => {
+    let repositoryRoot = effectiveRepoRoot ?? '';
+    let checkoutPath = svnInfo?.workingCopyRoot ?? workingCopyContext?.workingCopyRoot;
+
+    if (!repositoryRoot && path && path !== 'DRIVES://') {
+      const context = await window.api.svn.getWorkingCopyContext(path);
+      repositoryRoot = context?.repositoryRoot || context?.url || '';
+      checkoutPath = checkoutPath ?? context?.workingCopyRoot;
+    }
+
+    if (!repositoryRoot) {
+      await showAppMessage({
+        type: 'info',
+        title: 'No repository to browse',
+        message: 'This folder is not in a working copy, so there is no repository URL to open.',
+        detail:
+          'svn info reports no repository for this path. Open a checked-out folder, or open the repository browser and type the URL.',
+      });
+      return;
+    }
+
+    navigate({
+      to: '/repo-browser',
+      search: { url: repositoryRoot, localPath: checkoutPath ?? (isVersioned ? path : undefined) },
+    });
+  }, [
+    effectiveRepoRoot,
+    isVersioned,
+    navigate,
+    path,
+    svnInfo?.workingCopyRoot,
+    workingCopyContext?.workingCopyRoot,
+  ]);
 
   const { data: storedCreds } = useQuery({
     queryKey: ['auth', effectiveRepoRoot],
@@ -336,50 +444,13 @@ export function FileExplorer() {
   });
   const svnListAuthKey = getAuthPresenceKey(storedCreds);
 
-  // Phase 6: Get online files for repo browser mode
-  const { data: onlineFiles, isFetching: isLoadingOnline } = useQuery({
-    queryKey: createSvnListQueryKey('online', onlineUrl, svnListAuthKey),
-    queryFn: async () => {
-      if (!onlineUrl) {
-        return {
-          data: { path: '', entries: [] },
-          source: 'network' as const,
-          cachedAt: Date.now(),
-          age: 0,
-        };
-      }
-      const creds = storedCreds
-        ? { username: storedCreds.username, password: storedCreds.password }
-        : undefined;
-      try {
-        return await readCachedList(onlineUrl, 'HEAD', 'immediates', creds?.username ?? '', () =>
-          window.api.svn.list(onlineUrl, 'HEAD', 'immediates', creds)
-        );
-      } catch (err) {
-        const errorMsg = (err as Error)?.message || '';
-        const category = (err as Error & { commandError?: { category?: string } }).commandError
-          ?.category;
-        if (
-          category === 'authentication' ||
-          errorMsg.includes('credentials') ||
-          errorMsg.includes('Authentication') ||
-          errorMsg.includes('E215004')
-        ) {
-          if (effectiveRepoRoot) {
-            authPrompt.requestAuthentication(effectiveRepoRoot);
-          }
-        }
-        throw err;
-      }
-    },
-    enabled: !!onlineUrl && !authPrompt.isOpen && browseMode === 'online',
-    staleTime: STATUS_STALE_TIME,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
-
-  // Fetch remote items for merging with local items (sparse checkout support)
-  const { data: remoteItems, isFetching: isLoadingRemoteItems } = useQuery({
+  /*
+   * The repository's own listing of this folder, so entries that exist on the
+   * server but are not on disk here can be shown alongside the ones that are.
+   * `svn list` is the only source for them — `svn status` cannot see a path it
+   * never fetched — so they arrive with presence and no status.
+   */
+  const { data: notCheckedOutItems, isFetching: isLoadingNotCheckedOut } = useQuery({
     queryKey: createSvnListQueryKey('remote', effectiveUrl ?? '', svnListAuthKey),
     queryFn: async () => {
       if (!effectiveUrl) {
@@ -414,39 +485,15 @@ export function FileExplorer() {
         throw err;
       }
     },
-    enabled:
-      !!effectiveUrl &&
-      !authPrompt.isOpen &&
-      showRemoteItems &&
-      browseMode === 'local' &&
-      isVersioned === true,
+    enabled: !!effectiveUrl && !authPrompt.isOpen && showNotCheckedOut && isVersioned === true,
     staleTime: STATUS_STALE_TIME,
     refetchOnWindowFocus: false,
     retry: false,
   });
 
   const files = useMemo(() => {
-    const onlineFileData =
-      onlineFiles?.data ?? (onlineFiles as unknown as SvnListResult | undefined);
-    const remoteItemData =
-      remoteItems?.data ?? (remoteItems as unknown as SvnListResult | undefined);
-    if (browseMode === 'online' && onlineFileData?.entries) {
-      return onlineFileData.entries.map((entry) => ({
-        name: entry.name,
-        path: onlinePath === '' ? `/${entry.name}` : `${onlinePath}/${entry.name}`,
-        isDirectory: entry.kind === 'dir',
-        size: entry.size || 0,
-        modifiedTime: entry.date || '',
-        svnStatus: {
-          path: onlinePath === '' ? `/${entry.name}` : `${onlinePath}/${entry.name}`,
-          remoteUrl: entry.url,
-          status: 'O' as SvnStatusChar,
-          revision: entry.revision,
-          author: entry.author,
-          isDirectory: entry.kind === 'dir',
-        },
-      }));
-    }
+    const notCheckedOutData =
+      notCheckedOutItems?.data ?? (notCheckedOutItems as unknown as SvnListResult | undefined);
 
     let result = rawFiles || [];
 
@@ -473,10 +520,24 @@ export function FileExplorer() {
       result = applyDeepStatus(result, deepStatusData);
     }
 
-    if (showRemoteItems && remoteItemData?.entries && svnInfo?.url) {
-      const localFileNames = new Set(result.map((f) => f.name));
-      const remoteOnlyItems = remoteItemData.entries
-        .filter((entry) => !localFileNames.has(entry.name))
+    /*
+     * Folders excluded from this checkout. They are absent from disk but still
+     * part of the working copy, and `svn info --depth immediates` reports them
+     * offline — so unlike the server-side listing below, this needs no network
+     * and no toggle. Without it, excluding a folder removes the only row that
+     * could bring it back.
+     */
+    result = appendExcludedChildren(result, childCommits, path);
+
+    /*
+     * Entries the server has here and the disk does not. Presence, never
+     * status: `svn status` has nothing to say about a path it never fetched,
+     * so these carry only what `svn list` reported plus the URL they came from.
+     */
+    if (showNotCheckedOut && notCheckedOutData?.entries && svnInfo?.url) {
+      const onDiskNames = new Set(result.map((f) => f.name));
+      const notOnDiskItems = notCheckedOutData.entries
+        .filter((entry) => !onDiskNames.has(entry.name))
         .map((entry) => ({
           name: entry.name,
           path: path ? `${path}${path.includes('\\') ? '\\' : '/'}${entry.name}` : entry.name,
@@ -492,20 +553,18 @@ export function FileExplorer() {
             isDirectory: entry.kind === 'dir',
           },
         }));
-      result = [...result, ...remoteOnlyItems];
+      result = [...result, ...notOnDiskItems];
     }
 
     return result;
   }, [
-    browseMode,
-    onlineFiles,
-    onlinePath,
     rawFiles,
     statusData,
     deepStatusData,
+    childCommits,
     path,
-    showRemoteItems,
-    remoteItems,
+    showNotCheckedOut,
+    notCheckedOutItems,
     svnInfo?.url,
   ]);
 
@@ -533,6 +592,30 @@ export function FileExplorer() {
     settings?.recentRepositories,
     homePath,
   ]);
+
+  // The folder tree is rooted at the same place the Miller columns start from —
+  // the working-copy root when we are inside one — falling back to the folder on
+  // screen so the pane is never rootless.
+  const treeRootPath = useMemo(() => {
+    if (!path || path === 'DRIVES://') return '';
+    return millerBase ?? path;
+  }, [millerBase, path]);
+
+  const treePane = useWorkingCopyTreePane();
+  const showTreePane = !treePane.collapsed && treeRootPath !== '';
+
+  const handleTreeResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        treePane.nudgeWidth(-treePane.keyboardStep);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        treePane.nudgeWidth(treePane.keyboardStep);
+      }
+    },
+    [treePane]
+  );
 
   const folderChangeCounts = useMemo(
     () => (deepStatusData ? buildFolderChangeCounts(files || [], deepStatusData) : null),
@@ -675,11 +758,12 @@ export function FileExplorer() {
     setSwitchPath,
   });
 
-  // Virtualizer
+  // Virtualizer — row height matches the prototype's `.crow` (38px, 30px compact)
+  const rowHeight = settings.compactFileRows ? FILE_ROW_HEIGHT_COMPACT : FILE_ROW_HEIGHT;
   const virtualizer = useVirtualizer({
     count: filteredEntries.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 36,
+    estimateSize: () => rowHeight,
     getItemKey: (index) => filteredEntries[index]?.path ?? index,
     overscan: 15,
   });
@@ -691,31 +775,13 @@ export function FileExplorer() {
     [navigate]
   );
 
-  const handleSetBrowseMode = useCallback(
-    (mode: 'local' | 'online') => {
-      setBrowseMode(mode);
-      if (mode === 'local') {
-        setOnlinePath('');
-      }
-      clearSelection();
-    },
-    [clearSelection]
-  );
-
   const handleNavigateToEntry = useCallback(
     (entry: SvnStatusEntry) => {
-      if (browseMode === 'online') {
-        if (entry.isDirectory) {
-          setOnlinePath(entry.path);
-          clearSelection();
-        }
-        return;
-      }
       if (entry.isDirectory) {
         navigate({ to: '/files', search: { path: entry.path } });
       }
     },
-    [navigate, browseMode, clearSelection]
+    [navigate]
   );
 
   useFileExplorerKeyboardNavigation({
@@ -776,35 +842,49 @@ export function FileExplorer() {
         queryClient.invalidateQueries({ queryKey: ['svn:list'] });
       },
       onExclude: async (entry: SvnStatusEntry) => {
+        // A right-click inside a multi-selection removes the whole selection,
+        // the way Commit and Revert already behave.
+        const targets =
+          selectedPaths.size > 1 && selectedPaths.has(entry.path)
+            ? Array.from(selectedPaths)
+            : [entry.path];
         const name = entry.path.split(/[/\\]/).pop() || entry.path;
+        const subject = targets.length > 1 ? `${targets.length} items` : `"${name}"`;
         const confirmed = await confirmAppAction({
           type: 'warning',
-          title: 'Remove folder locally',
-          message: `Remove "${name}" from this working copy?`,
+          title: targets.length > 1 ? 'Remove items locally' : 'Remove locally',
+          message: `Remove ${subject} from this working copy?`,
           detail:
-            'The repository is not changed. SVN will first mark the folder as excluded. If any local folder remains, including unversioned or ignored files, it will be moved to the OS trash.',
-          confirmLabel: 'Exclude and remove',
+            'The repository is not changed, and SVN stops reporting them as missing. They can be brought back with "Add to working copy…". Any unversioned or ignored files left inside are moved to the OS trash — those cannot be brought back from SVN.',
+          confirmLabel: 'Remove locally',
         });
         if (!confirmed) return;
 
-        const result = await window.api.svn.exclude(entry.path);
+        const result = await window.api.svn.exclude(targets);
         if (!result.success) {
           await showAppMessage({
             type: 'error',
             title: 'Remove locally failed',
-            message: `Could not exclude "${name}" from the working copy.`,
+            message: `Could not remove ${subject} from the working copy.`,
             detail: result.error || 'Unknown SVN error',
           });
           return;
         }
         clearSelection();
-        const exclusionParentPath = await window.api.fs.getParent(entry.path);
-        if (exclusionParentPath) {
-          handleNavigate(exclusionParentPath);
+        // Leaving the removed folder behind would show an empty column, so step
+        // out to its parent. A removed file leaves the listing standing.
+        if (entry.isDirectory && targets.length === 1) {
+          const exclusionParentPath = await window.api.fs.getParent(entry.path);
+          if (exclusionParentPath) {
+            handleNavigate(exclusionParentPath);
+          }
         }
         invalidateCurrentPath();
         queryClient.invalidateQueries({ queryKey: ['svn:list'] });
         queryClient.invalidateQueries({ queryKey: ['fs:listDirectory'] });
+        // Re-read which children are excluded, so what was just removed comes
+        // back as a "Not checked out" row instead of vanishing from the view.
+        queryClient.invalidateQueries({ queryKey: ['svn:childCommits'] });
       },
       onAdd: async () => {
         if (selectedEntry) await actions.handleAddSelected();
@@ -834,6 +914,19 @@ export function FileExplorer() {
       onDiff: (entry: SvnStatusEntry) => setDiffViewerPath(entry.path),
       onOpenInExplorer: (entry: SvnStatusEntry) => {
         void window.api.external.revealPath(entry.path);
+      },
+      editors: codeEditors,
+      onConfigureOpenWith: () => setSettingsDialogOpen(true),
+      onOpenInEditor: async (entry: SvnStatusEntry, editorId: string) => {
+        const result = await window.api.external.openInEditor(editorId, entry.path);
+        if (!result?.success) {
+          await showAppMessage({
+            type: 'error',
+            title: 'Could not open the editor',
+            message: `${codeEditors.find((editor) => editor.id === editorId)?.label ?? editorId} did not start.`,
+            detail: result?.error || 'Unknown error',
+          });
+        }
       },
       onCopyPath: (entry: SvnStatusEntry) => {
         const paths = selectedPaths.size > 1 ? Array.from(selectedPaths).join('\n') : entry.path;
@@ -959,6 +1052,7 @@ export function FileExplorer() {
       onCheckForModifications: undefined,
     }),
     [
+      codeEditors,
       selectedEntry,
       selectedPaths,
       actions,
@@ -1003,9 +1097,9 @@ export function FileExplorer() {
 
       const entry = pendingUpdateEntry;
       const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot || path;
-      const isRemoteItem = entry.status === 'O';
-
-      if ((browseMode === 'online' || isRemoteItem) && effectiveRepoRoot) {
+      /* Not on disk: there is nothing here to `svn update`, so the fetch has to
+         be aimed at the repository URL and the local path it will fill. */
+      if (isNotOnDisk(entry) && effectiveRepoRoot) {
         const target = resolveRemoteUpdateTarget({
           entry,
           repositoryRoot: effectiveRepoRoot,
@@ -1013,7 +1107,12 @@ export function FileExplorer() {
           workingCopyRoot: wcRoot,
           currentPath: path,
         });
-        if (!target.localPath) {
+        /* Miller columns can show a not-fetched folder from a column above the
+           current one, where anchoring on this folder's URL cannot reach it. Its
+           row already knows the local path it stands for, so use that. */
+        const localPath =
+          target.localPath ?? (isInsideWorkingCopy(entry.path, wcRoot) ? entry.path : null);
+        if (!localPath) {
           return {
             success: false as const,
             revision: null,
@@ -1026,7 +1125,7 @@ export function FileExplorer() {
           const result = await window.api.svn.updateToRevision(
             wcRoot,
             target.repoUrl,
-            target.localPath,
+            localPath,
             depth,
             setDepthSticky
           );
@@ -1064,13 +1163,169 @@ export function FileExplorer() {
       svnInfo?.workingCopyRoot,
       workingCopyContext?.workingCopyRoot,
       path,
-      browseMode,
       effectiveRepoRoot,
       effectiveUrl,
       queryClient,
       invalidateCurrentPath,
     ]
   );
+
+  /**
+   * Fetch repository URLs chosen from the tree in the update dialog. The dialog
+   * only has URLs; mapping each one onto the local path it fills needs the open
+   * folder and its URL, which live here.
+   */
+  const handleUpdateRepoUrls = useCallback(
+    async (
+      repoUrls: string[],
+      depth: 'empty' | 'files' | 'immediates' | 'infinity',
+      setDepthSticky: boolean
+    ) => {
+      const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot || path;
+      if (!effectiveRepoRoot || !effectiveUrl) {
+        return { success: false as const, revision: null, error: 'This folder has no SVN URL.' };
+      }
+
+      const targets = repoUrls.map((url) => ({
+        url,
+        localPath: resolveRemoteUrlToLocalPath(url, path, effectiveRepoRoot, effectiveUrl),
+      }));
+      const unreachable = targets.filter((target) => !target.localPath);
+      if (unreachable.length > 0) {
+        return {
+          success: false as const,
+          revision: null,
+          error: `Outside this working-copy subtree: ${unreachable
+            .map((target) => target.url)
+            .join(', ')}`,
+        };
+      }
+
+      let revision: SvnOperationRevision = null;
+      for (const target of targets) {
+        try {
+          const result = await window.api.svn.updateToRevision(
+            wcRoot,
+            target.url,
+            target.localPath!,
+            depth,
+            setDepthSticky
+          );
+          if (!result.success) {
+            return { success: false as const, revision: null, error: result.error };
+          }
+          revision = result.revision ?? revision;
+        } catch (err) {
+          return {
+            success: false as const,
+            revision: null,
+            error: (err as Error).message || 'Update failed',
+          };
+        }
+      }
+
+      invalidateCurrentPath();
+      queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+      return { success: true as const, revision };
+    },
+    [
+      svnInfo?.workingCopyRoot,
+      workingCopyContext?.workingCopyRoot,
+      path,
+      effectiveRepoRoot,
+      effectiveUrl,
+      queryClient,
+      invalidateCurrentPath,
+    ]
+  );
+
+  /**
+   * The selected entry when it is a directory the repository has and this disk
+   * does not — presence `none`, no status. The repository browser offers
+   * "Add to working copy" for exactly this case, so this view offers it too,
+   * for the same reason and through the same call: fill the subtree in inside
+   * the checkout you already have rather than making a second one.
+   *
+   * `null` when nothing resolves — the local path a repository URL would fill
+   * is a fact about this working copy's layout (switched subtrees, externals),
+   * so it is resolved, never assembled from the name.
+   */
+  const addToWorkingCopyTarget = useMemo(() => {
+    if (!selectedEntry || !isNotOnDisk(selectedEntry) || !selectedEntry.isDirectory) return null;
+    const wcRoot = svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot;
+    if (!wcRoot || !effectiveRepoRoot) return null;
+
+    const target = resolveRemoteUpdateTarget({
+      entry: selectedEntry,
+      repositoryRoot: effectiveRepoRoot,
+      workingCopyUrl: effectiveUrl,
+      workingCopyRoot: wcRoot,
+      currentPath: path,
+    });
+    if (!target.localPath) return null;
+
+    return {
+      name: selectedEntry.path.split(/[/\\]/).pop() || selectedEntry.path,
+      wcRoot,
+      url: target.repoUrl,
+      localPath: target.localPath,
+    };
+  }, [
+    selectedEntry,
+    svnInfo?.workingCopyRoot,
+    workingCopyContext?.workingCopyRoot,
+    effectiveRepoRoot,
+    effectiveUrl,
+    path,
+  ]);
+
+  const handleAddToWorkingCopy = useCallback(async () => {
+    if (!addToWorkingCopyTarget) return;
+    const { name, wcRoot, url, localPath } = addToWorkingCopyTarget;
+
+    const confirmed = await confirmAppAction({
+      title: 'Add to working copy',
+      message: `"${name}" is in the repository but not on your disk. Fetch it into the checkout you already have?`,
+      detail: [
+        `From  ${url}`,
+        `Onto  ${localPath}`,
+        '',
+        `svn update --set-depth infinity "${localPath}"`,
+        '',
+        'This does not create a second working copy, and nothing already on disk is reverted or overwritten. The depth is set permanently, so later updates keep this subtree.',
+      ].join('\n'),
+      confirmLabel: 'Add to working copy',
+    });
+    if (!confirmed) return;
+
+    setIsAddingToWorkingCopy(true);
+    try {
+      const result = await window.api.svn.updateToRevision(wcRoot, url, localPath, 'infinity', true);
+      if (!result?.success) {
+        await showAppMessage({
+          type: 'error',
+          title: 'Add to working copy failed',
+          message: `"${name}" was not added to this working copy.`,
+          detail: result?.error || 'Subversion did not report why the update failed.',
+        });
+        return;
+      }
+      // The subtree is on disk now, so the listing, its status and its presence
+      // are all stale.
+      clearSelection();
+      invalidateCurrentPath();
+      queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+    } catch (err) {
+      await showAppMessage({
+        type: 'error',
+        title: 'Add to working copy failed',
+        message: `"${name}" was not added to this working copy.`,
+        detail: (err as Error)?.message || String(err),
+      });
+    } finally {
+      setIsAddingToWorkingCopy(false);
+    }
+  }, [addToWorkingCopyTarget, clearSelection, invalidateCurrentPath, queryClient]);
 
   const handleFileDrop = useCallback(
     async (sources: string[], target: string, operation: DragDropOperation) => {
@@ -1083,6 +1338,16 @@ export function FileExplorer() {
   );
 
   const hasChanges = entries.some((e) => ['M', 'A', 'D', 'C'].includes(e.status));
+
+  /*
+   * Scale honesty in the footer: say when the list on screen is not the whole
+   * directory, and say which of the two reasons it is — the user narrowed it,
+   * or the listing itself was capped.
+   */
+  const listingIsNarrowed = filteredEntries.length < entries.length;
+  const listingIsFiltered =
+    listingIsNarrowed && (hasActiveFilters || deferredSearchQuery.length > 0);
+  const listingIsTruncated = listingIsNarrowed && !listingIsFiltered;
 
   useEffect(() => {
     if (hasChanges) {
@@ -1100,8 +1365,7 @@ export function FileExplorer() {
   const isFetching =
     isLoadingStatus ||
     isLoadingDeep ||
-    isLoadingOnline ||
-    isLoadingRemoteItems ||
+    isLoadingNotCheckedOut ||
     actions.isUpdating;
   const deepStatusMessage = useMemo(() => {
     if (!isLoadingDeep && deepStatusProgress?.phase !== 'complete') return null;
@@ -1141,7 +1405,7 @@ export function FileExplorer() {
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col">
-        <div className="h-[--toolbar-height] bg-bg-secondary border-b border-border animate-pulse" />
+        <div className="h-[--toolbar-height] flex-none animate-pulse border-b border-border bg-bg" />
         <RouteState
           variant="loading"
           title="Loading Directory"
@@ -1155,7 +1419,7 @@ export function FileExplorer() {
   if (error) {
     return (
       <div className="flex-1 flex flex-col">
-        <div className="h-[--toolbar-height] bg-bg-secondary border-b border-border" />
+        <div className="h-[--toolbar-height] flex-none border-b border-border bg-bg" />
         <RouteState
           variant="error"
           title="Error Loading Directory"
@@ -1167,78 +1431,84 @@ export function FileExplorer() {
     );
   }
 
+  /*
+   * The address field the single bar wraps around. This view addresses a disk,
+   * so it is always a path: crumbs plus the branch chip in the slot the
+   * prototype gives `@HEAD`. Repository URLs are addressed in the repository
+   * browser, which has its own URL field.
+   */
+  const addressBar = (
+    <PathAddressBar
+      path={path}
+      onNavigate={handleNavigate}
+      homePath={homePath}
+      trailing={
+        <BranchSwitcher
+          url={effectiveUrl}
+          localPath={path}
+          onSwitched={() => {
+            invalidateCurrentPath();
+            queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+          }}
+          onCreateBranch={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG))}
+          onCreateTag={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG))}
+        />
+      }
+    />
+  );
+
   return (
     <div className="h-full flex overflow-hidden relative">
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
-        {/* Breadcrumb Header */}
-        <div className="h-[--header-height] flex items-center px-4 bg-bg-secondary border-b border-border">
-          {browseMode === 'online' ? (
-            <>
-              {onlinePath && onlinePath !== '' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const parts = onlinePath.split('/').filter(Boolean);
-                    parts.pop();
-                    setOnlinePath(parts.length === 0 ? '' : '/' + parts.join('/'));
-                    setSelectedPaths(new Set());
-                  }}
-                  className="btn-icon-sm mr-2"
-                  title="Go to parent directory"
-                >
-                  <ArrowUp className="w-4 h-4" />
-                </button>
-              )}
-              <span className="text-sm text-text-muted">
-                {effectiveRepoRoot}
-                {onlinePath && <span className="text-text">{onlinePath}</span>}
-              </span>
-              <span className="flex items-center gap-1.5 ml-3 px-2 py-0.5 bg-accent/10 text-accent text-xs font-medium rounded">
-                <Globe className="w-3 h-3" />
-                {onlineFiles?.source === 'cache'
-                  ? `Cached (${Math.max(0, Math.floor(onlineFiles.age / 60_000))}m old)`
-                  : 'Online'}
-              </span>
-            </>
-          ) : (
-            <>
-              {parentPath && (
-                <button
-                  type="button"
-                  onClick={() => handleNavigate(parentPath)}
-                  className="btn-icon-sm mr-2"
-                  title="Go to parent directory"
-                >
-                  <ArrowUp className="w-4 h-4" />
-                </button>
-              )}
-              <Breadcrumb path={path} onNavigate={handleNavigate} homePath={homePath} />
-            </>
-          )}
-          {isFetching && (
-            <span title="Loading status...">
-              <Loader className="w-4 h-4 text-accent animate-spin ml-2" />
-            </span>
-          )}
-          {browseMode === 'local' && (
-            <div className="ml-auto pl-3">
-              <BranchSwitcher
-                url={effectiveUrl}
-                localPath={path}
-                onSwitched={() => {
-                  invalidateCurrentPath();
-                  queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
-                }}
-                onCreateBranch={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG))}
-                onCreateTag={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG))}
+      {/* Folder tree — the working copy's directory hierarchy, lazily listed */}
+      {showTreePane && (
+        <>
+          <aside
+            aria-label="Working copy folders"
+            style={{ width: treePane.width }}
+            className="flex-none flex flex-col min-h-0 overflow-hidden bg-bg-secondary border-r border-border"
+          >
+            <Suspense fallback={<WorkingCopyTreeFallback />}>
+              <WorkingCopyTree
+                rootPath={treeRootPath}
+                currentPath={path}
+                deepStatus={deepStatusData}
+                shallowStatus={statusData}
+                workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
+                actions={fileRowActions}
+                onNavigate={handleNavigate}
               />
-            </div>
-          )}
-        </div>
+            </Suspense>
+          </aside>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize folder tree"
+            aria-valuenow={treePane.width}
+            aria-valuemin={TREE_PANE_MIN_WIDTH}
+            aria-valuemax={TREE_PANE_MAX_WIDTH}
+            tabIndex={0}
+            onMouseDown={treePane.beginResize}
+            onKeyDown={handleTreeResizeKeyDown}
+            className="w-1 flex-none cursor-col-resize transition-fast hover:bg-accent/50 focus-visible:bg-accent focus-visible:outline-none active:bg-accent"
+          />
+        </>
+      )}
 
-        {/* Toolbar */}
+      {/* Main content area — `relative` so the selection bar can float over the
+          list instead of pushing it down (see the selection bar below). */}
+      <div className="relative flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
+        {/*
+          * One bar. Navigation, the address, the SVN actions and the view
+          * controls sit together in the prototype's single `.navbar`, in the
+          * same idiom the repository browser's `RepoNavBar` already uses.
+          */}
         <Toolbar
+          addressBar={addressBar}
+          onNavigateUp={parentPath ? () => handleNavigate(parentPath) : undefined}
+          onToggleTree={treeRootPath !== '' ? treePane.toggleCollapsed : undefined}
+          isTreeCollapsed={treePane.collapsed}
+          explorerViewMode={explorerViewMode}
+          onExplorerViewModeChange={(mode) => void updateSettings({ explorerViewMode: mode })}
           onRefresh={() => {
             invalidateCurrentPath();
             queryClient.invalidateQueries({ queryKey: ['fs:isVersioned', path] });
@@ -1279,8 +1549,6 @@ export function FileExplorer() {
           hasChanges={hasChanges}
           hasSelection={selectedPaths.size > 0}
           isVersioned={isVersioned === true}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           showFilters={showFilters}
@@ -1296,11 +1564,10 @@ export function FileExplorer() {
           onCommitPreload={() => void loadCommitDialog()}
           onSettings={() => setSettingsDialogOpen(true)}
           onDiagnostics={() => setDiagnosticsOpen(true)}
-          browseMode={browseMode}
-          onBrowseModeChange={handleSetBrowseMode}
+          onBrowseOnline={() => void handleBrowseOnline()}
           canBrowseOnline={!!effectiveUrl}
-          showRemoteItems={showRemoteItems}
-          onToggleRemoteItems={() => setShowRemoteItems((prev) => !prev)}
+          showNotCheckedOut={showNotCheckedOut}
+          onToggleNotCheckedOut={() => setShowNotCheckedOut((prev) => !prev)}
           onShowNotes={() => setShowNotes(true)}
         />
 
@@ -1345,33 +1612,7 @@ export function FileExplorer() {
           </div>
         )}
 
-        {/* View mode toggle (list vs Miller columns) */}
-        {browseMode === 'local' && (
-          <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-border">
-            <button
-              type="button"
-              onClick={() => void updateSettings({ explorerViewMode: 'list' })}
-              className={`btn-icon-sm ${explorerViewMode === 'list' ? 'text-accent bg-accent/10' : ''}`}
-              title="List view"
-              aria-label="List view"
-              aria-pressed={explorerViewMode === 'list'}
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void updateSettings({ explorerViewMode: 'miller' })}
-              className={`btn-icon-sm ${explorerViewMode === 'miller' ? 'text-accent bg-accent/10' : ''}`}
-              title="Columns view"
-              aria-label="Columns view"
-              aria-pressed={explorerViewMode === 'miller'}
-            >
-              <Columns3 className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {explorerViewMode === 'miller' && browseMode === 'local' && (
+        {explorerViewMode === 'miller' && (
           <div className="relative flex-1 min-h-0 min-w-0">
             <MillerColumns
               path={path}
@@ -1386,7 +1627,7 @@ export function FileExplorer() {
         )}
 
         {/* Filter Bar */}
-        {!(explorerViewMode === 'miller' && browseMode === 'local') && showFilters && (
+        {explorerViewMode !== 'miller' && showFilters && (
           <FilterBar
             activeFileType={fileTypeFilter}
             activeStatus={statusFilter}
@@ -1396,8 +1637,89 @@ export function FileExplorer() {
           />
         )}
 
+        {/*
+          * Selection bar. Floated over the bottom of the list rather than
+          * inserted above it: as a block in the column it appeared the moment a
+          * row was picked and pushed every row down by its own height, so the
+          * second click of a double-click landed on the wrong folder. Overlaid,
+          * nothing under the pointer moves.
+          */}
+        {explorerViewMode !== 'miller' && selectedPaths.size > 0 && (
+          <div
+            role="region"
+            aria-label="Selection actions"
+            className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-4"
+          >
+            <div className="pointer-events-auto flex max-w-full items-center gap-2 overflow-x-auto rounded-full border border-border bg-bg-elevated/95 px-3 py-1.5 shadow-panel backdrop-blur">
+              <b className="whitespace-nowrap px-1 text-xs text-text-secondary" aria-live="polite">
+                <span className="text-accent">{selectedPaths.size}</span> selected
+              </b>
+              <span className="h-4 w-px flex-none bg-border" aria-hidden="true" />
+              {/*
+                * Not on disk: the only thing to offer is bringing it in, and it is
+                * the same offer, wording and command the repository browser makes.
+                */}
+              {addToWorkingCopyTarget && (
+                <button
+                  type="button"
+                  className={SELECTION_BUTTON}
+                  title={`Fetch this directory into the checkout you already have — svn update --set-depth infinity "${addToWorkingCopyTarget.localPath}"`}
+                  onClick={() => void handleAddToWorkingCopy()}
+                  disabled={isAddingToWorkingCopy}
+                  aria-busy={isAddingToWorkingCopy}
+                >
+                  <FolderDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  {isAddingToWorkingCopy ? 'Adding…' : 'Add to working copy'}
+                </button>
+              )}
+              {isVersioned === true && (
+                <>
+                  <button
+                    type="button"
+                    className={SELECTION_BUTTON}
+                    title="Commit the selected items — svn commit"
+                    onClick={() => void actions.handleCommitSelected()}
+                  >
+                    <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                    Commit
+                  </button>
+                  <button
+                    type="button"
+                    className={SELECTION_BUTTON}
+                    title="Discard local changes to the selected items — svn revert"
+                    onClick={() => void actions.handleRevertSelected()}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                    Revert
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className={SELECTION_BUTTON}
+                title="Copy the selected paths to the clipboard"
+                onClick={() => {
+                  void navigator.clipboard.writeText(Array.from(selectedPaths).join('\n'));
+                }}
+              >
+                <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
+                Copy paths
+              </button>
+              <button
+                type="button"
+                className={SELECTION_BUTTON}
+                title="Clear the selection — Esc"
+                onClick={clearSelection}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* File List Header */}
-        {!(explorerViewMode === 'miller' && browseMode === 'local') && (
+        {explorerViewMode !== 'miller' && (
           <FileListHeader
             columnWidths={columnWidths}
             onColumnWidthChange={handleColumnWidthChange}
@@ -1408,10 +1730,14 @@ export function FileExplorer() {
         )}
 
         {/* File list */}
-        {!(explorerViewMode === 'miller' && browseMode === 'local') && (
+        {explorerViewMode !== 'miller' && (
           <div
             ref={parentRef}
-            className={`scrollbar-overlay ${settings.fileListHeight === 'fill' ? 'flex-1 overflow-auto' : 'flex-none overflow-auto'}`}
+            /* Room to scroll the last rows clear of the floating selection bar.
+               Padding below the content moves nothing that is already on screen. */
+            className={`scrollbar-overlay ${settings.fileListHeight === 'fill' ? 'flex-1 overflow-auto' : 'flex-none overflow-auto'} ${
+              selectedPaths.size > 0 ? 'pb-14' : ''
+            }`}
             style={
               settings.fileListHeight === 'auto' ? { maxHeight: 'calc(100vh - 200px)' } : undefined
             }
@@ -1466,7 +1792,8 @@ export function FileExplorer() {
                       isDirectory={entry.isDirectory}
                       selectedPaths={selectedPaths}
                       onDrop={handleFileDrop}
-                      disabled={browseMode === 'online' || entry.status === 'O'}
+                      /* Nothing to drag: the path is not on disk yet. */
+                      disabled={isNotOnDisk(entry)}
                       style={
                         settings.fileListHeight === 'fill'
                           ? {
@@ -1512,9 +1839,28 @@ export function FileExplorer() {
         )}
 
         {/* Status Bar */}
-        <div className="status-bar">
-          <div className="flex items-center gap-4">
-            <span>{filteredEntries.length} items</span>
+        {/* Footer — prototype `.cfoot`: the count on the left, the path on the right */}
+        <div className="status-bar h-[30px] flex-none gap-3 px-3.5 text-[11.5px]">
+          <div className="flex min-w-0 items-center gap-3">
+            <span>
+              {listingIsFiltered ? (
+                <>
+                  <b className="font-semibold text-text-secondary">{filteredEntries.length}</b> of{' '}
+                  {entries.length.toLocaleString()} items in this folder
+                </>
+              ) : listingIsTruncated ? (
+                <>
+                  Showing{' '}
+                  <b className="font-semibold text-text-secondary">{filteredEntries.length}</b> of{' '}
+                  {entries.length.toLocaleString()} — filter or search to narrow
+                </>
+              ) : (
+                <>
+                  <b className="font-semibold text-text-secondary">{filteredEntries.length}</b>{' '}
+                  items
+                </>
+              )}
+            </span>
             {selectedPaths.size > 0 && (
               <span className="text-accent">{selectedPaths.size} selected</span>
             )}
@@ -1523,9 +1869,15 @@ export function FileExplorer() {
                 {entries.filter((e) => e.status === 'M').length || 0} modified
               </span>
             )}
-            {deepStatusMessage && <span className="text-accent">{deepStatusMessage}</span>}
+            {deepStatusMessage && <span className="truncate text-accent">{deepStatusMessage}</span>}
           </div>
-          <span className="text-text-faint">{path}</span>
+          <span
+            className="min-w-0 max-w-[45%] overflow-hidden text-ellipsis whitespace-nowrap font-mono text-2xs text-text-faint"
+            style={{ direction: 'rtl', textAlign: 'left' }}
+            title={path}
+          >
+            {path}
+          </span>
         </div>
       </div>
 
@@ -1592,6 +1944,7 @@ export function FileExplorer() {
             }}
             itemName={pendingUpdateEntry?.path || ''}
             onConfirm={handleUpdateToRevision}
+            onConfirmUrls={handleUpdateRepoUrls}
             repoUrl={effectiveUrl}
             credentials={
               storedCreds

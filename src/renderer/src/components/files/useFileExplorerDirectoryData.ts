@@ -22,7 +22,11 @@ export function useFileExplorerDirectoryData(path: string) {
     placeholderData: keepPreviousData,
   });
 
-  const { data: directoryMetadata, isFetching: isLoadingStatus } = useQuery({
+  const {
+    data: directoryMetadata,
+    isFetching: isLoadingStatus,
+    isPlaceholderData: isMetadataFromPreviousPath,
+  } = useQuery({
     queryKey: ['fs:getDirectoryMetadata', path, Boolean(rawFiles?.length)],
     queryFn: () => window.api.fs.getDirectoryMetadata(path, Boolean(rawFiles?.length)),
     enabled: !!path && path !== 'DRIVES://' && !!rawFiles,
@@ -33,11 +37,17 @@ export function useFileExplorerDirectoryData(path: string) {
     placeholderData: keepPreviousData,
   });
 
+  // While the placeholder is showing, `isVersioned` describes the folder the
+  // user just left. Reads that only make sense inside a checkout have to wait
+  // for this folder's own answer, or navigating into an unversioned folder
+  // fires them against a path Subversion will reject with E155007.
+  const isKnownVersioned =
+    directoryMetadata?.isVersioned === true && !isMetadataFromPreviousPath;
+
   const { data: deepStatusData, isFetching: isLoadingDeep } = useQuery({
     queryKey: ['fs:getDeepStatus', path],
     queryFn: () => window.api.fs.getDeepStatus(path),
-    enabled:
-      !!path && path !== 'DRIVES://' && directoryMetadata?.isVersioned === true && !!rawFiles,
+    enabled: !!path && path !== 'DRIVES://' && isKnownVersioned && !!rawFiles,
     staleTime: DEEP_STATUS_STALE_TIME,
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
@@ -47,8 +57,7 @@ export function useFileExplorerDirectoryData(path: string) {
   const { data: childCommits } = useQuery({
     queryKey: ['svn:childCommits', path],
     queryFn: () => window.api.svn.childCommits(path),
-    enabled:
-      !!path && path !== 'DRIVES://' && directoryMetadata?.isVersioned === true && !!rawFiles,
+    enabled: !!path && path !== 'DRIVES://' && isKnownVersioned && !!rawFiles,
     staleTime: STATUS_STALE_TIME,
     retry: false,
     placeholderData: keepPreviousData,

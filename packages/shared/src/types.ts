@@ -79,6 +79,46 @@ export interface SvnStatusEntry {
   };
 }
 
+/** The depths `svn update --depth` / `--set-depth` accept. */
+export type SvnUpdateDepth = 'empty' | 'files' | 'immediates' | 'infinity';
+
+/**
+ * An editor found on `PATH`. Only ever reported by the main process, which also
+ * owns the mapping from `id` to the command it runs — the renderer names an
+ * editor, it never supplies a command line.
+ */
+export interface CodeEditorInfo {
+  id: string;
+  label: string;
+  /** The launcher that was found, e.g. `code`. Shown so the action is inspectable. */
+  command: string;
+  /** Whether it suits files, folders or both. Detected editors take both. */
+  appliesTo?: 'files' | 'folders' | 'both';
+  /** True for an application the user added in Settings. */
+  custom?: boolean;
+}
+
+/**
+ * One immediate child of a directory as reported by `svn info --depth
+ * immediates`. Read from the working copy, so it costs no network round trip.
+ */
+export interface SvnChildCommitInfo {
+  revision: number;
+  author: string;
+  date: string;
+  /** Repository URL of the child. Only recorded for excluded children. */
+  url?: string;
+  /** Whether the child is a file or a directory — both can be excluded. */
+  kind?: 'file' | 'dir';
+  /**
+   * The child is versioned but excluded from this checkout (`svn update
+   * --set-depth exclude`), so it is absent from disk while still belonging to
+   * the working copy. This is how an excluded folder stays offerable for
+   * "Update to Working Copy" — nothing else reports it.
+   */
+  excluded?: boolean;
+}
+
 export interface SvnStatusResult {
   path: string;
   entries: SvnStatusEntry[];
@@ -480,6 +520,25 @@ export interface DiffMergeSettings {
   contextLines: number;
 }
 
+/**
+ * An application the user registered themselves, offered in "Open in" alongside
+ * the editors found on `PATH`.
+ *
+ * `command` is whatever the user typed: an absolute path to a binary or `.app`,
+ * or a bare launcher name to resolve like a shell would. `arguments` may contain
+ * `{path}` where the file or folder should go; without it the path is appended,
+ * which is what almost every launcher expects.
+ */
+export interface CustomOpenWithTool {
+  /** Stable id, generated when the row is added. */
+  id: string;
+  name: string;
+  command: string;
+  arguments?: string;
+  /** Which entries offer it. Defaults to both. */
+  appliesTo?: 'files' | 'folders' | 'both';
+}
+
 export interface ExternalToolOverride {
   extension: string;
   diffTool: string;
@@ -550,6 +609,8 @@ export interface AppSettings {
   svnClientPath: string; // empty = bundled
   workingCopyFormat: WorkingCopyFormat;
   globalIgnorePatterns: string[];
+  /** Applications added by hand, listed in the "Open in" context menu. */
+  customOpenWithTools: CustomOpenWithTool[];
   proxySettings: ProxySettings;
   connectionTimeout: number; // seconds
   sslVerify: boolean;
@@ -1061,7 +1122,8 @@ export interface ElectronAPI {
     updateItem: (
       path: string
     ) => Promise<{ success: boolean; revision: SvnOperationRevision; error?: string }>;
-    exclude: (path: string) => Promise<{ success: boolean; error?: string }>;
+    /** Sparse-exclude one or many versioned files/folders from this checkout. */
+    exclude: (paths: string | string[]) => Promise<{ success: boolean; error?: string }>;
     updateToRevision: (
       workingCopyRoot: string,
       url: string,
@@ -1087,9 +1149,7 @@ export interface ElectronAPI {
     revert: (paths: string[], depth?: SvnRevertDepth) => Promise<{ success: boolean }>;
     revertPreview: (paths: string[], depth?: SvnRevertDepth) => Promise<SvnRevertPreview>;
     unversion: (paths: string[]) => Promise<{ success: boolean }>;
-    childCommits: (
-      path: string
-    ) => Promise<Record<string, { revision: number; author: string; date: string }>>;
+    childCommits: (path: string) => Promise<Record<string, SvnChildCommitInfo>>;
     add: (paths: string[]) => Promise<{ success: boolean }>;
     delete: (paths: string[]) => Promise<{ success: boolean }>;
     cleanup: (path: string, options?: SvnCleanupOptions) => Promise<{ success: boolean }>;
@@ -1322,6 +1382,12 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; error?: string }>;
     openFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
     openFile: (path: string) => Promise<{ success: boolean; error?: string }>;
+    /** Editors found on `PATH`, for the "Open in…" menu. */
+    listEditors: (refresh?: boolean) => Promise<CodeEditorInfo[]>;
+    openInEditor: (
+      editorId: string,
+      path: string
+    ) => Promise<{ success: boolean; error?: string }>;
     revealPath: (path: string) => Promise<{ success: boolean; error?: string }>;
   };
   monitor: {

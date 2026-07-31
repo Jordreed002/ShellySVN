@@ -25,7 +25,7 @@ describe('getStatusDisplay', () => {
       '?': 'Unversioned',
       '!': 'Missing',
       '~': 'Obstructed',
-      O: 'Remote Only',
+      O: 'Not checked out',
     };
 
     for (const [status, label] of Object.entries(expectedLabels)) {

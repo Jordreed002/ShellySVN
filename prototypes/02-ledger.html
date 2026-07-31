@@ -1,0 +1,1154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShellySVN · Prototype 02 — Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   PROTOTYPE 02 — "LEDGER"
+   Direction: editorial / archival. Subversion is a *record* — a
+   centralised, append-only ledger of who changed what and why. So the
+   UI is set like a printed journal: paper stock, a display serif, wide
+   measure, hairline rules, and revision history as the spine of the app.
+   No chrome-first shell. Content first; tools arrive as sheets & drawers.
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  --paper:#f4f1ea;
+  --paper-2:#fbf9f4;
+  --card:#fffefb;
+  --ink:#191510;
+  --ink-2:#5b544a;
+  --ink-3:#8b8377;
+  --ink-4:#b3aba0;
+  --rule:#ded7ca;
+  --rule-2:#eae4d9;
+
+  --blue:#1f3a5f;      /* primary ink */
+  --blue-soft:#e7ecf3;
+  --ochre:#a8720e;     /* modified */
+  --green:#2f6b3f;     /* added */
+  --ox:#9c2b25;        /* deleted / conflict */
+  --violet:#6b4e9e;    /* replaced */
+  --teal:#116b72;      /* external */
+
+  --serif:'Fraunces',Georgia,serif;
+  --sans:'Public Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:14px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+/* paper tooth */
+body::before{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:.4;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='4'/%3E%3CfeColorMatrix values='0 0 0 0 .38 0 0 0 0 .33 0 0 0 0 .25 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23p)'/%3E%3C/svg%3E");
+  mix-blend-mode:multiply;
+}
+::selection{background:#dfe6f0;color:var(--blue)}
+::-webkit-scrollbar{width:12px}
+::-webkit-scrollbar-track{background:var(--paper)}
+::-webkit-scrollbar-thumb{background:#cfc7b8;border:4px solid var(--paper);border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:#b8ae9c}
+
+.wrap{max-width:1360px;margin:0 auto;padding:0 40px}
+.smallcaps{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+.mono{font-family:var(--mono)}
+.rulebreak{height:1px;background:var(--rule);border:0}
+
+/* ══ MASTHEAD ══════════════════════════════════════════════ */
+.masthead{
+  border-bottom:2px solid var(--ink);background:var(--paper);
+  position:sticky;top:0;z-index:60;
+}
+.mrow{display:flex;align-items:flex-end;gap:24px;padding:16px 0 12px}
+.logo{display:flex;align-items:baseline;gap:10px}
+.logo svg{width:26px;height:26px;color:var(--blue);align-self:center}
+.logo h1{
+  font-family:var(--serif);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1;
+  font-variation-settings:'opsz' 90,'SOFT' 20;
+}
+.logo h1 em{font-style:italic;font-weight:400;color:var(--blue)}
+.edition{
+  border-left:1px solid var(--rule);padding-left:20px;align-self:stretch;
+  display:flex;flex-direction:column;justify-content:flex-end;gap:2px;
+}
+.edition .l1{font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.02em}
+.edition .l2{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.mspace{flex:1}
+.mact{display:flex;align-items:center;gap:8px;padding-bottom:2px}
+.searchbtn{
+  display:flex;align-items:center;gap:9px;height:34px;padding:0 12px 0 11px;
+  background:var(--card);border:1px solid var(--rule);border-radius:2px;
+  color:var(--ink-3);font-family:var(--sans);font-size:13px;cursor:pointer;min-width:230px;
+  transition:border-color .15s,box-shadow .15s;
+}
+.searchbtn:hover{border-color:var(--ink-4);box-shadow:0 1px 0 var(--rule)}
+.searchbtn svg{width:15px;height:15px}
+.searchbtn span{flex:1;text-align:left}
+.searchbtn kbd{
+  font-family:var(--mono);font-size:10px;color:var(--ink-3);
+  border:1px solid var(--rule);border-radius:2px;padding:1px 4px;background:var(--paper-2);
+}
+.ghost{
+  height:34px;padding:0 11px;display:flex;align-items:center;gap:7px;
+  background:transparent;border:1px solid transparent;border-radius:2px;
+  color:var(--ink-2);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;
+}
+.ghost:hover{background:var(--paper-2);border-color:var(--rule);color:var(--ink)}
+.ghost svg{width:15px;height:15px}
+.avatar{
+  width:30px;height:30px;border-radius:50%;background:var(--blue);color:#fff;
+  display:grid;place-items:center;font-family:var(--serif);font-size:13px;font-weight:600;
+  border:0;cursor:pointer;
+}
+
+/* nav — editorial underline tabs */
+.nav{display:flex;align-items:stretch;gap:0;border-top:1px solid var(--rule)}
+.nav a{
+  padding:11px 18px;font-family:var(--sans);font-size:13px;font-weight:600;letter-spacing:.01em;
+  color:var(--ink-2);text-decoration:none;position:relative;cursor:pointer;
+}
+.nav a:first-child{padding-left:0}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current=page]{color:var(--ink)}
+.nav a[aria-current=page]::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ox)}
+.nav a:first-child[aria-current=page]::after{left:0;right:18px}
+.nav a .n{
+  font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-left:6px;
+  vertical-align:1px;
+}
+.navspace{flex:1}
+.revstate{
+  display:flex;align-items:center;gap:10px;padding:0 0 0 18px;border-left:1px solid var(--rule);
+  font-family:var(--mono);font-size:11px;color:var(--ink-2);align-self:center;
+}
+.revstate b{color:var(--ink);font-weight:600}
+.revstate .arrow{color:var(--ochre)}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;
+  font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.02em;
+}
+.pill.warn{background:#f8efd8;color:var(--ochre);border:1px solid #e8d5a6}
+.pill.bad{background:#f7e3e1;color:var(--ox);border:1px solid #e9c5c1}
+.pill.ok{background:#e4eee6;color:var(--green);border:1px solid #c8ddcd}
+
+/* ══ PAGE ══════════════════════════════════════════════════ */
+.page{display:grid;grid-template-columns:minmax(0,1fr) 312px;gap:44px;padding:34px 0 90px;align-items:start}
+.col-main{min-width:0}
+
+/* headline block */
+.hero{margin-bottom:26px}
+.hero .kicker{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.hero h2{
+  font-family:var(--serif);font-size:44px;line-height:1.04;font-weight:600;letter-spacing:-.025em;
+  font-variation-settings:'opsz' 120,'SOFT' 0;max-width:20ch;
+}
+.hero h2 em{font-style:italic;color:var(--blue);font-weight:500}
+.hero .dek{
+  margin-top:12px;font-size:15.5px;line-height:1.65;color:var(--ink-2);max-width:62ch;
+}
+.hero .dek b{color:var(--ink);font-weight:600}
+
+/* conflict notice — set like a boxed editorial correction */
+.notice{
+  margin:22px 0 26px;padding:16px 18px 16px 20px;background:#fdf6f5;
+  border:1px solid #e6c8c4;border-left:3px solid var(--ox);position:relative;
+}
+.notice::before{
+  content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(156,43,37,.045) 6px,rgba(156,43,37,.045) 7px);
+}
+.notice h3{font-family:var(--serif);font-size:18px;font-weight:600;color:var(--ox);letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+.notice h3 svg{width:17px;height:17px}
+.notice p{margin-top:6px;font-size:13.5px;color:var(--ink-2);max-width:66ch}
+.notice p code{font-family:var(--mono);font-size:12.5px;background:#f7e3e1;padding:1px 4px;color:var(--ox)}
+.notice .acts{display:flex;gap:8px;margin-top:12px;position:relative}
+
+.btn{
+  height:32px;padding:0 14px;display:inline-flex;align-items:center;gap:7px;
+  background:var(--card);border:1px solid var(--rule);border-radius:2px;
+  font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;
+  transition:transform .1s,box-shadow .12s,background .12s;
+}
+.btn:hover{background:#fff;box-shadow:0 2px 0 var(--rule);transform:translateY(-1px)}
+.btn:active{transform:none;box-shadow:none}
+.btn svg{width:14px;height:14px;color:var(--ink-2)}
+.btn.ink{background:var(--ink);border-color:var(--ink);color:var(--paper-2)}
+.btn.ink svg{color:var(--paper-2)}
+.btn.ink:hover{background:#000;box-shadow:0 2px 0 #b3aba0}
+.btn.ox{background:var(--ox);border-color:var(--ox);color:#fff}
+.btn.ox svg{color:#fff}
+.btn.ox:hover{background:#82231e}
+.btn.sm{height:26px;padding:0 10px;font-size:12px}
+
+/* ── section heads ───────────────────────────────────────── */
+.sechead{display:flex;align-items:baseline;gap:14px;padding-bottom:8px;border-bottom:2px solid var(--ink);margin:38px 0 0}
+.sechead h3{font-family:var(--serif);font-size:20px;font-weight:600;letter-spacing:-.015em}
+.sechead .sub{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.sechead .sp{flex:1}
+.sechead .tools{display:flex;gap:6px;align-items:center}
+.minitab{
+  background:0;border:0;font-family:var(--sans);font-size:11.5px;font-weight:600;
+  color:var(--ink-3);cursor:pointer;padding:3px 7px;border-radius:2px;
+}
+.minitab:hover{color:var(--ink);background:var(--paper-2)}
+.minitab[aria-selected=true]{color:var(--ink);background:var(--blue-soft)}
+
+/* ── review sheet (working copy changes) ─────────────────── */
+.sheet{background:var(--card);border:1px solid var(--rule);border-top:0}
+.grp{
+  display:flex;align-items:center;gap:10px;padding:9px 16px;
+  background:var(--paper-2);border-bottom:1px solid var(--rule);border-top:1px solid var(--rule);
+}
+.grp:first-child{border-top:0}
+.grp .smallcaps{color:var(--ink-2)}
+.grp .cnt{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.grp .sp{flex:1}
+.grp .note{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);font-style:italic}
+
+.item{
+  display:grid;grid-template-columns:22px 26px minmax(0,1fr) 132px 96px;gap:14px;align-items:center;
+  padding:11px 16px;border-bottom:1px solid var(--rule-2);cursor:default;position:relative;
+  transition:background .1s;
+  animation:fadeup .45s cubic-bezier(.2,.9,.3,1) backwards;
+}
+@keyframes fadeup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.item:last-child{border-bottom:0}
+.item:hover{background:#fffdf7}
+.item.sel{background:var(--blue-soft)}
+.item.sel::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue)}
+.item.conf{background:#fdf7f6}
+.check{
+  width:16px;height:16px;border:1px solid var(--ink-4);border-radius:2px;background:#fff;
+  cursor:pointer;display:grid;place-items:center;
+}
+.check.on{background:var(--ink);border-color:var(--ink)}
+.check.on::after{content:'';width:8px;height:4px;border-left:1.6px solid var(--paper-2);border-bottom:1.6px solid var(--paper-2);transform:rotate(-45deg) translateY(-1px)}
+.glyph{
+  width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--serif);font-size:12.5px;font-weight:700;border:1px solid;
+}
+.glyph.M{color:var(--ochre);border-color:#e0c489;background:#faf3e2}
+.glyph.A{color:var(--green);border-color:#bcd4c2;background:#eaf2ec}
+.glyph.D{color:var(--ox);border-color:#e5c2be;background:#fbeceb}
+.glyph.C{color:#fff;border-color:var(--ox);background:var(--ox)}
+.glyph.Q{color:var(--ink-3);border-color:var(--rule);background:var(--paper-2)}
+.glyph.R{color:var(--violet);border-color:#d0c3e4;background:#f2eef8}
+.glyph.X{color:var(--teal);border-color:#b3d1d3;background:#e6f1f2}
+.fpath{min-width:0}
+.fpath .nm{font-size:14px;font-weight:600;letter-spacing:-.005em;display:flex;align-items:center;gap:7px}
+.fpath .nm svg{width:13px;height:13px;color:var(--ochre)}
+.fpath .dir{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who{font-size:12.5px;color:var(--ink-2)}
+.who .t{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-4)}
+.delta{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.delta .n{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.delta .n .p{color:var(--green)}
+.delta .n .m{color:var(--ox)}
+.bars{display:flex;gap:2px}
+.bars i{width:7px;height:7px;border-radius:1px;background:var(--rule)}
+.bars i.p{background:var(--green)}
+.bars i.m{background:var(--ox)}
+.rowacts{
+  position:absolute;right:16px;top:50%;transform:translateY(-50%);display:none;gap:5px;
+  background:linear-gradient(90deg,transparent,#fffdf7 22%);padding-left:34px;
+}
+.item:hover .rowacts{display:flex}
+
+/* ── revision ledger (timeline spine) ────────────────────── */
+.ledger{position:relative;padding-top:8px}
+.ledger::before{content:'';position:absolute;left:83px;top:20px;bottom:16px;width:1px;background:var(--rule)}
+.entry{
+  display:grid;grid-template-columns:70px 26px minmax(0,1fr);gap:14px;
+  padding:18px 0;border-bottom:1px solid var(--rule-2);position:relative;
+}
+.entry:last-child{border-bottom:0}
+.entry:hover .rev{color:var(--ox)}
+.rev{
+  font-family:var(--serif);font-size:22px;font-weight:600;letter-spacing:-.03em;
+  color:var(--ink);text-align:right;line-height:1.1;font-variation-settings:'opsz' 100;
+  transition:color .14s;cursor:pointer;
+}
+.rev small{display:block;font-family:var(--mono);font-size:10px;font-weight:400;color:var(--ink-4);letter-spacing:0;margin-top:3px}
+.node{
+  width:11px;height:11px;border-radius:50%;background:var(--card);border:2px solid var(--ink-4);
+  margin:7px auto 0;position:relative;z-index:1;
+}
+.entry.head .node{border-color:var(--ox);background:var(--ox);box-shadow:0 0 0 4px #f7e3e1}
+.entry.local .node{border-color:var(--blue);background:var(--blue);box-shadow:0 0 0 4px var(--blue-soft)}
+.ebody{min-width:0}
+.ebody h4{
+  font-family:var(--serif);font-size:19px;font-weight:600;line-height:1.3;letter-spacing:-.015em;
+  font-variation-settings:'opsz' 40;
+}
+.ebody h4 a{color:inherit;text-decoration:none;cursor:pointer}
+.ebody h4 a:hover{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.emeta{display:flex;align-items:center;gap:9px;margin-top:6px;font-size:12.5px;color:var(--ink-2)}
+.emeta .au{font-weight:600;color:var(--ink)}
+.emeta .sep{color:var(--ink-4)}
+.emeta .mono{font-size:11px;color:var(--ink-3)}
+.ebody p{margin-top:8px;font-size:13.5px;color:var(--ink-2);max-width:70ch}
+.files{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px}
+.fchip{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:2px;
+  background:var(--paper-2);border:1px solid var(--rule-2);
+  font-family:var(--mono);font-size:11px;color:var(--ink-2);cursor:pointer;
+}
+.fchip:hover{border-color:var(--ink-4);background:#fff;color:var(--ink)}
+.fchip b{font-weight:600;font-size:10px;width:9px;text-align:center}
+.fchip.M b{color:var(--ochre)}.fchip.A b{color:var(--green)}.fchip.D b{color:var(--ox)}
+.fchip.more{color:var(--ink-3);font-style:italic;border-style:dashed}
+.tags{display:flex;gap:6px;margin-top:10px}
+.tag{
+  font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:2px;
+  background:var(--blue-soft);color:var(--blue);border:1px solid #d3dded;
+}
+.tag.t{background:#f2eef8;color:var(--violet);border-color:#ddd2ee}
+.loadmore{
+  display:block;width:100%;margin-top:20px;padding:12px;background:transparent;
+  border:1px dashed var(--rule);border-radius:2px;color:var(--ink-2);
+  font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer;
+}
+.loadmore:hover{border-color:var(--ink-4);color:var(--ink);background:var(--paper-2)}
+
+/* ══ RIGHT RAIL ════════════════════════════════════════════ */
+.rail{position:sticky;top:118px;display:flex;flex-direction:column;gap:22px}
+.card{background:var(--card);border:1px solid var(--rule);padding:16px}
+.card>.smallcaps{display:block;padding-bottom:9px;margin-bottom:11px;border-bottom:1px solid var(--rule)}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:12.5px}
+.kv dt{color:var(--ink-3)}
+.kv dd{font-family:var(--mono);font-size:11.5px;color:var(--ink);text-align:right;word-break:break-all}
+.kv dd.y{color:var(--ochre)}
+.kv dd.g{color:var(--green)}
+.urlbox{
+  font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--ink-2);
+  background:var(--paper-2);border:1px solid var(--rule-2);padding:8px 9px;margin:2px 0 10px;
+  word-break:break-all;
+}
+.urlbox b{color:var(--ink);font-weight:600}
+.incoming{display:flex;flex-direction:column;gap:0}
+.inc{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule-2);cursor:pointer}
+.inc:last-child{border-bottom:0}
+.inc:hover .t{text-decoration:underline;text-underline-offset:2px}
+.inc .r{font-family:var(--mono);font-size:11px;color:var(--ox);flex:0 0 auto;font-weight:500}
+.inc .t{font-size:12.5px;color:var(--ink);line-height:1.45}
+.inc .a{font-family:var(--mono);font-size:10px;color:var(--ink-4);display:block;margin-top:2px}
+.people{display:flex;flex-direction:column;gap:9px}
+.person{display:flex;align-items:center;gap:10px}
+.person .av{
+  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
+  font-family:var(--serif);font-size:11.5px;font-weight:600;color:#fff;
+}
+.person .nm{flex:1;font-size:12.5px;font-weight:500}
+.person .nm small{display:block;font-family:var(--mono);font-size:10px;color:var(--ink-4);font-weight:400}
+.person .ct{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.meter{height:4px;background:var(--rule-2);border-radius:2px;overflow:hidden;margin-top:3px}
+.meter i{display:block;height:100%;background:var(--blue)}
+.lockrow{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--rule-2);font-size:12.5px}
+.lockrow:last-child{border-bottom:0}
+.lockrow svg{width:13px;height:13px;color:var(--ochre);flex:0 0 auto}
+.lockrow .p{flex:1;font-family:var(--mono);font-size:11px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lockrow .b{font-size:11px;color:var(--ink-3)}
+
+/* ══ CONTEXT MENU ══════════════════════════════════════════ */
+.ctx{
+  position:fixed;z-index:800;min-width:238px;padding:5px;background:var(--card);
+  border:1px solid var(--ink-4);border-radius:2px;
+  box-shadow:0 14px 34px -10px rgba(25,21,16,.34),0 2px 0 rgba(25,21,16,.06);
+  animation:ctxin .1s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes ctxin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.ctx .hd{padding:7px 9px 8px;border-bottom:1px solid var(--rule);margin-bottom:4px}
+.ctx .hd b{font-family:var(--serif);font-size:14px;font-weight:600;display:block;letter-spacing:-.01em}
+.ctx .hd span{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.ctx .lbl{padding:7px 9px 3px;font-size:9.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-4)}
+.ci{
+  display:flex;align-items:center;gap:10px;padding:6px 9px;border-radius:2px;
+  font-size:13px;color:var(--ink);cursor:pointer;position:relative;
+}
+.ci:hover{background:var(--ink);color:var(--paper-2)}
+.ci:hover svg{color:var(--paper-2)}
+.ci:hover .sc{color:var(--ink-4)}
+.ci svg{width:14px;height:14px;color:var(--ink-3);flex:0 0 auto}
+.ci .sc{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.ci.danger{color:var(--ox)}
+.ci.danger svg{color:var(--ox)}
+.ci.danger:hover{background:var(--ox);color:#fff}
+.ci.danger:hover svg{color:#fff}
+.csep{height:1px;background:var(--rule);margin:5px 8px}
+.ci.has-sub:hover .sub{display:block}
+.sub{
+  display:none;position:absolute;left:calc(100% - 4px);top:-6px;min-width:196px;padding:5px;
+  background:var(--card);border:1px solid var(--ink-4);border-radius:2px;
+  box-shadow:0 14px 34px -10px rgba(25,21,16,.34);
+}
+
+/* ══ SEARCH SHEET ══════════════════════════════════════════ */
+.scrim{position:fixed;inset:0;z-index:900;background:rgba(25,21,16,.34);animation:fade .16s ease-out}
+.scrim[hidden]{display:none}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheetmodal{
+  width:min(680px,94vw);margin:8vh auto 0;background:var(--paper-2);
+  border:1px solid var(--ink);border-radius:2px;overflow:hidden;
+  box-shadow:0 40px 80px -24px rgba(25,21,16,.5);animation:drop .2s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes drop{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+.sin{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:2px solid var(--ink);background:var(--card)}
+.sin svg{width:19px;height:19px;color:var(--ink-3)}
+.sin input{
+  flex:1;border:0;background:0;outline:0;color:var(--ink);
+  font-family:var(--serif);font-size:24px;font-weight:500;letter-spacing:-.02em;
+  font-variation-settings:'opsz' 90;
+}
+.sin input::placeholder{color:var(--ink-4)}
+.sbody{max-height:min(460px,58vh);overflow:auto;padding:6px 0 8px}
+.sgrp{padding:11px 20px 5px;font-size:9.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-4)}
+.si{display:flex;align-items:center;gap:13px;padding:9px 20px;cursor:pointer}
+.si:hover,.si.act{background:var(--card);box-shadow:inset 3px 0 0 var(--ox)}
+.si>svg{width:16px;height:16px;color:var(--ink-3);flex:0 0 auto}
+.si .tt{flex:1;min-width:0}
+.si .tt b{display:block;font-size:14px;font-weight:600;letter-spacing:-.005em}
+.si .tt small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--rule);padding:1px 5px;border-radius:2px;color:var(--ink-3);background:var(--paper-2)}
+.sfoot{
+  display:flex;gap:18px;padding:10px 20px;border-top:1px solid var(--rule);background:var(--card);
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+}
+.sfoot b{color:var(--ink-2);font-weight:500}
+
+/* ══ COMMIT DRAWER ═════════════════════════════════════════ */
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;z-index:920;width:min(560px,96vw);
+  background:var(--paper-2);border-left:2px solid var(--ink);display:flex;flex-direction:column;
+  box-shadow:-30px 0 70px -20px rgba(25,21,16,.4);animation:slidein .24s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes slidein{from{transform:translateX(100%)}to{transform:none}}
+.dhead{padding:20px 24px 16px;border-bottom:2px solid var(--ink);background:var(--card)}
+.dhead .smallcaps{margin-bottom:7px;display:block}
+.dhead h2{font-family:var(--serif);font-size:28px;font-weight:600;letter-spacing:-.025em;line-height:1.1;font-variation-settings:'opsz' 110}
+.dhead .to{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:8px;line-height:1.6;word-break:break-all}
+.dhead .to b{color:var(--ink)}
+.dclose{position:absolute;top:18px;right:20px;width:28px;height:28px;display:grid;place-items:center;background:0;border:1px solid var(--rule);border-radius:2px;cursor:pointer;color:var(--ink-2)}
+.dclose:hover{background:var(--paper);color:var(--ink)}
+.dclose svg{width:14px;height:14px}
+.dbody{flex:1;overflow:auto;padding:20px 24px}
+.field{margin-bottom:22px}
+.field>label{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.field>label .smallcaps{flex:1}
+.field>label a{font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:600;text-decoration:none}
+.field>label a:hover{text-decoration:underline}
+textarea.msg{
+  width:100%;min-height:132px;resize:vertical;padding:13px 14px;background:var(--card);
+  border:1px solid var(--rule);border-radius:2px;color:var(--ink);
+  font-family:var(--serif);font-size:15px;line-height:1.6;font-variation-settings:'opsz' 30;
+}
+textarea.msg:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px var(--blue-soft)}
+.charline{display:flex;gap:14px;margin-top:7px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.charline b{color:var(--green)}
+.tmplrow{display:flex;gap:7px;flex-wrap:wrap}
+.tchip{
+  padding:5px 10px;background:var(--card);border:1px solid var(--rule);border-radius:2px;
+  font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;
+}
+.tchip:hover{border-color:var(--ink);color:var(--ink)}
+.manifest{border:1px solid var(--rule);background:var(--card)}
+.mfhead{display:flex;align-items:center;gap:10px;padding:9px 13px;background:var(--paper-2);border-bottom:1px solid var(--rule)}
+.mfhead .smallcaps{flex:1}
+.mfrow{display:flex;align-items:center;gap:11px;padding:8px 13px;border-bottom:1px solid var(--rule-2)}
+.mfrow:last-child{border-bottom:0}
+.mfrow .p{flex:1;min-width:0;font-family:var(--mono);font-size:11.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mfrow .p b{color:var(--ink);font-weight:600}
+.mfrow .d{font-family:var(--mono);font-size:10.5px}
+.mfrow.off{opacity:.45}
+.optrow{display:flex;align-items:flex-start;gap:11px;padding:9px 0;border-bottom:1px solid var(--rule-2);cursor:pointer}
+.optrow:last-child{border-bottom:0}
+.optrow .tt{flex:1}
+.optrow .tt b{display:block;font-size:13px;font-weight:600}
+.optrow .tt small{display:block;font-size:11.5px;color:var(--ink-3);margin-top:1px}
+.sw{width:34px;height:19px;border-radius:10px;background:var(--rule);border:1px solid var(--ink-4);position:relative;flex:0 0 auto;margin-top:2px;transition:background .15s,border-color .15s}
+.sw::after{content:'';position:absolute;left:2px;top:1.5px;width:13px;height:13px;border-radius:50%;background:#fff;transition:transform .16s cubic-bezier(.2,.9,.3,1);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.optrow.on .sw{background:var(--blue);border-color:var(--blue)}
+.optrow.on .sw::after{transform:translateX(15px)}
+.dfoot{padding:14px 24px;border-top:1px solid var(--rule);background:var(--card);display:flex;align-items:center;gap:10px}
+.dfoot .warn{flex:1;font-size:11.5px;color:var(--ochre);line-height:1.4}
+
+/* ══ CONFIRM MODAL ═════════════════════════════════════════ */
+.confirm{
+  width:min(440px,92vw);margin:auto;background:var(--paper-2);border:1px solid var(--ink);
+  border-radius:2px;box-shadow:0 40px 80px -24px rgba(25,21,16,.5);
+  animation:drop .18s cubic-bezier(.2,.9,.3,1);overflow:hidden;
+}
+.confirm .top{padding:22px 24px 18px;background:var(--card);border-bottom:1px solid var(--rule)}
+.confirm .top .glyph{width:34px;height:34px;font-size:16px;margin-bottom:13px}
+.confirm h3{font-family:var(--serif);font-size:23px;font-weight:600;letter-spacing:-.02em;line-height:1.15}
+.confirm p{margin-top:9px;font-size:13.5px;color:var(--ink-2);line-height:1.6}
+.confirm ul{margin:12px 0 0;padding:0;list-style:none;border-top:1px solid var(--rule-2)}
+.confirm li{display:flex;gap:9px;padding:6px 0;border-bottom:1px solid var(--rule-2);font-family:var(--mono);font-size:11.5px;color:var(--ink-2)}
+.confirm li b{color:var(--ox);font-weight:600;width:10px}
+.confirm .bot{padding:14px 24px;display:flex;gap:9px;justify-content:flex-end;align-items:center}
+.confirm .bot .l{flex:1;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+
+/* footer note */
+.protonote{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:990;
+  display:flex;align-items:center;gap:10px;padding:7px 15px;background:var(--ink);
+  color:var(--paper-2);font-family:var(--mono);font-size:10.5px;white-space:nowrap;
+  box-shadow:0 8px 24px -8px rgba(25,21,16,.5);
+}
+.protonote b{color:#e8c471;font-weight:500}
+.protonote kbd{border:1px solid rgba(255,255,255,.28);padding:1px 5px;font-size:9.5px}
+</style>
+</head>
+<body>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-shell" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+    <circle cx="24" cy="24" r="20" fill="currentColor" fill-opacity=".1"/>
+    <path d="M16 16s4-4 8-4 8 4 8 8-4 8-8 8-6-2-6-4 2-4 4-4" opacity=".85"/>
+    <path d="M24 20v12M18 24h12" opacity=".4" stroke-width="1.6"/>
+  </symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 6v12M18 10c0 4-6 3-6 8"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8M8 6h4a4 4 0 0 1 4 4M8 18h4a4 4 0 0 0 4-4"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-diff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 20h18Z"/><path d="M12 10v5m0 3v.4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></symbol>
+</svg>
+
+<!-- ══ MASTHEAD ══ -->
+<header class="masthead">
+  <div class="wrap">
+    <div class="mrow">
+      <div class="logo">
+        <svg><use href="#i-shell"/></svg>
+        <h1>Shelly<em>SVN</em></h1>
+      </div>
+      <div class="edition">
+        <span class="l1">atlas-core · branches/feature/payments-v2</span>
+        <span class="l2">Sat 25 Jul 2026 · working copy r4821</span>
+      </div>
+      <span class="mspace"></span>
+      <div class="mact">
+        <button class="searchbtn" id="sbtn">
+          <svg><use href="#i-search"/></svg>
+          <span>Search the record…</span>
+          <kbd>⌘K</kbd>
+        </button>
+        <button class="ghost"><svg><use href="#i-bell"/></svg></button>
+        <button class="ghost"><svg><use href="#i-cog"/></svg></button>
+        <button class="avatar">J</button>
+      </div>
+    </div>
+    <nav class="nav">
+      <a aria-current="page">Working copy <span class="n">12</span></a>
+      <a>Revisions</a>
+      <a>Repository</a>
+      <a>Branches <span class="n">7</span></a>
+      <a>Locks <span class="n">2</span></a>
+      <a>Conflicts <span class="n">1</span></a>
+      <span class="navspace"></span>
+      <div class="revstate">
+        <span><b>r4821</b> local</span>
+        <span class="arrow">→</span>
+        <span><b>r4838</b> head</span>
+        <span class="pill warn">17 incoming</span>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<div class="page">
+
+  <!-- ══ MAIN COLUMN ══ -->
+  <main class="col-main">
+
+    <!-- headline -->
+    <section class="hero">
+      <div class="kicker">
+        <span class="smallcaps">Working copy · ~/dev/atlas-core</span>
+        <span class="pill bad">1 conflict</span>
+        <span class="pill ok">9 ready</span>
+      </div>
+      <h2>Twelve changes<br>awaiting <em>commit.</em></h2>
+      <p class="dek">
+        Nine files are staged across two changelists and ready to go up. One text conflict in
+        <b>src/main/svn/client.ts</b> must be resolved before the commit will be accepted, and the
+        working copy is <b>17 revisions behind</b> head — mira.k and devon have both landed work since r4821.
+      </p>
+    </section>
+
+    <!-- conflict notice -->
+    <aside class="notice">
+      <h3><svg><use href="#i-warn"/></svg> Resolve before committing</h3>
+      <p>
+        <code>src/main/svn/client.ts</code> came back conflicted from the last update. Shelly kept
+        <code>.mine</code>, <code>.r4802</code> and <code>.r4838</code> alongside it. Both sides changed
+        the <code>runSvn()</code> signature — a three-way review is recommended over taking either side wholesale.
+      </p>
+      <div class="acts">
+        <button class="btn ox"><svg><use href="#i-merge"/></svg> Open three-way editor</button>
+        <button class="btn sm">Take mine</button>
+        <button class="btn sm">Take theirs</button>
+        <button class="btn sm">Mark resolved</button>
+      </div>
+    </aside>
+
+    <!-- ── review sheet ── -->
+    <div class="sechead">
+      <h3>The change sheet</h3>
+      <span class="sub">9 of 12 selected · +735 / −594</span>
+      <span class="sp"></span>
+      <div class="tools">
+        <button class="minitab" aria-selected="true">By changelist</button>
+        <button class="minitab">By folder</button>
+        <button class="minitab">By status</button>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet">
+
+      <div class="grp">
+        <span class="smallcaps">Conflicted</span><span class="cnt">1 file</span>
+        <span class="sp"></span><span class="note">excluded from commit</span>
+      </div>
+      <div class="item conf" data-file="src/main/svn/client.ts">
+        <span class="check" aria-disabled="true"></span>
+        <span class="glyph C">C</span>
+        <span class="fpath"><span class="nm">client.ts</span><span class="dir">src/main/svn/ · text conflict · 3 marker blocks</span></span>
+        <span class="who">mira.k<span class="t">r4802 → r4838</span></span>
+        <span class="delta"><span class="n"><span class="p">+64</span> <span class="m">−12</span></span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="m"></i></span></span>
+        <span class="rowacts"><button class="btn sm">Resolve</button><button class="btn sm">Diff</button></span>
+      </div>
+
+      <div class="grp">
+        <span class="smallcaps">Changelist · payments-ui</span><span class="cnt">3 files</span>
+        <span class="sp"></span><span class="note">created 2 days ago</span>
+      </div>
+      <div class="item sel" data-file="src/main/ipc/svn.ts">
+        <span class="check on"></span><span class="glyph M">M</span>
+        <span class="fpath"><span class="nm">svn.ts</span><span class="dir">src/main/ipc/ · modified 4 minutes ago</span></span>
+        <span class="who">jordan<span class="t">last r4802</span></span>
+        <span class="delta"><span class="n"><span class="p">+41</span> <span class="m">−8</span></span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="m"></i></span></span>
+        <span class="rowacts"><button class="btn sm">Diff</button><button class="btn sm">Log</button></span>
+      </div>
+      <div class="item" data-file="src/renderer/components/ui/MergePreview.tsx">
+        <span class="check on"></span><span class="glyph A">A</span>
+        <span class="fpath"><span class="nm">MergePreview.tsx</span><span class="dir">src/renderer/components/ui/ · scheduled for addition</span></span>
+        <span class="who">—<span class="t">new file</span></span>
+        <span class="delta"><span class="n"><span class="p">+218</span></span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i></span></span>
+        <span class="rowacts"><button class="btn sm">Preview</button><button class="btn sm">Unversion</button></span>
+      </div>
+      <div class="item" data-file="packages/shared/src/merge.ts">
+        <span class="check on"></span><span class="glyph A">A</span>
+        <span class="fpath"><span class="nm">merge.ts</span><span class="dir">packages/shared/src/ · scheduled for addition</span></span>
+        <span class="who">—<span class="t">new file</span></span>
+        <span class="delta"><span class="n"><span class="p">+96</span></span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i></span></span>
+        <span class="rowacts"><button class="btn sm">Preview</button></span>
+      </div>
+
+      <div class="grp"><span class="smallcaps">Default changelist</span><span class="cnt">5 files</span></div>
+      <div class="item" data-file="src/renderer/components/FileExplorer.tsx">
+        <span class="check on"></span><span class="glyph M">M</span>
+        <span class="fpath"><span class="nm">FileExplorer.tsx</span><span class="dir">src/renderer/components/ · modified 1 hour ago</span></span>
+        <span class="who">devon<span class="t">last r4818</span></span>
+        <span class="delta"><span class="n"><span class="p">+27</span> <span class="m">−31</span></span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="m"></i><i class="m"></i><i class="m"></i></span></span>
+        <span class="rowacts"><button class="btn sm">Diff</button><button class="btn sm">Log</button></span>
+      </div>
+      <div class="item" data-file="src/renderer/legacy/OldTree.tsx">
+        <span class="check on"></span><span class="glyph D">D</span>
+        <span class="fpath"><span class="nm">OldTree.tsx</span><span class="dir">src/renderer/legacy/ · scheduled for deletion</span></span>
+        <span class="who">tao.n<span class="t">last r4744</span></span>
+        <span class="delta"><span class="n"><span class="m">−402</span></span>
+          <span class="bars"><i class="m"></i><i class="m"></i><i class="m"></i><i class="m"></i><i class="m"></i></span></span>
+        <span class="rowacts"><button class="btn sm">Restore</button></span>
+      </div>
+      <div class="item" data-file="src/main/ipc/auth.ts">
+        <span class="check on"></span><span class="glyph R">R</span>
+        <span class="fpath"><span class="nm">auth.ts</span><span class="dir">src/main/ipc/ · replaced (deleted then re-added)</span></span>
+        <span class="who">mira.k<span class="t">last r4790</span></span>
+        <span class="delta"><span class="n"><span class="p">+140</span> <span class="m">−138</span></span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="m"></i><i class="m"></i></span></span>
+        <span class="rowacts"><button class="btn sm">Diff</button></span>
+      </div>
+      <div class="item" data-file="package.json">
+        <span class="check on"></span><span class="glyph M">M</span>
+        <span class="fpath"><span class="nm">package.json <svg><use href="#i-lock"/></svg></span><span class="dir">root · you hold the lock since 09:12</span></span>
+        <span class="who">mira.k<span class="t">last r4838</span></span>
+        <span class="delta"><span class="n"><span class="p">+3</span> <span class="m">−1</span></span>
+          <span class="bars"><i class="p"></i><i class="m"></i><i></i><i></i><i></i></span></span>
+        <span class="rowacts"><button class="btn sm">Diff</button><button class="btn sm">Release lock</button></span>
+      </div>
+      <div class="item" data-file="tailwind.config.js">
+        <span class="check on"></span><span class="glyph M">M</span>
+        <span class="fpath"><span class="nm">tailwind.config.js</span><span class="dir">root · modified yesterday</span></span>
+        <span class="who">jordan<span class="t">last r4811</span></span>
+        <span class="delta"><span class="n"><span class="p">+12</span> <span class="m">−2</span></span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="m"></i><i></i><i></i></span></span>
+        <span class="rowacts"><button class="btn sm">Diff</button></span>
+      </div>
+
+      <div class="grp">
+        <span class="smallcaps">Changelist · ignore-on-commit</span><span class="cnt">2 files</span>
+        <span class="sp"></span><span class="note">never sent up</span>
+      </div>
+      <div class="item" data-file="docs/CHANGELOG.md">
+        <span class="check"></span><span class="glyph M">M</span>
+        <span class="fpath"><span class="nm">CHANGELOG.md</span><span class="dir">docs/ · modified 3 hours ago</span></span>
+        <span class="who">jordan<span class="t">last r4835</span></span>
+        <span class="delta"><span class="n"><span class="p">+9</span></span><span class="bars"><i class="p"></i><i></i><i></i><i></i><i></i></span></span>
+        <span class="rowacts"><button class="btn sm">Diff</button></span>
+      </div>
+      <div class="item" data-file="notes/scratch.md">
+        <span class="check"></span><span class="glyph Q">?</span>
+        <span class="fpath"><span class="nm">scratch.md</span><span class="dir">notes/ · unversioned</span></span>
+        <span class="who">—<span class="t">not in repo</span></span>
+        <span class="delta"><span class="n">—</span></span>
+        <span class="rowacts"><button class="btn sm">Add</button><button class="btn sm">Ignore</button></span>
+      </div>
+
+      <div class="grp"><span class="smallcaps">Externals</span><span class="cnt">1 definition</span></div>
+      <div class="item" data-file="vendor/plex-fonts">
+        <span class="check" aria-disabled="true"></span><span class="glyph X">X</span>
+        <span class="fpath"><span class="nm">vendor/plex-fonts</span><span class="dir">pegged at 2.4.1 · svn://svn.lineindustries.com/vendor/plex-fonts</span></span>
+        <span class="who">tao.n<span class="t">set at r4831</span></span>
+        <span class="delta"><span class="n">—</span></span>
+        <span class="rowacts"><button class="btn sm">Manage externals</button></span>
+      </div>
+    </div>
+
+    <!-- ── revision ledger ── -->
+    <div class="sechead">
+      <h3>The record</h3>
+      <span class="sub">branches/feature/payments-v2 · r4826–r4838</span>
+      <span class="sp"></span>
+      <div class="tools">
+        <button class="minitab" aria-selected="true">This branch</button>
+        <button class="minitab">All paths</button>
+        <button class="minitab">Mine</button>
+      </div>
+    </div>
+
+    <div class="ledger">
+      <article class="entry head">
+        <div class="rev">4838<small>HEAD</small></div>
+        <div class="node"></div>
+        <div class="ebody">
+          <h4><a>Fix lock retention when releasing stale locks</a></h4>
+          <div class="emeta">
+            <span class="au">mira.k</span><span class="sep">·</span>
+            <span>2 hours ago</span><span class="sep">·</span>
+            <span class="mono">Sat 25 Jul, 16:41</span><span class="sep">·</span>
+            <span class="mono">4 files</span>
+          </div>
+          <p>Releasing a lock held by another user silently no-oped instead of surfacing the 423 from
+             the server. Now we parse the error and offer “steal lock” when the caller has the right.</p>
+          <div class="files">
+            <span class="fchip M"><b>M</b> src/main/svn/locks.ts</span>
+            <span class="fchip M"><b>M</b> src/main/svn/client.ts</span>
+            <span class="fchip A"><b>A</b> packages/shared/src/locks.ts</span>
+            <span class="fchip M"><b>M</b> package.json</span>
+          </div>
+          <div class="tags"><span class="tag">ATLAS-2830</span></div>
+        </div>
+      </article>
+
+      <article class="entry">
+        <div class="rev">4837</div>
+        <div class="node"></div>
+        <div class="ebody">
+          <h4><a>Add merge preview scaffolding</a></h4>
+          <div class="emeta">
+            <span class="au">devon</span><span class="sep">·</span><span>5 hours ago</span>
+            <span class="sep">·</span><span class="mono">11 files</span>
+          </div>
+          <p>First pass at showing conflict counts and affected paths before a merge is applied,
+             behind the <span class="mono">mergePreview</span> feature flag.</p>
+          <div class="files">
+            <span class="fchip A"><b>A</b> src/renderer/components/ui/MergeWizard.tsx</span>
+            <span class="fchip M"><b>M</b> src/main/ipc/svn.ts</span>
+            <span class="fchip more">+ 9 more</span>
+          </div>
+          <div class="tags"><span class="tag">ATLAS-2841</span></div>
+        </div>
+      </article>
+
+      <article class="entry">
+        <div class="rev">4835</div>
+        <div class="node"></div>
+        <div class="ebody">
+          <h4><a>Harden SVN operations and compatibility coverage</a></h4>
+          <div class="emeta">
+            <span class="au">jordan</span><span class="sep">·</span><span>yesterday 16:04</span>
+            <span class="sep">·</span><span class="mono">23 files</span>
+          </div>
+          <p>Caps subprocess output, forces <span class="mono">LC_ALL=C</span> so parsers stay stable
+             under localised svn builds, and adds 1.8/1.14 compatibility fixtures.</p>
+          <div class="files">
+            <span class="fchip M"><b>M</b> src/main/svn/client.ts</span>
+            <span class="fchip M"><b>M</b> src/main/ipc/svn.ts</span>
+            <span class="fchip A"><b>A</b> tests/fixtures/svn-1.8/</span>
+            <span class="fchip more">+ 20 more</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="entry local">
+        <div class="rev">4831<small>YOUR BASE</small></div>
+        <div class="node"></div>
+        <div class="ebody">
+          <h4><a>Bump plex-fonts external to 2.4.1</a></h4>
+          <div class="emeta">
+            <span class="au">tao.n</span><span class="sep">·</span><span>2 days ago</span>
+            <span class="sep">·</span><span class="mono">1 file</span>
+          </div>
+          <p>Peg the vendored font external to a tag rather than tracking the trunk of the vendor repo.</p>
+          <div class="files"><span class="fchip M"><b>M</b> svn:externals on vendor/</span></div>
+        </div>
+      </article>
+
+      <article class="entry">
+        <div class="rev">4826</div>
+        <div class="node"></div>
+        <div class="ebody">
+          <h4><a>Repo browser: virtualise long directory listings</a></h4>
+          <div class="emeta">
+            <span class="au">mira.k</span><span class="sep">·</span><span>3 days ago</span>
+            <span class="sep">·</span><span class="mono">6 files</span>
+          </div>
+          <p>Directories over 2,000 entries were locking the renderer for seconds at a time.</p>
+          <div class="files">
+            <span class="fchip M"><b>M</b> src/renderer/components/ui/RepoBrowser.tsx</span>
+            <span class="fchip more">+ 5 more</span>
+          </div>
+          <div class="tags"><span class="tag t">tagged v3.1.4</span></div>
+        </div>
+      </article>
+
+      <button class="loadmore">Read earlier revisions — r4825 and before</button>
+    </div>
+  </main>
+
+  <!-- ══ RIGHT RAIL ══ -->
+  <aside class="rail">
+    <div class="card">
+      <span class="smallcaps">Repository</span>
+      <div class="urlbox">svn://svn.lineindustries.com/<b>atlas</b>/branches/feature/payments-v2</div>
+      <dl>
+        <div class="kv"><dt>Working copy</dt><dd>~/dev/atlas-core</dd></div>
+        <div class="kv"><dt>Base revision</dt><dd>r4821</dd></div>
+        <div class="kv"><dt>Head revision</dt><dd class="y">r4838</dd></div>
+        <div class="kv"><dt>Depth</dt><dd>infinity</dd></div>
+        <div class="kv"><dt>UUID</dt><dd>4a9c…e21b</dd></div>
+        <div class="kv"><dt>Server</dt><dd class="g">svn 1.14.3</dd></div>
+      </dl>
+      <div style="display:flex;gap:7px;margin-top:13px">
+        <button class="btn ink" style="flex:1"><svg><use href="#i-down"/></svg> Update</button>
+        <button class="btn" data-open="drawer"><svg><use href="#i-up"/></svg> Commit</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="smallcaps">Incoming · 17 changes</span>
+      <div class="incoming">
+        <div class="inc"><span class="r">4838</span><span class="t">Fix lock retention when releasing stale locks<span class="a">mira.k · 2h</span></span></div>
+        <div class="inc"><span class="r">4837</span><span class="t">Add merge preview scaffolding<span class="a">devon · 5h</span></span></div>
+        <div class="inc"><span class="r">4836</span><span class="t">Bump oxlint to 1.4.0<span class="a">tao.n · 8h</span></span></div>
+        <div class="inc"><span class="r">4835</span><span class="t">Harden SVN operations and compatibility coverage<span class="a">jordan · 1d</span></span></div>
+      </div>
+      <button class="btn sm" style="width:100%;margin-top:11px;justify-content:center">See all 17</button>
+    </div>
+
+    <div class="card">
+      <span class="smallcaps">Locks you hold</span>
+      <div class="lockrow"><svg><use href="#i-lock"/></svg><span class="p">package.json</span><span class="b">09:12</span></div>
+      <div class="lockrow"><svg><use href="#i-lock"/></svg><span class="p">build/entitlements.plist</span><span class="b">Thu</span></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--rule-2)">
+        <span class="smallcaps" style="font-size:9.5px">Held by others</span>
+        <div class="lockrow" style="opacity:.72"><svg style="color:var(--ink-4)"><use href="#i-lock"/></svg><span class="p">binaries/svn-win32.zip</span><span class="b">devon</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="smallcaps">Contributors · 30 days</span>
+      <div class="people">
+        <div class="person"><span class="av" style="background:#1f3a5f">M</span>
+          <span class="nm">mira.k<small>68 commits</small><span class="meter"><i style="width:100%"></i></span></span></div>
+        <div class="person"><span class="av" style="background:#9c2b25">J</span>
+          <span class="nm">jordan<small>41 commits</small><span class="meter"><i style="width:60%;background:#9c2b25"></i></span></span></div>
+        <div class="person"><span class="av" style="background:#2f6b3f">D</span>
+          <span class="nm">devon<small>33 commits</small><span class="meter"><i style="width:48%;background:#2f6b3f"></i></span></span></div>
+        <div class="person"><span class="av" style="background:#a8720e">T</span>
+          <span class="nm">tao.n<small>19 commits</small><span class="meter"><i style="width:28%;background:#a8720e"></i></span></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="smallcaps">Hooks &amp; policy</span>
+      <div class="kv"><dt>pre-commit</dt><dd class="g">issue ref required ✓</dd></div>
+      <div class="kv"><dt>Message minimum</dt><dd>20 chars</dd></div>
+      <div class="kv"><dt>Locks</dt><dd>needs-lock on *.zip</dd></div>
+      <div class="kv"><dt>bugtraq:url</dt><dd>jira.line…/%BUGID%</dd></div>
+    </div>
+  </aside>
+</div>
+</div>
+
+<!-- ══ CONTEXT MENU ══ -->
+<div class="ctx" id="ctx" hidden>
+  <div class="hd"><b id="ctxname">svn.ts</b><span id="ctxdir">src/main/ipc/ · modified</span></div>
+  <div class="ci"><svg><use href="#i-diff"/></svg> Compare with base <span class="sc">⌘D</span></div>
+  <div class="ci"><svg><use href="#i-hist"/></svg> Show the record for this file <span class="sc">⌘L</span></div>
+  <div class="ci"><svg><use href="#i-user"/></svg> Blame line by line</div>
+  <div class="csep"></div>
+  <div class="ci"><svg><use href="#i-up"/></svg> Commit this file… <span class="sc">⌘↵</span></div>
+  <div class="ci"><svg><use href="#i-down"/></svg> Update to head</div>
+  <div class="ci danger"><svg><use href="#i-undo"/></svg> Revert… <span class="sc">⌘⌫</span></div>
+  <div class="csep"></div>
+  <div class="ci has-sub"><svg><use href="#i-layers"/></svg> Changelist <svg style="margin-left:auto;width:13px;height:13px"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="lbl">Move to</div>
+      <div class="ci">payments-ui</div>
+      <div class="ci">ignore-on-commit</div>
+      <div class="ci">Default</div>
+      <div class="csep"></div>
+      <div class="ci"><svg><use href="#i-plus"/></svg> New changelist…</div>
+    </div>
+  </div>
+  <div class="ci has-sub"><svg><use href="#i-lock"/></svg> Lock <svg style="margin-left:auto;width:13px;height:13px"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="ci">Get lock…</div>
+      <div class="ci">Release lock</div>
+      <div class="ci">Steal lock…</div>
+    </div>
+  </div>
+  <div class="ci has-sub"><svg><use href="#i-cog"/></svg> More <svg style="margin-left:auto;width:13px;height:13px"><use href="#i-chev"/></svg>
+    <div class="sub">
+      <div class="ci"><svg><use href="#i-file"/></svg> Create patch…</div>
+      <div class="ci"><svg><use href="#i-layers"/></svg> Properties…</div>
+      <div class="ci"><svg><use href="#i-branch"/></svg> Revision graph</div>
+      <div class="csep"></div>
+      <div class="ci danger"><svg><use href="#i-trash"/></svg> Delete from repository…</div>
+    </div>
+  </div>
+  <div class="csep"></div>
+  <div class="ci"><svg><use href="#i-copy"/></svg> Copy path <span class="sc">⇧⌘C</span></div>
+  <div class="ci"><svg><use href="#i-ext"/></svg> Reveal in Finder</div>
+</div>
+
+<!-- ══ SEARCH SHEET ══ -->
+<div class="scrim" id="search" hidden>
+  <div class="sheetmodal" onclick="event.stopPropagation()">
+    <div class="sin">
+      <svg><use href="#i-search"/></svg>
+      <input id="sq" placeholder="A path, a revision, an author, a command…" />
+    </div>
+    <div class="sbody">
+      <div class="sgrp">Revisions</div>
+      <div class="si act"><svg><use href="#i-hist"/></svg><span class="tt"><b>r4835 — Harden SVN operations and compatibility coverage</b><small>jordan · yesterday 16:04 · 23 files</small></span><kbd>↵</kbd></div>
+      <div class="si"><svg><use href="#i-hist"/></svg><span class="tt"><b>r4838 — Fix lock retention when releasing stale locks</b><small>mira.k · 2 hours ago · 4 files</small></span></div>
+      <div class="sgrp">Paths in the working copy</div>
+      <div class="si"><svg><use href="#i-file"/></svg><span class="tt"><b>svn.ts</b><small>src/main/ipc/svn.ts · modified · +41 −8</small></span></div>
+      <div class="si"><svg><use href="#i-file"/></svg><span class="tt"><b>client.ts</b><small>src/main/svn/client.ts · conflicted</small></span></div>
+      <div class="sgrp">Commands</div>
+      <div class="si"><svg><use href="#i-up"/></svg><span class="tt"><b>Commit changes…</b><small>9 files staged</small></span><kbd>⌘↵</kbd></div>
+      <div class="si"><svg><use href="#i-merge"/></svg><span class="tt"><b>Merge from trunk…</b><small>reintegrate · range · two-URL</small></span></div>
+      <div class="si"><svg><use href="#i-branch"/></svg><span class="tt"><b>Create branch or tag…</b><small>svn copy from the working copy</small></span><kbd>⌘B</kbd></div>
+      <div class="sgrp">Repositories</div>
+      <div class="si"><svg><use href="#i-folder"/></svg><span class="tt"><b>shelly-docs</b><small>~/dev/shelly-docs · r1207 · clean</small></span></div>
+    </div>
+    <div class="sfoot">
+      <span><b>↑↓</b> move</span><span><b>↵</b> open</span>
+      <span><b>r4835</b> jump by revision</span><span><b>@mira</b> filter by author</span>
+      <span style="margin-left:auto"><b>esc</b> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMMIT DRAWER ══ -->
+<div class="scrim" id="drawer" hidden>
+  <div class="drawer" onclick="event.stopPropagation()">
+    <div class="dhead" style="position:relative">
+      <button class="dclose" onclick="closeAll()"><svg><use href="#i-x"/></svg></button>
+      <span class="smallcaps">Commit · 9 files</span>
+      <h2>Enter it in<br>the record.</h2>
+      <div class="to">→ svn://svn.lineindustries.com/atlas/<b>branches/feature/payments-v2</b><br>from ~/dev/atlas-core at r4821</div>
+    </div>
+    <div class="dbody">
+      <div class="field">
+        <label><span class="smallcaps">Message</span><a>Recent messages</a><a>Templates</a></label>
+        <textarea class="msg">Add merge preview scaffolding + harden status walk
+
+MergePreview surfaces conflict counts before a merge is applied. svn status now
+walks externals separately, since they were reporting as unversioned. Caps stdout
+at MAX_SVN_OUTPUT so a very large tree can't exhaust the main process.
+
+Refs: ATLAS-2841</textarea>
+        <div class="charline"><span>Subject <b>48 / 72</b></span><span>318 characters</span><span>Issue ref found: ATLAS-2841</span></div>
+      </div>
+
+      <div class="field">
+        <label><span class="smallcaps">Templates</span></label>
+        <div class="tmplrow">
+          <button class="tchip">Feature</button><button class="tchip">Bugfix</button>
+          <button class="tchip">Release</button><button class="tchip">Refactor</button>
+          <button class="tchip">+ New</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label><span class="smallcaps">Manifest</span><a>Select all</a></label>
+        <div class="manifest">
+          <div class="mfhead"><span class="check on"></span><span class="smallcaps">9 of 12 files</span><span class="mono" style="font-size:10.5px;color:var(--ink-3)">+735 −594</span></div>
+          <div class="mfrow"><span class="check on"></span><span class="glyph M" style="width:20px;height:20px;font-size:11px">M</span><span class="p"><span style="color:var(--ink-4)">src/main/ipc/</span><b>svn.ts</b></span><span class="d" style="color:var(--green)">+41</span><span class="d" style="color:var(--ox)">−8</span></div>
+          <div class="mfrow"><span class="check on"></span><span class="glyph A" style="width:20px;height:20px;font-size:11px">A</span><span class="p"><span style="color:var(--ink-4)">src/renderer/components/ui/</span><b>MergePreview.tsx</b></span><span class="d" style="color:var(--green)">+218</span></div>
+          <div class="mfrow"><span class="check on"></span><span class="glyph A" style="width:20px;height:20px;font-size:11px">A</span><span class="p"><span style="color:var(--ink-4)">packages/shared/src/</span><b>merge.ts</b></span><span class="d" style="color:var(--green)">+96</span></div>
+          <div class="mfrow"><span class="check on"></span><span class="glyph M" style="width:20px;height:20px;font-size:11px">M</span><span class="p"><span style="color:var(--ink-4)">src/renderer/components/</span><b>FileExplorer.tsx</b></span><span class="d" style="color:var(--green)">+27</span><span class="d" style="color:var(--ox)">−31</span></div>
+          <div class="mfrow"><span class="check on"></span><span class="glyph D" style="width:20px;height:20px;font-size:11px">D</span><span class="p"><span style="color:var(--ink-4)">src/renderer/legacy/</span><b>OldTree.tsx</b></span><span class="d" style="color:var(--ox)">−402</span></div>
+          <div class="mfrow"><span class="check on"></span><span class="glyph R" style="width:20px;height:20px;font-size:11px">R</span><span class="p"><span style="color:var(--ink-4)">src/main/ipc/</span><b>auth.ts</b></span><span class="d" style="color:var(--green)">+140</span><span class="d" style="color:var(--ox)">−138</span></div>
+          <div class="mfrow off"><span class="check"></span><span class="glyph C" style="width:20px;height:20px;font-size:11px">C</span><span class="p"><b>client.ts</b> — resolve first</span></div>
+          <div class="mfrow off"><span class="check"></span><span class="glyph Q" style="width:20px;height:20px;font-size:11px">?</span><span class="p"><b>scratch.md</b> — unversioned</span></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label><span class="smallcaps">Options</span></label>
+        <div class="optrow on"><span class="sw"></span><span class="tt"><b>Keep locks</b><small>Retain your lock on package.json after committing</small></span></div>
+        <div class="optrow"><span class="sw"></span><span class="tt"><b>Keep changelists</b><small>Don't dissolve payments-ui once committed</small></span></div>
+        <div class="optrow on"><span class="sw"></span><span class="tt"><b>Run pre-commit hook locally</b><small>Validate the issue reference before sending</small></span></div>
+        <div class="optrow"><span class="sw"></span><span class="tt"><b>Update after commit</b><small>Pull the 17 incoming revisions immediately</small></span></div>
+      </div>
+    </div>
+    <div class="dfoot">
+      <span class="warn">Working copy is 17 revisions behind head — a commit is still allowed, but conflicts are likelier on the next update.</span>
+      <button class="btn" onclick="closeAll()">Cancel</button>
+      <button class="btn ink" onclick="closeAll()">Commit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CONFIRM MODAL ══ -->
+<div class="scrim" id="revert" hidden style="display:grid;place-items:center">
+  <div class="confirm" onclick="event.stopPropagation()">
+    <div class="top">
+      <span class="glyph D">↺</span>
+      <h3>Revert three files?</h3>
+      <p>This discards local modifications and cannot be undone from inside Shelly.
+         Reverted files return to their base revision, <span class="mono">r4821</span>.</p>
+      <ul>
+        <li><b>M</b> src/main/ipc/svn.ts — 49 lines lost</li>
+        <li><b>A</b> packages/shared/src/merge.ts — becomes unversioned</li>
+        <li><b>D</b> src/renderer/legacy/OldTree.tsx — restored</li>
+      </ul>
+    </div>
+    <div class="bot">
+      <span class="l">⌘⌫ to confirm</span>
+      <button class="btn" onclick="closeAll()">Keep changes</button>
+      <button class="btn ox" onclick="closeAll()">Revert 3 files</button>
+    </div>
+  </div>
+</div>
+
+<div class="protonote">
+  <b>02 · LEDGER</b> — editorial, record-first, light stock
+  <span>·</span> <kbd>right-click a row</kbd> <span>·</span> <kbd>⌘K</kbd> search sheet <span>·</span> <kbd>C</kbd> commit drawer <span>·</span> <kbd>R</kbd> revert
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+$$('.item').forEach((r,i)=>r.style.animationDelay=(i*22)+'ms');
+
+/* selection */
+$$('.item').forEach(r=>r.addEventListener('click',e=>{
+  if(e.target.classList.contains('check')){e.target.classList.toggle('on');return}
+  if(e.target.closest('.btn'))return;
+  $$('.item').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');
+}));
+
+/* context menu */
+const ctx=$('#ctx');
+$$('.item, .entry, .fchip, .inc').forEach(r=>r.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  const nm=r.querySelector('.nm')?.textContent.trim()||r.querySelector('h4')?.textContent.trim()||r.textContent.trim().slice(0,40);
+  const dir=r.querySelector('.dir')?.textContent||r.querySelector('.emeta')?.textContent.replace(/\s+/g,' ').trim()||'';
+  $('#ctxname').textContent=nm;$('#ctxdir').textContent=dir;
+  ctx.hidden=false;
+  ctx.style.left=Math.min(e.clientX,innerWidth-ctx.offsetWidth-14)+'px';
+  ctx.style.top=Math.min(e.clientY,innerHeight-ctx.offsetHeight-14)+'px';
+}));
+document.addEventListener('click',()=>ctx.hidden=true);
+
+/* overlays */
+function closeAll(){$$('.scrim').forEach(s=>s.hidden=true)}
+function open(id){closeAll();$('#'+id).hidden=false;if(id==='search')setTimeout(()=>$('#sq').focus(),20)}
+$$('[data-open]').forEach(b=>b.addEventListener('click',()=>open(b.dataset.open)));
+$('#sbtn').addEventListener('click',()=>open('search'));
+$$('.scrim').forEach(s=>s.addEventListener('click',closeAll));
+$$('.rowacts .btn, .notice .btn').forEach(b=>{
+  if(/revert|restore/i.test(b.textContent))b.addEventListener('click',e=>{e.stopPropagation();open('revert')});
+});
+
+addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();open('search');return}
+  if(e.key==='Escape'){closeAll();ctx.hidden=true;return}
+  if(typing)return;
+  if(e.key.toLowerCase()==='c'){e.preventDefault();open('drawer')}
+  if(e.key.toLowerCase()==='r'){e.preventDefault();open('revert')}
+});
+$('#sq').addEventListener('keydown',e=>{
+  const items=$$('#search .si');const i=items.findIndex(x=>x.classList.contains('act'));
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();items[i]?.classList.remove('act');
+    const n=e.key==='ArrowDown'?(i+1)%items.length:(i-1+items.length)%items.length;
+    items[n].classList.add('act');items[n].scrollIntoView({block:'nearest'});
+  }
+  if(e.key==='Enter')closeAll();
+});
+
+/* tabs, toggles */
+$$('.minitab').forEach(b=>b.addEventListener('click',()=>{
+  [...b.parentElement.children].forEach(x=>x.setAttribute('aria-selected','false'));
+  b.setAttribute('aria-selected','true');
+}));
+$$('.nav a').forEach(a=>a.addEventListener('click',ev=>{
+  ev.preventDefault();$$('.nav a').forEach(x=>x.removeAttribute('aria-current'));a.setAttribute('aria-current','page');
+}));
+$$('.optrow').forEach(t=>t.addEventListener('click',()=>t.classList.toggle('on')));
+$$('.mfrow .check, .mfhead .check').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('on')));
+</script>
+</body>
+</html>

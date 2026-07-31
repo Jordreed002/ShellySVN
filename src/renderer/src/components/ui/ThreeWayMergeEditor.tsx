@@ -723,7 +723,7 @@ export function ThreeWayMergeEditor({
                   value={customEditContent}
                   onChange={(e) => setCustomEditContent(e.target.value)}
                   className="w-full h-[300px] font-mono text-sm input resize-none"
-                  placeholder="Enter custom merged content..."
+                  placeholder="Enter custom merged content…"
                 />
               </div>
               <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border">

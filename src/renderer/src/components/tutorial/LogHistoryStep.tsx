@@ -132,7 +132,7 @@ function LogEntry({
           <MessageSquare className="w-3 h-3" />
           {files} files changed
         </span>
-        {isExpanded && <span className="text-accent">Viewing changes...</span>}
+        {isExpanded && <span className="text-accent">Viewing changes…</span>}
       </div>
     </div>
   );

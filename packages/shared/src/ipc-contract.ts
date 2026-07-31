@@ -4,6 +4,7 @@ import type {
   AuthListEntry,
   CheckoutOptions,
   CheckoutProgress,
+  CodeEditorInfo,
   ConfirmDialogOptions,
   DeepStatusProgress,
   DirectoryMetadataResult,
@@ -20,6 +21,7 @@ import type {
   SvnCacheNamespace,
   SvnCacheStats,
   SvnChangelistResult,
+  SvnChildCommitInfo,
   SvnCleanupOptions,
   SvnCleanupPreview,
   SvnDiffResult,
@@ -146,11 +148,8 @@ export interface IpcInvokeContract {
   'svn:revert': IpcCall<[paths: string[], depth?: SvnRevertDepth], OperationResult>;
   'svn:revertPreview': IpcCall<[paths: string[], depth?: SvnRevertDepth], SvnRevertPreview>;
   'svn:unversion': IpcCall<[paths: string[]], OperationResult>;
-  'svn:exclude': IpcCall<[path: string], OperationResult>;
-  'svn:childCommits': IpcCall<
-    [path: string],
-    Record<string, { revision: number; author: string; date: string }>
-  >;
+  'svn:exclude': IpcCall<[paths: string | string[]], OperationResult>;
+  'svn:childCommits': IpcCall<[path: string], Record<string, SvnChildCommitInfo>>;
   'svn:add': IpcCall<[paths: string[]], OperationResult>;
   'svn:delete': IpcCall<[paths: string[]], OperationResult>;
   'svn:cleanup': IpcCall<[path: string, options?: SvnCleanupOptions], OperationResult>;
@@ -405,6 +404,8 @@ export interface IpcInvokeContract {
   'external:openFolder': IpcCall<[path: string], OperationResult>;
   'external:openFile': IpcCall<[path: string], OperationResult>;
   'external:revealPath': IpcCall<[path: string], OperationResult>;
+  'external:listEditors': IpcCall<[refresh?: boolean], CodeEditorInfo[]>;
+  'external:openInEditor': IpcCall<[editorId: string, path: string], OperationResult>;
 
   'webhook:deliver': IpcCall<[request: WebhookDeliverRequest], WebhookDeliverResult>;
   'notification:show': IpcCall<[options: NotificationOptions], boolean>;

@@ -39,6 +39,9 @@ export function invalidateWorkingCopyViews(
     if (shouldInvalidateDirectory) {
       queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', targetPath] });
       queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', targetPath] });
+      // Carries the last-activity column and which children are excluded from
+      // the checkout, so it goes stale whenever the listing does.
+      queryClient.invalidateQueries({ queryKey: ['svn:childCommits', targetPath] });
     }
 
     if (shouldInvalidateStatus) {

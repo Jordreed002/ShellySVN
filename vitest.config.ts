@@ -30,6 +30,11 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/**/index.ts',
         'src/__test-utils__/**',
+        // Presentational React surfaces are covered by component/E2E tests rather
+        // than the unit-test coverage baseline for application logic.
+        'src/renderer/src/features/**/components/**',
+        'src/renderer/src/features/**/*Screen.tsx',
+        'src/renderer/src/features/**/*View.tsx',
       ],
       all: true,
       thresholds: {

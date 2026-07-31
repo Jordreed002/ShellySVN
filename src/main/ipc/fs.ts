@@ -16,9 +16,9 @@ import { assertPathApprovedForIpc, isPathApprovedForIpc } from '../utils/approve
 import { resolveSvnExecution, runSvnText } from '../services/svn-executor';
 import { getWorkerFsStatus } from '../services/svn-status-worker';
 import {
+  classifyWorkingCopyUpgradeError,
   getInfo,
   getWorkingCopyContext,
-  getWorkingCopyUpgradeStatus,
 } from '../services/svn-working-copy';
 import { getStatusService } from '../services/status-service';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
@@ -242,8 +242,10 @@ async function getDirectoryMetadata(
     svnInfo = await getInfo(dirPath);
     isVersionedResult = true;
     workingCopyUpgradeStatus = { path: dirPath, required: false };
-  } catch {
-    workingCopyUpgradeStatus = await getWorkingCopyUpgradeStatus(dirPath);
+  } catch (error) {
+    // `getWorkingCopyUpgradeStatus` would run the same `svn info` again; the
+    // error we already have answers the question, so classify it in-process.
+    workingCopyUpgradeStatus = classifyWorkingCopyUpgradeError(dirPath, error);
   }
 
   const [statusData, workingCopyContext] = await Promise.all([

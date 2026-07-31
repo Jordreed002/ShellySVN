@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
+  Clock,
+  Database,
   ExternalLink,
   FolderGit2,
   FolderOpen,
@@ -14,16 +16,36 @@ import {
   Plus,
   Search,
   Settings,
+  Star,
   Trash2,
+  X,
 } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useHomePath } from '@renderer/hooks/useHomePath';
 
 import { m, useMotionEnabled, variants } from '../lib/motion';
-import { RepoRailItem, RepoRow } from './sidebar/RepoRow';
-import { usePinnedRepos } from './sidebar/sidebarData';
-import { WorkingCopyPanel } from './sidebar/WorkingCopyPanel';
+import { ProblemsSection, ShelvesSection } from './sidebar/LocalFacts';
+import {
+  RailLinkRow,
+  RailSection,
+  RepoRailItem,
+  railRowClass,
+  WorkingCopyRow,
+} from './sidebar/RepoRow';
+import {
+  buildDiskUsage,
+  collectProblems,
+  collectRepositoryRoots,
+  describeRepo,
+  shortenPath,
+  usePinnedRepos,
+  useWorkingCopyOverview,
+  useWorkingCopyShelves,
+  useWorkingCopySizes,
+  type SidebarPresence,
+} from './sidebar/sidebarData';
+import { DiskCard, WorkingCopyPanel } from './sidebar/WorkingCopyPanel';
 import type { SettingsTab } from './ui/SettingsDialog';
 
 const AddRepoModal = lazy(() =>
@@ -35,6 +57,12 @@ const ImportDialog = lazy(() =>
 const loadSettingsDialog = () =>
   import('./ui/SettingsDialog').then((mod) => ({ default: mod.SettingsDialog }));
 const SettingsDialog = lazy(loadSettingsDialog);
+const ShelveDialog = lazy(() =>
+  import('./ui/ShelveDialog').then((mod) => ({ default: mod.ShelveDialog }))
+);
+
+/** Recent locations are a shortcut list, not a history log — keep it short. */
+const MAX_RECENT_LOCATIONS = 6;
 
 function runWhenIdle(callback: () => void, timeout = 1500): () => void {
   if (typeof window.requestIdleCallback === 'function') {
@@ -52,13 +80,14 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
-  const { settings, addRecentRepo, removeRecentRepo } = useSettings();
+  const { settings, addRecentRepo, removeRecentRepo, addBookmark, removeBookmark } = useSettings();
   const navigate = useNavigate();
   const routerState = useRouterState();
   const motionEnabled = useMotionEnabled();
 
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
   const currentPathWithDefault = currentPath || '/';
+  const pathname = routerState.location.pathname;
   const homePath = useHomePath();
 
   const [isAddRepoModalOpen, setIsAddRepoModalOpen] = useState(false);
@@ -66,6 +95,10 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // Working copy whose shelves the shelf manager is open on.
+  const [shelvesFor, setShelvesFor] = useState<string | null>(null);
+  // Gate for rail data nothing on screen is waiting for; see `runWhenIdle`.
+  const [railIsIdle, setRailIsIdle] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   // Set when the rail's Search button expands the sidebar so we can focus search.
@@ -77,9 +110,15 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const { isPinned, togglePin } = usePinnedRepos();
 
   const recentRepos = settings?.recentRepositories || [];
-  const filteredRepos = searchQuery
-    ? recentRepos.filter((repo) => repo.toLowerCase().includes(searchQuery.toLowerCase()))
-    : recentRepos;
+  const bookmarks = settings?.bookmarks || [];
+  const recentPaths = settings?.recentPaths || [];
+
+  const matchesSearch = useCallback(
+    (value: string) => !searchQuery || value.toLowerCase().includes(searchQuery.toLowerCase()),
+    [searchQuery]
+  );
+
+  const filteredRepos = recentRepos.filter((repo) => matchesSearch(repo));
   // Pinned repos float to the top (stable within each group).
   const sortedRepos = [...filteredRepos].sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
 
@@ -88,8 +127,89 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
     (repo) => currentPath === repo || currentPath.startsWith(repo + '/')
   );
 
+  /* ── working-copy facts: one query feeds every row and the disk card ── */
+  const overview = useWorkingCopyOverview(recentRepos);
+
+  const presenceOf = (repo: string): SidebarPresence => overview.get(repo)?.presence ?? 'unknown';
+
+  const presenceByPath = new Map<string, SidebarPresence>(
+    recentRepos.map((repo) => [repo, presenceOf(repo)])
+  );
+  const onDiskRepos = recentRepos.filter((repo) => {
+    const presence = presenceOf(repo);
+    return presence === 'full' || presence === 'sparse';
+  });
+  // Measuring a checkout means walking it, so this follows the user's existing
+  // "show folder sizes" preference rather than scanning on every launch.
+  const { data: workingCopySizes } = useWorkingCopySizes(
+    onDiskRepos,
+    settings?.showFolderSizes ?? false
+  );
+  const diskUsage = buildDiskUsage(workingCopySizes, presenceByPath);
+
+  /* ── local facts: problems and shelves, per working copy ── */
+
+  // Problems ride on the status read the rail already does for every row, so
+  // the section costs no extra `svn status` — the expensive call stays at one
+  // per working copy. `collectProblems` keeps "measured and clean" apart from
+  // "not measured yet", so the count is never a guess.
+  const problems = collectProblems(
+    recentRepos.filter((repo) => matchesSearch(repo)),
+    overview
+  );
+
+  // One `svn shelf-list` per checkout is a process each: hold it until the app
+  // is idle, and never ask a path that is not a working copy.
+  const shelvesOf = useWorkingCopyShelves(onDiskRepos, railIsIdle && !collapsed);
+  const shelves = shelvesOf.shelves.filter(
+    (shelf) => matchesSearch(shelf.name) || matchesSearch(shelf.workingCopyName)
+  );
+  // With one checkout in the rail there is nothing to disambiguate; with more,
+  // every problem and every shelf has to say which working copy it belongs to.
+  const attributeWorkingCopy = onDiskRepos.length > 1;
+
+  // The `+` shelves the changes of the checkout you are in — or the only one
+  // there is. With several and none active, Subversion could not tell which.
+  const shelveTargetPath =
+    activeRepo && onDiskRepos.includes(activeRepo)
+      ? activeRepo
+      : onDiskRepos.length === 1
+        ? onDiskRepos[0]
+        : undefined;
+  const shelveTarget = shelveTargetPath
+    ? {
+        path: shelveTargetPath,
+        name: describeRepo(shelveTargetPath).name,
+        // There is only something to shelve when `svn status` found local changes.
+        hasChanges: (overview.get(shelveTargetPath)?.status?.changes ?? 0) > 0,
+      }
+    : undefined;
+  // Only ever said about a checkout whose shelf list actually came back.
+  const shelvesEmptyNote =
+    shelveTarget && shelves.length === 0 && shelvesOf.measured.includes(shelveTarget.path)
+      ? `No shelves in ${shelveTarget.name}`
+      : undefined;
+
+  const repositoryRoots = collectRepositoryRoots(recentRepos, overview).filter(
+    (root) => matchesSearch(root.url) || root.workingCopies.some((wc) => matchesSearch(wc))
+  );
+  const filteredBookmarks = bookmarks.filter(
+    (bookmark) => matchesSearch(bookmark.name) || matchesSearch(bookmark.path)
+  );
+  const filteredRecentPaths = recentPaths
+    .filter((path) => !recentRepos.includes(path) && matchesSearch(path))
+    .slice(0, MAX_RECENT_LOCATIONS);
+
+  // Offer to bookmark wherever we are, unless it is already bookmarked.
+  const canBookmarkCurrentPath =
+    currentPath.length > 0 && !bookmarks.some((bookmark) => bookmark.path === currentPath);
+
   // Preload the settings dialog when the app is idle.
   useEffect(() => runWhenIdle(() => void loadSettingsDialog()), []);
+
+  // Nothing on first paint depends on shelves, so they wait for the same idle
+  // moment rather than competing with the working-copy reads that rows need.
+  useEffect(() => runWhenIdle(() => setRailIsIdle(true)), []);
 
   // When the rail's Search button expands the sidebar, focus the search field.
   useEffect(() => {
@@ -230,6 +350,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                 repo={repo}
                 isActive={currentPath === repo || currentPath.startsWith(repo + '/')}
                 isPinned={isPinned(repo)}
+                status={overview.get(repo)?.status}
                 onOpen={(r) => void addRecentRepo(r)}
                 onMenu={openContextMenu}
               />
@@ -259,9 +380,12 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           </button>
         </aside>
       ) : (
-        <aside className="w-[--sidebar-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col overflow-hidden">
+        <aside
+          className="w-[--sidebar-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col overflow-hidden"
+          aria-label="Sidebar"
+        >
           {/* Search + add */}
-          <div className="flex items-center gap-2 px-3 pt-3.5 pb-2">
+          <div className="flex items-center gap-2 px-3 pt-3.5 pb-1">
             <div className="relative flex-1 group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted group-focus-within:text-accent transition-fast" />
               <input
@@ -270,6 +394,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search repositories…"
+                aria-label="Search repositories"
                 className="w-full pl-9 pr-3 py-2 text-sm bg-bg-tertiary/60 border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25 transition-fast"
               />
             </div>
@@ -284,49 +409,49 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             </button>
           </div>
 
-          {/* Primary navigation — Home and Files are always available. */}
-          <nav className="px-1.5 pb-1">
-            <Link
-              to="/"
-              className="tree-item"
-              activeProps={{ className: 'tree-item-active' }}
-              activeOptions={{ exact: true }}
-            >
-              <Home className="w-4 h-4" />
-              <span>Home</span>
-            </Link>
-            <Link
-              to="/files"
-              search={{ path: homePath || currentPathWithDefault }}
-              className="tree-item"
-              activeProps={{ className: 'tree-item-active' }}
-            >
-              <FolderOpen className="w-4 h-4" />
-              <span>Files</span>
-            </Link>
-          </nav>
+          <nav
+            aria-label="Repositories and locations"
+            className="flex-1 overflow-y-auto scrollbar-overlay pb-4"
+          >
+            {/* Always-available destinations. */}
+            <div className="space-y-0.5 px-1.5 pt-2">
+              <Link to="/" className={railRowClass(pathname === '/')}>
+                <Home className="h-[15px] w-[15px] flex-shrink-0 opacity-85" />
+                <span className="flex-1 truncate">Home</span>
+              </Link>
+              <Link
+                to="/files"
+                search={{ path: homePath || currentPathWithDefault }}
+                className={railRowClass(pathname.startsWith('/files') && !activeRepo)}
+              >
+                <FolderOpen className="h-[15px] w-[15px] flex-shrink-0 opacity-85" />
+                <span className="flex-1 truncate">Files</span>
+              </Link>
+            </div>
 
-          {/* Repositories header */}
-          <div className="mt-1 px-3.5 pt-2.5 pb-1.5 flex items-center justify-between border-t border-border-muted">
-            <span className="text-2xs font-semibold text-text-muted uppercase tracking-[0.12em]">
-              Repositories
-            </span>
-            {recentRepos.length > 0 && (
-              <span className="text-2xs font-medium text-text-muted tabular-nums px-1.5 py-0.5 rounded-md bg-bg-tertiary/70">
-                {recentRepos.length}
-              </span>
-            )}
-          </div>
+            {/* ── Working copies ── */}
+            <RailSection
+              title="Working copies"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setIsAddRepoModalOpen(true)}
+                  className="text-text-muted hover:text-text transition-fast"
+                  title="Add working copy"
+                  aria-label="Add working copy"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              }
+            />
 
-          {/* Repository list */}
-          <div className="flex-1 overflow-y-auto scrollbar-overlay px-1.5 pb-2">
-            {filteredRepos.length === 0 ? (
-              <div className="px-3 py-10 text-center">
+            {sortedRepos.length === 0 ? (
+              <div className="px-3 py-8 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-bg-tertiary/70 flex items-center justify-center mx-auto mb-3">
                   <FolderGit2 className="w-6 h-6 text-text-faint" />
                 </div>
                 <p className="text-sm text-text-secondary mb-1">
-                  {searchQuery ? 'No matches' : 'No repositories yet'}
+                  {searchQuery ? 'No matches' : 'No working copies yet'}
                 </p>
                 {!searchQuery && (
                   <button
@@ -340,38 +465,142 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               </div>
             ) : (
               <m.div
-                className="space-y-0.5"
+                className="space-y-0.5 px-1.5"
                 variants={variants.staggerList}
                 initial={motionEnabled ? 'initial' : false}
                 animate="animate"
               >
                 {sortedRepos.map((repo) => {
                   const isActive = currentPath === repo || currentPath.startsWith(repo + '/');
-                  // The active repo expands into a working-copy lozenge.
-                  if (isActive) {
-                    return (
-                      <WorkingCopyPanel
-                        key={repo}
-                        repoPath={repo}
-                        onContextMenu={(e) => openContextMenu(e, repo)}
-                      />
-                    );
-                  }
+                  const summary = overview.get(repo);
                   return (
-                    <RepoRow
-                      key={repo}
-                      repo={repo}
-                      isActive={false}
-                      isPinned={isPinned(repo)}
-                      isMenuOpen={contextMenu?.repo === repo}
-                      onOpen={(r) => void addRecentRepo(r)}
-                      onMenu={openContextMenu}
-                    />
+                    <div key={repo}>
+                      <WorkingCopyRow
+                        repo={repo}
+                        isActive={isActive}
+                        isPinned={isPinned(repo)}
+                        isMenuOpen={contextMenu?.repo === repo}
+                        presence={summary?.presence ?? 'unknown'}
+                        status={summary?.status}
+                        info={summary?.info}
+                        onOpen={(r) => void addRecentRepo(r)}
+                        onMenu={openContextMenu}
+                      />
+                      {isActive && (
+                        <WorkingCopyPanel
+                          repoPath={repo}
+                          info={summary?.info}
+                          status={summary?.status}
+                        />
+                      )}
+                    </div>
                   );
                 })}
               </m.div>
             )}
-          </div>
+
+            {/* ── Disk usage — measured figures only ── */}
+            {diskUsage && <DiskCard usage={diskUsage} />}
+
+            {/* ── Repository ── */}
+            {repositoryRoots.length > 0 && (
+              <>
+                <RailSection title="Repository" />
+                <div className="space-y-0.5 px-1.5">
+                  {repositoryRoots.map((root) => (
+                    <RailLinkRow
+                      key={root.url}
+                      path={root.workingCopies[0]}
+                      icon={<Database />}
+                      label={root.name}
+                      detail={root.url}
+                      count={root.workingCopies.length}
+                      onSelect={() => void addRecentRepo(root.workingCopies[0])}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── Problems — only for checkouts, only what status measured ── */}
+            <ProblemsSection problems={problems} attributeWorkingCopy={attributeWorkingCopy} />
+
+            {/* ── Shelves — local to a working copy, never on the server ── */}
+            <ShelvesSection
+              shelves={shelves}
+              unsupported={shelvesOf.unsupported}
+              attributeWorkingCopy={attributeWorkingCopy}
+              onOpenShelves={setShelvesFor}
+              shelveTarget={shelveTarget}
+              emptyNote={shelvesEmptyNote}
+            />
+
+            {/* ── Bookmarks ── */}
+            {(filteredBookmarks.length > 0 || canBookmarkCurrentPath) && (
+              <>
+                <RailSection
+                  title="Bookmarks"
+                  action={
+                    canBookmarkCurrentPath ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void addBookmark(currentPath, describeRepo(currentPath).name)
+                        }
+                        className="text-text-muted hover:text-text transition-fast"
+                        title="Bookmark this location"
+                        aria-label="Bookmark this location"
+                      >
+                        <Star className="h-3 w-3" />
+                      </button>
+                    ) : undefined
+                  }
+                />
+                <div className="space-y-0.5 px-1.5">
+                  {filteredBookmarks.map((bookmark) => (
+                    <RailLinkRow
+                      key={bookmark.path}
+                      path={bookmark.path}
+                      icon={<Star />}
+                      label={bookmark.name}
+                      detail={shortenPath(bookmark.path)}
+                      detailTitle={bookmark.path}
+                      isActive={currentPath === bookmark.path}
+                      trailing={
+                        <button
+                          type="button"
+                          onClick={() => void removeBookmark(bookmark.path)}
+                          className="btn-icon-sm absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover/row:opacity-100 focus:opacity-100"
+                          aria-label={`Remove bookmark ${bookmark.name}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      }
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── Recent locations ── */}
+            {filteredRecentPaths.length > 0 && (
+              <>
+                <RailSection title="Recent locations" />
+                <div className="space-y-0.5 px-1.5">
+                  {filteredRecentPaths.map((path) => (
+                    <RailLinkRow
+                      key={path}
+                      path={path}
+                      icon={<Clock />}
+                      label={shortenPath(path)}
+                      detailTitle={path}
+                      isActive={currentPath === path}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </nav>
 
           {/* Footer */}
           <div className="border-t border-border p-1.5 flex items-center gap-1">
@@ -501,6 +730,17 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             isOpen={isSettingsDialogOpen}
             onClose={() => setIsSettingsDialogOpen(false)}
             initialTab={settingsTab}
+          />
+        </Suspense>
+      )}
+
+      {/* Shelf manager for one working copy */}
+      {shelvesFor && (
+        <Suspense fallback={null}>
+          <ShelveDialog
+            isOpen={true}
+            onClose={() => setShelvesFor(null)}
+            workingCopyPath={shelvesFor}
           />
         </Suspense>
       )}

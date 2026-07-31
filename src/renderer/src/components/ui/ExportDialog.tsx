@@ -226,7 +226,7 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                 {isExporting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Exporting...
+                    Exporting…
                   </>
                 ) : (
                   <>

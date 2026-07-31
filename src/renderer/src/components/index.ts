@@ -1,6 +1,5 @@
 export { Layout } from './Layout';
 export { Sidebar } from './Sidebar';
-export { WelcomeScreen } from './WelcomeScreen';
 export { FileExplorer } from './FileExplorer';
 export { CommitHistory } from './CommitHistory';
 

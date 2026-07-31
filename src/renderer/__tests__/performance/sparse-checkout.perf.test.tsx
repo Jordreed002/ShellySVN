@@ -303,7 +303,7 @@ describe('Sparse Checkout Performance Tests', () => {
 
       render(<ChooseItemsDialog {...defaultProps} />);
 
-      const searchInput = screen.getByPlaceholderText('Search files and folders...');
+      const searchInput = screen.getByPlaceholderText('Search files and folders…');
 
       const { durationMs } = measureTime(() => {
         fireEvent.change(searchInput, { target: { value: 'item-5' } });
@@ -319,7 +319,7 @@ describe('Sparse Checkout Performance Tests', () => {
 
       render(<ChooseItemsDialog {...defaultProps} />);
 
-      const searchInput = screen.getByPlaceholderText('Search files and folders...');
+      const searchInput = screen.getByPlaceholderText('Search files and folders…');
 
       const { durationMs } = measureTime(() => {
         fireEvent.change(searchInput, { target: { value: 'item-1234' } });
@@ -495,7 +495,7 @@ describe('Sparse Checkout Performance Tests', () => {
 
       render(<ChooseItemsDialog {...defaultProps} />);
 
-      const searchInput = screen.getByPlaceholderText('Search files and folders...');
+      const searchInput = screen.getByPlaceholderText('Search files and folders…');
 
       // Simulate rapid typing
       const { durationMs } = measureTime(() => {

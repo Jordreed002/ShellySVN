@@ -132,7 +132,7 @@ test.describe('Performance smoke coverage', () => {
     if ((await page.getByTestId('browse-button').count()) > 0) {
       await page.getByTestId('browse-button').click();
     } else {
-      await page.locator('aside button[title="Add Repository"]').click();
+      await page.locator('aside button[title="Add repository"]').click();
     }
     await page.locator('.modal button:has-text("Browse")').click();
     await page.getByRole('button', { name: 'Open', exact: true }).click();
@@ -168,7 +168,7 @@ test.describe('Performance smoke coverage', () => {
     page,
   }) => {
     await mockLargeRepositoryTree(electronApp, LARGE_TREE_COUNT);
-    await page.locator('aside button[title="Add Repository"]').click();
+    await page.locator('aside button[title="Add repository"]').click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
     await page.locator('.modal button:has-text("Checkout")').first().click();
     await page

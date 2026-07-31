@@ -154,7 +154,7 @@ describe('ChooseItemsDialog', () => {
 
     it('renders search input', () => {
       render(<ChooseItemsDialog {...defaultProps} />);
-      expect(screen.getByPlaceholderText('Search files and folders...')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Search files and folders…')).toBeInTheDocument();
     });
 
     it('renders Select All and Deselect All buttons', () => {
@@ -219,14 +219,14 @@ describe('ChooseItemsDialog', () => {
   describe('search', () => {
     it('filters tree nodes based on search query', () => {
       render(<ChooseItemsDialog {...defaultProps} />);
-      const searchInput = screen.getByPlaceholderText('Search files and folders...');
+      const searchInput = screen.getByPlaceholderText('Search files and folders…');
       fireEvent.change(searchInput, { target: { value: 'README' } });
       expect(screen.getByText('README.md')).toBeInTheDocument();
     });
 
     it('shows empty message when no matches found', () => {
       render(<ChooseItemsDialog {...defaultProps} />);
-      const searchInput = screen.getByPlaceholderText('Search files and folders...');
+      const searchInput = screen.getByPlaceholderText('Search files and folders…');
       fireEvent.change(searchInput, { target: { value: 'nonexistent-file-xyz' } });
       expect(screen.getByText('No matching files or folders')).toBeInTheDocument();
     });
@@ -257,7 +257,7 @@ describe('ChooseItemsDialog', () => {
       mockHookState.roots = [];
       mockHookState.nodes = new Map();
       render(<ChooseItemsDialog {...defaultProps} />);
-      expect(screen.getByText('Loading repository structure...')).toBeInTheDocument();
+      expect(screen.getByText('Loading repository structure…')).toBeInTheDocument();
     });
   });
 

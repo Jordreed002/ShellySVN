@@ -373,7 +373,7 @@ export function ChooseItemsDialog({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search files and folders..."
+                  placeholder="Search files and folders…"
                   className="input pl-10 w-full"
                   disabled={isLoading}
                 />
@@ -391,7 +391,7 @@ export function ChooseItemsDialog({
               {isLoading && roots.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-text-muted">
                   <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                  <span>Loading repository structure...</span>
+                  <span>Loading repository structure…</span>
                 </div>
               ) : classifiedError ? (
                 <div className="flex flex-col items-center justify-center h-full p-4">
@@ -508,7 +508,7 @@ export function ChooseItemsDialog({
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading...
+                  Loading…
                 </>
               ) : (
                 <>
@@ -605,7 +605,7 @@ export function ChooseItemsDialog({
                   {authLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Authenticating...
+                      Authenticating…
                     </>
                   ) : (
                     <>

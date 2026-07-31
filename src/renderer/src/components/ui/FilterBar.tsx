@@ -12,6 +12,41 @@ import {
 } from 'lucide-react';
 import type { SvnStatusChar } from '@shared/types';
 
+/**
+ * Filter bars — the prototype's `.navbar` controls (`prototypes/12-browser.html`).
+ *
+ * 32px controls on 8px radii, hairline borders, 12.5px labels, uppercase
+ * eyebrow section labels, and mono for the `svn status` letters and the counts.
+ */
+
+/** `.eyebrow` — a section label. */
+const EYEBROW = 'flex-none text-[10px] font-bold uppercase tracking-[0.13em] text-text-muted';
+
+/** `.btn` — 32px high, 8px radius, hairline border, 12.5px semibold label. */
+const BTN_BASE =
+  'inline-flex h-8 flex-none items-center gap-[7px] rounded-lg border px-3 text-[12.5px] font-semibold transition-fast active:translate-y-px';
+
+const BTN_TONE =
+  'border-border-strong bg-bg-secondary text-text shadow-card hover:border-text-faint hover:bg-bg-tertiary';
+
+/** `.btn` when the filter it owns is engaged. */
+const BTN_ON = 'border-accent/60 bg-accent/10 text-accent hover:border-accent';
+
+/** `.ctx` — the menus reuse the context menu's surface. */
+const MENU_SURFACE =
+  'absolute left-0 top-full z-50 mt-1.5 min-w-[190px] rounded-[11px] border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
+
+/** `.ci` — a menu row. */
+const MENU_ITEM =
+  'group flex w-full items-center gap-2.5 rounded-[7px] px-[9px] py-[7px] text-left text-[12.5px] leading-tight text-text hover:bg-accent hover:text-white';
+
+/** The row whose filter is currently in force. */
+const MENU_ITEM_ON = 'bg-accent/10';
+
+/** A quick status letter, before it is engaged. */
+const QUICK_BASE =
+  'inline-grid h-8 w-8 place-items-center rounded-lg border font-mono text-[12.5px] font-semibold transition-fast';
+
 export type FileTypeFilter = 'all' | 'code' | 'images' | 'documents' | 'archives' | 'folders';
 export type StatusFilter = SvnStatusChar | 'all';
 
@@ -122,34 +157,42 @@ export function FilterBar({
 
   return (
     <div
-      className={`flex items-center gap-2 px-4 py-2 bg-bg-secondary border-b border-border ${className}`}
+      className={`flex items-center gap-2 border-b border-border bg-bg-secondary px-3.5 py-2 ${className}`}
     >
+      <span className={EYEBROW}>Filter</span>
+
       {/* File Type Filter */}
-      <div className="relative">
+      <div className="relative flex-none">
         <button
+          type="button"
           onClick={() => setShowFileTypeMenu(!showFileTypeMenu)}
-          className={`btn btn-secondary btn-sm gap-1.5 ${activeFileType !== 'all' ? 'border-accent text-accent' : ''}`}
+          className={`${BTN_BASE} ${activeFileType !== 'all' ? BTN_ON : BTN_TONE}`}
+          aria-haspopup="menu"
+          aria-expanded={showFileTypeMenu}
         >
-          <currentTypeOption.icon className="w-3.5 h-3.5" />
+          <currentTypeOption.icon className="h-3.5 w-3.5" />
           <span>{currentTypeOption.label}</span>
-          <ChevronDown className="w-3 h-3" />
+          <ChevronDown className="h-3 w-3 text-text-muted" />
         </button>
 
         {showFileTypeMenu && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowFileTypeMenu(false)} />
-            <div className="dropdown top-full left-0 mt-1 z-50 min-w-[160px]">
+            <div className={MENU_SURFACE} role="menu" aria-label="File type">
               {FILE_TYPE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={activeFileType === option.value}
                   onClick={() => {
                     onFileTypeChange?.(option.value);
                     setShowFileTypeMenu(false);
                   }}
-                  className={`dropdown-item w-full ${activeFileType === option.value ? 'dropdown-item-active' : ''}`}
+                  className={`${MENU_ITEM} ${activeFileType === option.value ? MENU_ITEM_ON : ''}`}
                 >
-                  <option.icon className="w-4 h-4" />
-                  {option.label}
+                  <option.icon className="h-[15px] w-[15px] flex-none" />
+                  <span className="flex-1">{option.label}</span>
                 </button>
               ))}
             </div>
@@ -158,30 +201,48 @@ export function FilterBar({
       </div>
 
       {/* Status Filter */}
-      <div className="relative">
+      <div className="relative flex-none">
         <button
+          type="button"
           onClick={() => setShowStatusMenu(!showStatusMenu)}
-          className={`btn btn-secondary btn-sm gap-1.5 ${activeStatus !== 'all' ? 'border-accent text-accent' : ''}`}
+          className={`${BTN_BASE} ${activeStatus !== 'all' ? BTN_ON : BTN_TONE}`}
+          aria-haspopup="menu"
+          aria-expanded={showStatusMenu}
         >
-          <Filter className="w-3.5 h-3.5" />
+          <Filter className="h-3.5 w-3.5 text-text-secondary" />
           <span className={currentStatusOption.color}>{currentStatusOption.label}</span>
-          <ChevronDown className="w-3 h-3" />
+          {activeStatus !== 'all' && (
+            <span className="font-mono text-[9.5px] font-medium text-text-muted">
+              {activeStatus}
+            </span>
+          )}
+          <ChevronDown className="h-3 w-3 text-text-muted" />
         </button>
 
         {showStatusMenu && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
-            <div className="dropdown top-full left-0 mt-1 z-50 min-w-[160px]">
+            <div className={MENU_SURFACE} role="menu" aria-label="Status">
               {STATUS_FILTER_OPTIONS.map((option) => (
                 <button
                   key={option.value}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={activeStatus === option.value}
                   onClick={() => {
                     onStatusChange?.(option.value);
                     setShowStatusMenu(false);
                   }}
-                  className={`dropdown-item w-full ${activeStatus === option.value ? 'dropdown-item-active' : ''}`}
+                  className={`${MENU_ITEM} ${activeStatus === option.value ? MENU_ITEM_ON : ''}`}
                 >
-                  <span className={option.color}>{option.label}</span>
+                  <span className={`flex-1 ${option.color} group-hover:text-white`}>
+                    {option.label}
+                  </span>
+                  {option.value !== 'all' && (
+                    <span className="font-mono text-[9.5px] font-medium text-text-faint group-hover:text-white/80">
+                      {option.value}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -189,21 +250,24 @@ export function FilterBar({
         )}
       </div>
 
-      {/* Quick Status Filters */}
-      <div className="flex items-center gap-1 px-2">
+      {/* Quick Status Filters — the letters `svn status` prints */}
+      <div className="flex flex-none items-center gap-1">
         {(['M', 'A', '?', 'C'] as const).map((status) => {
           const opt = STATUS_FILTER_OPTIONS.find((o) => o.value === status);
           if (!opt) return null;
           return (
             <button
               key={status}
+              type="button"
               onClick={() => onStatusChange?.(activeStatus === status ? 'all' : status)}
-              className={`px-2 py-0.5 text-xs rounded transition-fast ${
+              className={`${QUICK_BASE} ${
                 activeStatus === status
-                  ? 'bg-accent/20 text-accent'
-                  : 'text-text-muted hover:text-text hover:bg-bg-tertiary'
+                  ? 'border-accent/60 bg-accent/10 text-accent'
+                  : `border-transparent ${opt.color} opacity-70 hover:border-border hover:bg-bg-tertiary hover:opacity-100`
               }`}
-              title={opt.label}
+              title={`${opt.label} — svn status ${status}`}
+              aria-pressed={activeStatus === status}
+              aria-label={`${opt.label} only`}
             >
               {status}
             </button>
@@ -214,21 +278,23 @@ export function FilterBar({
       {/* Clear Filters */}
       {hasActiveFilters && (
         <button
+          type="button"
           onClick={clearFilters}
-          className="btn-icon-sm text-text-muted hover:text-text"
+          className="inline-grid h-8 w-8 flex-none place-items-center rounded-lg border border-transparent text-text-muted transition-fast hover:border-border hover:bg-bg-tertiary hover:text-text"
           title="Clear filters"
+          aria-label="Clear filters"
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="h-3.5 w-3.5" />
         </button>
       )}
 
       {/* File Count */}
       {fileCount && (
-        <div className="ml-auto text-xs text-text-muted">
+        <div className="ml-auto flex-none font-mono text-[11px] text-text-muted">
           {fileCount.filtered !== fileCount.total ? (
             <span>
               <span className="text-accent">{fileCount.filtered}</span>
-              <span className="text-text-faint mx-1">/</span>
+              <span className="mx-1 text-text-faint">/</span>
               {fileCount.total} items
             </span>
           ) : (
@@ -401,9 +467,9 @@ export function SmartFilterBar({
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <span className="text-xs text-text-muted">Smart Filters:</span>
+      <span className={EYEBROW}>Smart filters</span>
 
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex flex-wrap items-center gap-1">
         {visibleFilters.map((filter) => {
           const count = counts?.[filter.id];
           const isActive = activeFilter === filter.id;
@@ -411,32 +477,31 @@ export function SmartFilterBar({
           return (
             <button
               key={filter.id}
+              type="button"
               onClick={() => onFilterChange(isActive ? 'all' : filter.id)}
-              className={`
-                flex items-center gap-1 px-2 py-1 rounded text-xs font-medium
-                transition-fast
-                ${
-                  isActive
-                    ? 'bg-accent/20 text-accent ring-1 ring-accent/50'
-                    : 'bg-bg-tertiary text-text-secondary hover:bg-bg-elevated hover:text-text'
-                }
-              `}
+              className={`inline-flex h-8 items-center gap-[7px] rounded-lg border px-2.5 text-[12.5px] font-semibold transition-fast ${
+                isActive
+                  ? 'border-accent/60 bg-accent/10 text-accent'
+                  : 'border-border bg-bg-tertiary text-text-secondary hover:border-border-strong hover:text-text'
+              }`}
               title={filter.description}
+              aria-pressed={isActive}
             >
-              <filter.icon className="w-3 h-3" />
+              <filter.icon className="h-3.5 w-3.5" />
               <span>{filter.label}</span>
               {count !== undefined && count > 0 && (
                 <span
-                  className={`
-                  px-1 rounded text-xs
-                  ${isActive ? 'bg-accent/30 text-accent' : 'bg-bg text-text-muted'}
-                `}
+                  className={`font-mono text-[10px] font-medium ${
+                    isActive ? 'text-accent' : 'text-text-muted'
+                  }`}
                 >
                   {count}
                 </span>
               )}
               {filter.badge && !count && (
-                <span className="text-xs text-text-faint">{filter.badge}</span>
+                <span className="font-mono text-[10px] font-medium text-text-faint">
+                  {filter.badge}
+                </span>
               )}
             </button>
           );
@@ -444,8 +509,9 @@ export function SmartFilterBar({
 
         {!showAll && SMART_FILTERS.length > 6 && (
           <button
+            type="button"
             onClick={() => setShowAll(true)}
-            className="px-2 py-1 text-xs text-accent hover:text-accent/80"
+            className="h-8 rounded-lg px-2.5 text-[12.5px] font-semibold text-accent hover:bg-accent/10"
           >
             +{SMART_FILTERS.length - 6} more
           </button>
@@ -453,8 +519,9 @@ export function SmartFilterBar({
 
         {showAll && (
           <button
+            type="button"
             onClick={() => setShowAll(false)}
-            className="px-2 py-1 text-xs text-text-muted hover:text-text"
+            className="h-8 rounded-lg px-2.5 text-[12.5px] font-semibold text-text-muted hover:bg-bg-tertiary hover:text-text"
           >
             Show less
           </button>

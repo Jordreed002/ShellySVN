@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
+import { EOL, tmpdir } from 'os';
 import { join } from 'path';
 
 import type { SvnExecutionContext } from '@shared/types';
@@ -193,7 +193,16 @@ export async function runResolvedSvn(
       command: args[0] || 'svn',
       target: args.at(-1),
     };
-    const env: NodeJS.ProcessEnv = { ...process.env, LANG: 'en_US.UTF-8' };
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    if (process.platform === 'win32') {
+      // Windows SVN uses the native wide-character APIs. Unix locale overrides
+      // can force paths through a lossy code-page conversion.
+      delete env.LANG;
+      delete env.LC_ALL;
+      delete env.LC_CTYPE;
+    } else {
+      env.LANG = 'en_US.UTF-8';
+    }
     const svnSshCommand = buildSvnSshCommand(args, options.context.sshSettings);
     if (svnSshCommand) {
       env.SVN_SSH = svnSshCommand;
@@ -270,7 +279,7 @@ export async function runResolvedSvn(
       // Swallow EPIPE if svn closes stdin early (e.g. cached credentials mean
       // it never reads the password prompt).
       proc.stdin.on('error', () => {});
-      proc.stdin.write(`${passwordViaStdin}\n`);
+      proc.stdin.write(`${passwordViaStdin}${EOL}`);
       proc.stdin.end();
     }
 

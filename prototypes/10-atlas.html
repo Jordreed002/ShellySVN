@@ -1,0 +1,1724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShellySVN · 10 — Atlas (projects, explorer, developer mode)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   10 · ATLAS — projects on top of plain SVN, one explorer, one switch
+   Three surfaces, one component doing the heavy lifting:
+
+   1  FIND      a searchable directory of every project, by client.
+   2  EXPLORE   a real file explorer — expandable tree, contents list,
+                back / forward / up, editable address bar, sorting,
+                type-ahead, keyboard nav. Works on the whole repo or
+                scoped inside one project.
+   3  PROJECT   the explorer with a project header bolted on top:
+                version menu, change counts, send/get buttons.
+
+   One "Developer details" switch turns plain words back into svn:
+   paths, URLs, revisions, depth, and the real command on every menu.
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --card2:#fbfcfd; --sunk:#eef0f4;
+  --line:#e0e4ea; --line2:#eceff3; --line3:#cfd5de;
+  --ink:#161a20; --ink2:#59616e; --ink3:#8a919d; --ink4:#b2b8c2;
+  --acc:#2563c9; --acc2:#1c4fa5; --accbg:#e9f0fb; --accln:#bed3ef;
+  --mod:#a76a06; --mod-bg:#fbf1de; --mod-ln:#eed9ab;
+  --add:#1f7a45; --add-bg:#e7f4ec; --add-ln:#bcdcc8;
+  --del:#bb3a34; --del-bg:#fceceb; --del-ln:#eec6c3;
+  --ext:#0f6d78; --ext-bg:#e4f2f3; --ext-ln:#b4d8db;
+  --sh1:0 1px 2px rgba(22,26,32,.06);
+  --sh2:0 4px 14px -4px rgba(22,26,32,.12),0 1px 3px rgba(22,26,32,.06);
+  --sh3:0 26px 60px -18px rgba(22,26,32,.3),0 6px 18px -8px rgba(22,26,32,.14);
+  --sans:'Archivo',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --rail:212px; --tree:284px;
+}
+body.dark{
+  --bg:#0d1117; --card:#161b22; --card2:#11161d; --sunk:#0a0e14;
+  --line:#252d38; --line2:#1c232c; --line3:#3a4453;
+  --ink:#e6edf3; --ink2:#9aa4b0; --ink3:#727d8a; --ink4:#4d5866;
+  --acc:#58a6ff; --acc2:#84c0ff; --accbg:rgba(88,166,255,.13); --accln:rgba(88,166,255,.36);
+  --mod:#d9a129; --mod-bg:rgba(217,161,41,.13); --mod-ln:rgba(217,161,41,.3);
+  --add:#46b95a; --add-bg:rgba(70,185,90,.13); --add-ln:rgba(70,185,90,.3);
+  --del:#f2666a; --del-bg:rgba(242,102,106,.13); --del-ln:rgba(242,102,106,.32);
+  --ext:#39c5cf; --ext-bg:rgba(57,197,207,.13); --ext-ln:rgba(57,197,207,.3);
+  --sh1:0 1px 2px rgba(0,0,0,.4); --sh2:0 4px 14px -4px rgba(0,0,0,.6); --sh3:0 26px 60px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;
+  overflow:hidden;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s;
+}
+::selection{background:var(--accbg);color:var(--acc)}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line3);border:3.5px solid transparent;background-clip:content-box;border-radius:99px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:6px}
+
+/* the one switch — only ever HIDE, never re-declare display */
+body:not(.devmode) .devtool{display:none !important}
+.code{font-family:var(--mono);font-size:.86em;font-weight:500;color:var(--ink3)}
+.ritem .n small.mono{font-family:var(--mono);font-size:10px}
+
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink3)}
+.mono{font-family:var(--mono)}
+kbd{font-family:var(--mono);font-size:10.5px;padding:2px 6px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);color:var(--ink3)}
+
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* ══ TOP ════════════════════════════════════════════════════ */
+.top{
+  height:54px;flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:0 16px;
+  background:var(--card);border-bottom:1px solid var(--line);box-shadow:var(--sh1);z-index:20;
+}
+.brand{display:flex;align-items:center;gap:9px;flex:0 0 auto;cursor:pointer}
+.brand svg{width:22px;height:22px;color:var(--acc)}
+.brand b{font-size:15px;font-weight:700;letter-spacing:-.025em}
+.brand b em{font-style:normal;color:var(--acc)}
+.bigsearch{
+  flex:1;max-width:500px;margin:0 auto;height:38px;display:flex;align-items:center;gap:10px;
+  padding:0 13px;border-radius:10px;background:var(--card2);border:1px solid var(--line);
+  color:var(--ink3);font-size:14px;cursor:text;
+}
+.bigsearch:hover{border-color:var(--line3)}
+.bigsearch svg{width:16px;height:16px;flex:0 0 auto}
+.bigsearch span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.topright{display:flex;align-items:center;gap:8px;margin-left:auto;flex:0 0 auto}
+.devswitch{
+  display:flex;align-items:center;gap:9px;height:34px;padding:0 11px;border-radius:9px;
+  background:var(--card2);border:1px solid var(--line);cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink2);
+}
+.devswitch:hover{border-color:var(--line3);color:var(--ink)}
+.sw{width:30px;height:17px;border-radius:9px;background:var(--line3);position:relative;flex:0 0 auto;transition:background .16s}
+.sw::after{content:'';position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .18s cubic-bezier(.3,1.4,.5,1)}
+body.devmode .devswitch .sw{background:var(--acc)}
+body.devmode .devswitch .sw::after{transform:translateX(13px)}
+body.devmode .devswitch{border-color:var(--accln);color:var(--acc);background:var(--accbg)}
+.ibtn{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:0;border:1px solid transparent;color:var(--ink2);cursor:pointer}
+.ibtn:hover{background:var(--sunk);border-color:var(--line);color:var(--ink)}
+.ibtn svg{width:17px;height:17px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--acc);color:#fff;border:0;cursor:pointer;font-size:13px;font-weight:700;display:grid;place-items:center}
+
+/* ══ BODY ═══════════════════════════════════════════════════ */
+.body{flex:1;display:grid;grid-template-columns:var(--rail) minmax(0,1fr);min-height:0}
+
+.rail{background:var(--card2);border-right:1px solid var(--line);overflow:auto;padding-bottom:16px}
+.rsec{padding:15px 14px 6px;display:flex;align-items:center;gap:7px}
+.rsec .eyebrow{flex:1}
+.rsec button{background:0;border:0;color:var(--ink4);cursor:pointer;display:grid;place-items:center}
+.rsec button:hover{color:var(--ink2)}
+.rsec svg{width:13px;height:13px}
+.ritem{
+  display:flex;align-items:center;gap:10px;margin:0 8px 3px;padding:0 10px;height:36px;
+  border-radius:9px;color:var(--ink2);cursor:pointer;font-size:13.5px;border:1px solid transparent;
+}
+.ritem:hover{background:var(--sunk);color:var(--ink)}
+.ritem.on{background:var(--accbg);border-color:var(--accln);color:var(--acc);font-weight:600}
+.ritem>svg{width:16px;height:16px;flex:0 0 auto;opacity:.85}
+.ritem .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ritem .n small{display:block;font-size:11px;color:var(--ink4);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ritem.tall{height:56px}
+.ritem .n small{line-height:1.4}
+.ritem .c{font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--sunk);border:1px solid var(--line);color:var(--ink3);flex:0 0 auto}
+.ritem.on .c{background:var(--card);border-color:var(--accln);color:var(--acc)}
+.ritem .c.mod{background:var(--mod-bg);border-color:var(--mod-ln);color:var(--mod)}
+
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.dot.full{background:var(--add)}
+.dot.part{background:linear-gradient(90deg,var(--add) 50%,transparent 50%);box-shadow:inset 0 0 0 1.5px var(--add)}
+.dot.none{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ink4)}
+.dot.mod{background:var(--mod)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink3);white-space:nowrap}
+
+.diskcard{margin:8px 14px 0;padding:12px;border-radius:11px;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh1)}
+.diskcard b{font-size:13px;font-weight:700}
+.diskcard p{font-size:11.5px;color:var(--ink3);margin-top:3px;line-height:1.45}
+.diskcard .bar{height:5px;border-radius:3px;background:var(--sunk);margin-top:9px;overflow:hidden;display:flex}
+.diskcard .bar i{display:block;height:100%}
+.diskcard .mono{font-size:10px;color:var(--ink4);margin-top:6px;display:block}
+
+/* ══ MAIN / VIEWS ═══════════════════════════════════════════ */
+.main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.view{flex:1;min-height:0;overflow:auto}
+#view-browse{display:flex;flex-direction:column;overflow:hidden}
+.view[hidden]{display:none !important}
+.pad{max-width:1060px;margin:0 auto;padding:26px 28px 60px}
+
+/* ── FINDER ── */
+h1{font-size:27px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
+.lede{font-size:14.5px;color:var(--ink2);max-width:66ch;line-height:1.6;margin:8px 0 20px}
+.lede b{color:var(--ink);font-weight:600}
+.lede .mono{font-size:12.5px}
+.findbar{
+  display:flex;align-items:center;gap:11px;height:48px;padding:0 15px;margin-bottom:14px;
+  border-radius:12px;background:var(--card);border:1px solid var(--line);box-shadow:var(--sh1);
+}
+.findbar>svg{width:19px;height:19px;color:var(--ink3);flex:0 0 auto}
+.findbar input{flex:1;min-width:0;border:0;background:0;outline:0;color:var(--ink);font-family:var(--sans);font-size:15.5px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.fchip{
+  height:32px;padding:0 13px;display:inline-flex;align-items:center;gap:8px;border-radius:99px;
+  background:var(--card);border:1px solid var(--line);color:var(--ink2);
+  font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;
+}
+.fchip:hover{border-color:var(--line3);color:var(--ink)}
+.fchip.on{background:var(--accbg);border-color:var(--accln);color:var(--acc)}
+.fchip .c{font-size:11px;opacity:.75;font-family:var(--mono)}
+.grouptitle{display:flex;align-items:center;gap:12px;margin:22px 0 10px}
+.grouptitle h2{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.grouptitle .ln{flex:1;height:1px;background:var(--line)}
+.grouptitle .c{font-size:11.5px;color:var(--ink3);font-family:var(--mono)}
+.plist{display:flex;flex-direction:column;gap:8px}
+.prow{
+  display:flex;align-items:center;gap:14px;padding:13px 15px;border-radius:12px;
+  background:var(--card);border:1px solid var(--line);cursor:pointer;box-shadow:var(--sh1);
+  transition:border-color .15s,transform .12s,box-shadow .15s;
+}
+.prow:hover{border-color:var(--line3);transform:translateY(-1px);box-shadow:var(--sh2)}
+.prow .pic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto;background:var(--sunk);border:1px solid var(--line);color:var(--ink3)}
+.prow.mine .pic{background:var(--accbg);border-color:var(--accln);color:var(--acc)}
+.prow .pic svg{width:19px;height:19px}
+.prow .t{flex:1;min-width:0}
+.prow .t b{font-size:15px;font-weight:700;letter-spacing:-.015em;display:flex;align-items:center;gap:9px}
+.prow .t .client{font-size:12.5px;color:var(--ink3);font-weight:500}
+.prow .t .sub{font-size:12.5px;color:var(--ink2);margin-top:3px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.prow .t .path{font-family:var(--mono);font-size:10.5px;color:var(--ink4);margin-top:4px;word-break:break-all}
+.prow .right{display:flex;align-items:center;gap:12px;flex:0 0 auto}
+.flag{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:700;border:1px solid;white-space:nowrap}
+.flag svg{width:12px;height:12px}
+.flag.mod{background:var(--mod-bg);border-color:var(--mod-ln);color:var(--mod)}
+.flag.bad{background:var(--del-bg);border-color:var(--del-ln);color:var(--del)}
+.flag.ok{background:var(--add-bg);border-color:var(--add-ln);color:var(--add)}
+.flag.quiet{background:var(--sunk);border-color:var(--line);color:var(--ink3)}
+.flag.ext{background:var(--ext-bg);border-color:var(--ext-ln);color:var(--ext)}
+.more{
+  width:100%;margin-top:12px;height:40px;border-radius:10px;background:transparent;
+  border:1px dashed var(--line3);color:var(--ink2);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;
+}
+.more:hover{border-color:var(--acc);color:var(--acc);background:var(--accbg)}
+
+.btn{
+  height:34px;padding:0 14px;display:inline-flex;align-items:center;gap:8px;border-radius:9px;
+  background:var(--card);border:1px solid var(--line3);color:var(--ink);
+  font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--sh1);
+}
+.btn:hover{background:var(--card2);border-color:var(--ink4)}
+.btn:active{transform:translateY(1px)}
+.btn svg{width:15px;height:15px;color:var(--ink2)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.pri svg{color:#fff}
+.btn.pri:hover{background:var(--acc2);border-color:var(--acc2)}
+.btn.sm{height:28px;padding:0 11px;font-size:12px;border-radius:7px}
+.btn.ghost{background:transparent;border-color:transparent;box-shadow:none}
+.btn.ghost:hover{background:var(--sunk);border-color:var(--line)}
+.btn.icon{width:32px;padding:0;justify-content:center}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* ── PROJECT HEADER (optional band above the explorer) ── */
+.phead{flex:0 0 auto;padding:14px 20px 0;background:var(--card);border-bottom:1px solid var(--line)}
+.phead[hidden]{display:none}
+.backrow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.back{
+  display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px 0 8px;border-radius:8px;
+  background:transparent;border:1px solid transparent;color:var(--ink2);font-family:var(--sans);
+  font-size:12.5px;font-weight:600;cursor:pointer;
+}
+.back:hover{background:var(--sunk);border-color:var(--line);color:var(--ink)}
+.back svg{width:14px;height:14px;transform:rotate(180deg)}
+.backrow .sp{flex:1}
+.ptitle{display:flex;align-items:flex-start;gap:13px}
+.ptitle .pic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;background:var(--accbg);border:1px solid var(--accln);color:var(--acc)}
+.ptitle .pic svg{width:20px;height:20px}
+.ptitle .t{flex:1;min-width:0}
+.ptitle h1{font-size:21px;font-weight:700;letter-spacing:-.03em;display:flex;align-items:baseline;gap:9px}
+.ptitle h1 .client{font-size:14px;font-weight:500;color:var(--ink3)}
+.ptitle .url{font-family:var(--mono);font-size:10.5px;color:var(--ink4);margin-top:4px;word-break:break-all}
+.ptitle .flags{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+.ptitle .acts{display:flex;gap:8px;flex:0 0 auto}
+.versionbar{display:flex;align-items:center;gap:11px;margin-top:12px}
+.verbtn{
+  display:flex;align-items:center;gap:11px;height:42px;padding:0 13px;border-radius:11px;
+  background:var(--card2);border:1px solid var(--line);cursor:pointer;min-width:280px;text-align:left;
+}
+.verbtn:hover{border-color:var(--line3)}
+.verbtn>svg:first-child{width:16px;height:16px;color:var(--acc);flex:0 0 auto}
+.verbtn .t{flex:1;min-width:0}
+.verbtn .t b{display:block;font-size:13px;font-weight:700}
+.verbtn .t small{display:block;font-size:11.5px;color:var(--ink3)}
+.verbtn>svg:last-child{width:14px;height:14px;color:var(--ink4);flex:0 0 auto}
+.versionbar .note{font-size:12.5px;color:var(--ink2);line-height:1.4}
+.versionbar .note b{color:var(--ink)}
+.ptabs{display:flex;gap:4px;margin-top:13px}
+.ptab{
+  padding:8px 12px;border:0;background:transparent;border-bottom:2px solid transparent;
+  font-family:var(--sans);font-size:13px;font-weight:700;color:var(--ink3);cursor:pointer;margin-bottom:-1px;
+  display:flex;align-items:center;gap:7px;
+}
+.ptab:hover{color:var(--ink)}
+.ptab[aria-selected=true]{color:var(--acc);border-bottom-color:var(--acc)}
+.ptab .c{font-size:11px;font-family:var(--mono);padding:1px 6px;border-radius:99px;background:var(--sunk);border:1px solid var(--line);color:var(--ink3)}
+
+/* ══ EXPLORER ═══════════════════════════════════════════════ */
+/* toolbar: back / forward / up / refresh · address · search · view */
+.navbar{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:9px 14px;
+  background:var(--card);border-bottom:1px solid var(--line);
+}
+.navgroup{display:flex;gap:3px;flex:0 0 auto}
+.address{
+  flex:1;min-width:0;height:34px;display:flex;align-items:center;gap:3px;padding:0 8px;
+  border-radius:9px;background:var(--card2);border:1px solid var(--line);overflow:hidden;
+}
+.address:hover{border-color:var(--line3)}
+.address.editing{border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg);background:var(--card)}
+.address>svg{width:15px;height:15px;color:var(--ink3);flex:0 0 auto;margin-right:3px}
+.crumbs{display:flex;align-items:center;gap:1px;flex:1;min-width:0;overflow:hidden}
+.crumb{
+  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:7px;flex:0 0 auto;
+  background:transparent;border:0;color:var(--ink2);cursor:pointer;
+  font-family:var(--sans);font-size:12.5px;font-weight:600;white-space:nowrap;max-width:170px;
+}
+.crumb span{overflow:hidden;text-overflow:ellipsis}
+.crumb:hover{background:var(--sunk);color:var(--ink)}
+.crumb.here{color:var(--ink);font-weight:700}
+.crumbsep{color:var(--ink4);font-size:11px;flex:0 0 auto}
+.addrinput{
+  flex:1;min-width:0;border:0;background:0;outline:0;color:var(--ink);
+  font-family:var(--mono);font-size:12px;height:26px;display:none;
+}
+.address.editing .crumbs{display:none}
+.address.editing .addrinput{display:block}
+.foldersearch{
+  flex:0 0 220px;height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;
+  border-radius:9px;background:var(--card2);border:1px solid var(--line);
+}
+.foldersearch:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg)}
+.foldersearch svg{width:14px;height:14px;color:var(--ink3);flex:0 0 auto}
+.foldersearch input{flex:1;min-width:0;border:0;background:0;outline:0;color:var(--ink);font-family:var(--sans);font-size:12.5px}
+
+.explorer{flex:1;display:grid;grid-template-columns:var(--tree) minmax(0,1fr);min-height:0}
+/* developer mode gives the code tools a permanent home */
+body.devmode .explorer{grid-template-columns:var(--tree) minmax(230px,.8fr) minmax(360px,1.15fr)}
+/* with the diff pane open there isn't room for author + date columns —
+   drop them rather than letting the grid collide */
+body.devmode .chead,body.devmode .crow{grid-template-columns:26px 24px minmax(0,1fr) 84px}
+body.devmode .cwho,body.devmode .cwhen,
+body.devmode .chead button[data-sort="who"],
+body.devmode .chead button[data-sort="when"]{display:none}
+.preview{display:none;flex-direction:column;min-width:0;border-left:1px solid var(--line);background:var(--card2)}
+body.devmode .preview{display:flex}
+.pvhead{flex:0 0 auto;padding:9px 13px 0;border-bottom:1px solid var(--line);background:var(--card)}
+.pvtop{display:flex;align-items:center;gap:9px;min-width:0}
+.pvtop b{flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.pvtabs{display:flex;gap:3px;margin-top:8px}
+.pvtabs button{
+  padding:6px 10px;border:0;background:transparent;border-bottom:2px solid transparent;
+  font-family:var(--sans);font-size:11.5px;font-weight:700;color:var(--ink3);cursor:pointer;margin-bottom:-1px;
+}
+.pvtabs button:hover{color:var(--ink)}
+.pvtabs button[aria-selected=true]{color:var(--acc);border-bottom-color:var(--acc)}
+.pvmeta{flex:0 0 auto;display:flex;gap:12px;flex-wrap:wrap;padding:7px 13px;border-bottom:1px solid var(--line2);background:var(--card2);font-family:var(--mono);font-size:10px;color:var(--ink4)}
+.pvmeta b{color:var(--ink2);font-weight:500}
+.pvbody{flex:1;overflow:auto;min-height:0;font-family:var(--mono);font-size:11.5px;line-height:1.65}
+.pvempty{padding:30px 18px;text-align:center;color:var(--ink3);font-family:var(--sans);font-size:12.5px;line-height:1.6}
+.pvempty svg{width:26px;height:26px;color:var(--ink4);margin-bottom:10px}
+.hunk{padding:4px 12px;margin:5px 0 2px;background:var(--accbg);color:var(--acc);border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);font-size:10.5px}
+.dl{display:grid;grid-template-columns:34px 34px 13px 1fr;align-items:baseline}
+.dl>i{font-style:normal;font-size:10px;color:var(--ink4);text-align:right;padding-right:8px;user-select:none}
+.dl>u{text-decoration:none;text-align:center;color:var(--ink4)}
+.dl>code{white-space:pre-wrap;word-break:break-word;padding-right:10px;color:var(--ink)}
+.dl.add{background:var(--add-bg)}.dl.add>u{color:var(--add)}
+.dl.del{background:var(--del-bg)}.dl.del>u{color:var(--del)}
+.dl.conf{background:var(--del-bg);box-shadow:inset 2px 0 0 var(--del)}
+.bl{display:grid;grid-template-columns:46px 74px 34px 1fr;align-items:baseline;padding:0}
+.bl:hover{background:var(--card)}
+.bl>.r{font-size:10px;color:var(--acc);text-align:right;padding-right:8px}
+.bl>.w{font-size:10px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bl>i{font-style:normal;font-size:10px;color:var(--ink4);text-align:right;padding-right:8px}
+.bl>code{white-space:pre-wrap;word-break:break-word;color:var(--ink);padding-right:10px}
+.bl.mine>.r{color:var(--mod);font-weight:600}
+.k1{color:#bb3a34}.k2{color:#2563c9}.k3{color:#0f6d78}.k4{color:#6b4e9e}.k5{color:var(--ink4);font-style:italic}
+body.dark .k1{color:#ff9d8a}body.dark .k2{color:#8fc9f2}body.dark .k3{color:#ffd79a}body.dark .k4{color:#c9a9f5}
+.rowtools{display:none;gap:5px;justify-self:end}
+body.devmode .crow:hover .rowtools{display:flex}
+body.devmode .crow:hover .cst{display:none}
+.provenance{
+  display:inline-flex;align-items:center;gap:7px;padding:2px 9px;border-radius:99px;cursor:pointer;
+  font-size:11.5px;font-weight:600;background:var(--sunk);border:1px solid var(--line);color:var(--ink3);
+}
+.provenance:hover{border-color:var(--acc);color:var(--acc)}
+.provenance svg{width:12px;height:12px}
+
+/* ── tree pane ── */
+.treepane{border-right:1px solid var(--line);background:var(--card2);display:flex;flex-direction:column;min-height:0}
+.treehead{
+  flex:0 0 auto;height:32px;display:flex;align-items:center;gap:8px;padding:0 12px;
+  border-bottom:1px solid var(--line);
+}
+.treehead .eyebrow{flex:1}
+.treehead button{background:0;border:0;color:var(--ink4);cursor:pointer;display:grid;place-items:center}
+.treehead button:hover{color:var(--ink2)}
+.treehead svg{width:13px;height:13px}
+.tree{flex:1;overflow:auto;padding:6px 8px 14px}
+
+.tnode{
+  display:flex;align-items:center;gap:7px;height:29px;border-radius:7px;cursor:pointer;
+  color:var(--ink2);font-size:13px;padding-right:8px;position:relative;
+}
+.tnode:hover{background:var(--sunk);color:var(--ink)}
+.tnode.on{background:var(--accbg);color:var(--acc);font-weight:600}
+.tnode.ghost{opacity:.5}
+.twist{
+  width:18px;height:18px;flex:0 0 auto;display:grid;place-items:center;border-radius:4px;color:var(--ink4);
+}
+.twist:hover{background:var(--line2);color:var(--ink2)}
+.twist svg{width:11px;height:11px;transition:transform .16s cubic-bezier(.3,1,.4,1)}
+.tnode.open>.twist svg{transform:rotate(90deg)}
+.twist.leaf{visibility:hidden}
+.tico{width:16px;height:16px;flex:0 0 auto;color:var(--ink3)}
+.tnode.on .tico{color:var(--acc)}
+.tnode.proj .tico{color:var(--mod)}
+.tname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tmeta{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.tcount{font-family:var(--mono);font-size:10px;color:var(--ink4)}
+.tbadge{
+  font-size:10px;font-weight:700;padding:0 6px;height:16px;line-height:16px;border-radius:99px;
+  background:var(--mod-bg);border:1px solid var(--mod-ln);color:var(--mod);
+}
+.tbadge.bad{background:var(--del-bg);border-color:var(--del-ln);color:var(--del)}
+.tbadge.ext{background:var(--ext-bg);border-color:var(--ext-ln);color:var(--ext)}
+.tkids{overflow:hidden}
+.tmore{
+  display:flex;align-items:center;gap:7px;height:26px;padding-left:8px;font-size:12px;
+  color:var(--ink3);cursor:pointer;border-radius:7px;
+}
+.tmore:hover{background:var(--sunk);color:var(--acc)}
+.tloading{display:flex;align-items:center;gap:8px;height:26px;font-size:12px;color:var(--ink4);padding-left:8px}
+.spin{width:11px;height:11px;border-radius:50%;border:1.6px solid var(--line3);border-top-color:var(--acc);animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ── contents pane ── */
+.contents{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.chead{
+  flex:0 0 auto;display:grid;gap:12px;align-items:center;height:34px;padding:0 14px;
+  grid-template-columns:26px 24px minmax(0,1fr) 110px 116px 92px;
+  border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:2;
+}
+.chead button{
+  background:0;border:0;padding:0;text-align:left;cursor:pointer;display:flex;align-items:center;gap:5px;
+  font-family:var(--sans);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);
+}
+.chead button:hover{color:var(--ink2)}
+.chead button.r{justify-content:flex-end}
+.chead button .sort{width:10px;height:10px;opacity:0}
+.chead button.sorted .sort{opacity:1;color:var(--acc)}
+.chead button.desc .sort{transform:rotate(180deg)}
+
+.clist{flex:1;overflow:auto;min-height:0}
+.crow{
+  display:grid;gap:12px;align-items:center;height:42px;padding:0 14px;
+  grid-template-columns:26px 24px minmax(0,1fr) 110px 116px 92px;
+  border-bottom:1px solid var(--line2);cursor:default;
+}
+.crow:hover{background:var(--card)}
+.crow.on{background:var(--accbg)}
+.crow.ghost{opacity:.55}
+.cpick{
+  width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line3);background:var(--card);
+  cursor:pointer;display:grid;place-items:center;flex:0 0 auto;
+}
+.cpick.on{background:var(--acc);border-color:var(--acc)}
+.cpick.on::after{content:'';width:8px;height:4.5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translateY(-1px)}
+.cico{width:19px;height:19px;color:var(--ink3)}
+.crow.dir .cico{color:var(--acc)}
+.crow.proj .cico{color:var(--mod)}
+.cname{min-width:0;display:flex;flex-direction:column;justify-content:center}
+.cname b{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.cname b svg{width:12px;height:12px;color:var(--mod);flex:0 0 auto}
+.cname small{font-size:11.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cwho{font-size:12.5px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cwhen{font-size:12.5px;color:var(--ink3)}
+.cwhen .rev{font-family:var(--mono);font-size:10.5px;color:var(--ink4);display:block}
+.cst{display:flex;justify-content:flex-end;gap:5px}
+
+.cfoot{
+  flex:0 0 auto;height:32px;display:flex;align-items:center;gap:12px;padding:0 14px;
+  border-top:1px solid var(--line);background:var(--card);font-size:11.5px;color:var(--ink3);
+}
+.cfoot .sp{flex:1}
+.cfoot b{color:var(--ink2);font-weight:600}
+.typeahead{
+  position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:60;
+  padding:8px 16px;border-radius:10px;background:var(--ink);color:var(--bg);
+  font-family:var(--mono);font-size:13px;box-shadow:var(--sh3);
+}
+.typeahead[hidden]{display:none}
+.empty{padding:34px 16px;text-align:center;color:var(--ink3);font-size:13px}
+
+/* ══ CONTEXT MENU ═══════════════════════════════════════════ */
+.ctx{
+  position:fixed;z-index:800;min-width:254px;padding:5px;background:var(--card);
+  border:1px solid var(--line3);border-radius:11px;box-shadow:var(--sh3);
+  animation:ctxin .11s cubic-bezier(.25,1,.5,1);
+}
+@keyframes ctxin{from{opacity:0;transform:scale(.97) translateY(-4px)}to{opacity:1;transform:none}}
+.ctx .hd{display:flex;align-items:center;gap:9px;padding:8px 9px 9px;border-bottom:1px solid var(--line2);margin-bottom:4px}
+.ctx .hd>svg{width:16px;height:16px;color:var(--acc);flex:0 0 auto}
+.ctx .hd .t{flex:1;min-width:0}
+.ctx .hd b{display:block;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctx .hd span{font-size:11px;color:var(--ink3)}
+.ctx .hd .p{font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.ci{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;font-size:13px;color:var(--ink);cursor:pointer}
+.ci:hover{background:var(--acc);color:#fff}
+.ci:hover>svg,.ci:hover .cmd,.ci:hover .sc{color:rgba(255,255,255,.82)}
+.ci>svg{width:15px;height:15px;color:var(--ink3);flex:0 0 auto}
+.ci .t{flex:1;min-width:0}
+.ci .cmd{display:block;font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:1px}
+.ci .sc{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink4);flex:0 0 auto}
+.ci.danger{color:var(--del)}
+.ci.danger>svg{color:var(--del)}
+.ci.danger:hover{background:var(--del);color:#fff}
+.ci.danger:hover>svg{color:#fff}
+.csep{height:1px;background:var(--line2);margin:4px 7px}
+
+/* ══ OVERLAYS ═══════════════════════════════════════════════ */
+.scrim{position:fixed;inset:0;z-index:900;background:rgba(22,26,32,.4);backdrop-filter:blur(3px);display:grid;animation:fade .15s ease-out}
+body.dark .scrim{background:rgba(0,0,0,.62)}
+.scrim[hidden]{display:none}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:translateY(-12px) scale(.985)}to{opacity:1;transform:none}}
+
+.jumper{width:min(640px,94vw);margin:9vh auto auto;background:var(--card);border:1px solid var(--line3);border-radius:15px;overflow:hidden;box-shadow:var(--sh3);animation:pop .17s cubic-bezier(.25,1.05,.4,1)}
+.jin{display:flex;align-items:center;gap:12px;padding:15px 17px;border-bottom:1px solid var(--line)}
+.jin>svg{width:18px;height:18px;color:var(--acc)}
+.jin input{flex:1;min-width:0;border:0;background:0;outline:0;color:var(--ink);font-family:var(--sans);font-size:16px}
+.jbody{max-height:min(430px,56vh);overflow:auto;padding:7px}
+.jgrp{padding:9px 10px 4px;font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink4)}
+.ji{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.ji:hover,.ji.act{background:var(--accbg);border-color:var(--accln)}
+.ji>.pic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;background:var(--sunk);border:1px solid var(--line);color:var(--ink3)}
+.ji.act>.pic{background:var(--acc);border-color:var(--acc);color:#fff}
+.ji>.pic svg{width:15px;height:15px}
+.ji .t{flex:1;min-width:0}
+.ji .t b{display:block;font-size:14px;font-weight:600}
+.ji .t b mark{background:transparent;color:var(--acc);font-weight:700}
+.ji .t small{display:block;font-size:12px;color:var(--ink3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ji .t .p{font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:2px;display:block}
+.jfoot{display:flex;gap:15px;padding:10px 17px;border-top:1px solid var(--line);background:var(--card2);font-size:11.5px;color:var(--ink3);flex-wrap:wrap}
+.jfoot b{font-family:var(--mono);color:var(--ink2);font-weight:500}
+
+.modal{width:min(560px,94vw);max-height:88vh;margin:auto;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line3);border-radius:15px;overflow:hidden;box-shadow:var(--sh3);animation:pop .19s cubic-bezier(.25,1.05,.4,1)}
+.mhead{padding:19px 21px 16px;border-bottom:1px solid var(--line)}
+.mhead .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--accbg);border:1px solid var(--accln);color:var(--acc);margin-bottom:12px}
+.mhead .ic svg{width:19px;height:19px}
+.mhead h2{font-size:20px;font-weight:700;letter-spacing:-.025em;line-height:1.2}
+.mhead p{font-size:13px;color:var(--ink2);margin-top:7px;line-height:1.55}
+.mhead .mono{font-size:10.5px;color:var(--ink4);margin-top:8px;word-break:break-all;display:block}
+.mbody{flex:1;overflow:auto;padding:17px 21px}
+.opt{display:flex;align-items:flex-start;gap:11px;padding:13px 14px;border-radius:11px;margin-bottom:9px;background:var(--card2);border:1px solid var(--line);cursor:pointer}
+.opt:hover{border-color:var(--line3)}
+.opt.on{border-color:var(--accln);background:var(--accbg)}
+.opt .r{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--line3);flex:0 0 auto;margin-top:2px;position:relative}
+.opt.on .r{border-color:var(--acc)}
+.opt.on .r::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--acc)}
+.opt .t{flex:1}
+.opt .t b{display:block;font-size:14px;font-weight:700}
+.opt .t small{display:block;font-size:12.5px;color:var(--ink2);margin-top:3px;line-height:1.5}
+.opt .t .sz{display:block;font-size:11.5px;color:var(--ink3);margin-top:5px;font-weight:600}
+.opt .t .cmd{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink4);margin-top:5px}
+.field{margin-bottom:15px}
+.field label{display:block;font-size:12.5px;font-weight:700;margin-bottom:7px}
+.inp{width:100%;height:36px;padding:0 12px;border-radius:9px;background:var(--card2);border:1px solid var(--line);color:var(--ink);font-family:var(--sans);font-size:13.5px}
+.inp:focus{outline:0;border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg)}
+.advanced{margin-top:6px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.advh{padding:9px 12px;background:var(--card2);border-bottom:1px solid var(--line)}
+.advr{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line2)}
+.advr:last-child{border-bottom:0}
+.advr .p{flex:1;min-width:0;font-family:var(--mono);font-size:11px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.advr select{height:26px;border-radius:7px;background:var(--card2);border:1px solid var(--line);color:var(--ink);font-family:var(--mono);font-size:11px;padding:0 6px}
+.advr .sz{font-family:var(--mono);font-size:10.5px;color:var(--ink4);width:56px;text-align:right}
+.mfoot{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:14px 21px;border-top:1px solid var(--line);background:var(--card2)}
+.mfoot .note{flex:1;font-size:12px;color:var(--ink3);line-height:1.45}
+.mfoot .note b{color:var(--ink2)}
+
+.protonote{
+  position:fixed;left:16px;bottom:12px;z-index:990;
+  display:flex;align-items:center;gap:10px;padding:7px 15px;border-radius:99px;
+  background:var(--ink);color:var(--bg);font-size:11px;white-space:nowrap;box-shadow:var(--sh3);
+}
+.protonote b{color:#f0c05a;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:10px}
+.protonote kbd{background:rgba(255,255,255,.15);border:0;color:inherit;font-size:10px}
+</style>
+</head>
+<body>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-shell" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="24" cy="24" r="20" fill="currentColor" fill-opacity=".13"/><path d="M16 16s4-4 8-4 8 4 8 8-4 8-8 8-6-2-6-4 2-4 4-4" opacity=".85"/><path d="M24 20v12M18 24h12" opacity=".38" stroke-width="1.7"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 20.5 7v10L12 21.2 3.5 17V7Z"/><path d="M3.5 7 12 11.4 20.5 7M12 11.4v9.8"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-ul" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.6 2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.8l5.9-.9Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 3-5.2 6.5-5.2s6.5 1.8 6.5 5.2"/><path d="M16 5.2A3.4 3.4 0 0 1 16 12M18 14.6c2.2.6 3.5 2.2 3.5 4.4"/></symbol>
+  <symbol id="i-briefcase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 12h18"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.4"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 20h18Z"/><path d="M12 10v5m0 3v.4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-diff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.4"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 6v12M18 10c0 4-6 3-6 8"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5 13.5 20a2 2 0 0 1-3 0L4 13.5V4h9.5L20 10.5a2 2 0 0 1 0 3Z"/><circle cx="9" cy="9" r="1.6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 17 5-4 4 3 3-2 4 3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6-6 6 6"/></symbol>
+</svg>
+
+<div class="app">
+
+  <header class="top">
+    <div class="brand" id="brandhome"><svg><use href="#i-shell"/></svg><b>Shelly<em>SVN</em></b></div>
+    <div class="bigsearch" id="bigsearch">
+      <svg><use href="#i-search"/></svg>
+      <span>Find a project, client or path…</span>
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="topright">
+      <button class="devswitch" id="devswitch"><span class="sw"></span>Developer details</button>
+      <button class="ibtn" id="themebtn"><svg id="themeicon"><use href="#i-moon"/></svg></button>
+      <button class="ibtn"><svg><use href="#i-cog"/></svg></button>
+      <button class="avatar">J</button>
+    </div>
+  </header>
+
+  <div class="body">
+
+    <!-- ══ RAIL ══ -->
+    <aside class="rail">
+      <div class="rsec"><span class="eyebrow">Open on your computer</span></div>
+      <div class="ritem tall" data-goto="clients/acme-corp/website/trunk" data-project="1">
+        <span class="dot mod"></span>
+        <span class="n">Acme website<small>12 changes to send</small><small class="mono">clients/acme-corp/website/trunk</small></span>
+        <span class="c mod">12</span>
+      </div>
+      <div class="ritem tall" data-goto="internal/tooling/shelly-svn/trunk" data-project="1">
+        <span class="dot full"></span>
+        <span class="n">ShellySVN<small>Up to date</small><small class="mono">internal/tooling/shelly-svn/trunk</small></span>
+      </div>
+      <div class="ritem tall" data-goto="internal/brand-system" data-project="1">
+        <span class="dot part"></span>
+        <span class="n">Brand system<small>Partly downloaded · 3 changes</small><small class="mono">internal/brand-system · depth immediates</small></span>
+        <span class="c mod">3</span>
+      </div>
+
+      <div class="diskcard">
+        <b>18.4 GB downloaded</b>
+        <p>You keep only what you work on. 3 working copies out of a 2.1 TB repository.</p>
+        <div class="bar"><i style="width:56%;background:var(--add)"></i><i style="width:14%;background:color-mix(in srgb,var(--add) 45%,transparent)"></i><i style="flex:1;background:var(--sunk)"></i></div>
+        <span class="mono">full 12.1 GB · sparse 6.3 GB · not fetched 2.08 TB</span>
+      </div>
+
+      <div class="rsec"><span class="eyebrow">Browse everything</span></div>
+      <div class="ritem" data-goto=""><svg><use href="#i-cube"/></svg><span class="n">Whole repository</span></div>
+      <div class="ritem" data-goto="clients"><svg><use href="#i-briefcase"/></svg><span class="n">Clients</span><span class="c">51</span></div>
+      <div class="ritem" data-goto="internal"><svg><use href="#i-home"/></svg><span class="n">Internal</span><span class="c">6</span></div>
+      <div class="ritem" data-goto="shared"><svg><use href="#i-users"/></svg><span class="n">Shared</span><span class="c">3</span></div>
+
+      <div class="rsec"><span class="eyebrow">Starred</span></div>
+      <div class="ritem" data-goto="clients/acme-corp"><svg><use href="#i-star"/></svg><span class="n">Acme Corp</span><span class="c">3</span></div>
+      <div class="ritem" data-goto="shared/components"><svg><use href="#i-star"/></svg><span class="n">Shared components</span></div>
+      <div class="ritem" data-goto="internal/tooling"><svg><use href="#i-star"/></svg><span class="n">Internal tooling</span><span class="c">3</span></div>
+
+      <div class="rsec"><span class="eyebrow">Recent</span></div>
+      <div class="ritem" data-goto="clients/globex/intranet"><svg><use href="#i-clock"/></svg><span class="n">Globex intranet</span></div>
+      <div class="ritem" data-goto="clients/initech"><svg><use href="#i-clock"/></svg><span class="n">Initech</span></div>
+    </aside>
+
+    <!-- ══ MAIN ══ -->
+    <main class="main">
+
+      <!-- ── VIEW: FINDER ── -->
+      <section class="view" id="view-finder">
+        <div class="pad">
+          <h1>Find a project</h1>
+          <p class="lede">
+            Everything the company works on lives in one repository — <b>512k paths, 2.1 TB</b>.
+            <span class="mono">clients/</span> holds 51 clients, <span class="mono">internal/</span> holds 6 areas.
+            Search for a client or a project, or <b>browse the folders</b> from the left.
+          </p>
+
+          <div class="findbar">
+            <svg><use href="#i-search"/></svg>
+            <input id="findinput" placeholder="Try “acme”, “website”, or a client name" value="acme" />
+            <kbd>⌘K</kbd>
+          </div>
+
+          <div class="chips">
+            <button class="fchip on">All <span class="c">65</span></button>
+            <button class="fchip">On my computer <span class="c">3</span></button>
+            <button class="fchip">My recent work <span class="c">7</span></button>
+            <button class="fchip">Clients <span class="c">51</span></button>
+            <button class="fchip">Internal <span class="c">6</span></button>
+            <button class="fchip">Needs attention <span class="c">1</span></button>
+          </div>
+
+          <div class="grouptitle"><h2>Acme Corp</h2><span class="ln"></span><span class="c">3 projects</span></div>
+          <div class="plist">
+            <div class="prow mine" data-goto="clients/acme-corp/website/trunk" data-project="1">
+              <span class="pic"><svg><use href="#i-cube"/></svg></span>
+              <span class="t">
+                <b>Website <span class="client">· Acme Corp</span></b>
+                <span class="sub"><span class="state"><span class="dot mod"></span>On your computer</span><span>·</span><span>Last change 2 hours ago by mira.k</span></span>
+                <span class="path dev">clients/acme-corp/website/trunk · r4838</span>
+              </span>
+              <span class="right">
+                <span class="flag mod">12 changes</span>
+                <span class="flag bad"><svg><use href="#i-warn"/></svg>1 needs you</span>
+                <button class="btn pri">Open</button>
+              </span>
+            </div>
+            <div class="prow" data-goto="clients/acme-corp/mobile-app" data-project="1">
+              <span class="pic"><svg><use href="#i-cube"/></svg></span>
+              <span class="t">
+                <b>Mobile app <span class="client">· Acme Corp</span></b>
+                <span class="sub"><span class="state"><span class="dot none"></span>Not downloaded</span><span>·</span><span>Last change 3 weeks ago by devon</span></span>
+                <span class="path dev">clients/acme-corp/mobile-app · 1.4 GB</span>
+              </span>
+              <span class="right"><span class="flag quiet">Up to date</span><button class="btn" data-open="get"><svg><use href="#i-dl"/></svg>Get a copy</button></span>
+            </div>
+            <div class="prow" data-goto="clients/acme-corp/brand-assets">
+              <span class="pic"><svg><use href="#i-folder"/></svg></span>
+              <span class="t">
+                <b>Brand assets <span class="client">· Acme Corp</span></b>
+                <span class="sub"><span class="state"><span class="dot none"></span>Not downloaded</span><span>·</span><span>1,240 files · 3.1 GB</span></span>
+                <span class="path dev">clients/acme-corp/brand-assets · svn:externals</span>
+              </span>
+              <span class="right"><span class="flag ext">Linked folder</span><button class="btn">Browse</button></span>
+            </div>
+          </div>
+
+          <div class="grouptitle"><h2>Other matches</h2><span class="ln"></span><span class="c">2</span></div>
+          <div class="plist">
+            <div class="prow" data-goto="clients/pacific-freight/web-shop" data-project="1">
+              <span class="pic"><svg><use href="#i-cube"/></svg></span>
+              <span class="t"><b>Web shop <span class="client">· Pacific Freight</span></b>
+                <span class="sub"><span class="state"><span class="dot none"></span>Not downloaded</span><span>·</span><span>Last change in May</span></span>
+                <span class="path dev">clients/pacific-freight/web-shop</span></span>
+              <span class="right"><span class="flag quiet">Up to date</span><button class="btn" data-open="get">Get a copy</button></span>
+            </div>
+            <div class="prow" data-goto="clients/acorn-media">
+              <span class="pic"><svg><use href="#i-briefcase"/></svg></span>
+              <span class="t"><b>Acorn Media <span class="client">· client</span></b>
+                <span class="sub"><span class="state"><span class="dot none"></span>Not downloaded</span><span>·</span><span>2 projects</span></span>
+                <span class="path dev">clients/acorn-media</span></span>
+              <span class="right"><span class="flag quiet">Archived</span><button class="btn">Browse</button></span>
+            </div>
+          </div>
+
+          <button class="more">Show all 65 projects</button>
+        </div>
+      </section>
+
+      <!-- ── VIEW: BROWSE (explorer, optional project header) ── -->
+      <section class="view" id="view-browse" hidden>
+
+        <div class="phead" id="phead" hidden>
+          <div class="backrow">
+            <button class="back" id="backbtn"><svg><use href="#i-chev"/></svg>All projects</button>
+            <span class="sp"></span>
+            <button class="btn sm ghost"><svg><use href="#i-star"/></svg>Star</button>
+            <button class="btn sm ghost"><svg><use href="#i-copy"/></svg>Copy URL</button>
+          </div>
+          <div class="ptitle">
+            <span class="pic"><svg><use href="#i-cube"/></svg></span>
+            <div class="t">
+              <h1 id="p-name">Website <span class="client">· Acme Corp</span></h1>
+              <div class="url" id="p-url">svn://svn.lineindustries.com/atlas/clients/acme-corp/website/trunk @ r4838</div>
+              <div class="flags">
+                <span class="flag mod">12 changes to send</span>
+                <span class="flag bad"><svg><use href="#i-warn"/></svg>1 needs a decision</span>
+                <span class="flag ok"><svg><use href="#i-check"/></svg>On your computer</span>
+                <span class="flag quiet">depth infinity · 2.8 GB</span>
+                <button class="provenance" data-open="whatsaproject">
+                  <svg><use href="#i-cube"/></svg><span id="prov-label">Project · detected from trunk/branches/tags</span>
+                </button>
+              </div>
+            </div>
+            <div class="acts">
+              <button class="btn"><svg><use href="#i-dl"/></svg>Get latest</button>
+              <button class="btn pri"><svg><use href="#i-ul"/></svg>Send changes <span class="code" style="color:inherit;opacity:.75">9</span></button>
+            </div>
+          </div>
+          <div class="versionbar">
+            <button class="verbtn" data-open="versions">
+              <svg><use href="#i-folder"/></svg>
+              <span class="t">
+                <b>Current work <span class="code">trunk</span></b>
+                <small>The live version everyone works on · r4838 · 12 changes of yours</small>
+              </span>
+              <svg><use href="#i-chevd"/></svg>
+            </button>
+            <span class="note">Also <b>14 works in progress</b> <span class="code">branches</span>
+              and <b>62 released versions</b> <span class="code">tags</span>.</span>
+          </div>
+          <div class="ptabs">
+            <button class="ptab" aria-selected="true">Files</button>
+            <button class="ptab">Changes <span class="c">12</span></button>
+            <button class="ptab">History</button>
+            <button class="ptab">Who's editing <span class="code">locks</span> <span class="c">2</span></button>
+          </div>
+        </div>
+
+        <!-- explorer toolbar -->
+        <div class="navbar">
+          <div class="navgroup">
+            <button class="btn icon" id="navback" title="Back"><svg style="transform:rotate(180deg)"><use href="#i-chev"/></svg></button>
+            <button class="btn icon" id="navfwd" title="Forward"><svg><use href="#i-chev"/></svg></button>
+            <button class="btn icon" id="navup" title="Up one folder"><svg><use href="#i-up"/></svg></button>
+            <button class="btn icon" id="navrefresh" title="Refresh"><svg><use href="#i-refresh"/></svg></button>
+          </div>
+          <div class="address" id="address">
+            <svg><use href="#i-cube"/></svg>
+            <div class="crumbs" id="crumbs"></div>
+            <input class="addrinput" id="addrinput" spellcheck="false" />
+          </div>
+          <div class="foldersearch">
+            <svg><use href="#i-search"/></svg>
+            <input id="folderfilter" placeholder="Search this folder" />
+          </div>
+          <button class="btn icon" id="newfolder" title="New folder"><svg><use href="#i-plus"/></svg></button>
+        </div>
+
+        <!-- explorer panes -->
+        <div class="explorer">
+          <div class="treepane">
+            <div class="treehead">
+              <span class="eyebrow">Folders</span>
+              <button id="collapseall" title="Collapse all"><svg><use href="#i-chevd"/></svg></button>
+            </div>
+            <div class="tree" id="tree"></div>
+          </div>
+
+          <div class="contents">
+            <div class="chead">
+              <span></span><span></span>
+              <button data-sort="name" class="sorted">Name <svg class="sort"><use href="#i-sort"/></svg></button>
+              <button data-sort="who">Changed by <svg class="sort"><use href="#i-sort"/></svg></button>
+              <button data-sort="when">When <svg class="sort"><use href="#i-sort"/></svg></button>
+              <button data-sort="status" class="r">Status <svg class="sort"><use href="#i-sort"/></svg></button>
+            </div>
+            <div class="clist" id="clist"></div>
+            <div class="cfoot">
+              <span id="footcount">—</span>
+              <span class="sp"></span>
+              <span id="footsel"></span>
+              <span class="mono" id="footrev">@r4838</span>
+            </div>
+          </div>
+
+          <!-- developer mode: diff / blame live here, one click from any file -->
+          <div class="preview" id="preview">
+            <div class="pvhead">
+              <div class="pvtop">
+                <b id="pv-name">—</b>
+                <button class="btn sm ghost" id="pv-open"><svg><use href="#i-ext"/></svg></button>
+              </div>
+              <div class="pvtabs" id="pv-tabs">
+                <button aria-selected="true" data-pv="diff">Diff</button>
+                <button aria-selected="false" data-pv="blame">Blame</button>
+                <button aria-selected="false" data-pv="log">History</button>
+              </div>
+            </div>
+            <div class="pvmeta" id="pv-meta"></div>
+            <div class="pvbody" id="pv-body"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="typeahead" id="typeahead" hidden></div>
+
+<!-- ══ CONTEXT MENU ══ -->
+<div class="ctx" id="ctx" hidden>
+  <div class="hd">
+    <svg id="ctxicon"><use href="#i-folder"/></svg>
+    <span class="t"><b id="ctxname">—</b><span id="ctxsay"></span><span class="p" id="ctxpath"></span></span>
+  </div>
+  <div class="ci" id="ci-open"><svg><use href="#i-ext"/></svg><span class="t">Open</span><span class="sc">↵</span></div>
+  <div class="ci" data-open="get"><svg><use href="#i-dl"/></svg><span class="t">Get a copy on my computer…<span class="cmd devtool">svn checkout</span></span></div>
+  <div class="ci"><svg><use href="#i-folder"/></svg><span class="t">Save a plain copy, no history…<span class="cmd devtool">svn export</span></span></div>
+  <div class="csep"></div>
+  <div class="ci"><svg><use href="#i-hist"/></svg><span class="t">See what's happened here<span class="cmd devtool">svn log -v</span></span><span class="sc">⌘L</span></div>
+  <div class="ci"><svg><use href="#i-diff"/></svg><span class="t">Compare with my copy<span class="cmd devtool">svn diff</span></span></div>
+  <div class="ci"><svg><use href="#i-search"/></svg><span class="t">Search inside this folder…<span class="cmd devtool">svn grep</span></span><span class="sc">⌘⇧F</span></div>
+  <div class="csep"></div>
+  <div class="ci"><svg><use href="#i-branch"/></svg><span class="t">Start a work-in-progress version…<span class="cmd devtool">svn copy → branches/</span></span></div>
+  <div class="ci devtool"><svg><use href="#i-tag"/></svg><span class="t">Create tag…<span class="cmd">svn copy → tags/</span></span></div>
+  <div class="ci devtool"><svg><use href="#i-cog"/></svg><span class="t">Properties…<span class="cmd">svn proplist -v</span></span></div>
+  <div class="ci danger devtool"><svg><use href="#i-trash"/></svg><span class="t">Delete from repository…<span class="cmd">svn delete</span></span></div>
+  <div class="csep"></div>
+  <div class="ci" data-open="whatsaproject"><svg><use href="#i-cube"/></svg>
+    <span class="t" id="ci-project">Treat this folder as a project…<span class="cmd devtool">svn propset shelly:project</span></span></div>
+  <div class="ci"><svg><use href="#i-star"/></svg><span class="t">Star this</span></div>
+  <div class="ci"><svg><use href="#i-copy"/></svg><span class="t">Copy URL</span><span class="sc">⇧⌘C</span></div>
+</div>
+
+<!-- ══ JUMPER ══ -->
+<div class="scrim" id="jumper" hidden>
+  <div class="jumper" onclick="event.stopPropagation()">
+    <div class="jin"><svg><use href="#i-search"/></svg><input id="jq" value="acme web" placeholder="A project, a client, or a folder" /></div>
+    <div class="jbody">
+      <div class="jgrp">Projects</div>
+      <div class="ji act" data-goto="clients/acme-corp/website/trunk" data-project="1">
+        <span class="pic"><svg><use href="#i-cube"/></svg></span>
+        <span class="t"><b><mark>Acme</mark> Corp · <mark>Web</mark>site</b><small>On your computer · 12 changes to send</small>
+        <span class="p">clients/acme-corp/website/trunk</span></span><kbd>↵</kbd>
+      </div>
+      <div class="ji" data-goto="clients/acme-corp/mobile-app" data-project="1">
+        <span class="pic"><svg><use href="#i-cube"/></svg></span>
+        <span class="t"><b><mark>Acme</mark> Corp · Mobile app</b><small>Not downloaded · 1.4 GB</small>
+        <span class="p">clients/acme-corp/mobile-app</span></span>
+      </div>
+      <div class="jgrp">Versions of Acme website</div>
+      <div class="ji" data-goto="clients/acme-corp/website/branches">
+        <span class="pic"><svg><use href="#i-branch"/></svg></span>
+        <span class="t"><b>Work in progress · payments v2 <span class="code">branch</span></b><small>mira.k · 2 hours ago</small>
+        <span class="p">clients/acme-corp/website/branches/feature/payments-v2</span></span>
+      </div>
+      <div class="jgrp">Folders</div>
+      <div class="ji" data-goto="clients/acme-corp/brand-assets">
+        <span class="pic"><svg><use href="#i-folder"/></svg></span>
+        <span class="t"><b><mark>Acme</mark> Corp · Brand assets</b><small>1,240 files · linked folder</small>
+        <span class="p">clients/acme-corp/brand-assets</span></span>
+      </div>
+      <div class="ji" data-goto="clients">
+        <span class="pic"><svg><use href="#i-briefcase"/></svg></span>
+        <span class="t"><b>All clients</b><small>51 clients</small><span class="p">clients/</span></span>
+      </div>
+    </div>
+    <div class="jfoot">
+      <span><b>↵</b> open</span><span><b>⌘↵</b> get a copy</span>
+      <span><b>@4835</b> jump to a revision</span>
+      <span style="margin-left:auto"><b>esc</b> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GET A COPY ══ -->
+<div class="scrim" id="get" hidden style="place-items:center">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="mhead">
+      <span class="ic"><svg><use href="#i-dl"/></svg></span>
+      <h2>Get a copy on your computer</h2>
+      <p>Shelly downloads it so you can open and edit the files, and send changes back when you're ready. You can change how much you keep later.</p>
+      <span class="mono" id="getpath">svn://svn.lineindustries.com/atlas/clients/acme-corp/mobile-app @ r4838</span>
+    </div>
+    <div class="mbody">
+      <div class="field">
+        <label>Where should it go?</label>
+        <input class="inp" value="~/Projects/acme-mobile-app" />
+      </div>
+      <div class="field" style="margin-bottom:8px">
+        <label>How much do you need?</label>
+        <div class="opt on"><span class="r"></span><span class="t">
+          <b>The whole project <span class="code">infinity</span></b>
+          <small>Everything you need to work on it. Recommended.</small>
+          <span class="sz">1.4 GB · about 3 minutes</span>
+          <span class="cmd devtool">svn checkout --depth infinity</span></span></div>
+        <div class="opt"><span class="r"></span><span class="t">
+          <b>Just the top folders <span class="code">immediates</span></b>
+          <small>A light copy for having a look. Fetch the rest on demand.</small>
+          <span class="sz">88 MB · a few seconds</span>
+          <span class="cmd devtool">svn checkout --depth immediates</span></span></div>
+        <div class="opt"><span class="r"></span><span class="t">
+          <b>Let me pick the folders <span class="code">sparse</span></b>
+          <small>Choose exactly which parts land on your computer.</small>
+          <span class="sz">you choose</span></span></div>
+      </div>
+      <div class="advanced devtool">
+        <div class="advh"><span class="eyebrow">Per-subtree depth</span></div>
+        <div class="advr"><span class="p">app/<b>src</b></span><select><option>infinity</option><option>immediates</option><option>exclude</option></select><span class="sz">640 MB</span></div>
+        <div class="advr"><span class="p">app/<b>assets</b></span><select><option>infinity</option><option>immediates</option><option>exclude</option></select><span class="sz">710 MB</span></div>
+        <div class="advr"><span class="p" style="opacity:.6">app/<b>design-source</b></span><select><option selected>exclude</option><option>infinity</option></select><span class="sz">2.1 GB</span></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <span class="note"><b>1.4 GB</b> · 18k files · about <b>3 minutes</b>. Excluding design-source would save 2.1 GB.</span>
+      <button class="btn" onclick="closeAll()">Cancel</button>
+      <button class="btn pri" onclick="closeAll()"><svg><use href="#i-dl"/></svg>Get the copy</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VERSIONS ══ -->
+<div class="scrim" id="versions" hidden style="place-items:center">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="mhead">
+      <span class="ic"><svg><use href="#i-branch"/></svg></span>
+      <h2>Which version do you want in your folder?</h2>
+      <p>One project can have several versions on the go. Switching swaps what's in your folder — your 12 unsent changes come with you.</p>
+    </div>
+    <div class="mbody">
+      <div class="opt on"><span class="r"></span><span class="t">
+        <b>Current work <span class="code">trunk</span></b>
+        <small>The live version everyone works on. You're here now.</small>
+        <span class="sz">12 changes of yours · updated 2 hours ago</span></span></div>
+      <div class="opt"><span class="r"></span><span class="t">
+        <b>Work in progress · Payments v2 <span class="code">branches/feature/payments-v2</span></b>
+        <small>A separate copy someone is building on, not live yet. mira.k · r4838</small>
+        <span class="sz">mira.k · 2 hours ago</span>
+        <span class="cmd devtool">svn switch ^/clients/acme-corp/website/branches/feature/payments-v2</span></span></div>
+      <div class="opt"><span class="r"></span><span class="t">
+        <b>Released · v3.1.4 <span class="code">tags/v3.1.4</span></b>
+        <small>A frozen snapshot of what went live. Read-only · r4826</small>
+        <span class="sz">3 days ago</span></span></div>
+      <button class="more" style="margin-top:4px">
+        Show all 14 works in progress and 62 released versions
+      </button>
+    </div>
+    <div class="mfoot">
+      <span class="note">Your 12 unsent changes stay with you when you switch.</span>
+      <button class="btn" onclick="closeAll()">Cancel</button>
+      <button class="btn pri" onclick="closeAll()">Switch version</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="whatsaproject" hidden style="place-items:center">
+  <div class="modal" style="width:min(600px,94vw)" onclick="event.stopPropagation()">
+    <div class="mhead">
+      <span class="ic"><svg><use href="#i-cube"/></svg></span>
+      <h2>Subversion has no idea what a “project” is</h2>
+      <p>
+        It only stores folders. <b>Shelly adds the idea of a project on top</b>, so a 51-client
+        repository can be navigated by what people actually work on. Here's exactly how a folder
+        becomes a project — in this order:
+      </p>
+    </div>
+    <div class="mbody">
+      <div class="opt on"><span class="r"></span><span class="t">
+        <b>1 · Someone labelled it</b>
+        <small>A versioned property on the folder gives it a proper name. Survives renames and moves,
+          and everyone on the team sees the same thing.</small>
+        <span class="cmd devtool">svn propset shelly:project "Acme Website" clients/acme-corp/website</span></span></div>
+      <div class="opt"><span class="r"></span><span class="t">
+        <b>2 · A list in the repository</b>
+        <small>A single file at the root naming project folders and how to group them. One commit,
+          reviewable, good for labelling hundreds at once.</small>
+        <span class="cmd devtool">/.shelly/projects.yml</span></span></div>
+      <div class="opt"><span class="r"></span><span class="t">
+        <b>3 · It looks like one <span class="code">how this one was found</span></b>
+        <small>A folder that directly contains <b>trunk</b> — usually with <b>branches</b> and
+          <b>tags</b> alongside — is a project by convention. Nobody has to do anything.</small>
+        <span class="cmd devtool">detected: trunk + branches + tags</span></span></div>
+      <div class="opt"><span class="r"></span><span class="t">
+        <b>4 · You checked it out</b>
+        <small>Anything you have a working copy of counts as a project to you, whatever the server says.</small></span></div>
+
+      <div style="margin-top:14px;padding:13px 15px;border-radius:11px;background:var(--sunk);border:1px solid var(--line)">
+        <b style="font-size:13px">If none of these apply, there are no projects.</b>
+        <p style="font-size:12.5px;color:var(--ink2);margin-top:5px;line-height:1.55">
+          You get plain folders and the explorer works exactly the same. Projects are a lens over
+          directories, never a requirement — and you can always overrule Shelly on any folder:
+          <b>“Treat this as a project”</b> or <b>“This isn't a project”</b>.
+        </p>
+      </div>
+      <div style="margin-top:10px;padding:13px 15px;border-radius:11px;background:var(--accbg);border:1px solid var(--accln)">
+        <b style="font-size:13px;color:var(--acc)">The same guess drives the version menu</b>
+        <p style="font-size:12.5px;color:var(--ink2);margin-top:5px;line-height:1.55">
+          <b>trunk</b> → “Current work”, <b>branches/*</b> → “Work in progress”, <b>tags/*</b> →
+          “Released”. A project that doesn't use that layout simply doesn't get a version menu.
+        </p>
+      </div>
+    </div>
+    <div class="mfoot">
+      <span class="note">Detection is per folder, so projects can nest.</span>
+      <button class="btn" onclick="closeAll()">Close</button>
+      <button class="btn pri" onclick="closeAll()">Label this folder…</button>
+    </div>
+  </div>
+</div>
+
+<div class="protonote">
+  <b>10 · Atlas</b>
+  <kbd>explorer: ↑↓ → ← ↵ ⌫</kbd><kbd>click the path to type one</kbd><kbd>D dev details</kbd><kbd>⌘K</kbd>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const body=document.body;
+
+/* ════════════════════════════════════════════════════════════
+   A small repository model. The explorer renders from this, so
+   navigation, sorting, filtering and breadcrumbs are all real.
+   ════════════════════════════════════════════════════════════ */
+const CLIENTS=['acme-corp','acorn-media','apex-logistics','aurora-bank','baytown-council','bellweather',
+ 'cardinal-foods','cedar-health','civic-trust','coastal-energy','delta-press','eastvale-schools','elmwood',
+ 'fairview-group','globex','greenline-rail','harbour-co','initech','ironbridge','kestrel-media','lakeside-uni',
+ 'lumen-labs','maple-retail','meridian-law','northwind','oakfield','orbital-freight','pacific-freight',
+ 'quarry-mining','redstone','riverbend','sable-insurance','sentinel-security','silverbrook','solstice-travel',
+ 'stonebridge','summit-sports','tallgrass','thornbury','tidewater','umbrella-health','vantage-point','verity-audit',
+ 'westgate','whitfield','willow-care','windrose','yarrow-foods','zenith-media','zephyr-air','zircon-tech'];
+
+const f=(name,o={})=>({name,type:'file',...o});
+const d=(name,children,o={})=>({name,type:o.type||'dir',children,...o});
+
+function genericProject(name,o={}){
+  return d(name,[
+    d('trunk',[
+      d('src',[f('index.ts',{size:'2.1 kB',who:'mira.k',when:'2 days ago',rev:4831})],{count:180}),
+      d('docs',[],{count:12}),
+      f('README.md',{size:'4.2 kB',who:'jordan',when:'last month',rev:4610})
+    ],{local:o.local||'none'}),
+    d('branches',[],{count:o.branches||3,ico:'branch'}),
+    d('tags',[],{count:o.tags||8,ico:'tag'})
+  ],{type:'project',...o});
+}
+
+const REPO=d('atlas',[
+  d('clients',CLIENTS.map(c=>{
+    if(c==='acme-corp'){
+      return d('acme-corp',[
+        d('website',[
+          d('trunk',[
+            d('src',[
+              d('main',[f('svn.ts',{size:'12 kB',who:'jordan',when:'4 min ago',rev:4802,st:'M'}),
+                        f('auth.ts',{size:'8 kB',who:'mira.k',when:'today',rev:4790,st:'R'}),
+                        f('client.ts',{size:'19 kB',who:'mira.k',when:'2 hrs ago',rev:4802,st:'C'})],{changes:{m:2,c:1},local:'full'}),
+              d('renderer',[
+                d('components',[f('FileExplorer.tsx',{size:'22 kB',who:'devon',when:'1 hr ago',rev:4818,st:'M'}),
+                                f('MergePreview.tsx',{size:'9 kB',who:'you',when:'today',st:'A'})],{changes:{m:1,a:1},local:'full'}),
+                d('routes',[f('index.tsx',{size:'3 kB',who:'you',when:'2 hrs ago',rev:4744,st:'M'}),
+                            f('files.tsx',{size:'5 kB',who:'tao.n',when:'6 days ago',rev:4744})],{local:'full'})
+              ],{local:'full'}),
+              d('preload',[f('index.ts',{size:'1.2 kB',who:'you',when:'yesterday',rev:4744,st:'M'})],{local:'full'})
+            ],{local:'full',count:241}),
+            d('packages',[d('shared',[f('merge.ts',{size:'6 kB',who:'you',when:'today',st:'A'})],{changes:{a:1},local:'full'})],{changes:{a:1},local:'full',count:18}),
+            d('docs',[f('CHANGELOG.md',{size:'11 kB',who:'jordan',when:'3 hrs ago',rev:4835,st:'M'})],{changes:{m:1},local:'full',count:32}),
+            d('tests',[f('setup.ts',{size:'900 B',who:'you',when:'today',rev:4744,st:'M'})],{local:'full',count:96}),
+            d('vendor',[],{local:'none',ext:true,count:4,size:'3.1 GB'}),
+            d('media-raw',[],{local:'none',count:412,size:'2.4 GB'}),
+            f('package.json',{size:'4.1 kB',who:'you',when:'09:12',rev:4838,st:'M',lock:true}),
+            f('tailwind.config.js',{size:'3.2 kB',who:'you',when:'yesterday',rev:4811,st:'M'}),
+            f('README.md',{size:'8.8 kB',who:'jordan',when:'last week',rev:4790})
+          ],{local:'full',changes:{m:9,a:2,c:1}}),
+          d('branches',[
+            d('feature',[d('payments-v2',[],{count:241,who:'mira.k',when:'2 hrs ago',rev:4838})],{count:9}),
+            d('release',[d('3.2',[],{count:238,who:'devon',when:'6 days ago',rev:4790})],{count:5})
+          ],{count:14,ico:'branch',local:'part'}),
+          d('tags',[],{count:62,ico:'tag',local:'none'})
+        ],{type:'project',local:'full',changes:{m:9,a:2,c:1}}),
+        genericProject('mobile-app',{local:'none',branches:6,tags:14}),
+        d('brand-assets',[
+          d('logos',[],{count:64}),d('photography',[],{count:820}),d('web',[],{count:312})
+        ],{local:'none',ext:true,count:1240,size:'3.1 GB'})
+      ],{local:'part',changes:{m:9,a:2,c:1}});
+    }
+    if(c==='globex') return d('globex',[genericProject('intranet',{local:'part'}),genericProject('brochure-site')],{local:'part'});
+    if(c==='initech') return d('initech',[genericProject('print-portal'),genericProject('crm-bridge'),d('assets',[],{count:340})]);
+    if(c==='pacific-freight') return d('pacific-freight',[genericProject('web-shop'),genericProject('tracking-api')]);
+    if(c==='umbrella-health') return d('umbrella-health',[genericProject('portal'),genericProject('patient-app'),d('compliance',[],{count:88})]);
+    return d(c,[genericProject('website'),d('assets',[],{count:120})],{local:'none'});
+  }),{count:51,changes:{m:12,c:1}}),
+
+  d('internal',[
+    d('tooling',[
+      genericProject('shelly-svn',{local:'full'}),
+      genericProject('build-farm'),
+      genericProject('ci-templates')
+    ],{count:3,local:'part'}),
+    d('brand-system',[d('tokens',[],{count:24}),d('components',[],{count:96}),d('guidelines',[],{count:31})],{local:'part',changes:{m:3},count:3}),
+    d('design-ops',[],{count:41}),
+    d('people-handbook',[],{count:63}),
+    d('research',[],{count:212}),
+    d('infra-scripts',[],{count:88})
+  ],{count:6,changes:{m:3}}),
+
+  d('shared',[
+    d('components',[d('web',[],{count:140}),d('mobile',[],{count:78})],{count:2}),
+    d('fonts',[],{count:18,ext:true}),
+    d('legal-templates',[],{count:44})
+  ],{count:3}),
+
+  d('archive',[],{count:380,local:'none'})
+],{type:'repo'});
+
+/* ── model helpers ─────────────────────────────────────────── */
+function nodeAt(path){
+  if(!path)return REPO;
+  let n=REPO;
+  for(const seg of path.split('/')){
+    if(!n.children)return n;
+    const next=n.children.find(c=>c.name===seg);
+    if(!next)return n;
+    n=next;
+  }
+  return n;
+}
+function kidsOf(n){
+  if(!n.children)return [];
+  if(n.children.length)return n.children;
+  /* folders we know the size of but haven't listed: synthesise a page */
+  const total=n.count||0;
+  return Array.from({length:Math.min(total,14)},(_,i)=>({
+    name:(n.ext?'asset-':'item-')+String(i+1).padStart(3,'0')+(n.ext?'.png':''),
+    type:n.ext?'file':'dir',size:n.ext?'1.4 MB':undefined,
+    who:['mira.k','devon','tao.n','jordan'][i%4],when:'last month',rev:4500+i
+  }));
+}
+/* Count real files where we have them, and fall back to the declared
+   `changes` only on folders we haven't listed — otherwise a parent and
+   its children both contribute and every count doubles. */
+function rollup(n){
+  const acc={m:0,a:0,c:0};
+  (function walk(x){
+    if(x.type==='file'){
+      if(x.st==='M'||x.st==='R')acc.m++;
+      else if(x.st==='A')acc.a++;
+      else if(x.st==='C')acc.c++;
+      return;
+    }
+    if(x.children&&x.children.length){x.children.forEach(walk);return}
+    if(x.changes){acc.m+=x.changes.m||0;acc.a+=x.changes.a||0;acc.c+=x.changes.c||0}
+  })(n);
+  return acc;
+}
+function iconFor(n){
+  if(n.type==='file'){
+    if(/\.(png|jpe?g|svg|psd)$/.test(n.name))return 'i-image';
+    return 'i-file';
+  }
+  if(n.type==='project')return 'i-cube';
+  if(n.ico==='branch')return 'i-branch';
+  if(n.ico==='tag')return 'i-tag';
+  return 'i-folder';
+}
+/* Diffs and blame for the files that have local changes. Developer mode
+   promotes these to a permanent pane instead of hiding them a click away. */
+const DIFFS={
+ 'svn.ts':{base:4802,add:41,del:8,hunks:[
+   {h:'@@ -142,7 +142,9 @@ registerSvnHandlers()',lines:[
+     ['ctx',142,142,"  ipc.handle(<span class='k3'>'svn:status'</span>, <span class='k1'>async</span> (_e, path) => {"],
+     ['ctx',143,143,"    <span class='k1'>const</span> repo = <span class='k1'>await</span> resolveWorkingCopy(path);"],
+     ['del',144,'',"    <span class='k1'>return</span> runSvn([<span class='k3'>'status'</span>, <span class='k3'>'--xml'</span>], repo);"],
+     ['add','',144,"    <span class='k5'>// externals must be walked separately or they report as '?'</span>"],
+     ['add','',145,"    <span class='k1'>const</span> args = [<span class='k3'>'status'</span>, <span class='k3'>'--xml'</span>, <span class='k3'>'--show-updates'</span>];"],
+     ['add','',146,"    <span class='k1'>if</span> (repo.hasExternals) args.push(<span class='k3'>'--ignore-externals'</span>);"],
+     ['ctx',145,147,"  });"]]},
+   {h:'@@ -201,12 +204,24 @@ runSvn()',lines:[
+     ['del',203,'',"    env: process.env,"],
+     ['add','',206,"    env: { ...process.env, <span class='k4'>LC_ALL</span>: <span class='k3'>'C'</span> },"],
+     ['add','',207,"    windowsHide: <span class='k1'>true</span>,"],
+     ['ctx',204,208,"  });"],
+     ['add','',210,"  <span class='k1'>let</span> bytes = <span class='k4'>0</span>;"],
+     ['add','',211,"  child.stdout.on(<span class='k3'>'data'</span>, (c) => {"],
+     ['add','',212,"    <span class='k1'>if</span> ((bytes += c.length) > <span class='k4'>MAX_SVN_OUTPUT</span>) child.kill();"],
+     ['add','',213,"  });"]]}]},
+ 'client.ts':{base:4802,add:64,del:12,conflict:true,hunks:[
+   {h:'@@ -206,6 +206,14 @@  ⚠ both sides changed these lines',lines:[
+     ['conf','','',"&lt;&lt;&lt;&lt;&lt;&lt;&lt; .mine"],
+     ['add','',206,"  <span class='k1'>let</span> bytes = <span class='k4'>0</span>;  <span class='k5'>// yours: cap the output</span>"],
+     ['conf','','',"======="],
+     ['del',206,'',"  <span class='k1'>if</span> (err.code === <span class='k4'>423</span>) <span class='k1'>throw new</span> LockHeldByOther(err); <span class='k5'>// mira.k, r4838</span>"],
+     ['conf','','',"&gt;&gt;&gt;&gt;&gt;&gt;&gt; .r4838"]]}]},
+ 'FileExplorer.tsx':{base:4818,add:27,del:31,hunks:[
+   {h:'@@ -88,10 +88,6 @@ FileExplorer()',lines:[
+     ['del',88,'',"  <span class='k1'>const</span> [legacyTree, setLegacyTree] = useState(<span class='k1'>null</span>);"],
+     ['del',89,'',"  useEffect(() => { loadLegacyTree().then(setLegacyTree) }, []);"],
+     ['ctx',90,88,"  <span class='k1'>const</span> rows = useVirtualRows(entries);"],
+     ['add','',89,"  <span class='k5'>// legacy tree removed — see OldTree.tsx deletion</span>"]]}]},
+ 'package.json':{base:4838,add:3,del:1,hunks:[
+   {h:'@@ -12,7 +12,9 @@',lines:[
+     ['del',12,'',"    <span class='k3'>\"oxlint\"</span>: <span class='k3'>\"^1.3.0\"</span>,"],
+     ['add','',12,"    <span class='k3'>\"oxlint\"</span>: <span class='k3'>\"^1.4.0\"</span>,"],
+     ['add','',13,"    <span class='k3'>\"fast-xml-parser\"</span>: <span class='k3'>\"^4.4.1\"</span>,"]]}]}
+};
+const BLAME={
+ 'svn.ts':[
+  [4102,'mira.k','3 mo',1,"import { ipcMain } from 'electron';"],
+  [4102,'mira.k','3 mo',2,"import { spawn } from 'node:child_process';"],
+  [4812,'tao.n','6 d',3,""],
+  [4812,'tao.n','6 d',4,"export function registerSvnHandlers(ipc: IpcMain) {"],
+  [4802,'jordan','2 w',5,"  ipc.handle('svn:status', async (_e, path) => {"],
+  ['—','you','now',6,"    const args = ['status','--xml','--show-updates'];",1],
+  ['—','you','now',7,"    if (repo.hasExternals) args.push('--ignore-externals');",1],
+  [4835,'jordan','1 d',8,"    return runSvn(args, repo, { timeout: STATUS_TIMEOUT });"],
+  [4812,'tao.n','6 d',9,"  });"]],
+ 'client.ts':[
+  [4790,'mira.k','1 mo',204,"const child = spawn('svn', args, opts);"],
+  [4838,'mira.k','2 h',205,"if (err.code === 423) throw new LockHeldByOther(err);"],
+  ['—','you','now',206,"let bytes = 0;",1],
+  [4802,'jordan','2 w',207,"child.stdout.on('data', onChunk);"]]
+};
+const STLABEL={M:['Edited','M'],A:['New','A'],D:['Deleted','D'],C:['Needs you','C'],R:['Replaced','R']};
+
+/* ── explorer state ────────────────────────────────────────── */
+let cwd='';                       // current path, '' = repo root
+let sel=null;                     // selected child name
+let history=[], hIdx=-1;          // back / forward
+let expanded=new Set(['','clients','clients/acme-corp','clients/acme-corp/website','clients/acme-corp/website/trunk']);
+let sortKey='name', sortDir=1;
+let filterText='';
+let picked=new Set();
+
+/* ── tree ──────────────────────────────────────────────────── */
+function renderTree(){
+  const host=$('#tree');host.innerHTML='';
+  host.appendChild(treeNode(REPO,'',0));
+}
+function treeNode(n,path,depth){
+  const wrap=document.createElement('div');
+  const row=document.createElement('div');
+  row.className='tnode'+(expanded.has(path)?' open':'')+(path===cwd?' on':'')
+    +(n.type==='project'?' proj':'')+(n.local==='none'?' ghost':'');
+  row.style.paddingLeft=(6+depth*15)+'px';
+  row.dataset.path=path;
+
+  const kids=(n.children&&n.children.length)?n.children.filter(c=>c.type!=='file'):[];
+  const hasKids=kids.length>0||(n.count&&n.type!=='file'&&!n.children?.length);
+
+  const tw=document.createElement('span');
+  tw.className='twist'+(hasKids?'':' leaf');
+  tw.innerHTML='<svg><use href="#i-chev"/></svg>';
+  tw.onclick=e=>{e.stopPropagation();expanded.has(path)?expanded.delete(path):expanded.add(path);renderTree()};
+  row.appendChild(tw);
+
+  const ic=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  ic.setAttribute('class','tico');
+  ic.innerHTML='<use href="#'+iconFor(n)+'"/>';
+  row.appendChild(ic);
+
+  const nm=document.createElement('span');nm.className='tname';nm.textContent=n.name;row.appendChild(nm);
+
+  const meta=document.createElement('span');meta.className='tmeta';
+  const r=rollup(n);
+  /* changes and conflicts are different facts — show both, don't let
+     one mask the other */
+  if(r.m+r.a)meta.insertAdjacentHTML('beforeend','<span class="tbadge">'+(r.m+r.a)+'</span>');
+  if(r.c)meta.insertAdjacentHTML('beforeend','<span class="tbadge bad">'+r.c+'</span>');
+  if(n.ext)meta.insertAdjacentHTML('beforeend','<span class="tbadge ext">link</span>');
+  if(n.count)meta.insertAdjacentHTML('beforeend','<span class="tcount">'+n.count+'</span>');
+  row.appendChild(meta);
+
+  row.onclick=()=>go(path);
+  row.oncontextmenu=e=>openCtx(e,n,path);
+  wrap.appendChild(row);
+
+  if(expanded.has(path)&&hasKids){
+    const kidbox=document.createElement('div');kidbox.className='tkids';
+    const shown=kids.slice(0,depth===1?12:40);
+    shown.forEach(c=>kidbox.appendChild(treeNode(c,path?path+'/'+c.name:c.name,depth+1)));
+    if(kids.length>shown.length){
+      const more=document.createElement('div');
+      more.className='tmore';more.style.paddingLeft=(6+(depth+1)*15+18)+'px';
+      more.textContent='… '+(kids.length-shown.length)+' more — search instead';
+      more.onclick=e=>{e.stopPropagation();open('jumper')};
+      kidbox.appendChild(more);
+    }
+    if(!kids.length&&n.count){
+      const l=document.createElement('div');
+      l.className='tloading';l.style.paddingLeft=(6+(depth+1)*15+18)+'px';
+      l.innerHTML='<span class="spin"></span>listing '+n.count+' items…';
+      kidbox.appendChild(l);
+    }
+    wrap.appendChild(kidbox);
+  }
+  return wrap;
+}
+
+/* ── breadcrumbs / address ─────────────────────────────────── */
+function renderCrumbs(){
+  const host=$('#crumbs');host.innerHTML='';
+  const segs=cwd?cwd.split('/'):[];
+  const mk=(label,path,here)=>{
+    const b=document.createElement('button');
+    b.className='crumb'+(here?' here':'');
+    b.innerHTML='<span>'+label+'</span>';
+    b.onclick=()=>go(path);
+    b.oncontextmenu=e=>openCtx(e,nodeAt(path),path);
+    return b;
+  };
+  host.appendChild(mk('atlas','',segs.length===0));
+  segs.forEach((s,i)=>{
+    const p=segs.slice(0,i+1).join('/');
+    host.insertAdjacentHTML('beforeend','<span class="crumbsep">›</span>');
+    host.appendChild(mk(s,p,i===segs.length-1));
+  });
+  $('#addrinput').value='svn://svn.lineindustries.com/atlas/'+cwd;
+  $('#footrev').textContent='@r4838';
+}
+
+/* ── contents list ─────────────────────────────────────────── */
+function renderList(){
+  const n=nodeAt(cwd);
+  let items=kidsOf(n).slice();
+
+  if(filterText){
+    const q=filterText.toLowerCase();
+    items=items.filter(c=>c.name.toLowerCase().includes(q));
+  }
+  const key=sortKey;
+  items.sort((a,b)=>{
+    const dirA=a.type!=='file',dirB=b.type!=='file';
+    if(dirA!==dirB)return dirA?-1:1;                 // folders first, always
+    let va,vb;
+    if(key==='name'){va=a.name.toLowerCase();vb=b.name.toLowerCase()}
+    else if(key==='who'){va=a.who||'';vb=b.who||''}
+    else if(key==='when'){va=a.rev||0;vb=b.rev||0}
+    else {va=a.st||'';vb=b.st||''}
+    return (va<vb?-1:va>vb?1:0)*sortDir;
+  });
+
+  const host=$('#clist');host.innerHTML='';
+  if(!items.length){
+    host.innerHTML='<div class="empty">'+(filterText?'Nothing here matches “'+filterText+'”.':'This folder is empty.')+'</div>';
+  }
+  items.forEach(c=>{
+    const row=document.createElement('div');
+    const isDir=c.type!=='file';
+    row.className='crow'+(isDir?' dir':'')+(c.type==='project'?' proj':'')+(c.local==='none'?' ghost':'')+(sel===c.name?' on':'');
+    row.dataset.name=c.name;
+
+    const pick=document.createElement('span');
+    pick.className='cpick'+(picked.has(c.name)?' on':'');
+    pick.onclick=e=>{e.stopPropagation();picked.has(c.name)?picked.delete(c.name):picked.add(c.name);renderList()};
+    row.appendChild(pick);
+
+    const ic=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    ic.setAttribute('class','cico');ic.innerHTML='<use href="#'+iconFor(c)+'"/>';
+    row.appendChild(ic);
+
+    const r=rollup(c);
+    const nm=document.createElement('span');nm.className='cname';
+    let subPlain='',subDev='';
+    if(isDir){
+      const bits=[];
+      if(c.count)bits.push(c.count.toLocaleString()+' items');
+      if(c.size)bits.push(c.size);
+      if(r.m+r.a)bits.push((r.m+r.a)+' changed inside');
+      if(r.c)bits.push(r.c+' needs a decision');
+      if(c.local==='none')bits.push('not downloaded');
+      if(c.ext)bits.push('linked folder');
+      subPlain=bits.join(' · ');
+      subDev=[c.ext?'svn:externals':'',c.local==='none'?'depth exclude':''].filter(Boolean).join(' · ');
+    }else{
+      subPlain=c.size||'';
+      subDev=c.rev?'r'+c.rev:'';
+    }
+    nm.innerHTML='<b>'+c.name+(c.lock?' <svg><use href="#i-lock"/></svg>':'')+'</b>'
+      +'<small>'+[subPlain,subDev].filter(Boolean).join(' · ')+'</small>';
+    row.appendChild(nm);
+
+    row.insertAdjacentHTML('beforeend','<span class="cwho">'+(c.who||'—')+'</span>');
+    row.insertAdjacentHTML('beforeend','<span class="cwhen">'+(c.when||'—')
+      +(c.rev?'<span class="rev">r'+c.rev+'</span>':'')+'</span>');
+
+    let st='';
+    if(c.st){
+      const [plain,code]=STLABEL[c.st];
+      const cls=c.st==='C'?'bad':c.st==='A'?'ok':'mod';
+      st='<span class="flag '+cls+'">'+plain+' <span class="code" style="color:inherit;opacity:.7">'+code+'</span></span>';
+    }else if(c.lock){st='<span class="flag quiet"><svg><use href="#i-lock"/></svg>Reserved</span>';
+    }else{
+      if(r.m+r.a)st+='<span class="flag mod">'+(r.m+r.a)+'</span>';
+      if(r.c)st+='<span class="flag bad">'+r.c+'</span>';
+      if(!st&&c.ext)st='<span class="flag ext">link</span>';
+      if(!st&&c.local==='none'&&isDir)st='<span class="flag quiet">Not downloaded</span>';
+    }
+    row.insertAdjacentHTML('beforeend','<span class="cst">'+st+'</span>');
+
+    if(c.type==='file'){
+      const tools=document.createElement('span');
+      tools.className='rowtools';
+      const mk=(label,tab)=>{
+        const b=document.createElement('button');
+        b.className='btn sm';b.textContent=label;
+        b.onclick=e=>{e.stopPropagation();sel=c.name;renderList();openTool(c,tab)};
+        return b;
+      };
+      tools.appendChild(mk('Diff','diff'));
+      tools.appendChild(mk('Blame','blame'));
+      row.appendChild(tools);
+    }
+    row.onclick=()=>{sel=c.name;renderList();if(c.type==='file')showPreview(c)};
+    row.ondblclick=()=>{if(isDir)go(cwd?cwd+'/'+c.name:c.name)};
+    row.oncontextmenu=e=>openCtx(e,c,(cwd?cwd+'/':'')+c.name);
+    host.appendChild(row);
+  });
+
+  const total=n.count||items.length;
+  const shown=items.length;
+  $('#footcount').innerHTML= filterText
+    ? '<b>'+shown+'</b> of '+total.toLocaleString()+' match “'+filterText+'”'
+    : (total>shown
+        ? 'Showing <b>'+shown+'</b> of '+total.toLocaleString()+' — use search to narrow it down'
+        : '<b>'+shown+'</b> item'+(shown===1?'':'s'));
+  $('#footsel').textContent=picked.size?picked.size+' selected':'';
+}
+
+/* ── preview pane: diff / blame, promoted by developer mode ── */
+let pvTab='diff', pvFile=null;
+function showPreview(file){
+  pvFile=file;
+  const nameOnly=file?file.name:null;
+  $('#pv-name').textContent=file?((cwd?cwd+'/':'')+file.name):'—';
+  const d=file?DIFFS[file.name]:null;
+  const meta=$('#pv-meta'), bodyEl=$('#pv-body');
+
+  if(!file){
+    meta.innerHTML='';
+    bodyEl.innerHTML='<div class="pvempty"><svg><use href="#i-diff"/></svg><br>'
+      +'Select a file to see what changed in it.</div>';
+    return;
+  }
+  if(pvTab==='blame'){
+    const b=BLAME[file.name];
+    meta.innerHTML=b?'<span>blame · <b>'+b.length+' lines</b></span><span>who last touched each line</span>'
+                    :'';
+    bodyEl.innerHTML=b
+      ? b.map(([rev,who,when,ln,code,mine])=>'<div class="bl'+(mine?' mine':'')+'">'
+          +'<span class="r">'+(rev==='—'?'local':'r'+rev)+'</span>'
+          +'<span class="w">'+who+' · '+when+'</span><i>'+ln+'</i><code>'+code.replace(/</g,'&lt;')+'</code></div>').join('')
+      : '<div class="pvempty"><svg><use href="#i-user"/></svg><br>Blame isn\'t wired up for '
+        +'<b>'+file.name+'</b> in this prototype.<br>Try <b>svn.ts</b> or <b>client.ts</b> in src/main.</div>';
+    return;
+  }
+  if(pvTab==='log'){
+    meta.innerHTML='<span>recent revisions touching this file</span>';
+    bodyEl.innerHTML=['r4838 · mira.k · 2 hours ago · Fix lock retention',
+                      'r4835 · jordan · yesterday · Harden SVN operations',
+                      'r4812 · tao.n · 6 days ago · Split IPC handlers by domain']
+      .map(l=>'<div class="dl"><i></i><i></i><u></u><code>'+l+'</code></div>').join('');
+    return;
+  }
+  if(!d){
+    meta.innerHTML='';
+    bodyEl.innerHTML='<div class="pvempty"><svg><use href="#i-check"/></svg><br>'
+      +'<b>'+file.name+'</b> hasn\'t been changed.<br>Nothing to compare.</div>';
+    return;
+  }
+  meta.innerHTML='<span>compared with <b>r'+d.base+'</b></span>'
+    +'<span style="color:var(--add)">+'+d.add+'</span><span style="color:var(--del)">−'+d.del+'</span>'
+    +(d.conflict?'<span style="color:var(--del)"><b>both sides changed this</b></span>':'')
+    +'<span style="margin-left:auto">'+d.hunks.length+' section'+(d.hunks.length>1?'s':'')+'</span>';
+  bodyEl.innerHTML=d.hunks.map(h=>'<div class="hunk">'+h.h+'</div>'
+    +h.lines.map(([t,a,b2,code])=>'<div class="dl '+(t==='add'?'add':t==='del'?'del':t==='conf'?'conf':'')+'">'
+      +'<i>'+a+'</i><i>'+b2+'</i><u>'+(t==='add'?'+':t==='del'?'−':' ')+'</u><code>'+code+'</code></div>').join('')
+  ).join('');
+}
+$$('#pv-tabs button').forEach(b=>b.onclick=()=>{
+  $$('#pv-tabs button').forEach(x=>x.setAttribute('aria-selected','false'));
+  b.setAttribute('aria-selected','true');pvTab=b.dataset.pv;showPreview(pvFile);
+});
+function openTool(file,tab){
+  if(!body.classList.contains('devmode'))body.classList.add('devmode');
+  pvTab=tab;
+  $$('#pv-tabs button').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.pv===tab)));
+  showPreview(file);
+}
+
+/* ── navigation ────────────────────────────────────────────── */
+function go(path,push=true){
+  cwd=path;sel=null;picked.clear();filterText='';$('#folderfilter').value='';
+  if(push){history=history.slice(0,hIdx+1);history.push(path);hIdx=history.length-1}
+  /* expand ancestors so the tree follows you */
+  const segs=path?path.split('/'):[];
+  let acc='';expanded.add('');
+  segs.forEach(s=>{acc=acc?acc+'/'+s:s;expanded.add(acc)});
+  showBrowse();
+  renderTree();renderCrumbs();renderList();updateNavButtons();showPreview(null);
+  const n=nodeAt(path);
+  $('#phead').hidden=!(n.type==='project'||nodeAt(path.split('/').slice(0,-1).join('/')).type==='project');
+  if(!$('#phead').hidden){
+    const projPath=n.type==='project'?path:path.split('/').slice(0,-1).join('/');
+    const proj=nodeAt(projPath);
+    const client=projPath.split('/')[1]||'';
+    $('#p-name').innerHTML=proj.name.replace(/(^|-)(\w)/g,(m,a,b)=>a+b.toUpperCase()).replace(/-/g,' ')
+      +' <span class="client">· '+client.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())+'</span>';
+    $('#p-url').textContent='svn://svn.lineindustries.com/atlas/'+projPath+' @ r4838';
+    const hasStd=(proj.children||[]).some(c=>c.name==='trunk');
+    $('#prov-label').textContent=hasStd
+      ? 'Project · found because it contains trunk, branches and tags'
+      : 'Project · you have a working copy of it';
+  }
+  $$('.ritem').forEach(r=>r.classList.toggle('on',r.dataset.goto===path));
+}
+function updateNavButtons(){
+  $('#navback').disabled=hIdx<=0;
+  $('#navfwd').disabled=hIdx>=history.length-1;
+  $('#navup').disabled=!cwd;
+}
+$('#navback').onclick=()=>{if(hIdx>0){hIdx--;go(history[hIdx],false)}};
+$('#navfwd').onclick=()=>{if(hIdx<history.length-1){hIdx++;go(history[hIdx],false)}};
+$('#navup').onclick=()=>{if(cwd)go(cwd.split('/').slice(0,-1).join('/'))};
+$('#navrefresh').onclick=()=>{renderTree();renderList()};
+$('#collapseall').onclick=()=>{expanded=new Set(['']);renderTree()};
+$('#newfolder').onclick=()=>{};
+
+/* editable address bar */
+$('#address').onclick=e=>{
+  if(e.target.closest('.crumb'))return;
+  $('#address').classList.add('editing');
+  const i=$('#addrinput');i.focus();i.select();
+};
+$('#addrinput').onkeydown=e=>{
+  if(e.key==='Enter'){
+    const raw=$('#addrinput').value.replace('svn://svn.lineindustries.com/atlas','').replace(/^\/+|\/+$/g,'');
+    $('#address').classList.remove('editing');go(raw);
+  }
+  if(e.key==='Escape'){$('#address').classList.remove('editing');renderCrumbs()}
+};
+$('#addrinput').onblur=()=>{$('#address').classList.remove('editing');renderCrumbs()};
+
+/* folder filter */
+$('#folderfilter').oninput=e=>{filterText=e.target.value;renderList()};
+
+/* sorting */
+$$('.chead button').forEach(b=>b.onclick=()=>{
+  const k=b.dataset.sort;
+  if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1}
+  $$('.chead button').forEach(x=>{x.classList.remove('sorted','desc')});
+  b.classList.add('sorted');if(sortDir<0)b.classList.add('desc');
+  renderList();
+});
+
+/* ── views ─────────────────────────────────────────────────── */
+function showFinder(){$('#view-finder').hidden=false;$('#view-browse').hidden=true}
+function showBrowse(){$('#view-finder').hidden=true;$('#view-browse').hidden=false}
+$('#backbtn').onclick=showFinder;
+$('#brandhome').onclick=showFinder;
+$$('[data-goto]').forEach(el=>el.addEventListener('click',e=>{
+  if(e.target.closest('[data-open]'))return;
+  e.stopPropagation();ctx.hidden=true;closeAll();go(el.dataset.goto);
+}));
+
+/* ── context menu ──────────────────────────────────────────── */
+const ctx=$('#ctx');
+function openCtx(e,n,path){
+  e.preventDefault();e.stopPropagation();
+  $('#ctxname').textContent=n.name;
+  const r=rollup(n);
+  $('#ctxsay').textContent = n.type==='project'?'Project'
+    : n.type==='file'?(n.size||'File')
+    : (n.count?n.count.toLocaleString()+' items':'Folder')+(r.c?' · '+r.c+' needs a decision':r.m+r.a?' · '+(r.m+r.a)+' changed':'');
+  $('#ctxpath').textContent=path||'/';
+  $('#ctxicon').innerHTML='<use href="#'+iconFor(n)+'"/>';
+  $('#ci-open').onclick=()=>{ctx.hidden=true;if(n.type!=='file')go(path)};
+  $('#ci-project').firstChild.textContent = n.type==='project'
+    ? "This isn't a project — treat it as a plain folder"
+    : n.type==='file' ? 'Label the folder this is in…' : 'Treat this folder as a project…';
+  ctx.hidden=false;
+  ctx.style.left=Math.min(e.clientX,innerWidth-ctx.offsetWidth-12)+'px';
+  ctx.style.top=Math.min(e.clientY,innerHeight-ctx.offsetHeight-12)+'px';
+}
+$$('.prow, .ritem, .ji').forEach(el=>el.addEventListener('contextmenu',e=>{
+  const p=el.dataset.goto||'';openCtx(e,nodeAt(p),p);
+}));
+document.addEventListener('click',()=>ctx.hidden=true);
+
+/* ── overlays ──────────────────────────────────────────────── */
+function closeAll(){$$('.scrim').forEach(s=>s.hidden=true)}
+function open(id){closeAll();$('#'+id).hidden=false;if(id==='jumper')setTimeout(()=>{const i=$('#jq');i.focus();i.select()},20)}
+$$('[data-open]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();ctx.hidden=true;open(b.dataset.open)}));
+$('#bigsearch').onclick=()=>open('jumper');
+$$('.scrim').forEach(s=>s.addEventListener('click',closeAll));
+
+/* ── keyboard: a real explorer ─────────────────────────────── */
+let typeBuf='',typeTimer=null;
+addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if((e.metaKey||e.ctrlKey)&&/k|p/.test(e.key.toLowerCase())){e.preventDefault();open('jumper');return}
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='l'){e.preventDefault();$('#address').click();return}
+  if(e.key==='Escape'){closeAll();ctx.hidden=true;return}
+  if(typing)return;
+  if(e.altKey&&/d|b/.test(e.key.toLowerCase())){
+    e.preventDefault();
+    const c=kidsOf(nodeAt(cwd)).find(x=>x.name===sel&&x.type==='file');
+    if(c)openTool(c,e.key.toLowerCase()==='d'?'diff':'blame');
+    return;
+  }
+  if(e.key.toLowerCase()==='d'){e.preventDefault();$('#devswitch').click();return}
+  if($('#view-browse').hidden)return;
+
+  const n=nodeAt(cwd);
+  let items=kidsOf(n).slice().sort((a,b)=>{
+    const dA=a.type!=='file',dB=b.type!=='file';
+    if(dA!==dB)return dA?-1:1;return a.name.localeCompare(b.name);
+  });
+  const i=items.findIndex(x=>x.name===sel);
+
+  if(e.key==='ArrowDown'){e.preventDefault();sel=items[Math.min(items.length-1,i+1)]?.name;renderList();scrollSel()}
+  else if(e.key==='ArrowUp'){e.preventDefault();sel=items[Math.max(0,i-1)]?.name;renderList();scrollSel()}
+  else if(e.key==='ArrowRight'){e.preventDefault();const c=items[i];if(c&&c.type!=='file')go(cwd?cwd+'/'+c.name:c.name)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();if(cwd)go(cwd.split('/').slice(0,-1).join('/'))}
+  else if(e.key==='Enter'){e.preventDefault();const c=items[i];if(c&&c.type!=='file')go(cwd?cwd+'/'+c.name:c.name)}
+  else if(e.key.length===1&&/[\w-]/.test(e.key)){
+    typeBuf+=e.key.toLowerCase();
+    $('#typeahead').hidden=false;$('#typeahead').textContent=typeBuf;
+    clearTimeout(typeTimer);typeTimer=setTimeout(()=>{typeBuf='';$('#typeahead').hidden=true},900);
+    const hit=items.find(x=>x.name.toLowerCase().startsWith(typeBuf));
+    if(hit){sel=hit.name;renderList();scrollSel()}
+  }
+});
+function scrollSel(){const el=$('.crow.on');if(el)el.scrollIntoView({block:'nearest'})}
+
+$('#jq').onkeydown=e=>{
+  const items=$$('#jumper .ji');const i=items.findIndex(x=>x.classList.contains('act'));
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();items[i]?.classList.remove('act');
+    const n=e.key==='ArrowDown'?(i+1)%items.length:(i-1+items.length)%items.length;
+    items[n].classList.add('act');items[n].scrollIntoView({block:'nearest'});
+  }
+  if(e.key==='Enter'){e.preventDefault();const a=$('#jumper .ji.act');closeAll();if(a)go(a.dataset.goto||'')}
+};
+
+/* ── switches ──────────────────────────────────────────────── */
+$('#devswitch').onclick=()=>{
+  body.classList.toggle('devmode');renderCrumbs();renderList();
+  /* turning it on shouldn't leave an empty pane staring at you */
+  if(body.classList.contains('devmode')){
+    const n=nodeAt(cwd), pick=kidsOf(n).find(c=>c.name===sel&&c.type==='file')
+      || kidsOf(n).find(c=>c.type==='file'&&c.st);
+    if(pick){sel=pick.name;renderList();showPreview(pick)}else showPreview(null);
+  }
+};
+$('#themebtn').onclick=()=>{
+  body.classList.toggle('dark');
+  $('#themeicon').firstElementChild.setAttribute('href',body.classList.contains('dark')?'#i-sun':'#i-moon');
+};
+$$('.fchip').forEach(c=>c.onclick=()=>{$$('.fchip').forEach(x=>x.classList.remove('on'));c.classList.add('on')});
+$$('.ptab').forEach(b=>b.onclick=()=>{$$('.ptab').forEach(x=>x.setAttribute('aria-selected','false'));b.setAttribute('aria-selected','true')});
+$$('.opt').forEach(o=>o.onclick=()=>{
+  [...o.parentElement.children].filter(x=>x.classList.contains('opt')).forEach(x=>x.classList.remove('on'));
+  o.classList.add('on');
+});
+
+/* ── boot: land inside the project you were last in ────────── */
+go('clients/acme-corp/website/trunk');
+</script>
+</body>
+</html>

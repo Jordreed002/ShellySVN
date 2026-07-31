@@ -165,7 +165,7 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
             <div className="flex-1 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
                 <Loader className="w-8 h-8 text-accent animate-spin" />
-                <span className="text-text-secondary">Loading diff...</span>
+                <span className="text-text-secondary">Loading diff…</span>
               </div>
             </div>
           )}

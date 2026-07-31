@@ -237,7 +237,7 @@ export function RepoDiagnosticsPanel({
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader className="w-6 h-6 animate-spin text-accent" />
-              <span className="ml-2 text-gray-600 dark:text-gray-400">Running diagnostics...</span>
+              <span className="ml-2 text-gray-600 dark:text-gray-400">Running diagnostics…</span>
             </div>
           ) : error ? (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
@@ -468,7 +468,7 @@ export function RepoDiagnosticsPanel({
                   {isTrustingCertificate ? (
                     <>
                       <Loader className="w-4 h-4 inline mr-2 animate-spin" />
-                      Re-trusting...
+                      Re-trusting…
                     </>
                   ) : (
                     <>
