@@ -168,9 +168,7 @@ describe('working-copy URL mapping', () => {
       ].join('')
     );
 
-    await expect(
-      getWorkingCopyContext('\\\\server\\share\\wc\\folder')
-    ).resolves.toMatchObject({
+    await expect(getWorkingCopyContext('\\\\server\\share\\wc\\folder')).resolves.toMatchObject({
       workingCopyRoot: '\\\\server\\share\\wc',
       url: 'https://svn.example.com/repo/trunk/folder',
       derived: false,
@@ -222,6 +220,25 @@ describe('svn-working-copy local copy', () => {
       'C:\\wc\\source@name.txt@',
       'C:\\wc\\copy.txt',
     ]);
+  });
+
+  it('retries a transient working-copy database lock', async () => {
+    mockState.runSvnText
+      .mockRejectedValueOnce(new Error('svn: E200033: sqlite[S5]: database is locked'))
+      .mockResolvedValueOnce('A         C:\\wc\\copy.txt');
+
+    await expect(copy('C:\\wc\\source.txt', 'C:\\wc\\copy.txt')).resolves.toEqual({
+      success: true,
+      output: 'A         C:\\wc\\copy.txt',
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a non-locking copy failure', async () => {
+    mockState.runSvnText.mockRejectedValue(new Error('svn: E155010: source not found'));
+
+    await expect(copy('C:\\wc\\missing.txt', 'C:\\wc\\copy.txt')).rejects.toThrow('E155010');
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -288,9 +305,9 @@ describe('svn-working-copy sparse exclusion', () => {
   });
 
   it('removes a whole selection of files and folders in one command', async () => {
-    await expect(
-      excludeFromWorkingCopy(['/wc/generated', '/wc/notes.txt'])
-    ).resolves.toEqual({ success: true });
+    await expect(excludeFromWorkingCopy(['/wc/generated', '/wc/notes.txt'])).resolves.toEqual({
+      success: true,
+    });
 
     expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
     expect(mockState.runSvnText).toHaveBeenCalledWith([
@@ -327,9 +344,9 @@ describe('svn-working-copy sparse exclusion', () => {
 
     expect(mockState.runSvnText).toHaveBeenCalled();
     expect(mockState.trashItem).toHaveBeenCalledWith('/wc/generated');
-    expect(
-      mockState.runSvnText.mock.invocationCallOrder[0]
-    ).toBeLessThan(mockState.trashItem.mock.invocationCallOrder[0]);
+    expect(mockState.runSvnText.mock.invocationCallOrder[0]).toBeLessThan(
+      mockState.trashItem.mock.invocationCallOrder[0]
+    );
   });
 
   it('does not remove the local folder when SVN exclusion fails', async () => {

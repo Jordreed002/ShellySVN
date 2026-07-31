@@ -526,11 +526,6 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
     expect(firstCommit.revision).toBeGreaterThan(1);
 
     const copiedFile = join(wcPath, 'app-copy.txt');
-    // A Windows working-copy database can remain locked briefly after commit
-    // while filesystem handles settle. Cleanup is the supported SVN recovery.
-    if (process.platform === 'win32') {
-      await expect(cleanup(wcPath)).resolves.toEqual({ success: true });
-    }
     await expect(copy(appFile, copiedFile)).resolves.toMatchObject({ success: true });
     expect(readFileSync(copiedFile, 'utf8')).toBe('line one\n');
     const copiedStatus = await getStatus(wcPath);
