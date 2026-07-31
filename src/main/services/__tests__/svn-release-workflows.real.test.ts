@@ -691,11 +691,9 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
     });
 
     const listing = await listRepository(trunkUrl, 'HEAD', 'immediates');
-    expect(listing.entries.map((entry) => entry.name).sort()).toEqual([
-      'README.md',
-      'src',
-      binaryName,
-    ]);
+    expect(listing.entries.map((entry) => entry.name).sort()).toEqual(
+      ['README.md', 'src', binaryName].sort()
+    );
 
     const repositoryFile = await catRepositoryFile(`${trunkUrl}/README.md`, 'HEAD');
     expect(Buffer.from(repositoryFile.contentBase64, 'base64').toString('utf8')).toBe(
