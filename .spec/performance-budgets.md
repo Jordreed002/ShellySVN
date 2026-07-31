@@ -65,12 +65,11 @@ initial entry solely because the provider is mounted.
 | Measurement | Raw | Gzip | Source commit |
 | --- | ---: | ---: | --- |
 | Before redesigned-shell remediation | 761.6 KiB | 172.2 KiB | `5534bd67cb279b809c4cf903c8e52a74b3f84cbc` |
-| After remediation | 618.7 KiB | 142.1 KiB | worktree based on `5534bd67cb279b809c4cf903c8e52a74b3f84cbc` |
+| After remediation | 618.7 KiB | 142.1 KiB | `a242079b7320ac63ef773b0956df5f1347b72ee4` |
 
 The after value was measured on 2026-07-31 with `bun run analyze:bundle`.
-Record the final merge commit SHA alongside this row when the remediation is
-committed; the source SHA above makes the measured diff reproducible before
-that commit exists.
+The source SHA records the implementation commit whose generated report
+produced the measured result.
 
 Use `bun run check:bundle-budget` to re-check an existing report without rebuilding. For budget failure tests, override limits with `SHELLYSVN_BUNDLE_INITIAL_RAW_KIB` and `SHELLYSVN_BUNDLE_INITIAL_GZIP_KIB`.
 
