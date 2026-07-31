@@ -3,7 +3,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SvnShelveListResult, SvnStatusChar, SvnStatusResult } from '@shared/types';
 // Read-only imports: the rail derives its local facts with the same pure
 // functions the repository browser uses, so the two never disagree.
-import { deriveProblems } from '@renderer/features/repo-browser/adapters';
+import { deriveProblems } from '@renderer/features/repo-browser/problemDerivation';
 import type {
   LocalPresence,
   ProblemKind,

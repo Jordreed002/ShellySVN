@@ -7,12 +7,8 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { FolderOpen, History } from 'lucide-react';
 
 import { m, springs } from '../../lib/motion';
-import {
-  formatDiskSize,
-  type DiskUsage,
-  type RepoStatusCounts,
-  type WorkingCopyInfo,
-} from './sidebarData';
+import { formatDiskSize, type DiskUsage } from './sidebarInsights';
+import { type RepoStatusCounts, type WorkingCopyInfo } from './workingCopyOverview';
 
 interface WorkingCopyPanelProps {
   repoPath: string;

@@ -1,0 +1,23 @@
+/** Optional, expanded-sidebar facts kept behind the sidebar's idle boundary. */
+export {
+  MAX_DISK_USAGE_PATHS,
+  MAX_SHELF_PROBE_PATHS,
+  buildDiskUsage,
+  buildRailShelves,
+  collectProblems,
+  deriveStatusProblems,
+  formatDiskSize,
+  formatShelfAge,
+  summarizeProblems,
+  useWorkingCopyShelves,
+  useWorkingCopySizes,
+  type DiskSegment,
+  type DiskUsage,
+  type RailProblemRow,
+  type RailProblems,
+  type RailShelf,
+  type RailShelves,
+  type RailUnsupportedShelving,
+  type ShelfProbe,
+  type WorkingCopyProblems,
+} from './sidebarData';

@@ -28,12 +28,8 @@ import type {
   SvnStatusResult,
 } from '@shared/types';
 
-import {
-  buildWorkingCopyState,
-  deriveProblems,
-  indexStatusByPath,
-  resolveScope,
-} from '../adapters';
+import { buildWorkingCopyState, indexStatusByPath, resolveScope } from '../adapters';
+import { deriveProblems } from '../problemDerivation';
 import type { RepoProblem, RepoScope, WorkingCopyState } from '../types';
 import {
   createLocalToRepoPath,
@@ -223,11 +219,7 @@ export function useWorkingCopyForPath(
   const mergeInfoQuery = useQuery({
     queryKey: workingCopyMergeInfoQueryKey(mergeSource ?? '', workingCopyRoot),
     queryFn: async (): Promise<number> => {
-      const result = await window.api.svn.mergeInfo(
-        mergeSource ?? '',
-        workingCopyRoot,
-        'eligible'
-      );
+      const result = await window.api.svn.mergeInfo(mergeSource ?? '', workingCopyRoot, 'eligible');
       return result?.revisions?.length ?? 0;
     },
     enabled: canResolve && isWorkingCopy && Boolean(mergeSource),

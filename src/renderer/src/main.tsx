@@ -4,7 +4,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsPreviewProvider } from './contexts/SettingsPreviewContext';
 import { GlobalErrorBoundary } from './components/ErrorBoundary';
-import { AppMotionProvider } from './lib/motion';
+import { AppMotionProvider } from './lib/AppMotionProvider';
 import { DEFAULT_QUERY_STALE_TIME_MS } from '@shared/constants';
 
 // Import styles.

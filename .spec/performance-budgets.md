@@ -49,6 +49,28 @@ Budgets are measured on a release-class machine, not a developer laptop under lo
 - raw initial JavaScript: 750 KiB
 - gzip initial JavaScript: 160 KiB
 
+The redesigned-shell remediation keeps those values as the enforced release
+ceiling and adds a preferred post-work baseline of **720 KiB raw / 150 KiB
+gzip**. The preferred target is reported by the analyzer but does not replace
+the release policy: it preserves roughly 30 KiB raw and 10 KiB gzip of planned
+headroom before the hard gate.
+
+The remediation defers the sidebar, status bar, repository identity queries,
+expanded-sidebar insights, onboarding, and optional titlebar/dialog enrichment.
+The main window geometry and route outlet remain synchronous, with fixed-size
+fallbacks for visible shell regions. The root motion provider is also separated
+from route/sidebar motion primitives so rendering features are not part of the
+initial entry solely because the provider is mounted.
+
+| Measurement | Raw | Gzip | Source commit |
+| --- | ---: | ---: | --- |
+| Before redesigned-shell remediation | 761.6 KiB | 172.2 KiB | `5534bd67cb279b809c4cf903c8e52a74b3f84cbc` |
+| After remediation | 618.7 KiB | 142.1 KiB | `a242079b7320ac63ef773b0956df5f1347b72ee4` |
+
+The after value was measured on 2026-07-31 with `bun run analyze:bundle`.
+The source SHA records the implementation commit whose generated report
+produced the measured result.
+
 Use `bun run check:bundle-budget` to re-check an existing report without rebuilding. For budget failure tests, override limits with `SHELLYSVN_BUNDLE_INITIAL_RAW_KIB` and `SHELLYSVN_BUNDLE_INITIAL_GZIP_KIB`.
 
 `bun run verify:release` runs the normal verification suite and then runs the bundle budget gate. Use that command before packaging or release candidate handoff.

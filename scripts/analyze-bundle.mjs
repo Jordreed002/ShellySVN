@@ -5,6 +5,8 @@ import { resolve } from 'path';
 const KIB = 1024;
 const DEFAULT_RAW_LIMIT_BYTES = 750 * KIB;
 const DEFAULT_GZIP_LIMIT_BYTES = 160 * KIB;
+const PREFERRED_RAW_TARGET_BYTES = 720 * KIB;
+const PREFERRED_GZIP_TARGET_BYTES = 150 * KIB;
 const REPORT_PATH = resolve(process.cwd(), 'reports/bundle/renderer-bundle-report.json');
 
 function formatBytes(bytes) {
@@ -23,6 +25,17 @@ function readBudgetBytes(envName, defaultBytes) {
   }
 
   return value * KIB;
+}
+
+function formatHeadroom(remainingBytes) {
+  return remainingBytes >= 0
+    ? `${formatBytes(remainingBytes)} remaining`
+    : `${formatBytes(Math.abs(remainingBytes))} over`;
+}
+
+function displayModuleId(id) {
+  const cwdPrefix = `${process.cwd()}/`;
+  return id.startsWith(cwdPrefix) ? id.slice(cwdPrefix.length) : id;
 }
 
 function getInitialChunks(chunks) {
@@ -59,7 +72,10 @@ function checkBundleBudget() {
   const initialChunks = getInitialChunks(chunks);
   const rawBytes = initialChunks.reduce((total, chunk) => total + chunk.bytes, 0);
   const gzipBytes = initialChunks.reduce((total, chunk) => total + chunk.gzipBytes, 0);
-  const rawLimitBytes = readBudgetBytes('SHELLYSVN_BUNDLE_INITIAL_RAW_KIB', DEFAULT_RAW_LIMIT_BYTES);
+  const rawLimitBytes = readBudgetBytes(
+    'SHELLYSVN_BUNDLE_INITIAL_RAW_KIB',
+    DEFAULT_RAW_LIMIT_BYTES
+  );
   const gzipLimitBytes = readBudgetBytes(
     'SHELLYSVN_BUNDLE_INITIAL_GZIP_KIB',
     DEFAULT_GZIP_LIMIT_BYTES
@@ -69,6 +85,23 @@ function checkBundleBudget() {
   console.log(`  Chunks: ${initialChunks.map((chunk) => chunk.fileName).join(', ')}`);
   console.log(`  Raw: ${formatBytes(rawBytes)} / ${formatBytes(rawLimitBytes)}`);
   console.log(`  Gzip: ${formatBytes(gzipBytes)} / ${formatBytes(gzipLimitBytes)}`);
+  console.log(`  Raw hard-limit headroom: ${formatHeadroom(rawLimitBytes - rawBytes)}`);
+  console.log(`  Gzip hard-limit headroom: ${formatHeadroom(gzipLimitBytes - gzipBytes)}`);
+
+  const preferredMet =
+    rawBytes <= PREFERRED_RAW_TARGET_BYTES && gzipBytes <= PREFERRED_GZIP_TARGET_BYTES;
+  console.log(
+    `  Preferred 720/150 KiB target: ${preferredMet ? 'met' : 'not met'} ` +
+      `(raw ${formatHeadroom(PREFERRED_RAW_TARGET_BYTES - rawBytes)}, ` +
+      `gzip ${formatHeadroom(PREFERRED_GZIP_TARGET_BYTES - gzipBytes)})`
+  );
+
+  for (const chunk of initialChunks) {
+    console.log(`  Largest modules in ${chunk.fileName}:`);
+    for (const module of (chunk.topModules || []).slice(0, 10)) {
+      console.log(`    ${formatBytes(module.bytes)}  ${displayModuleId(module.id)}`);
+    }
+  }
 
   const failures = [];
   if (rawBytes > rawLimitBytes) {
