@@ -50,15 +50,6 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error || '');
 }
 
-function isTransientWorkingCopyLock(error: unknown): boolean {
-  const message = getErrorMessage(error).toLowerCase();
-  return message.includes('e200033') || message.includes('database is locked');
-}
-
-function waitForWorkingCopyUnlock(attempt: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, attempt * 100));
-}
-
 function isWorkingCopyUpgradeRequired(error: unknown): boolean {
   const message = getErrorMessage(error).toLowerCase();
   return (
@@ -980,15 +971,7 @@ export async function copy(
 ): Promise<{ success: boolean; output?: string }> {
   validateSvnTargets([src, dst], 'Copy target');
   return runSerializedWorkingCopyMutation(src, async () => {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const output = await runSvnText(withSvnTargets(['copy'], [src, dst]));
-        return { success: true, output };
-      } catch (error) {
-        if (attempt === 3 || !isTransientWorkingCopyLock(error)) throw error;
-        await waitForWorkingCopyUnlock(attempt);
-      }
-    }
-    throw new Error('SVN copy retry loop exited unexpectedly');
+    const output = await runSvnText(withSvnTargets(['copy'], [src, dst]));
+    return { success: true, output };
   });
 }

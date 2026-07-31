@@ -221,25 +221,6 @@ describe('svn-working-copy local copy', () => {
       'C:\\wc\\copy.txt',
     ]);
   });
-
-  it('retries a transient working-copy database lock', async () => {
-    mockState.runSvnText
-      .mockRejectedValueOnce(new Error('svn: E200033: sqlite[S5]: database is locked'))
-      .mockResolvedValueOnce('A         C:\\wc\\copy.txt');
-
-    await expect(copy('C:\\wc\\source.txt', 'C:\\wc\\copy.txt')).resolves.toEqual({
-      success: true,
-      output: 'A         C:\\wc\\copy.txt',
-    });
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not retry a non-locking copy failure', async () => {
-    mockState.runSvnText.mockRejectedValue(new Error('svn: E155010: source not found'));
-
-    await expect(copy('C:\\wc\\missing.txt', 'C:\\wc\\copy.txt')).rejects.toThrow('E155010');
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe('svn-working-copy revert depth', () => {
