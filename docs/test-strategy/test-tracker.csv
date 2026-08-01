@@ -84,6 +84,8 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),stays running on macOS when the last window closes (no quit),existing
 —,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),quits on Windows when the last window closes,existing
 —,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),quits on Linux when the last window closes,existing
+—,unit,Uncategorized,src/main/__tests__/index.windows.test.ts,getPackagedBinaryPaths — Windows .exe resolution,appends .exe to the bundled launchers on Windows,existing
+—,unit,Uncategorized,src/main/__tests__/index.windows.test.ts,getPackagedBinaryPaths — Windows .exe resolution,uses extension-less launcher names on POSIX (platform boundary),existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,is empty and finds nothing before anything is trusted,existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,returns the exact trust for the exact realm url,existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,matches a trust for an ancestor realm against a deeper url,existing

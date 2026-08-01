@@ -139,6 +139,11 @@ Three genuine Windows bugs were fixed during this loop (commits `fix(win):`):
   parses caption/volumename rows into named drive entries, `Local Disk` fallback,
   empty list on spawn failure. Fixed a latent `child_process` mock wiring bug
   (`default: {}` left `import { spawn }` undefined under CJS interop).
+- [x] **W21** — `index.ts` `getPackagedBinaryPaths`: win32 `.exe` suffix on the
+  bundled shelly-engine/svn launchers, extension-less on POSIX. Exported the
+  pure helper (mirrors `getBackgroundStatusScanStateForTests`); `index.ts`
+  lifecycle (`window-all-closed`) was already covered by the macOS agent's
+  platform-boundary tests.
 
 ## Known out-of-scope failures
 

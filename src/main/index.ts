@@ -31,7 +31,7 @@ let shutdownPromise: Promise<void> | null = null;
 const isSmokeTest = process.argv.includes('--smoke-test');
 const MIN_PACKAGED_BINARY_SIZE_BYTES = 1024;
 
-function getPackagedBinaryPaths(): { engine: string; svn: string } {
+export function getPackagedBinaryPaths(): { engine: string; svn: string } {
   const extension = process.platform === 'win32' ? '.exe' : '';
   const binariesPath = join(process.resourcesPath, 'binaries');
 
