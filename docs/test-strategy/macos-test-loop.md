@@ -51,7 +51,7 @@ where actual macOS behavior matters.
 
 - [x] **P0** — enabler: confirm `electron-api-mock.ts` platform handling (covered case-by-case per test instead of a shared flag).
 - [x] **P1** — `protocol-handler.macos.test.ts`: darwin `setAsDefaultProtocolClient('shellysvn')`, `open-url` listener prevents default + dispatches, no single-instance-lock contest; win32 boundary contrast.
-- [ ] **P2** — `code-editors.macos.test.ts`: macOS well-known dirs `/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin` and JetBrains Toolbox `~/Library/.../Toolbox/scripts` (`code-editors.ts:94-110`). Use `setEditorSearchDirectoriesForTests`.
+- [x] **P2** — `code-editors.macos.test.ts`: macOS well-known dirs `/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin` and JetBrains Toolbox `~/Library/.../Toolbox/scripts` (`code-editors.ts:94-110`). Uses `setEditorSearchDirectoriesForTests(null)` + mocked `access` to capture probed paths.
 - [ ] **P3** — `external-tool-registry.macos.test.ts`: `.app` bundle detection + POSIX executable-bit validation (`external-tool-registry.ts:82-85`). *(Note: Windows agent added `external-tool-registry.validate.test.ts` — keep macOS assertions in a new file.)*
 - [ ] **P4** — `ShellIntegration.macos.test.ts`: Finder Sync helper path `ShellySVNFinderSync`, badge status defs, registration handling "not installed" gracefully (`ShellIntegration.ts:108-117,171-196,430-446`).
 - [ ] **P5** — `secure-permissions.macos.test.ts`: POSIX `chmod 0o600/0o700` applied on darwin/linux for secure files, skipped on win32 (`secure-json.ts`, `auth-cache.ts:201`, `settings-manager.ts:73,129`).
