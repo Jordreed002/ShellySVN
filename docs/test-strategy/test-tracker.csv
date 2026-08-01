@@ -1084,7 +1084,6 @@ J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show 
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,rejects oversized payloads,existing
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,accepts payloads at exactly the length limits,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers only the editors whose launcher is on PATH,existing
-J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,ignores a file that is present but not executable,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers nothing when PATH holds no editor at all,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"searches every PATH entry, not just the first",existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,finds an editor the shell knows about but the GUI PATH does not,existing
@@ -1100,6 +1099,12 @@ J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEdito
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"refuses an editor id it does not know, without spawning anything",existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,refuses a known editor that is not installed here,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,reports a launcher that fails to start,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,finds an editor through its PATHEXT extension when no bare launcher exists,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"launches the resolved PATHEXT launcher, not the bare command name",existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,prefers a bare launcher over PATHEXT extensions when both are present,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,honours a custom PATHEXT and ignores extensions it does not list,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,does not query a login shell on Windows (PATH is taken as-is),existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,falls back to the default extension set when PATHEXT is unset,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,accepts the canonical placeholder templates for each role,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,accepts literal flags alongside placeholders,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,allows placeholders from any of the declared roles in a multi-role tool,existing
