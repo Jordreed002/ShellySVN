@@ -169,7 +169,23 @@ These fail on Windows **and macOS** and are not Windows-logic bugs:
 
 ## Done condition
 
-The Windows unit suite is green for all actual code (achieved). The loop
-continues to expand Windows-branch coverage from the backlog until W18–W19 are
-either done or deliberately deferred, then stops (`CronDelete`). The recurring
-job's 7-day auto-expiry is the backstop.
+The Windows unit suite is **green for all actual code** (achieved): a full
+`bunx vitest run` shows `2240 passed`, `1 failed`, `16 skipped`. The single
+remaining test failure is the documented TortoiseSVN `svn://` +
+`--password-from-stdin` auth incompatibility (a production limitation that
+needs a maintainer decision, not a test gap); the 5 file-level failures are
+missing npm dependencies (`electron-updater`, `framer-motion`) that fail
+identically on macOS.
+
+Backlog **W1–W21 complete**: every `process.platform` / `win32` / `.exe` /
+`PATHEXT` branch in main-process, shell, services, utils, and the entry
+point is pinned, plus three production source bug fixes (portable-shelf
+collapsing, stdin password `\r`, `.cmd` svn-wrapper spawning) and the
+`svn-restore-excluded.real` invalid-`file://`-URL fix. Every macOS-covered
+area has a Windows counterpart.
+
+The loop is in wind-down: the Windows-specific surface is comprehensively
+covered. Stop with `CronDelete` (job `0f05a8c4`); the 7-day auto-expiry is
+the backstop. Future invocations should re-sweep for any *new*
+`process.platform` branches added to the codebase rather than expect
+remaining gaps in the current tree.
