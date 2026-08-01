@@ -1433,8 +1433,13 @@ J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,pro
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/svn-native-auth.test.ts,svn native auth,parses credentials without exposing password fields,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/svn-native-auth.test.ts,svn native auth,never requests passwords and removes only explicit patterns,existing
 J14,unit,Shared/Core,src/main/utils/__tests__/approved-paths.test.ts,approved renderer paths,allows an explicitly approved root and its descendants only,existing
-J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,,escalates from SIGTERM to SIGKILL for a surviving process group,existing
-J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,,is a no-op for an already-exited child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,escalates from SIGTERM to SIGKILL for a surviving process group,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,is a no-op for an already-exited child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,escalates from graceful taskkill to /T /F when the child survives,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,does not force-kill when the graceful taskkill already terminated the child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,is a no-op for an already-exited child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,is a no-op when no pid is present,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,passes through a caller-supplied grace window,existing
 J14,unit,Lifecycle/Auth,src/main/utils/__tests__/redaction.test.ts,redaction utilities,redacts values after secret command flags,existing
 J14,unit,Lifecycle/Auth,src/main/utils/__tests__/redaction.test.ts,redaction utilities,redacts inline secret key-value strings,existing
 J14,unit,Lifecycle/Auth,src/main/utils/__tests__/redaction.test.ts,redaction utilities,redacts nested secret object fields,existing
