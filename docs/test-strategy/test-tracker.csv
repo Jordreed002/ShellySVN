@@ -444,6 +444,10 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,removes unix socket files on shutdown,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,can retry the same instance after listen fails,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,replaces the singleton after startup fails,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,produces a named-pipe path with a 12-hex-char suffix,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,is deterministic for the same user-data path,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,yields distinct pipe names for distinct user-data paths,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,hashes the user-data path so the raw path is not embedded,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,persists entries for another service instance,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,serializes concurrent writes without losing either entry,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,purges expired entries from memory and disk,existing

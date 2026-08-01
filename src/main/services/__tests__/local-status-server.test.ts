@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { createConnection } from 'net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   LocalStatusServer,
@@ -213,5 +213,54 @@ describe('LocalStatusServer', () => {
 
     const recoveredServer = await startLocalStatusServer(missingUserData);
     expect(recoveredServer.socketPath).toBe(getDefaultLocalStatusSocketPath(missingUserData));
+  });
+});
+
+/*
+ * Windows named-pipe path derivation. The shell helper discovers the status
+ * socket via this pipe name, so it must be deterministic per user-data path,
+ * distinct across different roots, and must not leak the raw user path. Host
+ * platform is forced to win32 so the branch runs on any CI host.
+ */
+describe('getDefaultLocalStatusSocketPath — Windows', () => {
+  const originalPlatform = process.platform;
+  const PIPE_PREFIX = '\\\\.\\pipe\\shellysvn-status-';
+
+  beforeEach(() => {
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('produces a named-pipe path with a 12-hex-char suffix', () => {
+    const path = getDefaultLocalStatusSocketPath('C:\\Users\\test\\AppData\\ShellySVN');
+    expect(path.startsWith(PIPE_PREFIX)).toBe(true);
+    expect(path.slice(PIPE_PREFIX.length)).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it('is deterministic for the same user-data path', () => {
+    const userData = 'C:\\Users\\test\\AppData\\ShellySVN';
+    expect(getDefaultLocalStatusSocketPath(userData)).toBe(getDefaultLocalStatusSocketPath(userData));
+  });
+
+  it('yields distinct pipe names for distinct user-data paths', () => {
+    const alice = getDefaultLocalStatusSocketPath('C:\\Users\\alice\\AppData\\ShellySVN');
+    const bob = getDefaultLocalStatusSocketPath('C:\\Users\\bob\\AppData\\ShellySVN');
+    expect(alice).not.toBe(bob);
+  });
+
+  it('hashes the user-data path so the raw path is not embedded', () => {
+    const path = getDefaultLocalStatusSocketPath('C:\\Users\\secret-user\\AppData\\ShellySVN');
+    expect(path).not.toContain('secret-user');
   });
 });
