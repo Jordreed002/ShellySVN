@@ -1128,6 +1128,10 @@ J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegra
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Finder commands and badge statuses supported by Finder Sync,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines file-manager presentation for locked items separately from SVN text status,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,creates app handoff URLs with command and selected paths,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,resolves the helper path to the Windows .exe launcher,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,reports Windows as the platform with overlays gated on registration,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,surfaces the Windows missing-helper repair guidance and Explorer limitation,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,refuses to register when the native helper is missing,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellPackageVerification.test.ts,shell/Finder package verification script,checks Windows and macOS release targets for native helper artifacts,existing
 J11,unit,Settings,src/main/utils/__tests__/external-tool-validation.test.ts,external tool setting validation,"allows empty settings, known aliases, and opaque registered ids",existing
 J11,unit,Settings,src/main/utils/__tests__/external-tool-validation.test.ts,external tool setting validation,rejects renderer-supplied executable paths and traversal,existing
