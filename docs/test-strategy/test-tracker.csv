@@ -505,6 +505,8 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,collapses directories nested under other listed directories,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,does not collapse siblings that merely share a name prefix,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,is order-independent,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,collapses across mismatched separators (portable shelf made on another OS),existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,does not collapse a sibling whose name merely prefixes the directory,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-progress.test.ts,svn-progress,streams file progress and uses streamed revision when stored output is capped,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-progress.test.ts,svn-progress,returns null when successful output has no authoritative revision,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-progress.test.ts,svn-progress,cancels an active operation by aborting the executor signal,existing

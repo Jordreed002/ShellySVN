@@ -60,4 +60,25 @@ describe('collapseNestedFiles', () => {
     expect(paths(collapseNestedFiles(a))).toEqual(['src']);
     expect(paths(collapseNestedFiles(b))).toEqual(['src']);
   });
+
+  /*
+   * Portable shelves are cross-platform artifacts: one created on macOS (/)
+   * may be inspected or restored on Windows (\). Containment must therefore be
+   * decided on a canonical separator, not the host's path.sep — otherwise the
+   * nested files survive on the "wrong" platform and shelves store redundancy.
+   */
+  it('collapses across mismatched separators (portable shelf made on another OS)', () => {
+    // Directory recorded with the host separator, nested file with the other.
+    const backslashDir = [dir('src'), file('src\\nested\\a.ts')];
+    const forwardSlashDir = [dir('src'), file('src/nested/a.ts')];
+
+    expect(paths(collapseNestedFiles(backslashDir))).toEqual(['src']);
+    expect(paths(collapseNestedFiles(forwardSlashDir))).toEqual(['src']);
+  });
+
+  it('does not collapse a sibling whose name merely prefixes the directory', () => {
+    // 'src' the directory must not swallow 'src-other/a.ts'.
+    const entries = [dir('src'), file('src-other/a.ts')];
+    expect(paths(collapseNestedFiles(entries))).toEqual(['src', 'src-other/a.ts']);
+  });
 });

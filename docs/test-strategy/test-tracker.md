@@ -7,13 +7,13 @@
 
 | Layer | Test files | Test cases |
 |---|---|---|
-| Unit | — | 1906 |
+| Unit | — | 1908 |
 | Integration / real | — | 14 |
 | Performance | — | 28 |
 | E2E | 0 | 87 |
-| **Total** | **219** | **2035** |
+| **Total** | **219** | **2037** |
 
-**Baseline:** `1948` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 87 E2E tests are mostly structural today.
+**Baseline:** `1950` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 87 E2E tests are mostly structural today.
 
 **Planned gaps to write:** 12 (see list below).
 
@@ -35,7 +35,7 @@
 | J7 — History & investigation | 47 |
 | J8 — Branching & tagging | 9 |
 | J9 — File locking | 8 |
-| — — Uncategorized | 996 |
+| — — Uncategorized | 998 |
 
 ## Planned gaps (highest-value missing journeys)
 
@@ -58,7 +58,7 @@
 
 | Layer / Area | Tests |
 |---|---|
-| unit / Uncategorized | 954 |
+| unit / Uncategorized | 956 |
 | unit / Shared/Core | 176 |
 | unit / Checkout | 167 |
 | unit / Repo Browser | 152 |

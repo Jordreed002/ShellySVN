@@ -73,12 +73,15 @@ async function readMetadata(directory: string): Promise<PortableShelfMetadata> {
 export function collapseNestedFiles(files: PortableShelfFile[]): PortableShelfFile[] {
   return files.filter(
     (file, index) =>
-      !files.some(
-        (parent, parentIndex) =>
-          parentIndex !== index &&
-          parent.kind === 'directory' &&
-          file.relativePath.startsWith(`${parent.relativePath}${sep}`)
-      )
+      !files.some((parent, parentIndex) => {
+        if (parentIndex === index || parent.kind !== 'directory') return false;
+        // Portable shelves can be created on one OS and inspected on another,
+        // so compare on a canonical separator instead of the host's path.sep:
+        // a macOS-made shelf (/) read on Windows (\) must still collapse.
+        const filePath = file.relativePath.replace(/\\/g, '/');
+        const parentPrefix = `${parent.relativePath.replace(/\\/g, '/')}/`;
+        return filePath.startsWith(parentPrefix);
+      })
   );
 }
 
