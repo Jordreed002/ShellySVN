@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { terminateProcessTree } from '../utils/process-tree';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { EOL, tmpdir } from 'os';
+import { tmpdir } from 'os';
 import { join } from 'path';
 
 import type { SvnExecutionContext } from '@shared/types';
@@ -278,7 +278,10 @@ export async function runResolvedSvn(
       // Swallow EPIPE if svn closes stdin early (e.g. cached credentials mean
       // it never reads the password prompt).
       proc.stdin.on('error', () => {});
-      proc.stdin.write(`${passwordViaStdin}${EOL}`);
+      // Always terminate with \n, not the host EOL: on Windows EOL is \r\n
+      // and svn's --password-from-stdin reads until newline, so a trailing
+      // \r would become part of the password and break authentication.
+      proc.stdin.write(`${passwordViaStdin}\n`);
       proc.stdin.end();
     }
 

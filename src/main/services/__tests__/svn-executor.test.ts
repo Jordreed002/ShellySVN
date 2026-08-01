@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { dirname, join } from 'node:path';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
@@ -181,7 +182,9 @@ describe('svn-executor', () => {
 
     await expect(promise).resolves.toBe('r12 committed');
     expect(mockState.spawn).toHaveBeenCalledWith(
-      '/tools/svnmucc.exe',
+      // svnmucc is resolved as a sibling of the svn client path; mirror the
+      // source's join()/dirname() so the expected path matches on every host.
+      join(dirname('/tools/svn.exe'), 'svnmucc.exe'),
       expect.arrayContaining(['propset', 'custom:owner', 'team']),
       expect.objectContaining({ windowsHide: true })
     );
