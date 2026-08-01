@@ -73,7 +73,7 @@ vi.mock('../../services/svn-cache-service', () => ({
 
 // Import after mocking
 import { registerAppHandlers } from '../app';
-import { clearApprovedPathsForTests, isPathApprovedForIpc } from '../../utils/approved-paths';
+import { clearApprovedPathsForTests } from '../../utils/approved-paths';
 
 describe('App IPC Handlers', () => {
   const handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
@@ -131,8 +131,9 @@ describe('App IPC Handlers', () => {
       expect(handlers.has('app:getVersion')).toBe(true);
     });
 
-    it('should register app:getPath handler', () => {
-      expect(handlers.has('app:getPath')).toBe(true);
+    it('does not expose arbitrary Electron paths', () => {
+      expect(handlers.has('app:getPath')).toBe(false);
+      expect(handlers.has('app:getPlatform')).toBe(true);
     });
 
     it('should register app:openExternal handler', () => {
@@ -175,52 +176,11 @@ describe('App IPC Handlers', () => {
     });
   });
 
-  describe('app:getPath', () => {
-    it('should return home path', async () => {
-      const handler = handlers.get('app:getPath');
-      mockState.appGetPath.mockReturnValue('/home/user');
-
-      const result = await handler!({}, 'home');
-
-      expect(result).toBe('/home/user');
-      expect(mockState.appGetPath).toHaveBeenCalledWith('home');
-      expect(isPathApprovedForIpc('/home/user')).toBe(true);
-    });
-
-    it('should return appData path', async () => {
-      const handler = handlers.get('app:getPath');
-      mockState.appGetPath.mockReturnValue('/AppData');
-
-      const result = await handler!({}, 'appData');
-
-      expect(result).toBe('/AppData');
-    });
-
-    it('should return desktop path', async () => {
-      const handler = handlers.get('app:getPath');
-      mockState.appGetPath.mockReturnValue('/Desktop');
-
-      const result = await handler!({}, 'desktop');
-
-      expect(result).toBe('/Desktop');
-    });
-
-    it('should return documents path', async () => {
-      const handler = handlers.get('app:getPath');
-      mockState.appGetPath.mockReturnValue('/Documents');
-
-      const result = await handler!({}, 'documents');
-
-      expect(result).toBe('/Documents');
-    });
-
-    it('should return temp path', async () => {
-      const handler = handlers.get('app:getPath');
-      mockState.appGetPath.mockReturnValue('/tmp');
-
-      const result = await handler!({}, 'temp');
-
-      expect(result).toBe('/tmp');
+  describe('app:getPlatform', () => {
+    it('returns only the supported host platform value', async () => {
+      const handler = handlers.get('app:getPlatform');
+      expect(await handler!({})).toBe(process.platform);
+      expect(mockState.appGetPath).not.toHaveBeenCalled();
     });
   });
 

@@ -1,6 +1,3 @@
-import { accessSync, constants, existsSync, statSync } from 'node:fs';
-import { normalize } from 'node:path';
-
 export const KNOWN_DIFF_TOOL_ALIASES = new Set([
   'bcompare',
   'bcomp',
@@ -34,27 +31,6 @@ export function validateExternalToolSetting(
   if (aliases.has(trimmed.toLowerCase())) {
     return trimmed;
   }
-
-  if (trimmed.split(/[/\\]+/).includes('..')) {
-    throw new Error(`${label} path traversal is not allowed.`);
-  }
-
-  const normalized = normalize(trimmed);
-  if (!existsSync(normalized)) {
-    throw new Error(`${label} does not exist.`);
-  }
-
-  const stats = statSync(normalized);
-  if (!stats.isFile()) {
-    throw new Error(`${label} must point to an executable file.`);
-  }
-  if (process.platform !== 'win32') {
-    try {
-      accessSync(normalized, constants.X_OK);
-    } catch {
-      throw new Error(`${label} must point to an executable file.`);
-    }
-  }
-
-  return normalized;
+  if (trimmed.startsWith('registered:')) return trimmed;
+  throw new Error(`${label} must be a built-in or registered tool.`);
 }

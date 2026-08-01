@@ -153,11 +153,10 @@ export function CheckoutDialog({
   useEffect(() => {
     if (showAuth && authRealm) {
       window.api.auth
-        .get(authRealm)
-        .then((savedCreds) => {
-          if (savedCreds) {
-            setUsername(savedCreds.username);
-            setPassword(savedCreds.password);
+        .getStatus(authRealm)
+        .then((status) => {
+          if (status.available && status.username) {
+            setUsername(status.username);
           }
         })
         .catch(() => {
@@ -236,13 +235,19 @@ export function CheckoutDialog({
       // If we have selected paths, override depth to empty since we're doing sparse checkout
       const checkoutDepth = sparsePaths ? 'empty' : depth;
 
+      const session = await window.api.auth.beginSession({
+        realm: authRealm || url.trim(),
+        username: username.trim(),
+        password,
+        persistence: saveCredentials ? 'stored' : 'session',
+      });
       const result = await window.api.svn.checkout(
         url.trim(),
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
         checkoutDepth,
         {
-          credentials: { username: username.trim(), password },
+          authSessionId: session.id,
           trustSsl: sslCertificate !== null,
           trustPermanently,
           sslFailures,
@@ -310,11 +315,16 @@ export function CheckoutDialog({
 
     try {
       // If user proactively provided credentials, use them
-      const options = provideCredentials
-        ? {
-            credentials: { username: username.trim(), password },
-          }
-        : undefined;
+      const realm = authRealm || url.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || url.trim();
+      const session =
+        provideCredentials && username.trim()
+          ? await window.api.auth.beginSession({
+              realm,
+              username: username.trim(),
+              password,
+              persistence: saveCredentials ? 'stored' : 'session',
+            })
+          : null;
 
       // Use selected paths if available, otherwise use depth
       const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined;
@@ -327,20 +337,10 @@ export function CheckoutDialog({
         path.trim(),
         revision === 'HEAD' ? undefined : revision,
         checkoutDepth,
-        { ...options, sparsePaths }
+        { authSessionId: session?.id, sparsePaths }
       );
 
       if (result.success) {
-        // Save credentials if requested
-        if (provideCredentials && saveCredentials && username.trim()) {
-          try {
-            const realm =
-              authRealm || url.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || url.trim();
-            await window.api.auth.set(realm, username.trim(), password);
-          } catch {
-            // Ignore credential save errors
-          }
-        }
         setSuccess({ revision: result.revision ?? 0, path: path.trim() });
       } else {
         handleCheckoutError(result.output || 'Checkout failed');
@@ -687,14 +687,6 @@ export function CheckoutDialog({
           <ChooseItemsDialog
             isOpen={showChooseItemsDialog}
             repoUrl={url}
-            credentials={
-              provideCredentials && username.trim()
-                ? {
-                    username: username.trim(),
-                    password,
-                  }
-                : undefined
-            }
             onSelect={(paths) => {
               setSelectedPaths(paths);
               setShowChooseItemsDialog(false);

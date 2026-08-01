@@ -6,6 +6,8 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
+const mockWriteSecureJson = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
 // Mock modules using vi.mock (hoisted)
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -15,6 +17,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     readFile: vi.fn(),
     writeFile: vi.fn(),
     mkdir: vi.fn(),
+    chmod: vi.fn().mockResolvedValue(undefined),
   };
   return { ...mocked, default: mocked };
 });
@@ -30,6 +33,10 @@ vi.mock('electron', () => ({
   },
 }));
 
+vi.mock('../utils/secure-json', () => ({
+  writeSecureJson: mockWriteSecureJson,
+}));
+
 vi.mock('@shared/utils/debug', () => ({
   debug: {
     log: vi.fn(),
@@ -39,7 +46,7 @@ vi.mock('@shared/utils/debug', () => ({
 }));
 
 // Import after mocking
-import { access, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import { safeStorage } from 'electron';
 import { AuthCache } from '../auth-cache';
 
@@ -47,7 +54,6 @@ import { AuthCache } from '../auth-cache';
 const mockAccess = vi.mocked(access);
 const mockReadFile = vi.mocked(readFile);
 const mockWriteFile = vi.mocked(writeFile);
-const mockMkdir = vi.mocked(mkdir);
 const mockEncryptString = vi.mocked(safeStorage.encryptString);
 const mockDecryptString = vi.mocked(safeStorage.decryptString);
 const mockIsEncryptionAvailable = vi.mocked(safeStorage.isEncryptionAvailable);
@@ -444,13 +450,14 @@ describe('AuthCache', () => {
       authCache.set('https://svn.example.com', 'testuser', 'testpass');
       await vi.runAllTimersAsync();
 
-      expect(mockWriteFile).toHaveBeenCalledWith(
+      expect(mockWriteSecureJson).toHaveBeenCalledWith(
         '/test/user-data/auth-cache.json',
-        expect.stringContaining('"version": 1'),
-        'utf-8'
+        expect.objectContaining({ version: 1 })
       );
 
-      const savedData = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+      const savedData = mockWriteSecureJson.mock.calls[0][1] as {
+        credentials: Array<{ realm: string; username: string; password: string }>;
+      };
       expect(savedData.credentials).toHaveLength(1);
       expect(savedData.credentials[0].realm).toBe('https://svn.example.com');
       expect(savedData.credentials[0].username).toBe('testuser');
@@ -463,12 +470,15 @@ describe('AuthCache', () => {
       authCache.set('https://svn.example.com', 'testuser', 'testpass');
       await vi.runAllTimersAsync();
 
-      expect(mockMkdir).toHaveBeenCalledWith('/test/user-data', { recursive: true });
+      expect(mockWriteSecureJson).toHaveBeenCalledWith(
+        '/test/user-data/auth-cache.json',
+        expect.any(Object)
+      );
     });
 
     it('should handle save errors gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockWriteFile.mockRejectedValue(new Error('Disk full'));
+      mockWriteSecureJson.mockRejectedValueOnce(new Error('Disk full'));
 
       authCache.set('https://svn.example.com', 'testuser', 'testpass');
       await vi.runAllTimersAsync();
@@ -493,7 +503,7 @@ describe('AuthCache', () => {
       authCache.set('https://svn2.example.com', 'user2', 'pass2');
       await vi.runAllTimersAsync();
 
-      expect(mockWriteFile).toHaveBeenCalledTimes(2);
+      expect(mockWriteSecureJson).toHaveBeenCalledTimes(2);
     });
   });
 

@@ -66,6 +66,7 @@ import {
   shelveList,
   shelveSave,
 } from '../services/svn-metadata';
+import { resolveAuthSession } from '../services/auth-session-manager';
 import {
   getDiagnostics,
   getSvnCapabilities,
@@ -409,7 +410,15 @@ export function registerSvnHandlers(): void {
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) => invalidateStatusAfter([path], checkout(url, path, revision, depth, options), event)
+    ) => {
+      const internalOptions = options
+        ? {
+            ...options,
+            credentials: resolveAuthSession(event.sender.id, options.authSessionId, url),
+          }
+        : undefined;
+      return invalidateStatusAfter([path], checkout(url, path, revision, depth, internalOptions), event);
+    }
   );
 
   // SVN Checkout with Progress Streaming
@@ -423,12 +432,19 @@ export function registerSvnHandlers(): void {
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) =>
-      invalidateStatusAfter(
+    ) => {
+      const internalOptions = options
+        ? {
+            ...options,
+            credentials: resolveAuthSession(event.sender.id, options.authSessionId, url),
+          }
+        : undefined;
+      return invalidateStatusAfter(
         [path],
-        checkoutWithProgress(event, checkoutId, url, path, revision, depth, options),
+        checkoutWithProgress(event, checkoutId, url, path, revision, depth, internalOptions),
         event
-      )
+      );
+    }
   );
 
   // SVN Cancel Checkout
@@ -529,12 +545,12 @@ export function registerSvnHandlers(): void {
       src: string,
       dst: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => {
       return invalidateRepositoryAfter(
         event,
         [src, dst],
-        copyRepositoryItem(src, dst, message, credentials)
+        copyRepositoryItem(src, dst, message, resolveAuthSession(event.sender.id, authSessionId, dst))
       );
     }
   );
@@ -547,12 +563,17 @@ export function registerSvnHandlers(): void {
       parentUrl: string,
       folderName: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => {
       return invalidateRepositoryAfter(
         event,
         [parentUrl],
-        createRemoteFolder(parentUrl, folderName, message, credentials)
+        createRemoteFolder(
+          parentUrl,
+          folderName,
+          message,
+          resolveAuthSession(event.sender.id, authSessionId, parentUrl)
+        )
       );
     }
   );
@@ -564,9 +585,13 @@ export function registerSvnHandlers(): void {
       event,
       url: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => {
-      return invalidateRepositoryAfter(event, [url], deleteRemoteItem(url, message, credentials));
+      return invalidateRepositoryAfter(
+        event,
+        [url],
+        deleteRemoteItem(url, message, resolveAuthSession(event.sender.id, authSessionId, url))
+      );
     }
   );
 
@@ -578,12 +603,17 @@ export function registerSvnHandlers(): void {
       srcUrl: string,
       dstUrl: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => {
       return invalidateRepositoryAfter(
         event,
         [srcUrl, dstUrl],
-        moveRemoteItem(srcUrl, dstUrl, message, credentials)
+        moveRemoteItem(
+          srcUrl,
+          dstUrl,
+          message,
+          resolveAuthSession(event.sender.id, authSessionId, dstUrl)
+        )
       );
     }
   );
@@ -748,13 +778,18 @@ export function registerSvnHandlers(): void {
   ipcMain.handle(
     'svn:list',
     async (
-      _,
+      event,
       url: string,
       revision?: string,
       depth?: 'empty' | 'immediates' | 'infinity',
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ): Promise<SvnListResult> => {
-      return listRepository(url, revision, depth, credentials);
+      return listRepository(
+        url,
+        revision,
+        depth,
+        resolveAuthSession(event.sender.id, authSessionId, url)
+      );
     }
   );
 

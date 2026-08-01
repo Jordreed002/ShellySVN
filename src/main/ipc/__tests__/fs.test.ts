@@ -508,7 +508,7 @@ describe('FS IPC Handlers', () => {
       };
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Absolute');
+      expect(result.error).toContain('only allowed inside');
     });
   });
 

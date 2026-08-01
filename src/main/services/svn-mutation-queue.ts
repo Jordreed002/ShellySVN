@@ -1,5 +1,9 @@
 const mutationQueues = new Map<string, Promise<void>>();
 
+export function hasActiveWorkingCopyMutations(): boolean {
+  return mutationQueues.size > 0;
+}
+
 function normalizeMutationKey(key: string): string {
   return key.trim().toLowerCase();
 }

@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { terminateProcessTree } from '../utils/process-tree';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { EOL, tmpdir } from 'os';
 import { join } from 'path';
@@ -265,13 +266,11 @@ export async function runResolvedSvn(
       `[SVN] Running: svn ${redactArgs(finalArgs).join(' ')} in ${options.cwd || process.cwd()}`
     );
 
-    const useWindowsShell =
-      process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(options.svnCommand);
-
     const proc = spawn(options.svnCommand, finalArgs, {
       cwd: options.cwd || process.cwd(),
       env,
-      shell: useWindowsShell,
+      shell: false,
+      detached: process.platform !== 'win32',
       windowsHide: true,
     });
 
@@ -305,10 +304,18 @@ export async function runResolvedSvn(
       reject(error);
     };
 
-    const abort = () => {
-      proc.kill();
-      fail(new SvnCommandError('SVN operation cancelled', commandContext));
+    const cancel = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      options.signal?.removeEventListener('abort', abort);
+      void terminateProcessTree(proc).finally(() => {
+        void cleanupTempSvnConfig(tempConfigDir);
+        reject(error);
+      });
     };
+
+    const abort = () => cancel(new SvnCommandError('SVN operation cancelled', commandContext));
 
     if (options.signal?.aborted) {
       abort();
@@ -347,8 +354,7 @@ export async function runResolvedSvn(
 
     if (options.context.connectionTimeout && options.context.connectionTimeout > 0) {
       timeoutId = setTimeout(() => {
-        proc.kill();
-        fail(
+        cancel(
           new SvnCommandError(
             `SVN operation timed out after ${options.context.connectionTimeout} seconds`,
             commandContext

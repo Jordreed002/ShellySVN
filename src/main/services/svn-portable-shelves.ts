@@ -70,7 +70,7 @@ async function readMetadata(directory: string): Promise<PortableShelfMetadata> {
   return parsed;
 }
 
-function collapseNestedFiles(files: PortableShelfFile[]): PortableShelfFile[] {
+export function collapseNestedFiles(files: PortableShelfFile[]): PortableShelfFile[] {
   return files.filter(
     (file, index) =>
       !files.some(

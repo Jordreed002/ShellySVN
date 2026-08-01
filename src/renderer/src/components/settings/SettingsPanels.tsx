@@ -7,6 +7,8 @@ import {
   CheckCircle,
   ChevronDown,
   Clock,
+  Download,
+  ExternalLink,
   FolderOpen,
   FolderSync,
   Key,
@@ -16,6 +18,7 @@ import {
   Pencil,
   Play,
   RotateCcw,
+  RefreshCw,
   Shield,
   Sun,
   Terminal,
@@ -37,6 +40,7 @@ import { formatBytes } from '@shared/utils/formatBytes';
 
 import { promptAppInput } from '../../utils/dialogs';
 import { OpenWithSettings } from './OpenWithSettings';
+import { useAppUpdater } from '../../hooks/useAppUpdater';
 
 function clampedInteger(value: string, minimum: number, maximum: number, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
@@ -153,20 +157,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
         </div>
       </SettingsGroup>
 
-      {/* Check for updates */}
-      <SettingsGroup title="Updates" description="Startup behavior">
-        <label className="flex items-center gap-3 cursor-pointer group">
-          <input
-            type="checkbox"
-            checked={settings.checkUpdatesOnStartup}
-            onChange={(e) => onChange('checkUpdatesOnStartup', e.target.checked)}
-            className="checkbox"
-          />
-          <span className="text-sm text-text-secondary group-hover:text-text transition-fast">
-            Check for updates on startup
-          </span>
-        </label>
-      </SettingsGroup>
+      <UpdatesSettings settings={settings} onChange={onChange} />
 
       {/* Single Instance Mode */}
       <SettingsGroup title="Instance Management" description="Application behavior">
@@ -220,6 +211,117 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
   );
 }
 
+function UpdatesSettings({ settings, onChange }: SettingsSectionProps) {
+  const { state, check } = useAppUpdater();
+  const [version, setVersion] = useState('…');
+
+  useEffect(() => {
+    let active = true;
+    void window.api.app.getVersion().then((value) => {
+      if (active) setVersion(value);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const statusText = (() => {
+    if (!state) return 'Reading update status…';
+    if (state.status === 'unsupported') return 'This installation is updated manually.';
+    if (state.status === 'checking') return 'Checking for updates…';
+    if (state.status === 'upToDate') return `ShellySVN ${version} is up to date.`;
+    if (state.status === 'available') return `Version ${state.availableVersion} is available.`;
+    if (state.status === 'downloading') return `Downloading ${Math.round(state.percent)}%`;
+    if (state.status === 'downloaded')
+      return `Version ${state.availableVersion} is ready to install.`;
+    if (state.status === 'error') return state.message;
+    return `ShellySVN ${version}`;
+  })();
+
+  return (
+    <SettingsGroup
+      title="Updates"
+      description="Keep ShellySVN current without interrupting SVN work"
+    >
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-bg-tertiary/55 p-3">
+          <div>
+            <p className="text-sm font-semibold text-text">ShellySVN {version}</p>
+            <p
+              className={`mt-0.5 text-xs ${state?.status === 'error' ? 'text-danger' : 'text-text-muted'}`}
+              role={state?.status === 'error' ? 'alert' : undefined}
+            >
+              {statusText}
+            </p>
+          </div>
+          {state?.status === 'unsupported' ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void window.api.app.openExternal(state.manualDownloadUrl)}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Downloads
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={state?.status === 'checking' || state?.status === 'downloading'}
+              onClick={() => void check()}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${state?.status === 'checking' ? 'animate-spin' : ''}`}
+              />
+              Check now
+            </button>
+          )}
+        </div>
+
+        <label className="flex cursor-pointer items-center gap-3 group">
+          <input
+            type="checkbox"
+            checked={settings.checkUpdatesOnStartup}
+            onChange={(event) => onChange('checkUpdatesOnStartup', event.target.checked)}
+            className="checkbox"
+          />
+          <span className="text-sm text-text-secondary group-hover:text-text transition-fast">
+            Check automatically at startup and every six hours
+          </span>
+        </label>
+
+        <div>
+          <label
+            htmlFor="update-channel"
+            className="mb-1.5 block text-xs font-medium text-text-muted"
+          >
+            Release channel
+          </label>
+          <div className="relative">
+            <select
+              id="update-channel"
+              value={settings.updateChannel}
+              onChange={(event) =>
+                onChange('updateChannel', event.target.value as AppSettings['updateChannel'])
+              }
+              className="input appearance-none pr-10 cursor-pointer"
+            >
+              <option value="stable">Stable — recommended</option>
+              <option value="preview">Preview — beta and release candidates</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          </div>
+          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-text-faint">
+            <Download className="mt-0.5 h-3.5 w-3.5 flex-none" />
+            Updates are never downloaded until you approve them. Returning to Stable never
+            downgrades an installed preview.
+          </p>
+        </div>
+      </div>
+    </SettingsGroup>
+  );
+}
+
 // ============================================
 // SVN Settings Tab
 // ============================================
@@ -235,7 +337,7 @@ interface SvnSettingsProps extends SettingsSectionProps {
 export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
   const handleBrowseSvnPath = async () => {
     const path = await window.api.dialog.openFile([
-      { name: 'Executables', extensions: ['exe', 'app', 'sh'] },
+      { name: 'Executables', extensions: ['exe', 'app'] },
       { name: 'All Files', extensions: ['*'] },
     ]);
     if (path) {
@@ -279,7 +381,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
             <input
               type="text"
               value={settings.svnClientPath}
-              onChange={(e) => onChange('svnClientPath', e.target.value)}
+              readOnly
               placeholder="Leave empty to use bundled SVN"
               className="input flex-1"
             />
@@ -385,9 +487,11 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
             <div className="flex flex-wrap gap-2">
               {settings.globalIgnorePatterns.map((pattern, index) => (
                 <span
-                  key={`${pattern}:${settings.globalIgnorePatterns
-                    .slice(0, index)
-                    .filter((candidate) => candidate === pattern).length}`}
+                  key={`${pattern}:${
+                    settings.globalIgnorePatterns
+                      .slice(0, index)
+                      .filter((candidate) => candidate === pattern).length
+                  }`}
                   className="inline-flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded text-sm"
                 >
                   {pattern}
@@ -571,22 +675,16 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
   toolOverrideIds.current.length = toolOverrides.length;
 
   const handleBrowseDiffTool = async () => {
-    const path = await window.api.dialog.openFile([
-      { name: 'Executables', extensions: ['exe', 'app', 'sh'] },
-      { name: 'All Files', extensions: ['*'] },
-    ]);
-    if (path) {
-      onChangeNested('diffMerge', 'externalDiffTool', path);
+    const tool = await window.api.externalTools.register('diff');
+    if (tool) {
+      onChangeNested('diffMerge', 'externalDiffTool', tool.id);
     }
   };
 
   const handleBrowseMergeTool = async () => {
-    const path = await window.api.dialog.openFile([
-      { name: 'Executables', extensions: ['exe', 'app', 'sh'] },
-      { name: 'All Files', extensions: ['*'] },
-    ]);
-    if (path) {
-      onChangeNested('diffMerge', 'externalMergeTool', path);
+    const tool = await window.api.externalTools.register('merge');
+    if (tool) {
+      onChangeNested('diffMerge', 'externalMergeTool', tool.id);
     }
   };
 
@@ -627,13 +725,13 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
             <input
               type="text"
               value={settings.diffMerge.externalDiffTool}
-              onChange={(e) => onChangeNested('diffMerge', 'externalDiffTool', e.target.value)}
+              readOnly
               placeholder="Leave empty for built-in diff viewer"
               className="input flex-1"
             />
             <button onClick={handleBrowseDiffTool} className="btn btn-secondary">
               <FolderOpen className="w-4 h-4" />
-              Browse
+              Register
             </button>
           </div>
           <p className="text-xs text-text-muted">
@@ -649,13 +747,13 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
             <input
               type="text"
               value={settings.diffMerge.externalMergeTool}
-              onChange={(e) => onChangeNested('diffMerge', 'externalMergeTool', e.target.value)}
+              readOnly
               placeholder="Leave empty for built-in merge tool"
               className="input flex-1"
             />
             <button onClick={handleBrowseMergeTool} className="btn btn-secondary">
               <FolderOpen className="w-4 h-4" />
-              Browse
+              Register
             </button>
           </div>
           <p className="text-xs text-text-muted">
@@ -763,11 +861,7 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
             max="20"
             value={settings.diffMerge.contextLines}
             onChange={(e) =>
-              onChangeNested(
-                'diffMerge',
-                'contextLines',
-                clampedInteger(e.target.value, 0, 20, 3)
-              )
+              onChangeNested('diffMerge', 'contextLines', clampedInteger(e.target.value, 0, 20, 3))
             }
             className="input w-20 text-center"
           />
@@ -993,7 +1087,6 @@ interface IntegrationSettingsProps extends NestedSettingsProps {
 
 export function IntegrationSettingsTab({
   settings,
-  onChange,
   onChangeNested,
   onOpenShellIntegration,
 }: IntegrationSettingsProps) {
@@ -1084,7 +1177,6 @@ export function IntegrationSettingsTab({
       >
         <OpenWithSettings
           tools={settings.customOpenWithTools ?? []}
-          onChange={(tools) => onChange('customOpenWithTools', tools)}
         />
       </SettingsGroup>
 
@@ -1543,7 +1635,7 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
   const [editPassword, setEditPassword] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
-  const platform = window.electron?.process?.platform;
+  const [platform, setPlatform] = useState<'win32' | 'darwin' | 'linux' | undefined>();
   const sshSettings = settings.sshSettings ?? {
     sshClientPath: '',
     useAgent: true,
@@ -1552,6 +1644,8 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
 
   useEffect(() => {
     if (!isOpen) return;
+
+    void window.api.app?.getPlatform?.().then(setPlatform).catch(() => setPlatform(undefined));
 
     const loadCredentials = async () => {
       setIsLoading(true);
@@ -1616,7 +1710,12 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
     setIsSavingEdit(true);
     setCredentialError(null);
     try {
-      await window.api.auth.set(editingRealm, editUsername.trim(), editPassword);
+      await window.api.auth.beginSession({
+        realm: editingRealm,
+        username: editUsername.trim(),
+        password: editPassword,
+        persistence: 'stored',
+      });
       const list = await window.api.auth.list();
       setCredentials(list);
       handleCancelEdit();
@@ -1673,7 +1772,10 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
   return (
     <div className="space-y-6">
       {credentialError && (
-        <div role="alert" className="rounded-lg border border-error/20 bg-error/10 p-3 text-sm text-error">
+        <div
+          role="alert"
+          className="rounded-lg border border-error/20 bg-error/10 p-3 text-sm text-error"
+        >
           {credentialError}
         </div>
       )}
@@ -2157,7 +2259,6 @@ export function AdvancedSettings({
           </div>
         )}
       </SettingsGroup>
-
     </div>
   );
 }

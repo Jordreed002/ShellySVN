@@ -13,14 +13,17 @@ import type { CustomOpenWithTool } from '@shared/types';
 
 import { OpenWithSettings, describeCommandLine } from '../OpenWithSettings';
 
-const openFile = vi.fn();
+const list = vi.fn();
+const register = vi.fn();
+const remove = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { dialog: { openFile } },
+    value: { externalTools: { list, register, remove } },
   });
+  list.mockResolvedValue([]);
 });
 
 afterEach(cleanup);
@@ -55,82 +58,31 @@ describe('describeCommandLine', () => {
 });
 
 describe('OpenWithSettings', () => {
-  it('explains that PATH editors come for free when the list is empty', () => {
-    render(<OpenWithSettings tools={[]} onChange={vi.fn()} />);
-    expect(screen.getByText(/offered automatically/)).toBeInTheDocument();
+  it('explains that legacy command strings must be re-registered', async () => {
+    render(<OpenWithSettings />);
+    expect(await screen.findByText(/Legacy command strings are disabled/)).toBeInTheDocument();
   });
 
-  it('adds a row, and reports the whole list back', () => {
-    const onChange = vi.fn();
-    render(<OpenWithSettings tools={[tool]} onChange={onChange} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /Add application/ }));
-
-    const [next] = onChange.mock.calls[0];
-    expect(next).toHaveLength(2);
-    expect(next[1]).toMatchObject({ name: '', command: '', appliesTo: 'both' });
-    expect(next[1].id).toEqual(expect.any(String));
+  it('registers an editor through the main-owned registry', async () => {
+    register.mockResolvedValue({ id: 'registered:1', name: 'Nova' });
+    render(<OpenWithSettings />);
+    fireEvent.click(screen.getByRole('button', { name: /Register application/ }));
+    await waitFor(() => expect(register).toHaveBeenCalledWith('editor'));
   });
 
-  it('edits a field without disturbing the others', () => {
-    const onChange = vi.fn();
-    render(<OpenWithSettings tools={[tool]} onChange={onChange} />);
-
-    fireEvent.change(screen.getByLabelText('Arguments'), {
-      target: { value: '--diff {path}' },
-    });
-
-    expect(onChange).toHaveBeenCalledWith([{ ...tool, arguments: '--diff {path}' }]);
-  });
-
-  it('narrows an application to folders only', () => {
-    const onChange = vi.fn();
-    render(<OpenWithSettings tools={[tool]} onChange={onChange} />);
-
-    fireEvent.change(screen.getByLabelText('Offer this application for'), {
-      target: { value: 'folders' },
-    });
-
-    expect(onChange).toHaveBeenCalledWith([{ ...tool, appliesTo: 'folders' }]);
-  });
-
-  it('removes the row it was asked to remove', () => {
-    const onChange = vi.fn();
-    const second = { ...tool, id: 'other', name: 'Nova' };
-    render(<OpenWithSettings tools={[tool, second]} onChange={onChange} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Beyond Compare' }));
-
-    expect(onChange).toHaveBeenCalledWith([second]);
-  });
-
-  it('fills the command from the file picker', async () => {
-    openFile.mockResolvedValue('/Applications/Nova.app');
-    const onChange = vi.fn();
-    render(<OpenWithSettings tools={[tool]} onChange={onChange} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /Browse/ }));
-
-    await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith([{ ...tool, command: '/Applications/Nova.app' }])
-    );
-  });
-
-  it('leaves the row alone when the picker is cancelled', async () => {
-    openFile.mockResolvedValue(null);
-    const onChange = vi.fn();
-    render(<OpenWithSettings tools={[tool]} onChange={onChange} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /Browse/ }));
-
-    await waitFor(() => expect(openFile).toHaveBeenCalled());
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it('shows the command line each row will run', () => {
-    render(
-      <OpenWithSettings tools={[{ ...tool, arguments: '--flag {path}' }]} onChange={vi.fn()} />
-    );
-    expect(screen.getByText('/usr/local/bin/bcomp --flag {path}')).toBeInTheDocument();
+  it('lists registered applications without exposing a path', async () => {
+    list.mockResolvedValue([
+      {
+        id: 'registered:1',
+        name: 'Nova',
+        roles: ['editor'],
+        builtIn: false,
+        available: true,
+        argumentTemplate: ['{path}'],
+      },
+    ]);
+    render(<OpenWithSettings />);
+    expect(await screen.findByText('Nova')).toBeInTheDocument();
+    expect(screen.getByText(/path hidden/)).toBeInTheDocument();
   });
 });

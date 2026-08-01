@@ -450,7 +450,7 @@ export type DialogChannels = {
 
 export type AppChannels = {
   'app:getVersion': () => string;
-  'app:getPath': (name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => string;
+  'app:getPlatform': () => 'win32' | 'darwin' | 'linux';
   'app:openExternal': (url: string) => void;
 };
 
@@ -539,6 +539,18 @@ export interface CustomOpenWithTool {
   appliesTo?: 'files' | 'folders' | 'both';
 }
 
+export type ExternalToolRole = 'editor' | 'diff' | 'merge';
+export type ExternalToolArgument = string;
+
+export interface ExternalToolSummary {
+  id: string;
+  name: string;
+  roles: ExternalToolRole[];
+  builtIn: boolean;
+  available: boolean;
+  argumentTemplate: ExternalToolArgument[];
+}
+
 export interface ExternalToolOverride {
   extension: string;
   diffTool: string;
@@ -594,6 +606,7 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   language: string;
   checkUpdatesOnStartup: boolean;
+  updateChannel: UpdateChannel;
   confirmDestructiveOps: boolean;
   singleInstanceMode: boolean;
   defaultCheckoutDirectory: string;
@@ -661,6 +674,54 @@ export interface AppSettings {
   tutorialStep: number; // Current step for resume capability
 }
 
+export type UpdateChannel = 'stable' | 'preview';
+
+export type AppUpdateState =
+  | {
+      status: 'unsupported';
+      installedVersion: string;
+      channel: UpdateChannel;
+      manualDownloadUrl: string;
+      reason: 'development' | 'unpackaged' | 'unsupported-format';
+    }
+  | { status: 'idle' | 'checking' | 'upToDate'; installedVersion: string; channel: UpdateChannel }
+  | {
+      status: 'available' | 'downloaded';
+      installedVersion: string;
+      channel: UpdateChannel;
+      availableVersion: string;
+      releaseName?: string;
+      releaseDate?: string;
+      releaseNotes?: string;
+      releaseUrl?: string;
+    }
+  | {
+      status: 'downloading';
+      installedVersion: string;
+      channel: UpdateChannel;
+      availableVersion: string;
+      percent: number;
+      transferred: number;
+      total: number;
+      bytesPerSecond: number;
+    }
+  | {
+      status: 'error';
+      installedVersion: string;
+      channel: UpdateChannel;
+      code: 'network' | 'signature' | 'checksum' | 'permission' | 'cancelled' | 'unknown';
+      message: string;
+      retryable: boolean;
+      source: 'scheduled' | 'manual' | 'download' | 'install';
+    };
+
+export type RestartAndInstallResult =
+  | { started: true }
+  | {
+      started: false;
+      reason: 'not-downloaded' | 'svn-operation-active' | 'unsupported';
+    };
+
 export type SvnCacheNamespace = 'info' | 'status' | 'log' | 'entries';
 
 export interface SvnCacheEntry<T = unknown> {
@@ -705,8 +766,8 @@ export interface CheckoutOptions {
   trustPermanently?: boolean;
   /** SSL failure types to accept */
   sslFailures?: string[];
-  /** Authentication credentials */
-  credentials?: AuthCredential;
+  /** Opaque main-process authentication session. */
+  authSessionId?: string;
   /** Specific paths to checkout (sparse checkout) */
   sparsePaths?: string[];
 }
@@ -765,9 +826,25 @@ export interface SvnMergeOptions {
 // Auth Types
 // ============================================
 
-export interface AuthCredential {
+export interface AuthSessionRequest {
+  realm: string;
   username: string;
   password: string;
+  persistence: 'session' | 'stored';
+}
+
+export interface AuthSession {
+  id: string;
+  realm: string;
+  username: string;
+  persistent: boolean;
+  expiresAt: string | null;
+}
+
+export interface AuthStatus {
+  available: boolean;
+  username?: string;
+  persistent: boolean;
 }
 
 export interface AuthListEntry {
@@ -1227,7 +1304,7 @@ export interface ElectronAPI {
       src: string,
       dst: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
@@ -1238,7 +1315,7 @@ export interface ElectronAPI {
       parentUrl: string,
       folderName: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
@@ -1248,7 +1325,7 @@ export interface ElectronAPI {
     remoteDelete: (
       url: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
@@ -1259,7 +1336,7 @@ export interface ElectronAPI {
       srcUrl: string,
       dstUrl: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
@@ -1333,7 +1410,7 @@ export interface ElectronAPI {
       url: string,
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => Promise<SvnListResult>;
     patch: {
       create: (
@@ -1373,6 +1450,10 @@ export interface ElectronAPI {
       left: string,
       right: string
     ) => Promise<{ success: boolean; error?: string }>;
+    openWorkingCopyDiff: (input: {
+      toolId: string;
+      workingPath: string;
+    }) => Promise<{ success: boolean; error?: string }>;
     openMergeTool: (
       tool: string,
       base: string,
@@ -1384,16 +1465,22 @@ export interface ElectronAPI {
     openFile: (path: string) => Promise<{ success: boolean; error?: string }>;
     /** Editors found on `PATH`, for the "Open in…" menu. */
     listEditors: (refresh?: boolean) => Promise<CodeEditorInfo[]>;
-    openInEditor: (
-      editorId: string,
-      path: string
-    ) => Promise<{ success: boolean; error?: string }>;
+    openInEditor: (editorId: string, path: string) => Promise<{ success: boolean; error?: string }>;
     revealPath: (path: string) => Promise<{ success: boolean; error?: string }>;
+  };
+  externalTools: {
+    list: () => Promise<ExternalToolSummary[]>;
+    register: (role: ExternalToolRole) => Promise<ExternalToolSummary | null>;
+    update: (
+      id: string,
+      update: Partial<Pick<ExternalToolSummary, 'name' | 'roles' | 'argumentTemplate'>>
+    ) => Promise<ExternalToolSummary>;
+    remove: (id: string) => Promise<void>;
   };
   monitor: {
     getWorkingCopies: () => Promise<WorkingCopyInfo[]>;
     addWorkingCopy: (path: string) => Promise<{ success: boolean; error?: string }>;
-    removeWorkingCopy: (path: string) => Promise<{ success: boolean }>;
+    removeWorkingCopy: (path: string) => Promise<{ success: boolean; removed: boolean }>;
     refreshStatus: (path: string) => Promise<WorkingCopyInfo | null>;
     startMonitoring: () => Promise<OperationResult>;
     stopMonitoring: () => Promise<OperationResult>;
@@ -1454,7 +1541,7 @@ export interface ElectronAPI {
   };
   app: {
     getVersion: () => Promise<string>;
-    getPath: (name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => Promise<string>;
+    getPlatform: () => Promise<'win32' | 'darwin' | 'linux'>;
     openExternal: (url: string) => Promise<void>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
     getCacheSize: () => Promise<{ size: number; files: number }>;
@@ -1468,6 +1555,14 @@ export interface ElectronAPI {
       close: () => Promise<void>;
       isMaximized: () => Promise<boolean>;
     };
+  };
+  updater: {
+    getState: () => Promise<AppUpdateState>;
+    check: () => Promise<AppUpdateState>;
+    download: () => Promise<AppUpdateState>;
+    cancelDownload: () => Promise<AppUpdateState>;
+    restartAndInstall: () => Promise<RestartAndInstallResult>;
+    onStateChanged: (callback: (state: AppUpdateState) => void) => () => void;
   };
   store: {
     get: <T>(key: string) => Promise<T | undefined>;
@@ -1492,16 +1587,19 @@ export interface ElectronAPI {
     stats: () => Promise<SvnCacheStats>;
   };
   auth: {
-    get: (realm: string) => Promise<AuthCredential | null>;
-    set: (realm: string, username: string, password: string) => Promise<{ success: boolean }>;
+    getStatus: (realm: string) => Promise<AuthStatus>;
+    beginSession: (request: AuthSessionRequest) => Promise<AuthSession>;
+    resumeSession: (realm: string) => Promise<AuthSession | null>;
     delete: (realm: string) => Promise<{ success: boolean }>;
     list: () => Promise<AuthListEntry[]>;
-    has: (realm: string) => Promise<boolean>;
     clear: () => Promise<{ success: boolean }>;
     isEncryptionAvailable: () => Promise<boolean>;
   };
   webhook: {
     deliver: (request: WebhookDeliverRequest) => Promise<WebhookDeliverResult>;
+    setSecret: (webhookId: string, secret: string) => Promise<void>;
+    hasSecret: (webhookId: string) => Promise<boolean>;
+    deleteSecret: (webhookId: string) => Promise<void>;
   };
   shell: {
     register: () => Promise<{ success: boolean; error?: string }>;

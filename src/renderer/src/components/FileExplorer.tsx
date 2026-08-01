@@ -35,12 +35,7 @@ import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
 import { ProgressIndicator } from './ui/ProgressIndicator';
-import {
-  FILE_ROW_HEIGHT,
-  FILE_ROW_HEIGHT_COMPACT,
-  FileRow,
-  FileListHeader,
-} from './ui/FileRow';
+import { FILE_ROW_HEIGHT, FILE_ROW_HEIGHT_COMPACT, FileRow, FileListHeader } from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
 import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialogs';
 import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
@@ -56,10 +51,7 @@ import {
   buildFolderChangeCounts,
   fileInfoToEntry,
 } from '../features/files/fileStatus';
-import {
-  appendExcludedChildren,
-  isInsideWorkingCopy,
-} from '../features/files/excludedChildren';
+import { appendExcludedChildren, isInsideWorkingCopy } from '../features/files/excludedChildren';
 import { createSvnListQueryKey, getAuthPresenceKey } from '../features/files/authQueryKeys';
 import { compileIgnorePatterns, filterAndSortEntries } from '../features/files/fileListTransforms';
 import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
@@ -103,6 +95,7 @@ import {
   LockManagementDialog,
   LogViewer,
   MergeWizard,
+  ModificationsView,
   MoveRenameDialog,
   PropertiesDialog,
   QuickNotesPanel,
@@ -224,6 +217,7 @@ export function FileExplorer() {
     lockManagementPath,
     logViewerPath,
     mergePath,
+    modificationsPath,
     moveRenameTarget,
     pendingUpdateEntry,
     propertiesPath,
@@ -245,6 +239,7 @@ export function FileExplorer() {
     setLockManagementPath,
     setLogViewerPath,
     setMergePath,
+    setModificationsPath,
     setMoveRenameTarget,
     setPendingUpdateEntry,
     setPropertiesPath,
@@ -434,7 +429,7 @@ export function FileExplorer() {
     queryFn: async () => {
       if (!effectiveRepoRoot) return null;
       try {
-        return await window.api.auth.get(effectiveRepoRoot);
+        return await window.api.auth.resumeSession(effectiveRepoRoot);
       } catch {
         return null;
       }
@@ -461,12 +456,13 @@ export function FileExplorer() {
           age: 0,
         };
       }
-      const creds = storedCreds
-        ? { username: storedCreds.username, password: storedCreds.password }
-        : undefined;
       try {
-        return await readCachedList(effectiveUrl, 'HEAD', 'immediates', creds?.username ?? '', () =>
-          window.api.svn.list(effectiveUrl, 'HEAD', 'immediates', creds)
+        return await readCachedList(
+          effectiveUrl,
+          'HEAD',
+          'immediates',
+          storedCreds?.username ?? '',
+          () => window.api.svn.list(effectiveUrl, 'HEAD', 'immediates', storedCreds?.id)
         );
       } catch (err) {
         const errorMsg = (err as Error)?.message || '';
@@ -1048,8 +1044,7 @@ export function FileExplorer() {
           }
         }
       },
-      // Check for Modifications - placeholder (view doesn't exist yet)
-      onCheckForModifications: undefined,
+      onCheckForModifications: (entry: SvnStatusEntry) => setModificationsPath(entry.path),
     }),
     [
       codeEditors,
@@ -1069,6 +1064,8 @@ export function FileExplorer() {
       setLogViewerPath,
       setSwitchPath,
       setMergePath,
+      setModificationsPath,
+      setSettingsDialogOpen,
       setMoveRenameTarget,
       setPendingUpdateEntry,
       setRelocatePath,
@@ -1300,7 +1297,13 @@ export function FileExplorer() {
 
     setIsAddingToWorkingCopy(true);
     try {
-      const result = await window.api.svn.updateToRevision(wcRoot, url, localPath, 'infinity', true);
+      const result = await window.api.svn.updateToRevision(
+        wcRoot,
+        url,
+        localPath,
+        'infinity',
+        true
+      );
       if (!result?.success) {
         await showAppMessage({
           type: 'error',
@@ -1363,10 +1366,7 @@ export function FileExplorer() {
 
   const isLoading = isLoadingFiles;
   const isFetching =
-    isLoadingStatus ||
-    isLoadingDeep ||
-    isLoadingNotCheckedOut ||
-    actions.isUpdating;
+    isLoadingStatus || isLoadingDeep || isLoadingNotCheckedOut || actions.isUpdating;
   const deepStatusMessage = useMemo(() => {
     if (!isLoadingDeep && deepStatusProgress?.phase !== 'complete') return null;
     if (!deepStatusProgress) return isLoadingDeep ? 'Calculating folder status...' : null;
@@ -1498,10 +1498,10 @@ export function FileExplorer() {
           list instead of pushing it down (see the selection bar below). */}
       <div className="relative flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
         {/*
-          * One bar. Navigation, the address, the SVN actions and the view
-          * controls sit together in the prototype's single `.navbar`, in the
-          * same idiom the repository browser's `RepoNavBar` already uses.
-          */}
+         * One bar. Navigation, the address, the SVN actions and the view
+         * controls sit together in the prototype's single `.navbar`, in the
+         * same idiom the repository browser's `RepoNavBar` already uses.
+         */}
         <Toolbar
           addressBar={addressBar}
           onNavigateUp={parentPath ? () => handleNavigate(parentPath) : undefined}
@@ -1638,12 +1638,12 @@ export function FileExplorer() {
         )}
 
         {/*
-          * Selection bar. Floated over the bottom of the list rather than
-          * inserted above it: as a block in the column it appeared the moment a
-          * row was picked and pushed every row down by its own height, so the
-          * second click of a double-click landed on the wrong folder. Overlaid,
-          * nothing under the pointer moves.
-          */}
+         * Selection bar. Floated over the bottom of the list rather than
+         * inserted above it: as a block in the column it appeared the moment a
+         * row was picked and pushed every row down by its own height, so the
+         * second click of a double-click landed on the wrong folder. Overlaid,
+         * nothing under the pointer moves.
+         */}
         {explorerViewMode !== 'miller' && selectedPaths.size > 0 && (
           <div
             role="region"
@@ -1656,9 +1656,9 @@ export function FileExplorer() {
               </b>
               <span className="h-4 w-px flex-none bg-border" aria-hidden="true" />
               {/*
-                * Not on disk: the only thing to offer is bringing it in, and it is
-                * the same offer, wording and command the repository browser makes.
-                */}
+               * Not on disk: the only thing to offer is bringing it in, and it is
+               * the same offer, wording and command the repository browser makes.
+               */}
               {addToWorkingCopyTarget && (
                 <button
                   type="button"
@@ -1946,11 +1946,7 @@ export function FileExplorer() {
             onConfirm={handleUpdateToRevision}
             onConfirmUrls={handleUpdateRepoUrls}
             repoUrl={effectiveUrl}
-            credentials={
-              storedCreds
-                ? { username: storedCreds.username, password: storedCreds.password }
-                : undefined
-            }
+            credentials={storedCreds ?? undefined}
             workingCopyRoot={svnInfo?.workingCopyRoot || workingCopyContext?.workingCopyRoot}
           />
         </Suspense>
@@ -2236,6 +2232,33 @@ export function FileExplorer() {
       )}
 
       {/* Resolve Dialog */}
+      {modificationsPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <ModificationsView
+            path={modificationsPath}
+            onClose={() => setModificationsPath(null)}
+            onDiff={(targetPath) => {
+              setModificationsPath(null);
+              setDiffViewerPath(targetPath);
+            }}
+            onLog={(targetPath) => {
+              setModificationsPath(null);
+              setLogViewerPath(targetPath);
+            }}
+            onReveal={(targetPath) => {
+              void window.api.fs.getParent(targetPath).then((targetParentPath) => {
+                setModificationsPath(null);
+                navigate({ to: '/files', search: { path: targetParentPath ?? targetPath } });
+              });
+            }}
+            onResolve={(entry) => {
+              setModificationsPath(null);
+              setResolveEntry(entry);
+            }}
+          />
+        </Suspense>
+      )}
+
       {resolveEntry && (
         <Suspense fallback={<DialogLoader />}>
           <ResolveDialog
@@ -2244,7 +2267,7 @@ export function FileExplorer() {
             status={resolveEntry.status as 'C' | '?' | '!'}
             onClose={() => setResolveEntry(null)}
             onResolve={async (resolution) => {
-              await actions.handleResolveSelected(resolution);
+              await actions.resolve(resolveEntry.path, resolution);
               setResolveEntry(null);
               invalidateWorkingCopyViews(queryClient, path, {
                 includeParents: false,

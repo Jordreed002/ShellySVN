@@ -36,7 +36,11 @@ function parseArtifact(asset: GitHubAsset): SiteArtifact | null {
     };
   }
 
-  if (name === 'ShellySVN.Setup.0.1.0.exe' || /^ShellySVN\.Setup\..+\.exe$/.test(name)) {
+  if (
+    name === 'ShellySVN.Setup.0.1.0.exe' ||
+    /^ShellySVN\.Setup\..+\.exe$/.test(name) ||
+    /^ShellySVN-.+-x64-setup\.exe$/i.test(name)
+  ) {
     return {
       platform: 'Windows',
       arch: 'x64',
@@ -84,6 +88,18 @@ function parseArtifact(asset: GitHubAsset): SiteArtifact | null {
     };
   }
 
+  if (name.endsWith('.rpm')) {
+    return {
+      platform: 'Linux',
+      arch: 'x64',
+      label: 'RPM package',
+      fileName: name,
+      downloadUrl: asset.browser_download_url,
+      sizeBytes: asset.size,
+      checksumSha256,
+    };
+  }
+
   if (name.endsWith('.tar.gz') && !name.includes('source')) {
     return {
       platform: 'Linux',
@@ -106,10 +122,12 @@ function normalizeRelease(release: GitHubRelease): SiteRelease {
     version,
     tag: release.tag_name,
     publishedAt: release.published_at ?? new Date(0).toISOString(),
-    channel: release.prerelease ? 'preview' : 'preview',
+    channel: release.prerelease ? 'preview' : 'stable',
     notesUrl: release.html_url,
     bodyMd: release.body,
-    artifacts: release.assets.map(parseArtifact).filter((artifact): artifact is SiteArtifact => artifact !== null),
+    artifacts: release.assets
+      .map(parseArtifact)
+      .filter((artifact): artifact is SiteArtifact => artifact !== null),
   };
 }
 
@@ -130,7 +148,9 @@ export async function getSiteReleases(): Promise<SiteRelease[]> {
     }
 
     const releases = (await response.json()) as GitHubRelease[];
-    const normalized = releases.map(normalizeRelease).filter((release) => release.artifacts.length > 0);
+    const normalized = releases
+      .map(normalizeRelease)
+      .filter((release) => release.artifacts.length > 0);
     return normalized.length > 0 ? normalized : fallbackReleases;
   } catch {
     return fallbackReleases;

@@ -83,6 +83,7 @@ describe('External IPC Handlers', () => {
 
     // Reset mock implementations
     clearApprovedPathsForTests();
+    approvePathForIpc(approvedRoot);
     mockState.shellOpenPath.mockResolvedValue('');
     mockState.spawn.mockReturnValue({ unref: vi.fn() });
 
@@ -256,13 +257,13 @@ describe('External IPC Handlers', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject custom diff tool paths that are not files', async () => {
+    it('rejects renderer-supplied executable paths', async () => {
       const handler = handlers.get('external:openDiffTool');
       const result = await handler!({}, customToolDir, approvedFile, rightFile);
 
       expect(result).toMatchObject({
         success: false,
-        error: expect.stringContaining('Tool executable must be a file'),
+        error: expect.stringContaining('registered'),
       });
       expect(mockState.spawn).not.toHaveBeenCalled();
     });
@@ -317,7 +318,7 @@ describe('External IPC Handlers', () => {
       expect(result).toEqual({ success: true });
       expect(mockState.spawn).toHaveBeenCalledWith(
         'meld',
-        [approvedFile, rightFile],
+        [realpathSync(approvedFile), realpathSync(rightFile)],
         expect.objectContaining({
           detached: true,
           stdio: 'ignore',
@@ -332,7 +333,7 @@ describe('External IPC Handlers', () => {
       expect(result).toEqual({ success: true });
       expect(mockState.spawn).toHaveBeenCalledWith(
         'code',
-        ['--diff', approvedFile, rightFile],
+        ['--diff', realpathSync(approvedFile), realpathSync(rightFile)],
         expect.any(Object)
       );
     });

@@ -16,39 +16,53 @@ describe('repo browser authentication helpers', () => {
   });
 
   it('returns null credentials for anonymous repository browsing', async () => {
-    const authApi = { get: vi.fn().mockResolvedValue(null) };
+    const authApi = { resumeSession: vi.fn().mockResolvedValue(null) };
 
     const result = await loadRepoBrowserCredentials('https://svn.example.com/repo', authApi);
 
-    expect(authApi.get).toHaveBeenCalledWith('https://svn.example.com');
+    expect(authApi.resumeSession).toHaveBeenCalledWith('https://svn.example.com');
     expect(result).toEqual({
       realm: 'https://svn.example.com',
       credentials: null,
     });
   });
 
-  it('loads cached username and password credentials by repository realm', async () => {
+  it('loads an opaque credential session by repository realm', async () => {
+    const session = {
+      id: 'session-1',
+      realm: 'https://svn.example.com',
+      username: 'alice',
+      persistent: true,
+      expiresAt: null,
+    };
     const authApi = {
-      get: vi.fn().mockResolvedValue({ username: 'alice', password: 'secret' }),
+      resumeSession: vi.fn().mockResolvedValue(session),
     };
 
     const result = await loadRepoBrowserCredentials('https://svn.example.com/repo', authApi);
 
     expect(result).toEqual({
       realm: 'https://svn.example.com',
-      credentials: { username: 'alice', password: 'secret' },
+      credentials: session,
     });
   });
 
   it('loads cached credentials for svn+ssh repositories by host realm', async () => {
     const authApi = {
-      get: vi.fn().mockResolvedValue({ username: 'deploy', password: 'ssh-secret' }),
+      resumeSession: vi.fn().mockResolvedValue({
+        id: 'session-ssh',
+        realm: 'svn+ssh://svn.example.com',
+        username: 'deploy',
+        persistent: true,
+        expiresAt: null,
+      }),
     };
 
     const result = await loadRepoBrowserCredentials('svn+ssh://svn.example.com/repo', authApi);
 
-    expect(authApi.get).toHaveBeenCalledWith('svn+ssh://svn.example.com');
-    expect(result.credentials).toEqual({ username: 'deploy', password: 'ssh-secret' });
+    expect(authApi.resumeSession).toHaveBeenCalledWith('svn+ssh://svn.example.com');
+    expect(result.credentials).toMatchObject({ id: 'session-ssh', username: 'deploy' });
+    expect(result.credentials).not.toHaveProperty('password');
   });
 
   it.each([

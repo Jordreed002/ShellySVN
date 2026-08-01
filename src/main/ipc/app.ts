@@ -2,7 +2,6 @@ import { ipcMain, app, BrowserWindow } from 'electron';
 import { readdir, stat, unlink as removeFile, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { openValidatedExternalUrl } from '../utils/external-url';
-import { approvePathForIpc } from '../utils/approved-paths';
 import { getSvnCacheService } from '../services/svn-cache-service';
 
 /**
@@ -167,13 +166,7 @@ export function registerAppHandlers(): void {
     return app.getVersion();
   });
 
-  ipcMain.handle(
-    'app:getPath',
-    (_, name: 'home' | 'appData' | 'desktop' | 'documents' | 'temp') => {
-      const resolvedPath = name === 'temp' ? app.getPath('temp') : app.getPath(name);
-      return approvePathForIpc(resolvedPath);
-    }
-  );
+  ipcMain.handle('app:getPlatform', () => process.platform);
 
   ipcMain.handle('app:openExternal', async (_, url: string) => {
     return openValidatedExternalUrl(url);

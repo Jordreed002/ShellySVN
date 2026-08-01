@@ -63,7 +63,7 @@ export function RepoBrowserScreen({
           creds ?? (await loadRepoBrowserCredentials(target, window.api.auth)).credentials;
         setCredentials(resolved);
         // A cheap reachability probe: if the root lists, we can browse.
-        const result = await window.api.svn.list(target, 'HEAD', 'immediates');
+        const result = await window.api.svn.list(target, 'HEAD', 'immediates', resolved?.id);
         if (result.error) throw new Error(result.error);
         setRepoUrl(target);
         setPhase({ kind: 'connected' });
@@ -121,7 +121,14 @@ export function RepoBrowserScreen({
             className="space-y-3"
             onSubmit={(event) => {
               event.preventDefault();
-              void connect(urlInput.trim(), { username, password });
+              void window.api.auth
+                .beginSession({
+                  realm: phase.realm,
+                  username,
+                  password,
+                  persistence: 'session',
+                })
+                .then((session) => connect(urlInput.trim(), session));
             }}
           >
             <div className="flex items-center gap-2 rounded-lg border border-svn-modified/40 bg-svn-modified/10 px-3 py-2 text-xs text-text-secondary">
@@ -183,7 +190,10 @@ export function RepoBrowserScreen({
                   className="mt-0.5 h-4 w-4 flex-none text-svn-conflict"
                   aria-hidden="true"
                 />
-                <span>{phase.message}</span>
+                <span>
+                  <span className="font-medium text-text">Connection failed.</span>{' '}
+                  {phase.message}
+                </span>
               </div>
             ) : null}
 

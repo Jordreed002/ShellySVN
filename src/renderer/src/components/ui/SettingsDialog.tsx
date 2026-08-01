@@ -79,6 +79,17 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   const [localSettings, setLocalSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showShellIntegrationDialog, setShowShellIntegrationDialog] = useState(false);
+  const [appVersion, setAppVersion] = useState('…');
+
+  useEffect(() => {
+    let active = true;
+    void window.api.app.getVersion().then((version) => {
+      if (active) setAppVersion(version);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Load settings and start preview when dialog opens
   useEffect(() => {
@@ -178,7 +189,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
 
             {/* Version info */}
             <div className="px-4 py-3 border-t border-border">
-              <p className="text-xs text-text-faint">ShellySVN v0.1.0</p>
+              <p className="text-xs text-text-faint">ShellySVN v{appVersion}</p>
             </div>
           </div>
 

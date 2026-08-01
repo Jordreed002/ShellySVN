@@ -1,6 +1,9 @@
 import type {
-  AuthCredential,
+  AuthSession,
+  AuthSessionRequest,
+  AuthStatus,
   AppCacheBreakdown,
+  AppUpdateState,
   AuthListEntry,
   CheckoutOptions,
   CheckoutProgress,
@@ -10,10 +13,13 @@ import type {
   DirectoryMetadataResult,
   FileFilter,
   FileInfo,
+  ExternalToolRole,
+  ExternalToolSummary,
   FsStatusResult,
   MessageDialogOptions,
   NotificationOptions,
   RepoDiagnostics,
+  RestartAndInstallResult,
   ShellIntegrationStatus,
   SvnBlameResult,
   SvnCatResult,
@@ -195,19 +201,19 @@ export interface IpcInvokeContract {
   'svn:resolve': IpcCall<[path: string, resolution: string], OperationResult>;
   'svn:switch': IpcCall<[path: string, url: string, revision?: string], RevisionResult>;
   'svn:copy': IpcCall<
-    [src: string, dst: string, message: string, credentials?: AuthCredential],
+    [src: string, dst: string, message: string, authSessionId?: string],
     RevisionResult
   >;
   'svn:remoteCreateFolder': IpcCall<
-    [parentUrl: string, folderName: string, message: string, credentials?: AuthCredential],
+    [parentUrl: string, folderName: string, message: string, authSessionId?: string],
     RevisionResult
   >;
   'svn:remoteDelete': IpcCall<
-    [url: string, message: string, credentials?: AuthCredential],
+    [url: string, message: string, authSessionId?: string],
     RevisionResult
   >;
   'svn:remoteMove': IpcCall<
-    [srcUrl: string, dstUrl: string, message: string, credentials?: AuthCredential],
+    [srcUrl: string, dstUrl: string, message: string, authSessionId?: string],
     RevisionResult
   >;
   'svn:merge': IpcCall<
@@ -272,7 +278,7 @@ export interface IpcInvokeContract {
       url: string,
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
-      credentials?: AuthCredential,
+      authSessionId?: string,
     ],
     SvnListResult
   >;
@@ -344,7 +350,7 @@ export interface IpcInvokeContract {
   'dialog:confirm': IpcCall<[options: ConfirmDialogOptions], boolean>;
 
   'app:getVersion': IpcCall<[], string>;
-  'app:getPath': IpcCall<[name: string], string>;
+  'app:getPlatform': IpcCall<[], 'win32' | 'darwin' | 'linux'>;
   'app:openExternal': IpcCall<[url: string], OperationResult>;
   'app:clearCache': IpcCall<[], OperationResult>;
   'app:getCacheSize': IpcCall<[], { size: number; files: number }>;
@@ -357,6 +363,12 @@ export interface IpcInvokeContract {
   'app:window:maximize': IpcCall<[], void>;
   'app:window:close': IpcCall<[], void>;
   'app:window:isMaximized': IpcCall<[], boolean>;
+
+  'updater:getState': IpcCall<[], AppUpdateState>;
+  'updater:check': IpcCall<[], AppUpdateState>;
+  'updater:download': IpcCall<[], AppUpdateState>;
+  'updater:cancelDownload': IpcCall<[], AppUpdateState>;
+  'updater:restartAndInstall': IpcCall<[], RestartAndInstallResult>;
 
   'store:get': IpcCall<[key: string], unknown>;
   'store:set': IpcCall<[key: string, value: unknown], void>;
@@ -381,26 +393,40 @@ export interface IpcInvokeContract {
   'svnCache:clearAll': IpcCall<[clearedAt?: number], void>;
   'svnCache:stats': IpcCall<[], SvnCacheStats>;
 
-  'auth:get': IpcCall<[realm: string], AuthCredential | null>;
-  'auth:set': IpcCall<[realm: string, username: string, password: string], OperationResult>;
+  'auth:getStatus': IpcCall<[realm: string], AuthStatus>;
+  'auth:beginSession': IpcCall<[request: AuthSessionRequest], AuthSession>;
+  'auth:resumeSession': IpcCall<[realm: string], AuthSession | null>;
   'auth:delete': IpcCall<[realm: string], OperationResult>;
   'auth:list': IpcCall<[], AuthListEntry[]>;
-  'auth:has': IpcCall<[realm: string], boolean>;
   'auth:clear': IpcCall<[], OperationResult>;
   'auth:isEncryptionAvailable': IpcCall<[], boolean>;
 
   'monitor:getWorkingCopies': IpcCall<[], WorkingCopyInfo[]>;
   'monitor:addWorkingCopy': IpcCall<[path: string], OperationResult>;
-  'monitor:removeWorkingCopy': IpcCall<[path: string], OperationResult>;
+  'monitor:removeWorkingCopy': IpcCall<
+    [path: string],
+    { success: boolean; removed: boolean; error?: string }
+  >;
   'monitor:refreshStatus': IpcCall<[path: string], WorkingCopyInfo | null>;
   'monitor:startMonitoring': IpcCall<[], OperationResult>;
   'monitor:stopMonitoring': IpcCall<[], OperationResult>;
 
   'external:openDiffTool': IpcCall<[tool: string, left: string, right: string], OperationResult>;
+  'external:openWorkingCopyDiff': IpcCall<
+    [input: { toolId: string; workingPath: string }],
+    OperationResult
+  >;
   'external:openMergeTool': IpcCall<
     [tool: string, base: string, mine: string, theirs: string, merged: string],
     OperationResult
   >;
+  'externalTools:list': IpcCall<[], ExternalToolSummary[]>;
+  'externalTools:register': IpcCall<[role: ExternalToolRole], ExternalToolSummary | null>;
+  'externalTools:update': IpcCall<
+    [id: string, update: Partial<Pick<ExternalToolSummary, 'name' | 'roles' | 'argumentTemplate'>>],
+    ExternalToolSummary
+  >;
+  'externalTools:remove': IpcCall<[id: string], void>;
   'external:openFolder': IpcCall<[path: string], OperationResult>;
   'external:openFile': IpcCall<[path: string], OperationResult>;
   'external:revealPath': IpcCall<[path: string], OperationResult>;
@@ -408,6 +434,9 @@ export interface IpcInvokeContract {
   'external:openInEditor': IpcCall<[editorId: string, path: string], OperationResult>;
 
   'webhook:deliver': IpcCall<[request: WebhookDeliverRequest], WebhookDeliverResult>;
+  'webhook:setSecret': IpcCall<[webhookId: string, secret: string], void>;
+  'webhook:hasSecret': IpcCall<[webhookId: string], boolean>;
+  'webhook:deleteSecret': IpcCall<[webhookId: string], void>;
   'notification:show': IpcCall<[options: NotificationOptions], boolean>;
 
   'shell:register': IpcCall<[], OperationResult>;
@@ -437,6 +466,7 @@ export type IpcEventContract = {
     url?: string;
     requiresConfirmation?: boolean;
   };
+  'updater:state': AppUpdateState;
 };
 
 export type IpcEventChannel = keyof IpcEventContract;

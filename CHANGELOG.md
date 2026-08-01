@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.2] - Unreleased
+
+### Added
+
+- User-approved automatic updates for Windows NSIS, signed macOS, and Linux AppImage builds
+- Stable and opt-in preview release channels
+- Download progress, cancellation, restart, and install-on-quit controls
+- A connected Check for Modifications inspector with local and repository status separation
+
+### Changed
+
+- Public releases now require matching Git/package versions and signed Windows/macOS artifacts
+- Release workflows publish and validate updater metadata, blockmaps, and macOS update ZIPs
+- Settings now displays the packaged application version instead of a hard-coded value
+
+### Fixed
+
+- Stable GitHub releases are no longer mislabeled as preview releases on the website
+- The application version now matches the `v1.1.0-beta.2` release line
+
 ## [0.2.0] - 2026-02-20
 
 ### Added

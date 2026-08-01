@@ -277,16 +277,16 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       ),
     resolve: (path, resolution) => invokeIpc('svn:resolve', path, resolution),
     switch: (path, url, revision?) => invokeIpc('svn:switch', path, url, revision),
-    copy: (src, dst, message, credentials?) =>
-      credentials
-        ? invokeIpc('svn:copy', src, dst, message, credentials)
+    copy: (src, dst, message, authSessionId?) =>
+      authSessionId
+        ? invokeIpc('svn:copy', src, dst, message, authSessionId)
         : invokeIpc('svn:copy', src, dst, message),
-    remoteCreateFolder: (parentUrl, folderName, message, credentials?) =>
-      invokeIpc('svn:remoteCreateFolder', parentUrl, folderName, message, credentials),
-    remoteDelete: (url, message, credentials?) =>
-      invokeIpc('svn:remoteDelete', url, message, credentials),
-    remoteMove: (srcUrl, dstUrl, message, credentials?) =>
-      invokeIpc('svn:remoteMove', srcUrl, dstUrl, message, credentials),
+    remoteCreateFolder: (parentUrl, folderName, message, authSessionId?) =>
+      invokeIpc('svn:remoteCreateFolder', parentUrl, folderName, message, authSessionId),
+    remoteDelete: (url, message, authSessionId?) =>
+      invokeIpc('svn:remoteDelete', url, message, authSessionId),
+    remoteMove: (srcUrl, dstUrl, message, authSessionId?) =>
+      invokeIpc('svn:remoteMove', srcUrl, dstUrl, message, authSessionId),
     merge: (source, target, revisions?, ranges?, options?) =>
       invokeIpc('svn:merge', source, target, revisions, ranges, options),
     mergeWithProgress: (source, target, onProgress, revisions?, ranges?, options?) =>
@@ -323,8 +323,8 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       invokeCancellableWorkerJob(invokeIpc, 'svn-blame', options?.signal, (workerJobId) =>
         invokeIpc('svn:blame', path, startRevision, endRevision, workerJobId)
       ) as Promise<SvnBlameResult>,
-    list: (url, revision?, depth?, credentials?) =>
-      invokeIpc('svn:list', url, revision, depth, credentials) as Promise<SvnListResult>,
+    list: (url, revision?, depth?, authSessionId?) =>
+      invokeIpc('svn:list', url, revision, depth, authSessionId) as Promise<SvnListResult>,
     patch: {
       create: (paths, outputPath) =>
         invokeIpc('svn:patch:create', paths, outputPath) as Promise<{

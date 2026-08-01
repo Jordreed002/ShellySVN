@@ -1,10 +1,10 @@
 export interface RepoBrowserCredentials {
+  id: string;
   username: string;
-  password: string;
 }
 
 export interface RepoBrowserAuthApi {
-  get(realm: string): Promise<RepoBrowserCredentials | null>;
+  resumeSession(realm: string): Promise<RepoBrowserCredentials | null>;
 }
 
 export function getRepoBrowserRealm(url: string): string {
@@ -26,15 +26,10 @@ export async function loadRepoBrowserCredentials(
   const realm = getRepoBrowserRealm(repoUrl);
 
   try {
-    const storedCredentials = await authApi.get(realm);
+    const storedCredentials = await authApi.resumeSession(realm);
     return {
       realm,
-      credentials: storedCredentials
-        ? {
-            username: storedCredentials.username,
-            password: storedCredentials.password,
-          }
-        : null,
+      credentials: storedCredentials,
     };
   } catch {
     return { realm, credentials: null };

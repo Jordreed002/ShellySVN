@@ -10,20 +10,24 @@ import { registerStoreHandlers } from './ipc/store';
 import { closeAllFileWatchers, registerFsHandlers } from './ipc/fs';
 import { registerAuthHandlers } from './ipc/auth';
 import { registerExternalHandlers } from './ipc/external';
-import { registerMonitorHandlers } from './ipc/monitor';
+import { registerMonitorHandlers, stopMonitoring } from './ipc/monitor';
 import { registerShellIntegrationHandlers } from './shell/ShellIntegration';
 import { setupProtocolHandler, registerDeepLinkHandler } from './services/protocol-handler';
 import { registerNotificationHandlers } from './ipc/notification';
 import { registerWebhookHandlers } from './ipc/webhook';
 import { registerSvnCacheHandlers } from './ipc/svn-cache';
+import { registerUpdaterHandlers } from './ipc/updater';
 import { openValidatedExternalUrl } from './utils/external-url';
 import { shutdownSharedWorkerPool } from './workers/WorkerPool';
 import { startLocalStatusServer, stopLocalStatusServer } from './services/local-status-server';
 import { bootstrapApprovedPaths } from './utils/approved-paths';
-import { getSettingsManager } from './settings-manager';
 import { sendToRenderer } from './utils/safe-renderer-send';
+import { getUpdateService } from './services/update-service';
+import { clearAuthSessions } from './services/auth-session-manager';
+import { installSecureIpcBoundary } from './utils/secure-ipc';
 
 let mainWindow: BrowserWindow | null = null;
+let shutdownPromise: Promise<void> | null = null;
 const isSmokeTest = process.argv.includes('--smoke-test');
 const MIN_PACKAGED_BINARY_SIZE_BYTES = 1024;
 
@@ -77,7 +81,7 @@ function runSmokeTest(): number {
     verifyPackagedExecutable(binaries.svn, ['--version', '--quiet'], 'packaged SVN client');
   }
 
-  console.log('[smoke-test] ShellySVN main process initialized successfully.');
+  console.log(`[smoke-test] ShellySVN ${app.getVersion()} main process initialized successfully.`);
   return 0;
 }
 
@@ -121,6 +125,18 @@ function createWindow(): void {
   }
 }
 
+function shutdownApplicationServices(): Promise<void> {
+  stopMonitoring();
+  clearAuthSessions();
+  shutdownPromise ??= Promise.all([
+    closeAllFileWatchers(),
+    stopLocalStatusServer(),
+    shutdownSharedWorkerPool(),
+  ]).then(() => undefined);
+  getUpdateService().dispose();
+  return shutdownPromise;
+}
+
 // Quit when all windows are closed, except on macOS
 app.whenReady().then(() => {
   // Set app user model id for windows
@@ -131,6 +147,8 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
+
+  installSecureIpcBoundary(() => mainWindow?.webContents.id);
 
   // Register IPC handlers
   registerSvnHandlers();
@@ -145,6 +163,7 @@ app.whenReady().then(() => {
   registerShellIntegrationHandlers();
   registerNotificationHandlers();
   registerWebhookHandlers();
+  registerUpdaterHandlers();
   startLocalStatusServer(app.getPath('userData')).catch((error) => {
     console.error('[StatusService] Failed to start local status server:', error);
   });
@@ -183,20 +202,18 @@ app.whenReady().then(() => {
     return;
   }
 
-  // Approve the home directory and recent repositories so the file explorer is
-  // browsable, restoring previously-approved roots persisted across sessions.
+  // Restore only approvals with native-picker provenance. Legacy approvals are
+  // reset because their origin cannot be established safely.
   void (async () => {
     try {
-      const settingsManager = getSettingsManager();
-      await settingsManager.ready();
-      const recentRepos = settingsManager.getSettings().recentRepositories ?? [];
-      await bootstrapApprovedPaths(recentRepos);
+      await bootstrapApprovedPaths();
     } catch (error) {
       console.error('[approved-paths] Bootstrap failed:', error);
     }
   })();
 
   createWindow();
+  void getUpdateService().initialize(shutdownApplicationServices);
 
   app.on('activate', () => {
     // On macOS, re-create window when dock icon is clicked
@@ -212,9 +229,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  void closeAllFileWatchers();
-  void stopLocalStatusServer();
-  void shutdownSharedWorkerPool();
+  void shutdownApplicationServices();
 });
 
 // Handle certificate errors (for self-signed SVN servers)

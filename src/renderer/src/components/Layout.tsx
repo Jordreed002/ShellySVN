@@ -12,6 +12,9 @@ import { ShellMark } from './ShellMark';
 
 const Sidebar = lazy(() => import('./Sidebar').then((mod) => ({ default: mod.Sidebar })));
 const StatusBar = lazy(() => import('./ui/StatusBar').then((mod) => ({ default: mod.StatusBar })));
+const UpdateBanner = lazy(() =>
+  import('./ui/UpdateBanner').then((mod) => ({ default: mod.UpdateBanner }))
+);
 const RepositoryPillControl = lazy(() =>
   import('./layout/RepositoryPillControl').then((mod) => ({ default: mod.RepositoryPillControl }))
 );
@@ -371,6 +374,10 @@ export function Layout({ children }: LayoutProps) {
           </Suspense>
         </div>
       </header>
+
+      <Suspense fallback={null}>
+        <UpdateBanner />
+      </Suspense>
 
       {/* Main Content Area - Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">

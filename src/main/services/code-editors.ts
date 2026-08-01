@@ -17,9 +17,8 @@ import { access } from 'fs/promises';
 import { homedir } from 'os';
 import { delimiter, join } from 'path';
 
-import type { CustomOpenWithTool } from '@shared/types';
-import { getSettingsManager } from '../settings-manager';
 import { debug } from '../utils/debug';
+import { getExternalToolRegistry } from './external-tool-registry';
 
 export interface CodeEditorDefinition {
   id: string;
@@ -177,17 +176,6 @@ async function resolveOnPath(command: string): Promise<string | null> {
 /** Prefix that marks an id as coming from settings rather than the fixed table. */
 const CUSTOM_PREFIX = 'custom:';
 
-function customTools(): CustomOpenWithTool[] {
-  try {
-    return getSettingsManager().get('customOpenWithTools') ?? [];
-  } catch (error) {
-    // Settings unavailable (very early startup, or no Electron app): the built-in
-    // editors still work, so this is a degradation and not a failure.
-    debug.warn('[Editors] Could not read custom applications:', error);
-    return [];
-  }
-}
-
 /**
  * Split an arguments template into argv, honouring quotes and substituting the
  * target path for `{path}`. Without a `{path}` the path is appended, which is
@@ -250,20 +238,15 @@ export async function listCodeEditors(
    * error naming the command rather than a row that quietly never appears —
    * which is indistinguishable from the feature being broken.
    */
-  const custom = customTools().flatMap((tool) => {
-    const name = tool.name?.trim();
-    const command = tool.command?.trim();
-    if (!name || !command) return [];
-    return [
-      {
-        id: `${CUSTOM_PREFIX}${tool.id}`,
-        label: name,
-        command,
-        appliesTo: tool.appliesTo ?? ('both' as const),
-        custom: true,
-      },
-    ];
-  });
+  const custom = (await getExternalToolRegistry().list())
+    .filter((tool) => tool.roles.includes('editor'))
+    .map((tool) => ({
+      id: tool.id,
+      label: tool.name,
+      command: 'Registered application',
+      appliesTo: 'both' as const,
+      custom: true,
+    }));
 
   return [...(await cachedEditors), ...custom];
 }
@@ -294,29 +277,7 @@ interface ResolvedLaunch {
  */
 async function resolveLaunch(editorId: string, targetPath: string): Promise<ResolvedLaunch> {
   if (editorId.startsWith(CUSTOM_PREFIX)) {
-    const tool = customTools().find((candidate) => `${CUSTOM_PREFIX}${candidate.id}` === editorId);
-    if (!tool) {
-      return { error: 'That application is no longer configured in Settings.' };
-    }
-
-    const command = tool.command.trim();
-    /*
-     * On macOS a `.app` is a directory, not something to exec: `open -a` is how
-     * you launch one, and it takes the target after `--args`-free positional
-     * form. Anything else is treated as a launcher to resolve.
-     */
-    if (process.platform === 'darwin' && command.toLowerCase().endsWith('.app')) {
-      return { launcher: '/usr/bin/open', args: ['-a', command, targetPath], label: tool.name };
-    }
-
-    const resolved = command.includes('/') || command.includes('\\')
-      ? command
-      : ((await resolveOnPath(command)) ?? command);
-    return {
-      launcher: resolved,
-      args: buildCustomArgs(tool.arguments, targetPath),
-      label: tool.name,
-    };
+    return { error: 'Legacy custom applications are disabled. Re-register this tool in Settings.' };
   }
 
   const editor = EDITORS_BY_ID.get(editorId);
@@ -356,7 +317,7 @@ export async function openInCodeEditor(
         detached: true,
         stdio: 'ignore',
         // `code` and friends are `.cmd` shims on Windows, which need a shell.
-        shell: process.platform === 'win32',
+        shell: false,
         // Editors shell out to node, git and their own tooling; hand them a PATH
         // that has those on it rather than launchd's four directories.
         env: { ...process.env, PATH: searchDirectories().join(delimiter) },

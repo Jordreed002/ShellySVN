@@ -1,12 +1,13 @@
 import { test, expect } from '../helpers/electron-fixture';
+import type { ElectronApplication, Page } from '@playwright/test';
 
-async function openRepoBrowser(page: import('@playwright/test').Page): Promise<void> {
-  await page.click('a:has-text("Repo Browser")');
-  await expect(page.getByText('Repository Browser').first()).toBeVisible();
+async function openRepoBrowser(page: Page): Promise<void> {
+  await page.getByRole('link', { name: 'Repository browser', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /repository browser/i })).toBeVisible();
 }
 
-async function installRepoBrowserMocks(page: import('@playwright/test').Page): Promise<void> {
-  await page.evaluate(() => {
+async function installRepoBrowserMocks(electronApp: ElectronApplication): Promise<void> {
+  await electronApp.evaluate(({ ipcMain }) => {
     const state = {
       mode: 'success',
       authAttempts: 0,
@@ -14,7 +15,7 @@ async function installRepoBrowserMocks(page: import('@playwright/test').Page): P
         url: string;
         revision?: string;
         depth?: string;
-        credentials?: { username: string; password: string };
+        authSessionId?: string;
       }>,
     };
 
@@ -56,65 +57,100 @@ async function installRepoBrowserMocks(page: import('@playwright/test').Page): P
           ],
     });
 
-    (
-      window as typeof window & {
-        __repoBrowserE2e: {
-          auth: { get: () => Promise<null> };
-          svnList: (
-            url: string,
-            revision?: string,
-            depth?: 'empty' | 'immediates' | 'infinity',
-            credentials?: { username: string; password: string }
-          ) => Promise<ReturnType<typeof makeEntries>>;
-        };
-      }
-    ).__repoBrowserE2e = {
-      auth: {
-        get: async () => null,
-      },
-      svnList: async (url, revision, depth, credentials) => {
-        state.calls.push({ url, revision, depth, credentials });
+    const testGlobal = globalThis as typeof globalThis & {
+      __repoBrowserMockState: typeof state;
+    };
+    testGlobal.__repoBrowserMockState = state;
+
+    ipcMain.removeHandler('auth:resumeSession');
+    ipcMain.handle('auth:resumeSession', () => Promise.resolve(null));
+    ipcMain.removeHandler('auth:beginSession');
+    ipcMain.handle('auth:beginSession', (_event, request: { realm: string; username: string }) =>
+      Promise.resolve({
+        id: 'e2e-auth-session',
+        realm: request.realm,
+        username: request.username,
+        persistent: false,
+        expiresAt: null,
+      })
+    );
+    ipcMain.removeHandler('svn:list');
+    ipcMain.handle(
+      'svn:list',
+      (
+        _event,
+        url: string,
+        revision?: string,
+        depth?: 'empty' | 'immediates' | 'infinity',
+        authSessionId?: string
+      ) => {
+        state.calls.push({ url, revision, depth, authSessionId });
         if (state.mode === 'auth-once' && state.authAttempts === 0) {
           state.authAttempts += 1;
-          throw new Error('E215004: Authentication failed');
+          return Promise.resolve({
+            path: url,
+            entries: [],
+            error: 'E215004: Authentication failed',
+            errorCode: 'auth-required',
+          });
         }
         if (state.mode === 'network-error') {
-          throw new Error('Repository unavailable');
+          return Promise.resolve({
+            path: url,
+            entries: [],
+            error: 'Repository unavailable',
+          });
         }
-        return makeEntries(url);
-      },
-    };
-
-    (window as typeof window & { __repoBrowserMockState: typeof state }).__repoBrowserMockState =
-      state;
+        return Promise.resolve({ path: url, ...makeEntries(url) });
+      }
+    );
+    ipcMain.removeHandler('svn:proplist');
+    ipcMain.handle('svn:proplist', () => Promise.resolve({ properties: [] }));
   });
 }
 
+async function setRepoBrowserMockMode(
+  electronApp: ElectronApplication,
+  mode: 'success' | 'auth-once' | 'network-error'
+): Promise<void> {
+  await electronApp.evaluate((_electron, nextMode) => {
+    const state = (
+      globalThis as typeof globalThis & {
+        __repoBrowserMockState: { mode: string; authAttempts: number };
+      }
+    ).__repoBrowserMockState;
+    state.mode = nextMode;
+    if (nextMode === 'auth-once') state.authAttempts = 0;
+  }, mode);
+}
+
 test.describe('Repository Browser', () => {
-  test.beforeEach(async ({ page }) => {
-    await installRepoBrowserMocks(page);
+  test.beforeEach(async ({ electronApp, page }) => {
+    await installRepoBrowserMocks(electronApp);
     await openRepoBrowser(page);
   });
 
-  test('filters listings and prefetches directory navigation', async ({ page }) => {
-    await page.getByPlaceholder(/repository URL/i).fill('https://svn.example.com/repo/trunk');
+  test('filters listings and navigates into a directory', async ({ electronApp, page }) => {
+    await page.getByLabel('Repository URL').fill('https://svn.example.com/repo/trunk');
     await page.getByRole('button', { name: /connect/i }).click();
 
     await expect(page.getByText('src').first()).toBeVisible();
     await expect(page.getByText('README.md').first()).toBeVisible();
 
-    await page.getByPlaceholder('Filter...').fill('readme');
+    const filter = page.getByRole('searchbox', { name: 'Filter this folder' });
+    await filter.fill('readme');
     await expect(page.getByText('README.md').first()).toBeVisible();
-    await expect(page.getByText('src').first()).toBeHidden();
+    await expect(page.getByRole('grid').getByText('src', { exact: true }).first()).toBeHidden();
 
-    await page.getByPlaceholder('Filter...').fill('');
-    await page.getByText('src').first().hover();
+    await filter.fill('');
+    await page.getByRole('row', { name: /Directory src/ }).dblclick();
+    await expect(page.getByText('index.ts').first()).toBeVisible();
 
     await expect
       .poll(() =>
-        page.evaluate(() =>
+        electronApp.evaluate(() =>
           (
-            window as typeof window & {
+            globalThis as typeof globalThis & {
               __repoBrowserMockState: { calls: Array<{ url: string }> };
             }
           ).__repoBrowserMockState.calls.some((call) => call.url.endsWith('/src'))
@@ -123,36 +159,27 @@ test.describe('Repository Browser', () => {
       .toBe(true);
   });
 
-  test('recovers through auth prompts and connection errors', async ({ page }) => {
-    await page.evaluate(() => {
-      (
-        window as typeof window & { __repoBrowserMockState: { mode: string; authAttempts: number } }
-      ).__repoBrowserMockState.mode = 'auth-once';
-    });
+  test('recovers through auth prompts and connection errors', async ({ electronApp, page }) => {
+    await setRepoBrowserMockMode(electronApp, 'auth-once');
 
-    await page.getByPlaceholder(/repository URL/i).fill('https://svn.example.com/repo/trunk');
+    await page.getByLabel('Repository URL').fill('https://svn.example.com/repo/trunk');
     await page.getByRole('button', { name: /connect/i }).click();
 
-    await expect(page.getByText('Authentication Required')).toBeVisible();
+    await expect(page.getByText(/Authentication required/i)).toBeVisible();
     await page.getByLabel('Username').fill('alice');
     await page.getByLabel('Password').fill('secret');
     await page.getByRole('button', { name: /authenticate/i }).click();
     await expect(page.getByText('README.md').first()).toBeVisible();
 
-    await page.evaluate(() => {
-      (
-        window as typeof window & { __repoBrowserMockState: { mode: string } }
-      ).__repoBrowserMockState.mode = 'network-error';
-    });
+    await setRepoBrowserMockMode(electronApp, 'network-error');
+    await page.getByRole('link', { name: 'Home', exact: true }).click();
+    await openRepoBrowser(page);
+    await page.getByLabel('Repository URL').fill('https://svn.example.com/repo/trunk');
     await page.getByRole('button', { name: /connect/i }).click();
-    await expect(page.getByText('Connection Failed')).toBeVisible();
+    await expect(page.getByText(/Connection failed/i)).toBeVisible();
     await expect(page.getByText('Repository unavailable')).toBeVisible();
 
-    await page.evaluate(() => {
-      (
-        window as typeof window & { __repoBrowserMockState: { mode: string } }
-      ).__repoBrowserMockState.mode = 'success';
-    });
+    await setRepoBrowserMockMode(electronApp, 'success');
     await page.getByRole('button', { name: /connect/i }).click();
     await expect(page.getByText('README.md').first()).toBeVisible();
   });

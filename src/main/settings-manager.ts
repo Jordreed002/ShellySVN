@@ -12,7 +12,7 @@
  */
 
 import { app, safeStorage } from 'electron';
-import { readFile, writeFile, access, mkdir } from 'fs/promises';
+import { readFile, access, chmod } from 'fs/promises';
 import { accessSync, constants, existsSync, statSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join } from 'path';
@@ -24,6 +24,7 @@ import {
   validateExternalToolSetting,
 } from './utils/external-tool-validation';
 import { assertPathApprovedForIpc } from './utils/approved-paths';
+import { writeSecureJson } from './utils/secure-json';
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
@@ -69,10 +70,30 @@ class SettingsManager {
   private async load(): Promise<void> {
     try {
       await access(this.filePath);
+      if (process.platform !== 'win32') await chmod(this.filePath, 0o600);
       const content = await readFile(this.filePath, 'utf-8');
       const stored = JSON.parse(content);
       // Merge with defaults to ensure all fields exist
       this.settings = mergeSettings(stored.settings || stored);
+
+      const safeToolId = (value: string, allowedAliases: ReadonlySet<string>) =>
+        allowedAliases.has(value.toLowerCase()) || value.startsWith('registered:') ? value : '';
+      this.settings.diffMerge.externalDiffTool = safeToolId(
+        this.settings.diffMerge.externalDiffTool,
+        KNOWN_DIFF_TOOL_ALIASES
+      );
+      this.settings.diffMerge.externalMergeTool = safeToolId(
+        this.settings.diffMerge.externalMergeTool,
+        KNOWN_MERGE_TOOL_ALIASES
+      );
+      this.settings.diffMerge.externalToolOverrides = this.settings.diffMerge.externalToolOverrides
+        .map((override) => ({
+          ...override,
+          diffTool: safeToolId(override.diffTool, KNOWN_DIFF_TOOL_ALIASES),
+          mergeTool: safeToolId(override.mergeTool, KNOWN_MERGE_TOOL_ALIASES),
+        }))
+        .filter((override) => override.diffTool || override.mergeTool);
+      this.settings.customOpenWithTools = [];
 
       // SECURITY: Decrypt proxy password if it exists and is encrypted
       if (this.settings.proxySettings?.password) {
@@ -92,6 +113,10 @@ class SettingsManager {
     if (!trimmedPath) return;
 
     const approvedPath = assertPathApprovedForIpc(trimmedPath, 'Custom SVN client selection');
+
+    if (/\.(?:cmd|bat|ps1|vbs|js|mjs|cjs|py|pl|rb|sh)$/i.test(approvedPath)) {
+      throw new Error('Custom SVN clients must be native executables, not scripts or command wrappers.');
+    }
 
     if (!existsSync(approvedPath)) {
       throw new Error('Custom SVN client path does not exist.');
@@ -157,10 +182,6 @@ class SettingsManager {
 
     this.savePromise = (async () => {
       try {
-        // Ensure directory exists (mkdir with recursive won't throw if exists)
-        const dir = join(this.filePath, '..');
-        await mkdir(dir, { recursive: true });
-
         // Read existing file to preserve other keys
         let existingData: Record<string, unknown> = {};
         try {
@@ -176,7 +197,7 @@ class SettingsManager {
         // Update only the settings key
         existingData.settings = settingsToSave;
 
-        await writeFile(this.filePath, JSON.stringify(existingData, null, 2), 'utf-8');
+        await writeSecureJson(this.filePath, existingData);
       } catch (error) {
         console.error('[SettingsManager] Failed to save settings:', error);
       }
@@ -291,18 +312,26 @@ class SettingsManager {
     }
     this.validateLogCacheSettings(updates.logCachePath, updates.maxLogCacheSize);
     if (updates.diffMerge?.externalDiffTool !== undefined) {
+      if (updates.diffMerge.externalDiffTool.startsWith('registered:')) {
+        // Registry ownership and role are checked when the tool is launched.
+      } else {
       validateExternalToolSetting(
         updates.diffMerge.externalDiffTool,
         'External diff tool',
         KNOWN_DIFF_TOOL_ALIASES
       );
+      }
     }
     if (updates.diffMerge?.externalMergeTool !== undefined) {
+      if (updates.diffMerge.externalMergeTool.startsWith('registered:')) {
+        // Registry ownership and role are checked when the tool is launched.
+      } else {
       validateExternalToolSetting(
         updates.diffMerge.externalMergeTool,
         'External merge tool',
         KNOWN_MERGE_TOOL_ALIASES
       );
+      }
     }
     if (updates.diffMerge?.externalToolOverrides !== undefined) {
       for (const override of updates.diffMerge.externalToolOverrides) {
@@ -321,6 +350,9 @@ class SettingsManager {
           );
         }
       }
+    }
+    if (updates.customOpenWithTools?.length) {
+      throw new Error('Legacy command-based external tools are no longer supported.');
     }
 
     this.settings = mergeDeep(

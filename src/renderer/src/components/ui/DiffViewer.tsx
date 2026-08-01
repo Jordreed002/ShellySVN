@@ -37,17 +37,10 @@ export function DiffViewer({ isOpen, filePath, onClose }: DiffViewerProps) {
 
     setIsOpeningExternal(true);
     try {
-      // For working copy diff, we compare BASE vs working file
-      // Export BASE revision to a temp location for comparison
-      const tempPath = await window.api.app.getPath('temp');
-      const baseFileName = `.svn-tmp-base-${Date.now()}-${filePath.split(/[/\\]/).pop()}`;
-      const basePath = `${tempPath}/${baseFileName}`;
-
-      // Export the BASE revision
-      await window.api.svn.export(filePath, basePath, 'BASE');
-
-      // Open external diff tool with BASE (left) vs working copy (right)
-      const result = await window.api.external.openDiffTool(externalDiffTool, basePath, filePath);
+      const result = await window.api.external.openWorkingCopyDiff({
+        toolId: externalDiffTool,
+        workingPath: filePath,
+      });
 
       if (!result.success) {
         setError(result.error || 'Failed to open external diff tool');

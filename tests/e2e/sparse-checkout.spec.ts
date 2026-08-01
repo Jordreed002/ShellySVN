@@ -11,20 +11,31 @@ test.describe('Sparse Checkout - Basic UI', () => {
 
   test('can open checkout dialog via Add Repository', async ({ page }) => {
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     const modalText = await page.locator('.modal').textContent();
     expect(modalText?.toLowerCase()).toMatch(/repository|add|open|checkout/);
 
-    await page.screenshot({ path: 'tests/results/sparse-01-add-repo-modal.png' });
+    await page.screenshot({
+      path: 'tests/results/sparse-01-add-repo-modal.png',
+    });
 
     await page.getByTestId('modal-close-button').click();
-    await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 3000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'hidden',
+      timeout: 3000,
+    });
   });
 
   test('checkout dialog has URL input', async ({ page }) => {
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
     if ((await checkoutTab.count()) > 0) {
@@ -44,7 +55,10 @@ test.describe('Sparse Checkout - Basic UI', () => {
 
   test('checkout dialog has depth selector', async ({ page }) => {
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
     if ((await checkoutTab.count()) > 0) {
@@ -71,7 +85,10 @@ test.describe('Sparse Checkout - ChooseItemsDialog', () => {
 
   test('Choose items button appears when URL is entered', async ({ page }) => {
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
     if ((await checkoutTab.count()) > 0) {
@@ -99,7 +116,10 @@ test.describe('Sparse Checkout - ChooseItemsDialog', () => {
 
   test('Clicking Choose items opens item picker dialog', async ({ page }) => {
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
     if ((await checkoutTab.count()) > 0) {
@@ -123,14 +143,20 @@ test.describe('Sparse Checkout - ChooseItemsDialog', () => {
       const chooseItemsTitle = page.locator('h2.modal-title:has-text("Choose Items")');
       await chooseItemsTitle.waitFor({ state: 'visible', timeout: 30000 });
 
-      await page.screenshot({ path: 'tests/results/sparse-03-choose-items-dialog.png' });
+      await page.screenshot({
+        path: 'tests/results/sparse-03-choose-items-dialog.png',
+      });
 
       // Verify the dialog title
       const title = await chooseItemsTitle.textContent();
       expect(title).toContain('Choose Items to Checkout');
 
       // Close the dialog
-      const cancelButton = page.locator('.modal:has(h2.modal-title:has-text("Choose Items")) .modal-footer button:has-text("Cancel")').first();
+      const cancelButton = page
+        .locator(
+          '.modal:has(h2.modal-title:has-text("Choose Items")) .modal-footer button:has-text("Cancel")'
+        )
+        .first();
       if ((await cancelButton.count()) > 0) {
         await cancelButton.click();
       }
@@ -149,7 +175,7 @@ test.describe('Sparse Checkout - Repo Browser', () => {
   });
 
   test('can navigate to Repo Browser', async ({ page }) => {
-    await page.click('a:has-text("Repo Browser")');
+    await page.getByRole('link', { name: 'Repository browser', exact: true }).click();
     await page.waitForTimeout(500);
 
     await page.screenshot({ path: 'tests/results/sparse-04-repo-browser.png' });
@@ -159,7 +185,7 @@ test.describe('Sparse Checkout - Repo Browser', () => {
   });
 
   test('Repo Browser has URL input', async ({ page }) => {
-    await page.click('a:has-text("Repo Browser")');
+    await page.getByRole('link', { name: 'Repository browser', exact: true }).click();
     await page.waitForTimeout(500);
 
     const urlInput = page.locator('main input[type="text"]').first();
@@ -178,23 +204,25 @@ test.describe('Sparse Checkout - File Explorer Remote Items', () => {
   });
 
   test('can navigate to File Explorer', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
-    await page.screenshot({ path: 'tests/results/sparse-05-file-explorer.png' });
+    await page.screenshot({
+      path: 'tests/results/sparse-05-file-explorer.png',
+    });
 
     const main = page.locator('main');
     await expect(main).toBeVisible();
   });
 
   test('File Explorer may offer the "not checked out" toggle', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     // A view setting, so it lives in the View options menu — and it is only
     // offered inside a working copy, which this fixture may not have opened.
     const viewOptions = page.locator('button[aria-label="View options"]');
-    if ((await viewOptions.count()) > 0) {
+    if ((await viewOptions.count()) > 0 && (await viewOptions.first().isVisible())) {
       await viewOptions.first().click();
       await page.waitForTimeout(200);
     }
@@ -205,7 +233,9 @@ test.describe('Sparse Checkout - File Explorer Remote Items', () => {
     const count = await notCheckedOutToggle.count();
 
     if (count > 0) {
-      await page.screenshot({ path: 'tests/results/sparse-06-not-checked-out-toggle.png' });
+      await page.screenshot({
+        path: 'tests/results/sparse-06-not-checked-out-toggle.png',
+      });
     }
 
     expect(count).toBeGreaterThanOrEqual(0);

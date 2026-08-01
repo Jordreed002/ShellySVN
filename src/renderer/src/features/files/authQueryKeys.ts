@@ -1,9 +1,9 @@
-import type { AuthCredential } from '@shared/types';
+import type { AuthSession } from '@shared/types';
 
 type SvnListScope = 'online' | 'remote';
 
 export function getAuthPresenceKey(
-  credentials: AuthCredential | null | undefined
+  credentials: AuthSession | null | undefined
 ): 'stored' | 'anonymous' {
   return credentials ? 'stored' : 'anonymous';
 }

@@ -225,7 +225,13 @@ describe('useLazyTreeLoader', () => {
     });
 
     it('should update the authenticated root cache key when loading children', async () => {
-      const credentials = { username: 'alice', password: 'secret' };
+      const credentials = {
+        id: 'session-alice',
+        realm: 'https://svn.example.com',
+        username: 'alice',
+        persistent: false,
+        expiresAt: null,
+      };
       mockSvnList
         .mockResolvedValueOnce(
           createMockListResult('https://svn.example.com/repo/trunk', [
@@ -258,7 +264,7 @@ describe('useLazyTreeLoader', () => {
 
       const authenticatedCache = queryClient.getQueryData<{
         nodes: Array<{ path: string; children: Array<{ name: string }> }>;
-      }>(['svn:tree', 'https://svn.example.com/repo/trunk', 'alice']);
+      }>(['svn:tree', 'https://svn.example.com/repo/trunk', 'session-alice']);
       const unauthenticatedCache = queryClient.getQueryData([
         'svn:tree',
         'https://svn.example.com/repo/trunk',

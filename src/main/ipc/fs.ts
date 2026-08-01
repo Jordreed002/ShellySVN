@@ -770,8 +770,8 @@ export function registerFsHandlers(): void {
     'fs:readImageAsBase64',
     async (_, filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
       try {
-        // SECURITY: Validate path and allowed extensions
-        const validatedPath = validatePath(filePath, {
+        const approvedPath = assertApprovedFsPath(filePath, 'Image preview');
+        const validatedPath = validatePath(approvedPath, {
           mustExist: true,
           mustBeFile: true,
           allowedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp'],

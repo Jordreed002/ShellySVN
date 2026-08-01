@@ -56,7 +56,7 @@ export interface UseRepoListingOptions {
     url: string,
     revision: string,
     depth: RepoListDepth,
-    credentials: RepoBrowserCredentials | undefined
+    authSessionId: string | undefined
   ) => Promise<SvnListResult>;
 }
 
@@ -113,8 +113,8 @@ export function useRepoListing(
     queryFn: () =>
       readCachedList(url, revision, depth, credentials?.username ?? '', () =>
         listFn
-          ? listFn(url, revision, depth, credentials ?? undefined)
-          : window.api.svn.list(url, revision, depth, credentials ?? undefined)
+          ? listFn(url, revision, depth, credentials?.id)
+          : window.api.svn.list(url, revision, depth, credentials?.id)
       ),
     enabled: enabled && url.length > 0,
     staleTime,

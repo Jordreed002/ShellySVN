@@ -370,7 +370,7 @@ export function appErrorToSparseError(appError: AppError): SparseCheckoutError {
  * Session credentials cache (memory only, not persisted)
  */
 class CredentialCache {
-  private cache = new Map<string, { username: string; password: string }>();
+  private cache = new Map<string, import('@shared/types').AuthSession>();
 
   getKey(url: string): string {
     try {
@@ -381,11 +381,11 @@ class CredentialCache {
     }
   }
 
-  set(url: string, credentials: { username: string; password: string }): void {
+  set(url: string, credentials: import('@shared/types').AuthSession): void {
     this.cache.set(this.getKey(url), credentials);
   }
 
-  get(url: string): { username: string; password: string } | undefined {
+  get(url: string): import('@shared/types').AuthSession | undefined {
     return this.cache.get(this.getKey(url));
   }
 
