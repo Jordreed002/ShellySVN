@@ -1467,6 +1467,8 @@ J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should h
 J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should handle sequential saves correctly,existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should not expose passwords in list output,existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should use encryption for password storage,existing
+J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,tightens an existing store to 0o600 on POSIX,existing
+J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,skips the chmod on Windows (no permission bits),existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/cli-parser-boundary.test.ts,CLI parser boundary,keeps shellysvn-cli as a thin shelly-engine JSON client instead of duplicating SVN parsers,existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/compiled-binary-smoke.test.ts,compiled binary smoke verification,covers every release target and executes both bundled binaries,existing
 J14,unit,Shared/Core,src/main/__tests__/diff-parser.test.ts,StreamingDiffParser,should parse a simple diff,existing

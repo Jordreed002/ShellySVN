@@ -124,8 +124,10 @@ Three genuine Windows bugs were fixed during this loop (commits `fix(win):`):
 - [x] **W16** — `svn-diagnostics`: win32 `.exe` binary-name resolution.
 - [x] **W17** — `settings-manager`: win32 custom-SVN-client rules (`svn.exe`
   default, X_OK skip, `.cmd` rejection at write time).
-- [ ] **W18** — `store` / `auth-cache` `chmod 0o600` skip on win32 (low value; load
-  fires at registration so needs a reload seam — only if a clean seam emerges).
+- [ ] **W18** — `chmod 0o600` skip on win32. `auth-cache` load-time chmod done
+  (tightens to 0600 on POSIX, skipped on win32); `ipc/store` remains — its load
+  fires during `registerStoreHandlers()` in the test's beforeEach, before the
+  `access` mock can be flipped to resolve, so it needs a reload seam.
 - [x] **W19** — Sweep for any remaining `process.platform` branches not yet pinned.
   Found and covered `ipc/fs.ts` `getParentPath`: win32 drive-root navigation,
   including the drive-relative → `DRIVES://` branch (exported the pure helper,
