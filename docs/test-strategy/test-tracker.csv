@@ -1094,10 +1094,10 @@ J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show 
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,rejects a missing or non-string body,existing
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,rejects oversized payloads,existing
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,accepts payloads at exactly the length limits,existing
-J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,searches the Homebrew install directories on macOS,existing
-J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,searches the macOS JetBrains Toolbox scripts directory,existing
-J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,does not search the Linux JetBrains Toolbox path on macOS,existing
-J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,does not append any well-known directories on Windows,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,searches the Homebrew install directories on macOS,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,searches the macOS JetBrains Toolbox scripts directory,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,does not search the Linux JetBrains Toolbox path on macOS,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,does not append any well-known directories on Windows,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers only the editors whose launcher is on PATH,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers nothing when PATH holds no editor at all,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"searches every PATH entry, not just the first",existing
@@ -1120,6 +1120,10 @@ J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEdito
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,honours a custom PATHEXT and ignores extensions it does not list,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,does not query a login shell on Windows (PATH is taken as-is),existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,falls back to the default extension set when PATHEXT is unset,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,accepts a .app bundle directory and strips the extension from its name,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,still rejects an ordinary directory that is not a .app bundle,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,launches a .app bundle through /usr/bin/open -a with the expanded arguments,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,"launches an ordinary executable directly, not through open -a",existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,accepts the canonical placeholder templates for each role,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,accepts literal flags alongside placeholders,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,allows placeholders from any of the declared roles in a multi-role tool,existing
@@ -1135,6 +1139,11 @@ J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.te
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a normal executable binary,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a binary that lacks the execute bit (X_OK is skipped on Windows),existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a world-writable binary (mode check is skipped on Windows),existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,resolves the helper path to the Finder Sync extension,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,reports macOS as the platform with Finder badges gated on registration,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,surfaces the macOS missing-helper repair guidance and badge limitation,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,refuses to register when the Finder Sync helper is missing,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,caches overlay status on macOS without invoking a native helper,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,reports missing native helper with app fallback guidance,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Windows Explorer commands for common working-copy actions,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Windows overlay icons for the full SVN status set,existing
@@ -1886,6 +1895,10 @@ J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusS
 J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,normalizes cache lookup paths,existing
 J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,expires deep status entries after the cache TTL,existing
 J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,evicts least recently used deep status entries when bounded,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,treats drive-letter case and separator style as equivalent,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,stores a single entry for case/separator variants of the same path,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,invalidates case-insensitively across separators,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,is case-sensitive on POSIX (no lowercasing),existing
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,strips null bytes before passing commit messages to hooks and svn,existing
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,uses sanitized messages for progress commits,existing
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,"runs start, pre, svn, and post commit in order",existing

@@ -7,13 +7,13 @@
 
 | Layer | Test files | Test cases |
 |---|---|---|
-| Unit | — | 1941 |
+| Unit | — | 1954 |
 | Integration / real | — | 14 |
 | Performance | — | 28 |
 | E2E | 0 | 87 |
-| **Total** | **224** | **2070** |
+| **Total** | **226** | **2083** |
 
-**Baseline:** `1983` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 87 E2E tests are mostly structural today.
+**Baseline:** `1996` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 87 E2E tests are mostly structural today.
 
 **Planned gaps to write:** 12 (see list below).
 
@@ -23,13 +23,13 @@
 |---|---|
 | J1 — First-run onboarding | 16 |
 | J10 — Sparse-checkout management | 0 |
-| J11 — Settings & configuration | 152 |
+| J11 — Settings & configuration | 161 |
 | J12 — Properties & metadata | 29 |
 | J13 — Diagnostics & recovery | 5 |
 | J14 — App lifecycle & integrations | 289 |
 | J2 — Repository checkout | 193 |
 | J3 — Repository browsing | 157 |
-| J4 — Daily edit & commit loop | 112 |
+| J4 — Daily edit & commit loop | 116 |
 | J5 — Update & stay in sync | 19 |
 | J6 — Conflict resolution | 27 |
 | J7 — History & investigation | 47 |
@@ -62,11 +62,11 @@
 | unit / Shared/Core | 176 |
 | unit / Checkout | 167 |
 | unit / Repo Browser | 152 |
-| unit / Settings | 118 |
+| unit / Settings | 127 |
 | unit / Lifecycle/Auth | 113 |
 | unit / Commit | 56 |
 | unit / History | 44 |
-| unit / File Explorer | 35 |
+| unit / File Explorer | 39 |
 | unit / Properties | 29 |
 | e2e / Uncategorized | 27 |
 | unit / Conflict Resolution | 26 |
