@@ -443,6 +443,8 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,should handle complex objects,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,should return undefined after delete,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,should overwrite existing values,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,tightens an existing config to 0o600 on POSIX,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,skips the chmod on Windows (no permission bits),existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,registers the complete cache contract,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,passes a validated transactional set to the service,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,validates clear timestamps,existing

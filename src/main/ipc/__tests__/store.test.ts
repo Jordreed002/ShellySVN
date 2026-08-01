@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Tests for Store IPC Handlers
  *
@@ -11,6 +12,16 @@ const mockIpcMainHandle = vi.hoisted(() => vi.fn());
 const mockGetPath = vi.hoisted(() => vi.fn().mockReturnValue('/test/user-data'));
 const mockWriteSecureJson = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
+// Hoisted fs/promises mocks so both 'fs/promises' and 'node:fs/promises'
+// specifiers resolve to the same fns (store.ts imports the bare form).
+const fsMocks = vi.hoisted(() => ({
+  access: vi.fn().mockRejectedValue(new Error('ENOENT')),
+  readFile: vi.fn().mockResolvedValue('{}'),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  chmod: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock electron module
 vi.mock('electron', () => ({
   app: {
@@ -21,12 +32,11 @@ vi.mock('electron', () => ({
   },
 }));
 
-// Mock fs/promises - skip fs-dependent tests
-vi.mock('node:fs/promises', () => ({
-  access: vi.fn().mockRejectedValue(new Error('ENOENT')),
-  readFile: vi.fn().mockResolvedValue('{}'),
-  writeFile: vi.fn().mockResolvedValue(undefined),
-  mkdir: vi.fn().mockResolvedValue(undefined),
+// Mock fs/promises - store.ts imports the bare specifier, so mock that and
+// preserve the module's default/other exports via importOriginal.
+vi.mock('fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('fs/promises')>()),
+  ...fsMocks,
 }));
 
 vi.mock('../../utils/secure-json', () => ({
@@ -47,7 +57,8 @@ vi.mock('../../settings-manager', () => ({
 }));
 
 // Import after mocking
-import { registerStoreHandlers } from '../store';
+import { access, chmod, readFile } from 'fs/promises';
+import { registerStoreHandlers, resetStoreForTests } from '../store';
 
 describe('Store IPC Handlers', () => {
   // Store registered handlers
@@ -188,6 +199,61 @@ describe('Store IPC Handlers', () => {
       const result = await getHandler!({}, 'shellysvn:overwriteKey');
 
       expect(result).toBe('value2');
+    });
+  });
+
+  /*
+   * Load-time file permissions. When an existing config file is found, load()
+   * tightens it to 0o600 on POSIX and skips the chmod on win32 (no permission
+   * bits). The store loads lazily on first handler invocation, so reset the
+   * singleton, point access at an existing file, and drive a handler.
+   */
+  describe('load-time file permissions', () => {
+    const originalPlatform = process.platform;
+    const mockAccess = vi.mocked(access);
+    const mockReadFile = vi.mocked(readFile);
+    const mockChmod = vi.mocked(chmod);
+
+    beforeEach(() => {
+      resetStoreForTests();
+      mockAccess.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue('{}');
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+      resetStoreForTests();
+    });
+
+    it('tightens an existing config to 0o600 on POSIX', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+        writable: true,
+      });
+
+      await handlers.get('store:get')!({}, 'settings');
+
+      expect(mockChmod).toHaveBeenCalledWith(
+        expect.stringContaining('shellysvn-config.json'),
+        0o600
+      );
+    });
+
+    it('skips the chmod on Windows (no permission bits)', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+        writable: true,
+      });
+
+      await handlers.get('store:get')!({}, 'settings');
+
+      expect(mockChmod).not.toHaveBeenCalled();
     });
   });
 });

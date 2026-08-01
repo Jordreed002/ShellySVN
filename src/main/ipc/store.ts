@@ -147,6 +147,14 @@ async function getStore(): Promise<SimpleStore> {
   return storePromise;
 }
 
+/**
+ * Test seam: drop the cached store so the next getStore() reconstructs it,
+ * picking up newly configured fs mocks. Mirrors resetSvnCacheServiceForTests.
+ */
+export function resetStoreForTests(): void {
+  storePromise = null;
+}
+
 export function registerStoreHandlers(): void {
   ipcMain.handle('store:get', async (_, key: string) => {
     return (await getStore()).get(key);
