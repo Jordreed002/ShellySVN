@@ -9,6 +9,7 @@ import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@main/settings-manager', () => ({
@@ -74,7 +75,7 @@ describe.runIf(hasSvnToolchain())('restoring an excluded folder through the Expl
 
     execFileSync('svnadmin', ['create', join(root, 'repo')]);
     const wc = join(root, 'wc');
-    svn(['-q', 'checkout', `file://${join(root, 'repo')}`, wc], root);
+    svn(['-q', 'checkout', pathToFileURL(join(root, 'repo')).href, wc], root);
     mkdirSync(join(wc, 'sub'), { recursive: true });
     mkdirSync(join(wc, 'keep'), { recursive: true });
     writeFileSync(join(wc, 'sub', 'f.txt'), 'hi\n');
@@ -141,7 +142,7 @@ describe.runIf(hasSvnToolchain())('restoring an excluded folder through the Expl
 
     execFileSync('svnadmin', ['create', join(root, 'repo')]);
     const wc = join(root, 'wc');
-    svn(['-q', 'checkout', `file://${join(root, 'repo')}`, wc], root);
+    svn(['-q', 'checkout', pathToFileURL(join(root, 'repo')).href, wc], root);
     mkdirSync(join(wc, 'sub', 'nested'), { recursive: true });
     writeFileSync(join(wc, 'sub', 'versioned.txt'), 'v\n');
     svn(['-q', 'add', 'sub'], wc);
@@ -177,7 +178,7 @@ describe.runIf(hasSvnToolchain())('restoring an excluded folder through the Expl
 
     execFileSync('svnadmin', ['create', join(root, 'repo')]);
     const wc = join(root, 'wc');
-    svn(['-q', 'checkout', `file://${join(root, 'repo')}`, wc], root);
+    svn(['-q', 'checkout', pathToFileURL(join(root, 'repo')).href, wc], root);
     mkdirSync(join(wc, 'sub'), { recursive: true });
     writeFileSync(join(wc, 'sub', 'f.txt'), 'hi\n');
     writeFileSync(join(wc, 'notes.txt'), 'notes\n');

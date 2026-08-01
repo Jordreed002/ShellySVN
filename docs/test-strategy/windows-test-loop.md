@@ -152,14 +152,15 @@ These fail on Windows **and macOS** and are not Windows-logic bugs:
 - `updater.test.ts`, `update-service.test.ts` — missing `electron-updater` dependency.
 - `svnReachability.test.tsx`, `keyboardAccessibility.workflows.test.tsx`,
   `LocalFacts.test.tsx` — missing `framer-motion` dependency.
-- `svn-restore-excluded.real.test.ts`, `svn-release-workflows.real.test.ts` — need a
-  live `svnserve` daemon; documented as a known weakness in `README.md`.
+- `svn-release-workflows.real.test.ts` (one svnserve test) — needs a live
+  `svnserve` daemon; documented as a known weakness in `README.md`.
   Diagnosis (Windows + TortoiseSVN): `svnserve` starts and serves fine, but
   password auth fails with `E170001: Authentication error from server: Password
   incorrect` — the daemon rejects the `reader/secret` credential the test writes
   to `conf/passwd`. Not a connectivity issue, not a CRLF issue (config files now
   use LF). Likely a TortoiseSVN svnserve password-db quirk needing interactive
-  diagnosis. The same tests pass on POSIX where `EOL === '\n'` natively.
+  diagnosis. (The sibling `svn-restore-excluded.real.test.ts` was fixed: it
+  built invalid `file://C:\...` URLs on Windows — now uses `pathToFileURL`.)
 
 ## Done condition
 
