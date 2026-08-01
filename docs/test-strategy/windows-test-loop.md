@@ -13,7 +13,7 @@ pull-at-start / commit-push-at-end and keeps its tests in disjoint files
 ## Current state
 
 The Windows unit suite is **green for all actual code**: a full `bunx vitest run`
-on Windows shows `2196 passed`, with the only remaining failures in two
+on Windows shows `2210 passed`, with the only remaining failures in two
 out-of-scope buckets (see [Known out-of-scope failures](#known-out-of-scope-failures)).
 Work has therefore moved from *fix-red* to *expand Windows-branch coverage*.
 
@@ -135,6 +135,10 @@ Three genuine Windows bugs were fixed during this loop (commits `fix(win):`):
   including the drive-relative → `DRIVES://` branch (exported the pure helper,
   following the existing `getBackgroundStatusScanStateForTests` precedent; the
   file-wide `os.platform` mock is flipped to `win32` per-describe).
+- [x] **W20** — `ipc/fs.ts` `listDrives`: win32 `wmic logicaldisk` enumeration —
+  parses caption/volumename rows into named drive entries, `Local Disk` fallback,
+  empty list on spawn failure. Fixed a latent `child_process` mock wiring bug
+  (`default: {}` left `import { spawn }` undefined under CJS interop).
 
 ## Known out-of-scope failures
 
