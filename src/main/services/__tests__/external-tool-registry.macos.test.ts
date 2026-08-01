@@ -56,7 +56,10 @@ function writeAppBundle(name: string): string {
   return path;
 }
 
-describe('external-tool registry: macOS .app bundles', () => {
+// macOS-only: .app bundles and /usr/bin/open dispatch are darwin behaviour,
+// and several assertions depend on POSIX path.join output. Skip on non-darwin
+// hosts so the Windows run stays green; they run in full on macOS.
+describe.skipIf(process.platform !== 'darwin')('external-tool registry: macOS .app bundles', () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'shellysvn-mac-tools-'));
     userDataDir.value = dir;

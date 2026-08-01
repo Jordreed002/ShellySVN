@@ -52,7 +52,10 @@ function probedPaths(): string[] {
   return access.mock.calls.map((call) => call[0] as string);
 }
 
-describe('code-editors: macOS well-known search directories', () => {
+// macOS-only: these assert POSIX path strings produced by path.join, which
+// uses the host separator — they can only pass on a darwin host. Skip
+// elsewhere so the Windows run stays green; they run in full on macOS.
+describe.skipIf(process.platform !== 'darwin')('code-editors: macOS well-known search directories', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     access.mockRejectedValue(new Error('ENOENT'));
