@@ -456,7 +456,9 @@ describe('FS IPC Handlers', () => {
       };
 
       expect(result).toEqual({ success: true, content: 'preview content' });
-      expect(mockState.readFile).toHaveBeenCalledWith('/workspace/readme.txt', 'utf-8');
+      // The handler canonicalizes the path via resolve(), which on Windows
+      // turns '/workspace/readme.txt' into 'C:\\workspace\\readme.txt'.
+      expect(mockState.readFile).toHaveBeenCalledWith(resolve('/workspace/readme.txt'), 'utf-8');
     });
 
     it('should reject unapproved Windows absolute, drive-relative, and UNC paths', async () => {
