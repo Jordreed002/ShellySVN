@@ -1116,6 +1116,12 @@ J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,val
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,rejects argument-file (@) prefix syntax,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,rejects empty or oversized token arrays,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,rejects empty or oversized individual tokens,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),rejects command shells by basename,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),rejects script files by extension,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),rejects a directory,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a normal executable binary,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a binary that lacks the execute bit (X_OK is skipped on Windows),existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a world-writable binary (mode check is skipped on Windows),existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,reports missing native helper with app fallback guidance,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Windows Explorer commands for common working-copy actions,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Windows overlay icons for the full SVN status set,existing
