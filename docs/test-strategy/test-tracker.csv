@@ -439,6 +439,11 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,registers the complete cache contract,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,passes a validated transactional set to the service,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,validates clear timestamps,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,places the socket file inside the user-data directory,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,uses the .sock Unix-domain-socket extension,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,is deterministic for the same user-data path,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,yields distinct socket paths for distinct user-data paths,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,embeds the user-data path directly (unlike the hashed Windows pipe name),existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,creates a platform-specific local socket path,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,serves cached path status over the local socket,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,rejects requests without the per-run token,existing
@@ -466,6 +471,10 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,deliberately discards the legacy log store once before using the new cache,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,uses approved custom storage and rejects relative or unapproved paths,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,falls back when approved custom storage is unavailable,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,clears an entry whose stored path differs only by case and separator,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,clears a descendant entry via a case-insensitive ancestor clear,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,does not clear an unrelated path that shares only a name prefix,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,is case-sensitive on POSIX: a differently-cased clear does not match,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-content.test.ts,svn-content,retrieves exact binary bytes with an operative revision,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-content.test.ts,svn-content,escapes local peg ambiguity and rejects invalid revisions,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,uses the configured SVN client path and redacts credentials in logs,existing
@@ -587,6 +596,12 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/utils/__tests__/secure-ipc.test.ts,installSecureIpcBoundary,scrubs secrets out of errors thrown by a listener,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-ipc.test.ts,installSecureIpcBoundary,coerces non-Error throws into a generic message,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-ipc.test.ts,installSecureIpcBoundary,is idempotent — a second install does not re-wrap or change behavior,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),chmods the directory to 0700 and the file to 0600 on the sync path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),chmods the directory to 0700 and the file to 0600 on the async path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),hardenPrivateFile tightens an existing file to 0600,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),does not chmod on the sync path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),does not chmod on the async path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),hardenPrivateFile is a no-op on Windows,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-json.test.ts,secure-json,writes JSON that round-trips exactly,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-json.test.ts,secure-json,leaves no .tmp file behind after the rename,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-json.test.ts,secure-json,overwrites an existing file atomically,existing
@@ -1218,6 +1233,8 @@ J13,integration,Diagnostics,(planned),,integration: cleanup repairs working copy
 J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,capability-gates companion-client and experimental workflows,existing
 J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,reports the SVN 1.14 advanced workflow baseline,existing
 J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,flags SVN versions below the advanced workflow baseline,existing
+J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,probes svn.exe and shelly-engine.exe on Windows,existing
+J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,probes extension-less binaries on POSIX,existing
 J13,unit,Diagnostics,src/renderer/src/components/__tests__/RepoDiagnostics.test.ts,buildDiagnosticsReport,"redacts support-export credentials, tokens, and local usernames",existing
 J13,unit,Diagnostics,src/renderer/src/components/__tests__/RepoDiagnosticsPanel.test.tsx,RepoDiagnosticsPanel,shows a re-trust button for SSL certificate errors and calls the trust API,existing
 J14,unit,Lifecycle/Auth,(planned),,unit: network-dependent .real tests are skipped when offline (env guard),gap

@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
@@ -117,5 +117,70 @@ describe('svn-diagnostics', () => {
     expect(mockState.runSvnText).not.toHaveBeenCalled();
     expect(mockState.sslReady).not.toHaveBeenCalled();
     expect(mockState.sslSet).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Windows binary-name resolution. getDiagnosticResourceStatus probes the
+   * bundled binaries with a .exe suffix on win32 and no suffix elsewhere.
+   * The resource paths are returned in diagnostics.resourceStatus, so the
+   * platform branch can be pinned without mocking the filesystem (the files
+   * simply read as absent).
+   */
+  describe('resource binary names — Windows', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('probes svn.exe and shelly-engine.exe on Windows', async () => {
+      const diagnostics = await getDiagnostics('C:\\wc');
+      const paths = diagnostics.resourceStatus.map((entry) => entry.path);
+
+      expect(paths.some((path) => path.endsWith('svn.exe'))).toBe(true);
+      expect(paths.some((path) => path.endsWith('shelly-engine.exe'))).toBe(true);
+    });
+  });
+
+  describe('resource binary names — POSIX (platform boundary)', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('probes extension-less binaries on POSIX', async () => {
+      const diagnostics = await getDiagnostics('/wc');
+      const paths = diagnostics.resourceStatus.map((entry) => entry.path);
+
+      expect(paths.some((path) => path.endsWith('svn'))).toBe(true);
+      expect(paths.some((path) => path.endsWith('shelly-engine'))).toBe(true);
+      // No Windows .exe suffix on POSIX.
+      expect(paths.some((path) => path.endsWith('.exe'))).toBe(false);
+    });
   });
 });
