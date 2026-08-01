@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * SSL trust cache — realm matching & persistence.
  *

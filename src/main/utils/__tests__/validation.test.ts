@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Security Tests for Input Validation Utilities
  *

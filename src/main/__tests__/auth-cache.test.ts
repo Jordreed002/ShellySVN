@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Security Tests for Auth Cache
  *
@@ -47,6 +48,7 @@ vi.mock('@shared/utils/debug', () => ({
 
 // Import after mocking
 import { access, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { safeStorage } from 'electron';
 import { AuthCache } from '../auth-cache';
 
@@ -451,7 +453,7 @@ describe('AuthCache', () => {
       await vi.runAllTimersAsync();
 
       expect(mockWriteSecureJson).toHaveBeenCalledWith(
-        '/test/user-data/auth-cache.json',
+        join('/test/user-data', 'auth-cache.json'),
         expect.objectContaining({ version: 1 })
       );
 
@@ -471,7 +473,7 @@ describe('AuthCache', () => {
       await vi.runAllTimersAsync();
 
       expect(mockWriteSecureJson).toHaveBeenCalledWith(
-        '/test/user-data/auth-cache.json',
+        join('/test/user-data', 'auth-cache.json'),
         expect.any(Object)
       );
     });
