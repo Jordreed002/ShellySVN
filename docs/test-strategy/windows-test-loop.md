@@ -154,13 +154,18 @@ These fail on Windows **and macOS** and are not Windows-logic bugs:
   `LocalFacts.test.tsx` — missing `framer-motion` dependency.
 - `svn-release-workflows.real.test.ts` (one svnserve test) — needs a live
   `svnserve` daemon; documented as a known weakness in `README.md`.
-  Diagnosis (Windows + TortoiseSVN): `svnserve` starts and serves fine, but
-  password auth fails with `E170001: Authentication error from server: Password
-  incorrect` — the daemon rejects the `reader/secret` credential the test writes
-  to `conf/passwd`. Not a connectivity issue, not a CRLF issue (config files now
-  use LF). Likely a TortoiseSVN svnserve password-db quirk needing interactive
-  diagnosis. (The sibling `svn-restore-excluded.real.test.ts` was fixed: it
-  built invalid `file://C:\...` URLs on Windows — now uses `pathToFileURL`.)
+  **Definitive root cause (Windows + TortoiseSVN):** `svnserve` starts and
+  serves fine, and the credential is correct, but TortoiseSVN's svn client does
+  not honor `--password-from-stdin` over the `svn://` (ra_svn) protocol — it
+  sends a wrong/empty password, so svnserve returns `E170001`. Confirmed by a
+  standalone diagnostic: `svn ls --username reader --password secret` succeeds,
+  but `--password-from-stdin` (with `secret\n`) fails. `svn-runner.ts` uses
+  `--password-from-stdin` for all protocols (to avoid `ps` exposure), so this is
+  also a **production limitation**: Windows + TortoiseSVN users cannot
+  authenticate to `svn://` repositories through the app. A proper fix needs a
+  maintainer decision — the obvious fallback (`--password` on the command line)
+  is a process-list exposure regression. Not fixed by this loop. (The sibling
+  `svn-restore-excluded.real.test.ts` was fixed: invalid `file://C:\...` URLs.)
 
 ## Done condition
 
