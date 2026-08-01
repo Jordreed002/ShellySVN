@@ -1094,6 +1094,10 @@ J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show 
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,rejects a missing or non-string body,existing
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,rejects oversized payloads,existing
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,accepts payloads at exactly the length limits,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,searches the Homebrew install directories on macOS,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,searches the macOS JetBrains Toolbox scripts directory,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,does not search the Linux JetBrains Toolbox path on macOS,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: macOS well-known search directories,does not append any well-known directories on Windows,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers only the editors whose launcher is on PATH,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers nothing when PATH holds no editor at all,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"searches every PATH entry, not just the first",existing
@@ -1452,10 +1456,20 @@ J14,unit,Lifecycle/Auth,src/main/ipc/__tests__/webhook.test.ts,Webhook IPC Handl
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/auth-session-manager.test.ts,main-process authentication sessions,returns an opaque renderer-bound session without exposing the password,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/auth-session-manager.test.ts,main-process authentication sessions,rejects use against another repository origin and expires idle sessions,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/auth-session-manager.test.ts,main-process authentication sessions,resumes encrypted credentials without returning their password,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,claims the shellysvn:// protocol as the default handler on macOS,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,does not contest the single-instance lock (Windows/Linux path only),existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,registers an open-url listener that prevents default and dispatches the link,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,on Windows delegates to the single-instance lock instead of the macOS protocol claim,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,on Windows/Linux quits when another instance already holds the lock,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,parses supported deep links and marks mutating actions for confirmation,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,rejects unsupported actions and repository URL protocols,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,rejects missing required paths and oversized input,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,round-trips generated repository URLs and local paths exactly once,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,does not claim the shellysvn:// protocol (macOS path only),existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,registers a second-instance listener that forwards the shellysvn:// URL,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,ignores a second instance whose command line has no shellysvn:// URL,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,quits without registering second-instance when it loses the lock,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,dispatches a shellysvn:// URL present in the launch argv once the app is ready,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/svn-native-auth.test.ts,svn native auth,parses credentials without exposing password fields,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/svn-native-auth.test.ts,svn native auth,never requests passwords and removes only explicit patterns,existing
 J14,unit,Shared/Core,src/main/utils/__tests__/approved-paths.test.ts,approved renderer paths,allows an explicitly approved root and its descendants only,existing
