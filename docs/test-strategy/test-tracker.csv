@@ -414,6 +414,8 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should succeed even if no watcher exists,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should cancel active scan,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should return sizes for folders,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,parses wmic output into named drive entries with trailing separators,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,resolves to an empty list when wmic fails to spawn,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should handle empty files array,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should preserve files without SVN status,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should calculate folder status from child entries,existing

@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import { join, resolve } from 'path';
 
@@ -114,11 +115,12 @@ vi.mock('fs', () => ({
   statSync: mockState.statSync,
 }));
 
-// Mock child_process
-vi.mock('child_process', () => ({
-  default: {},
-  spawn: mockState.spawn,
-}));
+// Mock child_process — expose spawn both as a named export and on default so
+// `import { spawn } from 'child_process'` resolves under CJS/ESM interop.
+vi.mock('child_process', () => {
+  const mock = { spawn: mockState.spawn };
+  return { ...mock, default: mock };
+});
 
 // Mock chokidar
 vi.mock('chokidar', () => ({
@@ -789,6 +791,72 @@ describe('FS IPC Handlers', () => {
         },
         expect.objectContaining({ priority: 'background' })
       );
+    });
+  });
+
+  /*
+   * listDrives on Windows spawns `wmic logicaldisk get caption,volumename` and
+   * parses the tabular stdout into drive entries. The os.platform mock (default
+   * 'darwin') is flipped to 'win32' and spawn emits canned wmic output, so the
+   * Windows parsing branch runs deterministically on any host.
+   */
+  describe('listDrives — Windows wmic enumeration', () => {
+    beforeEach(() => {
+      vi.mocked(os.platform).mockReturnValue('win32');
+    });
+
+    afterEach(() => {
+      vi.mocked(os.platform).mockReturnValue('darwin');
+    });
+
+    function wmicChild(output: string): EventEmitter {
+      const proc = new EventEmitter();
+      proc.stdout = new EventEmitter();
+      // Emit after the parser attaches its stdout/close listeners.
+      queueMicrotask(() => {
+        proc.stdout.emit('data', Buffer.from(output));
+        proc.emit('close', 0);
+      });
+      return proc;
+    }
+
+    it('parses wmic output into named drive entries with trailing separators', async () => {
+      mockState.spawn.mockReturnValue(
+        wmicChild('Caption  VolumeName\nC:       Local Disk\nD:       Data\n')
+      );
+
+      const result = (await handlers.get('fs:listDrives')!({})) as Array<{
+        name: string;
+        path: string;
+        isDirectory: boolean;
+      }>;
+
+      expect(mockState.spawn).toHaveBeenCalledWith('wmic', [
+        'logicaldisk',
+        'get',
+        'caption,volumename',
+      ]);
+      expect(result).toEqual([
+        expect.objectContaining({ name: 'Local Disk (C:)', path: 'C:\\', isDirectory: true }),
+        expect.objectContaining({ name: 'Data (D:)', path: 'D:\\', isDirectory: true }),
+      ]);
+    });
+
+    it('falls back to "Local Disk" when the volume name is blank', async () => {
+      mockState.spawn.mockReturnValue(wmicChild('Caption  VolumeName\nE:\n'));
+
+      const result = (await handlers.get('fs:listDrives')!({})) as Array<{ name: string }>;
+
+      expect(result).toEqual([expect.objectContaining({ name: 'Local Disk (E:)' })]);
+    });
+
+    it('resolves to an empty list when wmic fails to spawn', async () => {
+      const proc = new EventEmitter();
+      proc.stdout = new EventEmitter();
+      mockState.spawn.mockReturnValue(proc);
+      queueMicrotask(() => proc.emit('error', new Error('ENOENT')));
+
+      await expect(handlers.get('fs:listDrives')!({})).resolves.toEqual([]);
     });
   });
 });
