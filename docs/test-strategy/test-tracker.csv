@@ -258,6 +258,11 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/__tests__/svn/parsing.test.ts,SVN externals parser,should handle unicode in paths and messages,existing
 —,unit,Uncategorized,src/main/__tests__/svn/parsing.test.ts,SVN externals parser,should handle empty commit message,existing
 —,unit,Uncategorized,src/main/__tests__/svn/parsing.test.ts,SVN externals parser,should handle very large revision numbers,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,builds the hook argv from context and reports success on exit 0,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,reports failure with stderr when the hook exits non-zero,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,skips the execute-bit (X_OK) check on Windows,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,checks X_OK on POSIX,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,terminates via proc.kill() (no negative-PID process-group signal on Windows),existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should register app:getVersion handler,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,does not expose arbitrary Electron paths,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should register app:openExternal handler,existing
