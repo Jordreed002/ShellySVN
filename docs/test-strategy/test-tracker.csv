@@ -716,6 +716,9 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/renderer/__tests__/keyboardShortcuts.parity.test.tsx,keyboard shortcut parity,keeps customizable SVN shortcut defaults aligned with the shortcut reference,existing
 —,unit,Uncategorized,src/renderer/__tests__/keyboardShortcuts.parity.test.tsx,keyboard shortcut parity,handles file explorer keyboard navigation and selection shortcuts,existing
 —,unit,Uncategorized,src/renderer/__tests__/keyboardShortcuts.parity.test.tsx,keyboard shortcut parity,"opens folders, selects all files, and clears selection from file explorer shortcuts",existing
+—,unit,Uncategorized,src/renderer/__tests__/pathResolution.macos.test.ts,pathResolution — macOS (darwin) output,keeps forward slashes for a POSIX working copy root,existing
+—,unit,Uncategorized,src/renderer/__tests__/pathResolution.macos.test.ts,pathResolution — macOS (darwin) output,does not convert forward slashes to backslashes on macOS,existing
+—,unit,Uncategorized,src/renderer/__tests__/pathResolution.macos.test.ts,pathResolution — macOS (darwin) output,preserves the exact case of every segment (case-sensitive filesystem),existing
 —,unit,Uncategorized,src/renderer/__tests__/pathResolution.test.ts,getRelativePath,returns relative path for nested paths,existing
 —,unit,Uncategorized,src/renderer/__tests__/pathResolution.test.ts,getRelativePath,returns relative path for deeply nested paths,existing
 —,unit,Uncategorized,src/renderer/__tests__/pathResolution.test.ts,getRelativePath,returns empty string when paths are equal,existing
@@ -1083,6 +1086,10 @@ J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager mi
 J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,accepts an approved cache directory and bounded log-cache size,existing
 J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,rejects unapproved or out-of-range cache settings,existing
 J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,validates an approved custom SVN executable once and revalidates after replacement,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,defaults to svn.exe on Windows when no custom client is configured,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,skips the execute-bit (X_OK) check on Windows,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,rejects a .cmd wrapper at write time and keeps the svn.exe default,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,checks X_OK on POSIX and defaults to svn (no .exe),existing
 J11,unit,Settings,src/main/__tests__/svn/integration.test.ts,SVN Parsing Functions Integration,should parse empty status,existing
 J11,unit,Settings,src/main/__tests__/svn/integration.test.ts,SVN Parsing Functions Integration,should parse modified files,existing
 J11,unit,Settings,src/main/__tests__/svn/integration.test.ts,SVN Parsing Functions Integration,should handle malformed XML,existing
