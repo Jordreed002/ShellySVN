@@ -266,12 +266,27 @@ export async function runResolvedSvn(
       `[SVN] Running: svn ${redactArgs(finalArgs).join(' ')} in ${options.cwd || process.cwd()}`
     );
 
-    const proc = spawn(options.svnCommand, finalArgs, {
+    // Windows cannot launch a .cmd/.bat launcher directly with shell:false —
+    // Node throws spawn EINVAL (CVE-2024-27980 mitigation). Real svn.exe is
+    // unaffected, but some distributions ship a batch wrapper, so route those
+    // through cmd.exe explicitly. shell:true is avoided because svn args
+    // (URLs, paths, commit messages) must never be shell-interpreted.
+    const isBatchLauncher =
+      process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(options.svnCommand);
+    const launchCommand = isBatchLauncher
+      ? process.env.ComSpec || 'cmd.exe'
+      : options.svnCommand;
+    const launchArgs = isBatchLauncher
+      ? ['/d', '/s', '/c', options.svnCommand, ...finalArgs]
+      : finalArgs;
+
+    const proc = spawn(launchCommand, launchArgs, {
       cwd: options.cwd || process.cwd(),
       env,
       shell: false,
       detached: process.platform !== 'win32',
       windowsHide: true,
+      windowsVerbatimArguments: isBatchLauncher,
     });
 
     if (passwordViaStdin !== null && proc.stdin) {
