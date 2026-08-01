@@ -154,6 +154,12 @@ These fail on Windows **and macOS** and are not Windows-logic bugs:
   `LocalFacts.test.tsx` — missing `framer-motion` dependency.
 - `svn-restore-excluded.real.test.ts`, `svn-release-workflows.real.test.ts` — need a
   live `svnserve` daemon; documented as a known weakness in `README.md`.
+  Diagnosis (Windows + TortoiseSVN): `svnserve` starts and serves fine, but
+  password auth fails with `E170001: Authentication error from server: Password
+  incorrect` — the daemon rejects the `reader/secret` credential the test writes
+  to `conf/passwd`. Not a connectivity issue, not a CRLF issue (config files now
+  use LF). Likely a TortoiseSVN svnserve password-db quirk needing interactive
+  diagnosis. The same tests pass on POSIX where `EOL === '\n'` natively.
 
 ## Done condition
 
