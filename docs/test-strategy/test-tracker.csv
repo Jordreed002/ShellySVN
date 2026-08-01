@@ -81,6 +81,9 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,packages/shared/src/__tests__/constants.test.ts,size-limit guardrails,pins the cache TTLs,existing
 —,unit,Uncategorized,packages/shared/src/__tests__/constants.test.ts,size-limit guardrails,"converts seconds, minutes, and hours to milliseconds",existing
 —,unit,Uncategorized,packages/shared/src/__tests__/constants.test.ts,size-limit guardrails,converts megabytes to bytes,existing
+—,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),stays running on macOS when the last window closes (no quit),existing
+—,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),quits on Windows when the last window closes,existing
+—,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),quits on Linux when the last window closes,existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,is empty and finds nothing before anything is trusted,existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,returns the exact trust for the exact realm url,existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,matches a trust for an ancestor realm against a deeper url,existing
@@ -415,6 +418,10 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should preserve files without SVN status,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should calculate folder status from child entries,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should prioritize direct folder status over calculated,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,returns the containing directory for an absolute Windows subpath,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,returns null at a drive root (no further parent),existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,returns null for the virtual drive list itself,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,yields DRIVES:// as the parent of a drive-relative path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/monitor.test.ts,monitor IPC handlers,starts with no monitored working copies,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/monitor.test.ts,monitor IPC handlers,adds a working copy once svn info resolves,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/monitor.test.ts,monitor IPC handlers,refuses to add a path that is not a working copy,existing
@@ -1050,6 +1057,9 @@ J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Setting
 J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Settings Dialog,encryption status is displayed,existing
 J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Settings Dialog,auth prompt appears for protected repositories,existing
 J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Settings Dialog,auth credentials are remembered option,existing
+J11,e2e,Settings,tests/e2e/macos-integrations.spec.ts,macOS integration,main process runs on darwin,existing
+J11,e2e,Settings,tests/e2e/macos-integrations.spec.ts,macOS integration,platform IPC reaches the renderer as darwin,existing
+J11,e2e,Settings,tests/e2e/macos-integrations.spec.ts,macOS integration,creates a visible browser window with non-zero bounds,existing
 J11,e2e,Settings,tests/e2e/settings.spec.ts,Settings - Dialog Navigation,settings dialog opens and closes,existing
 J11,e2e,Settings,tests/e2e/settings.spec.ts,Settings - Dialog Navigation,settings dialog has multiple tabs,existing
 J11,e2e,Settings,tests/e2e/settings.spec.ts,Settings - Dialog Navigation,can navigate between settings tabs,existing

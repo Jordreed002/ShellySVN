@@ -555,7 +555,7 @@ async function listDrives(): Promise<FileInfo[]> {
 /**
  * Get parent directory path
  */
-function getParentPath(path: string): string | null {
+export function getParentPath(path: string): string | null {
   if (path === '/' || path === 'DRIVES://') return null;
 
   const normalized = normalize(path);

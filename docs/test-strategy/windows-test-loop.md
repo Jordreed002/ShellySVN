@@ -126,8 +126,11 @@ Three genuine Windows bugs were fixed during this loop (commits `fix(win):`):
   default, X_OK skip, `.cmd` rejection at write time).
 - [ ] **W18** — `store` / `auth-cache` `chmod 0o600` skip on win32 (low value; load
   fires at registration so needs a reload seam — only if a clean seam emerges).
-- [ ] **W19** — Sweep for any remaining `process.platform` branches not yet pinned
-  (re-run the scan in this file's sibling commits).
+- [x] **W19** — Sweep for any remaining `process.platform` branches not yet pinned.
+  Found and covered `ipc/fs.ts` `getParentPath`: win32 drive-root navigation,
+  including the drive-relative → `DRIVES://` branch (exported the pure helper,
+  following the existing `getBackgroundStatusScanStateForTests` precedent; the
+  file-wide `os.platform` mock is flipped to `win32` per-describe).
 
 ## Known out-of-scope failures
 

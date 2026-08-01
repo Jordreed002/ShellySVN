@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import os from 'node:os';
 import { join, resolve } from 'path';
 
 // Create mock state with hoisting
@@ -154,7 +155,7 @@ vi.mock('../../workers/WorkerPool', () => ({
 }));
 
 // Import after mocking
-import { registerFsHandlers, applySvnStatusToFiles } from '../fs';
+import { registerFsHandlers, applySvnStatusToFiles, getParentPath } from '../fs';
 import {
   approvePathForIpc,
   clearApprovedPathsForTests,
@@ -857,5 +858,44 @@ describe('applySvnStatusToFiles function', () => {
 
     // Direct status (D) should be used, not calculated (M)
     expect(result[0].svnStatus?.status).toBe('D');
+  });
+});
+
+/*
+ * getParentPath drives the "up" navigation in the file explorer. It reads
+ * os.platform() and uses the host's path module, so its Windows drive-root
+ * behaviour is exercised on a real Windows host (skipped elsewhere). The
+ * notable Windows branch: the parent of a drive-relative path is the virtual
+ * DRIVES:// root that lists all drives.
+ */
+describe.skipIf(process.platform !== 'win32')('getParentPath — Windows drive navigation', () => {
+  // The file-wide os mock defaults platform() to 'darwin'; flip it to win32 so
+  // getParentPath's drive-root branch is exercised. The host's real win32 path
+  // module supplies normalize()/dirname() behavior.
+  beforeEach(() => {
+    vi.mocked(os.platform).mockReturnValue('win32');
+  });
+
+  afterEach(() => {
+    vi.mocked(os.platform).mockReturnValue('darwin');
+  });
+
+  it('returns the containing directory for an absolute Windows subpath', () => {
+    expect(getParentPath('C:\\Users')).toBe('C:\\');
+    expect(getParentPath('C:\\Users\\test\\repo')).toBe('C:\\Users\\test');
+  });
+
+  it('returns null at a drive root (no further parent)', () => {
+    expect(getParentPath('C:\\')).toBeNull();
+  });
+
+  it('returns null for the virtual drive list itself', () => {
+    expect(getParentPath('DRIVES://')).toBeNull();
+  });
+
+  it('yields DRIVES:// as the parent of a drive-relative path', () => {
+    // Drive-relative paths (C:foo) are anchored to the drive's current dir;
+    // walking above them lands at the virtual drive list.
+    expect(getParentPath('C:foo')).toBe('DRIVES://');
   });
 });
