@@ -49,6 +49,7 @@ export function ProblemsSection({ problems, attributeWorkingCopy }: ProblemsSect
             <RailLinkRow
               key={row.path}
               path={row.path}
+              dialog="problems"
               icon={
                 <AlertTriangle
                   className={row.problems.blocking > 0 ? 'text-svn-conflict' : 'text-warning'}

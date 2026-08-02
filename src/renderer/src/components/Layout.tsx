@@ -106,6 +106,7 @@ export function Layout({ children }: LayoutProps) {
   const queryClient = useQueryClient();
 
   const isMac = navigator.platform.toLowerCase().includes('mac');
+  const isWindows = navigator.platform.toLowerCase().includes('win');
 
   const routerState = useRouterState();
   const search = routerState.location.search as CommonSearchSchema;
@@ -358,11 +359,11 @@ export function Layout({ children }: LayoutProps) {
 
           <Suspense
             fallback={
-              <div className={isMac ? 'h-8 w-[102px]' : 'h-8 w-[238px]'} aria-hidden="true" />
+              <div className={isWindows ? 'h-8 w-[238px]' : 'h-8 w-[102px]'} aria-hidden="true" />
             }
           >
             <TitlebarControls
-              isMac={isMac}
+              isWindows={isWindows}
               isMaximized={isMaximized}
               isDarkTheme={isDarkTheme}
               accountName={accountName}

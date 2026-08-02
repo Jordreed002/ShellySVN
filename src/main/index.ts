@@ -43,7 +43,7 @@ let quitPromptOpen = false;
 const isSmokeTest = process.argv.includes('--smoke-test');
 const MIN_PACKAGED_BINARY_SIZE_BYTES = 1024;
 
-function getPackagedBinaryPaths(): { engine: string; svn: string } {
+export function getPackagedBinaryPaths(): { engine: string; svn: string } {
   const extension = process.platform === 'win32' ? '.exe' : '';
   const binariesPath = join(process.resourcesPath, 'binaries');
 
@@ -106,9 +106,16 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: { height: 32 },
-    trafficLightPosition: { x: 15, y: 10 },
+    // `titleBarOverlay` creates Windows' native caption strip even alongside a
+    // frameless option, so omit the native title-bar options entirely there.
+    // The renderer already supplies themed controls for the frameless window.
+    ...(process.platform === 'win32'
+      ? { frame: false }
+      : {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: { height: 32 },
+          trafficLightPosition: { x: 15, y: 10 },
+        }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

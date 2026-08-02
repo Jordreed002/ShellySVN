@@ -246,4 +246,85 @@ describe('SvnCacheService', () => {
       )
     ).resolves.toBe('/default/cache');
   });
+
+  /*
+   * Windows path-key normalization for clearPath. Entries store their path
+   * run through normalizeCachePath, which on win32 collapses backslashes to '/'
+   * and lowercases (Windows is case-insensitive). clearPath must therefore
+   * invalidate an entry whose stored path differs only by drive-letter case or
+   * separator style; on POSIX the same clear must not match (case-sensitive).
+   */
+  describe('clearPath — Windows path normalization', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('clears an entry whose stored path differs only by case and separator', async () => {
+      await service.set('log', 'repo:100', 'C:\\Repo', { revisions: [100] }, { ttlMs: 60_000 });
+
+      await service.clearPath('c:/repo');
+
+      await expect(service.get('log', 'repo:100')).resolves.toBeNull();
+    });
+
+    it('clears a descendant entry via a case-insensitive ancestor clear', async () => {
+      await service.set('log', 'src', 'C:\\Repo\\src', { revisions: [5] }, { ttlMs: 60_000 });
+
+      await service.clearPath('c:/REPO');
+
+      await expect(service.get('log', 'src')).resolves.toBeNull();
+    });
+
+    it('does not clear an unrelated path that shares only a name prefix', async () => {
+      await service.set('log', 'repo', 'C:\\Repo', { revisions: [1] }, { ttlMs: 60_000 });
+      await service.set('log', 'other', 'C:\\Repo-Other', { revisions: [2] }, { ttlMs: 60_000 });
+
+      await service.clearPath('c:/repo');
+
+      await expect(service.get('log', 'repo')).resolves.toBeNull();
+      await expect(service.get('log', 'other')).resolves.toMatchObject({ key: 'other' });
+    });
+  });
+
+  describe('clearPath — POSIX path normalization (platform boundary)', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('is case-sensitive on POSIX: a differently-cased clear does not match', async () => {
+      await service.set('log', 'repo', '/Repo', { revisions: [1] }, { ttlMs: 60_000 });
+
+      await service.clearPath('/repo');
+
+      await expect(service.get('log', 'repo')).resolves.toMatchObject({ key: 'repo' });
+    });
+  });
 });

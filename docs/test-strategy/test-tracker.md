@@ -7,13 +7,13 @@
 
 | Layer | Test files | Test cases |
 |---|---|---|
-| Unit | — | 1908 |
+| Unit | — | 2103 |
 | Integration / real | — | 14 |
 | Performance | — | 28 |
-| E2E | 14 | 87 |
-| **Total** | **221** | **2037** |
+| E2E | 0 | 90 |
+| **Total** | **243** | **2235** |
 
-**Baseline:** `1950` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 87 E2E tests are mostly structural today.
+**Baseline:** `2145` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 90 E2E tests are mostly structural today.
 
 **Planned gaps to write:** 12 (see list below).
 
@@ -23,19 +23,19 @@
 |---|---|
 | J1 — First-run onboarding | 16 |
 | J10 — Sparse-checkout management | 0 |
-| J11 — Settings & configuration | 133 |
+| J11 — Settings & configuration | 168 |
 | J12 — Properties & metadata | 29 |
-| J13 — Diagnostics & recovery | 5 |
-| J14 — App lifecycle & integrations | 274 |
+| J13 — Diagnostics & recovery | 7 |
+| J14 — App lifecycle & integrations | 298 |
 | J2 — Repository checkout | 193 |
-| J3 — Repository browsing | 157 |
-| J4 — Daily edit & commit loop | 115 |
+| J3 — Repository browsing | 185 |
+| J4 — Daily edit & commit loop | 123 |
 | J5 — Update & stay in sync | 24 |
 | J6 — Conflict resolution | 27 |
 | J7 — History & investigation | 47 |
-| J8 — Branching & tagging | 9 |
+| J8 — Branching & tagging | 17 |
 | J9 — File locking | 8 |
-| — — Uncategorized | 1000 |
+| — — Uncategorized | 1093 |
 
 ## Planned gaps (highest-value missing journeys)
 
@@ -58,30 +58,30 @@
 
 | Layer / Area | Tests |
 |---|---|
-| unit / Uncategorized | 958 |
+| unit / Uncategorized | 1051 |
+| unit / Repo Browser | 180 |
 | unit / Shared/Core | 176 |
 | unit / Checkout | 167 |
-| unit / Repo Browser | 152 |
-| unit / Settings | 99 |
-| unit / Lifecycle/Auth | 98 |
+| unit / Settings | 131 |
+| unit / Lifecycle/Auth | 122 |
 | unit / Commit | 56 |
+| unit / File Explorer | 46 |
 | unit / History | 44 |
-| unit / File Explorer | 38 |
 | unit / Properties | 29 |
 | e2e / Uncategorized | 27 |
 | unit / Conflict Resolution | 26 |
 | unit / Update | 24 |
 | e2e / File Explorer | 21 |
+| e2e / Settings | 18 |
 | perf / Checkout | 18 |
-| e2e / Settings | 15 |
+| unit / Branching | 17 |
 | unit / Onboarding | 12 |
 | integration / Uncategorized | 11 |
 | e2e / Authentication | 9 |
-| unit / Branching | 9 |
 | e2e / Checkout | 8 |
 | unit / Locking | 8 |
 | unit / Authentication | 7 |
-| unit / Diagnostics | 5 |
+| unit / Diagnostics | 7 |
 | perf / Uncategorized | 4 |
 | e2e / Onboarding | 4 |
 | integration / Settings | 3 |

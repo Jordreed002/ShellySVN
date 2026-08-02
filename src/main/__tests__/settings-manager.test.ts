@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockReadFile = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -201,5 +201,106 @@ describe('SettingsManager migration and persistence', () => {
     });
     expect(manager.getSvnClientPath()).toBe('/approved/svn');
     expect(mockSpawnSync).toHaveBeenCalledTimes(2);
+  });
+
+  /*
+   * Windows executable rules for the custom SVN client. validateSvnClientPath
+   * skips accessSync(X_OK) on win32 (no execute bit), refuses script wrappers
+   * (.cmd/.bat/...) exactly as it does for external tools, and getSvnClientPath
+   * falls back to the platform default ('svn.exe' on win32) when validation
+   * fails. The default is platform-dependent too.
+   */
+  describe('custom SVN client validation — Windows executable rules', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockStatSync.mockReturnValue({
+        isFile: () => true,
+        isDirectory: () => false,
+        size: 1024,
+        mtimeMs: 10,
+      });
+      mockSpawnSync.mockReturnValue({ status: 0 });
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('defaults to svn.exe on Windows when no custom client is configured', async () => {
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+      expect(manager.getSvnClientPath()).toBe('svn.exe');
+    });
+
+    it('skips the execute-bit (X_OK) check on Windows', async () => {
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+      await manager.updateSettings({ svnClientPath: 'C:\\tools\\svn.exe' });
+
+      expect(manager.getSvnClientPath()).toBe('C:\\tools\\svn.exe');
+      expect(mockAccessSync).not.toHaveBeenCalled();
+    });
+
+    it('rejects a .cmd wrapper at write time and keeps the svn.exe default', async () => {
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+
+      // updateSettings validates synchronously and refuses script wrappers.
+      await expect(
+        manager.updateSettings({ svnClientPath: 'C:\\tools\\svn.cmd' })
+      ).rejects.toThrow('native executables, not scripts');
+
+      // The invalid path was never stored, so the default still applies.
+      expect(manager.getSvnClientPath()).toBe('svn.exe');
+      expect(mockSpawnSync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('custom SVN client validation — POSIX executable rules', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockStatSync.mockReturnValue({
+        isFile: () => true,
+        isDirectory: () => false,
+        size: 1024,
+        mtimeMs: 10,
+      });
+      mockSpawnSync.mockReturnValue({ status: 0 });
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('checks X_OK on POSIX and defaults to svn (no .exe)', async () => {
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+      await manager.updateSettings({ svnClientPath: '/usr/local/bin/svn' });
+
+      expect(manager.getSvnClientPath()).toBe('/usr/local/bin/svn');
+      expect(mockAccessSync).toHaveBeenCalled();
+    });
   });
 });

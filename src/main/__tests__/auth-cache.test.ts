@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Security Tests for Auth Cache
  *
@@ -46,7 +47,8 @@ vi.mock('@shared/utils/debug', () => ({
 }));
 
 // Import after mocking
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { access, chmod, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { safeStorage } from 'electron';
 import { AuthCache } from '../auth-cache';
 
@@ -54,6 +56,7 @@ import { AuthCache } from '../auth-cache';
 const mockAccess = vi.mocked(access);
 const mockReadFile = vi.mocked(readFile);
 const mockWriteFile = vi.mocked(writeFile);
+const mockChmod = vi.mocked(chmod);
 const mockEncryptString = vi.mocked(safeStorage.encryptString);
 const mockDecryptString = vi.mocked(safeStorage.decryptString);
 const mockIsEncryptionAvailable = vi.mocked(safeStorage.isEncryptionAvailable);
@@ -451,7 +454,7 @@ describe('AuthCache', () => {
       await vi.runAllTimersAsync();
 
       expect(mockWriteSecureJson).toHaveBeenCalledWith(
-        '/test/user-data/auth-cache.json',
+        join('/test/user-data', 'auth-cache.json'),
         expect.objectContaining({ version: 1 })
       );
 
@@ -471,7 +474,7 @@ describe('AuthCache', () => {
       await vi.runAllTimersAsync();
 
       expect(mockWriteSecureJson).toHaveBeenCalledWith(
-        '/test/user-data/auth-cache.json',
+        join('/test/user-data', 'auth-cache.json'),
         expect.any(Object)
       );
     });
@@ -529,6 +532,53 @@ describe('AuthCache', () => {
         username: 'testuser',
         password: 'testpass',
       });
+    });
+  });
+
+  /*
+   * Load-time file permissions. When an existing credential store is found,
+   * load() tightens it to 0o600 on POSIX; on Windows the chmod is skipped
+   * (Windows has no execute/permission bits — ACLs govern access instead).
+   */
+  describe('load-time file permissions', () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('tightens an existing store to 0o600 on POSIX', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+        writable: true,
+      });
+      mockAccess.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify({ version: 1, credentials: [] }));
+
+      const cache = new AuthCache('/test/user-data');
+      await cache.ready();
+
+      expect(mockChmod).toHaveBeenCalledWith(join('/test/user-data', 'auth-cache.json'), 0o600);
+    });
+
+    it('skips the chmod on Windows (no permission bits)', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+        writable: true,
+      });
+      mockAccess.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(JSON.stringify({ version: 1, credentials: [] }));
+
+      const cache = new AuthCache('/test/user-data');
+      await cache.ready();
+
+      expect(mockChmod).not.toHaveBeenCalled();
     });
   });
 });

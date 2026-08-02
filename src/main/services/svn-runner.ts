@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { terminateProcessTree } from '../utils/process-tree';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { EOL, tmpdir } from 'os';
+import { tmpdir } from 'os';
 import { join } from 'path';
 
 import type { SvnExecutionContext } from '@shared/types';
@@ -266,19 +266,44 @@ export async function runResolvedSvn(
       `[SVN] Running: svn ${redactArgs(finalArgs).join(' ')} in ${options.cwd || process.cwd()}`
     );
 
-    const proc = spawn(options.svnCommand, finalArgs, {
+    // Windows cannot launch a .cmd/.bat launcher directly with shell:false —
+    // Node throws spawn EINVAL (CVE-2024-27980 mitigation). Real svn.exe is
+    // unaffected, but some distributions ship a batch wrapper, so route those
+    // through cmd.exe explicitly. shell:true is avoided because svn args
+    // (URLs, paths, commit messages) must never be shell-interpreted.
+    const isBatchLauncher =
+      process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(options.svnCommand);
+    const launchCommand = isBatchLauncher
+      ? process.env.ComSpec || 'cmd.exe'
+      : options.svnCommand;
+    const launchArgs = isBatchLauncher
+      ? ['/d', '/s', '/c', options.svnCommand, ...finalArgs]
+      : finalArgs;
+
+    const proc = spawn(launchCommand, launchArgs, {
       cwd: options.cwd || process.cwd(),
       env,
       shell: false,
       detached: process.platform !== 'win32',
       windowsHide: true,
+      windowsVerbatimArguments: isBatchLauncher,
     });
 
-    if (passwordViaStdin !== null && proc.stdin) {
+    if (proc.stdin) {
       // Swallow EPIPE if svn closes stdin early (e.g. cached credentials mean
       // it never reads the password prompt).
       proc.stdin.on('error', () => {});
-      proc.stdin.write(`${passwordViaStdin}${EOL}`);
+      if (passwordViaStdin !== null) {
+        // Always terminate with \n, not the host EOL: on Windows EOL is \r\n
+        // and svn's --password-from-stdin reads until newline, so a trailing
+        // \r would become part of the password and break authentication.
+        proc.stdin.write(`${passwordViaStdin}\n`);
+      }
+      // Always close stdin. --non-interactive is set on every command, so svn
+      // never needs interactive input; leaving the pipe open lets svn block on
+      // a stdin read (a prompt/credential-helper read that --non-interactive
+      // doesn't fully suppress on Windows), which hangs until the connection
+      // timeout fires. EOF makes any such read return immediately.
       proc.stdin.end();
     }
 

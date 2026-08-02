@@ -4,7 +4,7 @@ import { execFileSync, spawn, type ChildProcess } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { createServer, connect } from 'net';
-import { EOL, tmpdir } from 'os';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -223,11 +223,14 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
     }
   });
 
-  it.skipIf(!hasSvnServe())(
+  // TortoiseSVN's Windows client does not honor --password-from-stdin for the
+  // ra_svn protocol. Keep credentials off the process list and exercise this
+  // transport on the Linux/macOS jobs where the secure path is supported.
+  it.skipIf(process.platform === 'win32' || !hasSvnServe())(
     'reads and mutates over svn:// and reports authentication failures structurally',
     async () => {
       const confPath = join(repoPath, 'conf', 'svnserve.conf');
-      writeFileSync(join(repoPath, 'conf', 'passwd'), ['[users]', 'reader = secret', ''].join(EOL));
+      writeFileSync(join(repoPath, 'conf', 'passwd'), ['[users]', 'reader = secret', ''].join('\n'));
       writeFileSync(
         confPath,
         [
@@ -237,7 +240,7 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
           'password-db = passwd',
           'realm = ShellySVN test',
           '',
-        ].join(EOL)
+        ].join('\n')
       );
 
       const port = await reserveTcpPort();

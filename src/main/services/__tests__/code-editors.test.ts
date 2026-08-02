@@ -86,7 +86,13 @@ describe('listCodeEditors', () => {
     expect(editors[0]).toEqual({ id: 'vscode', label: 'VS Code', command: 'code' });
   });
 
-  it('ignores a file that is present but not executable', async () => {
+  /*
+   * POSIX-only: this asserts the execute-bit filter via access(X_OK). Windows
+   * has no execute permission bit — X_OK succeeds for any readable file — so
+   * the filter is a no-op there and Windows resolution relies on PATHEXT
+   * instead (covered in the 'Windows editor resolution' block below).
+   */
+  it.skipIf(process.platform === 'win32')('ignores a file that is present but not executable', async () => {
     fakeNonExecutable('cursor');
 
     await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
@@ -110,37 +116,43 @@ describe('listCodeEditors', () => {
    * The bug this guards: launched from Finder or the dock, the app inherits
    * launchd's `/usr/bin:/bin:/usr/sbin:/sbin` — not the shell's PATH — so an
    * editor in `/usr/local/bin` looked uninstalled and the menu was empty.
+   *
+   * Windows is skipped here: it has no login-shell PATH discovery (the GUI
+   * PATH is taken as-is), so the spawnSync contract these tests assert does
+   * not apply. Windows resolution is covered in the describe block below.
    */
-  it('finds an editor the shell knows about but the GUI PATH does not', async () => {
-    fakeExecutable('code');
-    // What a Finder-launched app actually sees.
-    process.env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
-    spawnSync.mockReturnValue({ stdout: `/usr/bin:${binDir}\n` });
+  describe.skipIf(process.platform === 'win32')('login-shell PATH discovery (POSIX)', () => {
+    it('finds an editor the shell knows about but the GUI PATH does not', async () => {
+      fakeExecutable('code');
+      // What a Finder-launched app actually sees.
+      process.env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+      spawnSync.mockReturnValue({ stdout: `/usr/bin:${binDir}\n` });
 
-    const editors = await listCodeEditors({ refresh: true });
+      const editors = await listCodeEditors({ refresh: true });
 
-    expect(editors.map((editor) => editor.id)).toEqual(['vscode']);
-    expect(spawnSync).toHaveBeenCalledWith(
-      process.env.SHELL,
-      ['-ilc', 'printf %s "$PATH"'],
-      expect.objectContaining({ timeout: 3000 })
-    );
-  });
-
-  it('asks the login shell once, not per editor and not per right-click', async () => {
-    await listCodeEditors({ refresh: true });
-    await listCodeEditors({ refresh: true });
-
-    expect(spawnSync).toHaveBeenCalledTimes(1);
-  });
-
-  it('still works when the login shell cannot be read', async () => {
-    fakeExecutable('code');
-    spawnSync.mockImplementation(() => {
-      throw new Error('no shell here');
+      expect(editors.map((editor) => editor.id)).toEqual(['vscode']);
+      expect(spawnSync).toHaveBeenCalledWith(
+        process.env.SHELL,
+        ['-ilc', 'printf %s "$PATH"'],
+        expect.objectContaining({ timeout: 3000 })
+      );
     });
 
-    await expect(listCodeEditors({ refresh: true })).resolves.toMatchObject([{ id: 'vscode' }]);
+    it('asks the login shell once, not per editor and not per right-click', async () => {
+      await listCodeEditors({ refresh: true });
+      await listCodeEditors({ refresh: true });
+
+      expect(spawnSync).toHaveBeenCalledTimes(1);
+    });
+
+    it('still works when the login shell cannot be read', async () => {
+      fakeExecutable('code');
+      spawnSync.mockImplementation(() => {
+        throw new Error('no shell here');
+      });
+
+      await expect(listCodeEditors({ refresh: true })).resolves.toMatchObject([{ id: 'vscode' }]);
+    });
   });
 
   it('holds the PATH scan for the session instead of rescanning per right-click', async () => {
@@ -251,5 +263,100 @@ describe('openInCodeEditor', () => {
       success: false,
       error: 'spawn EACCES',
     });
+  });
+});
+
+/*
+ * Windows editor resolution. The host platform is forced to win32 so the
+ * PATHEXT branch runs deterministically regardless of where the suite runs.
+ * `code` ships as a `code.cmd` shim on Windows, so detection must consult
+ * PATHEXT rather than look for a bare executable.
+ */
+describe('Windows editor resolution', () => {
+  const originalPlatform = process.platform;
+  const originalPathExt = process.env.PATHEXT;
+
+  beforeEach(() => {
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+      writable: true,
+    });
+    if (originalPathExt === undefined) delete process.env.PATHEXT;
+    else process.env.PATHEXT = originalPathExt;
+  });
+
+  it('finds an editor through its PATHEXT extension when no bare launcher exists', async () => {
+    process.env.PATHEXT = '.COM;.EXE;.BAT;.CMD';
+    // VS Code on Windows is a `code.cmd` shim — there is no bare `code`.
+    fakeExecutable('code.cmd');
+
+    const editors = await listCodeEditors({ refresh: true });
+
+    expect(editors.map((editor) => editor.id)).toEqual(['vscode']);
+  });
+
+  it('launches the resolved PATHEXT launcher, not the bare command name', async () => {
+    process.env.PATHEXT = '.COM;.EXE;.BAT;.CMD';
+    fakeExecutable('code.cmd');
+    await listCodeEditors({ refresh: true });
+
+    await openInCodeEditor('vscode', 'C:\\wc\\src');
+
+    expect(spawn).toHaveBeenCalledWith(
+      join(binDir, 'code.cmd'),
+      ['C:\\wc\\src'],
+      expect.objectContaining({ detached: true, stdio: 'ignore' })
+    );
+  });
+
+  it('prefers a bare launcher over PATHEXT extensions when both are present', async () => {
+    process.env.PATHEXT = '.EXE;.CMD';
+    fakeExecutable('code');
+    fakeExecutable('code.cmd');
+
+    await openInCodeEditor('vscode', 'C:\\wc\\src');
+
+    expect(spawn).toHaveBeenCalledWith(
+      join(binDir, 'code'),
+      ['C:\\wc\\src'],
+      expect.objectContaining({ detached: true, stdio: 'ignore' })
+    );
+  });
+
+  it('honours a custom PATHEXT and ignores extensions it does not list', async () => {
+    // A setup that only resolves `.bat` must not pick up a `.cmd` shim.
+    process.env.PATHEXT = '.BAT';
+    fakeExecutable('code.cmd');
+
+    const editors = await listCodeEditors({ refresh: true });
+
+    expect(editors.map((editor) => editor.id)).toEqual([]);
+  });
+
+  it('does not query a login shell on Windows (PATH is taken as-is)', async () => {
+    process.env.PATHEXT = '.EXE;.CMD';
+    fakeExecutable('code.exe');
+
+    await listCodeEditors({ refresh: true });
+
+    expect(spawnSync).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the default extension set when PATHEXT is unset', async () => {
+    delete process.env.PATHEXT;
+    fakeExecutable('code.cmd');
+
+    const editors = await listCodeEditors({ refresh: true });
+
+    expect(editors.map((editor) => editor.id)).toEqual(['vscode']);
   });
 });

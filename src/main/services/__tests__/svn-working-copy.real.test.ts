@@ -92,16 +92,22 @@ describeIfSvn('svn-working-copy real SVN integration', () => {
       status.entries.map((entry) => [entry.path.split(/[/\\]/).pop(), entry])
     );
 
-    expect(info.url).toBe(repoUrl);
+    // Windows' file:// serialization may preserve `~` or percent-encode it as
+    // `%7E`; both identify the same repository URL.
+    expect(decodeURIComponent(info.url)).toBe(decodeURIComponent(repoUrl));
     expect(info.path).toBe(workingCopyPath);
     const canonicalWorkingCopyPath = realpathSync.native(workingCopyPath);
+    expect(decodeURIComponent(context?.repositoryRoot ?? '')).toBe(decodeURIComponent(repoUrl));
+    expect(decodeURIComponent(context?.url ?? '')).toBe(
+      `${decodeURIComponent(repoUrl)}/modified.txt`
+    );
+    expect(decodeURIComponent(context?.nearestVersionedUrl ?? '')).toBe(
+      `${decodeURIComponent(repoUrl)}/modified.txt`
+    );
     expect(context).toMatchObject({
       workingCopyRoot: canonicalWorkingCopyPath,
-      repositoryRoot: repoUrl,
-      url: `${repoUrl}/modified.txt`,
       localPath: join(canonicalWorkingCopyPath, 'modified.txt'),
       nearestVersionedPath: join(canonicalWorkingCopyPath, 'modified.txt'),
-      nearestVersionedUrl: `${repoUrl}/modified.txt`,
       derived: false,
     });
     expect(entriesByName.get('modified.txt')?.status).toBe('M');

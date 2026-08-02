@@ -102,9 +102,17 @@ describe('working-copy URL mapping', () => {
     mockState.existsSync.mockReturnValue(false);
   });
 
+  // These tests express paths in SVN's canonical forward-slash form. On
+  // Windows, getWorkingCopyContext canonicalizes them to backslashes before
+  // invoking svn, so the mock matches on a normalized target and assertions
+  // convert expected local paths to the host separator.
+  const isWin = process.platform === 'win32';
+  const host = (p: string) => (isWin ? p.replace(/\//g, '\\') : p);
+  const normTarget = (t: string | undefined) => (t ?? '').replace(/\\/g, '/');
+
   it('anchors a sparse target at the nearest switched versioned ancestor', async () => {
     mockState.runSvnText.mockImplementation(async (args: string[]) => {
-      const target = args.at(-1);
+      const target = normTarget(args.at(-1));
       if (target === '/wc/switched/new folder') {
         throw new Error('svn: E155010: The node was not found');
       }
@@ -121,12 +129,12 @@ describe('working-copy URL mapping', () => {
     });
 
     await expect(getWorkingCopyContext('/wc/switched/new folder')).resolves.toEqual({
-      workingCopyRoot: '/wc',
+      workingCopyRoot: host('/wc'),
       repositoryRoot: 'https://svn.example.com/repo',
       repositoryUuid: 'repo-1',
       url: 'https://svn.example.com/repo/branches/release/new%20folder',
-      localPath: '/wc/switched/new folder',
-      nearestVersionedPath: '/wc/switched',
+      localPath: host('/wc/switched/new folder'),
+      nearestVersionedPath: host('/wc/switched'),
       nearestVersionedUrl: 'https://svn.example.com/repo/branches/release',
       derived: true,
     });
@@ -178,7 +186,7 @@ describe('working-copy URL mapping', () => {
 
   it('uses a nested external as an explicit cross-repository mapping anchor', async () => {
     mockState.runSvnText.mockImplementation(async (args: string[]) => {
-      const target = args.at(-1);
+      const target = normTarget(args.at(-1));
       if (target === '/wc/vendor/library/new.ts') throw new Error('sparse target');
       if (target === '/wc/vendor/library') {
         return [
@@ -194,11 +202,11 @@ describe('working-copy URL mapping', () => {
     });
 
     await expect(getWorkingCopyContext('/wc/vendor/library/new.ts')).resolves.toMatchObject({
-      workingCopyRoot: '/wc/vendor/library',
+      workingCopyRoot: host('/wc/vendor/library'),
       repositoryRoot: 'https://external.example.com/library',
       repositoryUuid: 'external-repo',
       url: 'https://external.example.com/library/trunk/new.ts',
-      nearestVersionedPath: '/wc/vendor/library',
+      nearestVersionedPath: host('/wc/vendor/library'),
       derived: true,
     });
   });

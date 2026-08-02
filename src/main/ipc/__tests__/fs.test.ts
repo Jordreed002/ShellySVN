@@ -13,6 +13,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { EventEmitter } from 'node:events';
+import os from 'node:os';
 import { join, resolve } from 'path';
 
 // Create mock state with hoisting
@@ -113,11 +115,12 @@ vi.mock('fs', () => ({
   statSync: mockState.statSync,
 }));
 
-// Mock child_process
-vi.mock('child_process', () => ({
-  default: {},
-  spawn: mockState.spawn,
-}));
+// Mock child_process — expose spawn both as a named export and on default so
+// `import { spawn } from 'child_process'` resolves under CJS/ESM interop.
+vi.mock('child_process', () => {
+  const mock = { spawn: mockState.spawn };
+  return { ...mock, default: mock };
+});
 
 // Mock chokidar
 vi.mock('chokidar', () => ({
@@ -154,7 +157,7 @@ vi.mock('../../workers/WorkerPool', () => ({
 }));
 
 // Import after mocking
-import { registerFsHandlers, applySvnStatusToFiles } from '../fs';
+import { registerFsHandlers, applySvnStatusToFiles, getParentPath } from '../fs';
 import {
   approvePathForIpc,
   clearApprovedPathsForTests,
@@ -450,7 +453,9 @@ describe('FS IPC Handlers', () => {
       };
 
       expect(result).toEqual({ success: true, content: 'preview content' });
-      expect(mockState.readFile).toHaveBeenCalledWith('/workspace/readme.txt', 'utf-8');
+      // The handler canonicalizes the path via resolve(), which on Windows
+      // turns '/workspace/readme.txt' into 'C:\\workspace\\readme.txt'.
+      expect(mockState.readFile).toHaveBeenCalledWith(resolve('/workspace/readme.txt'), 'utf-8');
     });
 
     it('should reject unapproved Windows absolute, drive-relative, and UNC paths', async () => {
@@ -782,6 +787,72 @@ describe('FS IPC Handlers', () => {
       );
     });
   });
+
+  /*
+   * listDrives on Windows spawns `wmic logicaldisk get caption,volumename` and
+   * parses the tabular stdout into drive entries. The os.platform mock (default
+   * 'darwin') is flipped to 'win32' and spawn emits canned wmic output, so the
+   * Windows parsing branch runs deterministically on any host.
+   */
+  describe('listDrives — Windows wmic enumeration', () => {
+    beforeEach(() => {
+      vi.mocked(os.platform).mockReturnValue('win32');
+    });
+
+    afterEach(() => {
+      vi.mocked(os.platform).mockReturnValue('darwin');
+    });
+
+    function wmicChild(output: string): EventEmitter {
+      const proc = new EventEmitter();
+      proc.stdout = new EventEmitter();
+      // Emit after the parser attaches its stdout/close listeners.
+      queueMicrotask(() => {
+        proc.stdout.emit('data', Buffer.from(output));
+        proc.emit('close', 0);
+      });
+      return proc;
+    }
+
+    it('parses wmic output into named drive entries with trailing separators', async () => {
+      mockState.spawn.mockReturnValue(
+        wmicChild('Caption  VolumeName\nC:       Local Disk\nD:       Data\n')
+      );
+
+      const result = (await handlers.get('fs:listDrives')!({})) as Array<{
+        name: string;
+        path: string;
+        isDirectory: boolean;
+      }>;
+
+      expect(mockState.spawn).toHaveBeenCalledWith('wmic', [
+        'logicaldisk',
+        'get',
+        'caption,volumename',
+      ]);
+      expect(result).toEqual([
+        expect.objectContaining({ name: 'Local Disk (C:)', path: 'C:\\', isDirectory: true }),
+        expect.objectContaining({ name: 'Data (D:)', path: 'D:\\', isDirectory: true }),
+      ]);
+    });
+
+    it('falls back to "Local Disk" when the volume name is blank', async () => {
+      mockState.spawn.mockReturnValue(wmicChild('Caption  VolumeName\nE:\n'));
+
+      const result = (await handlers.get('fs:listDrives')!({})) as Array<{ name: string }>;
+
+      expect(result).toEqual([expect.objectContaining({ name: 'Local Disk (E:)' })]);
+    });
+
+    it('resolves to an empty list when wmic fails to spawn', async () => {
+      const proc = new EventEmitter();
+      proc.stdout = new EventEmitter();
+      mockState.spawn.mockReturnValue(proc);
+      queueMicrotask(() => proc.emit('error', new Error('ENOENT')));
+
+      await expect(handlers.get('fs:listDrives')!({})).resolves.toEqual([]);
+    });
+  });
 });
 
 describe('applySvnStatusToFiles function', () => {
@@ -849,5 +920,44 @@ describe('applySvnStatusToFiles function', () => {
 
     // Direct status (D) should be used, not calculated (M)
     expect(result[0].svnStatus?.status).toBe('D');
+  });
+});
+
+/*
+ * getParentPath drives the "up" navigation in the file explorer. It reads
+ * os.platform() and uses the host's path module, so its Windows drive-root
+ * behaviour is exercised on a real Windows host (skipped elsewhere). The
+ * notable Windows branch: the parent of a drive-relative path is the virtual
+ * DRIVES:// root that lists all drives.
+ */
+describe.skipIf(process.platform !== 'win32')('getParentPath — Windows drive navigation', () => {
+  // The file-wide os mock defaults platform() to 'darwin'; flip it to win32 so
+  // getParentPath's drive-root branch is exercised. The host's real win32 path
+  // module supplies normalize()/dirname() behavior.
+  beforeEach(() => {
+    vi.mocked(os.platform).mockReturnValue('win32');
+  });
+
+  afterEach(() => {
+    vi.mocked(os.platform).mockReturnValue('darwin');
+  });
+
+  it('returns the containing directory for an absolute Windows subpath', () => {
+    expect(getParentPath('C:\\Users')).toBe('C:\\');
+    expect(getParentPath('C:\\Users\\test\\repo')).toBe('C:\\Users\\test');
+  });
+
+  it('returns null at a drive root (no further parent)', () => {
+    expect(getParentPath('C:\\')).toBeNull();
+  });
+
+  it('returns null for the virtual drive list itself', () => {
+    expect(getParentPath('DRIVES://')).toBeNull();
+  });
+
+  it('yields DRIVES:// as the parent of a drive-relative path', () => {
+    // Drive-relative paths (C:foo) are anchored to the drive's current dir;
+    // walking above them lands at the virtual drive list.
+    expect(getParentPath('C:foo')).toBe('DRIVES://');
   });
 });

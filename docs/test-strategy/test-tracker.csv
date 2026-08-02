@@ -41,6 +41,35 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,perf,Uncategorized,src/renderer/__tests__/performance/working-copy-status.perf.test.ts,Working copy status performance benchmarks,parses remote status metadata for a large working copy within budget,existing
 —,perf,Uncategorized,src/renderer/__tests__/performance/working-copy-status.perf.test.ts,Working copy status performance benchmarks,filters and sorts parsed large status results within budget,existing
 —,perf,Uncategorized,src/renderer/__tests__/performance/working-copy-status.perf.test.ts,Working copy status performance benchmarks,keeps repeated large status refresh parsing within budget,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,status builds the args and parses the XML,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,log builds a bounded revision range,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,log uses :HEAD when only the start revision is given,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,log omits the revision arg when no bounds are given,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,info parses the info XML,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,flags a binary file,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,reports hasChanges from non-empty output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,reports no changes for empty output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,update parses the new revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,update falls back to revision 0 when the pattern is absent,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,commit parses the committed revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,checkout builds revision+depth args and parses the revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,export parses the exported revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,import parses the committed revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,switch parses the updated revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,copy parses the committed revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,"revert, add, delete, cleanup build the right args",existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,resolve passes the accepted resolution,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,propset and propdel build the right args,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,changelist add/remove build the right args,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,lock passes an optional message and returns output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,lock without a message omits -m,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,unlock passes --force when requested,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,merge passes revisions and returns output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,relocate and move return the output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,blame builds a revision range and returns a simplified result,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,blame without revisions omits the range,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,list builds revision/depth args and returns a simplified result,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,proplist parses the properties XML,existing
 —,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/parser-enhanced.test.ts,SvnXmlParseError,should create error with message,existing
 —,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/parser-enhanced.test.ts,SvnXmlParseError,should create error with xml and cause,existing
 —,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/parser-enhanced.test.ts,SvnXmlParseError,should handle empty XML,existing
@@ -81,6 +110,11 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,packages/shared/src/__tests__/constants.test.ts,size-limit guardrails,pins the cache TTLs,existing
 —,unit,Uncategorized,packages/shared/src/__tests__/constants.test.ts,size-limit guardrails,"converts seconds, minutes, and hours to milliseconds",existing
 —,unit,Uncategorized,packages/shared/src/__tests__/constants.test.ts,size-limit guardrails,converts megabytes to bytes,existing
+—,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),stays running on macOS when the last window closes (no quit),existing
+—,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),quits on Windows when the last window closes,existing
+—,unit,Uncategorized,src/main/__tests__/index.macos.test.ts,index: window-all-closed lifecycle (macOS boundary),quits on Linux when the last window closes,existing
+—,unit,Uncategorized,src/main/__tests__/index.windows.test.ts,getPackagedBinaryPaths — Windows .exe resolution,appends .exe to the bundled launchers on Windows,existing
+—,unit,Uncategorized,src/main/__tests__/index.windows.test.ts,getPackagedBinaryPaths — Windows .exe resolution,uses extension-less launcher names on POSIX (platform boundary),existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,is empty and finds nothing before anything is trusted,existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,returns the exact trust for the exact realm url,existing
 —,unit,Uncategorized,src/main/__tests__/ssl-trust-cache.test.ts,SslTrustCache,matches a trust for an ancestor realm against a deeper url,existing
@@ -258,6 +292,11 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/__tests__/svn/parsing.test.ts,SVN externals parser,should handle unicode in paths and messages,existing
 —,unit,Uncategorized,src/main/__tests__/svn/parsing.test.ts,SVN externals parser,should handle empty commit message,existing
 —,unit,Uncategorized,src/main/__tests__/svn/parsing.test.ts,SVN externals parser,should handle very large revision numbers,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,builds the hook argv from context and reports success on exit 0,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,reports failure with stderr when the hook exits non-zero,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,skips the execute-bit (X_OK) check on Windows,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,checks X_OK on POSIX,existing
+—,unit,Uncategorized,src/main/hooks/__tests__/HookExecutor.test.ts,executeHook — argv and exit code,terminates via proc.kill() (no negative-PID process-group signal on Windows),existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should register app:getVersion handler,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,does not expose arbitrary Electron paths,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should register app:openExternal handler,existing
@@ -408,10 +447,16 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should succeed even if no watcher exists,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should cancel active scan,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should return sizes for folders,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,parses wmic output into named drive entries with trailing separators,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,resolves to an empty list when wmic fails to spawn,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should handle empty files array,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should preserve files without SVN status,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should calculate folder status from child entries,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,should prioritize direct folder status over calculated,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,returns the containing directory for an absolute Windows subpath,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,returns null at a drive root (no further parent),existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,returns null for the virtual drive list itself,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/fs.test.ts,FS IPC Handlers,yields DRIVES:// as the parent of a drive-relative path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/monitor.test.ts,monitor IPC handlers,starts with no monitored working copies,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/monitor.test.ts,monitor IPC handlers,adds a working copy once svn info resolves,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/monitor.test.ts,monitor IPC handlers,refuses to add a path that is not a working copy,existing
@@ -433,9 +478,27 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,should handle complex objects,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,should return undefined after delete,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,should overwrite existing values,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,tightens an existing config to 0o600 on POSIX,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/store.test.ts,Store IPC Handlers,skips the chmod on Windows (no permission bits),existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,registers the complete cache contract,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,passes a validated transactional set to the service,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,validates clear timestamps,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,registers a handler for every channel in the table,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,invokes every handler without throwing,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:capabilities delegates to getSvnCapabilities,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:status delegates path and worker job id,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:log delegates the full argument set,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:commit runs the mutation and notifies the renderer,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:checkout resolves the auth session before delegating,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:list resolves the auth session and delegates,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:patch:apply calls applyPatch directly on a dry run,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:exclude wraps a single string path into an array,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,a failing mutation returns a structured failure instead of throwing,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,places the socket file inside the user-data directory,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,uses the .sock Unix-domain-socket extension,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,is deterministic for the same user-data path,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,yields distinct socket paths for distinct user-data paths,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,embeds the user-data path directly (unlike the hashed Windows pipe name),existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,creates a platform-specific local socket path,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,serves cached path status over the local socket,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,rejects requests without the per-run token,existing
@@ -446,6 +509,10 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,removes unix socket files on shutdown,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,can retry the same instance after listen fails,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,replaces the singleton after startup fails,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,produces a named-pipe path with a 12-hex-char suffix,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,is deterministic for the same user-data path,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,yields distinct pipe names for distinct user-data paths,existing
+—,unit,Uncategorized,src/main/services/__tests__/local-status-server.test.ts,LocalStatusServer,hashes the user-data path so the raw path is not embedded,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,persists entries for another service instance,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,serializes concurrent writes without losing either entry,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,purges expired entries from memory and disk,existing
@@ -459,9 +526,14 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,deliberately discards the legacy log store once before using the new cache,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,uses approved custom storage and rejects relative or unapproved paths,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,falls back when approved custom storage is unavailable,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,clears an entry whose stored path differs only by case and separator,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,clears a descendant entry via a case-insensitive ancestor clear,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,does not clear an unrelated path that shares only a name prefix,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-cache-service.test.ts,SvnCacheService,is case-sensitive on POSIX: a differently-cased clear does not match,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-content.test.ts,svn-content,retrieves exact binary bytes with an operative revision,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-content.test.ts,svn-content,escapes local peg ambiguity and rejects invalid revisions,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,uses the configured SVN client path and redacts credentials in logs,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,closes svn stdin even without credentials so a non-interactive command cannot block,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,uses the sibling svnmucc executable for repository URL transactions,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,waits for settings to load before spawning SVN,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,redacts secret-looking stderr before returning command failures,existing
@@ -507,6 +579,8 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,collapses directories nested under other listed directories,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,does not collapse siblings that merely share a name prefix,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,is order-independent,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,collapses across mismatched separators (portable shelf made on another OS),existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-portable-shelves.test.ts,collapseNestedFiles,does not collapse a sibling whose name merely prefixes the directory,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-progress.test.ts,svn-progress,streams file progress and uses streamed revision when stored output is capped,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-progress.test.ts,svn-progress,returns null when successful output has no authoritative revision,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-progress.test.ts,svn-progress,cancels an active operation by aborting the executor signal,existing
@@ -579,6 +653,12 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/utils/__tests__/secure-ipc.test.ts,installSecureIpcBoundary,scrubs secrets out of errors thrown by a listener,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-ipc.test.ts,installSecureIpcBoundary,coerces non-Error throws into a generic message,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-ipc.test.ts,installSecureIpcBoundary,is idempotent — a second install does not re-wrap or change behavior,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),chmods the directory to 0700 and the file to 0600 on the sync path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),chmods the directory to 0700 and the file to 0600 on the async path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),hardenPrivateFile tightens an existing file to 0600,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),does not chmod on the sync path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),does not chmod on the async path,existing
+—,unit,Uncategorized,src/main/utils/__tests__/secure-json.macos.test.ts,secure-json: POSIX permission hardening (macOS),hardenPrivateFile is a no-op on Windows,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-json.test.ts,secure-json,writes JSON that round-trips exactly,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-json.test.ts,secure-json,leaves no .tmp file behind after the rename,existing
 —,unit,Uncategorized,src/main/utils/__tests__/secure-json.test.ts,secure-json,overwrites an existing file atomically,existing
@@ -694,6 +774,9 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/renderer/__tests__/keyboardShortcuts.parity.test.tsx,keyboard shortcut parity,keeps customizable SVN shortcut defaults aligned with the shortcut reference,existing
 —,unit,Uncategorized,src/renderer/__tests__/keyboardShortcuts.parity.test.tsx,keyboard shortcut parity,handles file explorer keyboard navigation and selection shortcuts,existing
 —,unit,Uncategorized,src/renderer/__tests__/keyboardShortcuts.parity.test.tsx,keyboard shortcut parity,"opens folders, selects all files, and clears selection from file explorer shortcuts",existing
+—,unit,Uncategorized,src/renderer/__tests__/pathResolution.macos.test.ts,pathResolution — macOS (darwin) output,keeps forward slashes for a POSIX working copy root,existing
+—,unit,Uncategorized,src/renderer/__tests__/pathResolution.macos.test.ts,pathResolution — macOS (darwin) output,does not convert forward slashes to backslashes on macOS,existing
+—,unit,Uncategorized,src/renderer/__tests__/pathResolution.macos.test.ts,pathResolution — macOS (darwin) output,preserves the exact case of every segment (case-sensitive filesystem),existing
 —,unit,Uncategorized,src/renderer/__tests__/pathResolution.test.ts,getRelativePath,returns relative path for nested paths,existing
 —,unit,Uncategorized,src/renderer/__tests__/pathResolution.test.ts,getRelativePath,returns relative path for deeply nested paths,existing
 —,unit,Uncategorized,src/renderer/__tests__/pathResolution.test.ts,getRelativePath,returns empty string when paths are equal,existing
@@ -913,6 +996,16 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileListTransforms.test.ts,fileListTransforms,filters search with one normalized query,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileListTransforms.test.ts,fileListTransforms,keeps folders first while sorting by basename,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileListTransforms.test.ts,fileListTransforms,filters and sorts a large list within the target budget,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,maps a versioned file with svnStatus onto a status entry,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,defaults status to blank when svnStatus is absent,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,carries the directory flag and remoteUrl through,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,counts pending changes nested under each immediate folder,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,"skips unversioned, ignored, and external entries",existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,counts a deeply nested change once per ancestor folder,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,returns empty when there are no folders or no deep entries,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,leaves files unchanged when there are no folders,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,keeps the worst status when a later entry is lower priority,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,leaves a folder without descendant changes at no status,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.test.ts,fileStatus,aggregates descendant status onto visible folders,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.test.ts,fileStatus,indexes large deep-status results within the target budget,existing
 —,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,selects only clean measured working copies behind HEAD by default,existing
@@ -1025,6 +1118,9 @@ J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Setting
 J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Settings Dialog,encryption status is displayed,existing
 J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Settings Dialog,auth prompt appears for protected repositories,existing
 J11,e2e,Authentication,tests/e2e/authentication.spec.ts,Authentication - Settings Dialog,auth credentials are remembered option,existing
+J11,e2e,Settings,tests/e2e/macos-integrations.spec.ts,macOS integration,main process runs on darwin,existing
+J11,e2e,Settings,tests/e2e/macos-integrations.spec.ts,macOS integration,platform IPC reaches the renderer as darwin,existing
+J11,e2e,Settings,tests/e2e/macos-integrations.spec.ts,macOS integration,creates a visible browser window with non-zero bounds,existing
 J11,e2e,Settings,tests/e2e/settings.spec.ts,Settings - Dialog Navigation,settings dialog opens and closes,existing
 J11,e2e,Settings,tests/e2e/settings.spec.ts,Settings - Dialog Navigation,settings dialog has multiple tabs,existing
 J11,e2e,Settings,tests/e2e/settings.spec.ts,Settings - Dialog Navigation,can navigate between settings tabs,existing
@@ -1061,6 +1157,10 @@ J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager mi
 J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,accepts an approved cache directory and bounded log-cache size,existing
 J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,rejects unapproved or out-of-range cache settings,existing
 J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,validates an approved custom SVN executable once and revalidates after replacement,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,defaults to svn.exe on Windows when no custom client is configured,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,skips the execute-bit (X_OK) check on Windows,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,rejects a .cmd wrapper at write time and keeps the svn.exe default,existing
+J11,unit,Settings,src/main/__tests__/settings-manager.test.ts,SettingsManager migration and persistence,checks X_OK on POSIX and defaults to svn (no .exe),existing
 J11,unit,Settings,src/main/__tests__/svn/integration.test.ts,SVN Parsing Functions Integration,should parse empty status,existing
 J11,unit,Settings,src/main/__tests__/svn/integration.test.ts,SVN Parsing Functions Integration,should parse modified files,existing
 J11,unit,Settings,src/main/__tests__/svn/integration.test.ts,SVN Parsing Functions Integration,should handle malformed XML,existing
@@ -1087,8 +1187,11 @@ J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show 
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,rejects a missing or non-string body,existing
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,rejects oversized payloads,existing
 J11,unit,Settings,src/main/ipc/__tests__/notification.test.ts,notification:show handler,accepts payloads at exactly the length limits,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,searches the Homebrew install directories on macOS,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,searches the macOS JetBrains Toolbox scripts directory,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,does not search the Linux JetBrains Toolbox path on macOS,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.macos.test.ts,code-editors: platform boundary vs Windows,does not append any well-known directories on Windows,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers only the editors whose launcher is on PATH,existing
-J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,ignores a file that is present but not executable,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,offers nothing when PATH holds no editor at all,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"searches every PATH entry, not just the first",existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,finds an editor the shell knows about but the GUI PATH does not,existing
@@ -1104,6 +1207,16 @@ J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEdito
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"refuses an editor id it does not know, without spawning anything",existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,refuses a known editor that is not installed here,existing
 J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,reports a launcher that fails to start,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,finds an editor through its PATHEXT extension when no bare launcher exists,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,"launches the resolved PATHEXT launcher, not the bare command name",existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,prefers a bare launcher over PATHEXT extensions when both are present,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,honours a custom PATHEXT and ignores extensions it does not list,existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,does not query a login shell on Windows (PATH is taken as-is),existing
+J11,unit,Settings,src/main/services/__tests__/code-editors.test.ts,listCodeEditors,falls back to the default extension set when PATHEXT is unset,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,accepts a .app bundle directory and strips the extension from its name,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,still rejects an ordinary directory that is not a .app bundle,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,launches a .app bundle through /usr/bin/open -a with the expanded arguments,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.macos.test.ts,,"launches an ordinary executable directly, not through open -a",existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,accepts the canonical placeholder templates for each role,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,accepts literal flags alongside placeholders,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,allows placeholders from any of the declared roles in a multi-role tool,existing
@@ -1113,12 +1226,27 @@ J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,val
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,rejects argument-file (@) prefix syntax,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,rejects empty or oversized token arrays,existing
 J11,unit,Settings,src/main/services/__tests__/external-tool-registry.test.ts,validateExternalToolTemplate,rejects empty or oversized individual tokens,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),rejects command shells by basename,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),rejects script files by extension,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),rejects a directory,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a normal executable binary,existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a binary that lacks the execute bit (X_OK is skipped on Windows),existing
+J11,unit,Settings,src/main/services/__tests__/external-tool-registry.validate.test.ts,validateExecutable (via register),accepts a world-writable binary (mode check is skipped on Windows),existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,resolves the helper path to the Finder Sync extension,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,reports macOS as the platform with Finder badges gated on registration,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,surfaces the macOS missing-helper repair guidance and badge limitation,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,refuses to register when the Finder Sync helper is missing,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.macos.test.ts,ShellIntegrationManager — macOS,caches overlay status on macOS without invoking a native helper,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,reports missing native helper with app fallback guidance,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Windows Explorer commands for common working-copy actions,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Windows overlay icons for the full SVN status set,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines Finder commands and badge statuses supported by Finder Sync,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,defines file-manager presentation for locked items separately from SVN text status,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,creates app handoff URLs with command and selected paths,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,resolves the helper path to the Windows .exe launcher,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,reports Windows as the platform with overlays gated on registration,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,surfaces the Windows missing-helper repair guidance and Explorer limitation,existing
+J11,unit,Settings,src/main/shell/__tests__/ShellIntegration.test.ts,ShellIntegrationManager,refuses to register when the native helper is missing,existing
 J11,unit,Settings,src/main/shell/__tests__/ShellPackageVerification.test.ts,shell/Finder package verification script,checks Windows and macOS release targets for native helper artifacts,existing
 J11,unit,Settings,src/main/utils/__tests__/external-tool-validation.test.ts,external tool setting validation,"allows empty settings, known aliases, and opaque registered ids",existing
 J11,unit,Settings,src/main/utils/__tests__/external-tool-validation.test.ts,external tool setting validation,rejects renderer-supplied executable paths and traversal,existing
@@ -1183,6 +1311,8 @@ J13,integration,Diagnostics,(planned),,integration: cleanup repairs working copy
 J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,capability-gates companion-client and experimental workflows,existing
 J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,reports the SVN 1.14 advanced workflow baseline,existing
 J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,flags SVN versions below the advanced workflow baseline,existing
+J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,probes svn.exe and shelly-engine.exe on Windows,existing
+J13,unit,Diagnostics,src/main/services/__tests__/svn-diagnostics.test.ts,svn-diagnostics,probes extension-less binaries on POSIX,existing
 J13,unit,Diagnostics,src/renderer/src/components/__tests__/RepoDiagnostics.test.ts,buildDiagnosticsReport,"redacts support-export credentials, tokens, and local usernames",existing
 J13,unit,Diagnostics,src/renderer/src/components/__tests__/RepoDiagnosticsPanel.test.tsx,RepoDiagnosticsPanel,shows a re-trust button for SSL certificate errors and calls the trust API,existing
 J14,unit,Lifecycle/Auth,(planned),,unit: network-dependent .real tests are skipped when offline (env guard),gap
@@ -1336,6 +1466,13 @@ J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime
 J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime,should format minutes,existing
 J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime,should format hours,existing
 J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime,should format days,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,"sizes primitives (boolean, number, null, undefined) without throwing",existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,"sizes Map, Set, Date, and typed-array (ArrayBufferView) values",existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,falls back to the default size for functions and symbols,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,calls onEvict with the manual reason for each entry on clear,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,returns undefined and deletes an expired entry on peek,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,evicts expired entries via the periodic sweep with the ttl reason,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,logs through onEvict when a diff-cache entry is removed,existing
 J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.test.ts,LRUCache,should set and get values,existing
 J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.test.ts,LRUCache,should return undefined for missing keys,existing
 J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.test.ts,LRUCache,should check if key exists,existing
@@ -1398,6 +1535,8 @@ J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should h
 J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should handle sequential saves correctly,existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should not expose passwords in list output,existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,should use encryption for password storage,existing
+J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,tightens an existing store to 0o600 on POSIX,existing
+J14,unit,Lifecycle/Auth,src/main/__tests__/auth-cache.test.ts,AuthCache,skips the chmod on Windows (no permission bits),existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/cli-parser-boundary.test.ts,CLI parser boundary,keeps shellysvn-cli as a thin shelly-engine JSON client instead of duplicating SVN parsers,existing
 J14,unit,Lifecycle/Auth,src/main/__tests__/compiled-binary-smoke.test.ts,compiled binary smoke verification,covers every release target and executes both bundled binaries,existing
 J14,unit,Shared/Core,src/main/__tests__/diff-parser.test.ts,StreamingDiffParser,should parse a simple diff,existing
@@ -1430,15 +1569,30 @@ J14,unit,Lifecycle/Auth,src/main/ipc/__tests__/webhook.test.ts,Webhook IPC Handl
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/auth-session-manager.test.ts,main-process authentication sessions,returns an opaque renderer-bound session without exposing the password,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/auth-session-manager.test.ts,main-process authentication sessions,rejects use against another repository origin and expires idle sessions,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/auth-session-manager.test.ts,main-process authentication sessions,resumes encrypted credentials without returning their password,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,claims the shellysvn:// protocol as the default handler on macOS,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,does not contest the single-instance lock (Windows/Linux path only),existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,registers an open-url listener that prevents default and dispatches the link,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,on Windows delegates to the single-instance lock instead of the macOS protocol claim,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.macos.test.ts,protocol handler: macOS (darwin) registration,on Windows/Linux quits when another instance already holds the lock,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,parses supported deep links and marks mutating actions for confirmation,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,rejects unsupported actions and repository URL protocols,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,rejects missing required paths and oversized input,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.test.ts,protocol handler deep-link parsing,round-trips generated repository URLs and local paths exactly once,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,does not claim the shellysvn:// protocol (macOS path only),existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,registers a second-instance listener that forwards the shellysvn:// URL,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,ignores a second instance whose command line has no shellysvn:// URL,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,quits without registering second-instance when it loses the lock,existing
+J14,unit,Lifecycle/Auth,src/main/services/__tests__/protocol-handler.windows.test.ts,protocol handler: Windows (win32) registration,dispatches a shellysvn:// URL present in the launch argv once the app is ready,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/svn-native-auth.test.ts,svn native auth,parses credentials without exposing password fields,existing
 J14,unit,Lifecycle/Auth,src/main/services/__tests__/svn-native-auth.test.ts,svn native auth,never requests passwords and removes only explicit patterns,existing
 J14,unit,Shared/Core,src/main/utils/__tests__/approved-paths.test.ts,approved renderer paths,allows an explicitly approved root and its descendants only,existing
-J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,,escalates from SIGTERM to SIGKILL for a surviving process group,existing
-J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,,is a no-op for an already-exited child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,escalates from SIGTERM to SIGKILL for a surviving process group,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,is a no-op for an already-exited child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,escalates from graceful taskkill to /T /F when the child survives,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,does not force-kill when the graceful taskkill already terminated the child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,is a no-op for an already-exited child,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,is a no-op when no pid is present,existing
+J14,unit,Lifecycle/Auth,src/main/utils/__tests__/process-tree.test.ts,Windows process-tree termination,passes through a caller-supplied grace window,existing
 J14,unit,Lifecycle/Auth,src/main/utils/__tests__/redaction.test.ts,redaction utilities,redacts values after secret command flags,existing
 J14,unit,Lifecycle/Auth,src/main/utils/__tests__/redaction.test.ts,redaction utilities,redacts inline secret key-value strings,existing
 J14,unit,Lifecycle/Auth,src/main/utils/__tests__/redaction.test.ts,redaction utilities,redacts nested secret object fields,existing
@@ -1768,6 +1922,13 @@ J3,unit,Repo Browser,src/renderer/src/features/repo-browser/__tests__/useRepoBro
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/__tests__/useRepoBrowserState.test.ts,ancestorsOf,collapses every expanded path except the root,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/cacheDimensions.test.tsx,repository-browser query cache dimensions,refetches properties when inherited-property visibility changes,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/cacheDimensions.test.tsx,repository-browser query cache dimensions,refetches repository listings when depth changes,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,maps committed and uncommitted lines and counts the uncommitted,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,surfaces a partial annotation flag,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,reports a resolved SVN error field and keeps lines empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,reports a thrown query error via describeError,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,flags an authentication failure and suppresses the generic error,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,does not fetch when disabled or the url is empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,refetches the blame annotation,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.test.ts,toBlameLine,"maps a committed line through with its revision, author, and date",existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.test.ts,toBlameLine,treats a missing or non-positive revision as uncommitted,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.test.ts,toBlameLine,always preserves the line number and content,existing
@@ -1800,6 +1961,27 @@ J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useR
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.ts,extractIssueReference,substitutes the %BUGID% placeholder with the issue id,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.ts,extractIssueReference,URL-encodes special characters in the issue id,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.ts,extractIssueReference,leaves a template without the placeholder unchanged,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns undefined when there is no logregex,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,extracts via a single capture-group regex,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,falls back to the whole match when there is no capture group,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,"uses the two-regex form: find the block, then the id inside it",existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns undefined when the pattern does not match,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns undefined for a malformed regex instead of throwing,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns null without a template,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,substitutes and URL-encodes the issue id,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,maps log entries and counts changed paths,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,surfaces a partial flag from a truncated page,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,attaches an issue reference when a bugtraq logregex resolves,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,surfaces an auth error as needsAuth and suppresses the generic message,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,surfaces a non-auth error as a message,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,does not fetch when disabled or the url is empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,fetches the next page and de-duplicates the overlapping revision,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,reports build status as an unsupported capability,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,lists children for each expanded path,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,"caps concurrent paths, deferring the oldest beyond the ceiling",existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,reports a per-path error without blanking sibling subtrees,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,does not fetch when disabled or the root url is empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,de-duplicates repeated paths into a single fetch,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useWorkingCopyForPath.test.tsx,useWorkingCopyForPath,surfaces a genuine svn info failure as an error,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useWorkingCopyForPath.test.tsx,useWorkingCopyForPath,"resolves a working copy and builds its state from info, head and status",existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useWorkingCopyForPath.test.tsx,useWorkingCopyForPath,keys status entries by repository-relative path so the listing can join them,existing
@@ -1845,6 +2027,10 @@ J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusS
 J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,normalizes cache lookup paths,existing
 J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,expires deep status entries after the cache TTL,existing
 J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,evicts least recently used deep status entries when bounded,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,treats drive-letter case and separator style as equivalent,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,stores a single entry for case/separator variants of the same path,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,invalidates case-insensitively across separators,existing
+J4,unit,File Explorer,src/main/services/__tests__/status-service.test.ts,StatusService,is case-sensitive on POSIX (no lowercasing),existing
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,strips null bytes before passing commit messages to hooks and svn,existing
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,uses sanitized messages for progress commits,existing
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,"runs start, pre, svn, and post commit in order",existing
@@ -1886,6 +2072,10 @@ J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.t
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not run checkout-only reads against a folder navigated to from a checkout,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not request metadata or deep status for the drives root,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerSelection.test.tsx,useFileExplorerSelection,selects a file from an ancestor Miller column,existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,"selects blocking status, tree-conflict, and lock entries",existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,normalizes Windows separators when producing a relative path,existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,leaves paths outside the working-copy root intact,existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,"caps rendered problems at 1,000 rows without mutating the source",existing
 J4,unit,Commit,src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts,useCommitMessageHistory,should initialize with empty history,existing
 J4,unit,Commit,src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts,useCommitMessageHistory,should load stored history on mount,existing
 J4,unit,Commit,src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts,useCommitMessageHistory,should handle storage load errors gracefully,existing
@@ -2039,6 +2229,14 @@ J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.t
 J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.test.ts,resolveBranchContext,detects a tag,existing
 J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.test.ts,resolveBranchContext,picks the deepest branch-root for nested layouts,existing
 J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.test.ts,resolveBranchContext,returns null when there is no standard layout,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,"fetches branches and tags, deriving trunkUrl and the youngest revision",existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,"keeps only directories, dropping files",existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,treats a missing branches/tags directory (not-found) as empty rather than erroring,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,surfaces non-not-found errors as a query failure,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,does not fetch when no branch root url is given,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,seeds the cache from the persisted store for instant display,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,writes a successful fetch back to the persisted store,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,"invalidates the branch-root query, triggering a refetch",existing
 J9,e2e,Locking,(planned),,E2E: lock file -> indicator shown -> unlock -> indicator clears,gap
 J9,unit,Locking,src/main/services/__tests__/svn-locks.test.ts,svn-locks,runs lock and unlock commands with configured pre-hooks,existing
 J9,unit,Locking,src/main/services/__tests__/svn-locks.test.ts,svn-locks,runs force lock and force unlock workflows,existing

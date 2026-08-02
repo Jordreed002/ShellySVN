@@ -123,6 +123,11 @@ import {
 const WorkingCopyTree = lazy(() =>
   import('./files/WorkingCopyTree').then((m) => ({ default: m.WorkingCopyTree }))
 );
+const WorkingCopyProblemsDialog = lazy(() =>
+  import('./files/WorkingCopyProblemsDialog').then((m) => ({
+    default: m.WorkingCopyProblemsDialog,
+  }))
+);
 
 function WorkingCopyTreeFallback() {
   return (
@@ -158,7 +163,7 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
 }
 
 export function FileExplorer() {
-  const { path } = useSearch({ from: '/files/' });
+  const { path, dialog } = useSearch({ from: '/files/' });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: svnCapabilities } = useQuery({
@@ -206,6 +211,7 @@ export function FileExplorer() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [isUpgradingWorkingCopy, setIsUpgradingWorkingCopy] = useState(false);
   const [isAddingToWorkingCopy, setIsAddingToWorkingCopy] = useState(false);
+  const [problemsPath, setProblemsPath] = useState<string | null>(null);
 
   const {
     applyPatchPath,
@@ -265,6 +271,15 @@ export function FileExplorer() {
     switchPath,
     updateDialogOpen,
   } = useFileExplorerDialogState();
+
+  // Sidebar insight rows can target a dialog even when their working-copy path
+  // is already the active route. Consume the transient route intent so the
+  // same row remains actionable after the dialog is closed.
+  useEffect(() => {
+    if (dialog !== 'problems') return;
+    setProblemsPath(path);
+    void navigate({ to: '/files', search: { path }, replace: true });
+  }, [dialog, navigate, path]);
   /* Editors on PATH, for the context menu's "Open in" section. */
   const codeEditors = useCodeEditors();
   const [deepStatusProgress, setDeepStatusProgress] = useState<DeepStatusProgress | null>(null);
@@ -2336,6 +2351,12 @@ export function FileExplorer() {
           onCancel={authPrompt.close}
           onSubmit={authPrompt.submit}
         />
+      )}
+
+      {problemsPath && (
+        <Suspense fallback={<DialogLoader />}>
+          <WorkingCopyProblemsDialog path={problemsPath} onClose={() => setProblemsPath(null)} />
+        </Suspense>
       )}
 
       {/* Repository Diagnostics */}

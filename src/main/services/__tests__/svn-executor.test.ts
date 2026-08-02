@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { dirname, join } from 'node:path';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
@@ -165,6 +166,20 @@ describe('svn-executor', () => {
     expect(mockState.debugLog.mock.calls.join('\n')).not.toContain('secret-value');
   });
 
+  it('closes svn stdin even without credentials so a non-interactive command cannot block', async () => {
+    // Regression: for a no-auth command (e.g. svn info on a local working copy)
+    // passwordViaStdin is null, so the password write is skipped — but stdin
+    // must still be closed (EOF). Leaving the pipe open let svn block on a stdin
+    // read on Windows, hanging until the connection timeout fired.
+    const { proc, promise } = await startSvn(['info', '--xml', '--', 'C:\\LineIndustries']);
+    proc.stdout.emit('data', Buffer.from('<info />'));
+    proc.emit('close', 0);
+
+    await expect(promise).resolves.toBe('<info />');
+    expect(proc.stdin.end).toHaveBeenCalledTimes(1);
+    expect(proc.stdin.write).not.toHaveBeenCalled();
+  });
+
   it('uses the sibling svnmucc executable for repository URL transactions', async () => {
     mockState.getSvnClientPath.mockReturnValue('/tools/svn.exe');
     const { proc, promise } = await startSvnMucc([
@@ -181,7 +196,9 @@ describe('svn-executor', () => {
 
     await expect(promise).resolves.toBe('r12 committed');
     expect(mockState.spawn).toHaveBeenCalledWith(
-      '/tools/svnmucc.exe',
+      // svnmucc is resolved as a sibling of the svn client path; mirror the
+      // source's join()/dirname() so the expected path matches on every host.
+      join(dirname('/tools/svn.exe'), 'svnmucc.exe'),
       expect.arrayContaining(['propset', 'custom:owner', 'team']),
       expect.objectContaining({ windowsHide: true })
     );

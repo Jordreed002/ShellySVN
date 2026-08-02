@@ -6,6 +6,18 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/__tests__/**/*.test.{ts,tsx}', 'packages/**/__tests__/**/*.test.{ts,tsx}'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
+      '**/.{idea,git,cache,output,temp}/**',
+      // Real-SVN integration tests need a live `svnserve` / docker compatibility
+      // lab and are exercised by the dedicated `real-svn-workflows` CI job
+      // (`bun run verify:svn-workflows`). They must not run in the plain unit /
+      // coverage run, which has no SVN toolchain provisioned for them.
+      '**/*.real.test.{ts,tsx}',
+      'src/integration/**',
+    ],
     // Allow mocking of Node.js built-in modules
     deps: {
       interopDefault: true,

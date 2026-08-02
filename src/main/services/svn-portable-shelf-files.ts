@@ -1,5 +1,3 @@
-import { sep } from 'node:path';
-
 export interface PortableShelfFile {
   relativePath: string;
   status: string;
@@ -10,10 +8,13 @@ export function collapseNestedFiles(files: PortableShelfFile[]): PortableShelfFi
   return files.filter(
     (file, index) =>
       !files.some(
-        (parent, parentIndex) =>
-          parentIndex !== index &&
-          parent.kind === 'directory' &&
-          file.relativePath.startsWith(`${parent.relativePath}${sep}`)
+        (parent, parentIndex) => {
+          if (parentIndex === index || parent.kind !== 'directory') return false;
+          // Shelves may be created on one OS and restored on another.
+          const filePath = file.relativePath.replace(/\\/g, '/');
+          const parentPrefix = `${parent.relativePath.replace(/\\/g, '/')}/`;
+          return filePath.startsWith(parentPrefix);
+        }
       )
   );
 }

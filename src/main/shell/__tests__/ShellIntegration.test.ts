@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from 'vitest';
+import { spawn } from 'child_process';
 
 vi.mock('electron', () => ({
   app: {
@@ -153,5 +154,78 @@ describe('ShellIntegrationManager', () => {
     expect(url).toBe(
       'shellysvn://file-manager-action?command=commit&path=C%3A%5Cwc%5Csrc%5Cfile+one.ts&path=C%3A%5Cwc%5Csrc%5Cfile-two.ts'
     );
+  });
+});
+
+/*
+ * Windows shell-integration surface. The host platform is forced to win32 so
+ * the Windows branch of getStatus()/getHelperPath() runs regardless of where
+ * the suite executes. existsSync stays mocked false (missing helper), which is
+ * the documented first-run state until a packaged build installs the helper.
+ */
+describe('ShellIntegrationManager — Windows', () => {
+  const originalPlatform = process.platform;
+
+  beforeEach(() => {
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('resolves the helper path to the Windows .exe launcher', () => {
+    const manager = new ShellIntegrationManager();
+    const status = manager.getStatus();
+
+    // Basename is separator-agnostic: join() uses the host separator, but the
+    // launcher name is the same on every platform.
+    expect(status.helperPath?.endsWith('ShellySVNShellHelper.exe')).toBe(true);
+  });
+
+  it('reports Windows as the platform with overlays gated on registration', () => {
+    const status = new ShellIntegrationManager().getStatus();
+
+    expect(status.platform).toBe('windows');
+    expect(status.supported).toBe(true);
+    // Helper is missing (existsSync mocked false) → not registered.
+    expect(status.registered).toBe(false);
+    expect(status.helperExists).toBe(false);
+    // Icon overlays are a Windows-only feature and require registration.
+    expect(status.iconOverlaysAvailable).toBe(false);
+    // Finder badges are macOS-only.
+    expect(status.finderBadgesAvailable).toBe(false);
+    // Windows registration needs elevation; an unregistered state needs admin.
+    expect(status.needsAdmin).toBe(true);
+    expect(status.fallbackAvailable).toBe(true);
+  });
+
+  it('surfaces the Windows missing-helper repair guidance and Explorer limitation', () => {
+    const status = new ShellIntegrationManager().getStatus();
+
+    expect(status.message).toContain('Windows shell helper is missing');
+    expect(status.repairActions.some((action) => action.includes('ShellySVNShellHelper.exe'))).toBe(
+      true
+    );
+    expect(status.limitations).toContain(
+      'Explorer may require restart or sign-out before overlay changes appear.'
+    );
+  });
+
+  it('refuses to register when the native helper is missing', async () => {
+    const result = await new ShellIntegrationManager().register();
+
+    // register() throws when the helper is absent, surfaced as a failure.
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Windows shell helper is missing');
+    expect(spawn).not.toHaveBeenCalled();
   });
 });
