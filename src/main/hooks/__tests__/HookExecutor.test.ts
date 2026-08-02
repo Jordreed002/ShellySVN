@@ -66,7 +66,12 @@ const baseContext: HookContext = {
 };
 
 afterEach(() => {
+  // restoreAllMocks undoes vi.spyOn (e.g. process.kill) but does NOT clear the
+  // mock.calls history of the fs module mocks (accessSync/statSync). Without
+  // clearAllMocks that history leaks across tests, so the Windows test — which
+  // asserts accessSync is never called — sees stale calls from the POSIX tests.
   vi.restoreAllMocks();
+  vi.clearAllMocks();
   vi.useRealTimers();
 });
 

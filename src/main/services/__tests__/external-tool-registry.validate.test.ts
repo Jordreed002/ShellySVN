@@ -74,7 +74,10 @@ describe('validateExecutable (via register)', () => {
   });
 
   it('accepts a normal executable binary', async () => {
-    dialog.filePaths = [writeFile('myeditor.exe')];
+    // 0o755 makes the file genuinely executable on POSIX so the X_OK check
+    // passes. (The Windows-only cases below deliberately use 0o644/0o646
+    // because X_OK is skipped on win32; this test runs on the real platform.)
+    dialog.filePaths = [writeFile('myeditor.exe', 0o755)];
     const result = await getExternalToolRegistry().register('editor');
     expect(result).toMatchObject({ name: 'myeditor.exe', roles: ['editor'], builtIn: false });
   });

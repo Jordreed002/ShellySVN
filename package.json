@@ -54,7 +54,7 @@
     "verify:binaries": "node scripts/verify-binaries.mjs",
     "verify:release-version": "node scripts/validate-release-version.mjs",
     "verify:release-assets": "node scripts/validate-release-assets.mjs",
-    "verify:svn-workflows": "node scripts/verify-svn-ipc-contract.mjs && node scripts/verify-svn-workflows.mjs && vitest run src/main/services/__tests__/svn-release-workflows.real.test.ts",
+    "verify:svn-workflows": "node scripts/verify-svn-ipc-contract.mjs && node scripts/verify-svn-workflows.mjs && vitest run --config vitest.real.config.ts",
     "svn:test-server:start": "node scripts/svn-test-server.mjs start",
     "svn:test-server:stop": "node scripts/svn-test-server.mjs stop",
     "svn:test-server:status": "node scripts/svn-test-server.mjs status",

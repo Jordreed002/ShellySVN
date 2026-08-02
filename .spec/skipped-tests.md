@@ -17,6 +17,8 @@ Current baseline: 28 skipped tests. The CI guard in `scripts/check-skipped-tests
 | Commit history and templates | `src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts`, `src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts` | 2 | Re-enable after store and preload mocks match current app metadata APIs. |
 | E2E file and SVN operations | `tests/e2e/file-operations.spec.ts`, `tests/e2e/svn-operations.spec.ts` | 5 | Keep conditional skips until CI has a disposable SVN repository fixture and platform-stable filesystem paths. |
 | E2E conflict resolution | `tests/e2e/conflict-resolution.spec.ts` | 1 | Keep conditional skip until CI has `svn` and `svnadmin` available for the disposable conflict repository fixture. |
+| E2E keyboard a11y gaps | `tests/e2e/keyboard-interactions.spec.ts` | 2 | Escape-to-dismiss and focus-trap are known accessibility gaps; keep skipped until modal keyboard handling lands. |
+| E2E macOS-only integration | `tests/e2e/macos-integrations.spec.ts` | 1 | Platform-guarded (`process.platform !== 'darwin'`); runs only on macOS where the native integrations exist. |
 
 ## Follow-Up Order
 

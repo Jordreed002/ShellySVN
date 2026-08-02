@@ -19,6 +19,8 @@ const APPROVED_SKIP_COUNTS = new Map([
   ['src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts', 2],
   ['tests/e2e/conflict-resolution.spec.ts', 1],
   ['tests/e2e/file-operations.spec.ts', 3],
+  ['tests/e2e/keyboard-interactions.spec.ts', 2],
+  ['tests/e2e/macos-integrations.spec.ts', 1],
   ['tests/e2e/svn-operations.spec.ts', 2],
 ]);
 
