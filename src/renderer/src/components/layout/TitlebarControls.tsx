@@ -4,7 +4,6 @@ const ICON_BUTTON_CLASS =
   'titlebar-no-drag w-8 h-8 grid place-items-center rounded-lg border transition-fast bg-transparent border-transparent text-text-secondary hover:bg-bg-tertiary hover:border-border hover:text-text';
 
 interface TitlebarControlsProps {
-  isMac: boolean;
   isWindows: boolean;
   isMaximized: boolean;
   isDarkTheme: boolean;
@@ -18,7 +17,6 @@ interface TitlebarControlsProps {
 
 /** Nonessential titlebar enrichment, loaded after the route shell is usable. */
 export function TitlebarControls({
-  isMac,
   isWindows,
   isMaximized,
   isDarkTheme,
@@ -67,7 +65,7 @@ export function TitlebarControls({
         {accountInitial || <User className="w-4 h-4" aria-hidden="true" />}
       </button>
 
-      {!isMac && (
+      {isWindows && (
         <div
           className={`flex items-center ml-1 ${isWindows ? 'h-[50px] -mr-3.5' : 'h-full'}`}
         >

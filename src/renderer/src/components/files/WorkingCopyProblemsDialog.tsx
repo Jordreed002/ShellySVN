@@ -13,16 +13,20 @@ interface WorkingCopyProblemsDialogProps {
   onClose: () => void;
 }
 
-function needsAttention(entry: SvnStatusEntry): boolean {
+export function needsAttention(entry: SvnStatusEntry): boolean {
   return entry.status === 'C' || entry.status === '!' || !!entry.treeConflict || !!entry.lock;
 }
 
-function relativePath(root: string, target: string): string {
+export function relativePath(root: string, target: string): string {
   const normalizedRoot = root.replace(/\\/g, '/').replace(/\/$/, '');
   const normalizedTarget = target.replace(/\\/g, '/');
   return normalizedTarget.startsWith(`${normalizedRoot}/`)
     ? normalizedTarget.slice(normalizedRoot.length + 1)
     : normalizedTarget;
+}
+
+export function limitVisibleProblems(entries: SvnStatusEntry[]): SvnStatusEntry[] {
+  return entries.slice(0, MAX_VISIBLE_PROBLEMS);
 }
 
 /** Focused, bounded view behind the sidebar's "Needs attention" insight. */
@@ -33,7 +37,7 @@ export function WorkingCopyProblemsDialog({ path, onClose }: WorkingCopyProblems
     staleTime: 10_000,
   });
   const problems = useMemo(() => data?.entries.filter(needsAttention) ?? [], [data]);
-  const visibleProblems = problems.slice(0, MAX_VISIBLE_PROBLEMS);
+  const visibleProblems = limitVisibleProblems(problems);
 
   return (
     <AccessibleDialog

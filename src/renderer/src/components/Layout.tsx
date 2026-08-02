@@ -358,11 +358,10 @@ export function Layout({ children }: LayoutProps) {
 
           <Suspense
             fallback={
-              <div className={isMac ? 'h-8 w-[102px]' : 'h-8 w-[238px]'} aria-hidden="true" />
+              <div className={isWindows ? 'h-8 w-[238px]' : 'h-8 w-[102px]'} aria-hidden="true" />
             }
           >
             <TitlebarControls
-              isMac={isMac}
               isWindows={isWindows}
               isMaximized={isMaximized}
               isDarkTheme={isDarkTheme}

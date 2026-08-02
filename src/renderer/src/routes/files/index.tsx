@@ -15,8 +15,11 @@ export const Route = createFileRoute('/files/')({
   ),
   validateSearch: (search: Record<string, unknown>): FilesSearch => {
     return {
-      path: (search.path as string) || '/',
-      dialog: search.dialog === 'problems' ? ('problems' as const) : undefined,
+      path: typeof search.path === 'string' && search.path ? search.path : '/',
+      dialog:
+        typeof search.dialog === 'string' && search.dialog === 'problems'
+          ? ('problems' as const)
+          : undefined,
     };
   },
 });
