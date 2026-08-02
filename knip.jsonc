@@ -26,6 +26,7 @@
       ]
     },
     "apps/site": {
+      "ignoreDependencies": ["collections"],
       "project": ["**/*.{ts,tsx}!", "content/**/*.{md,mdx}!"]
     },
     "packages/logic-engine": {

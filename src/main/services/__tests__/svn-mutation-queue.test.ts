@@ -1,6 +1,9 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   getMutationQueueStateForTests,
@@ -64,5 +67,34 @@ describe('svn-mutation-queue', () => {
 
     releaseFirst();
     await first;
+  });
+
+  it('serializes different child paths under the same administrative root', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shellysvn-mutation-root-'));
+    await mkdir(join(root, '.svn'));
+    await mkdir(join(root, 'src'));
+    const firstPath = join(root, 'src', 'first.ts');
+    const secondPath = join(root, 'src', 'second.ts');
+    await Promise.all([writeFile(firstPath, ''), writeFile(secondPath, '')]);
+    let releaseFirst!: () => void;
+    const secondTask = vi.fn(async () => undefined);
+
+    try {
+      const first = runSerializedWorkingCopyMutation(
+        firstPath,
+        async () =>
+          new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+          })
+      );
+      const second = runSerializedWorkingCopyMutation(secondPath, secondTask);
+      await flushMicrotasks();
+      expect(secondTask).not.toHaveBeenCalled();
+      releaseFirst();
+      await Promise.all([first, second]);
+      expect(secondTask).toHaveBeenCalledOnce();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

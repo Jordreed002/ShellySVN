@@ -1,14 +1,6 @@
 import { app, shell } from 'electron';
 import { createHash } from 'node:crypto';
-import {
-  cp,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -16,12 +8,7 @@ import type { SvnMutationResult, SvnShelve, SvnShelveListResult } from '@shared/
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { runSvnText } from './svn-executor';
-
-interface PortableShelfFile {
-  relativePath: string;
-  status: string;
-  kind: 'file' | 'directory';
-}
+import { collapseNestedFiles, type PortableShelfFile } from './svn-portable-shelf-files';
 
 interface PortableShelfMetadata {
   version: 1;
@@ -50,11 +37,7 @@ function assertInsideWorkingCopy(workingCopyPath: string, candidate: string): st
   const root = resolve(workingCopyPath);
   const absolute = resolve(candidate);
   const relativePath = relative(root, absolute);
-  if (
-    relativePath === '..' ||
-    relativePath.startsWith(`..${sep}`) ||
-    isAbsolute(relativePath)
-  ) {
+  if (relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
     throw new Error('Portable shelf entry escapes the working copy');
   }
   return relativePath || '.';
@@ -70,21 +53,7 @@ async function readMetadata(directory: string): Promise<PortableShelfMetadata> {
   return parsed;
 }
 
-export function collapseNestedFiles(files: PortableShelfFile[]): PortableShelfFile[] {
-  return files.filter(
-    (file, index) =>
-      !files.some(
-        (parent, parentIndex) =>
-          parentIndex !== index &&
-          parent.kind === 'directory' &&
-          file.relativePath.startsWith(`${parent.relativePath}${sep}`)
-      )
-  );
-}
-
-export async function portableShelfList(
-  workingCopyPath: string
-): Promise<SvnShelveListResult> {
+export async function portableShelfList(workingCopyPath: string): Promise<SvnShelveListResult> {
   try {
     const root = shelfRoot(workingCopyPath);
     const directories = await readdir(root, { withFileTypes: true }).catch(() => []);
@@ -169,9 +138,7 @@ export async function portableShelfSave(
     await cp(source, destination, { recursive: file.kind === 'directory', force: false });
   }
 
-  const patch = await runSvnText(
-    withSvnTargets(['diff', '--git'], [workingCopyPath])
-  );
+  const patch = await runSvnText(withSvnTargets(['diff', '--git'], [workingCopyPath]));
   const metadata: PortableShelfMetadata = {
     version: 1,
     name,
@@ -185,18 +152,12 @@ export async function portableShelfSave(
     mode: 0o600,
   });
 
-  await runSvnText(
-    withSvnTargets(['revert', '--depth', 'infinity'], [workingCopyPath])
-  );
+  await runSvnText(withSvnTargets(['revert', '--depth', 'infinity'], [workingCopyPath]));
   for (const file of collapsedFiles) {
     if (!['added', 'unversioned'].includes(file.status)) continue;
     const target = resolve(workingCopyPath, file.relativePath);
     await stat(target)
-      .then(() =>
-        shell?.trashItem
-          ? shell.trashItem(target)
-          : rm(target, { recursive: true })
-      )
+      .then(() => (shell?.trashItem ? shell.trashItem(target) : rm(target, { recursive: true })))
       .catch(() => undefined);
   }
   return { success: true, output: 'Saved with ShellySVN portable shelving.' };

@@ -10,7 +10,7 @@ export const Route = createFileRoute('/files/')({
   ),
   validateSearch: (search: Record<string, unknown>) => {
     return {
-      path: (search.path as string) || '/',
+      path: (search.path as string) || '',
     };
   },
 });

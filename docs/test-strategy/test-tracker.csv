@@ -1,8 +1,8 @@
 Journey,Layer,Area,File,Suite,Test,Status
 —,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,the close button is operable from the keyboard,existing
 —,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,clicking the overlay backdrop closes the dialog,existing
-—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,Escape dismisses the Settings dialog (a11y gap),existing
-—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,focus is contained within the modal while it is open (a11y gap),existing
+—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,Escape dismisses the Settings dialog,existing
+—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,focus is contained within the modal while it is open,existing
 —,e2e,Uncategorized,tests/e2e/modals.spec.ts,Modal Dialogs,AddRepoModal opens and closes correctly,existing
 —,e2e,Uncategorized,tests/e2e/modals.spec.ts,Modal Dialogs,modal can be closed by clicking overlay,existing
 —,e2e,Uncategorized,tests/e2e/modals.spec.ts,Modal Dialogs,Settings dialog has expected tabs,existing
@@ -268,6 +268,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should register window control handlers,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should return app version,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,returns only the supported host platform value,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,returns and approves only the operating-system home directory,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should allow http URLs,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should allow https URLs,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should allow mailto URLs,existing
@@ -308,6 +309,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return selected directory path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return null when canceled,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return null when no file selected,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should reject an invalid default directory path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return selected file path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should pass filters to dialog,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return null when canceled,existing
@@ -565,6 +567,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,classifies an already-observed svn info failure without a second process,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,runs svn upgrade for the selected working copy,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,emits update progress and completion events,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,can cancel by operation ID before queued preflight work begins,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,"passes revision, depth, ignore-externals, and force options to svn update",existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,uses streamed revision when stored update output is capped,existing
 —,unit,Uncategorized,src/main/utils/__tests__/external-url.test.ts,external URL validation,"allows http, https, and mailto URLs",existing
@@ -669,6 +672,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/preload/api/__tests__/data.test.ts,SVN cache preload IPC contract,maps cache reads and writes to typed IPC channels,existing
 —,unit,Uncategorized,src/preload/api/__tests__/data.test.ts,SVN cache preload IPC contract,maps every clear operation without changing its timestamp,existing
 —,unit,Uncategorized,src/preload/api/__tests__/native.test.ts,native preload IPC contract,maps updater actions and removes event listeners,existing
+—,unit,Uncategorized,src/preload/api/__tests__/svn.test.ts,SVN preload IPC contract,exposes an update operation ID before the update settles,existing
 —,unit,Uncategorized,src/preload/api/__tests__/svn.test.ts,SVN preload IPC contract,routes mutation notifications and removes only its own listener,existing
 —,unit,Uncategorized,src/preload/api/__tests__/svn.test.ts,SVN preload IPC contract,cancels the exact worker job associated with an aborted read,existing
 —,unit,Uncategorized,src/renderer/__tests__/ariaLabeling.test.tsx,primary workflow ARIA labeling,labels toolbar controls for core SVN and navigation workflows,existing
@@ -862,13 +866,6 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,sums local changes only across measured rows,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,adds problem and conflict segments only when present,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,counts not-checked-out and not-measured rows separately,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,says it is reading while status has not answered,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,reports a clean checkout with no changes,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,reports measured changes with a modified tone,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,flags conflicts with a conflict tone and a combined line,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,notes when the status came from the offline cache,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,returns null when svn info has not answered,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,renders branch and BASE revision from svn info,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,disables every operation when no working copy is open,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,blocks commit when there are conflicts (Subversion would abort),existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,disables commit and revert when there is nothing modified,existing
@@ -918,6 +915,13 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileListTransforms.test.ts,fileListTransforms,filters and sorts a large list within the target budget,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.test.ts,fileStatus,aggregates descendant status onto visible folders,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.test.ts,fileStatus,indexes large deep-status results within the target budget,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,selects only clean measured working copies behind HEAD by default,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,marks dirty copies as manually confirmable,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,"derives conflicts, changes, and cleanup blockers from status",existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,treats property-only modifications and conflicts as local changes,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,discards stale eligibility after another mutation completes,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,never exceeds the requested concurrency and preserves result order,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,summarizes every operation state,existing
 —,unit,Uncategorized,src/renderer/src/hooks/__tests__/useFolderSizes.test.tsx,useFolderSizes,chunks folder paths into bounded batches,existing
 —,unit,Uncategorized,src/renderer/src/hooks/__tests__/useFolderSizes.test.tsx,useFolderSizes,creates a bounded query key without joining full paths,existing
 —,unit,Uncategorized,src/renderer/src/hooks/__tests__/useFolderSizes.test.tsx,useFolderSizes,requests folder sizes in batches and caps the number of paths,existing
@@ -1848,6 +1852,7 @@ J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,returns
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,passes working-copy-derived credentials and SSL trust to commit commands,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-mutation-queue.test.ts,svn-mutation-queue,serializes mutations for the same working-copy key,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-mutation-queue.test.ts,svn-mutation-queue,allows independent working-copy keys to run concurrently,existing
+J4,unit,File Explorer,src/main/services/__tests__/svn-mutation-queue.test.ts,svn-mutation-queue,serializes different child paths under the same administrative root,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-status-worker.test.ts,svn-status-worker,coalesces identical active filesystem status requests,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-status-worker.test.ts,svn-status-worker,allows a fresh request after the previous request settles,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-status-worker.test.ts,svn-status-worker,allows a retry after a shared request fails,existing
@@ -1875,6 +1880,8 @@ J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerCommandEvents.test.t
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx,useFileExplorerCommandEvents,routes action command events through the latest operation context,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDialogState.test.tsx,useFileExplorerDialogState,starts with all optional dialogs closed,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDialogState.test.tsx,useFileExplorerDialogState,keeps related dialog values independently updatable,existing
+J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not issue filesystem IPC before a location is selected,existing
+J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not automatically repeat a directory approval denial,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,"loads local files, metadata, and deep status for versioned paths",existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not run checkout-only reads against a folder navigated to from a checkout,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not request metadata or deep status for the drives root,existing
@@ -1942,6 +1949,11 @@ J5,unit,Update,src/renderer/__tests__/remoteUpdateTarget.test.ts,resolveRemoteUp
 J5,unit,Update,src/renderer/src/components/ui/__tests__/UpdateBanner.test.tsx,UpdateBanner,offers an explicit download for an available update,existing
 J5,unit,Update,src/renderer/src/components/ui/__tests__/UpdateBanner.test.tsx,UpdateBanner,shows actionable feedback when SVN work blocks restart,existing
 J5,unit,Update,src/renderer/src/components/ui/__tests__/UpdateBanner.test.tsx,UpdateBanner,does not interrupt the workspace for background errors,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,starts queued updates immediately and never exceeds two concurrent operations,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,keeps a cancelled operation active until the child reports cancellation,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,requires a new measurement after an external mutation completes,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,accepts revision zero as a measured BASE and HEAD,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,hard-blocks a conflict created by an otherwise successful update,existing
 J6,e2e,Conflict Resolution,tests/e2e/conflict-resolution.spec.ts,Conflict resolution E2E,resolves a real conflicted file from the file explorer resolve dialog,existing
 J6,unit,Conflict Resolution,src/renderer/__tests__/conflict-resolution-workflows.test.tsx,conflict resolution workflows,routes file explorer selected conflicts through SVN resolve and refreshes status,existing
 J6,unit,Conflict Resolution,src/renderer/__tests__/conflict-resolution-workflows.test.tsx,conflict resolution workflows,opens conflicts detected from update or merge output in the wizard and resolves them,existing

@@ -5,12 +5,8 @@ import { AppPage } from '../page-objects/AppPage';
  * Keyboard-interaction E2E journey (J11 / accessibility).
  *
  * Structural specs confirm controls exist; this journey confirms the keyboard
- * *behaves* on the Settings dialog. Two accessibility guarantees — Escape to
- * close and focus containment — are currently MISSING from SettingsDialog
- * because it renders a plain `.modal-overlay` rather than the app's
- * `AccessibleDialog` (which provides both). Those are recorded below as
- * skipped tests so the gap is tracked in-code; the behaviors that DO hold are
- * asserted for real.
+ * behaves on the Settings dialog: dismissal, focus containment, and the
+ * keyboard-operable close control.
  */
 test.describe('Keyboard interactions', () => {
   let appPage: AppPage;
@@ -36,25 +32,20 @@ test.describe('Keyboard interactions', () => {
     const overlay = page.locator('.modal-overlay');
     await expect(overlay).toBeVisible({ timeout: 5000 });
 
-    // Click the backdrop (top-left corner), not the modal panel itself.
-    await overlay.click({ position: { x: 5, y: 5 } });
+    // Stay below Electron's draggable titlebar while clicking outside the panel.
+    await overlay.click({ position: { x: 100, y: 100 } });
 
     await expect(overlay).toBeHidden({ timeout: 3000 });
   });
 
-  // KNOWN a11y GAP — SettingsDialog uses a plain modal-overlay, not
-  // AccessibleDialog, so Escape does not close it. Tracked here so it is not
-  // silently lost. Remove `.skip` once SettingsDialog adopts AccessibleDialog.
-  test.skip('Escape dismisses the Settings dialog (a11y gap)', async ({ page }) => {
+  test('Escape dismisses the Settings dialog', async ({ page }) => {
     await page.getByTestId('settings-button').click();
     await expect(page.locator('.modal-overlay')).toBeVisible({ timeout: 5000 });
     await page.keyboard.press('Escape');
     await expect(page.locator('.modal-overlay')).toBeHidden({ timeout: 3000 });
   });
 
-  // KNOWN a11y GAP — focus is not trapped; Tab escapes into the sidebar behind
-  // the dialog. Tracked here pending the AccessibleDialog migration.
-  test.skip('focus is contained within the modal while it is open (a11y gap)', async ({ page }) => {
+  test('focus is contained within the modal while it is open', async ({ page }) => {
     await page.getByTestId('settings-button').click();
     await expect(page.locator('.modal-overlay')).toBeVisible({ timeout: 5000 });
 

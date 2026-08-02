@@ -22,6 +22,12 @@ describe('SVN preload IPC contract', () => {
     api = createSvnApi(ipcRenderer, invoke as unknown as InvokeIpc);
   });
 
+  it('exposes an update operation ID before the update settles', async () => {
+    const operation = api.updateWithProgress('/wc', vi.fn());
+    expect(operation.operationId).toMatch(/^update-/);
+    await expect(operation).resolves.toMatchObject({ success: true, revision: 7 });
+  });
+
   it.each([
     ['capabilities', () => api.capabilities(), ['svn:capabilities']],
     [

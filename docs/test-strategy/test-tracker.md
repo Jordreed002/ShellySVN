@@ -7,13 +7,13 @@
 
 | Layer | Test files | Test cases |
 |---|---|---|
-| Unit | — | 1896 |
+| Unit | — | 1908 |
 | Integration / real | — | 14 |
 | Performance | — | 28 |
 | E2E | 14 | 87 |
-| **Total** | **219** | **2025** |
+| **Total** | **221** | **2037** |
 
-**Baseline:** `1938` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 87 E2E tests are mostly structural today.
+**Baseline:** `1950` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 87 E2E tests are mostly structural today.
 
 **Planned gaps to write:** 12 (see list below).
 
@@ -29,13 +29,13 @@
 | J14 — App lifecycle & integrations | 274 |
 | J2 — Repository checkout | 193 |
 | J3 — Repository browsing | 157 |
-| J4 — Daily edit & commit loop | 112 |
-| J5 — Update & stay in sync | 19 |
+| J4 — Daily edit & commit loop | 115 |
+| J5 — Update & stay in sync | 24 |
 | J6 — Conflict resolution | 27 |
 | J7 — History & investigation | 47 |
 | J8 — Branching & tagging | 9 |
 | J9 — File locking | 8 |
-| — — Uncategorized | 996 |
+| — — Uncategorized | 1000 |
 
 ## Planned gaps (highest-value missing journeys)
 
@@ -58,7 +58,7 @@
 
 | Layer / Area | Tests |
 |---|---|
-| unit / Uncategorized | 954 |
+| unit / Uncategorized | 958 |
 | unit / Shared/Core | 176 |
 | unit / Checkout | 167 |
 | unit / Repo Browser | 152 |
@@ -66,12 +66,12 @@
 | unit / Lifecycle/Auth | 98 |
 | unit / Commit | 56 |
 | unit / History | 44 |
-| unit / File Explorer | 35 |
+| unit / File Explorer | 38 |
 | unit / Properties | 29 |
 | e2e / Uncategorized | 27 |
 | unit / Conflict Resolution | 26 |
+| unit / Update | 24 |
 | e2e / File Explorer | 21 |
-| unit / Update | 19 |
 | perf / Checkout | 18 |
 | e2e / Settings | 15 |
 | unit / Onboarding | 12 |

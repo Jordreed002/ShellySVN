@@ -73,7 +73,7 @@ vi.mock('../../services/svn-cache-service', () => ({
 
 // Import after mocking
 import { registerAppHandlers } from '../app';
-import { clearApprovedPathsForTests } from '../../utils/approved-paths';
+import { assertPathApprovedForIpc, clearApprovedPathsForTests } from '../../utils/approved-paths';
 
 describe('App IPC Handlers', () => {
   const handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
@@ -134,6 +134,7 @@ describe('App IPC Handlers', () => {
     it('does not expose arbitrary Electron paths', () => {
       expect(handlers.has('app:getPath')).toBe(false);
       expect(handlers.has('app:getPlatform')).toBe(true);
+      expect(handlers.has('app:getHomePath')).toBe(true);
     });
 
     it('should register app:openExternal handler', () => {
@@ -181,6 +182,21 @@ describe('App IPC Handlers', () => {
       const handler = handlers.get('app:getPlatform');
       expect(await handler!({})).toBe(process.platform);
       expect(mockState.appGetPath).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('app:getHomePath', () => {
+    it('returns and approves only the operating-system home directory', async () => {
+      mockState.appGetPath.mockImplementation((name: string) =>
+        name === 'home' ? '/Users/test' : '/test/path'
+      );
+      const handler = handlers.get('app:getHomePath');
+
+      expect(await handler!({})).toBe('/Users/test');
+      expect(mockState.appGetPath).toHaveBeenCalledWith('home');
+      expect(assertPathApprovedForIpc('/Users/test/Documents', 'Directory listing')).toBe(
+        '/Users/test/Documents'
+      );
     });
   });
 

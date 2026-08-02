@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 
 import type {
   CheckoutOptions,
@@ -118,6 +118,13 @@ import {
 } from '../services/svn-working-copy';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
 import { getSvnReadError } from '../utils/svn-errors';
+import {
+  getActiveWorkingCopyMutations,
+  subscribeToWorkingCopyMutations,
+} from '../services/svn-mutation-queue';
+import { sendToRenderer } from '../utils/safe-renderer-send';
+
+let mutationStateSubscriptionInstalled = false;
 
 interface MutationEvent {
   sender?: { send?: (channel: string, notification: SvnMutationNotification) => void };
@@ -178,6 +185,15 @@ async function invalidateRepositoryAfter<T>(
 
 export function registerSvnHandlers(): void {
   ipcMain.handle('svn:capabilities', async () => getSvnCapabilities());
+  ipcMain.handle('svn:getActiveWorkingCopyMutations', () => getActiveWorkingCopyMutations());
+  if (!mutationStateSubscriptionInstalled) {
+    mutationStateSubscriptionInstalled = true;
+    subscribeToWorkingCopyMutations((paths) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        sendToRenderer(window.webContents, 'svn:workingCopyMutationStateChanged', paths);
+      }
+    });
+  }
   ipcMain.handle('svn:nativeAuth:list', async (_, patterns?: string[]) => listNativeAuth(patterns));
   ipcMain.handle('svn:nativeAuth:remove', async (_, patterns: string[]) =>
     removeNativeAuth(patterns)
@@ -417,7 +433,11 @@ export function registerSvnHandlers(): void {
             credentials: resolveAuthSession(event.sender.id, options.authSessionId, url),
           }
         : undefined;
-      return invalidateStatusAfter([path], checkout(url, path, revision, depth, internalOptions), event);
+      return invalidateStatusAfter(
+        [path],
+        checkout(url, path, revision, depth, internalOptions),
+        event
+      );
     }
   );
 
@@ -540,17 +560,16 @@ export function registerSvnHandlers(): void {
   // SVN Copy (Branch/Tag)
   ipcMain.handle(
     'svn:copy',
-    async (
-      event,
-      src: string,
-      dst: string,
-      message: string,
-      authSessionId?: string
-    ) => {
+    async (event, src: string, dst: string, message: string, authSessionId?: string) => {
       return invalidateRepositoryAfter(
         event,
         [src, dst],
-        copyRepositoryItem(src, dst, message, resolveAuthSession(event.sender.id, authSessionId, dst))
+        copyRepositoryItem(
+          src,
+          dst,
+          message,
+          resolveAuthSession(event.sender.id, authSessionId, dst)
+        )
       );
     }
   );
@@ -581,12 +600,7 @@ export function registerSvnHandlers(): void {
   // SVN Remote Delete
   ipcMain.handle(
     'svn:remoteDelete',
-    async (
-      event,
-      url: string,
-      message: string,
-      authSessionId?: string
-    ) => {
+    async (event, url: string, message: string, authSessionId?: string) => {
       return invalidateRepositoryAfter(
         event,
         [url],
@@ -598,13 +612,7 @@ export function registerSvnHandlers(): void {
   // SVN Remote Move/Rename
   ipcMain.handle(
     'svn:remoteMove',
-    async (
-      event,
-      srcUrl: string,
-      dstUrl: string,
-      message: string,
-      authSessionId?: string
-    ) => {
+    async (event, srcUrl: string, dstUrl: string, message: string, authSessionId?: string) => {
       return invalidateRepositoryAfter(
         event,
         [srcUrl, dstUrl],

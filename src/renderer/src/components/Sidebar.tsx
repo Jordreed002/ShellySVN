@@ -85,7 +85,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const motionEnabled = useMotionEnabled();
 
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
-  const currentPathWithDefault = currentPath || '/';
+  const currentPathWithDefault = currentPath;
   const pathname = routerState.location.pathname;
   const homePath = useHomePath();
 
@@ -205,6 +205,13 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
     setIsSettingsDialogOpen(true);
   }, []);
 
+  const handleSettingsRequest = useCallback((event: Event) => {
+    const requestedTab =
+      event instanceof CustomEvent && event.detail?.tab === 'auth' ? 'auth' : 'general';
+    setSettingsTab(requestedTab);
+    setIsSettingsDialogOpen(true);
+  }, []);
+
   useEffect(() => {
     if (!contextMenu) return;
     const frame = requestAnimationFrame(() => contextMenuRef.current?.focus());
@@ -212,9 +219,9 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   }, [contextMenu]);
 
   useEffect(() => {
-    window.addEventListener('shellysvn:open-settings', openSettings);
-    return () => window.removeEventListener('shellysvn:open-settings', openSettings);
-  }, [openSettings]);
+    window.addEventListener('shellysvn:open-settings', handleSettingsRequest);
+    return () => window.removeEventListener('shellysvn:open-settings', handleSettingsRequest);
+  }, [handleSettingsRequest]);
 
   return (
     <>

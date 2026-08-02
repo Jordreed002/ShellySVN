@@ -3,9 +3,16 @@ import type { ConfirmDialogOptions, FileFilter, MessageDialogOptions } from '@sh
 import { approvePathForIpc } from '../utils/approved-paths';
 
 export function registerDialogHandlers(): void {
-  ipcMain.handle('dialog:openDirectory', async () => {
+  ipcMain.handle('dialog:openDirectory', async (_, defaultPath?: string) => {
+    if (
+      defaultPath !== undefined &&
+      (typeof defaultPath !== 'string' || defaultPath.length > 4096 || defaultPath.includes('\0'))
+    ) {
+      throw new Error('Invalid default directory path');
+    }
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
+      ...(defaultPath ? { defaultPath } : {}),
     });
 
     if (result.canceled || result.filePaths.length === 0) {
@@ -24,7 +31,9 @@ export function registerDialogHandlers(): void {
           (filter) =>
             typeof filter?.name !== 'string' ||
             !Array.isArray(filter.extensions) ||
-            filter.extensions.some((extension) => typeof extension !== 'string' || extension.length > 20)
+            filter.extensions.some(
+              (extension) => typeof extension !== 'string' || extension.length > 20
+            )
         ))
     ) {
       throw new Error('Invalid file filters');
@@ -42,7 +51,10 @@ export function registerDialogHandlers(): void {
   });
 
   ipcMain.handle('dialog:saveFile', async (_, defaultName?: string) => {
-    if (defaultName !== undefined && (typeof defaultName !== 'string' || defaultName.length > 1024)) {
+    if (
+      defaultName !== undefined &&
+      (typeof defaultName !== 'string' || defaultName.length > 1024)
+    ) {
       throw new Error('Invalid default file name');
     }
     const result = await dialog.showSaveDialog({
@@ -57,7 +69,12 @@ export function registerDialogHandlers(): void {
   });
 
   ipcMain.handle('dialog:showMessage', async (_, options: MessageDialogOptions) => {
-    if (!options || typeof options.message !== 'string' || !options.message.trim() || options.message.length > 10_000) {
+    if (
+      !options ||
+      typeof options.message !== 'string' ||
+      !options.message.trim() ||
+      options.message.length > 10_000
+    ) {
       throw new Error('Invalid dialog message');
     }
     await dialog.showMessageBox({
@@ -72,7 +89,12 @@ export function registerDialogHandlers(): void {
   });
 
   ipcMain.handle('dialog:confirm', async (_, options: ConfirmDialogOptions): Promise<boolean> => {
-    if (!options || typeof options.message !== 'string' || !options.message.trim() || options.message.length > 10_000) {
+    if (
+      !options ||
+      typeof options.message !== 'string' ||
+      !options.message.trim() ||
+      options.message.length > 10_000
+    ) {
       throw new Error('Invalid confirmation message');
     }
     const result = await dialog.showMessageBox({
