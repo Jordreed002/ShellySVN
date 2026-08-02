@@ -94,9 +94,16 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: { height: 32 },
-    trafficLightPosition: { x: 15, y: 10 },
+    // `titleBarOverlay` creates Windows' native caption strip even alongside a
+    // frameless option, so omit the native title-bar options entirely there.
+    // The renderer already supplies themed controls for the frameless window.
+    ...(process.platform === 'win32'
+      ? { frame: false }
+      : {
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: { height: 32 },
+          trafficLightPosition: { x: 15, y: 10 },
+        }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

@@ -5,6 +5,7 @@ const ICON_BUTTON_CLASS =
 
 interface TitlebarControlsProps {
   isMac: boolean;
+  isWindows: boolean;
   isMaximized: boolean;
   isDarkTheme: boolean;
   accountName: string;
@@ -18,6 +19,7 @@ interface TitlebarControlsProps {
 /** Nonessential titlebar enrichment, loaded after the route shell is usable. */
 export function TitlebarControls({
   isMac,
+  isWindows,
   isMaximized,
   isDarkTheme,
   accountName,
@@ -66,31 +68,66 @@ export function TitlebarControls({
       </button>
 
       {!isMac && (
-        <div className="flex items-center h-full ml-1">
+        <div
+          className={`flex items-center ml-1 ${isWindows ? 'h-[50px] -mr-3.5' : 'h-full'}`}
+        >
           <button
             type="button"
             onClick={onMinimize}
-            className="window-control rounded-md hover:bg-bg-elevated transition-fast"
+            className={
+              isWindows
+                ? 'titlebar-no-drag w-[46px] h-[50px] grid place-items-center text-text-muted hover:bg-bg-tertiary hover:text-text transition-colors duration-100'
+                : 'window-control rounded-md hover:bg-bg-elevated transition-fast'
+            }
             aria-label="Minimize"
+            title="Minimize"
           >
-            <Minus className="w-4 h-4" aria-hidden="true" />
+            <Minus
+              className={isWindows ? 'w-3 h-3' : 'w-4 h-4'}
+              strokeWidth={isWindows ? 1.5 : 2}
+              aria-hidden="true"
+            />
           </button>
           <button
             type="button"
             onClick={onMaximize}
-            className="window-control rounded-md hover:bg-bg-elevated transition-fast"
+            className={
+              isWindows
+                ? 'titlebar-no-drag w-[46px] h-[50px] grid place-items-center text-text-muted hover:bg-bg-tertiary hover:text-text transition-colors duration-100'
+                : 'window-control rounded-md hover:bg-bg-elevated transition-fast'
+            }
             aria-label={isMaximized ? 'Restore window' : 'Maximize'}
             title={isMaximized ? 'Restore window' : 'Maximize'}
           >
-            <Square className={`w-3 h-3 ${isMaximized ? 'fill-current' : ''}`} aria-hidden="true" />
+            {isWindows && isMaximized ? (
+              <span className="relative block w-3 h-3" aria-hidden="true">
+                <span className="absolute left-0 bottom-0 w-[8px] h-[8px] border border-current" />
+                <span className="absolute right-0 top-0 w-[8px] h-[8px] border border-current bg-bg-secondary" />
+              </span>
+            ) : (
+              <Square
+                className={`w-2.5 h-2.5 ${isMaximized ? 'fill-current' : ''}`}
+                strokeWidth={isWindows ? 1.5 : 2}
+                aria-hidden="true"
+              />
+            )}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="window-control rounded-md hover:bg-error hover:text-white transition-fast"
+            className={
+              isWindows
+                ? 'titlebar-no-drag w-[46px] h-[50px] grid place-items-center text-text-muted hover:bg-error hover:text-white transition-colors duration-100'
+                : 'window-control rounded-md hover:bg-error hover:text-white transition-fast'
+            }
             aria-label="Close"
+            title="Close"
           >
-            <X className="w-4 h-4" aria-hidden="true" />
+            <X
+              className={isWindows ? 'w-3 h-3' : 'w-4 h-4'}
+              strokeWidth={isWindows ? 1.5 : 2}
+              aria-hidden="true"
+            />
           </button>
         </div>
       )}

@@ -153,6 +153,8 @@ function RailRowContent({
 interface RailLinkRowProps extends RailRowContentProps {
   /** Every rail location opens in the file explorer. */
   path: string;
+  /** Optional file-view intent consumed after navigation. */
+  dialog?: 'problems';
   isActive?: boolean;
   onSelect?: () => void;
   /** Hover-revealed trailing control, e.g. remove. */
@@ -162,6 +164,7 @@ interface RailLinkRowProps extends RailRowContentProps {
 /** Compact rail row: icon, name, optional mono sub-line and count badge. */
 export function RailLinkRow({
   path,
+  dialog,
   isActive = false,
   onSelect,
   trailing,
@@ -171,7 +174,7 @@ export function RailLinkRow({
     <div className="group/row relative">
       <Link
         to="/files"
-        search={{ path }}
+        search={{ path, dialog }}
         onClick={onSelect}
         className={`${railRowClass(isActive, Boolean(content.detail))} ${trailing ? 'pr-8' : ''}`}
       >

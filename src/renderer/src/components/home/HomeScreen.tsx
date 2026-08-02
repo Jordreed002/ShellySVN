@@ -197,7 +197,7 @@ export function HomeScreen() {
       onDrop={handleDrop}
     >
       {/* Header: what this screen is, what it adds up to, and the two ways in. */}
-      <div className="flex h-control-md flex-shrink-0 items-center gap-2.5 border-b border-border bg-bg-secondary/60 px-3">
+      <div className="flex h-[44px] flex-shrink-0 items-center gap-2.5 border-b border-border bg-bg-secondary/60 px-4">
         <h1 className="eyebrow flex-shrink-0">Briefing</h1>
         <span
           className="min-w-0 flex-1 truncate font-mono text-10 text-text-muted"
