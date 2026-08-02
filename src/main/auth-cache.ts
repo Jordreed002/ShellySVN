@@ -1,8 +1,9 @@
-import { readFile, writeFile, access, mkdir } from 'node:fs/promises';
-import { dirname, join } from 'path';
+import { readFile, access, chmod } from 'node:fs/promises';
+import { join } from 'path';
 import { safeStorage } from 'electron';
 
 import { debug } from '@shared/utils/debug';
+import { writeSecureJson } from './utils/secure-json';
 
 interface CachedCredential {
   realm: string;
@@ -197,6 +198,7 @@ class AuthCache {
 
     try {
       await access(this.storePath);
+      if (process.platform !== 'win32') await chmod(this.storePath, 0o600);
       const content = await readFile(this.storePath, 'utf-8');
       const data: StoredCache = JSON.parse(content);
 
@@ -235,10 +237,7 @@ class AuthCache {
           credentials: Array.from(this.credentials.values()),
         };
 
-        const dir = dirname(this.storePath);
-        await mkdir(dir, { recursive: true });
-
-        await writeFile(this.storePath, JSON.stringify(data, null, 2), 'utf-8');
+        await writeSecureJson(this.storePath, data);
         debug.log('[AUTH] Saved', this.credentials.size, 'credentials to disk');
       } catch (error) {
         debug.error('[AUTH] Failed to save credentials:', error);

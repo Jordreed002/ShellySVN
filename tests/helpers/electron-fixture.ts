@@ -1,4 +1,6 @@
 import { test as base, ElectronApplication, Page, _electron as electron } from '@playwright/test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'path';
 
 /**
@@ -29,11 +31,15 @@ export const test = base.extend<ElectronTestFixtures>({
   electronApp: async ({}, use) => {
     // Path to the built Electron main process
     const mainPath = join(process.cwd(), 'out', 'main', 'index.js');
+    // Unix-domain sockets have a short path limit on macOS. Keep the profile
+    // close to the filesystem root so the app's status socket remains valid.
+    const profileRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
+    const userDataPath = mkdtempSync(join(profileRoot, 'ss-e2e-'));
     const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...env } = process.env;
 
     // Launch the Electron app
     const electronApp = await electron.launch({
-      args: [mainPath],
+      args: [mainPath, `--user-data-dir=${userDataPath}`],
       env: {
         ...env,
         NODE_ENV: 'test',
@@ -62,10 +68,15 @@ export const test = base.extend<ElectronTestFixtures>({
       console.log('[Electron] Application closed');
     });
 
-    await use(electronApp);
-
-    // Cleanup
-    await electronApp.close();
+    try {
+      await use(electronApp);
+    } finally {
+      // Every test gets a clean profile. Besides preventing order-dependent
+      // failures, this keeps native-picker approvals and credentials from one
+      // security test from granting authority to the next test.
+      await electronApp.close().catch(() => undefined);
+      rmSync(userDataPath, { recursive: true, force: true });
+    }
   },
 
   // Get the first window as the page

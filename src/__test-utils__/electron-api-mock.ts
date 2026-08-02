@@ -13,6 +13,8 @@ import type { ElectronAPI } from '@shared/types';
 export function createMockElectronAPI(): ElectronAPI {
   return {
     svn: {
+      getActiveWorkingCopyMutations: vi.fn().mockResolvedValue([]),
+      onWorkingCopyMutationStateChanged: vi.fn().mockReturnValue(() => undefined),
       status: vi.fn().mockResolvedValue({ path: '/test/repo', entries: [], revision: 1 }),
       statusRemote: vi
         .fn()
@@ -40,9 +42,12 @@ export function createMockElectronAPI(): ElectronAPI {
       diff: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
       diffStreaming: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
       update: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
-      updateWithProgress: vi.fn().mockImplementation(async (_path, onProgress) => {
-        onProgress?.({ status: 'completed', filesProcessed: 0, revision: 5 });
-        return { success: true, revision: 5 };
+      updateWithProgress: vi.fn().mockImplementation((_path, onProgress) => {
+        const promise = Promise.resolve().then(() => {
+          onProgress?.({ status: 'completed', filesProcessed: 0, revision: 5 });
+          return { success: true, revision: 5 };
+        });
+        return Object.assign(promise, { operationId: 'update-test' });
       }),
       cancelUpdate: vi.fn().mockResolvedValue({ success: true }),
       updateItem: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
@@ -120,10 +125,17 @@ export function createMockElectronAPI(): ElectronAPI {
     },
     external: {
       openDiffTool: vi.fn().mockResolvedValue({ success: true }),
+      openWorkingCopyDiff: vi.fn().mockResolvedValue({ success: true }),
       openMergeTool: vi.fn().mockResolvedValue({ success: true }),
       openFolder: vi.fn().mockResolvedValue({ success: true }),
       openFile: vi.fn().mockResolvedValue({ success: true }),
       revealPath: vi.fn().mockResolvedValue({ success: true }),
+    },
+    externalTools: {
+      list: vi.fn().mockResolvedValue([]),
+      register: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
+      remove: vi.fn().mockResolvedValue(undefined),
     },
     monitor: {
       getWorkingCopies: vi.fn().mockResolvedValue([]),
@@ -168,7 +180,8 @@ export function createMockElectronAPI(): ElectronAPI {
     },
     app: {
       getVersion: vi.fn().mockResolvedValue('1.0.0'),
-      getPath: vi.fn().mockResolvedValue('/test/path'),
+      getPlatform: vi.fn().mockResolvedValue('linux'),
+      getHomePath: vi.fn().mockResolvedValue('/home/test'),
       openExternal: vi.fn().mockResolvedValue(undefined),
       clearCache: vi.fn().mockResolvedValue({ success: true }),
       getCacheSize: vi.fn().mockResolvedValue({ size: 0, files: 0 }),
@@ -185,6 +198,30 @@ export function createMockElectronAPI(): ElectronAPI {
         close: vi.fn().mockResolvedValue(undefined),
         isMaximized: vi.fn().mockResolvedValue(false),
       },
+    },
+    updater: {
+      getState: vi.fn().mockResolvedValue({
+        status: 'idle',
+        installedVersion: '1.1.0-beta.2',
+        channel: 'stable',
+      }),
+      check: vi.fn().mockResolvedValue({
+        status: 'upToDate',
+        installedVersion: '1.1.0-beta.2',
+        channel: 'stable',
+      }),
+      download: vi.fn().mockResolvedValue({
+        status: 'idle',
+        installedVersion: '1.1.0-beta.2',
+        channel: 'stable',
+      }),
+      cancelDownload: vi.fn().mockResolvedValue({
+        status: 'idle',
+        installedVersion: '1.1.0-beta.2',
+        channel: 'stable',
+      }),
+      restartAndInstall: vi.fn().mockResolvedValue({ started: false, reason: 'not-downloaded' }),
+      onStateChanged: vi.fn().mockReturnValue(() => {}),
     },
     store: {
       get: vi.fn().mockResolvedValue(undefined),
@@ -213,11 +250,11 @@ export function createMockElectronAPI(): ElectronAPI {
       }),
     },
     auth: {
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn().mockResolvedValue({ success: true }),
+      getStatus: vi.fn().mockResolvedValue({ available: false, persistent: false }),
+      beginSession: vi.fn(),
+      resumeSession: vi.fn().mockResolvedValue(null),
       delete: vi.fn().mockResolvedValue({ success: true }),
       list: vi.fn().mockResolvedValue([]),
-      has: vi.fn().mockResolvedValue(false),
       clear: vi.fn().mockResolvedValue({ success: true }),
       isEncryptionAvailable: vi.fn().mockResolvedValue(true),
     },

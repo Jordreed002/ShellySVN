@@ -12,11 +12,10 @@ export function useFileExplorerAuthPrompt() {
     if (!isOpen || !realm) return;
 
     window.api.auth
-      .get(realm)
-      .then((savedCreds) => {
-        if (savedCreds) {
-          setUsername(savedCreds.username);
-          setPassword(savedCreds.password);
+      .getStatus(realm)
+      .then((status) => {
+        if (status.available && status.username) {
+          setUsername(status.username);
         }
       })
       .catch(() => {
@@ -37,7 +36,12 @@ export function useFileExplorerAuthPrompt() {
     if (!username || !realm) return;
 
     try {
-      await window.api.auth.set(realm, username, password);
+      await window.api.auth.beginSession({
+        realm,
+        username,
+        password,
+        persistence: 'stored',
+      });
       queryClient.invalidateQueries({ queryKey: ['auth', realm] });
       setIsOpen(false);
       setUsername('');

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Download, Loader2, CheckCircle, AlertCircle, FolderOpen } from 'lucide-react';
 import { ChooseItemsDialog } from './ChooseItemsDialog';
-import type { AuthCredential, SvnOperationRevision } from '@shared/types';
+import type { AuthSession, SvnOperationRevision } from '@shared/types';
 
 type UpdateDepth = 'empty' | 'files' | 'immediates' | 'infinity';
 
@@ -31,7 +31,7 @@ interface UpdateToRevisionDialogProps {
     setDepthSticky: boolean
   ) => Promise<UpdateResult>;
   repoUrl?: string;
-  credentials?: AuthCredential;
+  credentials?: AuthSession;
   workingCopyRoot?: string;
 }
 

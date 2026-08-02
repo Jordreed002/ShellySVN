@@ -1,77 +1,23 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const mockState = vi.hoisted(() => ({
-  existsSync: vi.fn(),
-  statSync: vi.fn(),
-  accessSync: vi.fn(),
-}));
-
-vi.mock('node:fs', () => ({
-  existsSync: mockState.existsSync,
-  statSync: mockState.statSync,
-  accessSync: mockState.accessSync,
-  constants: { X_OK: 1 },
-}));
-
+import { describe, expect, it } from 'vitest';
 import { KNOWN_DIFF_TOOL_ALIASES, validateExternalToolSetting } from '../external-tool-validation';
 
 describe('external tool setting validation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockState.existsSync.mockReturnValue(true);
-    mockState.statSync.mockReturnValue({ isFile: () => true });
-    // Executable-bit check (non-Windows) succeeds unless a case overrides it.
-    mockState.accessSync.mockReturnValue(undefined);
-  });
-
-  it('allows empty settings and known tool aliases', () => {
+  it('allows empty settings, known aliases, and opaque registered ids', () => {
     expect(validateExternalToolSetting('', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)).toBe('');
-    expect(validateExternalToolSetting('meld', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)).toBe(
-      'meld'
-    );
+    expect(validateExternalToolSetting('meld', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)).toBe('meld');
     expect(
-      validateExternalToolSetting('KDIFF3', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
-    ).toBe('KDIFF3');
-    expect(mockState.existsSync).not.toHaveBeenCalled();
+      validateExternalToolSetting('registered:abc123', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
+    ).toBe('registered:abc123');
   });
 
-  it('requires custom executable paths to exist and be files', () => {
-    expect(
-      validateExternalToolSetting(
-        'C:\\Tools\\diff.exe',
-        'External diff tool',
-        KNOWN_DIFF_TOOL_ALIASES
-      )
-    ).toContain('diff.exe');
-
-    mockState.existsSync.mockReturnValueOnce(false);
+  it('rejects renderer-supplied executable paths and traversal', () => {
     expect(() =>
-      validateExternalToolSetting(
-        'C:\\Tools\\missing.exe',
-        'External diff tool',
-        KNOWN_DIFF_TOOL_ALIASES
-      )
-    ).toThrow('does not exist');
-
-    mockState.statSync.mockReturnValueOnce({ isFile: () => false });
+      validateExternalToolSetting('/bin/sh', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
+    ).toThrow('built-in or registered tool');
     expect(() =>
-      validateExternalToolSetting(
-        'C:\\Tools\\folder',
-        'External diff tool',
-        KNOWN_DIFF_TOOL_ALIASES
-      )
-    ).toThrow('must point to an executable file');
-  });
-
-  it('rejects traversal in custom executable paths', () => {
-    expect(() =>
-      validateExternalToolSetting(
-        'tools\\..\\secret.exe',
-        'External diff tool',
-        KNOWN_DIFF_TOOL_ALIASES
-      )
-    ).toThrow('path traversal');
+      validateExternalToolSetting('tools/../secret.exe', 'External diff tool', KNOWN_DIFF_TOOL_ALIASES)
+    ).toThrow('built-in or registered tool');
   });
 });

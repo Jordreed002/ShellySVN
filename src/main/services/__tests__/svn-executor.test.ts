@@ -21,6 +21,7 @@ const mockState = vi.hoisted(() => ({
   authFindForUrl: vi.fn(),
   sslReady: vi.fn().mockResolvedValue(undefined),
   sslFindForUrl: vi.fn(),
+  terminateProcessTree: vi.fn().mockResolvedValue(undefined),
 }));
 
 function createMockProcess() {
@@ -92,6 +93,10 @@ vi.mock('../../ssl-trust-cache', () => ({
     ready: mockState.sslReady,
     findForUrl: mockState.sslFindForUrl,
   }),
+}));
+
+vi.mock('../../utils/process-tree', () => ({
+  terminateProcessTree: mockState.terminateProcessTree,
 }));
 
 import { runSvn, runSvnMuccText, runSvnText } from '../svn-executor';
@@ -574,7 +579,7 @@ describe('svn-executor', () => {
     controller.abort();
 
     await expect(promise).rejects.toThrow('SVN operation cancelled');
-    expect(proc.kill).toHaveBeenCalled();
+    expect(mockState.terminateProcessTree).toHaveBeenCalledWith(proc);
   });
 
   it('kills the SVN process when the configured connection timeout elapses', async () => {
@@ -591,7 +596,7 @@ describe('svn-executor', () => {
     await vi.advanceTimersByTimeAsync(2000);
 
     await assertion;
-    expect(proc.kill).toHaveBeenCalled();
+    expect(mockState.terminateProcessTree).toHaveBeenCalledWith(proc);
   });
 
   it('caps stored stdout while still streaming full chunks to callbacks', async () => {

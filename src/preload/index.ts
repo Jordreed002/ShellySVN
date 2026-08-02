@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { electronAPI } from '@electron-toolkit/preload';
 import type { ElectronAPI } from '@shared/types';
 import {
   createAuthApi,
@@ -15,8 +14,10 @@ import {
   createAppApi,
   createDialogApi,
   createExternalApi,
+  createExternalToolsApi,
   createFsApi,
   createMonitorApi,
+  createUpdaterApi,
 } from './api/native';
 import { createSvnApi } from './api/svn';
 
@@ -25,6 +26,7 @@ const invokeIpc = createInvokeIpc(ipcRenderer);
 const api: ElectronAPI = {
   svn: createSvnApi(ipcRenderer, invokeIpc),
   external: createExternalApi(invokeIpc),
+  externalTools: createExternalToolsApi(invokeIpc),
   monitor: createMonitorApi(invokeIpc),
   fs: createFsApi(ipcRenderer, invokeIpc),
   dialog: {
@@ -32,6 +34,7 @@ const api: ElectronAPI = {
     getPathForFile: (file) => webUtils.getPathForFile(file),
   },
   app: createAppApi(invokeIpc),
+  updater: createUpdaterApi(ipcRenderer, invokeIpc),
   store: createStoreApi(invokeIpc),
   svnCache: createSvnCacheApi(invokeIpc),
   auth: createAuthApi(invokeIpc),
@@ -45,7 +48,6 @@ const api: ElectronAPI = {
 // only if context isolation is enabled
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI);
     contextBridge.exposeInMainWorld('api', api);
   } catch (error) {
     console.error('Failed to expose API:', error);

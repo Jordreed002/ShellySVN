@@ -3,19 +3,41 @@ import type { ConfirmDialogOptions, FileFilter, MessageDialogOptions } from '@sh
 import { approvePathForIpc } from '../utils/approved-paths';
 
 export function registerDialogHandlers(): void {
-  ipcMain.handle('dialog:openDirectory', async () => {
+  ipcMain.handle('dialog:openDirectory', async (_, defaultPath?: string) => {
+    if (
+      defaultPath !== undefined &&
+      (typeof defaultPath !== 'string' || defaultPath.length > 4096 || defaultPath.includes('\0'))
+    ) {
+      throw new Error('Invalid default directory path');
+    }
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
+      ...(defaultPath ? { defaultPath } : {}),
     });
 
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }
 
-    return approvePathForIpc(result.filePaths[0]);
+    return approvePathForIpc(result.filePaths[0], 'directory');
   });
 
   ipcMain.handle('dialog:openFile', async (_, filters?: FileFilter[]) => {
+    if (
+      filters !== undefined &&
+      (!Array.isArray(filters) ||
+        filters.length > 20 ||
+        filters.some(
+          (filter) =>
+            typeof filter?.name !== 'string' ||
+            !Array.isArray(filter.extensions) ||
+            filter.extensions.some(
+              (extension) => typeof extension !== 'string' || extension.length > 20
+            )
+        ))
+    ) {
+      throw new Error('Invalid file filters');
+    }
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: filters,
@@ -25,10 +47,16 @@ export function registerDialogHandlers(): void {
       return null;
     }
 
-    return approvePathForIpc(result.filePaths[0]);
+    return approvePathForIpc(result.filePaths[0], 'file');
   });
 
   ipcMain.handle('dialog:saveFile', async (_, defaultName?: string) => {
+    if (
+      defaultName !== undefined &&
+      (typeof defaultName !== 'string' || defaultName.length > 1024)
+    ) {
+      throw new Error('Invalid default file name');
+    }
     const result = await dialog.showSaveDialog({
       defaultPath: defaultName,
     });
@@ -37,10 +65,18 @@ export function registerDialogHandlers(): void {
       return null;
     }
 
-    return approvePathForIpc(result.filePath);
+    return approvePathForIpc(result.filePath, 'file');
   });
 
   ipcMain.handle('dialog:showMessage', async (_, options: MessageDialogOptions) => {
+    if (
+      !options ||
+      typeof options.message !== 'string' ||
+      !options.message.trim() ||
+      options.message.length > 10_000
+    ) {
+      throw new Error('Invalid dialog message');
+    }
     await dialog.showMessageBox({
       type: options.type ?? 'info',
       title: options.title ?? 'ShellySVN',
@@ -53,6 +89,14 @@ export function registerDialogHandlers(): void {
   });
 
   ipcMain.handle('dialog:confirm', async (_, options: ConfirmDialogOptions): Promise<boolean> => {
+    if (
+      !options ||
+      typeof options.message !== 'string' ||
+      !options.message.trim() ||
+      options.message.length > 10_000
+    ) {
+      throw new Error('Invalid confirmation message');
+    }
     const result = await dialog.showMessageBox({
       type: options.type ?? 'warning',
       title: options.title ?? 'Confirm',

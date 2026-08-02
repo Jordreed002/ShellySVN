@@ -1,8 +1,23 @@
 import { ipcMain, app } from 'electron';
-import { readFile, writeFile, access, mkdir } from 'fs/promises';
+import { readFile, access, chmod } from 'fs/promises';
 import { join } from 'path';
 import { getSettingsManager } from '../settings-manager';
 import type { AppSettings } from '@shared/types';
+import { writeSecureJson } from '../utils/secure-json';
+
+const MAX_STORE_VALUE_BYTES = 5 * 1024 * 1024;
+const forbiddenKeys = new Set(['__proto__', 'prototype', 'constructor']);
+
+function validateStoreKey(key: unknown): string {
+  if (
+    typeof key !== 'string' ||
+    forbiddenKeys.has(key) ||
+    !(key === 'settings' || key === 'onboarding' || key === 'hasLaunchedBefore' || key.startsWith('shellysvn'))
+  ) {
+    throw new Error('Unsupported store key');
+  }
+  return key;
+}
 
 /**
  * Async JSON-based store
@@ -34,6 +49,7 @@ class SimpleStore {
   private async load(): Promise<void> {
     try {
       await access(this.filePath);
+      if (process.platform !== 'win32') await chmod(this.filePath, 0o600);
       const content = await readFile(this.filePath, 'utf-8');
       this.data = JSON.parse(content);
 
@@ -60,11 +76,7 @@ class SimpleStore {
 
     this.savePromise = (async () => {
       try {
-        // Ensure directory exists (mkdir with recursive won't throw if exists)
-        const dir = join(this.filePath, '..');
-        await mkdir(dir, { recursive: true });
-
-        await writeFile(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
+        await writeSecureJson(this.filePath, this.data);
       } catch (error) {
         console.error('Failed to save store:', error);
       }
@@ -72,6 +84,7 @@ class SimpleStore {
   }
 
   async get<T>(key: string): Promise<T | undefined> {
+    validateStoreKey(key);
     await this.loadPromise;
 
     // For settings, delegate to SettingsManager which is the source of truth
@@ -85,6 +98,11 @@ class SimpleStore {
   }
 
   async set(key: string, value: unknown): Promise<void> {
+    validateStoreKey(key);
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined || Buffer.byteLength(serialized, 'utf8') > MAX_STORE_VALUE_BYTES) {
+      throw new Error('Store value is too large or cannot be serialized');
+    }
     await this.loadPromise;
 
     // For settings, delegate to SettingsManager which handles persistence
@@ -101,6 +119,7 @@ class SimpleStore {
   }
 
   async delete(key: string): Promise<void> {
+    validateStoreKey(key);
     await this.loadPromise;
     delete this.data[key];
     await this.save();

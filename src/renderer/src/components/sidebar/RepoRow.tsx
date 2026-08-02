@@ -73,7 +73,7 @@ export function RailCount({ value, tone = 'neutral', title }: RailCountProps) {
  * hollow = not checked out. Always paired with a spoken label — never
  * colour-only.
  */
-export function PresenceDot({ presence }: { presence: SidebarPresence }) {
+function PresenceDot({ presence }: { presence: SidebarPresence }) {
   const label = PRESENCE_LABEL[presence];
   const shape = {
     full: 'bg-svn-added',

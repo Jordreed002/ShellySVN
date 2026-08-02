@@ -51,7 +51,7 @@ import {
 } from './queryKeys';
 
 /** Ceiling on revisions counted for `incomingRevisions`; beyond it we say "N+". */
-export const MAX_INCOMING_REVISIONS = 500;
+const MAX_INCOMING_REVISIONS = 500;
 
 /** What `svn info` told us, or that the path is simply not in a checkout. */
 interface WorkingCopyIdentity {

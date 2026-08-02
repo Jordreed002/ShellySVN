@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 
 import type {
   CheckoutOptions,
@@ -66,6 +66,7 @@ import {
   shelveList,
   shelveSave,
 } from '../services/svn-metadata';
+import { resolveAuthSession } from '../services/auth-session-manager';
 import {
   getDiagnostics,
   getSvnCapabilities,
@@ -117,6 +118,13 @@ import {
 } from '../services/svn-working-copy';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
 import { getSvnReadError } from '../utils/svn-errors';
+import {
+  getActiveWorkingCopyMutations,
+  subscribeToWorkingCopyMutations,
+} from '../services/svn-mutation-queue';
+import { sendToRenderer } from '../utils/safe-renderer-send';
+
+let mutationStateSubscriptionInstalled = false;
 
 interface MutationEvent {
   sender?: { send?: (channel: string, notification: SvnMutationNotification) => void };
@@ -177,6 +185,15 @@ async function invalidateRepositoryAfter<T>(
 
 export function registerSvnHandlers(): void {
   ipcMain.handle('svn:capabilities', async () => getSvnCapabilities());
+  ipcMain.handle('svn:getActiveWorkingCopyMutations', () => getActiveWorkingCopyMutations());
+  if (!mutationStateSubscriptionInstalled) {
+    mutationStateSubscriptionInstalled = true;
+    subscribeToWorkingCopyMutations((paths) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        sendToRenderer(window.webContents, 'svn:workingCopyMutationStateChanged', paths);
+      }
+    });
+  }
   ipcMain.handle('svn:nativeAuth:list', async (_, patterns?: string[]) => listNativeAuth(patterns));
   ipcMain.handle('svn:nativeAuth:remove', async (_, patterns: string[]) =>
     removeNativeAuth(patterns)
@@ -409,7 +426,19 @@ export function registerSvnHandlers(): void {
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) => invalidateStatusAfter([path], checkout(url, path, revision, depth, options), event)
+    ) => {
+      const internalOptions = options
+        ? {
+            ...options,
+            credentials: resolveAuthSession(event.sender.id, options.authSessionId, url),
+          }
+        : undefined;
+      return invalidateStatusAfter(
+        [path],
+        checkout(url, path, revision, depth, internalOptions),
+        event
+      );
+    }
   );
 
   // SVN Checkout with Progress Streaming
@@ -423,12 +452,19 @@ export function registerSvnHandlers(): void {
       revision?: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: CheckoutOptions
-    ) =>
-      invalidateStatusAfter(
+    ) => {
+      const internalOptions = options
+        ? {
+            ...options,
+            credentials: resolveAuthSession(event.sender.id, options.authSessionId, url),
+          }
+        : undefined;
+      return invalidateStatusAfter(
         [path],
-        checkoutWithProgress(event, checkoutId, url, path, revision, depth, options),
+        checkoutWithProgress(event, checkoutId, url, path, revision, depth, internalOptions),
         event
-      )
+      );
+    }
   );
 
   // SVN Cancel Checkout
@@ -524,17 +560,16 @@ export function registerSvnHandlers(): void {
   // SVN Copy (Branch/Tag)
   ipcMain.handle(
     'svn:copy',
-    async (
-      event,
-      src: string,
-      dst: string,
-      message: string,
-      credentials?: { username: string; password: string }
-    ) => {
+    async (event, src: string, dst: string, message: string, authSessionId?: string) => {
       return invalidateRepositoryAfter(
         event,
         [src, dst],
-        copyRepositoryItem(src, dst, message, credentials)
+        copyRepositoryItem(
+          src,
+          dst,
+          message,
+          resolveAuthSession(event.sender.id, authSessionId, dst)
+        )
       );
     }
   );
@@ -547,12 +582,17 @@ export function registerSvnHandlers(): void {
       parentUrl: string,
       folderName: string,
       message: string,
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ) => {
       return invalidateRepositoryAfter(
         event,
         [parentUrl],
-        createRemoteFolder(parentUrl, folderName, message, credentials)
+        createRemoteFolder(
+          parentUrl,
+          folderName,
+          message,
+          resolveAuthSession(event.sender.id, authSessionId, parentUrl)
+        )
       );
     }
   );
@@ -560,30 +600,28 @@ export function registerSvnHandlers(): void {
   // SVN Remote Delete
   ipcMain.handle(
     'svn:remoteDelete',
-    async (
-      event,
-      url: string,
-      message: string,
-      credentials?: { username: string; password: string }
-    ) => {
-      return invalidateRepositoryAfter(event, [url], deleteRemoteItem(url, message, credentials));
+    async (event, url: string, message: string, authSessionId?: string) => {
+      return invalidateRepositoryAfter(
+        event,
+        [url],
+        deleteRemoteItem(url, message, resolveAuthSession(event.sender.id, authSessionId, url))
+      );
     }
   );
 
   // SVN Remote Move/Rename
   ipcMain.handle(
     'svn:remoteMove',
-    async (
-      event,
-      srcUrl: string,
-      dstUrl: string,
-      message: string,
-      credentials?: { username: string; password: string }
-    ) => {
+    async (event, srcUrl: string, dstUrl: string, message: string, authSessionId?: string) => {
       return invalidateRepositoryAfter(
         event,
         [srcUrl, dstUrl],
-        moveRemoteItem(srcUrl, dstUrl, message, credentials)
+        moveRemoteItem(
+          srcUrl,
+          dstUrl,
+          message,
+          resolveAuthSession(event.sender.id, authSessionId, dstUrl)
+        )
       );
     }
   );
@@ -748,13 +786,18 @@ export function registerSvnHandlers(): void {
   ipcMain.handle(
     'svn:list',
     async (
-      _,
+      event,
       url: string,
       revision?: string,
       depth?: 'empty' | 'immediates' | 'infinity',
-      credentials?: { username: string; password: string }
+      authSessionId?: string
     ): Promise<SvnListResult> => {
-      return listRepository(url, revision, depth, credentials);
+      return listRepository(
+        url,
+        revision,
+        depth,
+        resolveAuthSession(event.sender.id, authSessionId, url)
+      );
     }
   );
 

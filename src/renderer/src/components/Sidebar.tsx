@@ -6,6 +6,7 @@ import {
   ExternalLink,
   FolderGit2,
   FolderOpen,
+  Globe,
   History,
   Home,
   Key,
@@ -84,7 +85,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const motionEnabled = useMotionEnabled();
 
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
-  const currentPathWithDefault = currentPath || '/';
+  const currentPathWithDefault = currentPath;
   const pathname = routerState.location.pathname;
   const homePath = useHomePath();
 
@@ -204,6 +205,13 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
     setIsSettingsDialogOpen(true);
   }, []);
 
+  const handleSettingsRequest = useCallback((event: Event) => {
+    const requestedTab =
+      event instanceof CustomEvent && event.detail?.tab === 'auth' ? 'auth' : 'general';
+    setSettingsTab(requestedTab);
+    setIsSettingsDialogOpen(true);
+  }, []);
+
   useEffect(() => {
     if (!contextMenu) return;
     const frame = requestAnimationFrame(() => contextMenuRef.current?.focus());
@@ -211,9 +219,9 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   }, [contextMenu]);
 
   useEffect(() => {
-    window.addEventListener('shellysvn:open-settings', openSettings);
-    return () => window.removeEventListener('shellysvn:open-settings', openSettings);
-  }, [openSettings]);
+    window.addEventListener('shellysvn:open-settings', handleSettingsRequest);
+    return () => window.removeEventListener('shellysvn:open-settings', handleSettingsRequest);
+  }, [handleSettingsRequest]);
 
   return (
     <>
@@ -266,6 +274,16 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             aria-label="Files"
           >
             <FolderOpen className="w-5 h-5" />
+          </Link>
+          <Link
+            to="/repo-browser"
+            search={{ url: '', localPath: undefined }}
+            className="rail-item"
+            activeProps={{ className: 'rail-item rail-item-active' }}
+            title="Repository browser"
+            aria-label="Repository browser"
+          >
+            <Globe className="w-5 h-5" />
           </Link>
           {activeRepo && (
             <Link
@@ -366,6 +384,14 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               >
                 <FolderOpen className="h-[15px] w-[15px] flex-shrink-0 opacity-85" />
                 <span className="flex-1 truncate">Files</span>
+              </Link>
+              <Link
+                to="/repo-browser"
+                search={{ url: '', localPath: undefined }}
+                className={railRowClass(pathname.startsWith('/repo-browser'))}
+              >
+                <Globe className="h-[15px] w-[15px] flex-shrink-0 opacity-85" />
+                <span className="flex-1 truncate">Repository browser</span>
               </Link>
             </div>
 

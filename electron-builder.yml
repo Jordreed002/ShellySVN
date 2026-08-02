@@ -12,6 +12,8 @@ directories:
   buildResources: build
   output: release/${version}
 
+artifactName: ${productName}-${version}-${arch}.${ext}
+
 files:
   - out/**/*
   - '!**/*.map'
@@ -41,6 +43,7 @@ nsis:
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
   license: build/license.txt
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
 
 # macOS configuration
 mac:
@@ -55,6 +58,11 @@ mac:
       arch:
         - x64
         - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  electronUpdaterCompatibility: '>= 2.16'
   extraResources:
     # x64 binaries (for Intel Macs)
     - from: binaries/darwin-x64
@@ -71,7 +79,7 @@ mac:
 
 # DMG options
 dmg:
-  artifactName: ${name}-${version}-${arch}.${ext}
+  artifactName: ${productName}-${version}-${arch}.${ext}
   contents:
     - x: 130
       y: 220

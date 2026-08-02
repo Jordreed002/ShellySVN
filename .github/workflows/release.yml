@@ -28,6 +28,35 @@ permissions:
   contents: read
 
 jobs:
+  release-readiness:
+    runs-on: ubuntu-latest
+    env:
+      PUBLIC_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.create_release == 'true' }}
+      HAS_MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE_BASE64 != '' }}
+      HAS_MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD != '' }}
+      HAS_APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+      HAS_APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}
+      HAS_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
+      HAS_WIN_CERTIFICATE: ${{ secrets.WIN_CERTIFICATE_BASE64 != '' }}
+      HAS_WIN_CERTIFICATE_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate public release readiness
+        if: env.PUBLIC_RELEASE == 'true'
+        run: |
+          set -euo pipefail
+          node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+          missing=()
+          for name in HAS_MAC_CERTIFICATE HAS_MAC_CERTIFICATE_PASSWORD HAS_APPLE_ID HAS_APPLE_APP_PASSWORD HAS_APPLE_TEAM_ID HAS_WIN_CERTIFICATE HAS_WIN_CERTIFICATE_PASSWORD; do
+            if [ "${!name}" != "true" ]; then missing+=("$name"); fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing public-release signing configuration: ${missing[*]}"
+            exit 1
+          fi
+
   # ============================================
   # Build SVN Binaries (with caching)
   # ============================================
@@ -173,7 +202,7 @@ jobs:
         if: steps.cache-engine.outputs.cache-hit != 'true'
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.2.0'
+          bun-version: '1.3.5'
 
       - name: Install dependencies
         if: steps.cache-engine.outputs.cache-hit != 'true'
@@ -207,7 +236,7 @@ jobs:
   # Build Electron App - macOS
   # ============================================
   build-macos:
-    needs: [svn-binaries, logic-engine]
+    needs: [release-readiness, svn-binaries, logic-engine]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
@@ -236,7 +265,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.2.0'
+          bun-version: '1.3.5'
 
       - name: Cache bun dependencies
         uses: actions/cache@v5
@@ -352,7 +381,10 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app_path"
           spctl --assess --type execute --verbose=4 "$app_path"
           xcrun stapler validate "$dmg_path" || xcrun stapler validate "$app_path"
-          "$app_path/Contents/MacOS/ShellySVN" --smoke-test
+          expected_version="$(node -p "require('./package.json').version")"
+          smoke_output="$("$app_path/Contents/MacOS/ShellySVN" --smoke-test)"
+          echo "$smoke_output"
+          echo "$smoke_output" | grep -F "ShellySVN $expected_version"
 
       - name: Smoke test packaged macOS app
         if: ${{ env.PUBLIC_RELEASE == 'false' || env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false' }}
@@ -363,7 +395,10 @@ jobs:
             echo "No packaged macOS app bundle found for smoke testing."
             exit 1
           fi
-          "$app_path/Contents/MacOS/ShellySVN" --smoke-test
+          expected_version="$(node -p "require('./package.json').version")"
+          smoke_output="$("$app_path/Contents/MacOS/ShellySVN" --smoke-test)"
+          echo "$smoke_output"
+          echo "$smoke_output" | grep -F "ShellySVN $expected_version"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
@@ -372,6 +407,8 @@ jobs:
           path: |
             release/**/*.dmg
             release/**/*.zip
+            release/**/latest-mac.yml
+            release/**/*.blockmap
           retention-days: 7
           if-no-files-found: error
 
@@ -379,7 +416,7 @@ jobs:
   # Build Electron App - Windows
   # ============================================
   build-windows:
-    needs: [svn-binaries, logic-engine]
+    needs: [release-readiness, svn-binaries, logic-engine]
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -396,7 +433,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.2.0'
+          bun-version: '1.3.5'
 
       - name: Cache bun dependencies
         uses: actions/cache@v5
@@ -493,9 +530,14 @@ jobs:
             Write-Error "No unpacked ShellySVN.exe found for smoke testing."
           }
 
-          & $app.FullName --smoke-test
+          $expectedVersion = node -p "require('./package.json').version"
+          $smokeOutput = & $app.FullName --smoke-test 2>&1
+          $smokeOutput | Write-Host
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
+          }
+          if (($smokeOutput -join "`n") -notmatch [regex]::Escape("ShellySVN $expectedVersion")) {
+            Write-Error "Packaged app version did not match package.json version $expectedVersion."
           }
 
       - name: Upload artifact
@@ -505,6 +547,8 @@ jobs:
           path: |
             release/**/*.exe
             release/**/*.zip
+            release/**/latest.yml
+            release/**/*.blockmap
           retention-days: 7
           if-no-files-found: error
 
@@ -512,7 +556,7 @@ jobs:
   # Build Electron App - Linux
   # ============================================
   build-linux:
-    needs: [svn-binaries, logic-engine]
+    needs: [release-readiness, svn-binaries, logic-engine]
     runs-on: ubuntu-22.04
     if: inputs.skip_linux != 'true'
     timeout-minutes: 30
@@ -526,7 +570,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.2.0'
+          bun-version: '1.3.5'
 
       - name: Cache bun dependencies
         uses: actions/cache@v5
@@ -587,13 +631,18 @@ jobs:
             echo "No unpacked Linux ShellySVN executable found for smoke testing."
             exit 1
           fi
-          xvfb-run -a "$app_path" --smoke-test --no-sandbox
+          expected_version="$(node -p "require('./package.json').version")"
+          smoke_output="$(xvfb-run -a "$app_path" --smoke-test --no-sandbox)"
+          echo "$smoke_output"
+          echo "$smoke_output" | grep -F "ShellySVN $expected_version"
 
       - name: Upload artifact (AppImage)
         uses: actions/upload-artifact@v6
         with:
           name: ShellySVN-Linux-x64-AppImage
-          path: release/**/*.AppImage
+          path: |
+            release/**/*.AppImage
+            release/**/latest-linux.yml
           retention-days: 7
           if-no-files-found: ignore
 
@@ -613,6 +662,14 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - name: Upload artifact (rpm)
+        uses: actions/upload-artifact@v6
+        with:
+          name: ShellySVN-Linux-x64-rpm
+          path: release/**/*.rpm
+          retention-days: 7
+          if-no-files-found: ignore
+
   # ============================================
   # Release (only on tags or manual dispatch)
   # ============================================
@@ -629,6 +686,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.5'
+
+      - name: Install release validation dependencies
+        run: bun install --frozen-lockfile
+
       - name: Download all artifacts
         uses: actions/download-artifact@v7
         with:
@@ -637,6 +702,20 @@ jobs:
       - name: Get version from tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Merge macOS update metadata
+        run: |
+          set -euo pipefail
+          x64_metadata="$(find artifacts/ShellySVN-macOS-x64 -name latest-mac.yml -print -quit)"
+          arm64_metadata="$(find artifacts/ShellySVN-macOS-arm64 -name latest-mac.yml -print -quit)"
+          node scripts/merge-mac-update-metadata.mjs artifacts/update-metadata/latest-mac.yml "$x64_metadata" "$arm64_metadata"
+
+      - name: Validate release version and updater assets
+        env:
+          SKIP_LINUX: ${{ inputs.skip_linux }}
+        run: |
+          node scripts/validate-release-version.mjs "$GITHUB_REF_NAME" artifacts
+          node scripts/validate-release-assets.mjs artifacts
 
       - name: List artifacts
         run: find artifacts -type f -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.tar.gz" | head -50
@@ -651,7 +730,7 @@ jobs:
             ### Downloads
 
             #### Windows
-            - `ShellySVN-Setup-x.x.x.exe` - Windows installer (x64)
+            - `ShellySVN-x.x.x-x64-setup.exe` - Windows installer (x64)
 
             #### macOS
             - `ShellySVN-x.x.x-x64.dmg` - macOS Intel
@@ -674,9 +753,15 @@ jobs:
             See [commit history](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details.
           files: |
             artifacts/**/*.dmg
+            artifacts/**/*.zip
             artifacts/**/*.exe
+            artifacts/ShellySVN-Windows-x64/**/latest.yml
+            artifacts/ShellySVN-Windows-x64/**/*.blockmap
+            artifacts/update-metadata/latest-mac.yml
             artifacts/**/*.AppImage
+            artifacts/ShellySVN-Linux-x64-AppImage/**/latest-linux.yml
             artifacts/**/*.deb
+            artifacts/**/*.rpm
             artifacts/**/*.tar.gz
           draft: false
           prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-') }}

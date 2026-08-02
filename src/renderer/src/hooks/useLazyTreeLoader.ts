@@ -1,12 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type {
-  AuthCredential,
-  LazyTreeLoaderState,
-  LazyTreeNode,
-  SvnListResult,
-} from '@shared/types';
+import type { AuthSession, LazyTreeLoaderState, LazyTreeNode, SvnListResult } from '@shared/types';
 import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
 
 /**
@@ -21,8 +16,8 @@ interface SvnTreeCacheData {
 const TREE_CACHE_STALE_TIME = 5 * 60 * 1000; // 5 minutes staleTime as required
 const TREE_CACHE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
-function getTreeQueryKey(rootUrl: string, credentials?: AuthCredential) {
-  return ['svn:tree', rootUrl, credentials?.username] as const;
+function getTreeQueryKey(rootUrl: string, credentials?: AuthSession) {
+  return ['svn:tree', rootUrl, credentials?.id] as const;
 }
 
 function svnListToLazyTreeNode(result: SvnListResult): LazyTreeNode[] {
@@ -83,7 +78,7 @@ function updateNodeInTree(
   return changed ? updatedNodes : nodes;
 }
 
-export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential) {
+export function useLazyTreeLoader(rootUrl: string, credentials?: AuthSession) {
   const queryClient = useQueryClient();
 
   // State for individual node loading
@@ -109,9 +104,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
           rootUrl,
           undefined, // revision
           'immediates', // depth: get immediate children only
-          credentials
-            ? { username: credentials.username, password: credentials.password }
-            : undefined
+          credentials?.id
         );
 
         return {
@@ -138,7 +131,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
       credentials: nodeCredentials,
     }: {
       path: string;
-      credentials?: AuthCredential;
+      credentials?: AuthSession;
     }) => {
       setLoadingNodes((prev) => new Set(prev).add(path));
 
@@ -147,9 +140,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
           path,
           undefined, // revision
           'immediates', // depth: immediate children only
-          nodeCredentials
-            ? { username: nodeCredentials.username, password: nodeCredentials.password }
-            : undefined
+          nodeCredentials?.id
         );
 
         return {
@@ -241,7 +232,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
    * Load children for a specific node (on-demand)
    */
   const loadNode = useCallback(
-    async (path: string, nodeCredentials?: AuthCredential) => {
+    async (path: string, nodeCredentials?: AuthSession) => {
       // Check if already loaded or loading
       const node = treeState.nodes.get(path);
       if (node?.isLoaded || node?.isLoading || loadingNodes.has(path)) {
@@ -322,7 +313,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
 
     // Cache management
     invalidateTree: () => queryClient.invalidateQueries({ queryKey: rootQueryKey }),
-    prefetchNode: (path: string, nodeCredentials?: AuthCredential) => {
+    prefetchNode: (path: string, nodeCredentials?: AuthSession) => {
       queryClient.prefetchQuery({
         queryKey: getTreeQueryKey(path, nodeCredentials),
         queryFn: async () => {
@@ -330,9 +321,7 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthCredential)
             path,
             undefined,
             'immediates',
-            nodeCredentials
-              ? { username: nodeCredentials.username, password: nodeCredentials.password }
-              : undefined
+            nodeCredentials?.id
           );
           return {
             path,

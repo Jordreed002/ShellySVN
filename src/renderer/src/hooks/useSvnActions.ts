@@ -561,8 +561,8 @@ export function useSvnActions() {
       delete: del,
       cleanup,
       lock,
-      unlock,
       resolve,
+      unlock,
       isUpdating,
       lastError,
       clearError,
@@ -580,8 +580,8 @@ export function useSvnActions() {
       del,
       cleanup,
       lock,
-      unlock,
       resolve,
+      unlock,
       isUpdating,
       lastError,
       clearError,
@@ -707,7 +707,10 @@ export function useFileExplorerActions(
           // so the same concept reads the same way throughout the app.
           choices: [
             { value: 'infinity', label: 'Fully recursive — this folder and everything inside it' },
-            { value: 'immediates', label: 'Immediate children — this folder, its files and subfolders' },
+            {
+              value: 'immediates',
+              label: 'Immediate children — this folder, its files and subfolders',
+            },
             { value: 'files', label: 'Files only — this folder and the files directly in it' },
             { value: 'empty', label: 'Only this item — the folder itself, nothing inside' },
           ],
@@ -851,6 +854,7 @@ export function useFileExplorerActions(
       handleManageLocks,
       cleanup,
       lock,
+      resolve,
       unlock,
 
       // Commit dialog
@@ -886,6 +890,7 @@ export function useFileExplorerActions(
       handleManageLocks,
       cleanup,
       lock,
+      resolve,
       unlock,
       commitDialogOpen,
       commitPaths,

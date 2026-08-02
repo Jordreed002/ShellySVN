@@ -6,6 +6,10 @@ import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, type RunSvnOptions } fro
 
 const activeOperations = new Map<string, AbortController>();
 
+export function hasActiveSvnProgressOperations(): boolean {
+  return activeOperations.size > 0;
+}
+
 export function parseSvnOutputRevision(output: string): number | null {
   const match = output.match(/(?:Committed|Exported|Updated to|Checked out) revision (\d+)\./);
   return match ? parseInt(match[1], 10) : null;
@@ -125,4 +129,11 @@ export function cancelSvnOperation(operationId: string): { success: boolean; err
   controller.abort();
   activeOperations.delete(operationId);
   return { success: true };
+}
+
+export function cancelAllSvnProgressOperations(): number {
+  const controllers = Array.from(activeOperations.values());
+  for (const controller of controllers) controller.abort();
+  activeOperations.clear();
+  return controllers.length;
 }

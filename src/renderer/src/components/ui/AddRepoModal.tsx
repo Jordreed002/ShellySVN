@@ -133,11 +133,10 @@ export function AddRepoModal({
   useEffect(() => {
     if (showAuth && authRealm) {
       window.api.auth
-        .get(authRealm)
-        .then((savedCreds) => {
-          if (savedCreds) {
-            setUsername(savedCreds.username);
-            setPassword(savedCreds.password);
+        .getStatus(authRealm)
+        .then((status) => {
+          if (status.available && status.username) {
+            setUsername(status.username);
           }
         })
         .catch(() => {
@@ -266,7 +265,7 @@ export function AddRepoModal({
 
   const executeCheckout = async (
     options?: {
-      credentials?: { username: string; password: string };
+      authSessionId?: string;
       trustSsl?: boolean;
     },
     e?: React.FormEvent
@@ -288,11 +287,23 @@ export function AddRepoModal({
     setCheckoutProgress({ filesProcessed: 0, status: 'running' });
 
     try {
+      const realm =
+        authRealm || checkoutUrl.trim().match(/^(https?:\/\/[^/]+)/)?.[1] || checkoutUrl.trim();
+      const session =
+        !options?.authSessionId && provideCredentials && username.trim()
+          ? await window.api.auth.beginSession({
+              realm,
+              username: username.trim(),
+              password,
+              persistence: saveCredentials ? 'stored' : 'session',
+            })
+          : null;
       const sparsePaths = selectedPaths.length > 0 ? selectedPaths : undefined;
       const checkoutDepth = sparsePaths ? 'empty' : depth;
 
       const checkoutOptions = {
         ...options,
+        authSessionId: options?.authSessionId ?? session?.id,
         sparsePaths,
         trustPermanently,
         sslFailures,
@@ -322,17 +333,6 @@ export function AddRepoModal({
       );
 
       if (result.success) {
-        if (provideCredentials && saveCredentials && username.trim()) {
-          try {
-            const realm =
-              authRealm ||
-              checkoutUrl.trim().match(/^(https?:\/\/[^/]+)/)?.[1] ||
-              checkoutUrl.trim();
-            await window.api.auth.set(realm, username.trim(), password);
-          } catch {
-            // Ignore credential save errors
-          }
-        }
         setSuccess({ revision: result.revision ?? 0, path: checkoutPath.trim() });
       } else {
         handleCheckoutError(result.output || 'Checkout failed');
@@ -361,10 +361,13 @@ export function AddRepoModal({
     }
 
     setShowAuth(false);
-    await executeCheckout({
-      credentials: { username: username.trim(), password },
-      trustSsl: sslCertificate !== null,
+    const session = await window.api.auth.beginSession({
+      realm: authRealm || checkoutUrl.trim(),
+      username: username.trim(),
+      password,
+      persistence: saveCredentials ? 'stored' : 'session',
     });
+    await executeCheckout({ authSessionId: session.id, trustSsl: sslCertificate !== null });
   };
 
   const handleBrowseCheckoutPath = async () => {
@@ -1055,14 +1058,6 @@ export function AddRepoModal({
           <ChooseItemsDialog
             isOpen={showChooseItemsDialog}
             repoUrl={checkoutUrl}
-            credentials={
-              provideCredentials && username.trim()
-                ? {
-                    username: username.trim(),
-                    password,
-                  }
-                : undefined
-            }
             onSelect={(paths) => {
               setSelectedPaths(paths);
               setShowChooseItemsDialog(false);

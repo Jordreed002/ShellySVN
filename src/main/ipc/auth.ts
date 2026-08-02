@@ -4,11 +4,7 @@
  */
 import { ipcMain } from 'electron';
 import { getAuthCache } from '../auth-cache';
-
-export interface AuthCredential {
-  username: string;
-  password: string;
-}
+import { beginAuthSession, resumeAuthSession } from '../services/auth-session-manager';
 
 export interface AuthListEntry {
   realm: string;
@@ -17,16 +13,17 @@ export interface AuthListEntry {
 }
 
 export function registerAuthHandlers(): void {
-  // Get credential for a realm
-  ipcMain.handle('auth:get', (_, realm: string): AuthCredential | null => {
-    return getAuthCache().get(realm);
+  ipcMain.handle('auth:getStatus', async (_, realm: string) => {
+    const cache = getAuthCache();
+    await cache.ready();
+    const entry = cache.list().find((item) => item.realm === realm);
+    return { available: Boolean(entry), username: entry?.username, persistent: Boolean(entry) };
   });
 
-  // Store credential for a realm
-  ipcMain.handle('auth:set', (_, realm: string, username: string, password: string) => {
-    getAuthCache().set(realm, username, password);
-    return { success: true };
-  });
+  ipcMain.handle('auth:beginSession', (event, request) => beginAuthSession(event.sender.id, request));
+  ipcMain.handle('auth:resumeSession', (event, realm: string) =>
+    resumeAuthSession(event.sender.id, realm)
+  );
 
   // Delete credential for a realm
   ipcMain.handle('auth:delete', (_, realm: string) => {
@@ -36,12 +33,7 @@ export function registerAuthHandlers(): void {
 
   // List all cached realms (without passwords)
   ipcMain.handle('auth:list', (): AuthListEntry[] => {
-    return getAuthCache().list();
-  });
-
-  // Check if credential exists for a realm
-  ipcMain.handle('auth:has', (_, realm: string): boolean => {
-    return getAuthCache().has(realm);
+    return getAuthCache().list().filter((entry) => !entry.realm.startsWith('webhook:'));
   });
 
   // Clear all credentials

@@ -1,213 +1,88 @@
-/**
- * Tests for Auth IPC Handlers
- *
- * Tests the IPC handlers for credential storage operations.
- */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-
-// Create mock functions with hoisting
-const mockIpcMainHandle = vi.hoisted(() => vi.fn());
-
-// Mock electron module
-vi.mock('electron', () => ({
-  ipcMain: {
-    handle: mockIpcMainHandle,
-  },
+const handle = vi.hoisted(() => vi.fn());
+const cache = vi.hoisted(() => ({
+  ready: vi.fn().mockResolvedValue(undefined),
+  delete: vi.fn(),
+  list: vi.fn().mockReturnValue([]),
+  clear: vi.fn(),
+  isEncryptionAvailable: vi.fn().mockReturnValue(true),
 }));
+const beginAuthSession = vi.hoisted(() => vi.fn());
+const resumeAuthSession = vi.hoisted(() => vi.fn());
 
-// Mock auth-cache module - use hoisted functions
-const mockGet = vi.hoisted(() => vi.fn());
-const mockSet = vi.hoisted(() => vi.fn());
-const mockDelete = vi.hoisted(() => vi.fn());
-const mockList = vi.hoisted(() => vi.fn());
-const mockHas = vi.hoisted(() => vi.fn());
-const mockClear = vi.hoisted(() => vi.fn());
-const mockIsEncryptionAvailable = vi.hoisted(() => vi.fn());
+vi.mock('electron', () => ({ ipcMain: { handle } }));
+vi.mock('../../auth-cache', () => ({ getAuthCache: () => cache }));
+vi.mock('../../services/auth-session-manager', () => ({ beginAuthSession, resumeAuthSession }));
 
-vi.mock('../../auth-cache', () => ({
-  getAuthCache: () => ({
-    get: mockGet,
-    set: mockSet,
-    delete: mockDelete,
-    list: mockList,
-    has: mockHas,
-    clear: mockClear,
-    isEncryptionAvailable: mockIsEncryptionAvailable,
-  }),
-}));
+import { registerAuthHandlers } from '../auth';
 
-// Import after mocking
-import { registerAuthHandlers, AuthCredential, AuthListEntry } from '../auth';
-
-describe('Auth IPC Handlers', () => {
-  // Store registered handlers
-  const handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
+describe('Auth IPC handlers', () => {
+  const handlers = new Map<string, (...args: any[]) => any>();
 
   beforeEach(() => {
     vi.clearAllMocks();
     handlers.clear();
-
-    // Capture registered handlers
-    mockIpcMainHandle.mockImplementation(
-      (channel: string, handler: (...args: unknown[]) => unknown) => {
-        handlers.set(channel, handler);
-      }
-    );
-
-    // Register handlers
+    cache.list.mockReturnValue([]);
+    handle.mockImplementation((channel, listener) => handlers.set(channel, listener));
     registerAuthHandlers();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('exposes session and metadata APIs but no password-reading API', () => {
+    expect([...handlers.keys()]).toEqual(
+      expect.arrayContaining([
+        'auth:getStatus',
+        'auth:beginSession',
+        'auth:resumeSession',
+        'auth:delete',
+        'auth:list',
+        'auth:clear',
+        'auth:isEncryptionAvailable',
+      ])
+    );
+    expect(handlers.has('auth:get')).toBe(false);
+    expect(handlers.has('auth:set')).toBe(false);
   });
 
-  describe('handler registration', () => {
-    it('should register auth:get handler', () => {
-      expect(handlers.has('auth:get')).toBe(true);
-    });
-
-    it('should register auth:set handler', () => {
-      expect(handlers.has('auth:set')).toBe(true);
-    });
-
-    it('should register auth:delete handler', () => {
-      expect(handlers.has('auth:delete')).toBe(true);
-    });
-
-    it('should register auth:list handler', () => {
-      expect(handlers.has('auth:list')).toBe(true);
-    });
-
-    it('should register auth:has handler', () => {
-      expect(handlers.has('auth:has')).toBe(true);
-    });
-
-    it('should register auth:clear handler', () => {
-      expect(handlers.has('auth:clear')).toBe(true);
-    });
-
-    it('should register auth:isEncryptionAvailable handler', () => {
-      expect(handlers.has('auth:isEncryptionAvailable')).toBe(true);
+  it('returns password-free credential status', async () => {
+    cache.list.mockReturnValue([
+      { realm: 'https://svn.example.com', username: 'alice', createdAt: 1 },
+    ]);
+    await expect(handlers.get('auth:getStatus')!({}, 'https://svn.example.com')).resolves.toEqual({
+      available: true,
+      username: 'alice',
+      persistent: true,
     });
   });
 
-  describe('auth:get', () => {
-    it('should return credential for realm', async () => {
-      const credential: AuthCredential = { username: 'testuser', password: 'testpass' };
-      mockGet.mockReturnValue(credential);
-
-      const handler = handlers.get('auth:get');
-      const result = await handler!({}, 'https://svn.example.com');
-
-      expect(mockGet).toHaveBeenCalledWith('https://svn.example.com');
-      expect(result).toEqual(credential);
-    });
-
-    it('should return null for non-existent realm', async () => {
-      mockGet.mockReturnValue(null);
-
-      const handler = handlers.get('auth:get');
-      const result = await handler!({}, 'https://nonexistent.com');
-
-      expect(result).toBeNull();
-    });
+  it('binds new and resumed sessions to the sender id', async () => {
+    const event = { sender: { id: 42 } };
+    const request = {
+      realm: 'https://svn.example.com',
+      username: 'alice',
+      password: 'secret',
+      persistence: 'session',
+    };
+    await handlers.get('auth:beginSession')!(event, request);
+    await handlers.get('auth:resumeSession')!(event, request.realm);
+    expect(beginAuthSession).toHaveBeenCalledWith(42, request);
+    expect(resumeAuthSession).toHaveBeenCalledWith(42, request.realm);
   });
 
-  describe('auth:set', () => {
-    it('should store credential and return success', async () => {
-      const handler = handlers.get('auth:set');
-      const result = await handler!({}, 'https://svn.example.com', 'testuser', 'testpass');
-
-      expect(mockSet).toHaveBeenCalledWith('https://svn.example.com', 'testuser', 'testpass');
-      expect(result).toEqual({ success: true });
-    });
+  it('filters webhook secret records from SVN credential listings', async () => {
+    cache.list.mockReturnValue([
+      { realm: 'webhook:webhook-1', username: 'webhook', createdAt: 1 },
+      { realm: 'https://svn.example.com', username: 'alice', createdAt: 2 },
+    ]);
+    expect(handlers.get('auth:list')!({})).toEqual([
+      { realm: 'https://svn.example.com', username: 'alice', createdAt: 2 },
+    ]);
   });
 
-  describe('auth:delete', () => {
-    it('should delete credential and return success', async () => {
-      const handler = handlers.get('auth:delete');
-      const result = await handler!({}, 'https://svn.example.com');
-
-      expect(mockDelete).toHaveBeenCalledWith('https://svn.example.com');
-      expect(result).toEqual({ success: true });
-    });
-  });
-
-  describe('auth:list', () => {
-    it('should return list of credentials without passwords', async () => {
-      const list: AuthListEntry[] = [
-        { realm: 'https://svn1.example.com', username: 'user1', createdAt: 1704067200000 },
-        { realm: 'https://svn2.example.com', username: 'user2', createdAt: 1704153600000 },
-      ];
-      mockList.mockReturnValue(list);
-
-      const handler = handlers.get('auth:list');
-      const result = await handler!({});
-
-      expect(mockList).toHaveBeenCalled();
-      expect(result).toEqual(list);
-    });
-
-    it('should return empty array when no credentials', async () => {
-      mockList.mockReturnValue([]);
-
-      const handler = handlers.get('auth:list');
-      const result = await handler!({});
-
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe('auth:has', () => {
-    it('should return true for existing credential', async () => {
-      mockHas.mockReturnValue(true);
-
-      const handler = handlers.get('auth:has');
-      const result = await handler!({}, 'https://svn.example.com');
-
-      expect(mockHas).toHaveBeenCalledWith('https://svn.example.com');
-      expect(result).toBe(true);
-    });
-
-    it('should return false for non-existent credential', async () => {
-      mockHas.mockReturnValue(false);
-
-      const handler = handlers.get('auth:has');
-      const result = await handler!({}, 'https://nonexistent.com');
-
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('auth:clear', () => {
-    it('should clear all credentials and return success', async () => {
-      const handler = handlers.get('auth:clear');
-      const result = await handler!({});
-
-      expect(mockClear).toHaveBeenCalled();
-      expect(result).toEqual({ success: true });
-    });
-  });
-
-  describe('auth:isEncryptionAvailable', () => {
-    it('should return true when encryption is available', async () => {
-      mockIsEncryptionAvailable.mockReturnValue(true);
-
-      const handler = handlers.get('auth:isEncryptionAvailable');
-      const result = await handler!({});
-
-      expect(result).toBe(true);
-    });
-
-    it('should return false when encryption is not available', async () => {
-      mockIsEncryptionAvailable.mockReturnValue(false);
-
-      const handler = handlers.get('auth:isEncryptionAvailable');
-      const result = await handler!({});
-
-      expect(result).toBe(false);
-    });
+  it('deletes and clears stored credentials', async () => {
+    expect(handlers.get('auth:delete')!({}, 'realm')).toEqual({ success: true });
+    expect(handlers.get('auth:clear')!({})).toEqual({ success: true });
+    expect(cache.delete).toHaveBeenCalledWith('realm');
+    expect(cache.clear).toHaveBeenCalled();
   });
 });

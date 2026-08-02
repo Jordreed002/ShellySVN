@@ -15,7 +15,7 @@ function isHttpsRepositoryUrl(url: string): boolean {
 
 async function persistSslTrust(
   url: string,
-  options: CheckoutOptions | undefined,
+  options: InternalCheckoutOptions | undefined,
   trustedSslFailures: string | undefined
 ): Promise<void> {
   if (
@@ -63,7 +63,7 @@ function buildCheckoutArgs(
   path: string,
   revision?: string,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
-  _options?: CheckoutOptions
+  _options?: InternalCheckoutOptions
 ): string[] {
   const args = ['checkout', '--non-interactive'];
 
@@ -148,7 +148,7 @@ async function runSparseCheckout(
   url: string,
   path: string,
   revision: string | undefined,
-  options: CheckoutOptions | undefined,
+  options: InternalCheckoutOptions | undefined,
   trustedSslFailures: string | undefined
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }> {
   const sparseRelativePaths = getSparseRelativePaths(url, options?.sparsePaths);
@@ -203,7 +203,7 @@ export async function checkout(
   path: string,
   revision?: string,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
-  options?: CheckoutOptions
+  options?: InternalCheckoutOptions
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }> {
   const operationContext: Partial<SvnExecutionContext> = {};
 
@@ -247,7 +247,7 @@ export async function checkoutWithProgress(
   path: string,
   revision?: string,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
-  options?: CheckoutOptions
+  options?: InternalCheckoutOptions
 ): Promise<{
   success: boolean;
   revision: SvnOperationRevision;
@@ -401,3 +401,6 @@ export function cancelCheckout(checkoutId: string): { success: boolean; error?: 
   }
   return { success: false, error: 'No active checkout found with that ID' };
 }
+type InternalCheckoutOptions = CheckoutOptions & {
+  credentials?: { username: string; password: string };
+};

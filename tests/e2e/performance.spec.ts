@@ -33,9 +33,11 @@ async function mockLargeDirectory(
       ipcMain.removeHandler('fs:getParent');
       ipcMain.handle('fs:getParent', () => Promise.resolve(null));
       ipcMain.removeHandler('fs:getStatus');
-      ipcMain.handle('fs:getStatus', () => Promise.resolve([]));
+      ipcMain.handle('fs:getStatus', () => Promise.resolve({ directStatus: {}, allEntries: [] }));
       ipcMain.removeHandler('fs:getDeepStatus');
-      ipcMain.handle('fs:getDeepStatus', () => Promise.resolve([]));
+      ipcMain.handle('fs:getDeepStatus', () =>
+        Promise.resolve({ directStatus: {}, allEntries: [] })
+      );
       ipcMain.removeHandler('fs:getFolderSizes');
       ipcMain.handle('fs:getFolderSizes', () => Promise.resolve({}));
       ipcMain.removeHandler('dialog:openDirectory');
@@ -127,6 +129,14 @@ test.describe('Performance smoke coverage', () => {
   }) => {
     const rootPath = 'C:\\perf-large-list';
     await mockLargeDirectory(electronApp, rootPath, LARGE_LIST_COUNT);
+    await page.evaluate(async () => {
+      const settings = await window.api.store.get<Record<string, unknown>>('settings');
+      await window.api.store.set('settings', {
+        ...settings,
+        explorerViewMode: 'list',
+      });
+    });
+    await page.reload();
 
     const startedAt = Date.now();
     if ((await page.getByTestId('browse-button').count()) > 0) {
@@ -169,8 +179,11 @@ test.describe('Performance smoke coverage', () => {
   }) => {
     await mockLargeRepositoryTree(electronApp, LARGE_TREE_COUNT);
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
-    await page.locator('.modal button:has-text("Checkout")').first().click();
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
+    await page.getByRole('button', { name: 'Check out from URL', exact: true }).click();
     await page
       .locator('.modal input[placeholder*="svn"], .modal input[placeholder*="URL"]')
       .first()
@@ -179,7 +192,9 @@ test.describe('Performance smoke coverage', () => {
     const startedAt = Date.now();
     await page.locator('button:has-text("Choose items")').click();
     const chooseItemsDialog = page.locator('.modal:has(h2.modal-title:has-text("Choose Items"))');
-    await expect(chooseItemsDialog).toContainText('dir-00000', { timeout: 10_000 });
+    await expect(chooseItemsDialog).toContainText('dir-00000', {
+      timeout: 10_000,
+    });
     const renderMs = Date.now() - startedAt;
 
     const visibleCheckboxes = await chooseItemsDialog.locator('input[type="checkbox"]').count();

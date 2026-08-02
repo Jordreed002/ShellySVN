@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   language: 'en',
   checkUpdatesOnStartup: true,
+  updateChannel: 'stable',
   confirmDestructiveOps: true,
   singleInstanceMode: false,
   defaultCheckoutDirectory: '',

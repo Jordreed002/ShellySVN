@@ -1,7 +1,20 @@
-import { existsSync, realpathSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, realpathSync, readFileSync } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
+import { hardenPrivateFile, writeSecureJsonSync } from './secure-json';
 
-const approvedRoots = new Set<string>();
+interface ApprovedPathRecord {
+  canonicalPath: string;
+  kind: 'directory' | 'file';
+  approvedAt: string;
+  source: 'native-picker' | 'application-home';
+}
+
+interface ApprovedPathRegistryV2 {
+  version: 2;
+  roots: ApprovedPathRecord[];
+}
+
+const approvedRoots = new Map<string, ApprovedPathRecord>();
 
 // Set during bootstrap (real main process only); persistence is a no-op until then,
 // which keeps unit tests free of any Electron/filesystem dependency.
@@ -32,19 +45,41 @@ function isInsideRoot(root: string, candidate: string): boolean {
 function savePersisted(): void {
   if (!persistenceFile) return;
   try {
-    writeFileSync(persistenceFile, JSON.stringify(Array.from(approvedRoots)), 'utf-8');
+    const registry: ApprovedPathRegistryV2 = {
+      version: 2,
+      roots: Array.from(approvedRoots.values()),
+    };
+    writeSecureJsonSync(persistenceFile, registry);
   } catch (error) {
     console.error('[approved-paths] Failed to persist approved roots:', error);
   }
 }
 
-export function approvePathForIpc(path: string): string {
+export function approvePathForIpc(path: string, kind: 'directory' | 'file' = 'directory'): string {
+  return approvePathWithSource(path, kind, 'native-picker');
+}
+
+function approvePathWithSource(
+  path: string,
+  kind: 'directory' | 'file',
+  source: ApprovedPathRecord['source']
+): string {
   const normalized = normalizePath(path);
   if (!approvedRoots.has(normalized)) {
-    approvedRoots.add(normalized);
+    approvedRoots.set(normalized, {
+      canonicalPath: normalized,
+      kind,
+      approvedAt: new Date().toISOString(),
+      source,
+    });
     savePersisted();
   }
   return path;
+}
+
+/** The Files screen intentionally treats the current user's home as its root. */
+export function approveApplicationHomeForIpc(path: string): string {
+  return approvePathWithSource(path, 'directory', 'application-home');
 }
 
 export function clearApprovedPathsForTests(): void {
@@ -54,8 +89,11 @@ export function clearApprovedPathsForTests(): void {
 
 export function isPathApprovedForIpc(path: string): boolean {
   const normalized = normalizePath(path);
-  for (const root of approvedRoots) {
-    if (isInsideRoot(root, normalized)) {
+  for (const [root, record] of approvedRoots) {
+    if (
+      (record.kind === 'file' && root === normalized) ||
+      (record.kind === 'directory' && isInsideRoot(root, normalized))
+    ) {
       return true;
     }
   }
@@ -75,7 +113,7 @@ export function assertPathApprovedForIpc(path: string, operation: string): strin
 /**
  * Initialize the approved-roots registry for the running app:
  * - restores roots persisted from previous sessions,
- * - approves the supplied recent repository roots.
+ * - restores native-picker approvals and the current user's application home.
  *
  * Roots remain approved across restarts until the persisted registry is cleared.
  * Canonical real paths prevent symlinks inside an approved root from escaping it;
@@ -83,24 +121,41 @@ export function assertPathApprovedForIpc(path: string, operation: string): strin
  *
  * Lazily imports Electron so this module stays dependency-free for unit tests.
  */
-export async function bootstrapApprovedPaths(recentRepoRoots: string[] = []): Promise<void> {
+export async function bootstrapApprovedPaths(): Promise<void> {
   const { app } = await import('electron');
   persistenceFile = join(app.getPath('userData'), 'approved-paths.json');
+  const applicationHome = normalizePath(app.getPath('home'));
 
   try {
-    const parsed = JSON.parse(readFileSync(persistenceFile, 'utf-8'));
-    if (Array.isArray(parsed)) {
-      for (const root of parsed) {
-        if (typeof root === 'string') approvedRoots.add(normalizePath(root));
+    hardenPrivateFile(persistenceFile);
+    const parsed = JSON.parse(readFileSync(persistenceFile, 'utf-8')) as unknown;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      (parsed as ApprovedPathRegistryV2).version === 2
+    ) {
+      for (const record of (parsed as ApprovedPathRegistryV2).roots ?? []) {
+        if (
+          typeof record?.canonicalPath === 'string' &&
+          (record.kind === 'directory' || record.kind === 'file') &&
+          (record.source === 'native-picker' ||
+            (record.source === 'application-home' &&
+              normalizePath(record.canonicalPath) === applicationHome))
+        ) {
+          const canonicalPath = normalizePath(record.canonicalPath);
+          approvedRoots.set(canonicalPath, { ...record, canonicalPath });
+        }
       }
+    } else {
+      // Legacy registries did not record approval provenance and may contain paths
+      // granted by renderer-controlled APIs. They must not be carried forward.
+      approvedRoots.clear();
+      console.info('[approved-paths] Reset legacy approvals during v2 migration.');
     }
   } catch {
     // No persisted file yet (or unreadable) — start fresh.
   }
 
-  for (const root of recentRepoRoots) {
-    if (root) approvedRoots.add(normalizePath(root));
-  }
-
+  approveApplicationHomeForIpc(applicationHome);
   savePersisted();
 }

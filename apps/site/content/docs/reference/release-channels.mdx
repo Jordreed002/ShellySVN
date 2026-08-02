@@ -1,17 +1,32 @@
 ---
 title: Release channels
-description: How to interpret preview labeling on the public site.
+description: Choose between stable ShellySVN releases and opt-in previews.
 category: Reference
-status: preview
-lastReviewed: "2026-06-01"
+status: available
+lastReviewed: '2026-07-31'
 ---
 
-## Current channel
+## Stable
 
-The public site treats the currently published artifacts as preview releases.
+Stable is the default update channel. It receives normal GitHub releases and ignores releases
+marked as prereleases.
 
-## What that means
+## Preview
 
-- Downloadable builds exist.
-- The app is useful for evaluation and staged rollout.
-- Public messaging intentionally stays behind full GA language until release gates are actually closed.
+Preview is opt-in under **Settings → General → Updates**. It receives newer beta and release
+candidate builds as well as stable releases.
+
+Returning to Stable never downgrades the installed application. If the installed preview is newer
+than the latest stable release, ShellySVN waits until a still-newer stable version is published.
+
+## Automatic-update support
+
+- Windows NSIS installations update themselves after you approve the download.
+- Signed and notarized macOS installations update themselves after you approve the download.
+- Linux AppImage installations update themselves after you approve the download.
+- Debian, RPM, tarball, portable, and development builds link to the download page instead of
+  attempting a privileged or ambiguous replacement.
+
+ShellySVN 1.1 is the updater bridge release. Builds installed before 1.1 cannot discover it
+automatically, so the first updater-capable build must be installed manually. Subsequent releases
+can then be delivered through the application.

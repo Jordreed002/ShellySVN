@@ -8,7 +8,34 @@ import { withSvnTargets } from '../utils/svn-targets';
 
 // In-memory storage for monitored working copies
 let monitoredWorkingCopies: Map<string, WorkingCopyInfo> = new Map();
-let monitorInterval: NodeJS.Timeout | null = null;
+let monitorTimer: NodeJS.Timeout | null = null;
+let monitoring = false;
+
+async function runMonitorCycle(): Promise<void> {
+  if (!monitoring) return;
+  for (const [path, info] of monitoredWorkingCopies) {
+    if (!monitoring) return;
+    if (info.isMonitored) {
+      try {
+        const status = await getSvnStatus(path);
+        info.hasChanges = status.entries.length > 0;
+        info.lastChecked = Date.now();
+        monitoredWorkingCopies.set(path, info);
+      } catch {
+        // Background failures are retried on the next serialized cycle.
+      }
+    }
+  }
+  if (!monitoring) return;
+  monitorTimer = setTimeout(() => void runMonitorCycle(), MONITOR_REFRESH_INTERVAL_MS);
+  monitorTimer.unref();
+}
+
+export function stopMonitoring(): void {
+  monitoring = false;
+  if (monitorTimer) clearTimeout(monitorTimer);
+  monitorTimer = null;
+}
 
 export function registerMonitorHandlers(): void {
   // Get all monitored working copies
@@ -45,9 +72,9 @@ export function registerMonitorHandlers(): void {
   // Remove a working copy from monitor
   ipcMain.handle(
     'monitor:removeWorkingCopy',
-    async (_, path: string): Promise<{ success: boolean }> => {
-      monitoredWorkingCopies.delete(path);
-      return { success: true };
+    async (_, path: string): Promise<{ success: boolean; removed: boolean }> => {
+      const approvedPath = assertPathApprovedForIpc(path, 'Working-copy monitoring');
+      return { success: true, removed: monitoredWorkingCopies.delete(approvedPath) };
     }
   );
 
@@ -73,31 +100,16 @@ export function registerMonitorHandlers(): void {
 
   // Start monitoring (periodic refresh)
   ipcMain.handle('monitor:startMonitoring', async () => {
-    if (monitorInterval) return { success: true };
-
-    monitorInterval = setInterval(async () => {
-      for (const [path, info] of monitoredWorkingCopies) {
-        if (info.isMonitored) {
-          try {
-            const status = await getSvnStatus(path);
-            info.hasChanges = status.entries.length > 0;
-            info.lastChecked = Date.now();
-            monitoredWorkingCopies.set(path, info);
-          } catch {
-            // Ignore errors during background refresh
-          }
-        }
-      }
-    }, MONITOR_REFRESH_INTERVAL_MS);
+    if (monitoring) return { success: true };
+    monitoring = true;
+    monitorTimer = setTimeout(() => void runMonitorCycle(), MONITOR_REFRESH_INTERVAL_MS);
+    monitorTimer.unref();
     return { success: true };
   });
 
   // Stop monitoring
   ipcMain.handle('monitor:stopMonitoring', async () => {
-    if (monitorInterval) {
-      clearInterval(monitorInterval);
-      monitorInterval = null;
-    }
+    stopMonitoring();
     return { success: true };
   });
 }

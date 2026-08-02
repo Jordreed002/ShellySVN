@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "tag": "v1.0.0",
     "publishedAt": "2026-05-05T23:50:54Z",
-    "channel": "preview",
+    "channel": "stable",
     "notesUrl": "https://github.com/Jordreed002/ShellySVN/releases/tag/v1.0.0",
     "bodyMd": "## ShellySVN v1.0.0\n\nPreview release for the standalone desktop app with packaged binaries for Windows, macOS, and Linux. Native file-manager integration remains gated until the helper path is fully signed and validated.",
     "artifacts": [

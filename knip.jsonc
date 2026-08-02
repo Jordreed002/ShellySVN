@@ -1,0 +1,48 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "includeEntryExports": true,
+  "ignoreBinaries": ["svn", "svnadmin", "svnserve", "wmic", "taskkill.exe"],
+  "ignoreDependencies": [
+    "@fontsource-variable/archivo",
+    "@fontsource-variable/jetbrains-mono"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "src/main/index.ts!",
+        "src/main/cli.ts!",
+        "src/main/workers/svn-worker.ts!",
+        "src/preload/index.ts!",
+        "src/renderer/src/main.tsx!",
+        "scripts/**/*.{js,mjs}",
+        "tests/**/*.{ts,tsx}",
+        "src/**/__tests__/**/*.{ts,tsx}",
+        "src/**/*.{test,spec}.{ts,tsx}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}!",
+        "scripts/**/*.{js,mjs}",
+        "tests/**/*.{ts,tsx}"
+      ]
+    },
+    "apps/site": {
+      "ignoreDependencies": ["collections"],
+      "project": ["**/*.{ts,tsx}!", "content/**/*.{md,mdx}!"]
+    },
+    "packages/logic-engine": {
+      "entry": ["src/index.ts!", "src/**/__tests__/**/*.ts"],
+      "project": ["src/**/*.ts!"]
+    },
+    "packages/shared": {
+      "entry": [
+        "src/types.ts!",
+        "src/constants.ts!",
+        "src/ipc-contract.ts!",
+        "src/settings-defaults.ts!",
+        "src/utils/**/*.ts!",
+        "src/**/__tests__/**/*.ts"
+      ],
+      "project": ["src/**/*.ts!"]
+    }
+  }
+}

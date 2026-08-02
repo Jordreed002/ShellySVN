@@ -4,6 +4,7 @@ import type { SvnStatusEntry } from '@shared/types';
 export function useFileExplorerDialogState() {
   const [diffViewerPath, setDiffViewerPath] = useState<string | null>(null);
   const [logViewerPath, setLogViewerPath] = useState<string | null>(null);
+  const [modificationsPath, setModificationsPath] = useState<string | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [pendingUpdateEntry, setPendingUpdateEntry] = useState<SvnStatusEntry | null>(null);
@@ -50,6 +51,7 @@ export function useFileExplorerDialogState() {
     lockManagementPath,
     logViewerPath,
     mergePath,
+    modificationsPath,
     moveRenameTarget,
     pendingUpdateEntry,
     propertiesPath,
@@ -72,6 +74,7 @@ export function useFileExplorerDialogState() {
     setLockManagementPath,
     setLogViewerPath,
     setMergePath,
+    setModificationsPath,
     setMoveRenameTarget,
     setPendingUpdateEntry,
     setPropertiesPath,

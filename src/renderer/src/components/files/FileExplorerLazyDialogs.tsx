@@ -14,6 +14,9 @@ export const FilePreview = lazy(() =>
 export const LogViewer = lazy(() =>
   import('../ui/LogViewer').then((m) => ({ default: m.LogViewer }))
 );
+export const ModificationsView = lazy(() =>
+  import('../ui/ModificationsView').then((m) => ({ default: m.ModificationsView }))
+);
 export const UpdateToRevisionDialog = lazy(() =>
   import('../ui/UpdateToRevisionDialog').then((m) => ({ default: m.UpdateToRevisionDialog }))
 );

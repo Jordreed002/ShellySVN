@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 // Create mock functions with hoisting
 const mockIpcMainHandle = vi.hoisted(() => vi.fn());
 const mockGetPath = vi.hoisted(() => vi.fn().mockReturnValue('/test/user-data'));
+const mockWriteSecureJson = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 // Mock electron module
 vi.mock('electron', () => ({
@@ -26,6 +27,10 @@ vi.mock('node:fs/promises', () => ({
   readFile: vi.fn().mockResolvedValue('{}'),
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../utils/secure-json', () => ({
+  writeSecureJson: mockWriteSecureJson,
 }));
 
 // Mock settings-manager with a factory that creates fresh instances
@@ -82,11 +87,9 @@ describe('Store IPC Handlers', () => {
   });
 
   describe('store:get', () => {
-    it('should return undefined for non-existent key', async () => {
+    it('rejects unsupported keys', async () => {
       const handler = handlers.get('store:get');
-      const result = await handler!({}, 'nonexistent');
-
-      expect(result).toBeUndefined();
+      await expect(handler!({}, 'nonexistent')).rejects.toThrow('Unsupported store key');
     });
 
     it('should return settings from SettingsManager for settings key', async () => {
@@ -104,7 +107,7 @@ describe('Store IPC Handlers', () => {
   describe('store:set', () => {
     it('should set a value and return undefined', async () => {
       const handler = handlers.get('store:set');
-      const result = await handler!({}, 'testKey', 'testValue');
+      const result = await handler!({}, 'shellysvn:testKey', 'testValue');
 
       // set returns void
       expect(result).toBeUndefined();
@@ -125,11 +128,11 @@ describe('Store IPC Handlers', () => {
     it('should delete a key and return undefined', async () => {
       // First set a value
       const setHandler = handlers.get('store:set');
-      await setHandler!({}, 'deleteKey', 'value');
+      await setHandler!({}, 'shellysvn:deleteKey', 'value');
 
       // Then delete it
       const deleteHandler = handlers.get('store:delete');
-      const result = await deleteHandler!({}, 'deleteKey');
+      const result = await deleteHandler!({}, 'shellysvn:deleteKey');
 
       expect(result).toBeUndefined();
     });
@@ -140,8 +143,8 @@ describe('Store IPC Handlers', () => {
       const setHandler = handlers.get('store:set');
       const getHandler = handlers.get('store:get');
 
-      await setHandler!({}, 'myKey', 'myValue');
-      const result = await getHandler!({}, 'myKey');
+      await setHandler!({}, 'shellysvn:myKey', 'myValue');
+      const result = await getHandler!({}, 'shellysvn:myKey');
 
       expect(result).toBe('myValue');
     });
@@ -158,8 +161,8 @@ describe('Store IPC Handlers', () => {
         boolean: true,
       };
 
-      await setHandler!({}, 'complexKey', complexObject);
-      const result = await getHandler!({}, 'complexKey');
+      await setHandler!({}, 'shellysvn:complexKey', complexObject);
+      const result = await getHandler!({}, 'shellysvn:complexKey');
 
       expect(result).toEqual(complexObject);
     });
@@ -169,9 +172,9 @@ describe('Store IPC Handlers', () => {
       const getHandler = handlers.get('store:get');
       const deleteHandler = handlers.get('store:delete');
 
-      await setHandler!({}, 'tempKey', 'tempValue');
-      await deleteHandler!({}, 'tempKey');
-      const result = await getHandler!({}, 'tempKey');
+      await setHandler!({}, 'shellysvn:tempKey', 'tempValue');
+      await deleteHandler!({}, 'shellysvn:tempKey');
+      const result = await getHandler!({}, 'shellysvn:tempKey');
 
       expect(result).toBeUndefined();
     });
@@ -180,9 +183,9 @@ describe('Store IPC Handlers', () => {
       const setHandler = handlers.get('store:set');
       const getHandler = handlers.get('store:get');
 
-      await setHandler!({}, 'overwriteKey', 'value1');
-      await setHandler!({}, 'overwriteKey', 'value2');
-      const result = await getHandler!({}, 'overwriteKey');
+      await setHandler!({}, 'shellysvn:overwriteKey', 'value1');
+      await setHandler!({}, 'shellysvn:overwriteKey', 'value2');
+      const result = await getHandler!({}, 'shellysvn:overwriteKey');
 
       expect(result).toBe('value2');
     });

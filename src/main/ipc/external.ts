@@ -1,11 +1,12 @@
-import { ipcMain, shell } from 'electron';
+import { app, ipcMain, shell } from 'electron';
 import { spawn } from 'child_process';
-import { constants } from 'fs';
-import { access, stat } from 'fs/promises';
-import { normalize } from 'path';
+import { mkdtemp, rm, stat, writeFile } from 'fs/promises';
+import { basename, join, normalize } from 'path';
 import debug from '../utils/debug';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { listCodeEditors, openInCodeEditor } from '../services/code-editors';
+import { catRepositoryFile } from '../services/svn-content';
+import { getExternalToolRegistry } from '../services/external-tool-registry';
 
 /**
  * SECURITY: Whitelist of allowed diff tools (known aliases)
@@ -57,42 +58,6 @@ function hasPathTraversal(path: string): boolean {
  * Allows custom tool paths while preventing security issues
  * PERFORMANCE: Uses async file operations
  */
-async function validateToolPath(
-  path: string
-): Promise<{ valid: boolean; error?: string; normalized?: string }> {
-  try {
-    const normalized = normalize(path);
-
-    // Check for path traversal attempts
-    if (hasPathTraversal(path)) {
-      return { valid: false, error: 'Path traversal not allowed' };
-    }
-
-    // Check that file exists and points to a file (async)
-    let stats;
-    try {
-      await access(normalized);
-      stats = await stat(normalized);
-    } catch {
-      return { valid: false, error: 'Tool executable does not exist' };
-    }
-    if (!stats.isFile()) {
-      return { valid: false, error: 'Tool executable must be a file' };
-    }
-    if (process.platform !== 'win32') {
-      try {
-        await access(normalized, constants.X_OK);
-      } catch {
-        return { valid: false, error: 'Tool executable is not executable' };
-      }
-    }
-
-    return { valid: true, normalized };
-  } catch (error) {
-    return { valid: false, error: (error as Error).message };
-  }
-}
-
 /**
  * Validate that a path exists and is accessible
  * SECURITY: Prevents path traversal and access to sensitive files
@@ -129,16 +94,27 @@ async function validateFilePath(
 }
 
 export function registerExternalHandlers(): void {
+  ipcMain.handle('externalTools:list', () => getExternalToolRegistry().list());
+  ipcMain.handle('externalTools:register', (_, role) => getExternalToolRegistry().register(role));
+  ipcMain.handle('externalTools:update', (_, id, update) =>
+    getExternalToolRegistry().update(id, update)
+  );
+  ipcMain.handle('externalTools:remove', (_, id) => getExternalToolRegistry().remove(id));
+
   // Open external diff tool
   ipcMain.handle('external:openDiffTool', async (_, tool: string, left: string, right: string) => {
     try {
       // SECURITY: Validate file paths first
-      const leftValidation = await validateFilePath(left);
+      const leftValidation = await validateFilePath(
+        assertPathApprovedForIpc(left, 'Opening files in a diff tool')
+      );
       if (!leftValidation.valid) {
         return { success: false, error: `Left file: ${leftValidation.error}` };
       }
 
-      const rightValidation = await validateFilePath(right);
+      const rightValidation = await validateFilePath(
+        assertPathApprovedForIpc(right, 'Opening files in a diff tool')
+      );
       if (!rightValidation.valid) {
         return { success: false, error: `Right file: ${rightValidation.error}` };
       }
@@ -153,16 +129,12 @@ export function registerExternalHandlers(): void {
         command = toolConfig.command;
         args = toolConfig.getArgs(leftValidation.normalized!, rightValidation.normalized!);
       } else {
-        // Treat tool as a custom path - validate it
-        const toolPathValidation = await validateToolPath(tool);
-        if (!toolPathValidation.valid) {
-          return {
-            success: false,
-            error: `Unknown diff tool '${tool}' and custom path invalid: ${toolPathValidation.error}`,
-          };
-        }
-        command = toolPathValidation.normalized!;
-        args = [leftValidation.normalized!, rightValidation.normalized!];
+        const resolved = await getExternalToolRegistry().resolve(tool, 'diff', {
+          '{left}': leftValidation.normalized!,
+          '{right}': rightValidation.normalized!,
+        });
+        command = resolved.command;
+        args = resolved.args;
       }
 
       debug.log(`[EXTERNAL] Launching diff tool: ${command}`);
@@ -187,23 +159,29 @@ export function registerExternalHandlers(): void {
     async (_, tool: string, base: string, mine: string, theirs: string, merged: string) => {
       try {
         // SECURITY: Validate file paths (merged file doesn't need to exist)
-        const baseValidation = await validateFilePath(base);
+        const baseValidation = await validateFilePath(
+          assertPathApprovedForIpc(base, 'Opening files in a merge tool')
+        );
         if (!baseValidation.valid) {
           return { success: false, error: `Base file: ${baseValidation.error}` };
         }
 
-        const mineValidation = await validateFilePath(mine);
+        const mineValidation = await validateFilePath(
+          assertPathApprovedForIpc(mine, 'Opening files in a merge tool')
+        );
         if (!mineValidation.valid) {
           return { success: false, error: `Mine file: ${mineValidation.error}` };
         }
 
-        const theirsValidation = await validateFilePath(theirs);
+        const theirsValidation = await validateFilePath(
+          assertPathApprovedForIpc(theirs, 'Opening files in a merge tool')
+        );
         if (!theirsValidation.valid) {
           return { success: false, error: `Theirs file: ${theirsValidation.error}` };
         }
 
         // Normalize merged path (file may not exist yet)
-        const mergedNormalized = normalize(merged);
+        const mergedNormalized = assertPathApprovedForIpc(merged, 'Writing merge results');
         if (hasPathTraversal(merged)) {
           return { success: false, error: 'Path traversal not allowed in merged file path' };
         }
@@ -223,22 +201,14 @@ export function registerExternalHandlers(): void {
             mergedNormalized
           );
         } else {
-          // Treat tool as a custom path - validate it
-          const toolPathValidation = await validateToolPath(tool);
-          if (!toolPathValidation.valid) {
-            return {
-              success: false,
-              error: `Unknown merge tool '${tool}' and custom path invalid: ${toolPathValidation.error}`,
-            };
-          }
-          command = toolPathValidation.normalized!;
-          // Default args for custom tools: base mine theirs merged
-          args = [
-            baseValidation.normalized!,
-            mineValidation.normalized!,
-            theirsValidation.normalized!,
-            mergedNormalized,
-          ];
+          const resolved = await getExternalToolRegistry().resolve(tool, 'merge', {
+            '{base}': baseValidation.normalized!,
+            '{mine}': mineValidation.normalized!,
+            '{theirs}': theirsValidation.normalized!,
+            '{merged}': mergedNormalized,
+          });
+          command = resolved.command;
+          args = resolved.args;
         }
 
         debug.log(`[EXTERNAL] Launching merge tool: ${command}`);
@@ -254,6 +224,44 @@ export function registerExternalHandlers(): void {
         return { success: true };
       } catch (err) {
         return { success: false, error: (err as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'external:openWorkingCopyDiff',
+    async (_, input: { toolId: string; workingPath: string }) => {
+      try {
+        const workingPath = assertPathApprovedForIpc(
+          input?.workingPath,
+          'Opening a working-copy diff'
+        );
+        const builtInTool = ALLOWED_DIFF_TOOLS[input?.toolId?.toLowerCase()];
+        const workingStats = await stat(workingPath);
+        if (!workingStats.isFile()) return { success: false, error: 'Diff target must be a file' };
+        const tempDirectory = await mkdtemp(join(app.getPath('temp'), 'shellysvn-diff-'));
+        const basePath = join(tempDirectory, basename(workingPath));
+        const base = await catRepositoryFile(workingPath, 'BASE');
+        if (base.truncated) throw new Error('Base file is too large for external diff');
+        await writeFile(basePath, Buffer.from(base.contentBase64, 'base64'), { mode: 0o600 });
+        const resolvedTool = builtInTool
+          ? { command: builtInTool.command, args: builtInTool.getArgs(basePath, workingPath) }
+          : await getExternalToolRegistry().resolve(input.toolId, 'diff', {
+              '{left}': basePath,
+              '{right}': workingPath,
+            });
+        const child = spawn(resolvedTool.command, resolvedTool.args, {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+          shell: false,
+        });
+        child.unref();
+        const cleanupTimer = setTimeout(() => void rm(tempDirectory, { recursive: true, force: true }), 60 * 60_000);
+        cleanupTimer.unref();
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unable to open diff' };
       }
     }
   );
@@ -353,6 +361,19 @@ export function registerExternalHandlers(): void {
         return { success: false, error: 'Path does not exist' };
       }
 
+      if (editorId.startsWith('registered:')) {
+        const resolved = await getExternalToolRegistry().resolve(editorId, 'editor', {
+          '{path}': normalized,
+        });
+        const child = spawn(resolved.command, resolved.args, {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+          shell: false,
+        });
+        child.unref();
+        return { success: true };
+      }
       return await openInCodeEditor(editorId, normalized);
     } catch (err) {
       return { success: false, error: (err as Error).message };

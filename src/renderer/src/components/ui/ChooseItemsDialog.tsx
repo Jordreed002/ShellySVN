@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { VirtualizedTree, type TreeNode } from './VirtualizedList';
 import { useLazyTreeLoader } from '@renderer/hooks/useLazyTreeLoader';
-import type { AuthCredential, LazyTreeNode } from '@shared/types';
+import type { AuthSession, LazyTreeNode } from '@shared/types';
 import {
   classifySparseError,
   isNetworkError,
@@ -30,7 +30,7 @@ interface ChooseItemsDialogProps {
   /** Repository URL to browse */
   repoUrl: string;
   /** Optional credentials for authenticated access */
-  credentials?: AuthCredential;
+  credentials?: AuthSession;
   /** Callback when user confirms selection */
   onSelect: (paths: string[]) => void;
   /** Callback when user cancels */
@@ -147,7 +147,7 @@ export function ChooseItemsDialog({
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const [activeCredentials, setActiveCredentials] = useState<AuthCredential | undefined>(() => {
+  const [activeCredentials, setActiveCredentials] = useState<AuthSession | undefined>(() => {
     if (credentials) return credentials;
     return credentialCache.get(repoUrl);
   });
@@ -238,18 +238,19 @@ export function ChooseItemsDialog({
     setAuthLoading(true);
     setAuthError(null);
 
-    const newCredentials: AuthCredential = {
-      username: authUsername.trim(),
-      password: authPassword,
-    };
-
     try {
-      credentialCache.set(repoUrl, newCredentials);
-      setActiveCredentials(newCredentials);
+      const newSession = await window.api.auth.beginSession({
+        realm: repoUrl,
+        username: authUsername.trim(),
+        password: authPassword,
+        persistence: 'session',
+      });
+      credentialCache.set(repoUrl, newSession);
+      setActiveCredentials(newSession);
       setShowAuthPrompt(false);
 
       if (pendingPath) {
-        await loadNode(pendingPath, newCredentials);
+        await loadNode(pendingPath, newSession);
         clearNodeError?.(pendingPath);
       }
     } catch (err) {

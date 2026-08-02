@@ -7,8 +7,9 @@ import { AuthSettings } from '../src/components/settings/SettingsPanels';
 import { DEFAULT_SETTINGS } from '@shared/settings-defaults';
 
 const authApi = {
-  get: vi.fn(),
-  set: vi.fn(),
+  getStatus: vi.fn(),
+  beginSession: vi.fn(),
+  resumeSession: vi.fn(),
   delete: vi.fn(),
   list: vi.fn(),
   has: vi.fn(),
@@ -27,19 +28,17 @@ describe('AuthSettings credential management', () => {
       },
     ]);
     authApi.isEncryptionAvailable.mockResolvedValue(true);
-    authApi.set.mockResolvedValue({ success: true });
+    authApi.beginSession.mockResolvedValue({
+      id: 'opaque-session',
+      realm: 'https://svn.example.com/repo',
+      username: 'bob',
+      persistent: true,
+      expiresAt: null,
+    });
     authApi.delete.mockResolvedValue({ success: true });
     authApi.clear.mockResolvedValue({ success: true });
 
     window.api = { auth: authApi } as unknown as Window['api'];
-    window.electron = {
-      process: { platform: 'win32', versions: { node: '1', chrome: '1', electron: '1' } },
-      ipcRenderer: {
-        send: vi.fn(),
-        invoke: vi.fn(),
-        on: vi.fn(),
-      },
-    };
   });
 
   it('updates a saved credential from the settings list', async () => {
@@ -56,7 +55,12 @@ describe('AuthSettings credential management', () => {
     fireEvent.click(screen.getByLabelText('Save credentials for https://svn.example.com/repo'));
 
     await waitFor(() => {
-      expect(authApi.set).toHaveBeenCalledWith('https://svn.example.com/repo', 'bob', 'new-secret');
+      expect(authApi.beginSession).toHaveBeenCalledWith({
+        realm: 'https://svn.example.com/repo',
+        username: 'bob',
+        password: 'new-secret',
+        persistence: 'stored',
+      });
     });
   });
 

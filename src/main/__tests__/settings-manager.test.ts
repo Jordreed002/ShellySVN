@@ -5,6 +5,8 @@ const mockReadFile = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockAccess = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockMkdir = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockChmod = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockWriteSecureJson = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockGetPath = vi.hoisted(() =>
   vi.fn().mockReturnValue('C:\\Users\\test\\AppData\\ShellySVN')
 );
@@ -31,7 +33,10 @@ vi.mock('fs/promises', () => ({
   readFile: mockReadFile,
   writeFile: mockWriteFile,
   mkdir: mockMkdir,
+  chmod: mockChmod,
 }));
+
+vi.mock('../utils/secure-json', () => ({ writeSecureJson: mockWriteSecureJson }));
 
 vi.mock('fs', () => ({
   accessSync: mockAccessSync,
@@ -61,6 +66,7 @@ describe('SettingsManager migration and persistence', () => {
     mockAccess.mockResolvedValue(undefined);
     mockReadFile.mockResolvedValue('{}');
     mockWriteFile.mockResolvedValue(undefined);
+    mockWriteSecureJson.mockResolvedValue(undefined);
     mockIsEncryptionAvailable.mockReturnValue(true);
     mockExistsSync.mockReturnValue(false);
     mockStatSync.mockReset();
@@ -131,7 +137,7 @@ describe('SettingsManager migration and persistence', () => {
     expect(settings.diffMerge.externalMergeTool).toBe('');
     expect(settings.diffMerge.externalToolOverrides).toEqual([]);
     expect(settings.diffMerge.contextLines).toBe(3);
-    expect(mockWriteFile).toHaveBeenCalled();
+    expect(mockWriteSecureJson).toHaveBeenCalled();
   });
 
   it('accepts an approved cache directory and bounded log-cache size', async () => {

@@ -154,14 +154,13 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
       expect.objectContaining({
         isOpen: true,
         repoUrl: 'https://svn.example.com/repo/trunk',
-        credentials: undefined,
         title: 'Choose Items to Checkout',
       }),
       {}
     );
   });
 
-  it('passes credentials to ChooseItemsDialog when provided', () => {
+  it('does not pass plaintext credentials to ChooseItemsDialog', () => {
     renderWithProviders(<CheckoutDialog {...defaultProps} />);
 
     const authButton = screen.getByText('Authentication');
@@ -176,12 +175,8 @@ describe('CheckoutDialog - ChooseItemsDialog Integration', () => {
     const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
-    expect(ChooseItemsDialog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        credentials: { username: 'testuser', password: 'testpass' },
-      }),
-      {}
-    );
+    expect(ChooseItemsDialog).toHaveBeenCalled();
+    expect(vi.mocked(ChooseItemsDialog).mock.calls.at(-1)?.[0]).not.toHaveProperty('credentials');
   });
 
   it('calls checkout with sparse paths when ChooseItemsDialog confirms', async () => {
@@ -448,12 +443,8 @@ describe('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
     const chooseButton = screen.getByText('Choose items…');
     fireEvent.click(chooseButton);
 
-    expect(ChooseItemsDialog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        credentials: undefined,
-      }),
-      {}
-    );
+    expect(ChooseItemsDialog).toHaveBeenCalled();
+    expect(vi.mocked(ChooseItemsDialog).mock.calls.at(-1)?.[0]).not.toHaveProperty('credentials');
   });
 
   it('handles empty selected paths gracefully', async () => {

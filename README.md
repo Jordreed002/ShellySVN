@@ -129,10 +129,10 @@ Toggle "Show remote items" in the toolbar to see files that exist in the reposit
 
 | Platform | Architecture          | Download                        |
 | -------- | --------------------- | ------------------------------- |
-| Windows  | x64                   | `ShellySVN-Setup-x.x.x.exe`     |
+| Windows  | x64                   | `ShellySVN-x.x.x-x64-setup.exe` |
 | macOS    | Intel (x64)           | `ShellySVN-x.x.x-x64.dmg`       |
 | macOS    | Apple Silicon (ARM64) | `ShellySVN-x.x.x-arm64.dmg`     |
-| macOS    | Universal             | `ShellySVN-x.x.x-universal.dmg` |
+| Linux    | x64 AppImage          | `ShellySVN-x.x.x-x64.AppImage`  |
 
 > Download the latest release from the [Releases](https://github.com/Jordreed002/shellysvn/releases) page.
 
@@ -247,7 +247,7 @@ ShellySVN/
 
 | Layer             | Technology       | Why                                               |
 | ----------------- | ---------------- | ------------------------------------------------- |
-| Desktop Framework | Electron 33+     | Mature, cross-platform, native integrations       |
+| Desktop Framework | Electron 43+     | Mature, cross-platform, native integrations       |
 | Package Manager   | Bun              | Fast installs, workspace support, compile feature |
 | Frontend          | React 18         | Component model, hooks, ecosystem                 |
 | Routing           | TanStack Router  | Type-safe, file-based routing                     |
@@ -275,9 +275,16 @@ We welcome contributions! Here's how to get started:
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
 4. Run type checking (`bun run typecheck`)
-5. Commit your changes
-6. Push to the branch
-7. Open a Pull Request
+5. Check for newly unreachable code (`bun run check:dead-code`)
+6. Run the complete verification suite (`bun run verify`)
+7. Commit your changes
+8. Push to the branch
+9. Open a Pull Request
+
+Knip checks both the complete project graph and production-only reachability in CI. Existing findings
+are tracked in `knip-baseline.json`; after removing known dead code, run
+`bun run dead-code:baseline` to shrink that baseline. Baseline updates should accompany the deletion
+that resolved the findings and must not be used to accept newly introduced dead code.
 
 ### Code Style
 

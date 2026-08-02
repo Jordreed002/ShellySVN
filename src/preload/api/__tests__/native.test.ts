@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createExternalApi } from '../native';
+import { createExternalApi, createUpdaterApi } from '../native';
 import type { InvokeIpc } from '../ipc';
 
 describe('native preload IPC contract', () => {
@@ -10,6 +10,25 @@ describe('native preload IPC contract', () => {
   beforeEach(() => {
     invoke = vi.fn().mockResolvedValue({ success: true });
     api = createExternalApi(invoke as unknown as InvokeIpc);
+  });
+
+  it('maps updater actions and removes event listeners', async () => {
+    const ipcRenderer = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    };
+    const updaterApi = createUpdaterApi(ipcRenderer as never, invoke as unknown as InvokeIpc);
+    const callback = vi.fn();
+    const unsubscribe = updaterApi.onStateChanged(callback);
+
+    await updaterApi.check();
+    await updaterApi.download();
+    expect(invoke).toHaveBeenCalledWith('updater:check');
+    expect(invoke).toHaveBeenCalledWith('updater:download');
+    expect(ipcRenderer.on).toHaveBeenCalledWith('updater:state', expect.any(Function));
+
+    unsubscribe();
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith('updater:state', expect.any(Function));
   });
 
   it.each([

@@ -229,7 +229,14 @@ function MillerColumn({
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
   const entries = useMemo(() => {
     const files = appendExcludedChildren(data || [], childCommits, dirPath);
-    if (!statusData) return sortEntries(files);
+    if (
+      !statusData ||
+      !Array.isArray(statusData.allEntries) ||
+      !statusData.directStatus ||
+      typeof statusData.directStatus !== 'object'
+    ) {
+      return sortEntries(files);
+    }
     const byPath = new Map(statusData.allEntries.map((entry) => [entry.fullPath, entry]));
     return sortEntries(
       files.map((file) => {

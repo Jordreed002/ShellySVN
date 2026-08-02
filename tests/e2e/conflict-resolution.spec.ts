@@ -3,13 +3,18 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test, expect } from '../helpers/electron-fixture';
+import { mockFileDialog } from '../helpers/mock-ipc';
 
 function fileUrl(path: string): string {
   const normalized = resolve(path).replaceAll('\\', '/');
   return normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`;
 }
 
-function run(command: string, args: string[], options: { cwd?: string; allowFailure?: boolean } = {}) {
+function run(
+  command: string,
+  args: string[],
+  options: { cwd?: string; allowFailure?: boolean } = {}
+) {
   const result = spawnSync(command, args, {
     cwd: options.cwd,
     encoding: 'utf8',
@@ -33,7 +38,11 @@ function append(path: string, content: string): void {
   writeFileSync(path, `${readFileSync(path, 'utf8')}${content}`, 'utf8');
 }
 
-function createConflictedWorkingCopy(): { root: string; wc: string; conflictFile: string } {
+function createConflictedWorkingCopy(): {
+  root: string;
+  wc: string;
+  conflictFile: string;
+} {
   run('svn', ['--version', '--quiet']);
   run('svnadmin', ['--version', '--quiet']);
 
@@ -65,7 +74,10 @@ function createConflictedWorkingCopy(): { root: string; wc: string; conflictFile
 }
 
 test.describe('Conflict resolution E2E', () => {
-  test('resolves a real conflicted file from the file explorer resolve dialog', async ({ page }) => {
+  test('resolves a real conflicted file from the file explorer resolve dialog', async ({
+    electronApp,
+    page,
+  }) => {
     let fixture: { root: string; wc: string; conflictFile: string } | null = null;
     try {
       fixture = createConflictedWorkingCopy();
@@ -78,8 +90,20 @@ test.describe('Conflict resolution E2E', () => {
     }
 
     try {
+      await mockFileDialog(electronApp, fixture.wc);
       await page.evaluate(async (workingCopyPath) => {
-        const api = (window as unknown as { api: { store: { get: Function; set: Function } } }).api;
+        const api = (
+          window as unknown as {
+            api: {
+              dialog: { openDirectory: () => Promise<string | null> };
+              store: { get: Function; set: Function };
+            };
+          }
+        ).api;
+        const approvedPath = await api.dialog.openDirectory();
+        if (approvedPath !== workingCopyPath) {
+          throw new Error('Native picker did not authorize the conflict working copy');
+        }
         const settings = (await api.store.get('settings')) ?? {};
         await api.store.set('settings', {
           ...settings,
@@ -89,28 +113,44 @@ test.describe('Conflict resolution E2E', () => {
       }, fixture.wc);
       await page.reload();
       const closeTutorialButton = page.getByLabel('Close tutorial');
-      if ((await closeTutorialButton.count()) > 0 && (await closeTutorialButton.first().isVisible())) {
+      if (
+        (await closeTutorialButton.count()) > 0 &&
+        (await closeTutorialButton.first().isVisible())
+      ) {
         await closeTutorialButton.first().click();
       }
       await page.getByRole('link', { name: 'Conflict WC' }).click();
-      await page.waitForSelector('[data-testid="file-explorer"], main', { timeout: 10000 });
+      await page.waitForURL(/\/files\?path=/, { timeout: 10000 });
 
-      await expect(page.getByText('src').first()).toBeVisible({ timeout: 10000 });
-      await page.getByText('src').first().dblclick();
-      await expect(page.getByText('app.txt').first()).toBeVisible({ timeout: 10000 });
-      await page.getByText('app.txt').first().click();
-      await page.evaluate(() => window.dispatchEvent(new CustomEvent('svn:resolve')));
+      const sourceDirectory = page.locator('main').getByText('src', { exact: true }).first();
+      await expect(sourceDirectory).toBeVisible({ timeout: 10000 });
+      await sourceDirectory.click();
+      await page.waitForURL(/path=.*%2Fsrc/, { timeout: 10000 });
+      const conflictedFile = page.locator('main').getByText('app.txt', { exact: true }).first();
+      await expect(conflictedFile).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('main span[title^="Conflicted"]')).toBeVisible({
+        timeout: 15000,
+      });
+      await conflictedFile.click({ button: 'right' });
+      await page.locator('.context-menu button[title^="Resolve"]').click();
 
-      await expect(page.locator('.modal-overlay')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.modal-overlay')).toBeVisible({
+        timeout: 10000,
+      });
       await page.getByText('Resolve conflicts using theirs').click();
       await page.getByRole('button', { name: /^Resolve$/ }).click();
 
       await expect
-        .poll(() => svn(['status'], { cwd: fixture.wc }).output, { timeout: 10000 })
+        .poll(() => svn(['status'], { cwd: fixture.wc }).output, {
+          timeout: 10000,
+        })
         .not.toContain('C');
       expect(existsSync(fixture.conflictFile)).toBe(true);
     } finally {
-      await page.getByRole('link', { name: 'Home' }).click().catch(() => undefined);
+      await page
+        .getByRole('link', { name: 'Home' })
+        .click()
+        .catch(() => undefined);
       if (fixture) rmSync(fixture.root, { recursive: true, force: true });
     }
   });

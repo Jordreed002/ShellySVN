@@ -158,81 +158,11 @@ describe('listCodeEditors', () => {
   });
 });
 
-describe('custom applications from Settings', () => {
-  const tool = {
-    id: 'bc',
-    name: 'Beyond Compare',
-    command: '/usr/local/bin/bcomp',
-    appliesTo: 'both' as const,
-  };
-
-  it('offers them after the detected editors, marked as the user’s own', async () => {
-    fakeExecutable('code');
-    customTools.value = [tool];
-
-    const editors = await listCodeEditors({ refresh: true });
-
-    expect(editors.map((editor) => editor.id)).toEqual(['vscode', 'custom:bc']);
-    expect(editors[1]).toMatchObject({
-      label: 'Beyond Compare',
-      command: '/usr/local/bin/bcomp',
-      appliesTo: 'both',
-      custom: true,
-    });
-  });
-
-  it('picks up an edit without a rescan, since the PATH cache is separate', async () => {
-    await listCodeEditors({ refresh: true });
-    customTools.value = [tool];
-
-    // No `refresh`: the new application is still there.
-    expect((await listCodeEditors()).map((editor) => editor.id)).toEqual(['custom:bc']);
-  });
-
-  it('ignores half-filled rows rather than offering a blank menu item', async () => {
-    customTools.value = [
-      { id: 'a', name: '', command: '/bin/true' },
-      { id: 'b', name: 'No command', command: '   ' },
-    ];
-
-    await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
-  });
-
-  it('carries the kind it applies to, so the menu can filter by entry', async () => {
-    customTools.value = [{ ...tool, appliesTo: 'folders' }];
-    const [entry] = await listCodeEditors({ refresh: true });
-    expect(entry.appliesTo).toBe('folders');
-  });
-
-  it('runs the command from settings, with the path appended', async () => {
-    customTools.value = [tool];
-    await listCodeEditors({ refresh: true });
-
-    await expect(openInCodeEditor('custom:bc', '/wc/file.txt')).resolves.toEqual({ success: true });
-    expect(spawn).toHaveBeenCalledWith(
-      '/usr/local/bin/bcomp',
-      ['/wc/file.txt'],
-      expect.objectContaining({ detached: true })
-    );
-  });
-
-  it('substitutes {path} in the middle of an argument list', async () => {
-    customTools.value = [{ ...tool, arguments: '--flag {path} --after' }];
-    await listCodeEditors({ refresh: true });
-
-    await openInCodeEditor('custom:bc', '/wc/file.txt');
-    expect(spawn).toHaveBeenCalledWith(
-      '/usr/local/bin/bcomp',
-      ['--flag', '/wc/file.txt', '--after'],
-      expect.anything()
-    );
-  });
-
-  it('refuses an id that is no longer configured', async () => {
-    customTools.value = [];
-    await expect(openInCodeEditor('custom:gone', '/wc/file.txt')).resolves.toEqual({
+describe('legacy custom application migration', () => {
+  it('does not execute legacy renderer-configured commands', async () => {
+    await expect(openInCodeEditor('custom:legacy', '/wc/file.txt')).resolves.toEqual({
       success: false,
-      error: 'That application is no longer configured in Settings.',
+      error: 'Legacy custom applications are disabled. Re-register this tool in Settings.',
     });
     expect(spawn).not.toHaveBeenCalled();
   });

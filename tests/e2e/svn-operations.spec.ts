@@ -20,7 +20,10 @@ test.describe('SVN Operations - Checkout', () => {
     await page.locator('aside button[title="Add repository"]').click();
 
     // Wait for modal to appear
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     // Verify modal is visible
     const modalVisible = await page.locator('.modal').isVisible();
@@ -31,12 +34,18 @@ test.describe('SVN Operations - Checkout', () => {
 
     // Close modal
     await page.getByTestId('modal-close-button').click();
-    await page.waitForSelector('.modal-overlay', { state: 'hidden', timeout: 3000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'hidden',
+      timeout: 3000,
+    });
   });
 
   test('checkout dialog has required form fields', async ({ page }) => {
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     // Switch to Checkout tab if present
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
@@ -46,11 +55,15 @@ test.describe('SVN Operations - Checkout', () => {
     }
 
     // Check for URL input field
-    const urlInput = page.locator('.modal input[placeholder*="URL"], .modal input[placeholder*="svn"]').first();
+    const urlInput = page
+      .locator('.modal input[placeholder*="URL"], .modal input[placeholder*="svn"]')
+      .first();
     expect(await urlInput.count()).toBeGreaterThanOrEqual(0);
 
     // Check for local path/directory input
-    const pathInput = page.locator('.modal input[placeholder*="directory"], .modal input[placeholder*="path"]').first();
+    const pathInput = page
+      .locator('.modal input[placeholder*="directory"], .modal input[placeholder*="path"]')
+      .first();
     expect(await pathInput.count()).toBeGreaterThanOrEqual(0);
 
     // Check for action buttons
@@ -62,7 +75,10 @@ test.describe('SVN Operations - Checkout', () => {
 
   test('checkout dialog validates empty URL', async ({ page }) => {
     await page.locator('aside button[title="Add repository"]').click();
-    await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+    await page.waitForSelector('.modal-overlay', {
+      state: 'visible',
+      timeout: 5000,
+    });
 
     // Switch to Checkout tab if present
     const checkoutTab = page.locator('.modal button:has-text("Checkout")').first();
@@ -72,8 +88,10 @@ test.describe('SVN Operations - Checkout', () => {
     }
 
     // Try to checkout without entering URL
-    const checkoutButton = page.locator('.modal button:has-text("Checkout"):not(:has-text("Cancel"))').last();
-    if ((await checkoutButton.count()) > 0 && await checkoutButton.isEnabled()) {
+    const checkoutButton = page
+      .locator('.modal button:has-text("Checkout"):not(:has-text("Cancel"))')
+      .last();
+    if ((await checkoutButton.count()) > 0 && (await checkoutButton.isEnabled())) {
       // Button should be disabled or show validation error
       // We just verify the dialog stays open
       await checkoutButton.click();
@@ -98,7 +116,7 @@ test.describe('SVN Operations - Commit Dialog', () => {
 
   test('commit dialog UI structure', async ({ page }) => {
     // Navigate to File Explorer to see if we can access commit functionality
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     // Look for commit button in toolbar or context menu
@@ -109,7 +127,10 @@ test.describe('SVN Operations - Commit Dialog', () => {
       await commitButton.click();
 
       // Wait for commit dialog
-      await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+      await page.waitForSelector('.modal-overlay', {
+        state: 'visible',
+        timeout: 5000,
+      });
 
       // Verify commit dialog structure
       const modalTitle = await page.locator('.modal h2, .modal .modal-title').first().textContent();
@@ -133,13 +154,16 @@ test.describe('SVN Operations - Commit Dialog', () => {
   });
 
   test('commit dialog has message input', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     const commitButton = page.locator('button:has-text("Commit")').first();
     if ((await commitButton.count()) > 0) {
       await commitButton.click();
-      await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+      await page.waitForSelector('.modal-overlay', {
+        state: 'visible',
+        timeout: 5000,
+      });
 
       // Find message textarea
       const messageInput = page.locator('.modal textarea').first();
@@ -166,7 +190,7 @@ test.describe('SVN Operations - Update', () => {
   });
 
   test('update button is accessible', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     // Look for update button
@@ -178,7 +202,7 @@ test.describe('SVN Operations - Update', () => {
   });
 
   test('update to revision dialog can be opened', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     // Look for update to revision option (might be in a dropdown or menu)
@@ -187,7 +211,10 @@ test.describe('SVN Operations - Update', () => {
     if ((await updateToRevisionOption.count()) > 0) {
       await updateToRevisionOption.first().click();
 
-      await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
+      await page.waitForSelector('.modal-overlay', {
+        state: 'visible',
+        timeout: 5000,
+      });
 
       // Verify dialog title
       const modalTitle = await page.locator('.modal h2, .modal .modal-title').first().textContent();
@@ -210,7 +237,7 @@ test.describe('SVN Operations - Revert', () => {
   });
 
   test('revert button is accessible in File Explorer', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     // Look for revert button
@@ -230,27 +257,12 @@ test.describe('SVN Operations - History/Log', () => {
     await appPage.waitForReady();
   });
 
-  test('can navigate to History view', async ({ page }) => {
-    await page.click('a:has-text("History")');
-    await page.waitForTimeout(500);
-
-    // Verify we're on history view
-    const main = page.locator('main');
-    await expect(main).toBeVisible();
-
-    await page.screenshot({ path: 'tests/results/svn-history-view.png' });
+  test('does not expose History without an open working copy', async ({ page }) => {
+    await expect(page.getByRole('link', { name: 'History', exact: true })).toHaveCount(0);
   });
 
-  test('history view shows log entries or empty state', async ({ page }) => {
-    await page.click('a:has-text("History")');
-    await page.waitForTimeout(500);
-
-    // Look for log entries or empty state message
-    const content = await page.locator('main').textContent();
-
-    // Should have some content (either log entries or empty state message)
-    expect(content).toBeDefined();
-    expect(content!.length).toBeGreaterThan(0);
+  test('explains that a working copy must be opened first', async ({ page }) => {
+    await expect(page.getByText('No working copy open')).toBeVisible();
   });
 });
 
@@ -263,7 +275,7 @@ test.describe('SVN Operations - Diff', () => {
   });
 
   test('diff view is accessible', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     // Look for diff-related UI
@@ -294,7 +306,7 @@ test.describe('SVN Operations - Cleanup', () => {
   });
 
   test('cleanup option is accessible', async ({ page }) => {
-    await page.click('a:has-text("File Explorer")');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
     await page.waitForTimeout(500);
 
     // Look for cleanup option (may be in menu or context menu)

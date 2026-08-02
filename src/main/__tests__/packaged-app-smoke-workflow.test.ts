@@ -11,6 +11,8 @@ describe('packaged app smoke workflow', () => {
     expect(workflow).toContain('ShellySVN.exe');
     expect(workflow).toContain('& $app.FullName --smoke-test');
     expect(workflow).toContain('xvfb-run -a "$app_path" --smoke-test --no-sandbox');
+    expect(workflow).toContain("require('./package.json').version");
+    expect(workflow).toContain('Packaged app version did not match package.json version');
     expect(workflow).toContain('linux-x64');
   });
 });

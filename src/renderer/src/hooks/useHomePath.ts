@@ -1,28 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 /**
  * Resolves the user's home location for "go home" affordances:
  * the home directory on macOS/Linux, Documents on Windows.
  *
- * Fetching it via app.getPath also approves the path for IPC, so the resulting
- * directory listing works. Returns '' until resolved.
+ * The main process returns and authorizes only the operating-system home path.
+ * React Query deduplicates the Sidebar and File Explorer requests.
  */
 export function useHomePath(): string {
-  const [homePath, setHomePath] = useState('');
-
-  useEffect(() => {
-    const isWindows = navigator.platform.toLowerCase().startsWith('win');
-    let cancelled = false;
-    window.api.app
-      .getPath(isWindows ? 'documents' : 'home')
-      .then((p) => {
-        if (!cancelled && p) setHomePath(p);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return homePath;
+  const { data } = useQuery({
+    queryKey: ['app:homePath'],
+    queryFn: () => window.api.app.getHomePath(),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+  });
+  return data ?? '';
 }

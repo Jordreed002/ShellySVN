@@ -616,6 +616,12 @@ export function registerFsHandlers(): void {
       }
       return listDirectoryFiles(assertApprovedFsPath(path, 'Directory listing'));
     } catch (error) {
+      if (
+        (error instanceof Error ? error.message : String(error)).includes(
+          'selected through ShellySVN'
+        )
+      )
+        throw error;
       console.error('[FS] List error:', error);
       return [];
     }
@@ -637,6 +643,12 @@ export function registerFsHandlers(): void {
       try {
         return getDirectoryMetadata(assertApprovedFsPath(path, 'Directory metadata'), hasFiles);
       } catch (error) {
+        if (
+          (error instanceof Error ? error.message : String(error)).includes(
+            'selected through ShellySVN'
+          )
+        )
+          throw error;
         console.error('[FS] Directory metadata error:', error);
         return {
           parentPath: null,
@@ -770,8 +782,8 @@ export function registerFsHandlers(): void {
     'fs:readImageAsBase64',
     async (_, filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
       try {
-        // SECURITY: Validate path and allowed extensions
-        const validatedPath = validatePath(filePath, {
+        const approvedPath = assertApprovedFsPath(filePath, 'Image preview');
+        const validatedPath = validatePath(approvedPath, {
           mustExist: true,
           mustBeFile: true,
           allowedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp'],
@@ -956,11 +968,13 @@ export function registerFsHandlers(): void {
             return;
           }
 
-          if (!sendToRenderer(event.sender, 'fs:watch:change', {
-            path,
-            eventType,
-            changedPath,
-          })) {
+          if (
+            !sendToRenderer(event.sender, 'fs:watch:change', {
+              path,
+              eventType,
+              changedPath,
+            })
+          ) {
             void closeWatchersOwnedBy(event.sender);
           }
         });

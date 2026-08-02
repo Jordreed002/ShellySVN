@@ -2,9 +2,28 @@ import type { IpcRenderer } from 'electron';
 import type { ElectronAPI } from '@shared/types';
 import type { InvokeIpc } from './ipc';
 
+export function createUpdaterApi(
+  ipcRenderer: IpcRenderer,
+  invokeIpc: InvokeIpc
+): ElectronAPI['updater'] {
+  return {
+    getState: () => invokeIpc('updater:getState'),
+    check: () => invokeIpc('updater:check'),
+    download: () => invokeIpc('updater:download'),
+    cancelDownload: () => invokeIpc('updater:cancelDownload'),
+    restartAndInstall: () => invokeIpc('updater:restartAndInstall'),
+    onStateChanged: (callback) => {
+      const handler = (_: unknown, state: Parameters<typeof callback>[0]) => callback(state);
+      ipcRenderer.on('updater:state', handler);
+      return () => ipcRenderer.removeListener('updater:state', handler);
+    },
+  };
+}
+
 export function createExternalApi(invokeIpc: InvokeIpc): ElectronAPI['external'] {
   return {
     openDiffTool: (tool, left, right) => invokeIpc('external:openDiffTool', tool, left, right),
+    openWorkingCopyDiff: (input) => invokeIpc('external:openWorkingCopyDiff', input),
     openMergeTool: (tool, base, mine, theirs, merged) =>
       invokeIpc('external:openMergeTool', tool, base, mine, theirs, merged),
     openFolder: (path) => invokeIpc('external:openFolder', path),
@@ -12,6 +31,15 @@ export function createExternalApi(invokeIpc: InvokeIpc): ElectronAPI['external']
     revealPath: (path) => invokeIpc('external:revealPath', path),
     listEditors: (refresh) => invokeIpc('external:listEditors', refresh),
     openInEditor: (editorId, path) => invokeIpc('external:openInEditor', editorId, path),
+  };
+}
+
+export function createExternalToolsApi(invokeIpc: InvokeIpc): ElectronAPI['externalTools'] {
+  return {
+    list: () => invokeIpc('externalTools:list'),
+    register: (role) => invokeIpc('externalTools:register', role),
+    update: (id, update) => invokeIpc('externalTools:update', id, update),
+    remove: (id) => invokeIpc('externalTools:remove', id),
   };
 }
 
@@ -72,7 +100,7 @@ export function createDialogApi(
   invokeIpc: InvokeIpc
 ): Omit<ElectronAPI['dialog'], 'getPathForFile'> {
   return {
-    openDirectory: () => invokeIpc('dialog:openDirectory'),
+    openDirectory: (defaultPath) => invokeIpc('dialog:openDirectory', defaultPath),
     openFile: (filters) => invokeIpc('dialog:openFile', filters),
     saveFile: (defaultName) => invokeIpc('dialog:saveFile', defaultName),
     showMessage: (options) => invokeIpc('dialog:showMessage', options),
@@ -83,7 +111,8 @@ export function createDialogApi(
 export function createAppApi(invokeIpc: InvokeIpc): ElectronAPI['app'] {
   return {
     getVersion: () => invokeIpc('app:getVersion'),
-    getPath: (name) => invokeIpc('app:getPath', name),
+    getPlatform: () => invokeIpc('app:getPlatform'),
+    getHomePath: () => invokeIpc('app:getHomePath'),
     openExternal: (url) => invokeIpc('app:openExternal', url).then(() => undefined),
     clearCache: () => invokeIpc('app:clearCache'),
     getCacheSize: () => invokeIpc('app:getCacheSize'),

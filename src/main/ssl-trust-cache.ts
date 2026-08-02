@@ -43,7 +43,7 @@ function isRealmAncestorOfUrl(realm: string, url: string): boolean {
   return realmPath === '/' || urlPath === realmPath || urlPath.startsWith(`${realmPath}/`);
 }
 
-class SslTrustCache {
+export class SslTrustCache {
   private trusts = new Map<string, CachedSslTrust>();
   private readonly storePath: string;
   private readonly loadPromise: Promise<void>;

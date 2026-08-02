@@ -200,4 +200,24 @@ async function deliverWebhook(request: WebhookDeliverRequest): Promise<WebhookDe
 
 export function registerWebhookHandlers(): void {
   ipcMain.handle('webhook:deliver', (_, request: WebhookDeliverRequest) => deliverWebhook(request));
+  ipcMain.handle('webhook:setSecret', async (_, webhookId: string, secret: string) => {
+    if (!/^webhook-[A-Za-z0-9_-]+$/.test(webhookId) || typeof secret !== 'string' || secret.length > 16_384) {
+      throw new Error('Invalid webhook secret request');
+    }
+    const cache = getAuthCache();
+    await cache.ready();
+    cache.set(getWebhookSecretRealm(webhookId), 'webhook', secret);
+  });
+  ipcMain.handle('webhook:hasSecret', async (_, webhookId: string) => {
+    if (!/^webhook-[A-Za-z0-9_-]+$/.test(webhookId)) return false;
+    const cache = getAuthCache();
+    await cache.ready();
+    return cache.has(getWebhookSecretRealm(webhookId));
+  });
+  ipcMain.handle('webhook:deleteSecret', async (_, webhookId: string) => {
+    if (!/^webhook-[A-Za-z0-9_-]+$/.test(webhookId)) throw new Error('Invalid webhook id');
+    const cache = getAuthCache();
+    await cache.ready();
+    cache.delete(getWebhookSecretRealm(webhookId));
+  });
 }

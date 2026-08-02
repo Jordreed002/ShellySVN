@@ -33,11 +33,11 @@ export function createSvnCacheApi(invokeIpc: InvokeIpc): ElectronAPI['svnCache']
 
 export function createAuthApi(invokeIpc: InvokeIpc): ElectronAPI['auth'] {
   return {
-    get: (realm) => invokeIpc('auth:get', realm),
-    set: (realm, username, password) => invokeIpc('auth:set', realm, username, password),
+    getStatus: (realm) => invokeIpc('auth:getStatus', realm),
+    beginSession: (request) => invokeIpc('auth:beginSession', request),
+    resumeSession: (realm) => invokeIpc('auth:resumeSession', realm),
     delete: (realm) => invokeIpc('auth:delete', realm),
     list: () => invokeIpc('auth:list'),
-    has: (realm) => invokeIpc('auth:has', realm),
     clear: () => invokeIpc('auth:clear'),
     isEncryptionAvailable: () => invokeIpc('auth:isEncryptionAvailable'),
   };
@@ -46,6 +46,9 @@ export function createAuthApi(invokeIpc: InvokeIpc): ElectronAPI['auth'] {
 export function createWebhookApi(invokeIpc: InvokeIpc): ElectronAPI['webhook'] {
   return {
     deliver: (request) => invokeIpc('webhook:deliver', request),
+    setSecret: (webhookId, secret) => invokeIpc('webhook:setSecret', webhookId, secret),
+    hasSecret: (webhookId) => invokeIpc('webhook:hasSecret', webhookId),
+    deleteSecret: (webhookId) => invokeIpc('webhook:deleteSecret', webhookId),
   };
 }
 
