@@ -89,6 +89,9 @@ describe('UpdateService', () => {
     mocks.activeProgress = false;
     delete process.env.PORTABLE_EXECUTABLE_DIR;
     delete process.env.PORTABLE_EXECUTABLE_FILE;
+    if (process.platform === 'linux') {
+      process.env.APPIMAGE = '/tmp/ShellySVN.AppImage';
+    }
     updater.removeAllListeners();
   });
 

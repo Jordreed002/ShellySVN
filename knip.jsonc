@@ -4,7 +4,8 @@
   "ignoreBinaries": ["svn", "svnadmin", "svnserve", "wmic", "taskkill.exe"],
   "ignoreDependencies": [
     "@fontsource-variable/archivo",
-    "@fontsource-variable/jetbrains-mono"
+    "@fontsource-variable/jetbrains-mono",
+    "collections"
   ],
   "workspaces": {
     ".": {
