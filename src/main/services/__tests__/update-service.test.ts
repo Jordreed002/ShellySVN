@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const originalAppImage = process.env.APPIMAGE;
 
 const mocks = vi.hoisted(() => {
   const listeners = new Map<string, Array<(...args: unknown[]) => void>>();
@@ -89,7 +91,15 @@ describe('UpdateService', () => {
     mocks.activeProgress = false;
     delete process.env.PORTABLE_EXECUTABLE_DIR;
     delete process.env.PORTABLE_EXECUTABLE_FILE;
+    // Packaged Linux builds are updater-eligible only in the supported
+    // AppImage format. Model that package shape in cross-platform CI.
+    process.env.APPIMAGE = '/tmp/ShellySVN.AppImage';
     updater.removeAllListeners();
+  });
+
+  afterEach(() => {
+    if (originalAppImage === undefined) delete process.env.APPIMAGE;
+    else process.env.APPIMAGE = originalAppImage;
   });
 
   it('reports unpackaged applications as manual-update installations', () => {

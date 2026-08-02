@@ -456,6 +456,7 @@ export type IpcInvokeResult<C extends IpcInvokeChannel> = IpcInvokeContract[C]['
 
 export type IpcEventContract = {
   'svn:mutation': SvnMutationNotification;
+  'svn:workingCopyMutationStateChanged': string[];
   'svn:checkout:progress': CheckoutProgress & { checkoutId?: string };
   'svn:update:progress': CheckoutProgress & { updateId?: string };
   'svn:operation:progress': SvnOperationProgress;

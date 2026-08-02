@@ -31,6 +31,11 @@ describe('SVN preload IPC contract', () => {
   it.each([
     ['capabilities', () => api.capabilities(), ['svn:capabilities']],
     [
+      'active working-copy mutations',
+      () => api.getActiveWorkingCopyMutations(),
+      ['svn:getActiveWorkingCopyMutations'],
+    ],
+    [
       'native auth list',
       () => api.nativeAuth.list(['svn.simple']),
       ['svn:nativeAuth:list', ['svn.simple']],
