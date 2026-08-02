@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { collapseNestedFiles } from '../svn-portable-shelves';
+import { collapseNestedFiles } from '../svn-portable-shelf-files';
 
 /**
  * J4 / J14 — Portable shelves.
@@ -38,7 +38,12 @@ describe('collapseNestedFiles', () => {
   });
 
   it('drops files that live under a listed directory', () => {
-    const entries = [dir('src'), file(`src${SEP}a.ts`), file(`src${SEP}nested${SEP}b.ts`), file('readme.md')];
+    const entries = [
+      dir('src'),
+      file(`src${SEP}a.ts`),
+      file(`src${SEP}nested${SEP}b.ts`),
+      file('readme.md'),
+    ];
     expect(paths(collapseNestedFiles(entries))).toEqual(['src', 'readme.md']);
   });
 

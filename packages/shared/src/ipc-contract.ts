@@ -78,6 +78,7 @@ export interface IpcInvokeContract {
     [],
     { shelving: boolean; nativeShelving: boolean; remoteProperties: boolean }
   >;
+  'svn:getActiveWorkingCopyMutations': IpcCall<[], string[]>;
   'svn:nativeAuth:list': IpcCall<[patterns?: string[]], SvnNativeAuthEntry[]>;
   'svn:nativeAuth:remove': IpcCall<[patterns: string[]], { success: boolean; output?: string }>;
   'svn:cat': IpcCall<[target: string, revision?: string, workerJobId?: string], SvnCatResult>;
@@ -343,7 +344,7 @@ export interface IpcInvokeContract {
   'fs:unwatch': IpcCall<[path: string], OperationResult>;
   'fs:exists': IpcCall<[path: string], boolean>;
 
-  'dialog:openDirectory': IpcCall<[], string | null>;
+  'dialog:openDirectory': IpcCall<[defaultPath?: string], string | null>;
   'dialog:openFile': IpcCall<[filters?: FileFilter[]], string | null>;
   'dialog:saveFile': IpcCall<[defaultName?: string], string | null>;
   'dialog:showMessage': IpcCall<[options: MessageDialogOptions], void>;
@@ -351,6 +352,7 @@ export interface IpcInvokeContract {
 
   'app:getVersion': IpcCall<[], string>;
   'app:getPlatform': IpcCall<[], 'win32' | 'darwin' | 'linux'>;
+  'app:getHomePath': IpcCall<[], string>;
   'app:openExternal': IpcCall<[url: string], OperationResult>;
   'app:clearCache': IpcCall<[], OperationResult>;
   'app:getCacheSize': IpcCall<[], { size: number; files: number }>;
@@ -454,6 +456,7 @@ export type IpcInvokeResult<C extends IpcInvokeChannel> = IpcInvokeContract[C]['
 
 export type IpcEventContract = {
   'svn:mutation': SvnMutationNotification;
+  'svn:workingCopyMutationStateChanged': string[];
   'svn:checkout:progress': CheckoutProgress & { checkoutId?: string };
   'svn:update:progress': CheckoutProgress & { updateId?: string };
   'svn:operation:progress': SvnOperationProgress;

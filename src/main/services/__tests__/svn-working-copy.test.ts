@@ -64,6 +64,7 @@ import {
   classifyWorkingCopyUpgradeError,
   copy,
   cleanup,
+  cancelUpdate,
   excludeFromWorkingCopy,
   previewCleanup,
   previewRevert,
@@ -766,6 +767,22 @@ describe('svn-working-copy update progress', () => {
         revision: 99,
       })
     );
+  });
+
+  it('can cancel by operation ID before queued preflight work begins', async () => {
+    const operation = updateWithProgress(
+      { sender: { send: vi.fn() } } as never,
+      'update-immediate-cancel',
+      '/wc'
+    );
+
+    expect(cancelUpdate('update-immediate-cancel')).toEqual({ success: true });
+    await expect(operation).resolves.toMatchObject({
+      success: false,
+      revision: null,
+      error: expect.stringMatching(/cancel/i),
+    });
+    expect(mockState.runSvn).not.toHaveBeenCalled();
   });
 
   it('passes revision, depth, ignore-externals, and force options to svn update', async () => {

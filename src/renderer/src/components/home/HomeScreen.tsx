@@ -45,12 +45,10 @@ import {
   AttentionSection,
   EmptyBriefing,
   HomeShelvesSection,
-  IncomingSection,
   OperationsSection,
   RecentLocationsSection,
-  WorkingCopiesSection,
 } from './HomeSections';
-import { useIncomingRevisions } from './useIncomingRevisions';
+import { CommandCenterSection } from '@renderer/features/working-copy-command-center/CommandCenterSection';
 
 const AddRepoModal = lazy(() =>
   import('@renderer/components/ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
@@ -85,12 +83,6 @@ export function HomeScreen() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
   const [isIdle, setIsIdle] = useState(false);
-  // Checkouts the user has asked the server about. Empty on load: counting
-  // incoming revisions is a network round trip, never something a screen does
-  // to you on arrival.
-  const [checkedForIncoming, setCheckedForIncoming] = useState<ReadonlySet<string>>(
-    () => new Set<string>()
-  );
 
   const recentRepos = useMemo(() => settings?.recentRepositories ?? [], [settings]);
   const recentPaths = settings?.recentPaths ?? [];
@@ -98,7 +90,10 @@ export function HomeScreen() {
 
   /* ── the rail's facts, read from the same cache ── */
   const overview = useWorkingCopyOverview(recentRepos);
-  const rows = useMemo(() => buildHomeWorkingCopies(recentRepos, overview), [recentRepos, overview]);
+  const rows = useMemo(
+    () => buildHomeWorkingCopies(recentRepos, overview),
+    [recentRepos, overview]
+  );
   const problems = collectProblems(recentRepos, overview);
 
   const checkedOut = rows.filter(isCheckedOut);
@@ -112,8 +107,6 @@ export function HomeScreen() {
     isIdle
   );
 
-  const incoming = useIncomingRevisions(rows, checkedForIncoming);
-
   // The operations act on the checkout you last opened — named on screen, so
   // "Commit" is never ambiguous about which working copy it means.
   const target = checkedOut[0];
@@ -123,8 +116,7 @@ export function HomeScreen() {
     .filter((path) => !recentRepos.includes(path))
     .slice(0, MAX_RECENT_LOCATIONS);
 
-  const isFirstRun =
-    recentRepos.length === 0 && recentPaths.length === 0 && bookmarks.length === 0;
+  const isFirstRun = recentRepos.length === 0 && recentPaths.length === 0 && bookmarks.length === 0;
 
   useEffect(() => runWhenIdle(() => setIsIdle(true)), []);
 
@@ -167,10 +159,6 @@ export function HomeScreen() {
     },
     [openWorkingCopy]
   );
-
-  const handleCheck = useCallback((path: string) => {
-    setCheckedForIncoming((previous) => new Set(previous).add(path));
-  }, []);
 
   const handleRunOperation = useCallback(
     (kind: OperationKind) => {
@@ -262,11 +250,7 @@ export function HomeScreen() {
                   measuredClean={measuredClean}
                   attributeWorkingCopy={attributeWorkingCopy}
                 />
-                <WorkingCopiesSection
-                  rows={rows}
-                  lastPath={recentRepos[0]}
-                  onOpen={(path) => void addRecentRepo(path)}
-                />
+                <CommandCenterSection />
                 <OperationsSection
                   operations={operations}
                   targetName={target ? describeRepo(target.path).name : undefined}
@@ -274,7 +258,6 @@ export function HomeScreen() {
                 />
               </div>
               <div className="grid gap-3">
-                <IncomingSection rows={rows} incoming={incoming} onCheck={handleCheck} />
                 <HomeShelvesSection
                   shelves={shelvesOf.shelves}
                   unsupported={shelvesOf.unsupported}
@@ -323,7 +306,11 @@ export function HomeScreen() {
 
       {shelvesFor && (
         <Suspense fallback={null}>
-          <ShelveDialog isOpen={true} onClose={() => setShelvesFor(null)} workingCopyPath={shelvesFor} />
+          <ShelveDialog
+            isOpen={true}
+            onClose={() => setShelvesFor(null)}
+            workingCopyPath={shelvesFor}
+          />
         </Suspense>
       )}
     </div>

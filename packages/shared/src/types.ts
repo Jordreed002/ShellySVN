@@ -443,7 +443,7 @@ export type SvnChannels = {
 };
 
 export type DialogChannels = {
-  'dialog:openDirectory': () => string | null;
+  'dialog:openDirectory': (defaultPath?: string) => string | null;
   'dialog:openFile': (filters?: FileFilter[]) => string | null;
   'dialog:saveFile': (defaultName?: string) => string | null;
 };
@@ -451,6 +451,7 @@ export type DialogChannels = {
 export type AppChannels = {
   'app:getVersion': () => string;
   'app:getPlatform': () => 'win32' | 'darwin' | 'linux';
+  'app:getHomePath': () => string;
   'app:openExternal': (url: string) => void;
 };
 
@@ -1118,6 +1119,18 @@ export interface CancellableRequestOptions {
   signal?: AbortSignal;
 }
 
+interface SvnUpdateResult {
+  success: boolean;
+  revision: SvnOperationRevision;
+  error?: string;
+  output?: string;
+}
+
+/** An await-compatible update operation whose cancellation ID is available immediately. */
+type SvnUpdateOperation = Promise<SvnUpdateResult> & {
+  readonly operationId: string;
+};
+
 export interface SvnLogRequestOptions extends CancellableRequestOptions {
   stopOnCopy?: boolean;
   strictNodeHistory?: boolean;
@@ -1133,6 +1146,8 @@ export interface ElectronAPI {
       remoteProperties: boolean;
     }>;
     onMutation: (callback: (notification: SvnMutationNotification) => void) => () => void;
+    getActiveWorkingCopyMutations: () => Promise<string[]>;
+    onWorkingCopyMutationStateChanged: (callback: (paths: string[]) => void) => () => void;
     nativeAuth: {
       list: (patterns?: string[]) => Promise<SvnNativeAuthEntry[]>;
       remove: (patterns: string[]) => Promise<{ success: boolean; output?: string }>;
@@ -1189,12 +1204,7 @@ export interface ElectronAPI {
       onProgress: (progress: CheckoutProgress) => void,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: UpdateOptions
-    ) => Promise<{
-      success: boolean;
-      revision: SvnOperationRevision;
-      error?: string;
-      output?: string;
-    }>;
+    ) => SvnUpdateOperation;
     cancelUpdate: (operationId?: string) => Promise<{ success: boolean; error?: string }>;
     updateItem: (
       path: string
@@ -1521,7 +1531,7 @@ export interface ElectronAPI {
   };
   dialog: {
     getPathForFile: (file: File) => string;
-    openDirectory: () => Promise<string | null>;
+    openDirectory: (defaultPath?: string) => Promise<string | null>;
     openFile: (filters?: FileFilter[]) => Promise<string | null>;
     saveFile: (defaultName?: string) => Promise<string | null>;
     showMessage: (options: {
@@ -1542,6 +1552,7 @@ export interface ElectronAPI {
   app: {
     getVersion: () => Promise<string>;
     getPlatform: () => Promise<'win32' | 'darwin' | 'linux'>;
+    getHomePath: () => Promise<string>;
     openExternal: (url: string) => Promise<void>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
     getCacheSize: () => Promise<{ size: number; files: number }>;

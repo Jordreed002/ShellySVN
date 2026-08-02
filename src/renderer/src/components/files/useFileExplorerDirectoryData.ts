@@ -17,6 +17,9 @@ export function useFileExplorerDirectoryData(path: string) {
     enabled: !!path,
     staleTime: FILE_CACHE_TIME,
     gcTime: FILE_CACHE_TIME,
+    // Approval errors require a native user gesture. Automatic retries only
+    // repeat the same rejected IPC call and make the main-process log noisy.
+    retry: false,
     // Keep the previous folder's listing visible while the next loads, so
     // navigating between folders doesn't flash an empty list.
     placeholderData: keepPreviousData,
@@ -24,6 +27,7 @@ export function useFileExplorerDirectoryData(path: string) {
 
   const {
     data: directoryMetadata,
+    error: metadataError,
     isFetching: isLoadingStatus,
     isPlaceholderData: isMetadataFromPreviousPath,
   } = useQuery({
@@ -41,8 +45,7 @@ export function useFileExplorerDirectoryData(path: string) {
   // user just left. Reads that only make sense inside a checkout have to wait
   // for this folder's own answer, or navigating into an unversioned folder
   // fires them against a path Subversion will reject with E155007.
-  const isKnownVersioned =
-    directoryMetadata?.isVersioned === true && !isMetadataFromPreviousPath;
+  const isKnownVersioned = directoryMetadata?.isVersioned === true && !isMetadataFromPreviousPath;
 
   const { data: deepStatusData, isFetching: isLoadingDeep } = useQuery({
     queryKey: ['fs:getDeepStatus', path],
@@ -78,7 +81,7 @@ export function useFileExplorerDirectoryData(path: string) {
     directoryMetadata,
     effectiveRepoRoot,
     effectiveUrl,
-    error,
+    error: error ?? metadataError,
     isLoadingDeep,
     isLoadingFiles,
     isLoadingStatus,

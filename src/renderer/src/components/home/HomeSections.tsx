@@ -22,9 +22,6 @@ import {
 } from 'lucide-react';
 
 import { ShellMark } from '@renderer/components/ShellMark';
-// Read-only import: the presence dot and its spoken label are the rail's, so
-// "checked out" means the same thing on both surfaces.
-import { PresenceDot } from '@renderer/components/sidebar/RepoRow';
 import { shortenPath } from '@renderer/components/sidebar/sidebarData';
 import type {
   RailProblems,
@@ -32,23 +29,13 @@ import type {
   RailUnsupportedShelving,
 } from '@renderer/components/sidebar/sidebarData';
 
-import {
-  describeLocalChanges,
-  describeRepositoryFacts,
-  type HomeWorkingCopy,
-  type OperationKind,
-  type OperationState,
-} from './homeBriefing';
-import type { IncomingState } from './useIncomingRevisions';
+import { type OperationKind, type OperationState } from './homeBriefing';
 
 /* ── shells ──────────────────────────────────────────────────────────────── */
 
 const ROW =
   'flex min-h-row items-center gap-2.5 border-b border-border-muted px-2.5 py-1.5 last:border-b-0';
 const META = 'font-mono text-10 text-text-muted';
-const SUBTLE_LINK =
-  'rounded-6 px-1.5 py-0.5 text-11 text-text-secondary transition-fast hover:bg-bg-tertiary hover:text-text';
-
 interface BriefingSectionProps {
   id: string;
   title: string;
@@ -192,266 +179,6 @@ export function AttentionSection({
   );
 }
 
-/* ── working copies ──────────────────────────────────────────────────────── */
-
-interface WorkingCopiesSectionProps {
-  rows: readonly HomeWorkingCopy[];
-  /** Where the session left off — rendered first and marked. */
-  lastPath?: string;
-  /** Records the choice in recent repositories, exactly as the rail does. */
-  onOpen: (path: string) => void;
-  action?: ReactNode;
-}
-
-const TONE_CLASS = {
-  conflict: 'text-svn-conflict',
-  modified: 'text-svn-modified',
-  clean: 'text-svn-normal',
-  muted: 'text-text-muted',
-} as const;
-
-/**
- * The checkouts on this machine: local presence, the repository facts `svn info`
- * reported, and what `svn status` found — in that order, because the first two
- * are true of the server and the third is true only of your disk.
- */
-export function WorkingCopiesSection({
-  rows,
-  lastPath,
-  onOpen,
-  action,
-}: WorkingCopiesSectionProps) {
-  return (
-    <BriefingSection
-      id="home-working-copies"
-      title="Working copies"
-      meta={`${rows.length} in this list`}
-      action={action}
-    >
-      <ul className="list-none">
-        {rows.map((row) => {
-          const changes = describeLocalChanges(row);
-          const facts = describeRepositoryFacts(row);
-          return (
-            <li key={row.path} className={ROW}>
-              <PresenceDot presence={row.presence} />
-              <Link
-                to="/files"
-                search={{ path: row.path }}
-                onClick={() => onOpen(row.path)}
-                className="min-w-0 flex-1 rounded-6 text-left transition-fast hover:text-accent"
-                title={`Open ${row.path}`}
-              >
-                <span className="flex items-center gap-1.5">
-                  <span className="min-w-0 truncate text-13 font-medium text-text">{row.name}</span>
-                  {row.path === lastPath && (
-                    <span
-                      className="flex-shrink-0 rounded-pill border border-accent/40 bg-accent/10 px-1.5 font-mono text-9.5 text-accent"
-                      title="The last working copy this app opened."
-                    >
-                      last opened
-                    </span>
-                  )}
-                </span>
-                <span className={`block truncate ${META}`} title={row.path}>
-                  {shortenPath(row.path, 3)}
-                </span>
-              </Link>
-
-              {facts && (
-                <span
-                  className={`hidden flex-shrink-0 sm:block ${META}`}
-                  title={row.info ? `${row.info.url} at BASE r${row.info.revision}` : undefined}
-                >
-                  {facts}
-                </span>
-              )}
-              {changes && (
-                <span
-                  className={`flex-shrink-0 font-mono text-10 ${TONE_CLASS[changes.tone]}`}
-                  title={changes.title}
-                >
-                  {changes.text}
-                </span>
-              )}
-
-              <span className="flex flex-shrink-0 items-center gap-0.5">
-                <Link
-                  to="/history"
-                  search={{ path: row.path }}
-                  className={SUBTLE_LINK}
-                  title={`Revision history of ${row.name} — svn log`}
-                >
-                  Log
-                </Link>
-                {row.info && (
-                  <Link
-                    to="/repo-browser"
-                    search={{ url: row.info.repositoryRoot, localPath: row.path }}
-                    className={SUBTLE_LINK}
-                    title={`Browse ${row.info.repositoryRoot} — svn list`}
-                  >
-                    Browse
-                  </Link>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </BriefingSection>
-  );
-}
-
-/* ── incoming ────────────────────────────────────────────────────────────── */
-
-interface IncomingSectionProps {
-  rows: readonly HomeWorkingCopy[];
-  incoming: ReadonlyMap<string, IncomingState>;
-  /** Asks the server about one checkout: `svn info <URL>`, then `svn log`. */
-  onCheck: (path: string) => void;
-}
-
-/**
- * What the server has that you do not.
- *
- * BASE comes from the `svn info` the rail already ran; HEAD and the revision
- * count are round trips, so they are never taken on load. Until one is made the
- * row shows `—` and the command that would answer it — an uncounted incoming
- * queue is unknown, not empty.
- */
-export function IncomingSection({ rows, incoming, onCheck }: IncomingSectionProps) {
-  const checkable = rows.filter((row) => row.info);
-
-  return (
-    <BriefingSection
-      id="home-incoming"
-      title="Incoming"
-      meta="from the repository"
-      metaTitle="Counting incoming revisions needs the server: svn info <URL> for HEAD, then svn log -r BASE+1:HEAD."
-    >
-      {checkable.length === 0 ? (
-        <Note>
-          No checkout has reported its repository URL, so there is nothing to compare against HEAD.
-        </Note>
-      ) : (
-        <ul className="list-none">
-          {checkable.map((row) => {
-            const state = incoming.get(row.path);
-            const view = describeIncoming(row, state);
-            return (
-              <li key={row.path} className={ROW}>
-                <span
-                  aria-hidden="true"
-                  className={`w-9 flex-shrink-0 text-right font-mono text-15 font-semibold tabular-nums ${view.tone}`}
-                >
-                  {view.value}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-11.5 font-bold text-text">{view.label}</span>
-                  <span className={`block truncate ${META}`} title={view.detailTitle}>
-                    {view.detail}
-                  </span>
-                </span>
-                {view.canUpdate ? (
-                  <Link
-                    to="/files"
-                    search={{ path: row.path }}
-                    className={SUBTLE_LINK}
-                    title={`Open ${row.name} to bring it up to HEAD — svn update`}
-                  >
-                    Update
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onCheck(row.path)}
-                    disabled={state?.pending}
-                    className="btn btn-secondary btn-sm flex-shrink-0 text-11"
-                    title={`Ask the server about ${row.name} — ${state?.command ?? 'svn info <URL>'}`}
-                    aria-label={`Check the server for incoming revisions in ${row.name}`}
-                  >
-                    {state?.pending ? 'Checking…' : 'Check server'}
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </BriefingSection>
-  );
-}
-
-interface IncomingView {
-  value: string;
-  label: string;
-  detail: string;
-  detailTitle: string;
-  tone: string;
-  canUpdate: boolean;
-}
-
-/** Turn one working copy's incoming state into the row's four strings. */
-function describeIncoming(row: HomeWorkingCopy, state: IncomingState | undefined): IncomingView {
-  const base = state?.base ?? row.info?.revision;
-  const baseLabel = typeof base === 'number' ? `BASE r${base}` : 'BASE unknown';
-  const command = state?.command ?? 'svn info <URL>';
-
-  if (!state || state.kind === 'unmeasured') {
-    return {
-      value: state?.pending ? '…' : '—',
-      label: state?.pending ? 'Reading HEAD…' : 'Not counted',
-      detail: `${row.name} · ${baseLabel} · needs the server`,
-      detailTitle: `${row.path} — ${command}`,
-      tone: 'text-text-faint',
-      canUpdate: false,
-    };
-  }
-
-  if (state.kind === 'error') {
-    return {
-      value: '—',
-      label: 'Server not reached',
-      detail: `${row.name} · ${state.error ?? 'the request failed'}`,
-      detailTitle: state.error ?? command,
-      tone: 'text-svn-conflict',
-      canUpdate: false,
-    };
-  }
-
-  if (state.kind === 'at-head') {
-    return {
-      value: '0',
-      label: `At HEAD r${state.head}`,
-      detail: `${row.name} · BASE and HEAD are both r${state.head}`,
-      detailTitle: `${row.path} — measured with ${command}`,
-      tone: 'text-svn-normal',
-      canUpdate: false,
-    };
-  }
-
-  if (state.pending || typeof state.count !== 'number') {
-    return {
-      value: '…',
-      label: 'Counting revisions…',
-      detail: `${row.name} · ${baseLabel} → HEAD r${state.head}`,
-      detailTitle: `${row.path} — ${command}`,
-      tone: 'text-text-muted',
-      canUpdate: true,
-    };
-  }
-
-  return {
-    value: state.capped ? `${state.count}+` : String(state.count),
-    label: `incoming ${state.count === 1 ? 'revision' : 'revisions'}`,
-    detail: `${row.name} · r${(state.base ?? 0) + 1} → r${state.head}`,
-    detailTitle: `${row.path} — ${command}`,
-    tone: 'text-accent',
-    canUpdate: true,
-  };
-}
-
 /* ── shelves ─────────────────────────────────────────────────────────────── */
 
 interface ShelvesSectionProps {
@@ -527,7 +254,11 @@ export function RecentLocationsSection({ paths }: RecentLocationsSectionProps) {
   if (paths.length === 0) return null;
 
   return (
-    <BriefingSection id="home-recent" title="Where you were last" meta={`${paths.length} locations`}>
+    <BriefingSection
+      id="home-recent"
+      title="Where you were last"
+      meta={`${paths.length} locations`}
+    >
       <ul className="list-none">
         {paths.map((path) => (
           <li key={path} className={ROW}>

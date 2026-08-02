@@ -20,6 +20,7 @@ import { DEFAULT_SETTINGS, mergeSettings } from '@shared/settings-defaults';
 
 import { useSettingsPreview } from '../../contexts/SettingsPreviewContext';
 import { useSettings } from '../../hooks/useSettings';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import {
   AdvancedSettings,
   AppearanceSettings,
@@ -80,6 +81,17 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showShellIntegrationDialog, setShowShellIntegrationDialog] = useState(false);
   const [appVersion, setAppVersion] = useState('…');
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    active: isOpen && !showShellIntegrationDialog,
+    allowOutsideClick: true,
+    onEscape: handleEscape,
+    returnFocus: true,
+  });
+
+  function handleEscape() {
+    if (savedSettings) cancelPreview(savedSettings);
+    onClose();
+  }
 
   useEffect(() => {
     let active = true;
@@ -155,12 +167,22 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
 
   return (
     <>
-      <div className="modal-overlay" onClick={handleClose}>
-        <div className="modal w-[820px] h-[680px] flex" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-overlay titlebar-no-drag" onClick={handleClose}>
+        <div
+          ref={dialogRef}
+          className="modal w-[820px] h-[680px] flex"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-dialog-title"
+        >
           {/* Sidebar Navigation */}
           <div className="w-[180px] flex-shrink-0 bg-bg-tertiary border-r border-border flex flex-col">
             <div className="px-4 py-4 border-b border-border">
-              <h2 className="text-lg font-semibold text-text flex items-center gap-2">
+              <h2
+                id="settings-dialog-title"
+                className="text-lg font-semibold text-text flex items-center gap-2"
+              >
                 <Settings className="w-5 h-5 text-accent" />
                 Settings
               </h2>
@@ -204,6 +226,7 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
                 onClick={handleClose}
                 className="btn-icon-sm"
                 data-testid="modal-close-button"
+                aria-label="Close settings"
               >
                 <X className="w-4 h-4" />
               </button>

@@ -9,9 +9,7 @@ import type {
 
 import {
   buildHomeWorkingCopies,
-  describeLocalChanges,
   describeOperations,
-  describeRepositoryFacts,
   isCheckedOut,
   summarizeBriefing,
   type HomeWorkingCopy,
@@ -26,7 +24,11 @@ import {
  * Subversion itself would (conflicts), not when a read is merely slow.
  */
 
-function counts(changes: number, conflicts = 0, source: RepoStatusCounts['source'] = 'network'): RepoStatusCounts {
+function counts(
+  changes: number,
+  conflicts = 0,
+  source: RepoStatusCounts['source'] = 'network'
+): RepoStatusCounts {
   return {
     changes,
     conflicts,
@@ -131,56 +133,6 @@ describe('summarizeBriefing', () => {
     const out = summarizeBriefing(rows, { total: 0, unmeasured: 1 });
     expect(out).toContain('1 not checked out');
     expect(out).toContain('1 not measured');
-  });
-});
-
-describe('describeLocalChanges', () => {
-  it('says "not checked out" for a path with no working copy', () => {
-    const line = describeLocalChanges(row({ presence: 'none' }))!;
-    expect(line.text).toBe('not checked out');
-    expect(line.tone).toBe('muted');
-    expect(line.title).toContain('no working copy');
-  });
-
-  it('says it is reading while status has not answered', () => {
-    const line = describeLocalChanges(row({ presence: 'full' }))!;
-    expect(line.text).toBe('reading svn status…');
-    expect(line.tone).toBe('muted');
-  });
-
-  it('reports a clean checkout with no changes', () => {
-    const line = describeLocalChanges(row({ status: counts(0) }))!;
-    expect(line.text).toBe('no local changes');
-    expect(line.tone).toBe('clean');
-  });
-
-  it('reports measured changes with a modified tone', () => {
-    expect(describeLocalChanges(row({ status: counts(1) }))!.text).toBe('1 change');
-    expect(describeLocalChanges(row({ status: counts(3) }))!.text).toBe('3 changes');
-    expect(describeLocalChanges(row({ status: counts(3) }))!.tone).toBe('modified');
-  });
-
-  it('flags conflicts with a conflict tone and a combined line', () => {
-    const line = describeLocalChanges(row({ status: counts(3, 2) }))!;
-    expect(line.text).toBe('3 changes · 2 conflicted (C)');
-    expect(line.tone).toBe('conflict');
-  });
-
-  it('notes when the status came from the offline cache', () => {
-    const line = describeLocalChanges(row({ status: counts(2, 0, 'cache') }))!;
-    expect(line.title).toContain('offline status cache');
-  });
-});
-
-describe('describeRepositoryFacts', () => {
-  it('returns null when svn info has not answered', () => {
-    expect(describeRepositoryFacts(row())).toBeNull();
-  });
-
-  it('renders branch and BASE revision from svn info', () => {
-    expect(describeRepositoryFacts(row({ info: info({ branch: 'develop', revision: 17 }) }))).toBe(
-      'develop · r17'
-    );
   });
 });
 

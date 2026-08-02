@@ -9,6 +9,7 @@ import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 import { RepositoryPillButton } from './layout/RepositoryPillButton';
 import { describeRepositoryPill } from './layout/repositoryPill';
 import { ShellMark } from './ShellMark';
+import { GlobalBatchProgress } from '@renderer/features/working-copy-command-center/GlobalBatchProgress';
 
 const Sidebar = lazy(() => import('./Sidebar').then((mod) => ({ default: mod.Sidebar })));
 const StatusBar = lazy(() => import('./ui/StatusBar').then((mod) => ({ default: mod.StatusBar })));
@@ -379,6 +380,8 @@ export function Layout({ children }: LayoutProps) {
       <Suspense fallback={null}>
         <UpdateBanner />
       </Suspense>
+
+      <GlobalBatchProgress />
 
       {/* Main Content Area - Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">

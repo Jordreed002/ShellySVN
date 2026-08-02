@@ -367,9 +367,7 @@ describe('FS IPC Handlers', () => {
   describe('fs:listDirectory', () => {
     it('should reject directory listing outside approved roots', async () => {
       const handler = handlers.get('fs:listDirectory');
-      const result = await handler!({}, '/unapproved');
-
-      expect(result).toEqual([]);
+      await expect(handler!({}, '/unapproved')).rejects.toThrow('selected through ShellySVN');
       expect(mockState.readdir).not.toHaveBeenCalled();
     });
 
@@ -410,13 +408,9 @@ describe('FS IPC Handlers', () => {
   describe('fs:getDirectoryMetadata', () => {
     it('should reject metadata lookup outside approved roots', async () => {
       const handler = handlers.get('fs:getDirectoryMetadata');
-      const result = (await handler!({}, '/unapproved', false)) as {
-        parentPath: string | null;
-        isVersioned: boolean;
-      };
-
-      expect(result.parentPath).toBeNull();
-      expect(result.isVersioned).toBe(false);
+      await expect(handler!({}, '/unapproved', false)).rejects.toThrow(
+        'selected through ShellySVN'
+      );
       expect(mockState.spawn).not.toHaveBeenCalled();
     });
   });

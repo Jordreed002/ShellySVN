@@ -67,7 +67,10 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
  * rather than being folded in as zero — `20 local changes` and
  * `20 local changes · 1 not measured` are different claims.
  */
-export function summarizeBriefing(rows: readonly HomeWorkingCopy[], problems: RailProblems): string {
+export function summarizeBriefing(
+  rows: readonly HomeWorkingCopy[],
+  problems: RailProblems
+): string {
   const parts: string[] = [plural(rows.length, 'working copy', 'working copies')];
 
   let changes = 0;
@@ -90,66 +93,6 @@ export function summarizeBriefing(rows: readonly HomeWorkingCopy[], problems: Ra
   if (problems.unmeasured > 0) parts.push(`${problems.unmeasured} not measured`);
 
   return parts.join(' · ');
-}
-
-/**
- * The local-change line for one working-copy row, or `null` when the checkout
- * has nothing to say — a path that is not on disk has no local facts, and one
- * that has not been read yet has no counts.
- */
-export interface LocalChangeLine {
-  text: string;
-  tone: 'conflict' | 'modified' | 'clean' | 'muted';
-  title: string;
-}
-
-export function describeLocalChanges(row: HomeWorkingCopy): LocalChangeLine | null {
-  if (row.presence === 'none') {
-    return {
-      text: 'not checked out',
-      tone: 'muted',
-      title: `svn status did not answer for ${row.path}, so this path holds no working copy.`,
-    };
-  }
-  const status = row.status;
-  if (!status) {
-    return {
-      text: 'reading svn status…',
-      tone: 'muted',
-      title: `svn status has not answered for ${row.path} yet, so its local changes are unknown.`,
-    };
-  }
-  if (status.changes === 0) {
-    return {
-      text: 'no local changes',
-      tone: 'clean',
-      title: `svn status found nothing modified in ${row.path}.`,
-    };
-  }
-  const conflicts = status.conflicts;
-  const text =
-    conflicts > 0
-      ? `${plural(status.changes, 'change', 'changes')} · ${conflicts} conflicted (C)`
-      : plural(status.changes, 'change', 'changes');
-  return {
-    text,
-    tone: conflicts > 0 ? 'conflict' : 'modified',
-    title:
-      `svn status in ${row.path}: ${plural(status.changes, 'pending change', 'pending changes')}` +
-      (conflicts > 0 ? `, ${conflicts} of them conflicted (C)` : '') +
-      (status.source === 'cache' ? ' — from the offline status cache' : ''),
-  };
-}
-
-/**
- * The repository line for a row: branch and BASE revision, both from `svn info`.
- * Absent when `svn info` did not answer — the branch is never guessed from the
- * folder name.
- */
-export function describeRepositoryFacts(row: HomeWorkingCopy): string | null {
-  const info = row.info;
-  if (!info) return null;
-  return `${info.branch} · r${info.revision}`;
 }
 
 /* ── the four operations ─────────────────────────────────────────────────── */

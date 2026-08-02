@@ -9,11 +9,12 @@ const getDirectoryMetadata = vi.fn();
 const getDeepStatus = vi.fn();
 const childCommits = vi.fn();
 
-function createWrapper() {
+function createWrapper(retry = false) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false,
+        retry,
+        retryDelay: 0,
         gcTime: 0,
       },
     },
@@ -43,6 +44,30 @@ beforeEach(() => {
 });
 
 describe('useFileExplorerDirectoryData', () => {
+  it('does not issue filesystem IPC before a location is selected', () => {
+    const { result } = renderHook(() => useFileExplorerDirectoryData(''), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.rawFiles).toBeUndefined();
+    expect(listDirectory).not.toHaveBeenCalled();
+    expect(getDirectoryMetadata).not.toHaveBeenCalled();
+  });
+
+  it('does not automatically repeat a directory approval denial', async () => {
+    listDirectory.mockRejectedValue(
+      new Error('Directory listing is only allowed inside a folder selected through ShellySVN.')
+    );
+
+    const { result } = renderHook(() => useFileExplorerDirectoryData('/legacy-folder'), {
+      // Prove the hook overrides a retrying application-level default.
+      wrapper: createWrapper(true),
+    });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(listDirectory).toHaveBeenCalledTimes(1);
+  });
+
   it('loads local files, metadata, and deep status for versioned paths', async () => {
     const files = [{ path: 'C:/repo/file.txt', name: 'file.txt', isDirectory: false }];
     const statusData = { entries: [] };
@@ -72,7 +97,9 @@ describe('useFileExplorerDirectoryData', () => {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => expect(result.current.deepStatusData).toEqual([{ path: 'C:/repo', status: 'M' }]));
+    await waitFor(() =>
+      expect(result.current.deepStatusData).toEqual([{ path: 'C:/repo', status: 'M' }])
+    );
 
     expect(result.current.rawFiles).toBe(files);
     expect(result.current.statusData).toBe(statusData);
@@ -97,10 +124,13 @@ describe('useFileExplorerDirectoryData', () => {
     getDeepStatus.mockResolvedValue([]);
     childCommits.mockResolvedValue({});
 
-    const { rerender } = renderHook(({ path }: { path: string }) => useFileExplorerDirectoryData(path), {
-      wrapper: createWrapper(),
-      initialProps: { path: '/repo' },
-    });
+    const { rerender } = renderHook(
+      ({ path }: { path: string }) => useFileExplorerDirectoryData(path),
+      {
+        wrapper: createWrapper(),
+        initialProps: { path: '/repo' },
+      }
+    );
 
     await waitFor(() => expect(getDeepStatus).toHaveBeenCalledWith('/repo'));
 

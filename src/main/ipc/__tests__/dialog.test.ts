@@ -80,10 +80,11 @@ describe('Dialog IPC Handlers', () => {
       });
 
       const handler = handlers.get('dialog:openDirectory');
-      const result = await handler!({});
+      const result = await handler!({}, '/Users/test/projects');
 
       expect(mockShowOpenDialog).toHaveBeenCalledWith({
         properties: ['openDirectory', 'createDirectory'],
+        defaultPath: '/Users/test/projects',
       });
       expect(result).toBe('/Users/test/projects');
     });
@@ -110,6 +111,13 @@ describe('Dialog IPC Handlers', () => {
       const result = await handler!({});
 
       expect(result).toBeNull();
+    });
+
+    it('should reject an invalid default directory path', async () => {
+      const handler = handlers.get('dialog:openDirectory');
+
+      await expect(handler!({}, 'bad\0path')).rejects.toThrow('Invalid default directory path');
+      expect(mockShowOpenDialog).not.toHaveBeenCalled();
     });
   });
 

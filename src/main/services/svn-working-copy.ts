@@ -464,15 +464,22 @@ export async function updateWithProgress(
   error?: string;
   output?: string;
 }> {
-  return runSerializedWorkingCopyMutation(path, async () =>
-    updateWithProgressUnserialized(event, updateId, path, depth, options)
-  );
+  const controller = new AbortController();
+  activeUpdates.set(updateId, controller);
+  try {
+    return await runSerializedWorkingCopyMutation(path, async () =>
+      updateWithProgressUnserialized(event, updateId, path, controller, depth, options)
+    );
+  } finally {
+    if (activeUpdates.get(updateId) === controller) activeUpdates.delete(updateId);
+  }
 }
 
 async function updateWithProgressUnserialized(
   event: IpcMainInvokeEvent,
   updateId: string,
   path: string,
+  controller: AbortController,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   options?: UpdateOptions
 ): Promise<{
@@ -481,11 +488,6 @@ async function updateWithProgressUnserialized(
   error?: string;
   output?: string;
 }> {
-  const trustedSslFailures = await getCachedTrustedSslFailuresForWorkingCopy(path);
-  const credentials = await getCachedCredentialsForWorkingCopy(path);
-  const controller = new AbortController();
-  activeUpdates.set(updateId, controller);
-
   let filesProcessed = 0;
   let currentFile = '';
   let lastProgressTime = 0;
@@ -500,13 +502,21 @@ async function updateWithProgressUnserialized(
   };
 
   try {
+    if (controller.signal.aborted) throw new Error('SVN update cancelled');
+    const [trustedSslFailures, credentials] = await Promise.all([
+      getCachedTrustedSslFailuresForWorkingCopy(path),
+      getCachedCredentialsForWorkingCopy(path),
+    ]);
+    if (controller.signal.aborted) throw new Error('SVN update cancelled');
     await runSvnText(withSvnTargets(['info', '--xml'], [path]), {
       cwd: path,
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,
       credentials,
+      signal: controller.signal,
     });
 
+    if (controller.signal.aborted) throw new Error('SVN update cancelled');
     const hooks = await getHooksForWorkingCopy(path);
     const preResult = await executeHooksForType(hooks, 'pre-update', {
       workingCopyPath: path,
@@ -516,6 +526,7 @@ async function updateWithProgressUnserialized(
       sendProgress({ status: 'error', filesProcessed, error });
       return { success: false, revision: null, error };
     }
+    if (controller.signal.aborted) throw new Error('SVN update cancelled');
 
     const result = await runSvn(buildUpdateArgs(path, depth, options), {
       trustSslFailures: trustedSslFailures !== undefined,
@@ -575,10 +586,6 @@ async function updateWithProgressUnserialized(
       error: message,
     });
     return { success: false, revision: null, error: message };
-  } finally {
-    if (activeUpdates.get(updateId) === controller) {
-      activeUpdates.delete(updateId);
-    }
   }
 }
 
@@ -592,6 +599,13 @@ export function cancelUpdate(updateId: string): { success: boolean; error?: stri
   activeUpdates.delete(updateId);
   debug.log(`[SVN] Cancelled update: ${updateId}`);
   return { success: true };
+}
+
+export function cancelAllUpdates(): number {
+  const controllers = Array.from(activeUpdates.values());
+  for (const controller of controllers) controller.abort();
+  activeUpdates.clear();
+  return controllers.length;
 }
 
 /**

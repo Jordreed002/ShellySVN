@@ -13,6 +13,8 @@ import type { ElectronAPI } from '@shared/types';
 export function createMockElectronAPI(): ElectronAPI {
   return {
     svn: {
+      getActiveWorkingCopyMutations: vi.fn().mockResolvedValue([]),
+      onWorkingCopyMutationStateChanged: vi.fn().mockReturnValue(() => undefined),
       status: vi.fn().mockResolvedValue({ path: '/test/repo', entries: [], revision: 1 }),
       statusRemote: vi
         .fn()
@@ -40,9 +42,12 @@ export function createMockElectronAPI(): ElectronAPI {
       diff: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
       diffStreaming: vi.fn().mockResolvedValue({ files: [], hasChanges: false }),
       update: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
-      updateWithProgress: vi.fn().mockImplementation(async (_path, onProgress) => {
-        onProgress?.({ status: 'completed', filesProcessed: 0, revision: 5 });
-        return { success: true, revision: 5 };
+      updateWithProgress: vi.fn().mockImplementation((_path, onProgress) => {
+        const promise = Promise.resolve().then(() => {
+          onProgress?.({ status: 'completed', filesProcessed: 0, revision: 5 });
+          return { success: true, revision: 5 };
+        });
+        return Object.assign(promise, { operationId: 'update-test' });
       }),
       cancelUpdate: vi.fn().mockResolvedValue({ success: true }),
       updateItem: vi.fn().mockResolvedValue({ success: true, revision: 5 }),
@@ -176,6 +181,7 @@ export function createMockElectronAPI(): ElectronAPI {
     app: {
       getVersion: vi.fn().mockResolvedValue('1.0.0'),
       getPlatform: vi.fn().mockResolvedValue('linux'),
+      getHomePath: vi.fn().mockResolvedValue('/home/test'),
       openExternal: vi.fn().mockResolvedValue(undefined),
       clearCache: vi.fn().mockResolvedValue({ success: true }),
       getCacheSize: vi.fn().mockResolvedValue({ size: 0, files: 0 }),

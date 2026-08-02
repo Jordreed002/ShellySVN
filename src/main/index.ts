@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog, type MessageBoxOptions } from 'electron';
 import { spawnSync } from 'child_process';
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
@@ -25,9 +25,21 @@ import { sendToRenderer } from './utils/safe-renderer-send';
 import { getUpdateService } from './services/update-service';
 import { clearAuthSessions } from './services/auth-session-manager';
 import { installSecureIpcBoundary } from './utils/secure-ipc';
+import {
+  beginWorkingCopyMutationShutdown,
+  hasActiveWorkingCopyMutations,
+  waitForWorkingCopyMutations,
+} from './services/svn-mutation-queue';
+import {
+  cancelAllSvnProgressOperations,
+  hasActiveSvnProgressOperations,
+} from './services/svn-progress';
+import { cancelAllUpdates } from './services/svn-working-copy';
 
 let mainWindow: BrowserWindow | null = null;
 let shutdownPromise: Promise<void> | null = null;
+let quitApproved = false;
+let quitPromptOpen = false;
 const isSmokeTest = process.argv.includes('--smoke-test');
 const MIN_PACKAGED_BINARY_SIZE_BYTES = 1024;
 
@@ -145,7 +157,7 @@ function shutdownApplicationServices(): Promise<void> {
 }
 
 // Quit when all windows are closed, except on macOS
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.shellysvn');
 
@@ -209,15 +221,14 @@ app.whenReady().then(() => {
     return;
   }
 
-  // Restore only approvals with native-picker provenance. Legacy approvals are
-  // reset because their origin cannot be established safely.
-  void (async () => {
-    try {
-      await bootstrapApprovedPaths();
-    } catch (error) {
-      console.error('[approved-paths] Bootstrap failed:', error);
-    }
-  })();
+  // Restore approvals before creating the renderer. Otherwise the Files route
+  // can race startup, receive a false denial for a persisted path, and cache
+  // that failed query for the rest of the session.
+  try {
+    await bootstrapApprovedPaths();
+  } catch (error) {
+    console.error('[approved-paths] Bootstrap failed:', error);
+  }
 
   createWindow();
   void getUpdateService().initialize(shutdownApplicationServices);
@@ -235,8 +246,45 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
-  void shutdownApplicationServices();
+app.on('before-quit', (event) => {
+  if (quitApproved) {
+    void shutdownApplicationServices();
+    return;
+  }
+  if (!hasActiveWorkingCopyMutations() && !hasActiveSvnProgressOperations()) {
+    void shutdownApplicationServices();
+    return;
+  }
+  event.preventDefault();
+  if (quitPromptOpen) return;
+  quitPromptOpen = true;
+  const quitDialogOptions: MessageBoxOptions = {
+    type: 'warning',
+    title: 'SVN operation in progress',
+    message: 'One or more working copies are being changed.',
+    detail: 'Keep ShellySVN open until the operations finish, or cancel them before quitting.',
+    buttons: ['Keep App Open', 'Cancel Operations and Quit'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  };
+  const prompt = mainWindow
+    ? dialog.showMessageBox(mainWindow, quitDialogOptions)
+    : dialog.showMessageBox(quitDialogOptions);
+  void prompt
+    .then(async ({ response }) => {
+      if (response !== 1) return;
+      beginWorkingCopyMutationShutdown();
+      cancelAllUpdates();
+      cancelAllSvnProgressOperations();
+      await waitForWorkingCopyMutations();
+      await shutdownApplicationServices();
+      quitApproved = true;
+      app.quit();
+    })
+    .finally(() => {
+      quitPromptOpen = false;
+    });
 });
 
 // Handle certificate errors (for self-signed SVN servers)

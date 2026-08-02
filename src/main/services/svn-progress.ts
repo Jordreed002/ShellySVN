@@ -130,3 +130,10 @@ export function cancelSvnOperation(operationId: string): { success: boolean; err
   activeOperations.delete(operationId);
   return { success: true };
 }
+
+export function cancelAllSvnProgressOperations(): number {
+  const controllers = Array.from(activeOperations.values());
+  for (const controller of controllers) controller.abort();
+  activeOperations.clear();
+  return controllers.length;
+}

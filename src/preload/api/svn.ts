@@ -98,6 +98,12 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       ipcRenderer.on('svn:mutation', handler);
       return () => ipcRenderer.removeListener('svn:mutation', handler);
     },
+    getActiveWorkingCopyMutations: () => invokeIpc('svn:getActiveWorkingCopyMutations'),
+    onWorkingCopyMutationStateChanged: (callback) => {
+      const handler = (_: unknown, paths: unknown) => callback(paths as string[]);
+      ipcRenderer.on('svn:workingCopyMutationStateChanged', handler);
+      return () => ipcRenderer.removeListener('svn:workingCopyMutationStateChanged', handler);
+    },
     nativeAuth: {
       list: (patterns?) => invokeIpc('svn:nativeAuth:list', patterns),
       remove: (patterns) => invokeIpc('svn:nativeAuth:remove', patterns),
@@ -162,7 +168,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
 
       const promise = invokeIpc('svn:updateWithProgress', updateId, path, depth, options);
 
-      return promise.then(
+      const operation = promise.then(
         (result) => {
           ipcRenderer.removeListener('svn:update:progress', handler);
           activeUpdateIds.delete(updateId);
@@ -174,6 +180,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
           throw error;
         }
       );
+      return Object.assign(operation, { operationId: updateId });
     },
     cancelUpdate: (operationId?) => {
       const updateId = operationId ?? latestId(activeUpdateIds);

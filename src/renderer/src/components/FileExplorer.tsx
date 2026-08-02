@@ -13,6 +13,7 @@ import {
 } from 'react';
 import {
   FolderX,
+  FolderOpen,
   AlertCircle,
   ClipboardCopy,
   FolderDown,
@@ -174,6 +175,11 @@ export function FileExplorer() {
   const homePath = useHomePath();
   const { settings, updateSettings, addRecentPath, addBookmark, removeBookmark } = useSettings();
   const explorerViewMode = settings.explorerViewMode ?? 'miller';
+
+  useEffect(() => {
+    if (path || !homePath) return;
+    navigate({ to: '/files', search: { path: homePath }, replace: true });
+  }, [homePath, navigate, path]);
 
   // Track recent paths on navigation
   useEffect(() => {
@@ -785,6 +791,20 @@ export function FileExplorer() {
     },
     [navigate]
   );
+
+  const handleChooseLocation = useCallback(async () => {
+    const selectedPath = await window.api.dialog.openDirectory(path || undefined);
+    if (!selectedPath) return;
+
+    // Re-selecting the current path does not cause a router transition. Clear
+    // the denial cached before the native picker granted access so both the
+    // directory listing and its metadata are fetched again immediately.
+    await Promise.all([
+      queryClient.resetQueries({ queryKey: ['fs:listDirectory', selectedPath], exact: true }),
+      queryClient.resetQueries({ queryKey: ['fs:getDirectoryMetadata', selectedPath] }),
+    ]);
+    handleNavigate(selectedPath);
+  }, [handleNavigate, path, queryClient]);
 
   const handleNavigateToEntry = useCallback(
     (entry: SvnStatusEntry) => {
@@ -1413,6 +1433,14 @@ export function FileExplorer() {
         <p className="text-sm text-text-secondary max-w-sm">
           Choose a folder from the sidebar to browse files
         </p>
+        <button
+          type="button"
+          className="btn btn-primary mt-4 gap-2"
+          onClick={() => void handleChooseLocation()}
+        >
+          <FolderOpen className="h-4 w-4" aria-hidden="true" />
+          Choose folder
+        </button>
       </div>
     );
   }
@@ -1432,14 +1460,23 @@ export function FileExplorer() {
   }
 
   if (error) {
+    const approvalRequired = (error as Error).message.includes('selected through ShellySVN');
     return (
       <div className="flex-1 flex flex-col">
         <div className="h-[--toolbar-height] flex-none border-b border-border bg-bg" />
         <RouteState
           variant="error"
-          title="Error Loading Directory"
-          description={(error as Error).message}
-          action={{ label: 'Retry', onClick: () => refetch() }}
+          title={approvalRequired ? 'Select This Folder Again' : 'Error Loading Directory'}
+          description={
+            approvalRequired
+              ? 'For your security, ShellySVN needs you to confirm access to this folder with the system picker.'
+              : (error as Error).message
+          }
+          action={
+            approvalRequired
+              ? { label: 'Choose folder', onClick: () => void handleChooseLocation() }
+              : { label: 'Retry', onClick: () => refetch() }
+          }
           className="flex-1"
         />
       </div>

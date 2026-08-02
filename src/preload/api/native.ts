@@ -100,7 +100,7 @@ export function createDialogApi(
   invokeIpc: InvokeIpc
 ): Omit<ElectronAPI['dialog'], 'getPathForFile'> {
   return {
-    openDirectory: () => invokeIpc('dialog:openDirectory'),
+    openDirectory: (defaultPath) => invokeIpc('dialog:openDirectory', defaultPath),
     openFile: (filters) => invokeIpc('dialog:openFile', filters),
     saveFile: (defaultName) => invokeIpc('dialog:saveFile', defaultName),
     showMessage: (options) => invokeIpc('dialog:showMessage', options),
@@ -112,6 +112,7 @@ export function createAppApi(invokeIpc: InvokeIpc): ElectronAPI['app'] {
   return {
     getVersion: () => invokeIpc('app:getVersion'),
     getPlatform: () => invokeIpc('app:getPlatform'),
+    getHomePath: () => invokeIpc('app:getHomePath'),
     openExternal: (url) => invokeIpc('app:openExternal', url).then(() => undefined),
     clearCache: () => invokeIpc('app:clearCache'),
     getCacheSize: () => invokeIpc('app:getCacheSize'),

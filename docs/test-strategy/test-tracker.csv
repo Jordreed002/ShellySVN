@@ -1,8 +1,8 @@
 Journey,Layer,Area,File,Suite,Test,Status
 —,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,the close button is operable from the keyboard,existing
 —,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,clicking the overlay backdrop closes the dialog,existing
-—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,Escape dismisses the Settings dialog (a11y gap),existing
-—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,focus is contained within the modal while it is open (a11y gap),existing
+—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,Escape dismisses the Settings dialog,existing
+—,e2e,Uncategorized,tests/e2e/keyboard-interactions.spec.ts,Keyboard interactions,focus is contained within the modal while it is open,existing
 —,e2e,Uncategorized,tests/e2e/modals.spec.ts,Modal Dialogs,AddRepoModal opens and closes correctly,existing
 —,e2e,Uncategorized,tests/e2e/modals.spec.ts,Modal Dialogs,modal can be closed by clicking overlay,existing
 —,e2e,Uncategorized,tests/e2e/modals.spec.ts,Modal Dialogs,Settings dialog has expected tabs,existing
@@ -41,6 +41,35 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,perf,Uncategorized,src/renderer/__tests__/performance/working-copy-status.perf.test.ts,Working copy status performance benchmarks,parses remote status metadata for a large working copy within budget,existing
 —,perf,Uncategorized,src/renderer/__tests__/performance/working-copy-status.perf.test.ts,Working copy status performance benchmarks,filters and sorts parsed large status results within budget,existing
 —,perf,Uncategorized,src/renderer/__tests__/performance/working-copy-status.perf.test.ts,Working copy status performance benchmarks,keeps repeated large status refresh parsing within budget,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,status builds the args and parses the XML,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,log builds a bounded revision range,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,log uses :HEAD when only the start revision is given,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,log omits the revision arg when no bounds are given,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,info parses the info XML,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,flags a binary file,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,reports hasChanges from non-empty output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,reports no changes for empty output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,update parses the new revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,update falls back to revision 0 when the pattern is absent,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,commit parses the committed revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,checkout builds revision+depth args and parses the revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,export parses the exported revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,import parses the committed revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,switch parses the updated revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,copy parses the committed revision,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,"revert, add, delete, cleanup build the right args",existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,resolve passes the accepted resolution,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,propset and propdel build the right args,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,changelist add/remove build the right args,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,lock passes an optional message and returns output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,lock without a message omits -m,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,unlock passes --force when requested,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,merge passes revisions and returns output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,relocate and move return the output,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,blame builds a revision range and returns a simplified result,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,blame without revisions omits the range,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,list builds revision/depth args and returns a simplified result,existing
+—,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/client.test.ts,SvnClient — read operations,proplist parses the properties XML,existing
 —,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/parser-enhanced.test.ts,SvnXmlParseError,should create error with message,existing
 —,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/parser-enhanced.test.ts,SvnXmlParseError,should create error with xml and cause,existing
 —,unit,Uncategorized,packages/logic-engine/src/svn/__tests__/parser-enhanced.test.ts,SvnXmlParseError,should handle empty XML,existing
@@ -278,6 +307,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should register window control handlers,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should return app version,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,returns only the supported host platform value,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,returns and approves only the operating-system home directory,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should allow http URLs,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should allow https URLs,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/app.test.ts,App IPC Handlers,should allow mailto URLs,existing
@@ -318,6 +348,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return selected directory path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return null when canceled,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return null when no file selected,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should reject an invalid default directory path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return selected file path,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should pass filters to dialog,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/dialog.test.ts,Dialog IPC Handlers,should return null when canceled,existing
@@ -452,6 +483,17 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,registers the complete cache contract,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,passes a validated transactional set to the service,existing
 —,unit,Uncategorized,src/main/ipc/__tests__/svn-cache.test.ts,SVN cache IPC handlers,validates clear timestamps,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,registers a handler for every channel in the table,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,invokes every handler without throwing,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:capabilities delegates to getSvnCapabilities,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:status delegates path and worker job id,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:log delegates the full argument set,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:commit runs the mutation and notifies the renderer,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:checkout resolves the auth session before delegating,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:list resolves the auth session and delegates,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:patch:apply calls applyPatch directly on a dry run,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,svn:exclude wraps a single string path into an array,existing
+—,unit,Uncategorized,src/main/ipc/__tests__/svn.coverage.test.ts,svn IPC handlers — registration and invocation,a failing mutation returns a structured failure instead of throwing,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,places the socket file inside the user-data directory,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,uses the .sock Unix-domain-socket extension,existing
 —,unit,Uncategorized,src/main/services/__tests__/local-status-server.macos.test.ts,getDefaultLocalStatusSocketPath — macOS/POSIX,is deterministic for the same user-data path,existing
@@ -491,6 +533,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/svn-content.test.ts,svn-content,retrieves exact binary bytes with an operative revision,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-content.test.ts,svn-content,escapes local peg ambiguity and rejects invalid revisions,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,uses the configured SVN client path and redacts credentials in logs,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,closes svn stdin even without credentials so a non-interactive command cannot block,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,uses the sibling svnmucc executable for repository URL transactions,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,waits for settings to load before spawning SVN,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-executor.test.ts,svn-executor,redacts secret-looking stderr before returning command failures,existing
@@ -598,6 +641,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,classifies an already-observed svn info failure without a second process,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,runs svn upgrade for the selected working copy,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,emits update progress and completion events,existing
+—,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,can cancel by operation ID before queued preflight work begins,existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,"passes revision, depth, ignore-externals, and force options to svn update",existing
 —,unit,Uncategorized,src/main/services/__tests__/svn-working-copy.test.ts,svn-working-copy structured read failures,uses streamed revision when stored update output is capped,existing
 —,unit,Uncategorized,src/main/utils/__tests__/external-url.test.ts,external URL validation,"allows http, https, and mailto URLs",existing
@@ -708,6 +752,7 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/preload/api/__tests__/data.test.ts,SVN cache preload IPC contract,maps cache reads and writes to typed IPC channels,existing
 —,unit,Uncategorized,src/preload/api/__tests__/data.test.ts,SVN cache preload IPC contract,maps every clear operation without changing its timestamp,existing
 —,unit,Uncategorized,src/preload/api/__tests__/native.test.ts,native preload IPC contract,maps updater actions and removes event listeners,existing
+—,unit,Uncategorized,src/preload/api/__tests__/svn.test.ts,SVN preload IPC contract,exposes an update operation ID before the update settles,existing
 —,unit,Uncategorized,src/preload/api/__tests__/svn.test.ts,SVN preload IPC contract,routes mutation notifications and removes only its own listener,existing
 —,unit,Uncategorized,src/preload/api/__tests__/svn.test.ts,SVN preload IPC contract,cancels the exact worker job associated with an aborted read,existing
 —,unit,Uncategorized,src/renderer/__tests__/ariaLabeling.test.tsx,primary workflow ARIA labeling,labels toolbar controls for core SVN and navigation workflows,existing
@@ -904,13 +949,6 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,sums local changes only across measured rows,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,adds problem and conflict segments only when present,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,counts not-checked-out and not-measured rows separately,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,says it is reading while status has not answered,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,reports a clean checkout with no changes,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,reports measured changes with a modified tone,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,flags conflicts with a conflict tone and a combined line,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,notes when the status came from the offline cache,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,returns null when svn info has not answered,existing
-—,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,renders branch and BASE revision from svn info,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,disables every operation when no working copy is open,existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,blocks commit when there are conflicts (Subversion would abort),existing
 —,unit,Uncategorized,src/renderer/src/components/home/__tests__/homeBriefing.test.ts,buildHomeWorkingCopies,disables commit and revert when there is nothing modified,existing
@@ -958,8 +996,25 @@ Journey,Layer,Area,File,Suite,Test,Status
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileListTransforms.test.ts,fileListTransforms,filters search with one normalized query,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileListTransforms.test.ts,fileListTransforms,keeps folders first while sorting by basename,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileListTransforms.test.ts,fileListTransforms,filters and sorts a large list within the target budget,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,maps a versioned file with svnStatus onto a status entry,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,defaults status to blank when svnStatus is absent,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,carries the directory flag and remoteUrl through,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,counts pending changes nested under each immediate folder,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,"skips unversioned, ignored, and external entries",existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,counts a deeply nested change once per ancestor folder,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,returns empty when there are no folders or no deep entries,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,leaves files unchanged when there are no folders,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,keeps the worst status when a later entry is lower priority,existing
+—,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.coverage.test.ts,fileInfoToEntry,leaves a folder without descendant changes at no status,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.test.ts,fileStatus,aggregates descendant status onto visible folders,existing
 —,unit,Uncategorized,src/renderer/src/features/files/__tests__/fileStatus.test.ts,fileStatus,indexes large deep-status results within the target budget,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,selects only clean measured working copies behind HEAD by default,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,marks dirty copies as manually confirmable,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,"derives conflicts, changes, and cleanup blockers from status",existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,treats property-only modifications and conflicts as local changes,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,discards stale eligibility after another mutation completes,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,never exceeds the requested concurrency and preserves result order,existing
+—,unit,Uncategorized,src/renderer/src/features/working-copy-command-center/__tests__/model.test.ts,working-copy command center model,summarizes every operation state,existing
 —,unit,Uncategorized,src/renderer/src/hooks/__tests__/useFolderSizes.test.tsx,useFolderSizes,chunks folder paths into bounded batches,existing
 —,unit,Uncategorized,src/renderer/src/hooks/__tests__/useFolderSizes.test.tsx,useFolderSizes,creates a bounded query key without joining full paths,existing
 —,unit,Uncategorized,src/renderer/src/hooks/__tests__/useFolderSizes.test.tsx,useFolderSizes,requests folder sizes in batches and caps the number of paths,existing
@@ -1411,6 +1466,13 @@ J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime
 J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime,should format minutes,existing
 J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime,should format hours,existing
 J14,unit,Shared/Core,packages/shared/src/__tests__/formatTime.test.ts,formatTime,should format days,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,"sizes primitives (boolean, number, null, undefined) without throwing",existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,"sizes Map, Set, Date, and typed-array (ArrayBufferView) values",existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,falls back to the default size for functions and symbols,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,calls onEvict with the manual reason for each entry on clear,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,returns undefined and deletes an expired entry on peek,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,evicts expired entries via the periodic sweep with the ttl reason,existing
+J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.coverage.test.ts,LRUCache — estimateSize value-type branches,logs through onEvict when a diff-cache entry is removed,existing
 J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.test.ts,LRUCache,should set and get values,existing
 J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.test.ts,LRUCache,should return undefined for missing keys,existing
 J14,unit,Lifecycle/Auth,packages/shared/src/__tests__/lru-cache.test.ts,LRUCache,should check if key exists,existing
@@ -1860,6 +1922,13 @@ J3,unit,Repo Browser,src/renderer/src/features/repo-browser/__tests__/useRepoBro
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/__tests__/useRepoBrowserState.test.ts,ancestorsOf,collapses every expanded path except the root,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/cacheDimensions.test.tsx,repository-browser query cache dimensions,refetches properties when inherited-property visibility changes,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/cacheDimensions.test.tsx,repository-browser query cache dimensions,refetches repository listings when depth changes,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,maps committed and uncommitted lines and counts the uncommitted,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,surfaces a partial annotation flag,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,reports a resolved SVN error field and keeps lines empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,reports a thrown query error via describeError,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,flags an authentication failure and suppresses the generic error,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,does not fetch when disabled or the url is empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.hook.test.tsx,useRepoBlame hook,refetches the blame annotation,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.test.ts,toBlameLine,"maps a committed line through with its revision, author, and date",existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.test.ts,toBlameLine,treats a missing or non-positive revision as uncommitted,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoBlame.test.ts,toBlameLine,always preserves the line number and content,existing
@@ -1892,6 +1961,27 @@ J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useR
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.ts,extractIssueReference,substitutes the %BUGID% placeholder with the issue id,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.ts,extractIssueReference,URL-encodes special characters in the issue id,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.ts,extractIssueReference,leaves a template without the placeholder unchanged,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns undefined when there is no logregex,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,extracts via a single capture-group regex,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,falls back to the whole match when there is no capture group,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,"uses the two-regex form: find the block, then the id inside it",existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns undefined when the pattern does not match,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns undefined for a malformed regex instead of throwing,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,returns null without a template,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,substitutes and URL-encodes the issue id,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,maps log entries and counts changed paths,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,surfaces a partial flag from a truncated page,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,attaches an issue reference when a bugtraq logregex resolves,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,surfaces an auth error as needsAuth and suppresses the generic message,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,surfaces a non-auth error as a message,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,does not fetch when disabled or the url is empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,fetches the next page and de-duplicates the overlapping revision,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoLog.test.tsx,extractIssueReference,reports build status as an unsupported capability,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,lists children for each expanded path,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,"caps concurrent paths, deferring the oldest beyond the ceiling",existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,reports a per-path error without blanking sibling subtrees,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,does not fetch when disabled or the root url is empty,existing
+J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useRepoTreeChildren.test.tsx,useRepoTreeChildren,de-duplicates repeated paths into a single fetch,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useWorkingCopyForPath.test.tsx,useWorkingCopyForPath,surfaces a genuine svn info failure as an error,existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useWorkingCopyForPath.test.tsx,useWorkingCopyForPath,"resolves a working copy and builds its state from info, head and status",existing
 J3,unit,Repo Browser,src/renderer/src/features/repo-browser/hooks/__tests__/useWorkingCopyForPath.test.tsx,useWorkingCopyForPath,keys status entries by repository-relative path so the listing can join them,existing
@@ -1948,6 +2038,7 @@ J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,returns
 J4,unit,Commit,src/main/services/__tests__/svn-commit.test.ts,svn-commit,passes working-copy-derived credentials and SSL trust to commit commands,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-mutation-queue.test.ts,svn-mutation-queue,serializes mutations for the same working-copy key,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-mutation-queue.test.ts,svn-mutation-queue,allows independent working-copy keys to run concurrently,existing
+J4,unit,File Explorer,src/main/services/__tests__/svn-mutation-queue.test.ts,svn-mutation-queue,serializes different child paths under the same administrative root,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-status-worker.test.ts,svn-status-worker,coalesces identical active filesystem status requests,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-status-worker.test.ts,svn-status-worker,allows a fresh request after the previous request settles,existing
 J4,unit,File Explorer,src/main/services/__tests__/svn-status-worker.test.ts,svn-status-worker,allows a retry after a shared request fails,existing
@@ -1975,10 +2066,16 @@ J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerCommandEvents.test.t
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerCommandEvents.test.tsx,useFileExplorerCommandEvents,routes action command events through the latest operation context,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDialogState.test.tsx,useFileExplorerDialogState,starts with all optional dialogs closed,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDialogState.test.tsx,useFileExplorerDialogState,keeps related dialog values independently updatable,existing
+J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not issue filesystem IPC before a location is selected,existing
+J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not automatically repeat a directory approval denial,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,"loads local files, metadata, and deep status for versioned paths",existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not run checkout-only reads against a folder navigated to from a checkout,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerDirectoryData.test.tsx,useFileExplorerDirectoryData,does not request metadata or deep status for the drives root,existing
 J4,unit,File Explorer,src/renderer/__tests__/useFileExplorerSelection.test.tsx,useFileExplorerSelection,selects a file from an ancestor Miller column,existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,"selects blocking status, tree-conflict, and lock entries",existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,normalizes Windows separators when producing a relative path,existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,leaves paths outside the working-copy root intact,existing
+J4,unit,File Explorer,src/renderer/src/components/files/__tests__/WorkingCopyProblemsDialog.test.ts,WorkingCopyProblemsDialog helpers,"caps rendered problems at 1,000 rows without mutating the source",existing
 J4,unit,Commit,src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts,useCommitMessageHistory,should initialize with empty history,existing
 J4,unit,Commit,src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts,useCommitMessageHistory,should load stored history on mount,existing
 J4,unit,Commit,src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts,useCommitMessageHistory,should handle storage load errors gracefully,existing
@@ -2042,6 +2139,11 @@ J5,unit,Update,src/renderer/__tests__/remoteUpdateTarget.test.ts,resolveRemoteUp
 J5,unit,Update,src/renderer/src/components/ui/__tests__/UpdateBanner.test.tsx,UpdateBanner,offers an explicit download for an available update,existing
 J5,unit,Update,src/renderer/src/components/ui/__tests__/UpdateBanner.test.tsx,UpdateBanner,shows actionable feedback when SVN work blocks restart,existing
 J5,unit,Update,src/renderer/src/components/ui/__tests__/UpdateBanner.test.tsx,UpdateBanner,does not interrupt the workspace for background errors,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,starts queued updates immediately and never exceeds two concurrent operations,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,keeps a cancelled operation active until the child reports cancellation,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,requires a new measurement after an external mutation completes,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,accepts revision zero as a measured BASE and HEAD,existing
+J5,unit,Update,src/renderer/src/features/working-copy-command-center/__tests__/BatchUpdateProvider.test.tsx,BatchUpdateProvider,hard-blocks a conflict created by an otherwise successful update,existing
 J6,e2e,Conflict Resolution,tests/e2e/conflict-resolution.spec.ts,Conflict resolution E2E,resolves a real conflicted file from the file explorer resolve dialog,existing
 J6,unit,Conflict Resolution,src/renderer/__tests__/conflict-resolution-workflows.test.tsx,conflict resolution workflows,routes file explorer selected conflicts through SVN resolve and refreshes status,existing
 J6,unit,Conflict Resolution,src/renderer/__tests__/conflict-resolution-workflows.test.tsx,conflict resolution workflows,opens conflicts detected from update or merge output in the wizard and resolves them,existing
@@ -2127,6 +2229,14 @@ J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.t
 J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.test.ts,resolveBranchContext,detects a tag,existing
 J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.test.ts,resolveBranchContext,picks the deepest branch-root for nested layouts,existing
 J8,unit,Branching,src/renderer/src/features/branches/__tests__/branchDetection.test.ts,resolveBranchContext,returns null when there is no standard layout,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,"fetches branches and tags, deriving trunkUrl and the youngest revision",existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,"keeps only directories, dropping files",existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,treats a missing branches/tags directory (not-found) as empty rather than erroring,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,surfaces non-not-found errors as a query failure,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,does not fetch when no branch root url is given,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,seeds the cache from the persisted store for instant display,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,writes a successful fetch back to the persisted store,existing
+J8,unit,Branching,src/renderer/src/features/branches/__tests__/useBranches.test.tsx,useBranchList,"invalidates the branch-root query, triggering a refetch",existing
 J9,e2e,Locking,(planned),,E2E: lock file -> indicator shown -> unlock -> indicator clears,gap
 J9,unit,Locking,src/main/services/__tests__/svn-locks.test.ts,svn-locks,runs lock and unlock commands with configured pre-hooks,existing
 J9,unit,Locking,src/main/services/__tests__/svn-locks.test.ts,svn-locks,runs force lock and force unlock workflows,existing
