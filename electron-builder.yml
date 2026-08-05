@@ -105,11 +105,6 @@ linux:
         - x64
   category: Development
   icon: build/icons
-  desktop:
-    Name: ShellySVN
-    Comment: Modern Subversion Client
-    Categories: Development;RevisionControl;
-    StartupWMClass: shellysvn
   maintainer: ShellySVN Team <hello@shellysvn.com>
   extraResources:
     - from: binaries/linux-x64
