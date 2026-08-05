@@ -13,17 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stable and opt-in preview release channels
 - Download progress, cancellation, restart, and install-on-quit controls
 - A connected Check for Modifications inspector with local and repository status separation
+- A working-copy command center for reviewing repository state and coordinating batch updates
+- A working-copy problems dialog with direct links to affected paths
+- Cross-platform SVN workflow coverage and end-to-end user-journey tests
 
 ### Changed
 
 - Public releases now require matching Git/package versions and signed Windows/macOS artifacts
 - Release workflows publish and validate updater metadata, blockmaps, and macOS update ZIPs
 - Settings now displays the packaged application version instead of a hard-coded value
+- Windows uses native titlebar controls and improved non-interactive SVN process handling
 
 ### Fixed
 
 - Stable GitHub releases are no longer mislabeled as preview releases on the website
 - The application version now matches the `v1.1.0-beta.2` release line
+- Windows command wrappers, password input, path handling, and process-tree termination are now handled consistently
 
 ## [0.2.0] - 2026-02-20
 
