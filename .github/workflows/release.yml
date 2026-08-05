@@ -533,7 +533,14 @@ jobs:
             exit $LASTEXITCODE
           }
           if (($smokeOutput -join "`n") -notmatch [regex]::Escape("ShellySVN $expectedVersion")) {
-            Write-Error "Packaged app version did not match package.json version $expectedVersion."
+            # Electron GUI executables do not reliably inherit stdout on Windows.
+            # Fall back to the version embedded by electron-builder after proving
+            # that the packaged executable starts and exits successfully.
+            $productVersion = $app.VersionInfo.ProductVersion
+            Write-Host "Packaged executable product version: $productVersion"
+            if ($productVersion -notlike "$expectedVersion*") {
+              Write-Error "Packaged app version '$productVersion' did not match package.json version $expectedVersion."
+            }
           }
 
       - name: Upload artifact
