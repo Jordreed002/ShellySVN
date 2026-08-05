@@ -538,7 +538,8 @@ jobs:
             # that the packaged executable starts and exits successfully.
             $productVersion = $app.VersionInfo.ProductVersion
             Write-Host "Packaged executable product version: $productVersion"
-            if ($productVersion -notlike "$expectedVersion*") {
+            $expectedProductVersion = "$(($expectedVersion -split '-')[0]).0"
+            if ($productVersion -ne $expectedProductVersion) {
               Write-Error "Packaged app version did not match package.json version $expectedVersion (embedded product version '$productVersion')."
             }
           }
