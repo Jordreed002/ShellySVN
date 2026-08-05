@@ -539,7 +539,7 @@ jobs:
             $productVersion = $app.VersionInfo.ProductVersion
             Write-Host "Packaged executable product version: $productVersion"
             if ($productVersion -notlike "$expectedVersion*") {
-              Write-Error "Packaged app version '$productVersion' did not match package.json version $expectedVersion."
+              Write-Error "Packaged app version did not match package.json version $expectedVersion (embedded product version '$productVersion')."
             }
           }
 
