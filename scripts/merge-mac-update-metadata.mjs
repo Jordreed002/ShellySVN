@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { parse, stringify } from 'yaml';
 
 const output = resolve(process.argv[2] || 'artifacts/update-metadata/latest-mac.yml');
-const inputs = process.argv.slice(3).map(resolve);
+const inputs = process.argv.slice(3).map((path) => resolve(path));
 if (inputs.length < 2) throw new Error('Expected x64 and arm64 latest-mac.yml inputs.');
 
 const documents = inputs.map((path) => parse(readFileSync(path, 'utf8')));
