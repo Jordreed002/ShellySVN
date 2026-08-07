@@ -43,11 +43,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Validate public release readiness
+      - name: Validate public release version
         if: env.PUBLIC_RELEASE == 'true'
+        run: node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+
+      - name: Validate stable release signing
+        if: env.PUBLIC_RELEASE == 'true' && !contains(github.ref_name, '-')
         run: |
           set -euo pipefail
-          node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
           missing=()
           for name in HAS_MAC_CERTIFICATE HAS_MAC_CERTIFICATE_PASSWORD HAS_APPLE_ID HAS_APPLE_APP_PASSWORD HAS_APPLE_TEAM_ID HAS_WIN_CERTIFICATE HAS_WIN_CERTIFICATE_PASSWORD; do
             if [ "${!name}" != "true" ]; then missing+=("$name"); fi
