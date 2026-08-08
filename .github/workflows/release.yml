@@ -552,7 +552,7 @@ jobs:
         with:
           name: ShellySVN-Windows-x64
           path: |
-            release/**/*.exe
+            release/**/*-setup.exe
             release/**/*.zip
             release/**/latest.yml
             release/**/*.blockmap
