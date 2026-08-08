@@ -702,6 +702,7 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v7
         with:
+          pattern: ShellySVN-*
           path: artifacts
 
       - name: Get version from tag

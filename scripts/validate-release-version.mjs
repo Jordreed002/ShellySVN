@@ -31,7 +31,7 @@ if (artifactRoot) {
   const mismatches = releaseFiles.filter((file) => !basename(file).includes(version));
   if (mismatches.length) {
     throw new Error(
-      `Release artifacts missing version ${version}: ${mismatches.map(basename).join(', ')}`
+      `Release artifacts missing version ${version}: ${mismatches.map((file) => basename(file)).join(', ')}`
     );
   }
 }
