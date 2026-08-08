@@ -27,7 +27,9 @@ describe('trusted release workflow', () => {
     const builder = readFileSync('electron-builder.yml', 'utf8');
     const workflow = readFileSync('.github/workflows/release.yml', 'utf8');
 
-    expect(builder).toMatch(/target: zip[\s\S]*?- x64[\s\S]*?- arm64/);
+    expect(builder).toContain('- zip');
+    expect(workflow).toContain('- arch: x64');
+    expect(workflow).toContain('- arch: arm64');
     expect(builder).toContain('target: AppImage');
     expect(builder).toContain('target: nsis');
     expect(workflow).toContain('Missing public-release signing configuration');

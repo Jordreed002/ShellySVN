@@ -54,14 +54,8 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   icon: build/icon.icns
   target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
+    - dmg
+    - zip
   electronUpdaterCompatibility: '>= 2.16'
   extraResources:
     # x64 binaries (for Intel Macs)
