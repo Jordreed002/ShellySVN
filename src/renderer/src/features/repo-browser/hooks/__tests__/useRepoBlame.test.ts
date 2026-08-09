@@ -26,7 +26,13 @@ function blame(overrides: Partial<SvnBlameLine>): SvnBlameLine {
 describe('toBlameLine', () => {
   it('maps a committed line through with its revision, author, and date', () => {
     const line = toBlameLine(
-      blame({ revision: 42, author: 'alice', date: '2024-01-01', lineNumber: 7, content: 'const x = 1;' })
+      blame({
+        revision: 42,
+        author: 'alice',
+        date: '2024-01-01',
+        lineNumber: 7,
+        content: 'const x = 1;',
+      })
     );
     expect(line).toEqual({
       revision: 42,

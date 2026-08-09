@@ -65,14 +65,10 @@ describe('buildBugtraqUrl', () => {
   });
 
   it('URL-encodes special characters in the issue id', () => {
-    expect(buildBugtraqUrl('https://tracker/%BUGID%', 'a b&c')).toBe(
-      'https://tracker/a%20b%26c'
-    );
+    expect(buildBugtraqUrl('https://tracker/%BUGID%', 'a b&c')).toBe('https://tracker/a%20b%26c');
   });
 
   it('leaves a template without the placeholder unchanged', () => {
-    expect(buildBugtraqUrl('https://tracker/issues', 'PROJ-123')).toBe(
-      'https://tracker/issues'
-    );
+    expect(buildBugtraqUrl('https://tracker/issues', 'PROJ-123')).toBe('https://tracker/issues');
   });
 });

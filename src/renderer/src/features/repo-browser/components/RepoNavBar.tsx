@@ -166,7 +166,9 @@ export function RepoNavBar({
         >
           <RefreshCw
             aria-hidden="true"
-            className={['h-3.5 w-3.5', isRefreshing ? 'animate-spin' : ''].filter(Boolean).join(' ')}
+            className={['h-3.5 w-3.5', isRefreshing ? 'animate-spin' : '']
+              .filter(Boolean)
+              .join(' ')}
           />
         </button>
       </div>

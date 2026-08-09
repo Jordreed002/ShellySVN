@@ -12,9 +12,13 @@ import {
   Search,
   RotateCcw,
   GitMerge,
+  Sparkles,
+  Copy,
+  AlertCircle,
 } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { useCachedLog } from '@renderer/hooks/useLogCache';
+import { AiPromptPreviewDialog } from '../ai/AiPromptPreviewDialog';
 import {
   EMPTY_LOG_FILTERS,
   countActiveLogFilters,
@@ -22,7 +26,13 @@ import {
   type LogFilterState,
 } from '@renderer/utils/logFilters';
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
-import type { SvnLogResult, SvnLogEntry } from '@shared/types';
+import type {
+  AiReleaseNotesResult,
+  AiPromptPreviewResult,
+  RevisionImpactReport,
+  SvnLogResult,
+  SvnLogEntry,
+} from '@shared/types';
 
 const LOG_PAGE_SIZE = 25;
 
@@ -38,6 +48,9 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<SvnLogEntry | null>(null);
+  const [revisionImpact, setRevisionImpact] = useState<RevisionImpactReport | null>(null);
+  const [revisionImpactError, setRevisionImpactError] = useState<string | null>(null);
+  const [isLoadingRevisionImpact, setIsLoadingRevisionImpact] = useState(false);
   const [limit, setLimit] = useState(50);
   const [configPath, setConfigPath] = useState(path);
   const [filters, setFilters] = useState<LogFilterState>(EMPTY_LOG_FILTERS);
@@ -46,6 +59,17 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [stopOnCopy, setStopOnCopy] = useState(false);
   const [strictNodeHistory, setStrictNodeHistory] = useState(false);
   const [includeAllRevisionProperties, setIncludeAllRevisionProperties] = useState(false);
+  const [releaseNotes, setReleaseNotes] = useState<AiReleaseNotesResult | null>(null);
+  const [releaseNotesError, setReleaseNotesError] = useState<string | null>(null);
+  const [isGeneratingReleaseNotes, setIsGeneratingReleaseNotes] = useState(false);
+  const [releasePromptPreview, setReleasePromptPreview] = useState<AiPromptPreviewResult | null>(
+    null
+  );
+  const [pendingReleaseRange, setPendingReleaseRange] = useState<{
+    startRevision: number;
+    endRevision: number;
+  } | null>(null);
+  const releaseNotesAbortRef = useRef<AbortController | null>(null);
   const [revisionPropertyInput, setRevisionPropertyInput] = useState('');
   const revisionProperties = useMemo(
     () =>
@@ -130,6 +154,36 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   }, [filteredEntries, selectedEntry]);
 
   useEffect(() => {
+    if (!isOpen || !selectedEntry) {
+      setRevisionImpact(null);
+      setRevisionImpactError(null);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingRevisionImpact(true);
+    setRevisionImpact(null);
+    setRevisionImpactError(null);
+    window.api.svn
+      .revisionImpact(path, 1, selectedEntry.revision)
+      .then((report) => {
+        if (!cancelled) setRevisionImpact(report);
+      })
+      .catch((impactError) => {
+        if (!cancelled) {
+          setRevisionImpactError(
+            impactError instanceof Error ? impactError.message : 'Impact evidence is unavailable.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingRevisionImpact(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, path, selectedEntry]);
+
+  useEffect(() => {
     setCurrentPage(1);
     listRef.current?.scrollTo?.({ top: 0 });
   }, [filters, log]);
@@ -178,6 +232,80 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  useEffect(
+    () => () => {
+      releaseNotesAbortRef.current?.abort();
+    },
+    []
+  );
+
+  const selectedReleaseRange = () => {
+    if (filteredEntries.length === 0) return;
+    const revisions = filteredEntries.map((entry) => entry.revision);
+    const requestedFrom = Number.parseInt(filters.revisionFrom, 10);
+    const requestedTo = Number.parseInt(filters.revisionTo, 10);
+    const requestedStart = Number.isFinite(requestedFrom) ? requestedFrom : Math.min(...revisions);
+    const requestedEnd = Number.isFinite(requestedTo) ? requestedTo : Math.max(...revisions);
+    return {
+      startRevision: Math.min(requestedStart, requestedEnd),
+      endRevision: Math.max(requestedStart, requestedEnd),
+    };
+  };
+
+  const prepareReleaseNotes = async () => {
+    const range = selectedReleaseRange();
+    if (!range) return;
+    setReleaseNotesError(null);
+    try {
+      setPendingReleaseRange(range);
+      setReleasePromptPreview(
+        await window.api.ai.preparePrompt({
+          task: 'release-notes',
+          request: { operationId: window.crypto.randomUUID(), path, ...range },
+        })
+      );
+    } catch (previewError) {
+      setReleaseNotesError(
+        previewError instanceof Error ? previewError.message : 'Prompt preview failed.'
+      );
+    }
+  };
+
+  const generateReleaseNotes = async () => {
+    if (!pendingReleaseRange) return;
+    releaseNotesAbortRef.current?.abort();
+    const controller = new AbortController();
+    releaseNotesAbortRef.current = controller;
+    setIsGeneratingReleaseNotes(true);
+    setReleaseNotesError(null);
+    try {
+      setReleaseNotes(
+        await window.api.ai.generateReleaseNotes(
+          {
+            operationId: window.crypto.randomUUID(),
+            path,
+            ...pendingReleaseRange,
+          },
+          { signal: controller.signal }
+        )
+      );
+      setReleasePromptPreview(null);
+    } catch (generationError) {
+      if (!controller.signal.aborted) {
+        setReleaseNotesError(
+          generationError instanceof Error
+            ? generationError.message
+            : 'Release-note generation failed.'
+        );
+      }
+    } finally {
+      if (releaseNotesAbortRef.current === controller) {
+        releaseNotesAbortRef.current = null;
+        setIsGeneratingReleaseNotes(false);
+      }
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -266,11 +394,41 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               />
               All revision properties
             </label>
-            <button onClick={loadLog} disabled={isLoading} className="btn-icon-sm" title="Refresh">
-              <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
+            <button
+              onClick={loadLog}
+              disabled={isLoading}
+              className="btn-icon-sm"
+              title="Refresh"
+              aria-label="Refresh revision history"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}`}
+                aria-hidden="true"
+              />
             </button>
-            <button onClick={onClose} className="btn-icon-sm">
-              <X className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() =>
+                isGeneratingReleaseNotes
+                  ? releaseNotesAbortRef.current?.abort()
+                  : void prepareReleaseNotes()
+              }
+              disabled={!isGeneratingReleaseNotes && filteredEntries.length === 0}
+              className="btn btn-primary btn-sm text-xs"
+              title="Generate structured notes for the filtered revision range"
+            >
+              {isGeneratingReleaseNotes ? (
+                <Loader
+                  className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isGeneratingReleaseNotes ? 'Cancel' : 'Release notes'}
+            </button>
+            <button onClick={onClose} className="btn-icon-sm" aria-label="Close revision history">
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -365,6 +523,75 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
             />
           </div>
         </div>
+
+        {releaseNotesError && (
+          <div
+            className="flex items-center gap-2 border-b border-error/30 bg-error/10 px-4 py-2 text-xs text-error"
+            role="alert"
+          >
+            <AlertCircle className="h-3.5 w-3.5" />
+            {releaseNotesError}
+          </div>
+        )}
+
+        {releaseNotes && (
+          <section
+            className="max-h-72 flex-shrink-0 overflow-auto border-b border-accent/25 bg-bg-sunk px-4 py-3"
+            aria-live="polite"
+          >
+            <div className="mb-3 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-10 font-semibold uppercase tracking-caps text-accent">
+                  AI release draft · r{releaseNotes.startRevision}–r{releaseNotes.endRevision}
+                </div>
+                <h3 className="mt-1 text-base font-semibold text-text">{releaseNotes.title}</h3>
+                <p className="text-10.5 text-text-faint">
+                  {releaseNotes.provider}
+                  {releaseNotes.model ? ` · ${releaseNotes.model}` : ''} ·{' '}
+                  {(releaseNotes.durationMs / 1000).toFixed(1)}s
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm text-xs"
+                  onClick={() =>
+                    void navigator.clipboard.writeText(formatReleaseNotes(releaseNotes))
+                  }
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copy
+                </button>
+                <button
+                  type="button"
+                  className="btn-icon-sm"
+                  onClick={() => setReleaseNotes(null)}
+                  aria-label="Close release-note draft"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <ReleaseNoteSection title="User-facing" items={releaseNotes.userFacing} />
+              <ReleaseNoteSection title="Technical" items={releaseNotes.technical} />
+              <ReleaseNoteSection
+                title="Breaking changes"
+                items={releaseNotes.breakingChanges}
+                empty="None identified"
+              />
+              <ReleaseNoteSection
+                title="Upgrade notes"
+                items={releaseNotes.upgradeNotes}
+                empty="No upgrade steps identified"
+              />
+            </div>
+            {releaseNotes.references.length > 0 && (
+              <p className="mt-3 text-10.5 text-text-faint">
+                References: {releaseNotes.references.join(' · ')}
+              </p>
+            )}
+          </section>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex">
@@ -496,6 +723,72 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                   </div>
                 )}
 
+                <section className="mb-4 overflow-hidden rounded-lg border border-border bg-bg-secondary">
+                  <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Revision impact evidence
+                    </h4>
+                    {revisionImpact && (
+                      <span className="font-mono text-[10px] text-text-faint">
+                        {revisionImpact.changedPathCount} paths
+                      </span>
+                    )}
+                  </div>
+                  {isLoadingRevisionImpact && (
+                    <div className="flex items-center gap-2 px-3 py-3 text-xs text-text-muted">
+                      <Loader className="h-3.5 w-3.5 animate-spin" /> Classifying changed paths…
+                    </div>
+                  )}
+                  {revisionImpactError && (
+                    <p className="px-3 py-3 text-xs text-error">{revisionImpactError}</p>
+                  )}
+                  {revisionImpact && (
+                    <div className="grid grid-cols-2 gap-px bg-border">
+                      {revisionImpact.groups.map((group) => (
+                        <div key={group.category} className="min-w-0 bg-bg-secondary p-3">
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium capitalize text-text">
+                              {group.category.replace('branch-or-tag', 'Branches / tags')}
+                            </span>
+                            <span className="font-mono text-[10px] text-text-faint">
+                              {group.evidence.length}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            {group.evidence.slice(0, 4).map((evidence) => {
+                              const content = (
+                                <>
+                                  <span className="text-accent">{evidence.action}</span>{' '}
+                                  {evidence.path}
+                                </>
+                              );
+                              return onSelectRevision ? (
+                                <button
+                                  type="button"
+                                  key={`${evidence.revision}-${evidence.path}`}
+                                  onClick={() => onSelectRevision(evidence.revision, evidence.path)}
+                                  className="block w-full truncate text-left font-mono text-[10px] text-text-secondary hover:text-accent"
+                                  title={`Open r${evidence.revision}: ${evidence.path}`}
+                                >
+                                  {content}
+                                </button>
+                              ) : (
+                                <div
+                                  key={`${evidence.revision}-${evidence.path}`}
+                                  className="truncate font-mono text-[10px] text-text-secondary"
+                                  title={evidence.path}
+                                >
+                                  {content}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
                 {selectedEntry.revisionProperties &&
                   Object.keys(selectedEntry.revisionProperties).length > 0 && (
                     <div className="mb-4">
@@ -615,6 +908,18 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
           </div>
         )}
       </div>
+      {releasePromptPreview && (
+        <AiPromptPreviewDialog
+          preview={releasePromptPreview}
+          title="Review release-note prompt"
+          isSending={isGeneratingReleaseNotes}
+          onCancel={() => {
+            setReleasePromptPreview(null);
+            setPendingReleaseRange(null);
+          }}
+          onConfirm={() => void generateReleaseNotes()}
+        />
+      )}
     </div>
   );
 }
@@ -622,6 +927,41 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
 function handleOpenIssue(url?: string) {
   if (!url) return;
   void window.api.app.openExternal(url);
+}
+
+function ReleaseNoteSection({
+  title,
+  items,
+  empty = 'No items',
+}: {
+  title: string;
+  items: string[];
+  empty?: string;
+}) {
+  return (
+    <div className="rounded-8 border border-border bg-bg-secondary/70 p-3">
+      <h4 className="text-11 font-semibold uppercase tracking-caps text-text-muted">{title}</h4>
+      {items.length > 0 ? (
+        <ul className="mt-1.5 list-disc space-y-1 pl-4 text-11.5 text-text-secondary">
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1.5 text-11 text-text-faint">{empty}</p>
+      )}
+    </div>
+  );
+}
+
+function formatReleaseNotesSection(title: string, items: string[]): string {
+  return items.length > 0
+    ? `\n## ${title}\n\n${items.map((item) => `- ${item}`).join('\n')}\n`
+    : '';
+}
+
+function formatReleaseNotes(notes: AiReleaseNotesResult): string {
+  return `# ${notes.title}\n${formatReleaseNotesSection('User-facing changes', notes.userFacing)}${formatReleaseNotesSection('Technical changes', notes.technical)}${formatReleaseNotesSection('Breaking changes', notes.breakingChanges)}${formatReleaseNotesSection('Upgrade notes', notes.upgradeNotes)}${formatReleaseNotesSection('References', notes.references)}`;
 }
 
 function FilterInput({

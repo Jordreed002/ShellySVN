@@ -110,9 +110,13 @@ describe('three-way merge editor loading', () => {
         baseContent="base line"
         mineContent="mine line"
         theirsContent="theirs line"
-        mergedContent={['<<<<<<< .mine', 'mine line', '=======', 'theirs line', '>>>>>>> .r14'].join(
-          '\n'
-        )}
+        mergedContent={[
+          '<<<<<<< .mine',
+          'mine line',
+          '=======',
+          'theirs line',
+          '>>>>>>> .r14',
+        ].join('\n')}
         onClose={onClose}
         onSave={onSave}
       />

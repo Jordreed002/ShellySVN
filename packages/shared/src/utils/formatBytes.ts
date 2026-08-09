@@ -24,25 +24,15 @@ export interface FormatBytesOptions {
  * formatBytes(1536, { precision: 2 })  // "1.50 KB"
  * formatBytes(1536, { trimZeros: true })  // "1.5 KB"
  */
-export function formatBytes(
-  bytes: number,
-  options: FormatBytesOptions = {}
-): string {
-  const {
-    precision = 'auto',
-    maxUnit = 'TB',
-    trimZeros = false,
-  } = options;
+export function formatBytes(bytes: number, options: FormatBytesOptions = {}): string {
+  const { precision = 'auto', maxUnit = 'TB', trimZeros = false } = options;
 
   if (bytes === 0) return '0 B';
 
   const units = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
   const maxUnitIndex = units.indexOf(maxUnit);
   const k = 1024;
-  const i = Math.min(
-    Math.floor(Math.log(bytes) / Math.log(k)),
-    maxUnitIndex
-  );
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), maxUnitIndex);
 
   const size = bytes / Math.pow(k, i);
 

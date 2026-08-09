@@ -230,13 +230,7 @@ export function useOfflineCache(config: Partial<OfflineCacheConfig> = EMPTY_PART
    */
   const setLog = useCallback(
     async (path: string, data: SvnLogResult, ttl?: number, limit = DEFAULT_LOG_LIMIT) => {
-      await setSharedValue(
-        'log',
-        getLogCacheKey(path, limit),
-        path,
-        data,
-        ttl || cfg.defaultTtl
-      );
+      await setSharedValue('log', getLogCacheKey(path, limit), path, data, ttl || cfg.defaultTtl);
     },
     [cfg.defaultTtl]
   );

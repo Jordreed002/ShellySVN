@@ -3,15 +3,15 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build](https://github.com/Jordreed002/shellysvn/actions/workflows/build-electron.yml/badge.svg)](https://github.com/Jordreed002/shellysvn/actions/workflows/build-electron.yml)
-[![Electron](https://img.shields.io/badge/Electron-33+-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![Bun](https://img.shields.io/badge/Bun-1.2+-fbf0df?logo=bun&logoColor=black)](https://bun.sh/)
+[![CI](https://github.com/Jordreed002/ShellySVN/actions/workflows/ci.yml/badge.svg)](https://github.com/Jordreed002/ShellySVN/actions/workflows/ci.yml)
+[![Electron](https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Bun](https://img.shields.io/badge/Bun-1.3+-fbf0df?logo=bun&logoColor=black)](https://bun.sh/)
 
-**A modern, standalone Subversion client for macOS and Windows**
+**A standalone desktop client for Subversion working copies**
 
-_Inspired by TortoiseSVN, rebuilt for today_
+_Modern SVN workflows for Windows, macOS, and Linux_
 
-[Features](#features) | [Download](#download) | [Getting Started](#getting-started) | [Architecture](#architecture) | [Contributing](#contributing)
+[Features](#features) | [Release status](#release-status) | [Getting started](#getting-started) | [Architecture](#architecture) | [Contributing](#contributing)
 
 </div>
 
@@ -19,315 +19,303 @@ _Inspired by TortoiseSVN, rebuilt for today_
 
 ## Overview
 
-ShellySVN is a native desktop application that provides a graphical interface for Subversion (SVN) version control. It's designed to be **fast**, **portable**, and **user-friendly**. Release artifacts are built to include the required SVN and helper binaries after package verification.
+ShellySVN is an Electron desktop application for inspecting and operating Subversion (SVN)
+working copies. Its current direction is to make the state of several working copies understandable
+at a glance, then provide a safe next action: inspect changes, update selected copies, resolve a
+problem, or open the affected path.
 
-### Why ShellySVN?
+Release packages are designed to carry their own SVN command-line client and the optional
+`shelly-engine` helper, so end users do not need a separate SVN installation. Packaging fails when
+the target binaries are missing, placeholders, non-executable, or fail their version checks.
 
-| Problem                         | Solution                                    |
-| ------------------------------- | ------------------------------------------- |
-| Installing SVN tools is tedious | Portable SVN binary bundled with the app    |
-| Other clients feel outdated     | Modern UI with virtualized rendering        |
-| Large repositories lag          | Virtualized rendering for large file lists  |
-| Cross-platform inconsistency    | Desktop app workflows for macOS and Windows |
-
----
+The repository is currently on the **1.1.0-beta.2** development line. The next candidate is focused
+on release hardening rather than expanding the SVN feature surface.
 
 ## Features
 
-### Core SVN Operations
+### Daily working-copy overview
 
-- **Working Copy Management**
-  - Browse files with real-time SVN status indicators
-  - File explorer with filtering, sorting, and search
-  - Thumbnail previews for images
+- **Working-copy command center** — check all known working copies, compare BASE and HEAD
+  revisions, see local-change and incoming-change counts, and coordinate selected updates.
+- **Check for Modifications inspector** — separate local and repository status, search and filter
+  affected paths, and open diff, log, reveal, or conflict-resolution actions.
+- **Working-copy problem guidance** — identify conflicts, obstructions, missing paths, locks, and
+  other actionable states, with links back to the affected location.
+- **Project monitor and bookmarks** — keep frequently used working copies within reach.
 
-- **Version Control Actions**
-  - Commit, Update, Revert, Add, Delete
-  - Checkout (including sparse checkout)
-  - Export and Import
-  - Lock and Unlock files
-  - Cleanup working copy
+### SVN workflows
 
-- **History & Diffs**
-  - Commit history viewer with filtering
-  - Unified diff viewer with syntax highlighting
-  - Blame/annotate view
-  - Revision graph visualization
+- Checkout, including sparse checkout; update; commit; revert; add; delete; cleanup; and upgrade.
+- Repository browsing, export/import, revision history, blame, unified and image diffs, and patch
+  creation/application.
+- Branch/tag, switch, relocate, revision-range merge, and guided conflict resolution.
+- Locks, changelists, properties, externals, hook configuration, and external diff/merge tools.
+- Shelve/unshelve when the active SVN client implements those commands. SVN versions without
+  shelving report the limitation instead of pretending the operation succeeded.
 
-- **Branching & Merging**
-  - Branch/Tag creation wizard
-  - Merge wizard with revision range selection
-  - Switch between branches
-  - Relocate working copies
+### Desktop experience
 
-- **Advanced Features**
-  - Changelists support
-  - Shelve/Unshelve where supported by the active SVN binary
-  - Properties editor
-  - Externals manager
-  - Patch creation and application
-  - Conflict resolution wizard
-  - Hook scripts configuration
+- Virtualized file, history, and repository views for large result sets.
+- Background status work, cached reads, progress reporting, and cancellation.
+- Optional AI-assisted commit-message drafts using a separately installed Codex CLI or Claude CLI.
+  Generated text remains editable and is never committed automatically.
+- Command palette (`Ctrl+K` / `Cmd+K`), keyboard shortcuts, themes, and persistent local settings.
+- User-approved application updates with **Stable** and opt-in **Preview** channels. Supported
+  packaged formats check at startup and every six hours by default, but never download an update
+  until the user approves it. Preview includes beta and release-candidate builds; returning to
+  Stable does not downgrade an installed preview.
 
-- **Sparse Checkout** (new)
-  - Selective checkout of specific files and folders
-  - Lazy-loading tree browser with search
-  - Add remote items to existing working copy
-  - Visual toggle for showing remote vs local items
-  - Update individual items to working copy
+## Release status
 
-### User Experience
+The build configuration targets the following artifacts. Availability varies by GitHub release.
 
-- **Command Palette** - Quick access to all actions (Ctrl/Cmd+K)
-- **Keyboard Shortcuts** - Efficient workflow without mouse
-- **Bookmarks** - Quick access to frequent repositories
-- **Project Monitor** - Track multiple working copies at once
-- **Quick Notes** - Annotate commits and revisions
-- **Settings Persistence** - Configurable preferences saved locally
+| Platform | Architecture          | Configured packages        | In-app updates         |
+| -------- | --------------------- | -------------------------- | ---------------------- |
+| Windows  | x64                   | NSIS installer             | NSIS builds            |
+| macOS    | Intel (x64)           | DMG and ZIP                | Signed packaged builds |
+| macOS    | Apple Silicon (arm64) | DMG and ZIP                | Signed packaged builds |
+| Linux    | x64                   | AppImage, deb, rpm, tar.gz | AppImage only          |
 
-### Performance
+See the [GitHub Releases](https://github.com/Jordreed002/ShellySVN/releases) page for artifacts that
+have actually been published.
 
-- **Virtualized Lists** - TanStack Virtual for large file and tree views
-- **Lazy Loading** - On-demand SVN status fetching
-- **Background Scanning** - Non-blocking status updates
-- **Cached History** - Fast navigation through commit logs
+### Release caveats
 
----
+- Windows and macOS are the replacement-readiness priority. Linux packaging is supported where an
+  artifact is published, but Linux file-manager integration is not in the current parity target.
+- A public stable Windows/macOS release requires signed artifacts. macOS builds must also be
+  notarized and stapled, and all three Windows/macOS architectures must pass clean-machine checks.
+- Those signing and clean-machine gates are not yet recorded as complete in the repository's
+  [production release checklist](.spec/production-release-blockers.md). Treat beta and release-
+  candidate artifacts according to their accompanying release notes.
+- The complete replacement-critical SVN workflow matrix still needs verification against signed,
+  packaged release candidates. The development test suite already exercises those workflows
+  against disposable real repositories.
 
-## Sparse Checkout
+### Native file-manager integration
 
-Sparse checkout lets you download only the files and folders you need from a large repository. This is useful when working with massive codebases where a full checkout would be impractical.
+The application contains typed handoff contracts, status mapping, registration diagnostics, and
+fallback UI for Windows Explorer and macOS Finder integration. **The native Windows shell helper
+and macOS Finder Sync extension are not included in the current repository/package configuration,**
+so Explorer context menus and overlays, and Finder context menus and badges, are not currently
+available in standard builds.
 
-### Ways to Use Sparse Checkout
+Use the standalone application's file explorer, toolbar, context menus, and command palette for SVN
+operations. Native helper binaries must be implemented, signed, packaged, and smoke-tested before
+ShellySVN advertises those integrations as shipped. Linux file-manager integration is deferred.
 
-**1. During Checkout**
-
-Click "Choose items..." in the Checkout dialog to select which folders and files to download. The repository structure loads on-demand as you expand folders.
-
-**2. During Update**
-
-In the Update dialog, click "Choose items..." to modify which items are included in your working copy. Add new paths or remove existing ones.
-
-**3. From Repo Browser**
-
-Browse the repository remotely and click "Add to Working Copy" on any folder to add it to an existing sparse working copy.
-
-**4. From File Explorer**
-
-Toggle "Show remote items" in the toolbar to see files that exist in the repository but aren't in your working copy. Right-click any remote item and select "Update to Working Copy" to download it.
-
-### Tips
-
-- Use the search box in the item picker to quickly find files by name or path
-- Select/Deselect All buttons make bulk operations easy
-- Remote items appear with a distinct icon to differentiate from local files
-- Authentication prompts appear automatically for protected paths
-
----
-
-## Download
-
-| Platform | Architecture          | Download                        |
-| -------- | --------------------- | ------------------------------- |
-| Windows  | x64                   | `ShellySVN-x.x.x-x64-setup.exe` |
-| macOS    | Intel (x64)           | `ShellySVN-x.x.x-x64.dmg`       |
-| macOS    | Apple Silicon (ARM64) | `ShellySVN-x.x.x-arm64.dmg`     |
-| Linux    | x64 AppImage          | `ShellySVN-x.x.x-x64.AppImage`  |
-
-> Download the latest release from the [Releases](https://github.com/Jordreed002/shellysvn/releases) page.
-
----
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) 1.2+ (package manager and runtime)
+- [Bun](https://bun.sh) 1.3 or newer for dependency management and scripts.
+- Platform build tools required by Electron when developing or packaging on that platform.
+- Docker only for the optional SVN compatibility lab.
 
-### Development Setup
+The desktop app uses bundled SVN binaries in a packaged release. A source checkout must have the
+appropriate files under `binaries/<platform>-<arch>/` before package-verification or distribution
+commands can succeed.
+
+### SVN review assistant
+
+This feature is disabled by default. To use it:
+
+1. Install either the [Codex CLI](https://developers.openai.com/codex/cli/) or
+   [Claude CLI](https://docs.anthropic.com/en/docs/claude-code/getting-started) separately. Neither
+   CLI is bundled with ShellySVN.
+2. Configure the provider's authentication, then confirm that `codex --version` or
+   `claude --version` works in your user environment.
+3. In ShellySVN, open **Settings > SVN**, enable **Generated commit-message drafts**, and select a
+   provider and message style. **Auto** prefers Codex when both providers are available. Codex
+   defaults to **GPT-5.6 Luna** for efficient commit-message drafting; Settings also offers Terra
+   and Sol when more capability is preferred.
+4. Open the commit dialog and select the files to work with. From there you can generate an
+   editable commit draft, run an advisory pre-commit review, or ask ShellySVN to group the paths
+   into logical commits and SVN changelists.
+
+The same structured assistant is available in three other focused workflows:
+
+- In a file diff, choose **Summarize file**, **Why it changed**, **Risky lines**, or **Review
+  questions**. Results are cached by diff checksum for the current app session.
+- In revision history, filter or enter a revision range and choose **Release notes** to generate
+  user-facing notes, technical changes, breaking changes, upgrade notes, and references.
+- In the three-way merge editor, choose **Suggest resolution** to receive an explanation,
+  confidence, unresolved questions, and a proposed merge. The proposal is never saved
+  automatically; **Use as editable draft** only places it in the existing merge editor.
+
+ShellySVN sends only the SVN text diff for the selected paths, up to the configured 32–512 KiB
+limit. Likely secrets are redacted and binary contents are omitted. Enabling the feature is an
+explicit first-use choice, and the default setting also asks for consent before each send. Choosing
+**Always allow** in that prompt disables the per-run confirmation; it can be restored in Settings.
+The optional **Match recent repository message style** setting is a separate privacy control. When
+enabled, ShellySVN also sends a small, redacted sample of recent messages affecting the selected
+paths so drafts can match repository terminology and issue conventions.
+
+Codex reuses the CLI's saved sign-in and runs non-interactively in a temporary, isolated directory
+with a read-only sandbox, approvals and web search disabled, and no persisted session. Claude runs
+with `--bare`, tools and MCP disabled, no session persistence, and a one-turn limit. For Claude,
+ShellySVN deliberately requires `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or supported Amazon
+Bedrock/Google Vertex credentials; Claude subscription OAuth credentials are not used.
+
+If the Generate button is unavailable, check the provider status shown by its tooltip and verify
+that the CLI is executable on `PATH`. For Codex, run `codex login status` and sign in through the
+CLI if needed. For Claude, ensure the API or cloud-provider credentials are present in the
+environment that launches ShellySVN. A selection with no text changes cannot produce a draft;
+timeouts, provider errors, selection changes, and closing the dialog cancel generation without
+committing anything.
+
+### Development setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/Jordreed002/shellysvn.git
-cd shellysvn
-
-# Install dependencies
+git clone https://github.com/Jordreed002/ShellySVN.git
+cd ShellySVN
 bun install
-
-# Start development server
 bun run dev
 ```
 
-### Build Commands
+### Verification
 
 ```bash
-# Build frontend (renderer, main, preload)
-bun run build
+# Typecheck, lint, architecture/dead-code/remote-asset guards, skipped-test
+# policy, unit tests, and a production build
+bun run verify
 
-# Package for distribution
-bun run build:win           # Windows x64
-bun run build:mac           # macOS (current arch)
-bun run build:mac-universal # macOS universal binary
+# Strict performance tests and bundle report/budgets
+bun run test:perf
+bun run check:bundle-budget
 
-# Packaging first verifies bundled SVN and shelly-engine binaries.
-# Placeholder, missing, or non-executable binaries fail before electron-builder runs.
-bun run verify:binaries win32-x64
+# Playwright desktop journeys
+bun run test:e2e
 
-# Build logic engine only
-bun run engine:dev          # Run engine directly
-bun run engine:build:all    # Compile for all platforms
+# IPC contract, scripted SVN workflows, and real-repository Vitest suite
+bun run verify:svn-workflows
+
+# Release-only superset of verify plus bundle analysis
+bun run verify:release
 ```
 
----
+`verify:svn-workflows` requires a usable SVN/SVNAdmin toolchain. The Docker compatibility lab is
+available through `bun run svn:lab:up`, `bun run svn:lab:verify`, and `bun run svn:lab:down`.
+
+### Build and package commands
+
+```bash
+# Compile Electron main, preload, and renderer bundles
+bun run build
+
+# Verify the target's bundled SVN and shelly-engine resources
+bun run verify:binaries current
+bun run verify:binaries win32-x64
+
+# Package platform artifacts
+bun run build:win
+bun run build:mac
+bun run build:mac-universal
+bun run build:linux-appimage
+
+# Optional helper/CLI engine
+bun run engine:dev
+bun run engine:build:all
+```
+
+Packaging commands run binary verification before `electron-builder`. They do not by themselves
+prove code signing, notarization, native shell integration, or clean-machine compatibility.
 
 ## Architecture
 
-ShellySVN uses Electron process isolation for the desktop app. The Electron main process is the production SVN backend for desktop workflows. The separate Bun-based logic engine is packaged and verified as a helper/CLI surface, but it is not the primary desktop execution path.
+ShellySVN follows Electron's process-isolation model:
 
-```
-+-------------------------------------------------------------+
-|                    Electron Main Process                     |
-|                Production desktop SVN backend                |
-|                                                             |
-|  - Window management                                        |
-|  - IPC coordination                                         |
-|  - Native dialogs                                           |
-|  - Settings storage                                         |
-|  - SVN execution, credentials, SSL, progress, cancellation  |
-+------------------------+------------------------------------+
-                         | child_process.spawn()
-                         v
-+-------------------------------------------------------------+
-|                   Bundled SVN Binary                        |
-|                                                             |
-|  - Portable, self-contained release resource                |
-|  - Verified before packaging                                |
-+-------------------------------------------------------------+
-
-Optional CLI/helper path:
-
-+-------------------------------------------------------------+
-|              Logic Engine (shelly-engine)                   |
-|                    Compiled Bun Binary                      |
-|                                                             |
-|  - Headless CLI experimentation and automation              |
-|  - Structured JSON output to stdout                         |
-|  - Not the primary desktop SVN backend                      |
-+------------------------+------------------------------------+
-                         | spawn SVN
-                         v
-+-------------------------------------------------------------+
-|                   Bundled SVN Binary                        |
-+-------------------------------------------------------------+
+```text
+React renderer
+  |  typed, allowlisted window.api calls
+  v
+context-isolated preload bridge
+  |  validated IPC contracts
+  v
+Electron main process
+  |-- settings, credentials, dialogs, updater and filesystem ownership
+  |-- SVN command execution, progress, cancellation and serialized mutations
+  |-- background workers and caches for expensive read operations
+  `-- child processes
+       |-- bundled SVN command-line client (desktop production path)
+       `-- optional shelly-engine helper/CLI
 ```
 
-### Project Structure
+The renderer does not receive direct Node or Electron access. Privileged work stays in the main
+process behind the preload API. The main process is the production SVN backend for desktop
+workflows; the Bun-based logic engine is packaged as an optional helper/CLI, not as the renderer's
+primary backend.
 
-```
+### Project structure
+
+```text
 ShellySVN/
 |-- src/
-|   |-- main/           # Electron main process
-|   |-- preload/        # Preload scripts (IPC bridge)
-|   |-- renderer/       # React frontend
-|   |   |-- components/ # UI components
-|   |   |   `-- ui/     # Reusable dialogs & controls
-|   |   |-- hooks/      # React hooks
-|   |   |-- routes/     # TanStack Router pages
-|   |   `-- styles/     # Tailwind CSS
+|   |-- main/             # Electron lifecycle, IPC, SVN services, workers
+|   |-- preload/          # Context-isolated, typed renderer bridge
+|   `-- renderer/         # React application
 |-- packages/
-|   |-- logic-engine/   # Optional compiled Bun CLI/helper engine
-|   `-- shared/         # Shared types, IPC contracts, utilities
-|-- build/              # Electron-builder resources
-|-- binaries/           # Platform-specific SVN binaries
-|-- out/                # Build output
-`-- release/            # Packaged installers
+|   |-- logic-engine/     # Optional Bun helper/CLI
+|   `-- shared/           # Shared types, settings and IPC contracts
+|-- apps/site/            # Product website
+|-- scripts/              # Verification, release and preview tooling
+|-- tests/                # E2E and real-SVN fixtures
+|-- binaries/             # Per-platform packaged SVN/helper resources
+|-- build/                # electron-builder resources
+|-- out/                  # Compiled application output
+`-- release/              # Generated installers/packages
 ```
 
-### Technology Choices
+### Main technologies
 
-| Layer             | Technology       | Why                                               |
-| ----------------- | ---------------- | ------------------------------------------------- |
-| Desktop Framework | Electron 43+     | Mature, cross-platform, native integrations       |
-| Package Manager   | Bun              | Fast installs, workspace support, compile feature |
-| Frontend          | React 18         | Component model, hooks, ecosystem                 |
-| Routing           | TanStack Router  | Type-safe, file-based routing                     |
-| State             | Zustand          | Simple, performant, minimal boilerplate           |
-| Data Fetching     | TanStack Query   | Caching, background updates, deduplication        |
-| Virtualization    | TanStack Virtual | Handle large file and tree views                  |
-| Styling           | Tailwind CSS     | Utility-first, consistent design                  |
-| Icons             | Lucide React     | Beautiful, consistent, tree-shakeable             |
-
----
-
-## Screenshots
-
-_Coming soon_
-
----
+| Layer            | Technology                                                       |
+| ---------------- | ---------------------------------------------------------------- |
+| Desktop          | Electron 43, electron-vite, electron-builder                     |
+| UI               | React 18, Tailwind CSS, Framer Motion, Lucide                    |
+| Routing and data | TanStack Router, TanStack Query, TanStack Virtual, React context |
+| Tooling          | Bun 1.3, TypeScript 5.7, Vitest 4, Playwright                    |
 
 ## Contributing
 
-We welcome contributions! Here's how to get started:
+1. Fork the repository and create a focused branch.
+2. Make the change with tests appropriate to its risk.
+3. Run `bun run verify`.
+4. For SVN behavior, also run `bun run verify:svn-workflows` where the required toolchain is
+   available.
+5. For renderer journeys, run the relevant Playwright test or `bun run test:e2e`.
+6. Open a pull request describing the behavior and verification performed.
 
-### Development Workflow
+The project uses strict TypeScript, React functional components, and Tailwind CSS. Architecture
+boundaries are enforced by `bun run check:boundaries`. Knip checks both the complete project graph
+and production-only reachability; existing accepted findings live in `knip-baseline.json`. Run
+`bun run dead-code:baseline` only when a change has removed known findings, never to accept newly
+introduced dead code.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run type checking (`bun run typecheck`)
-5. Check for newly unreachable code (`bun run check:dead-code`)
-6. Run the complete verification suite (`bun run verify`)
-7. Commit your changes
-8. Push to the branch
-9. Open a Pull Request
+## Near-term direction
 
-Knip checks both the complete project graph and production-only reachability in CI. Existing findings
-are tracked in `knip-baseline.json`; after removing known dead code, run
-`bun run dead-code:baseline` to shrink that baseline. Baseline updates should accompany the deletion
-that resolved the findings and must not be used to accept newly introduced dead code.
+The 1.1 release train is focused on trust and release readiness:
 
-### Code Style
+- harden the command center and modification/problem inspection paths;
+- close signing, notarization, packaged-workflow, and clean-machine release gates;
+- keep updater channel behavior and published metadata consistent;
+- improve accessibility, diagnostics, and cancellation/recovery behavior; and
+- reduce warnings, stale documentation, dead-code baselines, and oversized UI modules.
 
-- TypeScript strict mode enabled
-- React functional components with hooks
-- Tailwind CSS for styling
-- Follow existing patterns in the codebase
-
----
-
-## Roadmap
-
-Native Windows Explorer and macOS Finder integration contracts are hardened in the app, including common command handoff, status presentation, diagnostics, and packaged-helper checks. Production release claims remain limited to the standalone desktop app until signed native helpers are included in release artifacts.
-
-- [x] Windows Explorer and macOS Finder integration hardening
-- [x] Packaged app smoke tests for Windows and macOS release targets
-- [x] Merge conflict resolution hardening
-- [x] Image diff verification and polish
-- [x] Repository browser with remote browsing
-- [x] Linux packaging smoke tests where release artifacts are produced
-- [x] Plugin/extension system decision
-- [x] Dark/light theme customization
-
----
+Major new SVN surfaces, Git support, Linux shell integration, and a renderer-wide redesign are not
+part of this release-hardening scope.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
+ShellySVN is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- [TortoiseSVN](https://tortoisesvn.net/) - Inspiration for the UI/UX
-- [CollabNet](https://www.collab.net/) - SVN binaries
-- [The Subversion Project](https://subversion.apache.org/) - Version control system
-
----
+- [TortoiseSVN](https://tortoisesvn.net/) for the workflow inspiration.
+- [The Apache Subversion project](https://subversion.apache.org/) for SVN.
 
 <div align="center">
 
-**[Report a Bug](https://github.com/Jordreed002/shellysvn/issues/new?template=bug_report.md)** | **[Request a Feature](https://github.com/Jordreed002/shellysvn/issues/new?template=feature_request.md)**
-
-Made with ❤️ by the ShellySVN Team
+**[Report a bug](https://github.com/Jordreed002/ShellySVN/issues/new?template=bug_report.md)** |
+**[Request a feature](https://github.com/Jordreed002/ShellySVN/issues/new?template=feature_request.md)**
 
 </div>

@@ -5,7 +5,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { SvnExternalsResult, SvnRepoEntry, SvnStatusEntry, SvnStatusResult } from '@shared/types';
+import type {
+  SvnExternalsResult,
+  SvnRepoEntry,
+  SvnStatusEntry,
+  SvnStatusResult,
+} from '@shared/types';
 
 import {
   containsPath,
@@ -100,7 +105,10 @@ describe('mergeEntries', () => {
 
   it('marks presence only when something is actually on disk', () => {
     const entries = mergeEntries({
-      entries: [listEntry({ name: 'acme', path: 'clients/acme', kind: 'dir' }), listEntry({ name: 'globex', path: 'clients/globex', kind: 'dir' })],
+      entries: [
+        listEntry({ name: 'acme', path: 'clients/acme', kind: 'dir' }),
+        listEntry({ name: 'globex', path: 'clients/globex', kind: 'dir' }),
+      ],
       repoPath: 'clients',
       scope: 'repository',
       presenceByPath: new Map([
@@ -136,7 +144,10 @@ describe('mergeEntries', () => {
       repoPath: 'clients/acme/trunk',
       scope: 'working-copy',
       statusByPath: new Map([
-        ['clients/acme/trunk/src', statusEntry({ path: 'clients/acme/trunk/src', isDirectory: true, childChangeCount: 6 })],
+        [
+          'clients/acme/trunk/src',
+          statusEntry({ path: 'clients/acme/trunk/src', isDirectory: true, childChangeCount: 6 }),
+        ],
         ['clients/acme/trunk/src/svn.ts', statusEntry()],
       ]),
     });
@@ -279,12 +290,20 @@ describe('deriveProblems', () => {
     const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString();
 
     const freshProblems = deriveProblems({
-      status: { path: '/wc', entries: [statusEntry({ status: 'M', lock: { owner: 'devon', comment: '', date: fresh } })], revision: 4821 },
+      status: {
+        path: '/wc',
+        entries: [statusEntry({ status: 'M', lock: { owner: 'devon', comment: '', date: fresh } })],
+        revision: 4821,
+      },
       externals: undefined,
       localPath: '/wc',
     });
     const staleProblems = deriveProblems({
-      status: { path: '/wc', entries: [statusEntry({ status: 'M', lock: { owner: 'devon', comment: '', date: old } })], revision: 4821 },
+      status: {
+        path: '/wc',
+        entries: [statusEntry({ status: 'M', lock: { owner: 'devon', comment: '', date: old } })],
+        revision: 4821,
+      },
       externals: undefined,
       localPath: '/wc',
     });

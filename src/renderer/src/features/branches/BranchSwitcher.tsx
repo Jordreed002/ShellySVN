@@ -83,7 +83,9 @@ export function BranchSwitcher({
         setSwitchError('SVN could not switch this working copy.');
       }
     } catch (error) {
-      setSwitchError(error instanceof Error ? error.message : 'SVN could not switch this working copy.');
+      setSwitchError(
+        error instanceof Error ? error.message : 'SVN could not switch this working copy.'
+      );
     } finally {
       setSwitching(false);
     }

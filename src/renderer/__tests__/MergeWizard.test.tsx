@@ -3,13 +3,18 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MergeWizard, parseMergeRevisionInput } from '../src/components/ui/MergeWizard';
+import {
+  formatMergeReadinessReport,
+  MergeWizard,
+  parseMergeRevisionInput,
+} from '../src/components/ui/MergeWizard';
 
 const svnApi = {
   merge: vi.fn(),
   mergeWithProgress: vi.fn(),
   cancelOperation: vi.fn(),
   mergeInfo: vi.fn(),
+  mergeReadiness: vi.fn(),
 };
 
 function advanceToOptionsPage() {
@@ -49,6 +54,17 @@ describe('MergeWizard', () => {
       ],
       rawOutput: 'r101\nr105\n',
     });
+    svnApi.mergeReadiness.mockResolvedValue({
+      sourceUrl: 'https://svn.example.com/repo/branches/feature',
+      targetPath: 'C:/repo',
+      targetUrl: 'https://svn.example.com/repo/trunk',
+      repositoryUuid: 'repo-uuid',
+      ready: true,
+      eligibleRevisions: [101, 105],
+      mergedRevisions: [1, 2],
+      findings: [],
+      truncated: false,
+    });
 
     window.api = {
       svn: svnApi,
@@ -67,6 +83,38 @@ describe('MergeWizard', () => {
       revisions: ['-42'],
       ranges: [{ start: 200, end: 150 }],
     });
+  });
+
+  it('exports deterministic readiness, mergeinfo, conflicts, and verification as Markdown', () => {
+    const markdown = formatMergeReadinessReport({
+      readiness: {
+        sourceUrl: 'https://svn.example.com/repo/branches/feature',
+        targetPath: 'C:/repo',
+        targetUrl: 'https://svn.example.com/repo/trunk',
+        repositoryUuid: 'repo-uuid',
+        ready: false,
+        eligibleRevisions: [101, 105],
+        mergedRevisions: [1, 2],
+        findings: [
+          {
+            kind: 'conflicts',
+            severity: 'blocker',
+            detail: 'One conflict remains.',
+            paths: ['C:/repo/src/conflict.ts'],
+            revisions: [],
+          },
+        ],
+        truncated: false,
+      },
+      revisions: '101,105',
+      conflicts: ['src/conflict.ts'],
+      previewOutput: 'C src/conflict.ts',
+    });
+
+    expect(markdown).toContain('# ShellySVN Merge Readiness Report');
+    expect(markdown).toContain('Eligible revisions: r101, r105');
+    expect(markdown).toContain('src/conflict.ts — unresolved');
+    expect(markdown).toContain('Working-copy conflict check: failed');
   });
 
   it('runs dry-run preview and shows merge output with conflict summary', async () => {
@@ -113,9 +161,12 @@ describe('MergeWizard', () => {
 
   it('runs merge with progress, reports conflicts, and completes for post-merge refresh', async () => {
     const onComplete = vi.fn();
-    render(<MergeWizard isOpen={true} onClose={vi.fn()} targetPath="C:/repo" onComplete={onComplete} />);
+    render(
+      <MergeWizard isOpen={true} onClose={vi.fn()} targetPath="C:/repo" onComplete={onComplete} />
+    );
 
     advanceToOptionsPage();
+    await screen.findByText('No blockers');
     fireEvent.click(screen.getByRole('button', { name: /^merge$/i }));
 
     await waitFor(() => {

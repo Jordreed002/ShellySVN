@@ -17,7 +17,10 @@ vi.mock('../../services/svn-checkout', () => ({
   checkoutWithProgress: vi.fn(),
 }));
 vi.mock('../../services/svn-commit', () => ({ commit: vi.fn(), commitWithProgress: vi.fn() }));
-vi.mock('../../services/svn-native-auth', () => ({ listNativeAuth: vi.fn(), removeNativeAuth: vi.fn() }));
+vi.mock('../../services/svn-native-auth', () => ({
+  listNativeAuth: vi.fn(),
+  removeNativeAuth: vi.fn(),
+}));
 vi.mock('../../services/svn-content', () => ({ catRepositoryFile: vi.fn() }));
 vi.mock('../../services/svn-history', () => ({
   getBlame: vi.fn(),
@@ -27,6 +30,9 @@ vi.mock('../../services/svn-history', () => ({
   getMergeInfo: vi.fn(),
   getUrlDiff: vi.fn(),
 }));
+vi.mock('../../services/svn-merge-readiness', () => ({ getMergeReadiness: vi.fn() }));
+vi.mock('../../services/svn-revision-impact', () => ({ getRevisionImpact: vi.fn() }));
+vi.mock('../../services/svn-branch-comparison', () => ({ compareBranches: vi.fn() }));
 vi.mock('../../services/svn-locks', () => ({
   forceLock: vi.fn(),
   forceUnlock: vi.fn(),
@@ -116,8 +122,12 @@ vi.mock('../../services/svn-working-copy', () => ({
   updateItem: vi.fn(),
   updateToRevision: vi.fn(),
 }));
-vi.mock('../../workers/WorkerPool', () => ({ getSharedWorkerPool: vi.fn(() => ({ cancel: vi.fn(() => true) })) }));
-vi.mock('../../utils/svn-errors', () => ({ getSvnReadError: vi.fn(() => ({ svnErrorCode: 'E1', message: 'err' })) }));
+vi.mock('../../workers/WorkerPool', () => ({
+  getSharedWorkerPool: vi.fn(() => ({ cancel: vi.fn(() => true) })),
+}));
+vi.mock('../../utils/svn-errors', () => ({
+  getSvnReadError: vi.fn(() => ({ svnErrorCode: 'E1', message: 'err' })),
+}));
 
 import { registerSvnHandlers } from '../svn';
 import * as checkoutMod from '../../services/svn-checkout';
@@ -160,6 +170,9 @@ const ARGS: Record<string, unknown[]> = {
   'svn:upgradeWorkingCopy': ['/wc'],
   'svn:log': ['/wc', 50, 10, 20, false, 'job1', {}],
   'svn:mergeInfo': ['src', 'tgt', 'eligible'],
+  'svn:mergeReadiness': ['https://svn/source', '/wc'],
+  'svn:revisionImpact': ['/wc', 25, 10],
+  'svn:compareBranches': ['https://svn/trunk', 'https://svn/branch'],
   'svn:info': ['/wc'],
   'svn:infoUrl': ['https://svn/r'],
   'svn:getWorkingCopyContext': ['/wc'],
@@ -183,7 +196,14 @@ const ARGS: Record<string, unknown[]> = {
   'svn:cleanup': ['/wc', {}],
   'svn:cleanupPreview': ['/wc'],
   'svn:checkout': ['https://svn/r', '/wc', '3', 'immediates', { authSessionId: 's1' }],
-  'svn:checkoutWithProgress': ['id1', 'https://svn/r', '/wc', '3', 'immediates', { authSessionId: 's1' }],
+  'svn:checkoutWithProgress': [
+    'id1',
+    'https://svn/r',
+    '/wc',
+    '3',
+    'immediates',
+    { authSessionId: 's1' },
+  ],
   'svn:cancelCheckout': ['id1'],
   'svn:export': ['https://svn/r', '/wc', '3'],
   'svn:exportWithProgress': ['op1', 'https://svn/r', '/wc', '3'],
@@ -281,14 +301,9 @@ describe('svn IPC handlers — wiring', () => {
   });
 
   it('svn:checkout resolves the auth session before delegating', async () => {
-    await handlers.get('svn:checkout')!(
-      event(),
-      'https://svn/r',
-      '/wc',
-      '3',
-      'immediates',
-      { authSessionId: 's1' }
-    );
+    await handlers.get('svn:checkout')!(event(), 'https://svn/r', '/wc', '3', 'immediates', {
+      authSessionId: 's1',
+    });
     expect(vi.mocked(auth.resolveAuthSession)).toHaveBeenCalledWith('win-1', 's1', 'https://svn/r');
     expect(vi.mocked(checkoutMod.checkout)).toHaveBeenCalledWith(
       'https://svn/r',

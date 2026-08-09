@@ -22,8 +22,24 @@ const HEAD = { kind: 'head' } as const;
 
 function entriesFor(url: string): SvnRepoEntry[] {
   return [
-    { name: 'a.ts', path: `${url}/a.ts`, url: `${url}/a.ts`, kind: 'file', revision: 1, author: 'al', date: '2024-01-01' },
-    { name: 'sub', path: `${url}/sub`, url: `${url}/sub`, kind: 'dir', revision: 2, author: 'bo', date: '2024-01-02' },
+    {
+      name: 'a.ts',
+      path: `${url}/a.ts`,
+      url: `${url}/a.ts`,
+      kind: 'file',
+      revision: 1,
+      author: 'al',
+      date: '2024-01-01',
+    },
+    {
+      name: 'sub',
+      path: `${url}/sub`,
+      url: `${url}/sub`,
+      kind: 'dir',
+      revision: 2,
+      author: 'bo',
+      date: '2024-01-02',
+    },
   ];
 }
 
@@ -37,7 +53,9 @@ beforeEach(() => {
 });
 
 function createClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
+  });
 }
 function wrapperFor(queryClient: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {

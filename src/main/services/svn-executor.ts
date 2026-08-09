@@ -5,6 +5,11 @@ import { getAuthCache } from '../auth-cache';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
 import { runResolvedSvn, type RunSvnResult } from './svn-runner';
+import {
+  beginSvnTimelineEntry,
+  completeSvnTimelineEntry,
+  failSvnTimelineEntry,
+} from './svn-command-timeline';
 
 export { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, type RunSvnResult } from './svn-runner';
 
@@ -107,8 +112,17 @@ export async function resolveSvnExecution(
 }
 
 export async function runSvn(args: string[], options: RunSvnOptions = {}): Promise<RunSvnResult> {
-  const { svnCommand, context } = await resolveSvnExecution(options);
-  return runResolvedCommand(args, svnCommand, context, options);
+  const startedAt = Date.now();
+  const timelineId = beginSvnTimelineEntry(args);
+  try {
+    const { svnCommand, context } = await resolveSvnExecution(options);
+    const result = await runResolvedCommand(args, svnCommand, context, options);
+    completeSvnTimelineEntry(timelineId, startedAt, result, options.signal?.aborted === true);
+    return result;
+  } catch (error) {
+    failSvnTimelineEntry(timelineId, startedAt, error, options.signal?.aborted === true);
+    throw error;
+  }
 }
 
 function getSvnMuccCommand(svnCommand: string): string {

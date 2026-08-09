@@ -190,6 +190,64 @@ export interface SvnMergeInfoResult {
   rawOutput: string;
 }
 
+interface MergeReadinessFinding {
+  kind: string;
+  severity: 'blocker' | 'warning' | 'info';
+  detail: string;
+  paths: string[];
+  revisions: number[];
+}
+export interface MergeReadinessReport {
+  sourceUrl: string;
+  targetPath: string;
+  targetUrl: string;
+  repositoryUuid: string;
+  ready: boolean;
+  eligibleRevisions: number[];
+  mergedRevisions: number[];
+  findings: MergeReadinessFinding[];
+  truncated: boolean;
+}
+
+type RevisionImpactCategory =
+  | 'source'
+  | 'test'
+  | 'documentation'
+  | 'configuration'
+  | 'branch-or-tag';
+interface RevisionImpactEvidence {
+  revision: number;
+  path: string;
+  action: SvnLogPath['action'];
+}
+interface RevisionImpactGroup {
+  category: RevisionImpactCategory;
+  evidence: RevisionImpactEvidence[];
+}
+export interface RevisionImpactReport {
+  target: string;
+  revisions: number[];
+  authors: string[];
+  changedPathCount: number;
+  truncated: boolean;
+  groups: RevisionImpactGroup[];
+}
+
+export interface BranchComparisonReport {
+  leftUrl: string;
+  rightUrl: string;
+  hasDifferences: boolean;
+  changedFiles: Array<Pick<SvnDiffFile, 'oldPath' | 'newPath' | 'isBinary'>>;
+  leftOnlyRevisions: number[];
+  rightOnlyRevisions: number[];
+  impactGroups: RevisionImpactGroup[];
+  truncated: boolean;
+}
+export interface BranchComparisonResult {
+  summary: BranchComparisonReport;
+  diff: SvnDiffResult;
+}
+
 export interface SvnCatResult {
   target: string;
   revision?: string;
@@ -602,6 +660,262 @@ export interface IntegrationSettings {
   iconOverlaysEnabled: boolean;
 }
 
+// ============================================
+// AI commit message types
+// ============================================
+
+export type AiCommitProvider = 'codex' | 'claude';
+export type AiCodexModel = 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol';
+export type AiTaskKind =
+  | 'commit-message'
+  | 'draft-transformation'
+  | 'pre-commit-review'
+  | 'commit-plan'
+  | 'diff-explanation'
+  | 'release-notes'
+  | 'conflict-resolution';
+export type AiErrorCode =
+  | 'cli_not_found'
+  | 'authentication_required'
+  | 'unsupported_model'
+  | 'quota_exceeded'
+  | 'timeout'
+  | 'cancelled'
+  | 'invalid_output'
+  | 'input_too_large'
+  | 'provider_unavailable'
+  | 'unknown';
+type AiCommitProviderPreference = 'auto' | AiCommitProvider;
+type AiCommitMessageStyle = 'concise' | 'conventional';
+
+interface AiCommitSettings {
+  enabled: boolean;
+  provider: AiCommitProviderPreference;
+  codexModel: AiCodexModel;
+  style: AiCommitMessageStyle;
+  includeRecentHistory: boolean;
+  historyLimit: number;
+  maxDiffBytes: number;
+  confirmBeforeSending: boolean;
+  providerTimeoutMs: number;
+  maxSessionInvocations: number;
+  usageRetentionDays: number;
+  usageMaxEntries: number;
+}
+
+export interface AiUsageEntry {
+  id: string;
+  task: AiTaskKind;
+  provider: AiCommitProvider;
+  model?: string;
+  startedAt: string;
+  durationMs: number;
+  status: 'success' | 'error' | 'cancelled';
+  errorCode?: AiErrorCode;
+  inputBytes: number;
+  truncated: boolean;
+  redacted: boolean;
+}
+
+export interface AiPromptPreviewRequest {
+  task: AiTaskKind;
+  request:
+    | AiCommitMessageRequest
+    | AiTransformDraftRequest
+    | AiSelectedPathsRequest
+    | AiDiffExplanationRequest
+    | AiReleaseNotesRequest
+    | AiConflictProposalRequest;
+}
+
+export interface AiPromptPreviewResult {
+  task: AiTaskKind;
+  provider: AiCommitProvider;
+  model?: string;
+  prompt: string;
+  inputBytes: number;
+  truncated: boolean;
+  redacted: boolean;
+  omittedBinaryFiles: string[];
+  includedHistoryMessages: number;
+}
+
+export type AiDraftTransformation =
+  | 'shorter'
+  | 'add-body'
+  | 'remove-body'
+  | 'imperative'
+  | 'match-style'
+  | 'include-issues'
+  | 'explain-motivation'
+  | 'regenerate';
+
+export interface AiTransformDraftRequest {
+  operationId: string;
+  workingCopyPath: string;
+  paths: string[];
+  currentDraft: string;
+  transformation: AiDraftTransformation;
+}
+
+export interface AiTransformDraftResult extends AiTaskMetadata {
+  transformation: AiDraftTransformation;
+  message: string;
+  omittedBinaryFiles: string[];
+}
+
+export interface RepositoryAiPromptProfile {
+  version: 1;
+  commitPrefixes: string[];
+  issueIdPattern: string;
+  subjectMaxLength: number;
+  bodyStyle: string;
+  terminology: Record<string, string>;
+  testPaths: string[];
+  generatedPaths: string[];
+  documentationPaths: string[];
+  excludedPaths: string[];
+  requiredReviewQuestions: string[];
+  enabledDraftTransformations: AiDraftTransformation[];
+  updatedAt: string;
+}
+
+export interface RepositoryAiProfileImportPreview {
+  valid: boolean;
+  profile?: RepositoryAiPromptProfile;
+  warnings: string[];
+}
+
+export interface AiCommitProviderStatus {
+  provider: AiCommitProvider;
+  available: boolean;
+  version?: string;
+  authenticated?: boolean;
+  cliLoggedIn?: boolean;
+  authMethod?: string;
+  reason?: string;
+}
+
+export interface AiCommitMessageRequest {
+  operationId: string;
+  workingCopyPath: string;
+  paths: string[];
+  existingMessage?: string;
+}
+
+export interface AiCommitMessageResult {
+  message: string;
+  provider: AiCommitProvider;
+  model?: string;
+  diffTruncated: boolean;
+  omittedBinaryFiles: string[];
+  redacted: boolean;
+}
+
+export type AiReviewSeverity = 'info' | 'warning' | 'danger';
+export type AiDiffExplanationMode = 'summary' | 'why' | 'risks' | 'questions';
+
+export interface AiTaskMetadata {
+  provider: AiCommitProvider;
+  model?: string;
+  durationMs: number;
+  truncated: boolean;
+  redacted: boolean;
+}
+
+export interface AiReviewEvidence {
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  excerpt: string;
+}
+
+export interface AiCommitReviewFinding {
+  id: string;
+  severity: AiReviewSeverity;
+  category: string;
+  title: string;
+  detail: string;
+  filePath: string;
+  line: number;
+  confidence: number;
+  evidence: AiReviewEvidence[];
+}
+
+export interface AiCommitReviewResult extends AiTaskMetadata {
+  summary: string;
+  findings: AiCommitReviewFinding[];
+}
+
+interface AiLogicalCommitGroup {
+  id: string;
+  title: string;
+  description: string;
+  paths: string[];
+  suggestedMessage: string;
+}
+
+export interface AiCommitPlanResult extends AiTaskMetadata {
+  summary: string;
+  groups: AiLogicalCommitGroup[];
+}
+
+export interface AiDiffExplanationResult extends AiTaskMetadata {
+  mode: AiDiffExplanationMode;
+  summary: string;
+  rationale: string;
+  risks: string[];
+  reviewQuestions: string[];
+  cached: boolean;
+}
+
+export interface AiReleaseNotesResult extends AiTaskMetadata {
+  startRevision: number;
+  endRevision: number;
+  title: string;
+  userFacing: string[];
+  technical: string[];
+  breakingChanges: string[];
+  upgradeNotes: string[];
+  references: string[];
+}
+
+export interface AiConflictProposalResult extends AiTaskMetadata {
+  explanation: string;
+  likelyIntent: string;
+  confidence: number;
+  unresolvedQuestions: string[];
+  proposedMergedText: string;
+}
+
+export interface AiSelectedPathsRequest {
+  operationId: string;
+  workingCopyPath: string;
+  paths: string[];
+}
+
+export interface AiDiffExplanationRequest {
+  operationId: string;
+  workingCopyPath: string;
+  path: string;
+  mode: AiDiffExplanationMode;
+}
+
+export interface AiReleaseNotesRequest {
+  operationId: string;
+  path: string;
+  startRevision: number;
+  endRevision: number;
+}
+
+export interface AiConflictProposalRequest {
+  operationId: string;
+  filePath: string;
+  baseContent: string;
+  mineContent: string;
+  theirsContent: string;
+}
+
 export interface AppSettings {
   // General
   theme: 'light' | 'dark' | 'system';
@@ -641,6 +955,9 @@ export interface AppSettings {
 
   // Integration
   integration: IntegrationSettings;
+
+  // AI-assisted commit messages
+  aiCommit: AiCommitSettings;
 
   // Appearance
   fontSize: FontSize;
@@ -1139,6 +1456,50 @@ export interface SvnLogRequestOptions extends CancellableRequestOptions {
 }
 
 export interface ElectronAPI {
+  ai: {
+    providers: () => Promise<AiCommitProviderStatus[]>;
+    preparePrompt: (request: AiPromptPreviewRequest) => Promise<AiPromptPreviewResult>;
+    usageHistory: () => Promise<AiUsageEntry[]>;
+    clearUsageHistory: () => Promise<{ success: boolean }>;
+    repositoryProfile: {
+      get: (workingCopyPath: string) => Promise<RepositoryAiPromptProfile | null>;
+      previewImport: (json: string) => Promise<RepositoryAiProfileImportPreview>;
+      save: (
+        workingCopyPath: string,
+        profile: RepositoryAiPromptProfile
+      ) => Promise<{ success: boolean }>;
+      remove: (workingCopyPath: string) => Promise<{ success: boolean }>;
+    };
+    generateCommitMessage: (
+      request: AiCommitMessageRequest,
+      options?: CancellableRequestOptions
+    ) => Promise<AiCommitMessageResult>;
+    transformDraft: (
+      request: AiTransformDraftRequest,
+      options?: CancellableRequestOptions
+    ) => Promise<AiTransformDraftResult>;
+    reviewCommit: (
+      request: AiSelectedPathsRequest,
+      options?: CancellableRequestOptions
+    ) => Promise<AiCommitReviewResult>;
+    planCommit: (
+      request: AiSelectedPathsRequest,
+      options?: CancellableRequestOptions
+    ) => Promise<AiCommitPlanResult>;
+    explainDiff: (
+      request: AiDiffExplanationRequest,
+      options?: CancellableRequestOptions
+    ) => Promise<AiDiffExplanationResult>;
+    generateReleaseNotes: (
+      request: AiReleaseNotesRequest,
+      options?: CancellableRequestOptions
+    ) => Promise<AiReleaseNotesResult>;
+    proposeConflictResolution: (
+      request: AiConflictProposalRequest,
+      options?: CancellableRequestOptions
+    ) => Promise<AiConflictProposalResult>;
+    cancel: (operationId: string) => Promise<{ success: boolean; error?: string }>;
+  };
   svn: {
     capabilities: () => Promise<{
       shelving: boolean;
@@ -1171,6 +1532,13 @@ export interface ElectronAPI {
       target: string,
       kind: SvnMergeInfoKind
     ) => Promise<SvnMergeInfoResult>;
+    mergeReadiness: (sourceUrl: string, targetPath: string) => Promise<MergeReadinessReport>;
+    revisionImpact: (
+      target: string,
+      limit?: number,
+      revision?: number
+    ) => Promise<RevisionImpactReport>;
+    compareBranches: (leftUrl: string, rightUrl: string) => Promise<BranchComparisonResult>;
     cat: (
       target: string,
       revision?: string,
@@ -1449,6 +1817,9 @@ export interface ElectronAPI {
       update: (workingCopyPath: string, externalPath?: string) => Promise<SvnMutationResult>;
     };
     diagnostics: (workingCopyPath: string) => Promise<RepoDiagnostics>;
+    workingCopyHealth: (workingCopyPath: string) => Promise<WorkingCopyHealthReport>;
+    commandTimeline: () => Promise<SvnCommandTimelineEntry[]>;
+    clearCommandTimeline: () => Promise<OperationResult>;
     trustServerCertificate: (
       url: string,
       errorText: string
@@ -1681,6 +2052,54 @@ export interface RepoDiagnostics {
   // Connection test
   connectionStatus: 'ok' | 'auth-required' | 'ssl-error' | 'network-error' | 'unknown';
   connectionError?: string;
+}
+
+export type WorkingCopyHealthSeverity = 'info' | 'warning' | 'danger';
+
+export interface WorkingCopyHealthIssue {
+  id: string;
+  kind:
+    | 'conflict'
+    | 'missing'
+    | 'obstructed'
+    | 'switched'
+    | 'external'
+    | 'mixed-revisions'
+    | 'local-lock'
+    | 'large-unversioned'
+    | 'large-ignored'
+    | 'nested-working-copy';
+  severity: WorkingCopyHealthSeverity;
+  title: string;
+  detail: string;
+  paths: string[];
+}
+
+export interface WorkingCopyHealthReport {
+  workingCopyPath: string;
+  scannedAt: string;
+  minimumRevision: number | null;
+  maximumRevision: number | null;
+  counts: {
+    changes: number;
+    conflicts: number;
+    switched: number;
+    externals: number;
+    unversioned: number;
+    ignored: number;
+  };
+  issues: WorkingCopyHealthIssue[];
+}
+
+export interface SvnCommandTimelineEntry {
+  id: string;
+  operation: string;
+  startedAt: string;
+  durationMs: number;
+  status: 'running' | 'success' | 'failed' | 'cancelled';
+  exitCode?: number;
+  affectedPathCount: number;
+  safeDiagnostic?: string;
 }
 
 // ============================================

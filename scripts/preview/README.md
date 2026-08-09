@@ -1,7 +1,7 @@
 # Renderer preview — seeing the UI without Electron
 
 `src/renderer/src/features/repo-browser/SPEC.md` says a UI change is not done until it has been
-*looked at*. This is the tool for that.
+_looked at_. This is the tool for that.
 
 ```bash
 bun run preview                     # build, stage, serve on http://127.0.0.1:8940
@@ -21,7 +21,7 @@ Two things stop you simply opening the built renderer:
 - TanStack Router uses history routing, so `/repo-browser` has to serve `index.html`. A plain static
   server 404s.
 
-The stub deliberately models the *interesting* states, because those are what the design is about:
+The stub deliberately models the _interesting_ states, because those are what the design is about:
 a monorepo with 51 clients, one checkout with 10 local changes, a conflict that blocks commit, a
 locked file, mixed revisions r4744–r4838, and a floating external.
 

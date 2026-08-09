@@ -23,8 +23,8 @@ vi.mock('../svn-network-context', () => ({
   getNetworkOptionsForWorkingCopyPath: vi.fn().mockResolvedValue({ trustSslFailures: false }),
 }));
 vi.mock('../svn-mutation-queue', () => ({
-  runSerializedWorkingCopyMutation: vi.fn(
-    async (_key: string, task: () => Promise<unknown>) => task()
+  runSerializedWorkingCopyMutation: vi.fn(async (_key: string, task: () => Promise<unknown>) =>
+    task()
   ),
 }));
 
@@ -505,22 +505,25 @@ describe('svn-repository-ops mergeRepositoryRange', () => {
     );
 
     expect(result).toEqual({ success: true, output: 'C src/conflict.txt\nU src/app.ts' });
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'merge',
-      '--dry-run',
-      '--depth',
-      'infinity',
-      '--ignore-ancestry',
-      '--allow-mixed-revisions',
-      '--record-only',
-      '-c',
-      '155',
-      '-r',
-      '100:150',
-      '--',
-      'https://example.test/svn/repo/branches/feature',
-      'C:\\wc',
-    ], { trustSslFailures: false });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      [
+        'merge',
+        '--dry-run',
+        '--depth',
+        'infinity',
+        '--ignore-ancestry',
+        '--allow-mixed-revisions',
+        '--record-only',
+        '-c',
+        '155',
+        '-r',
+        '100:150',
+        '--',
+        'https://example.test/svn/repo/branches/feature',
+        'C:\\wc',
+      ],
+      { trustSslFailures: false }
+    );
   });
 
   it('rejects a merge target that is not a working copy before mutation', async () => {
@@ -554,13 +557,9 @@ describe('svn-repository-ops mergeRepositoryRange', () => {
 
   it('rejects revision ranges mixed with SVN two-source merge form', async () => {
     await expect(
-      mergeRepositoryRange(
-        'https://example.test/svn/repo/vendor/old',
-        'C:\\wc',
-        ['5'],
-        undefined,
-        { secondSource: 'https://example.test/svn/repo/vendor/new' }
-      )
+      mergeRepositoryRange('https://example.test/svn/repo/vendor/old', 'C:\\wc', ['5'], undefined, {
+        secondSource: 'https://example.test/svn/repo/vendor/new',
+      })
     ).rejects.toThrow(/cannot also specify/i);
   });
 });

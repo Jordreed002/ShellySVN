@@ -49,16 +49,20 @@ describe('appendExcludedChildren', () => {
   });
 
   it('keeps an excluded file a file, so it offers file actions and opens nothing', () => {
-    const result = appendExcludedChildren([], {
-      notes: {
-        revision: 9,
-        author: 'cleo',
-        date: '2026-04-01T00:00:00Z',
-        excluded: true,
-        kind: 'file',
-        url: 'https://svn.example.com/repo/trunk/notes.txt',
+    const result = appendExcludedChildren(
+      [],
+      {
+        notes: {
+          revision: 9,
+          author: 'cleo',
+          date: '2026-04-01T00:00:00Z',
+          excluded: true,
+          kind: 'file',
+          url: 'https://svn.example.com/repo/trunk/notes.txt',
+        },
       },
-    }, '/wc');
+      '/wc'
+    );
 
     expect(result[0]).toMatchObject({
       name: 'notes',

@@ -138,7 +138,9 @@ function ModeOption({
   return (
     <label
       className={`mb-2 flex cursor-pointer items-start gap-3 rounded-xl border p-3 last:mb-0 ${
-        selected ? 'border-accent bg-accent/10' : 'border-border bg-bg-tertiary/40 hover:border-border-focus'
+        selected
+          ? 'border-accent bg-accent/10'
+          : 'border-border bg-bg-tertiary/40 hover:border-border-focus'
       } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
     >
       <input
@@ -151,7 +153,9 @@ function ModeOption({
       />
       <span className="min-w-0 flex-1">
         <b className="block text-[13px] font-bold text-text">{copy.title}</b>
-        <small className="mt-0.5 block text-xs leading-relaxed text-text-secondary">{copy.detail}</small>
+        <small className="mt-0.5 block text-xs leading-relaxed text-text-secondary">
+          {copy.detail}
+        </small>
         {disabled && disabledReason && (
           <small className="mt-1 block text-xs text-svn-modified">{disabledReason}</small>
         )}
@@ -249,10 +253,26 @@ export function MergeDialog({
   const chosen = selectedRevisions ?? allRevisions;
   const recordOnly = mode === 'record-only';
   const mergeRevisions = recordOnly ? chosen : allRevisions;
-  const riskyCount = eligible.filter((entry) => (conflictRisks[entry.revision] ?? []).length > 0).length;
+  const riskyCount = eligible.filter(
+    (entry) => (conflictRisks[entry.revision] ?? []).length > 0
+  ).length;
 
-  const command = buildCommand(mode, effectiveSource, targetPath, resolvedBranchUrl, mergeRevisions, false);
-  const dryRunCommand = buildCommand(mode, effectiveSource, targetPath, resolvedBranchUrl, mergeRevisions, true);
+  const command = buildCommand(
+    mode,
+    effectiveSource,
+    targetPath,
+    resolvedBranchUrl,
+    mergeRevisions,
+    false
+  );
+  const dryRunCommand = buildCommand(
+    mode,
+    effectiveSource,
+    targetPath,
+    resolvedBranchUrl,
+    mergeRevisions,
+    true
+  );
 
   const nothingToDo = mergeRevisions.length === 0 && mode !== 'reintegrate';
   const mergeDisabled =
@@ -269,9 +289,12 @@ export function MergeDialog({
       <AccessibleDialogBody>
         <p className="text-xs leading-relaxed text-text-secondary">
           Subversion records what has already been merged in{' '}
-          <span className="font-mono text-[11px] text-text">svn:mergeinfo</span>, so it can answer the
-          only question that matters: <b className="font-semibold text-text">which revisions on the
-          source have not landed here yet</b>.
+          <span className="font-mono text-[11px] text-text">svn:mergeinfo</span>, so it can answer
+          the only question that matters:{' '}
+          <b className="font-semibold text-text">
+            which revisions on the source have not landed here yet
+          </b>
+          .
         </p>
         {hasSource ? (
           <p className="mb-4 mt-1.5 overflow-x-auto whitespace-pre font-mono text-[11px] text-text-muted">
@@ -279,12 +302,16 @@ export function MergeDialog({
           </p>
         ) : (
           <p className="mb-4 mt-1.5 flex items-start gap-2 rounded-lg border border-svn-modified/40 bg-svn-modified/10 px-3 py-2 text-xs leading-relaxed text-text-secondary">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none text-svn-modified" aria-hidden="true" />
+            <AlertTriangle
+              className="mt-0.5 h-3.5 w-3.5 flex-none text-svn-modified"
+              aria-hidden="true"
+            />
             <span>
               <b className="font-semibold text-text">No merge source chosen.</b> Subversion merges{' '}
               <i>from</i> a named branch, and cannot infer which one — so the commands below show{' '}
               <span className="font-mono text-[11px] text-text">{MERGE_SOURCE_PLACEHOLDER}</span>{' '}
-              where the branch will go, and nothing can run yet. Open this from a branch to fill it in.
+              where the branch will go, and nothing can run yet. Open this from a branch to fill it
+              in.
             </span>
           </p>
         )}
@@ -293,7 +320,14 @@ export function MergeDialog({
           mode="sync"
           selected={mode === 'sync'}
           disabled={false}
-          command={buildCommand('sync', effectiveSource, targetPath, resolvedBranchUrl, allRevisions, false)}
+          command={buildCommand(
+            'sync',
+            effectiveSource,
+            targetPath,
+            resolvedBranchUrl,
+            allRevisions,
+            false
+          )}
           onSelect={() => onModeChange('sync')}
         />
         <ModeOption
@@ -318,7 +352,14 @@ export function MergeDialog({
           mode="record-only"
           selected={recordOnly}
           disabled={false}
-          command={buildCommand('record-only', effectiveSource, targetPath, resolvedBranchUrl, chosen, false)}
+          command={buildCommand(
+            'record-only',
+            effectiveSource,
+            targetPath,
+            resolvedBranchUrl,
+            chosen,
+            false
+          )}
           onSelect={() => onModeChange('record-only')}
         />
 
@@ -337,7 +378,9 @@ export function MergeDialog({
 
           {eligible.length === 0 ? (
             <p className="rounded-xl border border-border bg-bg-tertiary/40 p-3 text-xs leading-relaxed text-text-secondary">
-              <span className="font-mono text-[11px] text-text">svn mergeinfo --show-revs eligible</span>{' '}
+              <span className="font-mono text-[11px] text-text">
+                svn mergeinfo --show-revs eligible
+              </span>{' '}
               returns nothing: every revision on the source has already been merged here, or the
               source has no mergeinfo relationship with this path.
             </p>

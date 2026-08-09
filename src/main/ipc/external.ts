@@ -257,11 +257,17 @@ export function registerExternalHandlers(): void {
           shell: false,
         });
         child.unref();
-        const cleanupTimer = setTimeout(() => void rm(tempDirectory, { recursive: true, force: true }), 60 * 60_000);
+        const cleanupTimer = setTimeout(
+          () => void rm(tempDirectory, { recursive: true, force: true }),
+          60 * 60_000
+        );
         cleanupTimer.unref();
         return { success: true };
       } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unable to open diff' };
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unable to open diff',
+        };
       }
     }
   );

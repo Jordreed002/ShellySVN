@@ -21,7 +21,14 @@ describe('fileInfoToEntry', () => {
   it('maps a versioned file with svnStatus onto a status entry', () => {
     const entry = fileInfoToEntry({
       ...file('/repo/a.ts'),
-      svnStatus: { path: '/repo/a.ts', status: 'M', revision: 5, author: 'al', date: 'd', isDirectory: false },
+      svnStatus: {
+        path: '/repo/a.ts',
+        status: 'M',
+        revision: 5,
+        author: 'al',
+        date: 'd',
+        isDirectory: false,
+      },
     });
 
     expect(entry).toEqual({
@@ -48,7 +55,12 @@ describe('fileInfoToEntry', () => {
   it('carries the directory flag and remoteUrl through', () => {
     const entry = fileInfoToEntry({
       ...file('/repo/src', true),
-      svnStatus: { path: '/repo/src', status: ' ', isDirectory: true, remoteUrl: 'https://svn/repo/src' },
+      svnStatus: {
+        path: '/repo/src',
+        status: ' ',
+        isDirectory: true,
+        remoteUrl: 'https://svn/repo/src',
+      },
     });
 
     expect(entry.isDirectory).toBe(true);

@@ -28,7 +28,9 @@ beforeEach(() => {
 });
 
 function createClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
+  });
 }
 function wrapperFor(queryClient: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -40,7 +42,13 @@ describe('useRepoBlame hook', () => {
   it('maps committed and uncommitted lines and counts the uncommitted', async () => {
     mockBlame.mockResolvedValue({
       lines: [
-        blameLine({ revision: 42, author: 'alice', date: '2024-01-01', lineNumber: 1, content: 'a' }),
+        blameLine({
+          revision: 42,
+          author: 'alice',
+          date: '2024-01-01',
+          lineNumber: 1,
+          content: 'a',
+        }),
         blameLine({ revision: 0, author: 'unknown', lineNumber: 2, content: 'b' }),
         blameLine({ revision: 7, author: 'bob', date: '2024-01-02', lineNumber: 3, content: 'c' }),
       ],
@@ -115,7 +123,9 @@ describe('useRepoBlame hook', () => {
   });
 
   it('refetches the blame annotation', async () => {
-    mockBlame.mockResolvedValue({ lines: [blameLine({ revision: 1, lineNumber: 1, content: 'a' })] });
+    mockBlame.mockResolvedValue({
+      lines: [blameLine({ revision: 1, lineNumber: 1, content: 'a' })],
+    });
 
     const { result } = renderHook(() => useRepoBlame(URL), { wrapper: wrapperFor(createClient()) });
     await waitFor(() => expect(result.current.loading).toBe(false));

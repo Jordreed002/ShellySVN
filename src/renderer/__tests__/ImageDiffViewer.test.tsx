@@ -20,7 +20,18 @@ describe('ImageDiffViewer behavior', () => {
   });
 
   it('recognizes common image asset formats and rejects non-image files', () => {
-    for (const extension of ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif']) {
+    for (const extension of [
+      'png',
+      'jpg',
+      'jpeg',
+      'gif',
+      'bmp',
+      'webp',
+      'svg',
+      'ico',
+      'tiff',
+      'tif',
+    ]) {
       expect(isImageFile(`asset.${extension}`)).toBe(true);
       expect(isImageFile(`ASSET.${extension.toUpperCase()}`)).toBe(true);
     }

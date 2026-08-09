@@ -106,9 +106,7 @@ export function resolveRemoteUrlToLocalPath(
   }
 
   const normalizedWorkingCopyRoot = normalizeToForwardSlash(workingCopyRoot).replace(/\/+$/, '');
-  const relativePath = parsedUrl.segments
-    .slice(parsedWorkingCopyUrl.segments.length)
-    .join('/');
+  const relativePath = parsedUrl.segments.slice(parsedWorkingCopyUrl.segments.length).join('/');
   const localPath = relativePath
     ? `${normalizedWorkingCopyRoot}/${relativePath}`
     : normalizedWorkingCopyRoot;

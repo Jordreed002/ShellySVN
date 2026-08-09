@@ -4,10 +4,7 @@ import '@testing-library/jest-dom';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CommandPalette } from '../src/components/ui/CommandPalette';
-import {
-  flattenContextMenuItems,
-  getSvnContextMenuItems,
-} from '../src/components/ui/ContextMenu';
+import { flattenContextMenuItems, getSvnContextMenuItems } from '../src/components/ui/ContextMenu';
 import { Toolbar } from '../src/components/ui/Toolbar';
 
 describe('SVN workflow reachability', () => {
@@ -193,11 +190,18 @@ describe('SVN workflow reachability', () => {
 
     // The remaining file actions are reachable via the "File actions" menu.
     fireEvent.click(screen.getByRole('button', { name: 'File actions' }));
-    ['Revert', 'Add to version control', 'Delete', 'Cleanup', 'Resolve conflict', 'Move…', 'Copy…', 'Rename…'].forEach(
-      (label) => {
-        expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
-      }
-    );
+    [
+      'Revert',
+      'Add to version control',
+      'Delete',
+      'Cleanup',
+      'Resolve conflict',
+      'Move…',
+      'Copy…',
+      'Rename…',
+    ].forEach((label) => {
+      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+    });
   });
 
   it('exposes common working-copy actions from context menus', () => {
@@ -373,8 +377,20 @@ describe('SVN workflow reachability', () => {
     /* An application the user added themselves, from Settings. */
     it('offers an application only for the kind of entry it suits', () => {
       const custom = [
-        { id: 'custom:folders-only', label: 'Terminal here', command: 'wezterm', appliesTo: 'folders' as const, custom: true },
-        { id: 'custom:files-only', label: 'Hex editor', command: 'hexed', appliesTo: 'files' as const, custom: true },
+        {
+          id: 'custom:folders-only',
+          label: 'Terminal here',
+          command: 'wezterm',
+          appliesTo: 'folders' as const,
+          custom: true,
+        },
+        {
+          id: 'custom:files-only',
+          label: 'Hex editor',
+          command: 'hexed',
+          appliesTo: 'files' as const,
+          custom: true,
+        },
         { id: 'vscode', label: 'VS Code', command: 'code' },
       ];
 

@@ -85,8 +85,12 @@ export function planRepoDiff(
   workingCopyPath: string | null | undefined,
   inputs: RepoDiffInputs = {}
 ): RepoDiffPlan {
-  const { baseRevision = null, compareUrl = null, leftRevision = null, rightRevision = null } =
-    inputs;
+  const {
+    baseRevision = null,
+    compareUrl = null,
+    leftRevision = null,
+    rightRevision = null,
+  } = inputs;
 
   switch (comparand) {
     case 'wc-base': {

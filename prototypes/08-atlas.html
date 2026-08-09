@@ -1,14 +1,17 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ShellySVN · 08 — Atlas (monorepo navigator)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-<style>
-/* ══════════════════════════════════════════════════════════════════
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShellySVN · 08 — Atlas (monorepo navigator)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ══════════════════════════════════════════════════════════════════
    08 · ATLAS — navigating a company-wide monorepo
    The problem 07 doesn't touch: one repository, 50+ clients, hundreds
    of nested projects, most of it NOT on your disk. TortoiseSVN's repo
@@ -28,1117 +31,3248 @@
       dropdowns to siblings.
    ══════════════════════════════════════════════════════════════════ */
 
-:root{
-  --d0:#0a0d12; --d1:#0d1117; --d2:#11161d; --d3:#161b22; --d4:#1c232c; --d5:#232c37;
-  --line:rgba(240,246,252,.075); --line2:rgba(240,246,252,.13); --line3:rgba(240,246,252,.2);
-  --ink:#e6edf3; --ink2:#9aa4b0; --ink3:#727d8a; --ink4:#4d5866;
-  --acc:#58a6ff; --acc2:#84c0ff; --accbg:rgba(88,166,255,.13); --accln:rgba(88,166,255,.36);
-  --mod:#d9a129; --mod-bg:rgba(217,161,41,.13); --mod-ln:rgba(217,161,41,.32);
-  --add:#46b95a; --add-bg:rgba(70,185,90,.13);
-  --del:#f2666a; --del-bg:rgba(242,102,106,.13); --del-ln:rgba(242,102,106,.34);
-  --ext:#39c5cf; --ext-bg:rgba(57,197,207,.13);
-  --rep:#a371f7;
-  --sans:'Archivo',system-ui,sans-serif;
-  --mono:'JetBrains Mono',ui-monospace,monospace;
-  --topbar:38px; --pathbar:40px; --rail:236px; --insp:330px;
-  --colw:228px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{
-  background:var(--d1);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.45;
-  overflow:hidden;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;
-}
-body::before{
-  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.025;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-::selection{background:rgba(88,166,255,.3)}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#252e3a;border:3px solid transparent;background-clip:content-box;border-radius:99px}
-::-webkit-scrollbar-thumb:hover{background:#33404f;background-clip:content-box}
-:focus-visible{outline:2px solid var(--acc);outline-offset:1px;border-radius:4px}
-.eyebrow{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink4)}
-.mono{font-family:var(--mono)}
-.sk{
-  font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:4px;flex:0 0 auto;
-  background:var(--d4);border:1px solid var(--line2);color:var(--ink3);
-  opacity:0;transition:opacity .13s;display:inline-block;pointer-events:none;
-}
-body.meta .sk{opacity:1}
-.sk.always{opacity:1}
+      :root {
+        --d0: #0a0d12;
+        --d1: #0d1117;
+        --d2: #11161d;
+        --d3: #161b22;
+        --d4: #1c232c;
+        --d5: #232c37;
+        --line: rgba(240, 246, 252, 0.075);
+        --line2: rgba(240, 246, 252, 0.13);
+        --line3: rgba(240, 246, 252, 0.2);
+        --ink: #e6edf3;
+        --ink2: #9aa4b0;
+        --ink3: #727d8a;
+        --ink4: #4d5866;
+        --acc: #58a6ff;
+        --acc2: #84c0ff;
+        --accbg: rgba(88, 166, 255, 0.13);
+        --accln: rgba(88, 166, 255, 0.36);
+        --mod: #d9a129;
+        --mod-bg: rgba(217, 161, 41, 0.13);
+        --mod-ln: rgba(217, 161, 41, 0.32);
+        --add: #46b95a;
+        --add-bg: rgba(70, 185, 90, 0.13);
+        --del: #f2666a;
+        --del-bg: rgba(242, 102, 106, 0.13);
+        --del-ln: rgba(242, 102, 106, 0.34);
+        --ext: #39c5cf;
+        --ext-bg: rgba(57, 197, 207, 0.13);
+        --rep: #a371f7;
+        --sans: 'Archivo', system-ui, sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, monospace;
+        --topbar: 38px;
+        --pathbar: 40px;
+        --rail: 236px;
+        --insp: 330px;
+        --colw: 228px;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        background: var(--d1);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 13px;
+        line-height: 1.45;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        font-variant-numeric: tabular-nums;
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 9999;
+        opacity: 0.025;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      ::selection {
+        background: rgba(88, 166, 255, 0.3);
+      }
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #252e3a;
+        border: 3px solid transparent;
+        background-clip: content-box;
+        border-radius: 99px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #33404f;
+        background-clip: content-box;
+      }
+      :focus-visible {
+        outline: 2px solid var(--acc);
+        outline-offset: 1px;
+        border-radius: 4px;
+      }
+      .eyebrow {
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--ink4);
+      }
+      .mono {
+        font-family: var(--mono);
+      }
+      .sk {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        flex: 0 0 auto;
+        background: var(--d4);
+        border: 1px solid var(--line2);
+        color: var(--ink3);
+        opacity: 0;
+        transition: opacity 0.13s;
+        display: inline-block;
+        pointer-events: none;
+      }
+      body.meta .sk {
+        opacity: 1;
+      }
+      .sk.always {
+        opacity: 1;
+      }
 
-.app{display:flex;flex-direction:column;height:100vh}
+      .app {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
 
-/* ══ TITLEBAR ═══════════════════════════════════════════════ */
-.titlebar{
-  height:var(--topbar);flex:0 0 auto;display:flex;align-items:center;gap:9px;
-  padding:0 10px 0 82px;background:linear-gradient(180deg,#12171f,#0e131a);
-  border-bottom:1px solid var(--line);position:relative;
-}
-.lights{position:absolute;left:14px;top:13px;display:flex;gap:8px}
-.lights i{width:11px;height:11px;border-radius:50%;display:block}
-.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
-.brand{display:flex;align-items:center;gap:7px;flex:0 0 auto}
-.brand svg{width:17px;height:17px;color:var(--acc)}
-.brand b{font-size:12.5px;font-weight:700;letter-spacing:-.015em}
-.brand b em{font-style:normal;color:var(--acc)}
-.seg{display:flex;background:#0a0e14;border:1px solid var(--line);border-radius:6px;padding:2px;gap:2px;flex:0 0 auto}
-.seg button{height:22px;padding:0 10px;border:0;border-radius:4px;background:transparent;font-family:var(--sans);font-size:11.5px;font-weight:600;color:var(--ink3);cursor:pointer}
-.seg button:hover{color:var(--ink)}
-.seg button[aria-selected=true]{background:var(--d5);color:var(--ink)}
-.omni{
-  flex:1 1 auto;min-width:0;max-width:460px;margin:0 auto;height:25px;display:flex;align-items:center;gap:8px;
-  padding:0 8px;background:#0a0e14;border:1px solid var(--line);border-radius:5px;color:var(--ink3);font-size:11.5px;cursor:text;
-}
-.omni:hover{border-color:var(--line2)}
-.omni>svg{width:13px;height:13px;flex:0 0 auto}
-.omni span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
-.tbr{display:flex;align-items:center;gap:3px;margin-left:auto;flex:0 0 auto}
-.ibtn{width:26px;height:24px;display:grid;place-items:center;border-radius:5px;background:0;border:1px solid transparent;color:var(--ink2);cursor:pointer;position:relative}
-.ibtn:hover{background:var(--d4);color:var(--ink);border-color:var(--line)}
-.ibtn svg{width:14px;height:14px}
+      /* ══ TITLEBAR ═══════════════════════════════════════════════ */
+      .titlebar {
+        height: var(--topbar);
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 10px 0 82px;
+        background: linear-gradient(180deg, #12171f, #0e131a);
+        border-bottom: 1px solid var(--line);
+        position: relative;
+      }
+      .lights {
+        position: absolute;
+        left: 14px;
+        top: 13px;
+        display: flex;
+        gap: 8px;
+      }
+      .lights i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        display: block;
+      }
+      .lights i:nth-child(1) {
+        background: #ff5f57;
+      }
+      .lights i:nth-child(2) {
+        background: #febc2e;
+      }
+      .lights i:nth-child(3) {
+        background: #28c840;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: 0 0 auto;
+      }
+      .brand svg {
+        width: 17px;
+        height: 17px;
+        color: var(--acc);
+      }
+      .brand b {
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+      }
+      .brand b em {
+        font-style: normal;
+        color: var(--acc);
+      }
+      .seg {
+        display: flex;
+        background: #0a0e14;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px;
+        gap: 2px;
+        flex: 0 0 auto;
+      }
+      .seg button {
+        height: 22px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        font-family: var(--sans);
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--ink3);
+        cursor: pointer;
+      }
+      .seg button:hover {
+        color: var(--ink);
+      }
+      .seg button[aria-selected='true'] {
+        background: var(--d5);
+        color: var(--ink);
+      }
+      .omni {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 460px;
+        margin: 0 auto;
+        height: 25px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 8px;
+        background: #0a0e14;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        color: var(--ink3);
+        font-size: 11.5px;
+        cursor: text;
+      }
+      .omni:hover {
+        border-color: var(--line2);
+      }
+      .omni > svg {
+        width: 13px;
+        height: 13px;
+        flex: 0 0 auto;
+      }
+      .omni span {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+      }
+      .tbr {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        margin-left: auto;
+        flex: 0 0 auto;
+      }
+      .ibtn {
+        width: 26px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        border-radius: 5px;
+        background: 0;
+        border: 1px solid transparent;
+        color: var(--ink2);
+        cursor: pointer;
+        position: relative;
+      }
+      .ibtn:hover {
+        background: var(--d4);
+        color: var(--ink);
+        border-color: var(--line);
+      }
+      .ibtn svg {
+        width: 14px;
+        height: 14px;
+      }
 
-/* ══ PATH BAR ═══════════════════════════════════════════════ */
-.pathbar{
-  height:var(--pathbar);flex:0 0 auto;display:flex;align-items:center;gap:7px;
-  padding:0 10px;background:var(--d2);border-bottom:1px solid var(--line);
-}
-.crumbs{display:flex;align-items:center;gap:1px;flex:1;min-width:0;overflow:hidden}
-.crumb{
-  display:flex;align-items:center;gap:5px;height:26px;padding:0 7px;border-radius:5px;flex:0 0 auto;
-  background:transparent;border:1px solid transparent;color:var(--ink2);cursor:pointer;
-  font-family:var(--mono);font-size:11.5px;white-space:nowrap;
-}
-.crumb:hover{background:var(--d4);color:var(--ink);border-color:var(--line)}
-.crumb.root svg{width:13px;height:13px;color:var(--acc)}
-.crumb.here{background:var(--accbg);border-color:var(--accln);color:var(--acc);font-weight:600}
-.crumb .car{width:10px;height:10px;opacity:.5}
-.csepc{color:var(--ink4);font-family:var(--mono);font-size:12px;flex:0 0 auto;padding:0 1px}
-.revpill{
-  display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:5px;flex:0 0 auto;
-  background:var(--d3);border:1px solid var(--line2);color:var(--ink);
-  font-family:var(--mono);font-size:11.5px;cursor:pointer;
-}
-.revpill:hover{border-color:var(--line3)}
-.revpill .at{color:var(--ink4)}
-.revpill b{color:var(--acc);font-weight:600}
-.pbact{
-  height:26px;padding:0 9px;display:flex;align-items:center;gap:6px;flex:0 0 auto;
-  background:var(--d3);border:1px solid var(--line);border-radius:5px;color:var(--ink);
-  font-family:var(--sans);font-size:11.5px;font-weight:600;cursor:pointer;
-}
-.pbact:hover{background:var(--d4);border-color:var(--line2)}
-.pbact svg{width:13px;height:13px;color:var(--ink2)}
-.pbact:hover svg{color:var(--ink)}
-.pbact.pri{background:var(--acc);border-color:var(--acc2);color:#04121f}
-.pbact.pri svg{color:#04121f}
-.pbact.pri:hover{background:var(--acc2)}
+      /* ══ PATH BAR ═══════════════════════════════════════════════ */
+      .pathbar {
+        height: var(--pathbar);
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 10px;
+        background: var(--d2);
+        border-bottom: 1px solid var(--line);
+      }
+      .crumbs {
+        display: flex;
+        align-items: center;
+        gap: 1px;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .crumb {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        height: 26px;
+        padding: 0 7px;
+        border-radius: 5px;
+        flex: 0 0 auto;
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--ink2);
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        white-space: nowrap;
+      }
+      .crumb:hover {
+        background: var(--d4);
+        color: var(--ink);
+        border-color: var(--line);
+      }
+      .crumb.root svg {
+        width: 13px;
+        height: 13px;
+        color: var(--acc);
+      }
+      .crumb.here {
+        background: var(--accbg);
+        border-color: var(--accln);
+        color: var(--acc);
+        font-weight: 600;
+      }
+      .crumb .car {
+        width: 10px;
+        height: 10px;
+        opacity: 0.5;
+      }
+      .csepc {
+        color: var(--ink4);
+        font-family: var(--mono);
+        font-size: 12px;
+        flex: 0 0 auto;
+        padding: 0 1px;
+      }
+      .revpill {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 9px;
+        border-radius: 5px;
+        flex: 0 0 auto;
+        background: var(--d3);
+        border: 1px solid var(--line2);
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 11.5px;
+        cursor: pointer;
+      }
+      .revpill:hover {
+        border-color: var(--line3);
+      }
+      .revpill .at {
+        color: var(--ink4);
+      }
+      .revpill b {
+        color: var(--acc);
+        font-weight: 600;
+      }
+      .pbact {
+        height: 26px;
+        padding: 0 9px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+        background: var(--d3);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 11.5px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .pbact:hover {
+        background: var(--d4);
+        border-color: var(--line2);
+      }
+      .pbact svg {
+        width: 13px;
+        height: 13px;
+        color: var(--ink2);
+      }
+      .pbact:hover svg {
+        color: var(--ink);
+      }
+      .pbact.pri {
+        background: var(--acc);
+        border-color: var(--acc2);
+        color: #04121f;
+      }
+      .pbact.pri svg {
+        color: #04121f;
+      }
+      .pbact.pri:hover {
+        background: var(--acc2);
+      }
 
-/* ══ BODY ═══════════════════════════════════════════════════ */
-.body{flex:1;display:grid;grid-template-columns:var(--rail) minmax(0,1fr) var(--insp);min-height:0}
+      /* ══ BODY ═══════════════════════════════════════════════════ */
+      .body {
+        flex: 1;
+        display: grid;
+        grid-template-columns: var(--rail) minmax(0, 1fr) var(--insp);
+        min-height: 0;
+      }
 
-/* ── LEFT RAIL: how you actually live in a monorepo ── */
-.rail{background:var(--d2);border-right:1px solid var(--line);overflow:auto;padding-bottom:14px}
-.rsec{padding:12px 11px 5px;display:flex;align-items:center;gap:6px}
-.rsec .eyebrow{flex:1}
-.rsec button{background:0;border:0;color:var(--ink4);cursor:pointer;display:grid;place-items:center}
-.rsec button:hover{color:var(--ink2)}
-.rsec svg{width:12px;height:12px}
+      /* ── LEFT RAIL: how you actually live in a monorepo ── */
+      .rail {
+        background: var(--d2);
+        border-right: 1px solid var(--line);
+        overflow: auto;
+        padding-bottom: 14px;
+      }
+      .rsec {
+        padding: 12px 11px 5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .rsec .eyebrow {
+        flex: 1;
+      }
+      .rsec button {
+        background: 0;
+        border: 0;
+        color: var(--ink4);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      .rsec button:hover {
+        color: var(--ink2);
+      }
+      .rsec svg {
+        width: 12px;
+        height: 12px;
+      }
 
-.ritem{
-  display:flex;align-items:center;gap:8px;margin:0 6px 2px;padding:0 8px;height:29px;border-radius:6px;
-  color:var(--ink2);cursor:pointer;font-size:12.5px;border:1px solid transparent;position:relative;
-}
-.ritem:hover{background:var(--d3);color:var(--ink)}
-.ritem.on{background:var(--accbg);border-color:var(--accln);color:var(--acc)}
-.ritem>svg{width:14px;height:14px;flex:0 0 auto;color:var(--ink4)}
-.ritem.on>svg{color:var(--acc)}
-.ritem .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ritem .n small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink4);overflow:hidden;text-overflow:ellipsis}
-.ritem .c{font-family:var(--mono);font-size:10px;color:var(--ink4);flex:0 0 auto}
-.ritem .c.mod{color:var(--mod)}
-.ritem.tall{height:38px}
+      .ritem {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 6px 2px;
+        padding: 0 8px;
+        height: 29px;
+        border-radius: 6px;
+        color: var(--ink2);
+        cursor: pointer;
+        font-size: 12.5px;
+        border: 1px solid transparent;
+        position: relative;
+      }
+      .ritem:hover {
+        background: var(--d3);
+        color: var(--ink);
+      }
+      .ritem.on {
+        background: var(--accbg);
+        border-color: var(--accln);
+        color: var(--acc);
+      }
+      .ritem > svg {
+        width: 14px;
+        height: 14px;
+        flex: 0 0 auto;
+        color: var(--ink4);
+      }
+      .ritem.on > svg {
+        color: var(--acc);
+      }
+      .ritem .n {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ritem .n small {
+        display: block;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink4);
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ritem .c {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+      }
+      .ritem .c.mod {
+        color: var(--mod);
+      }
+      .ritem.tall {
+        height: 38px;
+      }
 
-/* the local-slice dot — the most important glyph in this design */
-.slice{width:9px;height:9px;border-radius:50%;flex:0 0 auto;position:relative}
-.slice.full{background:var(--add);box-shadow:0 0 0 1px rgba(70,185,90,.35)}
-.slice.sparse{background:linear-gradient(90deg,var(--add) 50%,transparent 50%);box-shadow:inset 0 0 0 1px var(--add)}
-.slice.none{background:transparent;box-shadow:inset 0 0 0 1px var(--ink4)}
-.slice.dirty{background:var(--mod);box-shadow:0 0 0 1px rgba(217,161,41,.35)}
+      /* the local-slice dot — the most important glyph in this design */
+      .slice {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+        position: relative;
+      }
+      .slice.full {
+        background: var(--add);
+        box-shadow: 0 0 0 1px rgba(70, 185, 90, 0.35);
+      }
+      .slice.sparse {
+        background: linear-gradient(90deg, var(--add) 50%, transparent 50%);
+        box-shadow: inset 0 0 0 1px var(--add);
+      }
+      .slice.none {
+        background: transparent;
+        box-shadow: inset 0 0 0 1px var(--ink4);
+      }
+      .slice.dirty {
+        background: var(--mod);
+        box-shadow: 0 0 0 1px rgba(217, 161, 41, 0.35);
+      }
 
-.diskbar{margin:6px 11px 0;padding:9px 10px;background:var(--d3);border:1px solid var(--line);border-radius:7px}
-.diskbar .row1{display:flex;align-items:baseline;gap:7px}
-.diskbar .row1 b{font-family:var(--mono);font-size:12px}
-.diskbar .row1 span{font-size:10.5px;color:var(--ink4);margin-left:auto}
-.diskbar .bar{height:4px;border-radius:2px;background:var(--d5);margin-top:7px;overflow:hidden;display:flex}
-.diskbar .bar i{display:block;height:100%}
-.diskbar .legend{display:flex;gap:10px;margin-top:7px;font-size:9.5px;color:var(--ink4)}
-.diskbar .legend span{display:flex;align-items:center;gap:4px}
-.diskbar .legend i{width:6px;height:6px;border-radius:2px}
+      .diskbar {
+        margin: 6px 11px 0;
+        padding: 9px 10px;
+        background: var(--d3);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+      }
+      .diskbar .row1 {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+      }
+      .diskbar .row1 b {
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .diskbar .row1 span {
+        font-size: 10.5px;
+        color: var(--ink4);
+        margin-left: auto;
+      }
+      .diskbar .bar {
+        height: 4px;
+        border-radius: 2px;
+        background: var(--d5);
+        margin-top: 7px;
+        overflow: hidden;
+        display: flex;
+      }
+      .diskbar .bar i {
+        display: block;
+        height: 100%;
+      }
+      .diskbar .legend {
+        display: flex;
+        gap: 10px;
+        margin-top: 7px;
+        font-size: 9.5px;
+        color: var(--ink4);
+      }
+      .diskbar .legend span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .diskbar .legend i {
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+      }
 
-/* ══ COLUMNS (the browser) ══════════════════════════════════ */
-.browser{display:flex;flex-direction:column;min-width:0;background:var(--d1)}
-.bhead{
-  flex:0 0 auto;height:30px;display:flex;align-items:center;gap:8px;padding:0 10px;
-  border-bottom:1px solid var(--line);background:var(--d1);
-}
-.bhead .eyebrow{flex:0 0 auto}
-.bhead .scope{
-  display:flex;align-items:center;gap:6px;height:21px;padding:0 8px;border-radius:99px;
-  background:var(--accbg);border:1px solid var(--accln);color:var(--acc);
-  font-family:var(--mono);font-size:10.5px;cursor:pointer;
-}
-.bhead .scope svg{width:10px;height:10px}
-.bhead .sp{flex:1}
-.bhead .hint{font-size:10.5px;color:var(--ink4)}
+      /* ══ COLUMNS (the browser) ══════════════════════════════════ */
+      .browser {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: var(--d1);
+      }
+      .bhead {
+        flex: 0 0 auto;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--line);
+        background: var(--d1);
+      }
+      .bhead .eyebrow {
+        flex: 0 0 auto;
+      }
+      .bhead .scope {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 21px;
+        padding: 0 8px;
+        border-radius: 99px;
+        background: var(--accbg);
+        border: 1px solid var(--accln);
+        color: var(--acc);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        cursor: pointer;
+      }
+      .bhead .scope svg {
+        width: 10px;
+        height: 10px;
+      }
+      .bhead .sp {
+        flex: 1;
+      }
+      .bhead .hint {
+        font-size: 10.5px;
+        color: var(--ink4);
+      }
 
-.cols{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;min-height:0}
-.col{
-  flex:0 0 var(--colw);display:flex;flex-direction:column;min-width:0;
-  border-right:1px solid var(--line);background:var(--d1);
-}
-.col.wide{flex:0 0 300px}
-.col:last-child{flex:1 0 var(--colw)}
-.colhead{
-  flex:0 0 auto;height:28px;display:flex;align-items:center;gap:7px;padding:0 9px;
-  border-bottom:1px solid var(--line);background:var(--d2);
-}
-.colhead .nm{font-size:11px;font-weight:700;letter-spacing:.02em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.colhead .ct{font-family:var(--mono);font-size:9.5px;color:var(--ink4);flex:0 0 auto}
-.colhead button{background:0;border:0;color:var(--ink4);cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
-.colhead button:hover{color:var(--ink2)}
-.colhead svg{width:12px;height:12px}
-.colfilter{
-  flex:0 0 auto;height:26px;margin:5px 6px;display:flex;align-items:center;gap:6px;padding:0 7px;
-  background:#0a0e14;border:1px solid var(--line);border-radius:5px;
-}
-.colfilter svg{width:11px;height:11px;color:var(--ink4);flex:0 0 auto}
-.colfilter input{flex:1;min-width:0;border:0;background:0;outline:0;color:var(--ink);font-family:var(--mono);font-size:10.5px}
-.colfilter input::placeholder{color:var(--ink4)}
-.colfilter:focus-within{border-color:var(--accln);box-shadow:0 0 0 2px var(--accbg)}
-.collist{flex:1;overflow:auto;padding:0 4px 8px}
-.colfoot{
-  flex:0 0 auto;height:24px;display:flex;align-items:center;gap:7px;padding:0 9px;
-  border-top:1px solid var(--line);background:var(--d2);
-  font-family:var(--mono);font-size:9.5px;color:var(--ink4);
-}
-.colfoot .sp{flex:1}
-.colfoot button{background:0;border:0;color:var(--acc);cursor:pointer;font-family:var(--sans);font-size:10px;font-weight:600}
-.colfoot button:hover{text-decoration:underline}
+      .cols {
+        flex: 1;
+        display: flex;
+        overflow-x: auto;
+        overflow-y: hidden;
+        min-height: 0;
+      }
+      .col {
+        flex: 0 0 var(--colw);
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        border-right: 1px solid var(--line);
+        background: var(--d1);
+      }
+      .col.wide {
+        flex: 0 0 300px;
+      }
+      .col:last-child {
+        flex: 1 0 var(--colw);
+      }
+      .colhead {
+        flex: 0 0 auto;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 9px;
+        border-bottom: 1px solid var(--line);
+        background: var(--d2);
+      }
+      .colhead .nm {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .colhead .ct {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+      }
+      .colhead button {
+        background: 0;
+        border: 0;
+        color: var(--ink4);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+      }
+      .colhead button:hover {
+        color: var(--ink2);
+      }
+      .colhead svg {
+        width: 12px;
+        height: 12px;
+      }
+      .colfilter {
+        flex: 0 0 auto;
+        height: 26px;
+        margin: 5px 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 7px;
+        background: #0a0e14;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+      }
+      .colfilter svg {
+        width: 11px;
+        height: 11px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+      }
+      .colfilter input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        background: 0;
+        outline: 0;
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 10.5px;
+      }
+      .colfilter input::placeholder {
+        color: var(--ink4);
+      }
+      .colfilter:focus-within {
+        border-color: var(--accln);
+        box-shadow: 0 0 0 2px var(--accbg);
+      }
+      .collist {
+        flex: 1;
+        overflow: auto;
+        padding: 0 4px 8px;
+      }
+      .colfoot {
+        flex: 0 0 auto;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 9px;
+        border-top: 1px solid var(--line);
+        background: var(--d2);
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink4);
+      }
+      .colfoot .sp {
+        flex: 1;
+      }
+      .colfoot button {
+        background: 0;
+        border: 0;
+        color: var(--acc);
+        cursor: pointer;
+        font-family: var(--sans);
+        font-size: 10px;
+        font-weight: 600;
+      }
+      .colfoot button:hover {
+        text-decoration: underline;
+      }
 
-.node{
-  display:flex;align-items:center;gap:8px;height:28px;padding:0 7px;border-radius:5px;
-  cursor:pointer;color:var(--ink2);position:relative;
-}
-.node:hover{background:var(--d3);color:var(--ink)}
-.node.on{background:var(--d5);color:var(--ink)}
-.node.path{background:var(--accbg);color:var(--acc)}
-.node.path .ico{color:var(--acc)}
-.node.ghost{opacity:.5}
-.node .ico{width:15px;height:15px;flex:0 0 auto;color:var(--ink4)}
-.node.folder .ico{color:#7d8899}
-.node.project .ico{color:var(--mod)}
-.node.on .ico,.node:hover .ico{color:var(--ink2)}
-.node .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
-.node.project .nm{font-weight:600;color:var(--ink)}
-.node .tail{display:flex;align-items:center;gap:6px;flex:0 0 auto}
-.node .cnt{font-family:var(--mono);font-size:9.5px;color:var(--ink4)}
-.node .chev{width:11px;height:11px;color:var(--ink4);opacity:.6}
-.node.leaf .chev{visibility:hidden}
+      .node {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 28px;
+        padding: 0 7px;
+        border-radius: 5px;
+        cursor: pointer;
+        color: var(--ink2);
+        position: relative;
+      }
+      .node:hover {
+        background: var(--d3);
+        color: var(--ink);
+      }
+      .node.on {
+        background: var(--d5);
+        color: var(--ink);
+      }
+      .node.path {
+        background: var(--accbg);
+        color: var(--acc);
+      }
+      .node.path .ico {
+        color: var(--acc);
+      }
+      .node.ghost {
+        opacity: 0.5;
+      }
+      .node .ico {
+        width: 15px;
+        height: 15px;
+        flex: 0 0 auto;
+        color: var(--ink4);
+      }
+      .node.folder .ico {
+        color: #7d8899;
+      }
+      .node.project .ico {
+        color: var(--mod);
+      }
+      .node.on .ico,
+      .node:hover .ico {
+        color: var(--ink2);
+      }
+      .node .nm {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12.5px;
+      }
+      .node.project .nm {
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .node .tail {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      .node .cnt {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink4);
+      }
+      .node .chev {
+        width: 11px;
+        height: 11px;
+        color: var(--ink4);
+        opacity: 0.6;
+      }
+      .node.leaf .chev {
+        visibility: hidden;
+      }
 
-/* status roll-up: what's changed *underneath* this node */
-.roll{display:flex;align-items:center;gap:3px;flex:0 0 auto}
-.roll i{
-  font-style:normal;font-family:var(--mono);font-size:9px;font-weight:700;
-  padding:0 4px;height:14px;line-height:14px;border-radius:3px;
-}
-.roll i.m{color:var(--mod);background:var(--mod-bg)}
-.roll i.a{color:var(--add);background:var(--add-bg)}
-.roll i.c{color:#fff;background:rgba(242,102,106,.6)}
-.roll i.l{color:var(--ext);background:var(--ext-bg)}
+      /* status roll-up: what's changed *underneath* this node */
+      .roll {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        flex: 0 0 auto;
+      }
+      .roll i {
+        font-style: normal;
+        font-family: var(--mono);
+        font-size: 9px;
+        font-weight: 700;
+        padding: 0 4px;
+        height: 14px;
+        line-height: 14px;
+        border-radius: 3px;
+      }
+      .roll i.m {
+        color: var(--mod);
+        background: var(--mod-bg);
+      }
+      .roll i.a {
+        color: var(--add);
+        background: var(--add-bg);
+      }
+      .roll i.c {
+        color: #fff;
+        background: rgba(242, 102, 106, 0.6);
+      }
+      .roll i.l {
+        color: var(--ext);
+        background: var(--ext-bg);
+      }
 
-.badgep{
-  font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-  padding:1px 5px;border-radius:3px;background:var(--mod-bg);color:var(--mod);
-  border:1px solid var(--mod-ln);flex:0 0 auto;
-}
-.badgep.ext{background:var(--ext-bg);color:var(--ext);border-color:rgba(57,197,207,.3)}
+      .badgep {
+        font-size: 8.5px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: var(--mod-bg);
+        color: var(--mod);
+        border: 1px solid var(--mod-ln);
+        flex: 0 0 auto;
+      }
+      .badgep.ext {
+        background: var(--ext-bg);
+        color: var(--ext);
+        border-color: rgba(57, 197, 207, 0.3);
+      }
 
-.grouplbl{
-  padding:9px 8px 4px;font-size:9px;font-weight:700;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--ink4);display:flex;align-items:center;gap:7px;
-}
-.grouplbl .ln{flex:1;height:1px;background:var(--line)}
+      .grouplbl {
+        padding: 9px 8px 4px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink4);
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .grouplbl .ln {
+        flex: 1;
+        height: 1px;
+        background: var(--line);
+      }
 
-/* file leaf rows in the last column */
-.node.file .ico{color:var(--ink4)}
-.node .sz{font-family:var(--mono);font-size:9.5px;color:var(--ink4);flex:0 0 auto}
+      /* file leaf rows in the last column */
+      .node.file .ico {
+        color: var(--ink4);
+      }
+      .node .sz {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+      }
 
-/* ══ INSPECTOR ══════════════════════════════════════════════ */
-.insp{background:var(--d2);border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:0;overflow:hidden}
-.ihead{flex:0 0 auto;padding:13px 14px 12px;border-bottom:1px solid var(--line)}
-.ihead .kind{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.ihead .kind svg{width:16px;height:16px;color:var(--mod)}
-.ihead .kind .eyebrow{color:var(--mod)}
-.ihead h2{font-size:16px;font-weight:700;letter-spacing:-.02em;line-height:1.2;word-break:break-word}
-.ihead .url{
-  font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:6px;line-height:1.6;word-break:break-all;
-}
-.ihead .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
-.chip2{
-  display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:5px;
-  background:var(--d3);border:1px solid var(--line);font-size:10.5px;color:var(--ink2);
-}
-.chip2.g{background:var(--add-bg);border-color:rgba(70,185,90,.3);color:var(--add)}
-.chip2.y{background:var(--mod-bg);border-color:var(--mod-ln);color:var(--mod)}
-.chip2.r{background:var(--del-bg);border-color:var(--del-ln);color:var(--del)}
+      /* ══ INSPECTOR ══════════════════════════════════════════════ */
+      .insp {
+        background: var(--d2);
+        border-left: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .ihead {
+        flex: 0 0 auto;
+        padding: 13px 14px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .ihead .kind {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .ihead .kind svg {
+        width: 16px;
+        height: 16px;
+        color: var(--mod);
+      }
+      .ihead .kind .eyebrow {
+        color: var(--mod);
+      }
+      .ihead h2 {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        word-break: break-word;
+      }
+      .ihead .url {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--ink4);
+        margin-top: 6px;
+        line-height: 1.6;
+        word-break: break-all;
+      }
+      .ihead .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 10px;
+      }
+      .chip2 {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 7px;
+        border-radius: 5px;
+        background: var(--d3);
+        border: 1px solid var(--line);
+        font-size: 10.5px;
+        color: var(--ink2);
+      }
+      .chip2.g {
+        background: var(--add-bg);
+        border-color: rgba(70, 185, 90, 0.3);
+        color: var(--add);
+      }
+      .chip2.y {
+        background: var(--mod-bg);
+        border-color: var(--mod-ln);
+        color: var(--mod);
+      }
+      .chip2.r {
+        background: var(--del-bg);
+        border-color: var(--del-ln);
+        color: var(--del);
+      }
 
-.ibody{flex:1;overflow:auto;padding:13px 14px}
-.iblock{margin-bottom:16px}
-.iblock>.eyebrow{display:block;margin-bottom:8px}
+      .ibody {
+        flex: 1;
+        overflow: auto;
+        padding: 13px 14px;
+      }
+      .iblock {
+        margin-bottom: 16px;
+      }
+      .iblock > .eyebrow {
+        display: block;
+        margin-bottom: 8px;
+      }
 
-/* project branch switcher */
-.branchrow{
-  display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;margin-bottom:5px;
-  background:var(--d3);border:1px solid var(--line);cursor:pointer;
-}
-.branchrow:hover{border-color:var(--line2);background:var(--d4)}
-.branchrow.cur{border-color:var(--accln);background:var(--accbg)}
-.branchrow>svg{width:14px;height:14px;color:var(--ink4);flex:0 0 auto}
-.branchrow.cur>svg{color:var(--acc)}
-.branchrow .t{flex:1;min-width:0}
-.branchrow .t b{display:block;font-family:var(--mono);font-size:11.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.branchrow .t small{display:block;font-size:10px;color:var(--ink4);margin-top:1px}
-.branchrow .r{font-family:var(--mono);font-size:10px;color:var(--ink4);flex:0 0 auto}
-.branchrow .slice{margin-left:2px}
+      /* project branch switcher */
+      .branchrow {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        margin-bottom: 5px;
+        background: var(--d3);
+        border: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .branchrow:hover {
+        border-color: var(--line2);
+        background: var(--d4);
+      }
+      .branchrow.cur {
+        border-color: var(--accln);
+        background: var(--accbg);
+      }
+      .branchrow > svg {
+        width: 14px;
+        height: 14px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+      }
+      .branchrow.cur > svg {
+        color: var(--acc);
+      }
+      .branchrow .t {
+        flex: 1;
+        min-width: 0;
+      }
+      .branchrow .t b {
+        display: block;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .branchrow .t small {
+        display: block;
+        font-size: 10px;
+        color: var(--ink4);
+        margin-top: 1px;
+      }
+      .branchrow .r {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+      }
+      .branchrow .slice {
+        margin-left: 2px;
+      }
 
-.kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:11.5px}
-.kv dt{color:var(--ink4)}
-.kv dd{font-family:var(--mono);font-size:11px;color:var(--ink2);text-align:right}
-.kv dd.g{color:var(--add)}.kv dd.y{color:var(--mod)}
+      .kv {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 4px 0;
+        font-size: 11.5px;
+      }
+      .kv dt {
+        color: var(--ink4);
+      }
+      .kv dd {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink2);
+        text-align: right;
+      }
+      .kv dd.g {
+        color: var(--add);
+      }
+      .kv dd.y {
+        color: var(--mod);
+      }
 
-.commit{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid var(--line)}
-.commit:last-child{border-bottom:0}
-.commit .av{width:22px;height:22px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:10px;font-weight:700;color:#04121f}
-.commit .t{flex:1;min-width:0}
-.commit .t b{display:block;font-size:12px;font-weight:600;line-height:1.35}
-.commit .t small{display:block;font-size:10.5px;color:var(--ink4);margin-top:2px}
-.commit .r{font-family:var(--mono);font-size:10px;color:var(--acc);flex:0 0 auto}
+      .commit {
+        display: flex;
+        gap: 9px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .commit:last-child {
+        border-bottom: 0;
+      }
+      .commit .av {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        font-size: 10px;
+        font-weight: 700;
+        color: #04121f;
+      }
+      .commit .t {
+        flex: 1;
+        min-width: 0;
+      }
+      .commit .t b {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+      .commit .t small {
+        display: block;
+        font-size: 10.5px;
+        color: var(--ink4);
+        margin-top: 2px;
+      }
+      .commit .r {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--acc);
+        flex: 0 0 auto;
+      }
 
-.ifoot{flex:0 0 auto;padding:11px 14px;border-top:1px solid var(--line);background:var(--d3);display:flex;flex-wrap:wrap;gap:7px}
-.btn{
-  height:29px;padding:0 12px;display:inline-flex;align-items:center;gap:7px;border-radius:6px;
-  background:var(--d2);border:1px solid var(--line2);color:var(--ink);
-  font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;
-}
-.btn:hover{background:var(--d4)}
-.btn svg{width:13px;height:13px}
-.btn.pri{background:var(--acc);border-color:var(--acc2);color:#04121f}
-.btn.pri svg{color:#04121f}
-.btn.pri:hover{background:var(--acc2)}
-.btn.sm{height:24px;padding:0 9px;font-size:11px;border-radius:5px}
-.btn.dang{background:var(--del);border-color:#ff8f93;color:#160a0b}
+      .ifoot {
+        flex: 0 0 auto;
+        padding: 11px 14px;
+        border-top: 1px solid var(--line);
+        background: var(--d3);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .btn {
+        height: 29px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 6px;
+        background: var(--d2);
+        border: 1px solid var(--line2);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn:hover {
+        background: var(--d4);
+      }
+      .btn svg {
+        width: 13px;
+        height: 13px;
+      }
+      .btn.pri {
+        background: var(--acc);
+        border-color: var(--acc2);
+        color: #04121f;
+      }
+      .btn.pri svg {
+        color: #04121f;
+      }
+      .btn.pri:hover {
+        background: var(--acc2);
+      }
+      .btn.sm {
+        height: 24px;
+        padding: 0 9px;
+        font-size: 11px;
+        border-radius: 5px;
+      }
+      .btn.dang {
+        background: var(--del);
+        border-color: #ff8f93;
+        color: #160a0b;
+      }
 
-/* ══ STATUS BAR ═════════════════════════════════════════════ */
-.statusbar{
-  height:24px;flex:0 0 auto;display:flex;align-items:center;background:var(--d2);
-  border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--ink3);
-}
-.statusbar .c{display:flex;align-items:center;gap:6px;padding:0 10px;height:100%;border-right:1px solid var(--line);white-space:nowrap}
-.statusbar .c svg{width:11px;height:11px}
-.statusbar b{color:var(--ink2);font-weight:500}
-.statusbar .sp{flex:1}
-.statusbar .c.last{border-right:0;border-left:1px solid var(--line)}
-.statusbar .g{color:var(--add)}.statusbar .y{color:var(--mod)}
+      /* ══ STATUS BAR ═════════════════════════════════════════════ */
+      .statusbar {
+        height: 24px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        background: var(--d2);
+        border-top: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink3);
+      }
+      .statusbar .c {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        height: 100%;
+        border-right: 1px solid var(--line);
+        white-space: nowrap;
+      }
+      .statusbar .c svg {
+        width: 11px;
+        height: 11px;
+      }
+      .statusbar b {
+        color: var(--ink2);
+        font-weight: 500;
+      }
+      .statusbar .sp {
+        flex: 1;
+      }
+      .statusbar .c.last {
+        border-right: 0;
+        border-left: 1px solid var(--line);
+      }
+      .statusbar .g {
+        color: var(--add);
+      }
+      .statusbar .y {
+        color: var(--mod);
+      }
 
-/* ══ CONTEXT MENU ═══════════════════════════════════════════ */
-.ctx{
-  position:fixed;z-index:800;min-width:262px;padding:4px;
-  background:rgba(22,27,34,.97);backdrop-filter:blur(14px) saturate(140%);
-  border:1px solid var(--line2);border-radius:8px;
-  box-shadow:0 24px 60px -12px rgba(1,4,9,.92),0 0 0 1px rgba(0,0,0,.5);
-  animation:ctxin .1s cubic-bezier(.25,1,.5,1);
-}
-@keyframes ctxin{from{opacity:0;transform:scale(.97) translateY(-3px)}to{opacity:1;transform:none}}
-.ctx .hd{display:flex;align-items:center;gap:8px;padding:6px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:3px}
-.ctx .hd>svg{width:15px;height:15px;color:var(--mod);flex:0 0 auto}
-.ctx .hd .t{flex:1;min-width:0}
-.ctx .hd b{display:block;font-size:12px;font-weight:600}
-.ctx .hd span{font-family:var(--mono);font-size:9.5px;color:var(--ink4);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
-.ctx .lbl{padding:6px 8px 3px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4)}
-.ci{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:5px;font-size:12.5px;color:var(--ink);cursor:pointer;position:relative}
-.ci:hover{background:var(--acc);color:#04121f}
-.ci:hover>svg,.ci:hover .sc{color:rgba(4,18,31,.7)}
-.ci>svg{width:14px;height:14px;color:var(--ink3);flex:0 0 auto}
-.ci .t{flex:1;min-width:0}
-.ci .sc{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink4);flex:0 0 auto}
-.ci.danger{color:var(--del)}
-.ci.danger>svg{color:var(--del)}
-.ci.danger:hover{background:var(--del);color:#160a0b}
-.ci.danger:hover>svg{color:#160a0b}
-.csep{height:1px;background:var(--line);margin:3px 6px}
-.ci.has-sub:hover .sub{display:block}
-.sub{
-  display:none;position:absolute;left:calc(100% - 3px);top:-5px;min-width:210px;padding:4px;
-  background:rgba(22,27,34,.98);backdrop-filter:blur(14px);
-  border:1px solid var(--line2);border-radius:8px;box-shadow:0 20px 48px -12px rgba(1,4,9,.9);
-}
+      /* ══ CONTEXT MENU ═══════════════════════════════════════════ */
+      .ctx {
+        position: fixed;
+        z-index: 800;
+        min-width: 262px;
+        padding: 4px;
+        background: rgba(22, 27, 34, 0.97);
+        backdrop-filter: blur(14px) saturate(140%);
+        border: 1px solid var(--line2);
+        border-radius: 8px;
+        box-shadow:
+          0 24px 60px -12px rgba(1, 4, 9, 0.92),
+          0 0 0 1px rgba(0, 0, 0, 0.5);
+        animation: ctxin 0.1s cubic-bezier(0.25, 1, 0.5, 1);
+      }
+      @keyframes ctxin {
+        from {
+          opacity: 0;
+          transform: scale(0.97) translateY(-3px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .ctx .hd {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px 8px;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 3px;
+      }
+      .ctx .hd > svg {
+        width: 15px;
+        height: 15px;
+        color: var(--mod);
+        flex: 0 0 auto;
+      }
+      .ctx .hd .t {
+        flex: 1;
+        min-width: 0;
+      }
+      .ctx .hd b {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .ctx .hd span {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink4);
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        direction: rtl;
+        text-align: left;
+      }
+      .ctx .lbl {
+        padding: 6px 8px 3px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink4);
+      }
+      .ci {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 8px;
+        border-radius: 5px;
+        font-size: 12.5px;
+        color: var(--ink);
+        cursor: pointer;
+        position: relative;
+      }
+      .ci:hover {
+        background: var(--acc);
+        color: #04121f;
+      }
+      .ci:hover > svg,
+      .ci:hover .sc {
+        color: rgba(4, 18, 31, 0.7);
+      }
+      .ci > svg {
+        width: 14px;
+        height: 14px;
+        color: var(--ink3);
+        flex: 0 0 auto;
+      }
+      .ci .t {
+        flex: 1;
+        min-width: 0;
+      }
+      .ci .sc {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+      }
+      .ci.danger {
+        color: var(--del);
+      }
+      .ci.danger > svg {
+        color: var(--del);
+      }
+      .ci.danger:hover {
+        background: var(--del);
+        color: #160a0b;
+      }
+      .ci.danger:hover > svg {
+        color: #160a0b;
+      }
+      .csep {
+        height: 1px;
+        background: var(--line);
+        margin: 3px 6px;
+      }
+      .ci.has-sub:hover .sub {
+        display: block;
+      }
+      .sub {
+        display: none;
+        position: absolute;
+        left: calc(100% - 3px);
+        top: -5px;
+        min-width: 210px;
+        padding: 4px;
+        background: rgba(22, 27, 34, 0.98);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--line2);
+        border-radius: 8px;
+        box-shadow: 0 20px 48px -12px rgba(1, 4, 9, 0.9);
+      }
 
-/* ══ OVERLAYS ═══════════════════════════════════════════════ */
-.scrim{position:fixed;inset:0;z-index:900;background:rgba(4,7,11,.66);backdrop-filter:blur(3px);display:grid;animation:fade .14s ease-out}
-.scrim[hidden]{display:none}
-@keyframes fade{from{opacity:0}to{opacity:1}}
+      /* ══ OVERLAYS ═══════════════════════════════════════════════ */
+      .scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 900;
+        background: rgba(4, 7, 11, 0.66);
+        backdrop-filter: blur(3px);
+        display: grid;
+        animation: fade 0.14s ease-out;
+      }
+      .scrim[hidden] {
+        display: none;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
 
-/* ⌘P — the path jumper. The primary way you move in a monorepo. */
-.jumper{
-  width:min(660px,94vw);margin:8vh auto auto;background:rgba(17,22,29,.96);
-  backdrop-filter:blur(24px) saturate(150%);border:1px solid var(--line2);border-radius:10px;
-  overflow:hidden;box-shadow:0 40px 90px -20px rgba(1,4,9,.95),inset 0 1px 0 rgba(255,255,255,.05);
-  animation:pop .16s cubic-bezier(.25,1,.5,1);
-}
-@keyframes pop{from{opacity:0;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:none}}
-.jin{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
-.jin>svg{width:16px;height:16px;color:var(--acc)}
-.jin input{flex:1;min-width:0;background:0;border:0;outline:0;color:var(--ink);font-family:var(--mono);font-size:14px}
-.jin input::placeholder{color:var(--ink4);font-family:var(--sans)}
-.jscope{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--accbg);color:var(--acc);border:1px solid var(--accln);flex:0 0 auto}
-.jbody{max-height:min(440px,58vh);overflow:auto;padding:5px}
-.jgrp{padding:8px 8px 3px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4)}
-.ji{display:flex;align-items:center;gap:11px;padding:7px 9px;border-radius:6px;cursor:pointer;border:1px solid transparent}
-.ji:hover,.ji.act{background:var(--accbg);border-color:var(--accln)}
-.ji>svg{width:15px;height:15px;flex:0 0 auto;color:var(--ink4)}
-.ji.proj>svg{color:var(--mod)}
-.ji .t{flex:1;min-width:0}
-.ji .t b{display:block;font-size:12.5px;font-weight:600}
-.ji .t b mark{background:transparent;color:var(--acc);font-weight:700}
-.ji .t small{display:block;font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
-.ji .tail{display:flex;align-items:center;gap:7px;flex:0 0 auto}
-.jfoot{display:flex;gap:14px;padding:7px 12px;border-top:1px solid var(--line);background:rgba(10,13,18,.6);font-size:10.5px;color:var(--ink4);flex-wrap:wrap}
-.jfoot b{font-family:var(--mono);color:var(--ink3);font-weight:500}
+      /* ⌘P — the path jumper. The primary way you move in a monorepo. */
+      .jumper {
+        width: min(660px, 94vw);
+        margin: 8vh auto auto;
+        background: rgba(17, 22, 29, 0.96);
+        backdrop-filter: blur(24px) saturate(150%);
+        border: 1px solid var(--line2);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow:
+          0 40px 90px -20px rgba(1, 4, 9, 0.95),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        animation: pop 0.16s cubic-bezier(0.25, 1, 0.5, 1);
+      }
+      @keyframes pop {
+        from {
+          opacity: 0;
+          transform: translateY(-10px) scale(0.985);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .jin {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .jin > svg {
+        width: 16px;
+        height: 16px;
+        color: var(--acc);
+      }
+      .jin input {
+        flex: 1;
+        min-width: 0;
+        background: 0;
+        border: 0;
+        outline: 0;
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 14px;
+      }
+      .jin input::placeholder {
+        color: var(--ink4);
+        font-family: var(--sans);
+      }
+      .jscope {
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: var(--accbg);
+        color: var(--acc);
+        border: 1px solid var(--accln);
+        flex: 0 0 auto;
+      }
+      .jbody {
+        max-height: min(440px, 58vh);
+        overflow: auto;
+        padding: 5px;
+      }
+      .jgrp {
+        padding: 8px 8px 3px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink4);
+      }
+      .ji {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 7px 9px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .ji:hover,
+      .ji.act {
+        background: var(--accbg);
+        border-color: var(--accln);
+      }
+      .ji > svg {
+        width: 15px;
+        height: 15px;
+        flex: 0 0 auto;
+        color: var(--ink4);
+      }
+      .ji.proj > svg {
+        color: var(--mod);
+      }
+      .ji .t {
+        flex: 1;
+        min-width: 0;
+      }
+      .ji .t b {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .ji .t b mark {
+        background: transparent;
+        color: var(--acc);
+        font-weight: 700;
+      }
+      .ji .t small {
+        display: block;
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--ink4);
+        margin-top: 1px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        direction: rtl;
+        text-align: left;
+      }
+      .ji .tail {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: 0 0 auto;
+      }
+      .jfoot {
+        display: flex;
+        gap: 14px;
+        padding: 7px 12px;
+        border-top: 1px solid var(--line);
+        background: rgba(10, 13, 18, 0.6);
+        font-size: 10.5px;
+        color: var(--ink4);
+        flex-wrap: wrap;
+      }
+      .jfoot b {
+        font-family: var(--mono);
+        color: var(--ink3);
+        font-weight: 500;
+      }
 
-/* checkout / sparse dialog — the monorepo working-set editor */
-.modal{
-  width:min(760px,94vw);max-height:88vh;margin:auto;display:flex;flex-direction:column;
-  background:var(--d2);border:1px solid var(--line2);border-radius:10px;overflow:hidden;
-  box-shadow:0 40px 100px -24px rgba(1,4,9,.95),inset 0 1px 0 rgba(255,255,255,.05);
-  animation:pop .18s cubic-bezier(.25,1,.5,1);
-}
-.mhead{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--d3)}
-.mhead .ic{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;flex:0 0 auto;background:var(--accbg);color:var(--acc);border:1px solid var(--accln)}
-.mhead .ic svg{width:15px;height:15px}
-.mhead .t{flex:1;min-width:0}
-.mhead h2{font-size:14px;font-weight:700;letter-spacing:-.015em}
-.mhead p{font-family:var(--mono);font-size:10.5px;color:var(--ink4);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mbody{flex:1;overflow:auto;padding:14px 16px}
-.field{margin-bottom:14px}
-.field>label{display:block;margin-bottom:7px}
-.inp{
-  width:100%;height:30px;padding:0 10px;border-radius:6px;background:#0a0e14;
-  border:1px solid var(--line);color:var(--ink);font-family:var(--mono);font-size:11.5px;
-}
-.inp:focus{outline:0;border-color:var(--accln);box-shadow:0 0 0 3px var(--accbg)}
-.depthgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.depth{
-  display:flex;align-items:flex-start;gap:9px;padding:10px 11px;border-radius:7px;
-  background:var(--d3);border:1px solid var(--line);cursor:pointer;
-}
-.depth:hover{border-color:var(--line2)}
-.depth.on{border-color:var(--accln);background:var(--accbg)}
-.depth .r{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--line3);flex:0 0 auto;margin-top:2px;position:relative}
-.depth.on .r{border-color:var(--acc)}
-.depth.on .r::after{content:'';position:absolute;inset:2.5px;border-radius:50%;background:var(--acc)}
-.depth .t b{display:block;font-size:12px;font-weight:600}
-.depth .t small{display:block;font-size:10.5px;color:var(--ink4);margin-top:2px;line-height:1.45}
-.depth .t .sz{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:4px;display:block}
+      /* checkout / sparse dialog — the monorepo working-set editor */
+      .modal {
+        width: min(760px, 94vw);
+        max-height: 88vh;
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+        background: var(--d2);
+        border: 1px solid var(--line2);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow:
+          0 40px 100px -24px rgba(1, 4, 9, 0.95),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        animation: pop 0.18s cubic-bezier(0.25, 1, 0.5, 1);
+      }
+      .mhead {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        background: var(--d3);
+      }
+      .mhead .ic {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        background: var(--accbg);
+        color: var(--acc);
+        border: 1px solid var(--accln);
+      }
+      .mhead .ic svg {
+        width: 15px;
+        height: 15px;
+      }
+      .mhead .t {
+        flex: 1;
+        min-width: 0;
+      }
+      .mhead h2 {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+      }
+      .mhead p {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink4);
+        margin-top: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .mbody {
+        flex: 1;
+        overflow: auto;
+        padding: 14px 16px;
+      }
+      .field {
+        margin-bottom: 14px;
+      }
+      .field > label {
+        display: block;
+        margin-bottom: 7px;
+      }
+      .inp {
+        width: 100%;
+        height: 30px;
+        padding: 0 10px;
+        border-radius: 6px;
+        background: #0a0e14;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 11.5px;
+      }
+      .inp:focus {
+        outline: 0;
+        border-color: var(--accln);
+        box-shadow: 0 0 0 3px var(--accbg);
+      }
+      .depthgrid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+      .depth {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 10px 11px;
+        border-radius: 7px;
+        background: var(--d3);
+        border: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .depth:hover {
+        border-color: var(--line2);
+      }
+      .depth.on {
+        border-color: var(--accln);
+        background: var(--accbg);
+      }
+      .depth .r {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        border: 1.5px solid var(--line3);
+        flex: 0 0 auto;
+        margin-top: 2px;
+        position: relative;
+      }
+      .depth.on .r {
+        border-color: var(--acc);
+      }
+      .depth.on .r::after {
+        content: '';
+        position: absolute;
+        inset: 2.5px;
+        border-radius: 50%;
+        background: var(--acc);
+      }
+      .depth .t b {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .depth .t small {
+        display: block;
+        font-size: 10.5px;
+        color: var(--ink4);
+        margin-top: 2px;
+        line-height: 1.45;
+      }
+      .depth .t .sz {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--ink3);
+        margin-top: 4px;
+        display: block;
+      }
 
-.wstable{border:1px solid var(--line);border-radius:7px;overflow:hidden}
-.wsh{display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--d3);border-bottom:1px solid var(--line)}
-.wsh .eyebrow{flex:1}
-.wsr{display:flex;align-items:center;gap:9px;padding:8px 10px;border-bottom:1px solid rgba(240,246,252,.035)}
-.wsr:last-child{border-bottom:0}
-.wsr .p{flex:1;min-width:0;font-family:var(--mono);font-size:11px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wsr .p b{color:var(--ink);font-weight:500}
-.wsr select{
-  height:23px;background:var(--d3);border:1px solid var(--line2);border-radius:5px;color:var(--ink);
-  font-family:var(--mono);font-size:10.5px;padding:0 5px;flex:0 0 auto;
-}
-.wsr .sz{font-family:var(--mono);font-size:10px;color:var(--ink4);flex:0 0 auto;width:52px;text-align:right}
-.mfoot{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid var(--line);background:var(--d3)}
-.mfoot .note{flex:1;font-size:11px;color:var(--ink4)}
-.mfoot .note b{color:var(--ink2)}
+      .wstable {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        overflow: hidden;
+      }
+      .wsh {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 10px;
+        background: var(--d3);
+        border-bottom: 1px solid var(--line);
+      }
+      .wsh .eyebrow {
+        flex: 1;
+      }
+      .wsr {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(240, 246, 252, 0.035);
+      }
+      .wsr:last-child {
+        border-bottom: 0;
+      }
+      .wsr .p {
+        flex: 1;
+        min-width: 0;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink2);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .wsr .p b {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .wsr select {
+        height: 23px;
+        background: var(--d3);
+        border: 1px solid var(--line2);
+        border-radius: 5px;
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        padding: 0 5px;
+        flex: 0 0 auto;
+      }
+      .wsr .sz {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--ink4);
+        flex: 0 0 auto;
+        width: 52px;
+        text-align: right;
+      }
+      .mfoot {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 14px;
+        border-top: 1px solid var(--line);
+        background: var(--d3);
+      }
+      .mfoot .note {
+        flex: 1;
+        font-size: 11px;
+        color: var(--ink4);
+      }
+      .mfoot .note b {
+        color: var(--ink2);
+      }
 
-.protonote{
-  position:fixed;left:50%;transform:translateX(-50%);bottom:30px;z-index:990;
-  display:flex;align-items:center;gap:9px;padding:5px 13px;border-radius:99px;
-  background:rgba(10,13,18,.94);backdrop-filter:blur(10px);border:1px solid var(--line2);
-  font-size:10.5px;color:var(--ink3);white-space:nowrap;
-}
-.protonote b{color:var(--acc);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:9.5px}
-.protonote kbd{font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:4px;background:var(--d4);border:1px solid var(--line2);color:var(--ink2)}
-</style>
-</head>
-<body>
+      .protonote {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 30px;
+        z-index: 990;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 13px;
+        border-radius: 99px;
+        background: rgba(10, 13, 18, 0.94);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--line2);
+        font-size: 10.5px;
+        color: var(--ink3);
+        white-space: nowrap;
+      }
+      .protonote b {
+        color: var(--acc);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-size: 9.5px;
+      }
+      .protonote kbd {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--d4);
+        border: 1px solid var(--line2);
+        color: var(--ink2);
+      }
+    </style>
+  </head>
+  <body>
+    <svg style="display: none" xmlns="http://www.w3.org/2000/svg">
+      <symbol
+        id="i-shell"
+        viewBox="0 0 48 48"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+      >
+        <circle cx="24" cy="24" r="20" fill="currentColor" fill-opacity=".14" />
+        <path d="M16 16s4-4 8-4 8 4 8 8-4 8-8 8-6-2-6-4 2-4 4-4" opacity=".8" />
+        <path d="M24 20v12M18 24h12" opacity=".38" stroke-width="1.8" />
+      </symbol>
+      <symbol
+        id="i-folder"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      </symbol>
+      <symbol
+        id="i-folderopen"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H5.5L3 18Z" />
+        <path d="M3 18l2.5-8H22l-2.6 8Z" />
+      </symbol>
+      <symbol
+        id="i-cube"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 2.8 20.5 7v10L12 21.2 3.5 17V7Z" />
+        <path d="M3.5 7 12 11.4 20.5 7M12 11.4v9.8" />
+      </symbol>
+      <symbol
+        id="i-file"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+        <path d="M14 3v5h5" />
+      </symbol>
+      <symbol
+        id="i-branch"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="6" cy="4" r="2" />
+        <circle cx="6" cy="20" r="2" />
+        <circle cx="18" cy="8" r="2" />
+        <path d="M6 6v12M18 10c0 4-6 3-6 8" />
+      </symbol>
+      <symbol
+        id="i-tag"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M20 13.5 13.5 20a2 2 0 0 1-3 0L4 13.5V4h9.5L20 10.5a2 2 0 0 1 0 3Z" />
+        <circle cx="9" cy="9" r="1.6" />
+      </symbol>
+      <symbol
+        id="i-star"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m12 3.6 2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.8l5.9-.9Z" />
+      </symbol>
+      <symbol
+        id="i-clock"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l4 2" />
+      </symbol>
+      <symbol
+        id="i-down"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+      </symbol>
+      <symbol
+        id="i-search"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.6-3.6" />
+      </symbol>
+      <symbol
+        id="i-chev"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m9 6 6 6-6 6" />
+      </symbol>
+      <symbol
+        id="i-chevd"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m6 9 6 6 6-6" />
+      </symbol>
+      <symbol
+        id="i-plus"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+      >
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol
+        id="i-copy"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="9" y="9" width="12" height="12" rx="2.4" />
+        <path d="M5 15V5a2 2 0 0 1 2-2h8" />
+      </symbol>
+      <symbol
+        id="i-ext"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+      </symbol>
+      <symbol
+        id="i-hist"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l4 2" />
+      </symbol>
+      <symbol
+        id="i-diff"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 3v18M5 8h14M5 16h14" />
+      </symbol>
+      <symbol
+        id="i-cog"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2" />
+      </symbol>
+      <symbol
+        id="i-x"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <path d="M6 6l12 12M18 6 6 18" />
+      </symbol>
+      <symbol
+        id="i-refresh"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />
+      </symbol>
+      <symbol
+        id="i-trash"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+      </symbol>
+      <symbol
+        id="i-user"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+      </symbol>
+      <symbol
+        id="i-lock"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="4" y="10" width="16" height="11" rx="2.4" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </symbol>
+      <symbol
+        id="i-disk"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <ellipse cx="12" cy="6" rx="8" ry="3" />
+        <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+        <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+      </symbol>
+      <symbol
+        id="i-layers"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m12 3 9 5-9 5-9-5Z" />
+        <path d="m3 13 9 5 9-5" />
+      </symbol>
+      <symbol
+        id="i-warn"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 4 3 20h18Z" />
+        <path d="M12 10v5m0 3v.4" />
+      </symbol>
+      <symbol
+        id="i-check"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m4 12 5 5L20 6" />
+      </symbol>
+      <symbol
+        id="i-scissors"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="6" cy="6" r="2.5" />
+        <circle cx="6" cy="18" r="2.5" />
+        <path d="M8 8l12 10M20 6 8 16" />
+      </symbol>
+    </svg>
 
-<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
-  <symbol id="i-shell" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="24" cy="24" r="20" fill="currentColor" fill-opacity=".14"/><path d="M16 16s4-4 8-4 8 4 8 8-4 8-8 8-6-2-6-4 2-4 4-4" opacity=".8"/><path d="M24 20v12M18 24h12" opacity=".38" stroke-width="1.8"/></symbol>
-  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
-  <symbol id="i-folderopen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1H5.5L3 18Z"/><path d="M3 18l2.5-8H22l-2.6 8Z"/></symbol>
-  <symbol id="i-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 20.5 7v10L12 21.2 3.5 17V7Z"/><path d="M3.5 7 12 11.4 20.5 7M12 11.4v9.8"/></symbol>
-  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></symbol>
-  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 6v12M18 10c0 4-6 3-6 8"/></symbol>
-  <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5 13.5 20a2 2 0 0 1-3 0L4 13.5V4h9.5L20 10.5a2 2 0 0 1 0 3Z"/><circle cx="9" cy="9" r="1.6"/></symbol>
-  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.6 2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.8l5.9-.9Z"/></symbol>
-  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
-  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
-  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
-  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
-  <symbol id="i-chevd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
-  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
-  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.4"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></symbol>
-  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
-  <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
-  <symbol id="i-diff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/></symbol>
-  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/></symbol>
-  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
-  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></symbol>
-  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
-  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></symbol>
-  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.4"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
-  <symbol id="i-disk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
-  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
-  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 20h18Z"/><path d="M12 10v5m0 3v.4"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></symbol>
-  <symbol id="i-scissors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 8l12 10M20 6 8 16"/></symbol>
-</svg>
-
-<div class="app">
-
-  <!-- ══ TITLEBAR ══ -->
-  <header class="titlebar">
-    <div class="lights"><i></i><i></i><i></i></div>
-    <div class="brand"><svg><use href="#i-shell"/></svg><b>Shelly<em>SVN</em></b></div>
-    <div class="seg">
-      <button aria-selected="false">Changes</button>
-      <button aria-selected="true">Browse</button>
-      <button aria-selected="false">History</button>
-      <button aria-selected="false">Locks</button>
-    </div>
-    <div class="omni" id="omni">
-      <svg><use href="#i-search"/></svg>
-      <span>Jump to a project, client or path — try “acm web”</span>
-      <span class="sk always">⌘P</span>
-    </div>
-    <div class="tbr">
-      <button class="ibtn" title="Search file contents"><svg><use href="#i-search"/></svg></button>
-      <button class="ibtn" title="Refresh"><svg><use href="#i-refresh"/></svg></button>
-      <button class="ibtn" title="Settings"><svg><use href="#i-cog"/></svg></button>
-    </div>
-  </header>
-
-  <!-- ══ PATH BAR ══ -->
-  <div class="pathbar">
-    <nav class="crumbs">
-      <button class="crumb root"><svg><use href="#i-cube"/></svg>atlas<svg class="car"><use href="#i-chevd"/></svg></button>
-      <span class="csepc">/</span>
-      <button class="crumb">clients<svg class="car"><use href="#i-chevd"/></svg></button>
-      <span class="csepc">/</span>
-      <button class="crumb">acme-corp<svg class="car"><use href="#i-chevd"/></svg></button>
-      <span class="csepc">/</span>
-      <button class="crumb">website<svg class="car"><use href="#i-chevd"/></svg></button>
-      <span class="csepc">/</span>
-      <button class="crumb here">trunk<svg class="car"><use href="#i-chevd"/></svg></button>
-    </nav>
-    <button class="revpill"><span class="at">@</span><b>HEAD</b> r4838 <svg style="width:10px;height:10px;opacity:.5"><use href="#i-chevd"/></svg></button>
-    <button class="pbact"><svg><use href="#i-hist"/></svg>Log</button>
-    <button class="pbact"><svg><use href="#i-diff"/></svg>Compare</button>
-    <button class="pbact pri" data-open="checkout"><svg><use href="#i-down"/></svg>Check out</button>
-  </div>
-
-  <!-- ══ BODY ══ -->
-  <div class="body">
-
-    <!-- ── LEFT RAIL ── -->
-    <aside class="rail">
-      <div class="rsec"><span class="eyebrow">Your working copies</span><button title="Add"><svg><use href="#i-plus"/></svg></button></div>
-      <div class="ritem tall on">
-        <span class="slice dirty"></span>
-        <span class="n">acme website<small>clients/acme-corp/website/trunk</small></span>
-        <span class="c mod">12</span>
-      </div>
-      <div class="ritem tall">
-        <span class="slice full"></span>
-        <span class="n">shelly-svn<small>internal/tooling/shelly-svn/trunk</small></span>
-      </div>
-      <div class="ritem tall">
-        <span class="slice sparse"></span>
-        <span class="n">brand-system<small>internal/brand-system (sparse)</small></span>
-        <span class="c mod">3</span>
-      </div>
-
-      <div class="diskbar">
-        <div class="row1"><b>18.4 GB</b><span>of 2.1 TB repo</span></div>
-        <div class="bar">
-          <i style="width:52%;background:var(--add)"></i>
-          <i style="width:16%;background:rgba(70,185,90,.4)"></i>
-          <i style="flex:1;background:var(--d5)"></i>
+    <div class="app">
+      <!-- ══ TITLEBAR ══ -->
+      <header class="titlebar">
+        <div class="lights"><i></i><i></i><i></i></div>
+        <div class="brand">
+          <svg><use href="#i-shell" /></svg><b>Shelly<em>SVN</em></b>
         </div>
-        <div class="legend">
-          <span><i style="background:var(--add)"></i>full</span>
-          <span><i style="background:rgba(70,185,90,.4)"></i>sparse</span>
-          <span><i style="background:var(--d5)"></i>not fetched</span>
+        <div class="seg">
+          <button aria-selected="false">Changes</button>
+          <button aria-selected="true">Browse</button>
+          <button aria-selected="false">History</button>
+          <button aria-selected="false">Locks</button>
         </div>
+        <div class="omni" id="omni">
+          <svg><use href="#i-search" /></svg>
+          <span>Jump to a project, client or path — try “acm web”</span>
+          <span class="sk always">⌘P</span>
+        </div>
+        <div class="tbr">
+          <button class="ibtn" title="Search file contents">
+            <svg><use href="#i-search" /></svg>
+          </button>
+          <button class="ibtn" title="Refresh">
+            <svg><use href="#i-refresh" /></svg>
+          </button>
+          <button class="ibtn" title="Settings">
+            <svg><use href="#i-cog" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- ══ PATH BAR ══ -->
+      <div class="pathbar">
+        <nav class="crumbs">
+          <button class="crumb root">
+            <svg><use href="#i-cube" /></svg>atlas<svg class="car"><use href="#i-chevd" /></svg>
+          </button>
+          <span class="csepc">/</span>
+          <button class="crumb">
+            clients<svg class="car"><use href="#i-chevd" /></svg>
+          </button>
+          <span class="csepc">/</span>
+          <button class="crumb">
+            acme-corp<svg class="car"><use href="#i-chevd" /></svg>
+          </button>
+          <span class="csepc">/</span>
+          <button class="crumb">
+            website<svg class="car"><use href="#i-chevd" /></svg>
+          </button>
+          <span class="csepc">/</span>
+          <button class="crumb here">
+            trunk<svg class="car"><use href="#i-chevd" /></svg>
+          </button>
+        </nav>
+        <button class="revpill">
+          <span class="at">@</span><b>HEAD</b> r4838
+          <svg style="width: 10px; height: 10px; opacity: 0.5"><use href="#i-chevd" /></svg>
+        </button>
+        <button class="pbact">
+          <svg><use href="#i-hist" /></svg>Log
+        </button>
+        <button class="pbact">
+          <svg><use href="#i-diff" /></svg>Compare
+        </button>
+        <button class="pbact pri" data-open="checkout">
+          <svg><use href="#i-down" /></svg>Check out
+        </button>
       </div>
 
-      <div class="rsec"><span class="eyebrow">Bookmarks</span><button title="Add"><svg><use href="#i-plus"/></svg></button></div>
-      <div class="ritem"><svg><use href="#i-star"/></svg><span class="n">acme-corp</span><span class="c">3</span></div>
-      <div class="ritem"><svg><use href="#i-star"/></svg><span class="n">shared/components</span></div>
-      <div class="ritem"><svg><use href="#i-star"/></svg><span class="n">internal/tooling</span><span class="c">9</span></div>
-      <div class="ritem"><svg><use href="#i-star"/></svg><span class="n">umbrella-health/portal</span></div>
-
-      <div class="rsec"><span class="eyebrow">Recent</span></div>
-      <div class="ritem"><svg><use href="#i-clock"/></svg><span class="n">globex/intranet/trunk</span></div>
-      <div class="ritem"><svg><use href="#i-clock"/></svg><span class="n">initech/print-portal</span></div>
-      <div class="ritem"><svg><use href="#i-clock"/></svg><span class="n">internal/design-ops</span></div>
-      <div class="ritem"><svg><use href="#i-clock"/></svg><span class="n">shared/legal-templates</span></div>
-
-      <div class="rsec"><span class="eyebrow">Saved searches</span></div>
-      <div class="ritem"><svg><use href="#i-search"/></svg><span class="n">My open locks</span><span class="c">2</span></div>
-      <div class="ritem"><svg><use href="#i-search"/></svg><span class="n">Projects I touched (30d)</span><span class="c">7</span></div>
-      <div class="ritem"><svg><use href="#i-search"/></svg><span class="n">Stale branches &gt; 6mo</span><span class="c">41</span></div>
-    </aside>
-
-    <!-- ── MILLER COLUMNS ── -->
-    <section class="browser">
-      <div class="bhead">
-        <span class="eyebrow">Repository browser</span>
-        <button class="scope"><svg><use href="#i-layers"/></svg>scope: clients/acme-corp<svg style="width:9px;height:9px"><use href="#i-x"/></svg></button>
-        <span class="sp"></span>
-        <span class="hint">Depth is horizontal — arrow keys walk the tree</span>
-      </div>
-
-      <div class="cols" id="cols">
-
-        <!-- column 1: repo root -->
-        <div class="col">
-          <div class="colhead"><span class="nm">atlas</span><span class="ct">4</span><button><svg><use href="#i-search"/></svg></button></div>
-          <div class="collist">
-            <div class="node folder path" data-name="clients" data-path="clients">
-              <svg class="ico"><use href="#i-folderopen"/></svg>
-              <span class="nm">clients</span>
-              <span class="tail"><span class="roll"><i class="m">12M</i><i class="c">1C</i></span><span class="cnt">51</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder" data-name="internal" data-path="internal">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">internal</span>
-              <span class="tail"><span class="roll"><i class="m">3M</i></span><span class="cnt">6</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder" data-name="shared" data-path="shared">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">shared</span>
-              <span class="tail"><span class="roll"><i class="l">ext</i></span><span class="cnt">3</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder ghost" data-name="archive" data-path="archive">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">archive</span>
-              <span class="tail"><span class="slice none"></span><span class="cnt">380</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
+      <!-- ══ BODY ══ -->
+      <div class="body">
+        <!-- ── LEFT RAIL ── -->
+        <aside class="rail">
+          <div class="rsec">
+            <span class="eyebrow">Your working copies</span
+            ><button title="Add">
+              <svg><use href="#i-plus" /></svg>
+            </button>
           </div>
-          <div class="colfoot"><span>4 folders</span></div>
-        </div>
-
-        <!-- column 2: clients (the big one) -->
-        <div class="col wide">
-          <div class="colhead"><span class="nm">clients</span><span class="ct">51</span><button><svg><use href="#i-cog"/></svg></button></div>
-          <div class="colfilter"><svg><use href="#i-search"/></svg><input placeholder="filter 51 clients…" value="ac" /></div>
-          <div class="collist">
-            <div class="grouplbl">Matching “ac” <span class="ln"></span> 3</div>
-            <div class="node folder path" data-name="acme-corp" data-path="clients/acme-corp">
-              <svg class="ico"><use href="#i-folderopen"/></svg>
-              <span class="nm">acme-corp</span>
-              <span class="tail"><span class="slice dirty"></span><span class="roll"><i class="m">12M</i><i class="c">1C</i></span><span class="cnt">3</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder ghost" data-name="acorn-media" data-path="clients/acorn-media">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">acorn-media</span>
-              <span class="tail"><span class="slice none"></span><span class="cnt">2</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder ghost" data-name="pacific-freight" data-path="clients/pacific-freight">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">pacific-freight</span>
-              <span class="tail"><span class="slice none"></span><span class="cnt">5</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="grouplbl">Recently opened <span class="ln"></span></div>
-            <div class="node folder" data-name="globex" data-path="clients/globex">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">globex</span>
-              <span class="tail"><span class="slice sparse"></span><span class="cnt">4</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder ghost" data-name="initech" data-path="clients/initech">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">initech</span>
-              <span class="tail"><span class="slice none"></span><span class="cnt">7</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder ghost" data-name="umbrella-health" data-path="clients/umbrella-health">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">umbrella-health</span>
-              <span class="tail"><span class="slice none"></span><span class="cnt">11</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-          </div>
-          <div class="colfoot"><span>3 of 51 shown</span><span class="sp"></span><button>clear filter</button></div>
-        </div>
-
-        <!-- column 3: acme-corp → projects -->
-        <div class="col">
-          <div class="colhead"><span class="nm">acme-corp</span><span class="ct">3</span><button><svg><use href="#i-star"/></svg></button></div>
-          <div class="collist">
-            <div class="grouplbl">Projects <span class="ln"></span> 2</div>
-            <div class="node project path" data-name="website" data-path="clients/acme-corp/website">
-              <svg class="ico"><use href="#i-cube"/></svg>
-              <span class="nm">website</span>
-              <span class="tail"><span class="slice dirty"></span><span class="roll"><i class="m">12M</i><i class="c">1C</i></span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node project ghost" data-name="mobile-app" data-path="clients/acme-corp/mobile-app">
-              <svg class="ico"><use href="#i-cube"/></svg>
-              <span class="nm">mobile-app</span>
-              <span class="tail"><span class="slice none"></span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="grouplbl">Folders <span class="ln"></span> 1</div>
-            <div class="node folder ghost" data-name="brand-assets" data-path="clients/acme-corp/brand-assets">
-              <svg class="ico"><use href="#i-folder"/></svg>
-              <span class="nm">brand-assets</span>
-              <span class="tail"><span class="badgep ext">ext</span><span class="cnt">1.2k</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-          </div>
-          <div class="colfoot"><span>2 projects · 1 folder</span></div>
-        </div>
-
-        <!-- column 4: website → trunk/branches/tags -->
-        <div class="col">
-          <div class="colhead"><span class="nm">website</span><span class="ct">project</span><button><svg><use href="#i-branch"/></svg></button></div>
-          <div class="collist">
-            <div class="node folder path" data-name="trunk" data-path="clients/acme-corp/website/trunk">
-              <svg class="ico"><use href="#i-folderopen"/></svg>
-              <span class="nm">trunk</span>
-              <span class="tail"><span class="slice dirty"></span><span class="roll"><i class="m">12M</i><i class="c">1C</i></span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder" data-name="branches" data-path="clients/acme-corp/website/branches">
-              <svg class="ico"><use href="#i-branch"/></svg>
-              <span class="nm">branches</span>
-              <span class="tail"><span class="slice sparse"></span><span class="cnt">14</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder ghost" data-name="tags" data-path="clients/acme-corp/website/tags">
-              <svg class="ico"><use href="#i-tag"/></svg>
-              <span class="nm">tags</span>
-              <span class="tail"><span class="slice none"></span><span class="cnt">62</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-          </div>
-          <div class="colfoot"><span>standard layout</span></div>
-        </div>
-
-        <!-- column 5: trunk contents -->
-        <div class="col">
-          <div class="colhead"><span class="nm">trunk</span><span class="ct">9</span><button><svg><use href="#i-search"/></svg></button></div>
-          <div class="collist">
-            <div class="node folder" data-name="src" data-path="…/trunk/src">
-              <svg class="ico"><use href="#i-folder"/></svg><span class="nm">src</span>
-              <span class="tail"><span class="roll"><i class="m">9M</i><i class="c">1C</i></span><span class="cnt">241</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder" data-name="packages" data-path="…/trunk/packages">
-              <svg class="ico"><use href="#i-folder"/></svg><span class="nm">packages</span>
-              <span class="tail"><span class="roll"><i class="a">1A</i></span><span class="cnt">18</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder" data-name="docs" data-path="…/trunk/docs">
-              <svg class="ico"><use href="#i-folder"/></svg><span class="nm">docs</span>
-              <span class="tail"><span class="roll"><i class="m">1M</i></span><span class="cnt">32</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node folder" data-name="vendor" data-path="…/trunk/vendor">
-              <svg class="ico"><use href="#i-folder"/></svg><span class="nm">vendor</span>
-              <span class="tail"><span class="badgep ext">ext</span><span class="cnt">4</span><svg class="chev"><use href="#i-chev"/></svg></span>
-            </div>
-            <div class="node file leaf" data-name="package.json"><svg class="ico"><use href="#i-file"/></svg><span class="nm">package.json</span>
-              <span class="tail"><svg style="width:11px;height:11px;color:var(--mod)"><use href="#i-lock"/></svg><span class="sz">4.1 kB</span><svg class="chev"><use href="#i-chev"/></svg></span></div>
-            <div class="node file leaf" data-name="README.md"><svg class="ico"><use href="#i-file"/></svg><span class="nm">README.md</span>
-              <span class="tail"><span class="sz">8.8 kB</span><svg class="chev"><use href="#i-chev"/></svg></span></div>
-            <div class="node file leaf" data-name="tailwind.config.js"><svg class="ico"><use href="#i-file"/></svg><span class="nm">tailwind.config.js</span>
-              <span class="tail"><span class="sz">3.2 kB</span><svg class="chev"><use href="#i-chev"/></svg></span></div>
-          </div>
-          <div class="colfoot"><span>4 folders · 5 files</span><span class="sp"></span><span>r4838</span></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── INSPECTOR ── -->
-    <aside class="insp">
-      <div class="ihead">
-        <div class="kind"><svg><use href="#i-cube"/></svg><span class="eyebrow">Project · standard layout</span></div>
-        <h2>acme-corp / website</h2>
-        <div class="url">svn://svn.lineindustries.com/atlas/clients/acme-corp/website</div>
-        <div class="chips">
-          <span class="chip2 y">12 local changes</span>
-          <span class="chip2 r">1 conflict</span>
-          <span class="chip2 g">trunk checked out</span>
-          <span class="chip2">14 branches</span>
-          <span class="chip2">62 tags</span>
-        </div>
-      </div>
-
-      <div class="ibody">
-        <div class="iblock">
-          <span class="eyebrow">Switch this working copy to</span>
-          <div class="branchrow cur">
-            <svg><use href="#i-folderopen"/></svg>
-            <span class="t"><b>trunk</b><small>current · 12 local changes</small></span>
+          <div class="ritem tall on">
             <span class="slice dirty"></span>
+            <span class="n">acme website<small>clients/acme-corp/website/trunk</small></span>
+            <span class="c mod">12</span>
           </div>
-          <div class="branchrow">
-            <svg><use href="#i-branch"/></svg>
-            <span class="t"><b>branches/feature/payments-v2</b><small>mira.k · 2 hours ago</small></span>
-            <span class="r">r4838</span>
+          <div class="ritem tall">
+            <span class="slice full"></span>
+            <span class="n">shelly-svn<small>internal/tooling/shelly-svn/trunk</small></span>
           </div>
-          <div class="branchrow">
-            <svg><use href="#i-branch"/></svg>
-            <span class="t"><b>branches/release/3.2</b><small>devon · 6 days ago</small></span>
-            <span class="r">r4790</span>
+          <div class="ritem tall">
+            <span class="slice sparse"></span>
+            <span class="n">brand-system<small>internal/brand-system (sparse)</small></span>
+            <span class="c mod">3</span>
           </div>
-          <div class="branchrow">
-            <svg><use href="#i-tag"/></svg>
-            <span class="t"><b>tags/v3.1.4</b><small>read-only · 3 days ago</small></span>
-            <span class="r">r4826</span>
-          </div>
-          <button class="btn sm" style="width:100%;justify-content:center;margin-top:6px">Show all 76 branches &amp; tags</button>
-        </div>
 
-        <div class="iblock">
-          <span class="eyebrow">On your disk</span>
-          <dl>
-            <div class="kv"><dt>Local path</dt><dd>~/wc/acme-website</dd></div>
-            <div class="kv"><dt>Depth</dt><dd class="g">infinity</dd></div>
-            <div class="kv"><dt>Base revision</dt><dd>r4821</dd></div>
-            <div class="kv"><dt>Head</dt><dd class="y">r4838</dd></div>
-            <div class="kv"><dt>Size on disk</dt><dd>2.8 GB</dd></div>
-            <div class="kv"><dt>Excluded subtrees</dt><dd>3</dd></div>
-          </dl>
-          <button class="btn sm" style="width:100%;justify-content:center;margin-top:8px" data-open="checkout">
-            <svg><use href="#i-scissors"/></svg>Edit what's fetched
+          <div class="diskbar">
+            <div class="row1"><b>18.4 GB</b><span>of 2.1 TB repo</span></div>
+            <div class="bar">
+              <i style="width: 52%; background: var(--add)"></i>
+              <i style="width: 16%; background: rgba(70, 185, 90, 0.4)"></i>
+              <i style="flex: 1; background: var(--d5)"></i>
+            </div>
+            <div class="legend">
+              <span><i style="background: var(--add)"></i>full</span>
+              <span><i style="background: rgba(70, 185, 90, 0.4)"></i>sparse</span>
+              <span><i style="background: var(--d5)"></i>not fetched</span>
+            </div>
+          </div>
+
+          <div class="rsec">
+            <span class="eyebrow">Bookmarks</span
+            ><button title="Add">
+              <svg><use href="#i-plus" /></svg>
+            </button>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-star" /></svg><span class="n">acme-corp</span
+            ><span class="c">3</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-star" /></svg><span class="n">shared/components</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-star" /></svg><span class="n">internal/tooling</span
+            ><span class="c">9</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-star" /></svg><span class="n">umbrella-health/portal</span>
+          </div>
+
+          <div class="rsec"><span class="eyebrow">Recent</span></div>
+          <div class="ritem">
+            <svg><use href="#i-clock" /></svg><span class="n">globex/intranet/trunk</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-clock" /></svg><span class="n">initech/print-portal</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-clock" /></svg><span class="n">internal/design-ops</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-clock" /></svg><span class="n">shared/legal-templates</span>
+          </div>
+
+          <div class="rsec"><span class="eyebrow">Saved searches</span></div>
+          <div class="ritem">
+            <svg><use href="#i-search" /></svg><span class="n">My open locks</span
+            ><span class="c">2</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-search" /></svg><span class="n">Projects I touched (30d)</span
+            ><span class="c">7</span>
+          </div>
+          <div class="ritem">
+            <svg><use href="#i-search" /></svg><span class="n">Stale branches &gt; 6mo</span
+            ><span class="c">41</span>
+          </div>
+        </aside>
+
+        <!-- ── MILLER COLUMNS ── -->
+        <section class="browser">
+          <div class="bhead">
+            <span class="eyebrow">Repository browser</span>
+            <button class="scope">
+              <svg><use href="#i-layers" /></svg>scope: clients/acme-corp<svg
+                style="width: 9px; height: 9px"
+              >
+                <use href="#i-x" />
+              </svg>
+            </button>
+            <span class="sp"></span>
+            <span class="hint">Depth is horizontal — arrow keys walk the tree</span>
+          </div>
+
+          <div class="cols" id="cols">
+            <!-- column 1: repo root -->
+            <div class="col">
+              <div class="colhead">
+                <span class="nm">atlas</span><span class="ct">4</span
+                ><button>
+                  <svg><use href="#i-search" /></svg>
+                </button>
+              </div>
+              <div class="collist">
+                <div class="node folder path" data-name="clients" data-path="clients">
+                  <svg class="ico"><use href="#i-folderopen" /></svg>
+                  <span class="nm">clients</span>
+                  <span class="tail"
+                    ><span class="roll"><i class="m">12M</i><i class="c">1C</i></span
+                    ><span class="cnt">51</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node folder" data-name="internal" data-path="internal">
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">internal</span>
+                  <span class="tail"
+                    ><span class="roll"><i class="m">3M</i></span
+                    ><span class="cnt">6</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node folder" data-name="shared" data-path="shared">
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">shared</span>
+                  <span class="tail"
+                    ><span class="roll"><i class="l">ext</i></span
+                    ><span class="cnt">3</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node folder ghost" data-name="archive" data-path="archive">
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">archive</span>
+                  <span class="tail"
+                    ><span class="slice none"></span><span class="cnt">380</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="colfoot"><span>4 folders</span></div>
+            </div>
+
+            <!-- column 2: clients (the big one) -->
+            <div class="col wide">
+              <div class="colhead">
+                <span class="nm">clients</span><span class="ct">51</span
+                ><button>
+                  <svg><use href="#i-cog" /></svg>
+                </button>
+              </div>
+              <div class="colfilter">
+                <svg><use href="#i-search" /></svg
+                ><input placeholder="filter 51 clients…" value="ac" />
+              </div>
+              <div class="collist">
+                <div class="grouplbl">Matching “ac” <span class="ln"></span> 3</div>
+                <div class="node folder path" data-name="acme-corp" data-path="clients/acme-corp">
+                  <svg class="ico"><use href="#i-folderopen" /></svg>
+                  <span class="nm">acme-corp</span>
+                  <span class="tail"
+                    ><span class="slice dirty"></span
+                    ><span class="roll"><i class="m">12M</i><i class="c">1C</i></span
+                    ><span class="cnt">3</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div
+                  class="node folder ghost"
+                  data-name="acorn-media"
+                  data-path="clients/acorn-media"
+                >
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">acorn-media</span>
+                  <span class="tail"
+                    ><span class="slice none"></span><span class="cnt">2</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div
+                  class="node folder ghost"
+                  data-name="pacific-freight"
+                  data-path="clients/pacific-freight"
+                >
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">pacific-freight</span>
+                  <span class="tail"
+                    ><span class="slice none"></span><span class="cnt">5</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="grouplbl">Recently opened <span class="ln"></span></div>
+                <div class="node folder" data-name="globex" data-path="clients/globex">
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">globex</span>
+                  <span class="tail"
+                    ><span class="slice sparse"></span><span class="cnt">4</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node folder ghost" data-name="initech" data-path="clients/initech">
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">initech</span>
+                  <span class="tail"
+                    ><span class="slice none"></span><span class="cnt">7</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div
+                  class="node folder ghost"
+                  data-name="umbrella-health"
+                  data-path="clients/umbrella-health"
+                >
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">umbrella-health</span>
+                  <span class="tail"
+                    ><span class="slice none"></span><span class="cnt">11</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="colfoot">
+                <span>3 of 51 shown</span><span class="sp"></span><button>clear filter</button>
+              </div>
+            </div>
+
+            <!-- column 3: acme-corp → projects -->
+            <div class="col">
+              <div class="colhead">
+                <span class="nm">acme-corp</span><span class="ct">3</span
+                ><button>
+                  <svg><use href="#i-star" /></svg>
+                </button>
+              </div>
+              <div class="collist">
+                <div class="grouplbl">Projects <span class="ln"></span> 2</div>
+                <div
+                  class="node project path"
+                  data-name="website"
+                  data-path="clients/acme-corp/website"
+                >
+                  <svg class="ico"><use href="#i-cube" /></svg>
+                  <span class="nm">website</span>
+                  <span class="tail"
+                    ><span class="slice dirty"></span
+                    ><span class="roll"><i class="m">12M</i><i class="c">1C</i></span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div
+                  class="node project ghost"
+                  data-name="mobile-app"
+                  data-path="clients/acme-corp/mobile-app"
+                >
+                  <svg class="ico"><use href="#i-cube" /></svg>
+                  <span class="nm">mobile-app</span>
+                  <span class="tail"
+                    ><span class="slice none"></span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="grouplbl">Folders <span class="ln"></span> 1</div>
+                <div
+                  class="node folder ghost"
+                  data-name="brand-assets"
+                  data-path="clients/acme-corp/brand-assets"
+                >
+                  <svg class="ico"><use href="#i-folder" /></svg>
+                  <span class="nm">brand-assets</span>
+                  <span class="tail"
+                    ><span class="badgep ext">ext</span><span class="cnt">1.2k</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="colfoot"><span>2 projects · 1 folder</span></div>
+            </div>
+
+            <!-- column 4: website → trunk/branches/tags -->
+            <div class="col">
+              <div class="colhead">
+                <span class="nm">website</span><span class="ct">project</span
+                ><button>
+                  <svg><use href="#i-branch" /></svg>
+                </button>
+              </div>
+              <div class="collist">
+                <div
+                  class="node folder path"
+                  data-name="trunk"
+                  data-path="clients/acme-corp/website/trunk"
+                >
+                  <svg class="ico"><use href="#i-folderopen" /></svg>
+                  <span class="nm">trunk</span>
+                  <span class="tail"
+                    ><span class="slice dirty"></span
+                    ><span class="roll"><i class="m">12M</i><i class="c">1C</i></span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div
+                  class="node folder"
+                  data-name="branches"
+                  data-path="clients/acme-corp/website/branches"
+                >
+                  <svg class="ico"><use href="#i-branch" /></svg>
+                  <span class="nm">branches</span>
+                  <span class="tail"
+                    ><span class="slice sparse"></span><span class="cnt">14</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div
+                  class="node folder ghost"
+                  data-name="tags"
+                  data-path="clients/acme-corp/website/tags"
+                >
+                  <svg class="ico"><use href="#i-tag" /></svg>
+                  <span class="nm">tags</span>
+                  <span class="tail"
+                    ><span class="slice none"></span><span class="cnt">62</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="colfoot"><span>standard layout</span></div>
+            </div>
+
+            <!-- column 5: trunk contents -->
+            <div class="col">
+              <div class="colhead">
+                <span class="nm">trunk</span><span class="ct">9</span
+                ><button>
+                  <svg><use href="#i-search" /></svg>
+                </button>
+              </div>
+              <div class="collist">
+                <div class="node folder" data-name="src" data-path="…/trunk/src">
+                  <svg class="ico"><use href="#i-folder" /></svg><span class="nm">src</span>
+                  <span class="tail"
+                    ><span class="roll"><i class="m">9M</i><i class="c">1C</i></span
+                    ><span class="cnt">241</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node folder" data-name="packages" data-path="…/trunk/packages">
+                  <svg class="ico"><use href="#i-folder" /></svg><span class="nm">packages</span>
+                  <span class="tail"
+                    ><span class="roll"><i class="a">1A</i></span
+                    ><span class="cnt">18</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node folder" data-name="docs" data-path="…/trunk/docs">
+                  <svg class="ico"><use href="#i-folder" /></svg><span class="nm">docs</span>
+                  <span class="tail"
+                    ><span class="roll"><i class="m">1M</i></span
+                    ><span class="cnt">32</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node folder" data-name="vendor" data-path="…/trunk/vendor">
+                  <svg class="ico"><use href="#i-folder" /></svg><span class="nm">vendor</span>
+                  <span class="tail"
+                    ><span class="badgep ext">ext</span><span class="cnt">4</span
+                    ><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node file leaf" data-name="package.json">
+                  <svg class="ico"><use href="#i-file" /></svg><span class="nm">package.json</span>
+                  <span class="tail"
+                    ><svg style="width: 11px; height: 11px; color: var(--mod)">
+                      <use href="#i-lock" /></svg
+                    ><span class="sz">4.1 kB</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node file leaf" data-name="README.md">
+                  <svg class="ico"><use href="#i-file" /></svg><span class="nm">README.md</span>
+                  <span class="tail"
+                    ><span class="sz">8.8 kB</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+                <div class="node file leaf" data-name="tailwind.config.js">
+                  <svg class="ico"><use href="#i-file" /></svg
+                  ><span class="nm">tailwind.config.js</span>
+                  <span class="tail"
+                    ><span class="sz">3.2 kB</span><svg class="chev"><use href="#i-chev" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="colfoot">
+                <span>4 folders · 5 files</span><span class="sp"></span><span>r4838</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── INSPECTOR ── -->
+        <aside class="insp">
+          <div class="ihead">
+            <div class="kind">
+              <svg><use href="#i-cube" /></svg
+              ><span class="eyebrow">Project · standard layout</span>
+            </div>
+            <h2>acme-corp / website</h2>
+            <div class="url">svn://svn.lineindustries.com/atlas/clients/acme-corp/website</div>
+            <div class="chips">
+              <span class="chip2 y">12 local changes</span>
+              <span class="chip2 r">1 conflict</span>
+              <span class="chip2 g">trunk checked out</span>
+              <span class="chip2">14 branches</span>
+              <span class="chip2">62 tags</span>
+            </div>
+          </div>
+
+          <div class="ibody">
+            <div class="iblock">
+              <span class="eyebrow">Switch this working copy to</span>
+              <div class="branchrow cur">
+                <svg><use href="#i-folderopen" /></svg>
+                <span class="t"><b>trunk</b><small>current · 12 local changes</small></span>
+                <span class="slice dirty"></span>
+              </div>
+              <div class="branchrow">
+                <svg><use href="#i-branch" /></svg>
+                <span class="t"
+                  ><b>branches/feature/payments-v2</b><small>mira.k · 2 hours ago</small></span
+                >
+                <span class="r">r4838</span>
+              </div>
+              <div class="branchrow">
+                <svg><use href="#i-branch" /></svg>
+                <span class="t"><b>branches/release/3.2</b><small>devon · 6 days ago</small></span>
+                <span class="r">r4790</span>
+              </div>
+              <div class="branchrow">
+                <svg><use href="#i-tag" /></svg>
+                <span class="t"><b>tags/v3.1.4</b><small>read-only · 3 days ago</small></span>
+                <span class="r">r4826</span>
+              </div>
+              <button class="btn sm" style="width: 100%; justify-content: center; margin-top: 6px">
+                Show all 76 branches &amp; tags
+              </button>
+            </div>
+
+            <div class="iblock">
+              <span class="eyebrow">On your disk</span>
+              <dl>
+                <div class="kv">
+                  <dt>Local path</dt>
+                  <dd>~/wc/acme-website</dd>
+                </div>
+                <div class="kv">
+                  <dt>Depth</dt>
+                  <dd class="g">infinity</dd>
+                </div>
+                <div class="kv">
+                  <dt>Base revision</dt>
+                  <dd>r4821</dd>
+                </div>
+                <div class="kv">
+                  <dt>Head</dt>
+                  <dd class="y">r4838</dd>
+                </div>
+                <div class="kv">
+                  <dt>Size on disk</dt>
+                  <dd>2.8 GB</dd>
+                </div>
+                <div class="kv">
+                  <dt>Excluded subtrees</dt>
+                  <dd>3</dd>
+                </div>
+              </dl>
+              <button
+                class="btn sm"
+                style="width: 100%; justify-content: center; margin-top: 8px"
+                data-open="checkout"
+              >
+                <svg><use href="#i-scissors" /></svg>Edit what's fetched
+              </button>
+            </div>
+
+            <div class="iblock">
+              <span class="eyebrow">Latest here</span>
+              <div class="commit">
+                <span class="av" style="background: var(--mod)">M</span>
+                <span class="t"
+                  ><b>Fix lock retention when releasing stale locks</b
+                  ><small>mira.k · 2 hours ago · 4 files</small></span
+                >
+                <span class="r">4838</span>
+              </div>
+              <div class="commit">
+                <span class="av" style="background: var(--add)">D</span>
+                <span class="t"
+                  ><b>Add merge preview scaffolding</b
+                  ><small>devon · 5 hours ago · 11 files</small></span
+                >
+                <span class="r">4837</span>
+              </div>
+              <div class="commit">
+                <span class="av" style="background: var(--acc)">J</span>
+                <span class="t"
+                  ><b>Harden SVN operations</b><small>you · yesterday · 23 files</small></span
+                >
+                <span class="r">4835</span>
+              </div>
+            </div>
+
+            <div class="iblock">
+              <span class="eyebrow">Properties</span>
+              <dl>
+                <div class="kv">
+                  <dt>svn:externals</dt>
+                  <dd>2 defined</dd>
+                </div>
+                <div class="kv">
+                  <dt>bugtraq:url</dt>
+                  <dd>jira…/%BUGID%</dd>
+                </div>
+                <div class="kv">
+                  <dt>svn:needs-lock</dt>
+                  <dd>*.psd, *.zip</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          <div class="ifoot">
+            <button class="btn pri" data-open="checkout">
+              <svg><use href="#i-down" /></svg>Check out
+            </button>
+            <button class="btn">
+              <svg><use href="#i-ext" /></svg>Open
+            </button>
+            <button class="btn">
+              <svg><use href="#i-copy" /></svg>Copy URL
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <!-- ══ STATUS BAR ══ -->
+      <footer class="statusbar">
+        <span class="c"
+          ><svg><use href="#i-cube" /></svg>atlas · 2.1 TB · 512k paths</span
+        >
+        <span class="c">browsing <b>@r4838</b></span>
+        <span class="c"
+          ><svg><use href="#i-disk" /></svg>local slice <b>18.4 GB</b> · 3 working copies</span
+        >
+        <span class="c y">12 changes under clients/acme-corp</span>
+        <span class="sp"></span>
+        <span class="c">listing cached 40s ago</span>
+        <span class="c g"
+          ><svg><use href="#i-check" /></svg>connected</span
+        >
+        <span class="c last">svn 1.14.3</span>
+      </footer>
+    </div>
+
+    <!-- ══ CONTEXT MENU (repo-browser flavoured) ══ -->
+    <div class="ctx" id="ctx" hidden>
+      <div class="hd">
+        <svg><use href="#i-cube" /></svg>
+        <span class="t"
+          ><b id="ctxname">website</b><span id="ctxpath">clients/acme-corp/website</span></span
+        >
+      </div>
+
+      <div class="lbl">Get it locally</div>
+      <div class="ci" data-open="checkout">
+        <svg><use href="#i-down" /></svg><span class="t">Check out here…</span
+        ><span class="sc">⌘⇧O</span>
+      </div>
+      <div class="ci" data-open="checkout">
+        <svg><use href="#i-scissors" /></svg><span class="t">Add to my working copy (sparse)…</span>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-ext" /></svg><span class="t">Export a plain copy…</span>
+      </div>
+
+      <div class="csep"></div>
+      <div class="lbl">Inspect</div>
+      <div class="ci">
+        <svg><use href="#i-hist" /></svg><span class="t">Show log</span><span class="sc">⌘L</span>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-diff" /></svg><span class="t">Compare with my working copy</span>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-branch" /></svg><span class="t">Revision graph</span>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-search" /></svg><span class="t">Search inside this folder…</span
+        ><span class="sc">⌘⇧F</span>
+      </div>
+
+      <div class="csep"></div>
+      <div class="lbl">Repository actions</div>
+      <div class="ci has-sub">
+        <svg><use href="#i-branch" /></svg><span class="t">Branch or tag from here…</span
+        ><svg style="margin-left: auto; width: 12px; height: 12px"><use href="#i-chev" /></svg>
+        <div class="sub">
+          <div class="ci">
+            <svg><use href="#i-branch" /></svg><span class="t">New branch…</span>
+          </div>
+          <div class="ci">
+            <svg><use href="#i-tag" /></svg><span class="t">New tag…</span>
+          </div>
+          <div class="csep"></div>
+          <div class="ci"><span class="t">From HEAD (r4838)</span></div>
+          <div class="ci"><span class="t">From my working copy</span></div>
+          <div class="ci"><span class="t">From a specific revision…</span></div>
+        </div>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-plus" /></svg><span class="t">New folder here…</span>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-copy" /></svg><span class="t">Copy / move to…</span>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-layers" /></svg><span class="t">Properties…</span>
+      </div>
+      <div class="ci danger">
+        <svg><use href="#i-trash" /></svg><span class="t">Delete from repository…</span>
+      </div>
+
+      <div class="csep"></div>
+      <div class="ci">
+        <svg><use href="#i-star" /></svg><span class="t">Bookmark this</span
+        ><span class="sc">⌘D</span>
+      </div>
+      <div class="ci">
+        <svg><use href="#i-copy" /></svg><span class="t">Copy URL</span><span class="sc">⇧⌘C</span>
+      </div>
+    </div>
+
+    <!-- ══ ⌘P PATH JUMPER ══ -->
+    <div class="scrim" id="jumper" hidden>
+      <div class="jumper" onclick="event.stopPropagation()">
+        <div class="jin">
+          <svg><use href="#i-search" /></svg>
+          <input
+            id="jq"
+            value="acm web"
+            placeholder="Fuzzy path — “acm web tr”, “tool shel”, “r4835”"
+          />
+          <span class="jscope">whole repo</span>
+        </div>
+        <div class="jbody">
+          <div class="jgrp">Projects · 2</div>
+          <div class="ji proj act">
+            <svg><use href="#i-cube" /></svg>
+            <span class="t"
+              ><b><mark>ac</mark>me-corp / <mark>web</mark>site</b
+              ><small>clients/acme-corp/website</small></span
+            >
+            <span class="tail"
+              ><span class="slice dirty"></span><span class="sk always">↵</span></span
+            >
+          </div>
+          <div class="ji proj">
+            <svg><use href="#i-cube" /></svg>
+            <span class="t"
+              ><b>p<mark>ac</mark>ific-freight / <mark>web</mark>-shop</b
+              ><small>clients/pacific-freight/web-shop</small></span
+            >
+            <span class="tail"><span class="slice none"></span></span>
+          </div>
+          <div class="jgrp">Branches &amp; tags · 3</div>
+          <div class="ji">
+            <svg><use href="#i-branch" /></svg>
+            <span class="t"
+              ><b><mark>ac</mark>me-corp / <mark>web</mark>site / branches / payments-v2</b
+              ><small>clients/acme-corp/website/branches/feature/payments-v2</small></span
+            >
+            <span class="tail"
+              ><span class="sz mono" style="font-size: 9.5px; color: var(--ink4)">r4838</span></span
+            >
+          </div>
+          <div class="ji">
+            <svg><use href="#i-tag" /></svg>
+            <span class="t"
+              ><b><mark>ac</mark>me-corp / <mark>web</mark>site / tags / v3.1.4</b
+              ><small>clients/acme-corp/website/tags/v3.1.4</small></span
+            >
+            <span class="tail"
+              ><span class="sz mono" style="font-size: 9.5px; color: var(--ink4)">r4826</span></span
+            >
+          </div>
+          <div class="ji">
+            <svg><use href="#i-branch" /></svg>
+            <span class="t"
+              ><b>glob<mark>ex</mark> / intranet / branches / <mark>web</mark>-refresh</b
+              ><small>clients/globex/intranet/branches/web-refresh</small></span
+            >
+          </div>
+          <div class="jgrp">Folders · 2</div>
+          <div class="ji">
+            <svg><use href="#i-folder" /></svg>
+            <span class="t"
+              ><b><mark>ac</mark>me-corp / brand-assets / <mark>web</mark></b
+              ><small>clients/acme-corp/brand-assets/web</small></span
+            >
+            <span class="tail"><span class="badgep ext">ext</span></span>
+          </div>
+          <div class="ji">
+            <svg><use href="#i-folder" /></svg>
+            <span class="t"
+              ><b>shared / components / <mark>web</mark></b
+              ><small>shared/components/web</small></span
+            >
+          </div>
+        </div>
+        <div class="jfoot">
+          <span><b>↵</b> browse here</span>
+          <span><b>⌘↵</b> check out</span>
+          <span><b>⇥</b> scope the browser to it</span>
+          <span><b>@4835</b> jump to a revision</span>
+          <span style="margin-left: auto"><b>esc</b> close</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CHECKOUT / SPARSE WORKING SET ══ -->
+    <div class="scrim" id="checkout" hidden style="place-items: center">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="mhead">
+          <span class="ic"
+            ><svg><use href="#i-down" /></svg
+          ></span>
+          <div class="t">
+            <h2>Check out clients/acme-corp/website</h2>
+            <p>svn://svn.lineindustries.com/atlas/clients/acme-corp/website · @r4838</p>
+          </div>
+          <button class="ibtn" onclick="closeAll()">
+            <svg><use href="#i-x" /></svg>
           </button>
         </div>
 
-        <div class="iblock">
-          <span class="eyebrow">Latest here</span>
-          <div class="commit">
-            <span class="av" style="background:var(--mod)">M</span>
-            <span class="t"><b>Fix lock retention when releasing stale locks</b><small>mira.k · 2 hours ago · 4 files</small></span>
-            <span class="r">4838</span>
+        <div class="mbody">
+          <div class="field">
+            <label class="eyebrow">Local folder</label>
+            <input class="inp" value="~/wc/acme-website" />
           </div>
-          <div class="commit">
-            <span class="av" style="background:var(--add)">D</span>
-            <span class="t"><b>Add merge preview scaffolding</b><small>devon · 5 hours ago · 11 files</small></span>
-            <span class="r">4837</span>
+
+          <div class="field">
+            <label class="eyebrow">How much of it do you want?</label>
+            <div class="depthgrid">
+              <div class="depth on">
+                <span class="r"></span>
+                <span class="t"
+                  ><b>Everything under trunk</b
+                  ><small>Fully working copy — the usual choice for a single project.</small
+                  ><span class="sz">≈ 2.8 GB · 41k files</span></span
+                >
+              </div>
+              <div class="depth">
+                <span class="r"></span>
+                <span class="t"
+                  ><b>Pick subtrees</b><small>Sparse. Fetch only the folders you name below.</small
+                  ><span class="sz">you choose</span></span
+                >
+              </div>
+              <div class="depth">
+                <span class="r"></span>
+                <span class="t"
+                  ><b>Just this folder's files</b
+                  ><small>No subfolders. Good for browsing a big root.</small
+                  ><span class="sz">≈ 12 MB</span></span
+                >
+              </div>
+              <div class="depth">
+                <span class="r"></span>
+                <span class="t"
+                  ><b>Empty shell</b
+                  ><small>Structure only — add subtrees later as you need them.</small
+                  ><span class="sz">&lt; 1 MB</span></span
+                >
+              </div>
+            </div>
           </div>
-          <div class="commit">
-            <span class="av" style="background:var(--acc)">J</span>
-            <span class="t"><b>Harden SVN operations</b><small>you · yesterday · 23 files</small></span>
-            <span class="r">4835</span>
+
+          <div class="field">
+            <label class="eyebrow">Subtrees — the slice you keep on disk</label>
+            <div class="wstable">
+              <div class="wsh">
+                <span class="eyebrow">9 entries under trunk</span
+                ><span class="mono" style="font-size: 10px; color: var(--ink4)"
+                  >2.8 GB of 6.1 GB</span
+                >
+              </div>
+              <div class="wsr">
+                <span class="slice full"></span><span class="p">trunk/<b>src</b></span
+                ><select>
+                  <option>infinity</option>
+                  <option>immediates</option>
+                  <option>files</option>
+                  <option>exclude</option></select
+                ><span class="sz">1.9 GB</span>
+              </div>
+              <div class="wsr">
+                <span class="slice full"></span><span class="p">trunk/<b>packages</b></span
+                ><select>
+                  <option>infinity</option>
+                  <option>immediates</option>
+                  <option>files</option>
+                  <option>exclude</option></select
+                ><span class="sz">640 MB</span>
+              </div>
+              <div class="wsr">
+                <span class="slice sparse"></span><span class="p">trunk/<b>docs</b></span
+                ><select>
+                  <option selected>immediates</option>
+                  <option>infinity</option>
+                  <option>files</option>
+                  <option>exclude</option></select
+                ><span class="sz">18 MB</span>
+              </div>
+              <div class="wsr">
+                <span class="slice none"></span
+                ><span class="p" style="opacity: 0.6">trunk/<b>vendor</b> — external, 3.1 GB</span
+                ><select>
+                  <option selected>exclude</option>
+                  <option>infinity</option></select
+                ><span class="sz">—</span>
+              </div>
+              <div class="wsr">
+                <span class="slice none"></span
+                ><span class="p" style="opacity: 0.6">trunk/<b>media-raw</b> — 2.4 GB of PSDs</span
+                ><select>
+                  <option selected>exclude</option>
+                  <option>infinity</option></select
+                ><span class="sz">—</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="iblock">
-          <span class="eyebrow">Properties</span>
-          <dl>
-            <div class="kv"><dt>svn:externals</dt><dd>2 defined</dd></div>
-            <div class="kv"><dt>bugtraq:url</dt><dd>jira…/%BUGID%</dd></div>
-            <div class="kv"><dt>svn:needs-lock</dt><dd>*.psd, *.zip</dd></div>
-          </dl>
-        </div>
-      </div>
-
-      <div class="ifoot">
-        <button class="btn pri" data-open="checkout"><svg><use href="#i-down"/></svg>Check out</button>
-        <button class="btn"><svg><use href="#i-ext"/></svg>Open</button>
-        <button class="btn"><svg><use href="#i-copy"/></svg>Copy URL</button>
-      </div>
-    </aside>
-  </div>
-
-  <!-- ══ STATUS BAR ══ -->
-  <footer class="statusbar">
-    <span class="c"><svg><use href="#i-cube"/></svg>atlas · 2.1 TB · 512k paths</span>
-    <span class="c">browsing <b>@r4838</b></span>
-    <span class="c"><svg><use href="#i-disk"/></svg>local slice <b>18.4 GB</b> · 3 working copies</span>
-    <span class="c y">12 changes under clients/acme-corp</span>
-    <span class="sp"></span>
-    <span class="c">listing cached 40s ago</span>
-    <span class="c g"><svg><use href="#i-check"/></svg>connected</span>
-    <span class="c last">svn 1.14.3</span>
-  </footer>
-</div>
-
-<!-- ══ CONTEXT MENU (repo-browser flavoured) ══ -->
-<div class="ctx" id="ctx" hidden>
-  <div class="hd">
-    <svg><use href="#i-cube"/></svg>
-    <span class="t"><b id="ctxname">website</b><span id="ctxpath">clients/acme-corp/website</span></span>
-  </div>
-
-  <div class="lbl">Get it locally</div>
-  <div class="ci" data-open="checkout"><svg><use href="#i-down"/></svg><span class="t">Check out here…</span><span class="sc">⌘⇧O</span></div>
-  <div class="ci" data-open="checkout"><svg><use href="#i-scissors"/></svg><span class="t">Add to my working copy (sparse)…</span></div>
-  <div class="ci"><svg><use href="#i-ext"/></svg><span class="t">Export a plain copy…</span></div>
-
-  <div class="csep"></div>
-  <div class="lbl">Inspect</div>
-  <div class="ci"><svg><use href="#i-hist"/></svg><span class="t">Show log</span><span class="sc">⌘L</span></div>
-  <div class="ci"><svg><use href="#i-diff"/></svg><span class="t">Compare with my working copy</span></div>
-  <div class="ci"><svg><use href="#i-branch"/></svg><span class="t">Revision graph</span></div>
-  <div class="ci"><svg><use href="#i-search"/></svg><span class="t">Search inside this folder…</span><span class="sc">⌘⇧F</span></div>
-
-  <div class="csep"></div>
-  <div class="lbl">Repository actions</div>
-  <div class="ci has-sub"><svg><use href="#i-branch"/></svg><span class="t">Branch or tag from here…</span><svg style="margin-left:auto;width:12px;height:12px"><use href="#i-chev"/></svg>
-    <div class="sub">
-      <div class="ci"><svg><use href="#i-branch"/></svg><span class="t">New branch…</span></div>
-      <div class="ci"><svg><use href="#i-tag"/></svg><span class="t">New tag…</span></div>
-      <div class="csep"></div>
-      <div class="ci"><span class="t">From HEAD (r4838)</span></div>
-      <div class="ci"><span class="t">From my working copy</span></div>
-      <div class="ci"><span class="t">From a specific revision…</span></div>
-    </div>
-  </div>
-  <div class="ci"><svg><use href="#i-plus"/></svg><span class="t">New folder here…</span></div>
-  <div class="ci"><svg><use href="#i-copy"/></svg><span class="t">Copy / move to…</span></div>
-  <div class="ci"><svg><use href="#i-layers"/></svg><span class="t">Properties…</span></div>
-  <div class="ci danger"><svg><use href="#i-trash"/></svg><span class="t">Delete from repository…</span></div>
-
-  <div class="csep"></div>
-  <div class="ci"><svg><use href="#i-star"/></svg><span class="t">Bookmark this</span><span class="sc">⌘D</span></div>
-  <div class="ci"><svg><use href="#i-copy"/></svg><span class="t">Copy URL</span><span class="sc">⇧⌘C</span></div>
-</div>
-
-<!-- ══ ⌘P PATH JUMPER ══ -->
-<div class="scrim" id="jumper" hidden>
-  <div class="jumper" onclick="event.stopPropagation()">
-    <div class="jin">
-      <svg><use href="#i-search"/></svg>
-      <input id="jq" value="acm web" placeholder="Fuzzy path — “acm web tr”, “tool shel”, “r4835”" />
-      <span class="jscope">whole repo</span>
-    </div>
-    <div class="jbody">
-      <div class="jgrp">Projects · 2</div>
-      <div class="ji proj act">
-        <svg><use href="#i-cube"/></svg>
-        <span class="t"><b><mark>ac</mark>me-corp / <mark>web</mark>site</b><small>clients/acme-corp/website</small></span>
-        <span class="tail"><span class="slice dirty"></span><span class="sk always">↵</span></span>
-      </div>
-      <div class="ji proj">
-        <svg><use href="#i-cube"/></svg>
-        <span class="t"><b>p<mark>ac</mark>ific-freight / <mark>web</mark>-shop</b><small>clients/pacific-freight/web-shop</small></span>
-        <span class="tail"><span class="slice none"></span></span>
-      </div>
-      <div class="jgrp">Branches &amp; tags · 3</div>
-      <div class="ji">
-        <svg><use href="#i-branch"/></svg>
-        <span class="t"><b><mark>ac</mark>me-corp / <mark>web</mark>site / branches / payments-v2</b><small>clients/acme-corp/website/branches/feature/payments-v2</small></span>
-        <span class="tail"><span class="sz mono" style="font-size:9.5px;color:var(--ink4)">r4838</span></span>
-      </div>
-      <div class="ji">
-        <svg><use href="#i-tag"/></svg>
-        <span class="t"><b><mark>ac</mark>me-corp / <mark>web</mark>site / tags / v3.1.4</b><small>clients/acme-corp/website/tags/v3.1.4</small></span>
-        <span class="tail"><span class="sz mono" style="font-size:9.5px;color:var(--ink4)">r4826</span></span>
-      </div>
-      <div class="ji">
-        <svg><use href="#i-branch"/></svg>
-        <span class="t"><b>glob<mark>ex</mark> / intranet / branches / <mark>web</mark>-refresh</b><small>clients/globex/intranet/branches/web-refresh</small></span>
-      </div>
-      <div class="jgrp">Folders · 2</div>
-      <div class="ji">
-        <svg><use href="#i-folder"/></svg>
-        <span class="t"><b><mark>ac</mark>me-corp / brand-assets / <mark>web</mark></b><small>clients/acme-corp/brand-assets/web</small></span>
-        <span class="tail"><span class="badgep ext">ext</span></span>
-      </div>
-      <div class="ji">
-        <svg><use href="#i-folder"/></svg>
-        <span class="t"><b>shared / components / <mark>web</mark></b><small>shared/components/web</small></span>
-      </div>
-    </div>
-    <div class="jfoot">
-      <span><b>↵</b> browse here</span>
-      <span><b>⌘↵</b> check out</span>
-      <span><b>⇥</b> scope the browser to it</span>
-      <span><b>@4835</b> jump to a revision</span>
-      <span style="margin-left:auto"><b>esc</b> close</span>
-    </div>
-  </div>
-</div>
-
-<!-- ══ CHECKOUT / SPARSE WORKING SET ══ -->
-<div class="scrim" id="checkout" hidden style="place-items:center">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="mhead">
-      <span class="ic"><svg><use href="#i-down"/></svg></span>
-      <div class="t">
-        <h2>Check out clients/acme-corp/website</h2>
-        <p>svn://svn.lineindustries.com/atlas/clients/acme-corp/website · @r4838</p>
-      </div>
-      <button class="ibtn" onclick="closeAll()"><svg><use href="#i-x"/></svg></button>
-    </div>
-
-    <div class="mbody">
-      <div class="field">
-        <label class="eyebrow">Local folder</label>
-        <input class="inp" value="~/wc/acme-website" />
-      </div>
-
-      <div class="field">
-        <label class="eyebrow">How much of it do you want?</label>
-        <div class="depthgrid">
-          <div class="depth on">
-            <span class="r"></span>
-            <span class="t"><b>Everything under trunk</b><small>Fully working copy — the usual choice for a single project.</small><span class="sz">≈ 2.8 GB · 41k files</span></span>
-          </div>
-          <div class="depth">
-            <span class="r"></span>
-            <span class="t"><b>Pick subtrees</b><small>Sparse. Fetch only the folders you name below.</small><span class="sz">you choose</span></span>
-          </div>
-          <div class="depth">
-            <span class="r"></span>
-            <span class="t"><b>Just this folder's files</b><small>No subfolders. Good for browsing a big root.</small><span class="sz">≈ 12 MB</span></span>
-          </div>
-          <div class="depth">
-            <span class="r"></span>
-            <span class="t"><b>Empty shell</b><small>Structure only — add subtrees later as you need them.</small><span class="sz">&lt; 1 MB</span></span>
+          <div class="field" style="margin-bottom: 0">
+            <label class="eyebrow">Revision</label>
+            <div style="display: flex; gap: 8px">
+              <div class="depth on" style="flex: 1">
+                <span class="r"></span><span class="t"><b>Latest (HEAD, r4838)</b></span>
+              </div>
+              <div class="depth" style="flex: 1">
+                <span class="r"></span><span class="t"><b>A specific revision…</b></span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label class="eyebrow">Subtrees — the slice you keep on disk</label>
-        <div class="wstable">
-          <div class="wsh"><span class="eyebrow">9 entries under trunk</span><span class="mono" style="font-size:10px;color:var(--ink4)">2.8 GB of 6.1 GB</span></div>
-          <div class="wsr"><span class="slice full"></span><span class="p">trunk/<b>src</b></span><select><option>infinity</option><option>immediates</option><option>files</option><option>exclude</option></select><span class="sz">1.9 GB</span></div>
-          <div class="wsr"><span class="slice full"></span><span class="p">trunk/<b>packages</b></span><select><option>infinity</option><option>immediates</option><option>files</option><option>exclude</option></select><span class="sz">640 MB</span></div>
-          <div class="wsr"><span class="slice sparse"></span><span class="p">trunk/<b>docs</b></span><select><option selected>immediates</option><option>infinity</option><option>files</option><option>exclude</option></select><span class="sz">18 MB</span></div>
-          <div class="wsr"><span class="slice none"></span><span class="p" style="opacity:.6">trunk/<b>vendor</b> — external, 3.1 GB</span><select><option selected>exclude</option><option>infinity</option></select><span class="sz">—</span></div>
-          <div class="wsr"><span class="slice none"></span><span class="p" style="opacity:.6">trunk/<b>media-raw</b> — 2.4 GB of PSDs</span><select><option selected>exclude</option><option>infinity</option></select><span class="sz">—</span></div>
-        </div>
-      </div>
-
-      <div class="field" style="margin-bottom:0">
-        <label class="eyebrow">Revision</label>
-        <div style="display:flex;gap:8px">
-          <div class="depth on" style="flex:1"><span class="r"></span><span class="t"><b>Latest (HEAD, r4838)</b></span></div>
-          <div class="depth" style="flex:1"><span class="r"></span><span class="t"><b>A specific revision…</b></span></div>
+        <div class="mfoot">
+          <span class="note"
+            >Excluding <b>vendor</b> and <b>media-raw</b> saves <b>5.5 GB</b>. You can fetch them
+            later from the browser.</span
+          >
+          <button class="btn" onclick="closeAll()">Cancel</button>
+          <button class="btn pri" onclick="closeAll()">
+            <svg><use href="#i-down" /></svg>Check out 2.8 GB
+          </button>
         </div>
       </div>
     </div>
 
-    <div class="mfoot">
-      <span class="note">Excluding <b>vendor</b> and <b>media-raw</b> saves <b>5.5 GB</b>. You can fetch them later from the browser.</span>
-      <button class="btn" onclick="closeAll()">Cancel</button>
-      <button class="btn pri" onclick="closeAll()"><svg><use href="#i-down"/></svg>Check out 2.8 GB</button>
+    <div class="protonote">
+      <b>08 · Atlas</b>
+      <span>monorepo navigator</span>
+      <kbd>⌘P jump</kbd><kbd>right-click a node</kbd><kbd>← → walk columns</kbd><kbd>hold ⌘</kbd>
     </div>
-  </div>
-</div>
 
-<div class="protonote">
-  <b>08 · Atlas</b>
-  <span>monorepo navigator</span>
-  <kbd>⌘P jump</kbd><kbd>right-click a node</kbd><kbd>← → walk columns</kbd><kbd>hold ⌘</kbd>
-</div>
+    <script>
+      const $ = (s) => document.querySelector(s),
+        $$ = (s) => [...document.querySelectorAll(s)];
+      const body = document.body;
 
-<script>
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const body=document.body;
+      addEventListener('keydown', (e) => {
+        if (e.metaKey || e.ctrlKey) body.classList.add('meta');
+      });
+      addEventListener('keyup', (e) => {
+        if (!e.metaKey && !e.ctrlKey) body.classList.remove('meta');
+      });
+      addEventListener('blur', () => body.classList.remove('meta'));
 
-addEventListener('keydown',e=>{if(e.metaKey||e.ctrlKey)body.classList.add('meta')});
-addEventListener('keyup',e=>{if(!e.metaKey&&!e.ctrlKey)body.classList.remove('meta')});
-addEventListener('blur',()=>body.classList.remove('meta'));
+      /* open scrolled to the deepest column of the current path, like Finder */
+      requestAnimationFrame(() => {
+        const c = $('#cols');
+        c.scrollLeft = c.scrollWidth;
+      });
 
-/* open scrolled to the deepest column of the current path, like Finder */
-requestAnimationFrame(()=>{const c=$('#cols');c.scrollLeft=c.scrollWidth});
+      /* selecting a node highlights it within its own column */
+      $$('.node').forEach((n) =>
+        n.addEventListener('click', () => {
+          [...n.closest('.collist').children].forEach((x) => x.classList.remove('on'));
+          n.classList.add('on');
+          const nm = n.dataset.name || n.querySelector('.nm').textContent;
+          $('.insp h2').textContent = nm;
+        })
+      );
 
-/* selecting a node highlights it within its own column */
-$$('.node').forEach(n=>n.addEventListener('click',()=>{
-  [...n.closest('.collist').children].forEach(x=>x.classList.remove('on'));
-  n.classList.add('on');
-  const nm=n.dataset.name||n.querySelector('.nm').textContent;
-  $('.insp h2').textContent=nm;
-}));
+      /* keyboard: ← → walk between columns, ↑ ↓ within one */
+      let colIdx = 4,
+        rowIdx = 0;
+      function focusNode(ci, ri) {
+        const cols = $$('.col');
+        const col = cols[Math.max(0, Math.min(cols.length - 1, ci))];
+        if (!col) return;
+        const items = [...col.querySelectorAll('.node')];
+        if (!items.length) return;
+        colIdx = cols.indexOf(col);
+        rowIdx = Math.max(0, Math.min(items.length - 1, ri));
+        items.forEach((x) => x.classList.remove('on'));
+        const t = items[rowIdx];
+        t.classList.add('on');
+        t.scrollIntoView({ block: 'nearest' });
+        col.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+        $('.insp h2').textContent = t.dataset.name || t.querySelector('.nm').textContent;
+      }
 
-/* keyboard: ← → walk between columns, ↑ ↓ within one */
-let colIdx=4,rowIdx=0;
-function focusNode(ci,ri){
-  const cols=$$('.col');
-  const col=cols[Math.max(0,Math.min(cols.length-1,ci))];
-  if(!col)return;
-  const items=[...col.querySelectorAll('.node')];
-  if(!items.length)return;
-  colIdx=cols.indexOf(col);
-  rowIdx=Math.max(0,Math.min(items.length-1,ri));
-  items.forEach(x=>x.classList.remove('on'));
-  const t=items[rowIdx];
-  t.classList.add('on');
-  t.scrollIntoView({block:'nearest'});
-  col.scrollIntoView({inline:'nearest',behavior:'smooth'});
-  $('.insp h2').textContent=t.dataset.name||t.querySelector('.nm').textContent;
-}
+      /* context menu */
+      const ctx = $('#ctx');
+      $$('.node, .ritem, .crumb').forEach((el) =>
+        el.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          const nm =
+            el.dataset.name ||
+            el.querySelector('.nm,.n')?.textContent.trim() ||
+            el.textContent.trim();
+          $('#ctxname').textContent = nm;
+          $('#ctxpath').textContent = el.dataset.path || nm;
+          ctx.hidden = false;
+          ctx.style.left = Math.min(e.clientX, innerWidth - ctx.offsetWidth - 12) + 'px';
+          ctx.style.top = Math.min(e.clientY, innerHeight - ctx.offsetHeight - 12) + 'px';
+        })
+      );
+      document.addEventListener('click', () => (ctx.hidden = true));
+      document.addEventListener('contextmenu', (e) => {
+        if (!e.target.closest('.node,.ritem,.crumb')) ctx.hidden = true;
+      });
 
-/* context menu */
-const ctx=$('#ctx');
-$$('.node, .ritem, .crumb').forEach(el=>el.addEventListener('contextmenu',e=>{
-  e.preventDefault();
-  const nm=el.dataset.name||el.querySelector('.nm,.n')?.textContent.trim()||el.textContent.trim();
-  $('#ctxname').textContent=nm;
-  $('#ctxpath').textContent=el.dataset.path||nm;
-  ctx.hidden=false;
-  ctx.style.left=Math.min(e.clientX,innerWidth-ctx.offsetWidth-12)+'px';
-  ctx.style.top=Math.min(e.clientY,innerHeight-ctx.offsetHeight-12)+'px';
-}));
-document.addEventListener('click',()=>ctx.hidden=true);
-document.addEventListener('contextmenu',e=>{if(!e.target.closest('.node,.ritem,.crumb'))ctx.hidden=true});
+      /* overlays */
+      function closeAll() {
+        $$('.scrim').forEach((s) => (s.hidden = true));
+      }
+      function open(id) {
+        closeAll();
+        $('#' + id).hidden = false;
+        if (id === 'jumper')
+          setTimeout(() => {
+            const i = $('#jq');
+            i.focus();
+            i.select();
+          }, 20);
+      }
+      $$('[data-open]').forEach((b) =>
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          ctx.hidden = true;
+          open(b.dataset.open);
+        })
+      );
+      $('#omni').addEventListener('click', () => open('jumper'));
+      $$('.scrim').forEach((s) => s.addEventListener('click', closeAll));
 
-/* overlays */
-function closeAll(){$$('.scrim').forEach(s=>s.hidden=true)}
-function open(id){closeAll();$('#'+id).hidden=false;if(id==='jumper')setTimeout(()=>{const i=$('#jq');i.focus();i.select()},20)}
-$$('[data-open]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();ctx.hidden=true;open(b.dataset.open)}));
-$('#omni').addEventListener('click',()=>open('jumper'));
-$$('.scrim').forEach(s=>s.addEventListener('click',closeAll));
+      addEventListener('keydown', (e) => {
+        const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+          e.preventDefault();
+          open('jumper');
+          return;
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          open('jumper');
+          return;
+        }
+        if (e.key === 'Escape') {
+          closeAll();
+          ctx.hidden = true;
+          return;
+        }
+        if (typing) return;
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          focusNode(colIdx + 1, 0);
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          focusNode(colIdx - 1, 0);
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          focusNode(colIdx, rowIdx + 1);
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          focusNode(colIdx, rowIdx - 1);
+        }
+        if (e.key.toLowerCase() === 'o') {
+          e.preventDefault();
+          open('checkout');
+        }
+      });
+      $('#jq').addEventListener('keydown', (e) => {
+        const items = $$('#jumper .ji');
+        const i = items.findIndex((x) => x.classList.contains('act'));
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          items[i]?.classList.remove('act');
+          const n =
+            e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
+          items[n].classList.add('act');
+          items[n].scrollIntoView({ block: 'nearest' });
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          closeAll();
+        }
+      });
 
-addEventListener('keydown',e=>{
-  const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='p'){e.preventDefault();open('jumper');return}
-  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();open('jumper');return}
-  if(e.key==='Escape'){closeAll();ctx.hidden=true;return}
-  if(typing)return;
-  if(e.key==='ArrowRight'){e.preventDefault();focusNode(colIdx+1,0)}
-  if(e.key==='ArrowLeft'){e.preventDefault();focusNode(colIdx-1,0)}
-  if(e.key==='ArrowDown'){e.preventDefault();focusNode(colIdx,rowIdx+1)}
-  if(e.key==='ArrowUp'){e.preventDefault();focusNode(colIdx,rowIdx-1)}
-  if(e.key.toLowerCase()==='o'){e.preventDefault();open('checkout')}
-});
-$('#jq').addEventListener('keydown',e=>{
-  const items=$$('#jumper .ji');const i=items.findIndex(x=>x.classList.contains('act'));
-  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
-    e.preventDefault();items[i]?.classList.remove('act');
-    const n=e.key==='ArrowDown'?(i+1)%items.length:(i-1+items.length)%items.length;
-    items[n].classList.add('act');items[n].scrollIntoView({block:'nearest'});
-  }
-  if(e.key==='Enter'){e.preventDefault();closeAll()}
-});
-
-/* small controls */
-$$('.seg button').forEach(b=>b.addEventListener('click',()=>{
-  [...b.parentElement.children].forEach(x=>x.setAttribute('aria-selected','false'));
-  b.setAttribute('aria-selected','true');
-}));
-$$('.ritem').forEach(r=>r.addEventListener('click',()=>{$$('.ritem').forEach(x=>x.classList.remove('on'));r.classList.add('on')}));
-$$('.depth').forEach(d=>d.addEventListener('click',()=>{
-  [...d.parentElement.children].forEach(x=>x.classList.remove('on'));d.classList.add('on');
-}));
-$$('.branchrow').forEach(b=>b.addEventListener('click',()=>{
-  $$('.branchrow').forEach(x=>x.classList.remove('cur'));b.classList.add('cur');
-}));
-</script>
-</body>
+      /* small controls */
+      $$('.seg button').forEach((b) =>
+        b.addEventListener('click', () => {
+          [...b.parentElement.children].forEach((x) => x.setAttribute('aria-selected', 'false'));
+          b.setAttribute('aria-selected', 'true');
+        })
+      );
+      $$('.ritem').forEach((r) =>
+        r.addEventListener('click', () => {
+          $$('.ritem').forEach((x) => x.classList.remove('on'));
+          r.classList.add('on');
+        })
+      );
+      $$('.depth').forEach((d) =>
+        d.addEventListener('click', () => {
+          [...d.parentElement.children].forEach((x) => x.classList.remove('on'));
+          d.classList.add('on');
+        })
+      );
+      $$('.branchrow').forEach((b) =>
+        b.addEventListener('click', () => {
+          $$('.branchrow').forEach((x) => x.classList.remove('cur'));
+          b.classList.add('cur');
+        })
+      );
+    </script>
+  </body>
 </html>

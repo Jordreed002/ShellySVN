@@ -70,8 +70,8 @@ test.describe('Settings - Dialog Navigation', () => {
       const content = await page.locator('.modal').textContent();
       expect(
         content?.toLowerCase().includes('theme') ||
-        content?.toLowerCase().includes('color') ||
-        content?.toLowerCase().includes('font')
+          content?.toLowerCase().includes('color') ||
+          content?.toLowerCase().includes('font')
       ).toBe(true);
     }
 
@@ -124,7 +124,8 @@ test.describe('Settings - Theme', () => {
       const systemOption = page.locator('.modal').locator('text=/system/i');
 
       // At least some theme options should be visible
-      const optionsCount = (await lightOption.count()) + (await darkOption.count()) + (await systemOption.count());
+      const optionsCount =
+        (await lightOption.count()) + (await darkOption.count()) + (await systemOption.count());
       expect(optionsCount).toBeGreaterThan(0);
     }
 
@@ -197,8 +198,7 @@ test.describe('Settings - General', () => {
 
     // Look for confirmation options
     const hasConfirmationOptions =
-      content?.toLowerCase().includes('confirm') ||
-      content?.toLowerCase().includes('destructive');
+      content?.toLowerCase().includes('confirm') || content?.toLowerCase().includes('destructive');
 
     expect(hasConfirmationOptions).toBe(true);
     await page.getByTestId('modal-close-button').click();

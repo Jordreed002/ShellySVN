@@ -184,31 +184,28 @@ export function SwitchDialog({
   const canSwitch = !isBusy && chosenUrl !== '' && !isCurrent;
 
   const footerCounts = [
-    branchCount === undefined ? null : `${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}`,
+    branchCount === undefined
+      ? null
+      : `${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}`,
     tagCount === undefined ? null : `${tagCount} ${tagCount === 1 ? 'tag' : 'tags'}`,
   ]
     .filter((part): part is string => part !== null)
     .join(' · ');
 
   return (
-    <AccessibleDialog
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Switch working copy"
-      size="md"
-    >
+    <AccessibleDialog isOpen={isOpen} onClose={onClose} title="Switch working copy" size="md">
       <AccessibleDialogBody>
         <div className="flex items-start gap-2.5">
           <GitBranch className="mt-0.5 h-4 w-4 flex-none text-accent" aria-hidden="true" />
           <p className="text-xs leading-relaxed text-text-secondary">
-            Points <span className="font-mono text-[11px] text-text">{workingCopy.localPath}</span> at
-            a different URL in the same repository. No second copy appears on disk, and{' '}
+            Points <span className="font-mono text-[11px] text-text">{workingCopy.localPath}</span>{' '}
+            at a different URL in the same repository. No second copy appears on disk, and{' '}
             <b className="font-semibold text-text">
               your {changedCount > 0 ? `${changedCount} ` : ''}local{' '}
               {changedCount === 1 ? 'modification is' : 'modifications are'} carried across
             </b>{' '}
-            — they are re-applied against the new target, and can conflict there exactly as an update
-            would.
+            — they are re-applied against the new target, and can conflict there exactly as an
+            update would.
           </p>
         </div>
         <p className="mb-4 mt-1.5 overflow-x-auto whitespace-pre font-mono text-[11px] text-text-muted">
@@ -279,8 +276,8 @@ export function SwitchDialog({
                 {targets.length > 0 ? 'Or a URL' : 'A URL in this repository'}
               </b>
               <small className="mt-0.5 block text-xs leading-relaxed text-text-secondary">
-                Any path in this repository. Switching across repositories is not possible — for that,
-                take a fresh checkout.
+                Any path in this repository. Switching across repositories is not possible — for
+                that, take a fresh checkout.
               </small>
             </span>
           </label>
@@ -297,12 +294,15 @@ export function SwitchDialog({
 
         {switchingToTag && (
           <div className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-bg-tertiary/40 p-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-svn-modified" aria-hidden="true" />
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 flex-none text-svn-modified"
+              aria-hidden="true"
+            />
             <p className="text-xs leading-relaxed text-text-secondary">
-              <b className="font-semibold text-text">That target is a tag.</b> Subversion will not stop
-              you switching to it, or committing to it afterwards — a tag is an ordinary directory and
-              is read-only by convention only. If you intend to keep working, switch to a branch
-              instead.
+              <b className="font-semibold text-text">That target is a tag.</b> Subversion will not
+              stop you switching to it, or committing to it afterwards — a tag is an ordinary
+              directory and is read-only by convention only. If you intend to keep working, switch
+              to a branch instead.
             </p>
           </div>
         )}

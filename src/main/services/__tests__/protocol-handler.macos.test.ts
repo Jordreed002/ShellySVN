@@ -68,10 +68,7 @@ describe('protocol handler: macOS (darwin) registration', () => {
 
     const openUrlCall = mockOn.mock.calls.find((call) => call[0] === 'open-url');
     expect(openUrlCall).toBeDefined();
-    const handler = openUrlCall![1] as (
-      event: { preventDefault: () => void },
-      url: string
-    ) => void;
+    const handler = openUrlCall![1] as (event: { preventDefault: () => void }, url: string) => void;
 
     const seen: string[] = [];
     const listener = (link: { action: string }) => seen.push(link.action);

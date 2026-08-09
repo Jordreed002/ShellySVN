@@ -331,7 +331,8 @@ export function buildRepoBrowserMenu({
         {
           id: 'copy-from-revision',
           label: 'From a specific revision…',
-          onClick: () => handlers.onCopyTo(entry, { destination: 'prompt', fromRevision: 'prompt' }),
+          onClick: () =>
+            handlers.onCopyTo(entry, { destination: 'prompt', fromRevision: 'prompt' }),
         },
       ],
     },

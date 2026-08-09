@@ -76,7 +76,9 @@ beforeEach(() => {
 });
 
 function createClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
+  });
 }
 function wrapperFor(queryClient: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -111,7 +113,9 @@ describe('useRepoLog hook', () => {
       page([{ revision: 5, author: 'a', date: 'd', message: 'm', paths: ['f1', 'f2'] }], true)
     );
 
-    const { result } = renderHook(() => useRepoLog(URL, HEAD), { wrapper: wrapperFor(createClient()) });
+    const { result } = renderHook(() => useRepoLog(URL, HEAD), {
+      wrapper: wrapperFor(createClient()),
+    });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.entries[0].changedPaths).toBe(2);
@@ -122,9 +126,13 @@ describe('useRepoLog hook', () => {
     mockPropget.mockImplementation(async (_url: string, name: string) => ({
       value: name === 'bugtraq:logregex' ? '#(\\d+)' : '',
     }));
-    mockLog.mockResolvedValueOnce(page([{ revision: 1, author: 'a', date: 'd', message: 'Fixes #7' }]));
+    mockLog.mockResolvedValueOnce(
+      page([{ revision: 1, author: 'a', date: 'd', message: 'Fixes #7' }])
+    );
 
-    const { result } = renderHook(() => useRepoLog(URL, HEAD), { wrapper: wrapperFor(createClient()) });
+    const { result } = renderHook(() => useRepoLog(URL, HEAD), {
+      wrapper: wrapperFor(createClient()),
+    });
 
     await waitFor(() => expect(result.current.entries.length).toBe(1));
     expect(result.current.entries[0].issue).toBe('7');
@@ -133,7 +141,9 @@ describe('useRepoLog hook', () => {
   it('surfaces an auth error as needsAuth and suppresses the generic message', async () => {
     mockLog.mockRejectedValue(new Error('svn: Authentication required'));
 
-    const { result } = renderHook(() => useRepoLog(URL, HEAD), { wrapper: wrapperFor(createClient()) });
+    const { result } = renderHook(() => useRepoLog(URL, HEAD), {
+      wrapper: wrapperFor(createClient()),
+    });
 
     await waitFor(() => expect(result.current.needsAuth).toBe(true));
     expect(result.current.error).toBeNull();
@@ -142,14 +152,18 @@ describe('useRepoLog hook', () => {
   it('surfaces a non-auth error as a message', async () => {
     mockLog.mockRejectedValue(new Error('network down'));
 
-    const { result } = renderHook(() => useRepoLog(URL, HEAD), { wrapper: wrapperFor(createClient()) });
+    const { result } = renderHook(() => useRepoLog(URL, HEAD), {
+      wrapper: wrapperFor(createClient()),
+    });
 
     await waitFor(() => expect(result.current.error).toBe('network down'));
     expect(result.current.needsAuth).toBe(false);
   });
 
   it('does not fetch when disabled or the url is empty', () => {
-    renderHook(() => useRepoLog(URL, HEAD, { enabled: false }), { wrapper: wrapperFor(createClient()) });
+    renderHook(() => useRepoLog(URL, HEAD, { enabled: false }), {
+      wrapper: wrapperFor(createClient()),
+    });
     renderHook(() => useRepoLog('', HEAD), { wrapper: wrapperFor(createClient()) });
     expect(mockLog).not.toHaveBeenCalled();
   });
@@ -185,7 +199,9 @@ describe('useRepoLog hook', () => {
   it('reports build status as an unsupported capability', async () => {
     mockLog.mockResolvedValueOnce(page([]));
 
-    const { result } = renderHook(() => useRepoLog(URL, HEAD), { wrapper: wrapperFor(createClient()) });
+    const { result } = renderHook(() => useRepoLog(URL, HEAD), {
+      wrapper: wrapperFor(createClient()),
+    });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.unsupported.some((u) => u.capability === 'log:build-status')).toBe(true);

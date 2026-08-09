@@ -214,8 +214,8 @@ function MillerColumn({
   // This is the same offline `svn info --depth immediates` the list view reads.
   const isInsideWorkingCopy = Boolean(
     workingCopyRoot &&
-      (dirPath === workingCopyRoot ||
-        dirPath.startsWith(workingCopyRoot.replace(/[\\/]+$/, '') + detectSeparator(dirPath)))
+    (dirPath === workingCopyRoot ||
+      dirPath.startsWith(workingCopyRoot.replace(/[\\/]+$/, '') + detectSeparator(dirPath)))
   );
   const { data: childCommits } = useQuery({
     queryKey: ['svn:childCommits', dirPath],
@@ -322,7 +322,11 @@ function MillerColumn({
                 )}
                 <Icon
                   className={`h-[17px] w-[17px] flex-shrink-0 ${
-                    notFetched ? 'text-text-faint' : entry.isDirectory ? 'text-accent' : 'text-text-muted'
+                    notFetched
+                      ? 'text-text-faint'
+                      : entry.isDirectory
+                        ? 'text-accent'
+                        : 'text-text-muted'
                   }`}
                 />
                 <span

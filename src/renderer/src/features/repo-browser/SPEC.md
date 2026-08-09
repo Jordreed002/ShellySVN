@@ -12,7 +12,7 @@ checkout. Therefore:
 - Status codes, roll-up counts and change badges appear **only** when `scope === 'working-copy'`.
 - Outside a checkout the status column stays empty. Never imply the server knows about local edits.
 - Mark the **exception, not the rule**: in a 51-client repository "not checked out" is the normal
-  state, so label the two that *are* checked out, not the forty-nine that aren't.
+  state, so label the two that _are_ checked out, not the forty-nine that aren't.
 
 ### The two exceptions, and why they are not exceptions
 
@@ -21,8 +21,8 @@ Two things look local but are **repository** facts, and so are shown with or wit
 - **`svn:externals`** — a property on a directory in the repository. A listing that hides it implies
   `vendor/` is ordinary content when its contents come from somewhere else, possibly at a revision
   that does not move with the tree. See `parseExternalsProperty` / `useRepoExternals`.
-- **Presence** (`checked out` / `partly checked out`) — derived from *which paths you have checked
-  out*, not from `svn status`. It is how the exception gets marked in a repository listing. See
+- **Presence** (`checked out` / `partly checked out`) — derived from _which paths you have checked
+  out_, not from `svn status`. It is how the exception gets marked in a repository listing. See
   `presenceFromCheckouts`.
 
 Containment is always compared on **segment boundaries** (`containsPath`). A prefix test says
@@ -83,8 +83,8 @@ itself never truncates before the directory does. This was a real bug in an earl
 
 ## Scale honesty
 
-Large directories must say so rather than silently truncating: *"Showing 200 of 4,812 — filter or
-search to narrow"*, and in the tree *"… 39 more — search instead"*. Unlisted folders show a spinner
+Large directories must say so rather than silently truncating: _"Showing 200 of 4,812 — filter or
+search to narrow"_, and in the tree _"… 39 more — search instead"_. Unlisted folders show a spinner
 with a count, not an empty node.
 
 ## What exists to build against
@@ -103,7 +103,7 @@ a normal answer, not an error. Report these through `UnsupportedCapability` rath
 ## Verify it rendered
 
 This feature has been "finished" more than once while looking nothing like the prototype. A change
-is not done until it has been *looked at*: build, serve the renderer with a stubbed `window.api`,
+is not done until it has been _looked at_: build, serve the renderer with a stubbed `window.api`,
 screenshot the real thing and compare it side by side with `prototypes/12-browser.html`. Gates
 passing is not evidence that the pixels are right — and a component that never receives data
 renders nothing while every test still passes.

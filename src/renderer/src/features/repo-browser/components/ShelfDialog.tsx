@@ -134,20 +134,22 @@ export function ShelfDialog({
           </p>
         </div>
         <p className="mb-4 mt-1.5 overflow-x-auto whitespace-pre font-mono text-[11px] text-text-muted">
-          svn shelf-diff {shelf.name} · {shelf.fileCount}{' '}
-          {shelf.fileCount === 1 ? 'file' : 'files'} · created {shelf.created}
+          svn shelf-diff {shelf.name} · {shelf.fileCount} {shelf.fileCount === 1 ? 'file' : 'files'}{' '}
+          · created {shelf.created}
         </p>
 
         <div className="mb-4 overflow-hidden rounded-xl border border-border">
           <div className="flex items-center gap-2 border-b border-border-muted bg-bg-tertiary/40 px-3 py-1.5">
             <FileDiff className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
-            <span className="text-2xs font-bold uppercase tracking-wide text-text-faint">Contents</span>
+            <span className="text-2xs font-bold uppercase tracking-wide text-text-faint">
+              Contents
+            </span>
           </div>
           {files.length === 0 ? (
             <p className="px-3 py-3 text-xs text-text-secondary">
               No file list available for this shelf — run{' '}
-              <span className="font-mono text-[11px] text-text">svn shelf-diff {shelf.name}</span> to
-              read it.
+              <span className="font-mono text-[11px] text-text">svn shelf-diff {shelf.name}</span>{' '}
+              to read it.
             </p>
           ) : (
             <ul className="list-none">

@@ -19,11 +19,7 @@ import '@testing-library/jest-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileText } from 'lucide-react';
 
-import {
-  ContextMenu,
-  getSubmenuPosition,
-  type ContextMenuItem,
-} from '../ui/ContextMenu';
+import { ContextMenu, getSubmenuPosition, type ContextMenuItem } from '../ui/ContextMenu';
 
 const LONG_PATH = '^/clients/acme-corp/website/trunk/package.json';
 
@@ -130,11 +126,11 @@ describe('ContextMenu submenus', () => {
   ];
 
   it('groups its choices instead of rendering a divider as an empty item', () => {
-    render(
-      <ContextMenu items={withSubmenu} position={{ x: 0, y: 0 }} onClose={vi.fn()} />
-    );
+    render(<ContextMenu items={withSubmenu} position={{ x: 0, y: 0 }} onClose={vi.fn()} />);
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: /Copy to/ }).parentElement as HTMLElement);
+    fireEvent.mouseEnter(
+      screen.getByRole('button', { name: /Copy to/ }).parentElement as HTMLElement
+    );
 
     expect(screen.getByText('Copy this path to')).toBeInTheDocument();
     // The heading and the rule are not clickable; the two real choices are.
@@ -157,7 +153,13 @@ describe('ContextMenu submenus', () => {
     const onClose = vi.fn();
     render(
       <ContextMenu
-        items={[{ id: 'copy-to', label: 'Copy to…', submenu: [{ id: 'branch', label: 'A new branch…', onClick: onBranch }] }]}
+        items={[
+          {
+            id: 'copy-to',
+            label: 'Copy to…',
+            submenu: [{ id: 'branch', label: 'A new branch…', onClick: onBranch }],
+          },
+        ]}
         position={{ x: 0, y: 0 }}
         onClose={onClose}
       />

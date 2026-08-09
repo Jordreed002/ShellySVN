@@ -1,12 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import type {
-  Comparand,
-  DetailTab,
-  PegRevision,
-  RepoSort,
-  SearchScope,
-} from './types';
+import type { Comparand, DetailTab, PegRevision, RepoSort, SearchScope } from './types';
 
 /**
  * Navigation and view state for the repository browser.

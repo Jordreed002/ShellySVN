@@ -123,9 +123,6 @@ const SEGMENT_OFF = 'text-text-secondary hover:bg-bg-tertiary hover:text-text';
 const SEGMENT_BASE =
   'flex h-control-sm flex-none items-center gap-1.5 rounded-6 px-2.5 text-12.5 font-semibold transition-fast';
 
-
-
-
 /** `.ctx` — menus share the context menu's surface. */
 const MENU_SURFACE =
   'absolute top-full z-50 mt-1.5 min-w-[248px] rounded-11 border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';

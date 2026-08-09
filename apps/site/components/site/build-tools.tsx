@@ -18,9 +18,9 @@ export function BuildTools() {
           <em>SVN bolted on.</em>
         </h2>
         <p className="text-[1.05rem] leading-8 text-[var(--muted-foreground)]">
-          ShellySVN is built around the way SVN teams actually work — central repositories,
-          working copies, updates, locks, externals, sparse checkouts, and packaged deployments.
-          The whole UI respects that model instead of fighting it.
+          ShellySVN is built around the way SVN teams actually work — central repositories, working
+          copies, updates, locks, externals, sparse checkouts, and packaged deployments. The whole
+          UI respects that model instead of fighting it.
         </p>
       </div>
 

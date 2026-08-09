@@ -1,7 +1,12 @@
 import type { SvnCommandErrorDetails } from '@shared/types';
 
 export function assertSuccessfulSvnRead<
-  T extends { error?: string; parseError?: string; cancelled?: boolean; commandError?: SvnCommandErrorDetails },
+  T extends {
+    error?: string;
+    parseError?: string;
+    cancelled?: boolean;
+    commandError?: SvnCommandErrorDetails;
+  },
 >(result: T): T {
   const message =
     result.error ||

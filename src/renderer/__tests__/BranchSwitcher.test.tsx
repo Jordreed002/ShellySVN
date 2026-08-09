@@ -56,12 +56,7 @@ describe('BranchSwitcher', () => {
       },
     } as unknown as Window['api'];
 
-    render(
-      <BranchSwitcher
-        url="https://svn.example.com/repo/trunk/src"
-        localPath="C:\\wc\\src"
-      />
-    );
+    render(<BranchSwitcher url="https://svn.example.com/repo/trunk/src" localPath="C:\\wc\\src" />);
 
     fireEvent.click(screen.getByTitle('Switch branch'));
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'feature' }));

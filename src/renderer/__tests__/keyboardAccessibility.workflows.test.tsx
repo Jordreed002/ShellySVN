@@ -13,12 +13,7 @@ describe('core workflow keyboard accessibility', () => {
     const onClose = vi.fn();
 
     render(
-      <CommandPalette
-        isOpen={true}
-        onClose={onClose}
-        onCommit={onCommit}
-        onUpdate={onUpdate}
-      />
+      <CommandPalette isOpen={true} onClose={onClose} onCommit={onCommit} onUpdate={onUpdate} />
     );
 
     fireEvent.keyDown(window, { key: 'ArrowDown' });
@@ -42,8 +37,7 @@ describe('core workflow keyboard accessibility', () => {
   });
 
   it('keeps toolbar view options keyboard dismissible', () => {
-    render(<Toolbar explorerViewMode="list"
-        onExplorerViewModeChange={vi.fn()} />);
+    render(<Toolbar explorerViewMode="list" onExplorerViewModeChange={vi.fn()} />);
 
     const viewOptions = screen.getByRole('button', { name: 'View options' });
     fireEvent.click(viewOptions);

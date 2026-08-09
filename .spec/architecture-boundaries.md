@@ -35,4 +35,3 @@ When extracting a large module:
 2. Move service orchestration next, keeping public IPC channels stable.
 3. Leave IPC files as thin registration and request/response mapping layers.
 4. Commit each extracted boundary separately.
-

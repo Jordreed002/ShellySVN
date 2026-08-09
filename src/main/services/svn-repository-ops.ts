@@ -95,13 +95,7 @@ export async function importRepositoryWithProgress(
 
 export async function resolveConflict(
   path: string,
-  resolution:
-    | 'base'
-    | 'mine-full'
-    | 'theirs-full'
-    | 'mine-conflict'
-    | 'theirs-conflict'
-    | 'working'
+  resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict' | 'working'
 ): Promise<{ success: boolean }> {
   validateSvnTargets([path], 'Conflict target');
   const context = await getWorkingCopyContext(path);
@@ -117,9 +111,7 @@ export async function resolveConflict(
     );
     const remainingConflict = parseSvnStatusXml(statusXml, path).entries.find(
       (entry) =>
-        entry.status === 'C' ||
-        entry.propsStatus === 'C' ||
-        entry.treeConflict !== undefined
+        entry.status === 'C' || entry.propsStatus === 'C' || entry.treeConflict !== undefined
     );
     if (remainingConflict) {
       throw new Error(`SVN still reports an unresolved conflict for ${remainingConflict.path}.`);
@@ -158,9 +150,7 @@ export async function copyRepositoryItem(
     ['copy', '-m', message.trim().replace(/\0/g, ''), '--non-interactive'],
     [src, dst]
   );
-  const output = credentials
-    ? await runSvnText(args, { credentials })
-    : await runSvnText(args);
+  const output = credentials ? await runSvnText(args, { credentials }) : await runSvnText(args);
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -230,11 +220,7 @@ export async function moveRemoteItem(
     return { success: false, revision: null, error: validationError };
   }
 
-  const sourceIdentity = await requireRepositoryTarget(
-    srcUrl,
-    'Remote move source',
-    credentials
-  );
+  const sourceIdentity = await requireRepositoryTarget(srcUrl, 'Remote move source', credentials);
   const parentIdentity = await requireRepositoryTarget(
     getRemoteParentUrl(dstUrl),
     'Remote move destination parent',
@@ -304,10 +290,9 @@ async function requireRepositoryTarget(
 ): Promise<RepositoryIdentity> {
   let output: string;
   try {
-    output = await runSvnText(
-      withSvnTargets(['info', '--xml', '--non-interactive'], [target]),
-      { credentials }
-    );
+    output = await runSvnText(withSvnTargets(['info', '--xml', '--non-interactive'], [target]), {
+      credentials,
+    });
   } catch (error) {
     if (isMissingTargetError(error)) {
       throw new Error(`${label} does not exist.`);
@@ -338,12 +323,10 @@ async function validateDestinationDoesNotExist(
   label: string,
   credentials?: SvnCredentials
 ): Promise<string | null> {
-
   try {
-    await runSvnText(
-      withSvnTargets(['info', '--xml', '--non-interactive'], [destination]),
-      { credentials }
-    );
+    await runSvnText(withSvnTargets(['info', '--xml', '--non-interactive'], [destination]), {
+      credentials,
+    });
     return `${label} already exists.`;
   } catch (error) {
     if (isMissingTargetError(error)) {

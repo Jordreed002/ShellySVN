@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
   RotateCcw,
   RefreshCw,
   Shield,
+  Sparkles,
   Sun,
   Terminal,
   Trash2,
@@ -30,6 +31,8 @@ import {
 
 import type {
   AppSettings,
+  AiCommitProviderStatus,
+  AiUsageEntry,
   AuthListEntry,
   FontSize,
   LogLevel,
@@ -335,6 +338,31 @@ interface SvnSettingsProps extends SettingsSectionProps {
 }
 
 export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
+  const [aiProviderStatuses, setAiProviderStatuses] = useState<AiCommitProviderStatus[]>([]);
+  const [isCheckingAiProviders, setIsCheckingAiProviders] = useState(false);
+  const [aiProviderStatusError, setAiProviderStatusError] = useState(false);
+  const [aiUsageHistory, setAiUsageHistory] = useState<AiUsageEntry[]>([]);
+
+  const refreshAiProviders = useCallback(async () => {
+    setIsCheckingAiProviders(true);
+    setAiProviderStatusError(false);
+    try {
+      const [providers, usage] = await Promise.all([
+        window.api.ai.providers(),
+        window.api.ai.usageHistory(),
+      ]);
+      setAiProviderStatuses(providers);
+      setAiUsageHistory(usage);
+    } catch {
+      setAiProviderStatusError(true);
+    } finally {
+      setIsCheckingAiProviders(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (settings.aiCommit.enabled) void refreshAiProviders();
+  }, [refreshAiProviders, settings.aiCommit.enabled]);
   const handleBrowseSvnPath = async () => {
     const path = await window.api.dialog.openFile([
       { name: 'Executables', extensions: ['exe', 'app'] },
@@ -424,6 +452,368 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
           placeholder="Enter default commit message…"
           className="input h-24 resize-none font-mono text-sm"
         />
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="AI Commit Messages"
+        description="Draft an editable message from the files selected for commit"
+      >
+        <div className="space-y-4">
+          <label
+            className="flex items-start gap-3 cursor-pointer group"
+            aria-label="Enable generated commit-message drafts"
+          >
+            <input
+              type="checkbox"
+              checked={settings.aiCommit.enabled}
+              onChange={(event) => onChangeNested('aiCommit', 'enabled', event.target.checked)}
+              className="checkbox mt-0.5"
+            />
+            <span>
+              <span className="flex items-center gap-2 text-sm text-text group-hover:text-accent">
+                <Sparkles className="w-4 h-4" aria-hidden="true" />
+                Enable generated commit-message drafts
+              </span>
+              <span className="mt-1 block text-xs text-text-muted">
+                Only runs when you press Generate. Selected filenames and bounded diff content are
+                sent to the configured model provider.
+              </span>
+            </span>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs text-text-muted">Provider</span>
+              <select
+                value={settings.aiCommit.provider}
+                onChange={(event) =>
+                  onChangeNested(
+                    'aiCommit',
+                    'provider',
+                    event.target.value as AppSettings['aiCommit']['provider']
+                  )
+                }
+                disabled={!settings.aiCommit.enabled}
+                className="input mt-1 w-full disabled:opacity-50"
+              >
+                <option value="auto">Auto (prefer Codex)</option>
+                <option value="codex">Codex CLI</option>
+                <option value="claude">Claude CLI (API/cloud auth)</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-text-muted">Message style</span>
+              <select
+                value={settings.aiCommit.style}
+                onChange={(event) =>
+                  onChangeNested(
+                    'aiCommit',
+                    'style',
+                    event.target.value as AppSettings['aiCommit']['style']
+                  )
+                }
+                disabled={!settings.aiCommit.enabled}
+                className="input mt-1 w-full disabled:opacity-50"
+              >
+                <option value="conventional">Conventional commit</option>
+                <option value="concise">Concise summary</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs text-text-muted">Codex model</span>
+            <select
+              value={settings.aiCommit.codexModel}
+              onChange={(event) =>
+                onChangeNested(
+                  'aiCommit',
+                  'codexModel',
+                  event.target.value as AppSettings['aiCommit']['codexModel']
+                )
+              }
+              disabled={!settings.aiCommit.enabled || settings.aiCommit.provider === 'claude'}
+              className="input mt-1 w-full disabled:opacity-50"
+            >
+              <option value="gpt-5.6-luna">GPT-5.6 Luna — fastest / lowest cost</option>
+              <option value="gpt-5.6-terra">GPT-5.6 Terra — balanced</option>
+              <option value="gpt-5.6-sol">GPT-5.6 Sol — highest capability</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-xs text-text-muted">Maximum diff sent (KiB)</span>
+            <input
+              type="number"
+              min={32}
+              max={512}
+              step={32}
+              value={Math.round(settings.aiCommit.maxDiffBytes / 1024)}
+              onChange={(event) =>
+                onChangeNested(
+                  'aiCommit',
+                  'maxDiffBytes',
+                  clampedInteger(event.target.value, 32, 512, 256) * 1024
+                )
+              }
+              disabled={!settings.aiCommit.enabled}
+              className="input mt-1 w-28 disabled:opacity-50"
+            />
+          </label>
+
+          <label className="flex items-center gap-3 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              checked={settings.aiCommit.confirmBeforeSending}
+              onChange={(event) =>
+                onChangeNested('aiCommit', 'confirmBeforeSending', event.target.checked)
+              }
+              disabled={!settings.aiCommit.enabled}
+              className="checkbox"
+            />
+            Confirm before sending each selected diff
+          </label>
+
+          <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
+            <label className="flex items-start gap-3 text-sm text-text-secondary">
+              <input
+                type="checkbox"
+                checked={settings.aiCommit.includeRecentHistory}
+                onChange={(event) =>
+                  onChangeNested('aiCommit', 'includeRecentHistory', event.target.checked)
+                }
+                disabled={!settings.aiCommit.enabled}
+                className="checkbox mt-0.5"
+              />
+              <span>
+                Match recent repository message style
+                <span className="mt-1 block text-xs text-text-muted">
+                  Sends a redacted sample of recent commit messages in addition to the selected
+                  diff. This is a separate privacy choice and is disabled by default.
+                </span>
+              </span>
+            </label>
+            {settings.aiCommit.includeRecentHistory && (
+              <label className="mt-3 block">
+                <span className="text-xs text-text-muted">Recent messages sampled</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={25}
+                  value={settings.aiCommit.historyLimit}
+                  onChange={(event) =>
+                    onChangeNested(
+                      'aiCommit',
+                      'historyLimit',
+                      clampedInteger(event.target.value, 1, 25, 10)
+                    )
+                  }
+                  disabled={!settings.aiCommit.enabled}
+                  className="input mt-1 w-24 disabled:opacity-50"
+                />
+              </label>
+            )}
+          </div>
+
+          <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
+            <div className="mb-3 text-10 font-semibold uppercase tracking-caps text-text-muted">
+              Provider budgets
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <label className="block">
+                <span className="text-xs text-text-muted">Timeout (seconds)</span>
+                <input
+                  type="number"
+                  min={15}
+                  max={300}
+                  step={15}
+                  value={Math.round(settings.aiCommit.providerTimeoutMs / 1000)}
+                  onChange={(event) =>
+                    onChangeNested(
+                      'aiCommit',
+                      'providerTimeoutMs',
+                      clampedInteger(event.target.value, 15, 300, 60) * 1000
+                    )
+                  }
+                  disabled={!settings.aiCommit.enabled}
+                  className="input mt-1 w-full disabled:opacity-50"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-text-muted">Calls per session</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={settings.aiCommit.maxSessionInvocations}
+                  onChange={(event) =>
+                    onChangeNested(
+                      'aiCommit',
+                      'maxSessionInvocations',
+                      clampedInteger(event.target.value, 1, 500, 100)
+                    )
+                  }
+                  disabled={!settings.aiCommit.enabled}
+                  className="input mt-1 w-full disabled:opacity-50"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-text-muted">History retention</span>
+                <select
+                  value={settings.aiCommit.usageRetentionDays}
+                  onChange={(event) =>
+                    onChangeNested('aiCommit', 'usageRetentionDays', Number(event.target.value))
+                  }
+                  disabled={!settings.aiCommit.enabled}
+                  className="input mt-1 w-full disabled:opacity-50"
+                >
+                  <option value={7}>7 days</option>
+                  <option value={30}>30 days</option>
+                  <option value={90}>90 days</option>
+                </select>
+              </label>
+            </div>
+            <p className="mt-2 text-10.5 text-text-faint">
+              Budgets apply before a provider starts. Usage records contain task, provider, timing,
+              size, and result only—never paths, prompts, diffs, or generated text.
+            </p>
+          </div>
+
+          <p className="text-xs text-text-muted">
+            ShellySVN uses a separately installed CLI. Claude runs in bare mode and requires API-key
+            or managed cloud-provider authentication; subscription OAuth is not used.
+          </p>
+
+          {settings.aiCommit.enabled && (
+            <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
+                  Provider status
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void refreshAiProviders()}
+                  className="btn-icon-sm"
+                  disabled={isCheckingAiProviders}
+                  aria-label="Refresh AI provider status"
+                  title="Refresh provider status"
+                >
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${isCheckingAiProviders ? 'animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {aiProviderStatusError ? (
+                  <div className="flex items-center gap-2 text-11.5 text-error">
+                    <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                    Provider status could not be checked.
+                  </div>
+                ) : isCheckingAiProviders && aiProviderStatuses.length === 0 ? (
+                  <div className="flex items-center gap-2 text-11.5 text-text-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    Checking installed CLIs…
+                  </div>
+                ) : (
+                  aiProviderStatuses.map((status) => {
+                    const state = status.available
+                      ? 'Ready'
+                      : status.cliLoggedIn
+                        ? 'Signed in · API auth required'
+                        : status.version
+                          ? 'Installed · authentication required'
+                          : 'Not installed';
+                    return (
+                      <div
+                        key={status.provider}
+                        className="flex items-start gap-2.5 rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2"
+                      >
+                        <span
+                          className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                            status.available
+                              ? 'bg-success'
+                              : status.cliLoggedIn
+                                ? 'bg-warning'
+                                : 'bg-text-faint'
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-12 font-medium capitalize text-text">
+                              {status.provider}
+                            </span>
+                            {status.version && (
+                              <span className="truncate font-mono text-9.5 text-text-faint">
+                                {status.version}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-10.5 text-text-muted">{state}</p>
+                          {status.authMethod && (
+                            <p className="text-10 text-text-faint">
+                              CLI login: {status.authMethod}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {settings.aiCommit.enabled && aiUsageHistory.length > 0 && (
+            <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
+                  Recent AI activity
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm text-10.5"
+                  onClick={async () => {
+                    await window.api.ai.clearUsageHistory();
+                    setAiUsageHistory([]);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Clear metadata
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {aiUsageHistory.slice(0, 8).map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2 text-10.5"
+                  >
+                    <span className="truncate text-text-secondary">
+                      {entry.task.replaceAll('-', ' ')}
+                    </span>
+                    <span className="font-mono text-text-faint">
+                      {entry.provider}
+                      {entry.model ? ` · ${entry.model}` : ''} ·{' '}
+                      {(entry.durationMs / 1000).toFixed(1)}s
+                    </span>
+                    <span
+                      className={
+                        entry.status === 'success'
+                          ? 'text-success'
+                          : entry.status === 'cancelled'
+                            ? 'text-warning'
+                            : 'text-error'
+                      }
+                    >
+                      {entry.status}
+                      {entry.errorCode ? ` · ${entry.errorCode.replaceAll('_', ' ')}` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </SettingsGroup>
 
       {/* File Visibility */}
@@ -1175,9 +1565,7 @@ export function IntegrationSettingsTab({
         title="Open in"
         description="Applications offered when you right-click a file or folder"
       >
-        <OpenWithSettings
-          tools={settings.customOpenWithTools ?? []}
-        />
+        <OpenWithSettings tools={settings.customOpenWithTools ?? []} />
       </SettingsGroup>
 
       {/* Shell Integration */}
@@ -1645,7 +2033,10 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
   useEffect(() => {
     if (!isOpen) return;
 
-    void window.api.app?.getPlatform?.().then(setPlatform).catch(() => setPlatform(undefined));
+    void window.api.app
+      ?.getPlatform?.()
+      .then(setPlatform)
+      .catch(() => setPlatform(undefined));
 
     const loadCredentials = async () => {
       setIsLoading(true);

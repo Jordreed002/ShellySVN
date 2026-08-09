@@ -26,7 +26,9 @@ export function WorkflowRail() {
             <span className="display text-[2.5rem] leading-none text-[var(--accent-bright)]">
               {String(index + 1).padStart(2, '0')}
             </span>
-            <span className="kicker">Step {index + 1} of {steps.length}</span>
+            <span className="kicker">
+              Step {index + 1} of {steps.length}
+            </span>
           </div>
           <h3 className="text-2xl leading-tight">{step.title}</h3>
           <p className="mt-3 flex-1 text-sm leading-7 text-[var(--muted-foreground)]">

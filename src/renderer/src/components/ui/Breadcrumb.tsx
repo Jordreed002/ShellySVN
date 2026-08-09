@@ -212,18 +212,13 @@ export function Breadcrumb({
     <span
       key={key}
       className={`flex items-center gap-px ${
-        item.path === lastPath
-          ? shrinkLeaf
-            ? 'min-w-0 shrink'
-            : 'flex-none'
-          : 'min-w-0 shrink'
+        item.path === lastPath ? (shrinkLeaf ? 'min-w-0 shrink' : 'flex-none') : 'min-w-0 shrink'
       }`}
     >
       {renderSeparator(`sep-${key}`)}
       {renderCrumb(item, showIcon)}
     </span>
   );
-
 
   return (
     <nav

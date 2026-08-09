@@ -250,7 +250,9 @@ describe('getDefaultLocalStatusSocketPath — Windows', () => {
 
   it('is deterministic for the same user-data path', () => {
     const userData = 'C:\\Users\\test\\AppData\\ShellySVN';
-    expect(getDefaultLocalStatusSocketPath(userData)).toBe(getDefaultLocalStatusSocketPath(userData));
+    expect(getDefaultLocalStatusSocketPath(userData)).toBe(
+      getDefaultLocalStatusSocketPath(userData)
+    );
   });
 
   it('yields distinct pipe names for distinct user-data paths', () => {

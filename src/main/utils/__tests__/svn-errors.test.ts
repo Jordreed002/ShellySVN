@@ -2,11 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  classifySvnCommandError,
-  getSvnReadError,
-  SvnCommandError,
-} from '../svn-errors';
+import { classifySvnCommandError, getSvnReadError, SvnCommandError } from '../svn-errors';
 
 describe('structured SVN command errors', () => {
   it.each([
@@ -50,12 +46,12 @@ describe('structured SVN command errors', () => {
       command: 'list',
     });
 
-    expect(classifySvnCommandError(error, { target: 'https://svn.example.com/repo' })).toMatchObject(
-      {
-        category: 'network',
-        command: 'list',
-        target: 'https://svn.example.com/repo',
-      }
-    );
+    expect(
+      classifySvnCommandError(error, { target: 'https://svn.example.com/repo' })
+    ).toMatchObject({
+      category: 'network',
+      command: 'list',
+      target: 'https://svn.example.com/repo',
+    });
   });
 });

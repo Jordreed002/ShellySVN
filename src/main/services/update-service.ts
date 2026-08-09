@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron';
-import { appendFile, chmod, rename, stat } from 'fs/promises';
+import { appendFile, chmod, rename, rm, stat } from 'fs/promises';
 import { join } from 'path';
 import electronUpdater, {
   type ProgressInfo,
@@ -148,7 +148,17 @@ export class UpdateService {
         const logPath = join(app.getPath('logs'), 'updater.log');
         try {
           const details = await stat(logPath);
-          if (details.size >= MAX_LOG_BYTES) await rename(logPath, `${logPath}.1`);
+          if (details.size >= MAX_LOG_BYTES) {
+            try {
+              // Windows rename does not replace an existing destination. Keep
+              // one bounded backup and make rotation best-effort so a locked
+              // or otherwise unmovable file never disables future logging.
+              await rm(`${logPath}.1`, { force: true });
+              await rename(logPath, `${logPath}.1`);
+            } catch {
+              // Continue appending to the active log when rotation fails.
+            }
+          }
         } catch {
           // The log is created on first write.
         }

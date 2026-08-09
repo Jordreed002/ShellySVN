@@ -5,13 +5,13 @@
 
 ## Snapshot
 
-| Layer | Test files | Test cases |
-|---|---|---|
-| Unit | — | 2103 |
-| Integration / real | — | 14 |
-| Performance | — | 28 |
-| E2E | 0 | 90 |
-| **Total** | **243** | **2235** |
+| Layer              | Test files | Test cases |
+| ------------------ | ---------- | ---------- |
+| Unit               | —          | 2103       |
+| Integration / real | —          | 14         |
+| Performance        | —          | 28         |
+| E2E                | 0          | 90         |
+| **Total**          | **243**    | **2235**   |
 
 **Baseline:** `2145` non-E2E tests (1 network-dependent `.real` test is inherently flaky offline). 90 E2E tests are mostly structural today.
 
@@ -19,73 +19,73 @@
 
 ## Coverage by user journey
 
-| Journey | Test cases |
-|---|---|
-| J1 — First-run onboarding | 16 |
-| J10 — Sparse-checkout management | 0 |
-| J11 — Settings & configuration | 168 |
-| J12 — Properties & metadata | 29 |
-| J13 — Diagnostics & recovery | 7 |
-| J14 — App lifecycle & integrations | 298 |
-| J2 — Repository checkout | 193 |
-| J3 — Repository browsing | 185 |
-| J4 — Daily edit & commit loop | 123 |
-| J5 — Update & stay in sync | 24 |
-| J6 — Conflict resolution | 27 |
-| J7 — History & investigation | 47 |
-| J8 — Branching & tagging | 17 |
-| J9 — File locking | 8 |
-| — — Uncategorized | 1093 |
+| Journey                            | Test cases |
+| ---------------------------------- | ---------- |
+| J1 — First-run onboarding          | 16         |
+| J10 — Sparse-checkout management   | 0          |
+| J11 — Settings & configuration     | 168        |
+| J12 — Properties & metadata        | 29         |
+| J13 — Diagnostics & recovery       | 7          |
+| J14 — App lifecycle & integrations | 298        |
+| J2 — Repository checkout           | 193        |
+| J3 — Repository browsing           | 185        |
+| J4 — Daily edit & commit loop      | 123        |
+| J5 — Update & stay in sync         | 24         |
+| J6 — Conflict resolution           | 27         |
+| J7 — History & investigation       | 47         |
+| J8 — Branching & tagging           | 17         |
+| J9 — File locking                  | 8          |
+| — — Uncategorized                  | 1093       |
 
 ## Planned gaps (highest-value missing journeys)
 
-| # | Journey | Layer | Planned test |
-|---|---|---|---|
-| 1 | J2 | e2e | E2E: mocked svn:checkout success -> repo appears in sidebar AND file explorer loads |
-| 2 | J3 | e2e | E2E: browse -> cat (view file contents) -> log chained journey |
-| 3 | J4 | e2e | E2E: status -> add -> commit -> new revision appears in history |
-| 4 | J4 | unit | unit: status refresh invalidates working copy tree after add/commit |
-| 5 | J5 | e2e | E2E: incoming-revisions badge clears after successful update |
-| 6 | J7 | e2e | E2E: select revision -> changed-files list -> diff renders |
-| 7 | J8 | e2e | E2E: create branch (svn:copy) -> switch -> working copy reflects branch |
-| 8 | J9 | e2e | E2E: lock file -> indicator shown -> unlock -> indicator clears |
-| 9 | J11 | e2e | E2E: change setting -> reload -> value persists across restart |
-| 10 | J12 | e2e | E2E: set svn:ignore -> file leaves untracked list |
-| 11 | J13 | integration | integration: cleanup repairs working copy after interrupted commit |
-| 12 | J14 | unit | unit: network-dependent .real tests are skipped when offline (env guard) |
+| #   | Journey | Layer       | Planned test                                                                        |
+| --- | ------- | ----------- | ----------------------------------------------------------------------------------- |
+| 1   | J2      | e2e         | E2E: mocked svn:checkout success -> repo appears in sidebar AND file explorer loads |
+| 2   | J3      | e2e         | E2E: browse -> cat (view file contents) -> log chained journey                      |
+| 3   | J4      | e2e         | E2E: status -> add -> commit -> new revision appears in history                     |
+| 4   | J4      | unit        | unit: status refresh invalidates working copy tree after add/commit                 |
+| 5   | J5      | e2e         | E2E: incoming-revisions badge clears after successful update                        |
+| 6   | J7      | e2e         | E2E: select revision -> changed-files list -> diff renders                          |
+| 7   | J8      | e2e         | E2E: create branch (svn:copy) -> switch -> working copy reflects branch             |
+| 8   | J9      | e2e         | E2E: lock file -> indicator shown -> unlock -> indicator clears                     |
+| 9   | J11     | e2e         | E2E: change setting -> reload -> value persists across restart                      |
+| 10  | J12     | e2e         | E2E: set svn:ignore -> file leaves untracked list                                   |
+| 11  | J13     | integration | integration: cleanup repairs working copy after interrupted commit                  |
+| 12  | J14     | unit        | unit: network-dependent .real tests are skipped when offline (env guard)            |
 
 ## Layer / area breakdown (existing tests only)
 
-| Layer / Area | Tests |
-|---|---|
-| unit / Uncategorized | 1051 |
-| unit / Repo Browser | 180 |
-| unit / Shared/Core | 176 |
-| unit / Checkout | 167 |
-| unit / Settings | 131 |
-| unit / Lifecycle/Auth | 122 |
-| unit / Commit | 56 |
-| unit / File Explorer | 46 |
-| unit / History | 44 |
-| unit / Properties | 29 |
-| e2e / Uncategorized | 27 |
-| unit / Conflict Resolution | 26 |
-| unit / Update | 24 |
-| e2e / File Explorer | 21 |
-| e2e / Settings | 18 |
-| perf / Checkout | 18 |
-| unit / Branching | 17 |
-| unit / Onboarding | 12 |
-| integration / Uncategorized | 11 |
-| e2e / Authentication | 9 |
-| e2e / Checkout | 8 |
-| unit / Locking | 8 |
-| unit / Authentication | 7 |
-| unit / Diagnostics | 7 |
-| perf / Uncategorized | 4 |
-| e2e / Onboarding | 4 |
-| integration / Settings | 3 |
-| perf / Repo Browser | 3 |
-| perf / History | 3 |
-| e2e / Repo Browser | 2 |
-| e2e / Conflict Resolution | 1 |
+| Layer / Area                | Tests |
+| --------------------------- | ----- |
+| unit / Uncategorized        | 1051  |
+| unit / Repo Browser         | 180   |
+| unit / Shared/Core          | 176   |
+| unit / Checkout             | 167   |
+| unit / Settings             | 131   |
+| unit / Lifecycle/Auth       | 122   |
+| unit / Commit               | 56    |
+| unit / File Explorer        | 46    |
+| unit / History              | 44    |
+| unit / Properties           | 29    |
+| e2e / Uncategorized         | 27    |
+| unit / Conflict Resolution  | 26    |
+| unit / Update               | 24    |
+| e2e / File Explorer         | 21    |
+| e2e / Settings              | 18    |
+| perf / Checkout             | 18    |
+| unit / Branching            | 17    |
+| unit / Onboarding           | 12    |
+| integration / Uncategorized | 11    |
+| e2e / Authentication        | 9     |
+| e2e / Checkout              | 8     |
+| unit / Locking              | 8     |
+| unit / Authentication       | 7     |
+| unit / Diagnostics          | 7     |
+| perf / Uncategorized        | 4     |
+| e2e / Onboarding            | 4     |
+| integration / Settings      | 3     |
+| perf / Repo Browser         | 3     |
+| perf / History              | 3     |
+| e2e / Repo Browser          | 2     |
+| e2e / Conflict Resolution   | 1     |

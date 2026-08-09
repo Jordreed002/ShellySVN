@@ -27,9 +27,14 @@ export default async function ChangelogPage() {
               </a>
             </div>
             <p className="mt-4 text-sm text-stone-700">
-              Published {new Date(release.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'long' })}
+              Published{' '}
+              {new Date(release.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'long' })}
             </p>
-            {release.bodyMd ? <pre className="mt-5 overflow-x-auto rounded-3xl bg-[#141210] p-5 text-sm leading-7 text-stone-200 whitespace-pre-wrap">{release.bodyMd}</pre> : null}
+            {release.bodyMd ? (
+              <pre className="mt-5 overflow-x-auto rounded-3xl bg-[#141210] p-5 text-sm leading-7 text-stone-200 whitespace-pre-wrap">
+                {release.bodyMd}
+              </pre>
+            ) : null}
           </article>
         ))}
       </div>

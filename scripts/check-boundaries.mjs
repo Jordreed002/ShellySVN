@@ -5,7 +5,12 @@ const root = process.cwd();
 const checks = [
   {
     base: 'src/renderer',
-    forbidden: [/from ['"]@main\//, /from ['"]@preload\//, /from ['"].*src\/main/, /from ['"].*src\/preload/],
+    forbidden: [
+      /from ['"]@main\//,
+      /from ['"]@preload\//,
+      /from ['"].*src\/main/,
+      /from ['"].*src\/preload/,
+    ],
     message: 'renderer code must not import main or preload modules',
   },
   {
@@ -57,7 +62,9 @@ for (const check of checks) {
 
 try {
   await readFile(join(root, 'packages/logic-engine/src/svn/types.ts'), 'utf8');
-  violations.push('packages/logic-engine/src/svn/types.ts: duplicated shared SVN types are not allowed');
+  violations.push(
+    'packages/logic-engine/src/svn/types.ts: duplicated shared SVN types are not allowed'
+  );
 } catch {
   // Expected: logic engine uses @shellysvn/shared.
 }
@@ -71,4 +78,3 @@ if (violations.length > 0) {
 }
 
 console.log('Architecture boundaries OK');
-

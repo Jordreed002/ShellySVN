@@ -148,8 +148,7 @@ export class WorkerPool {
     this.workerScript = options.workerScript ?? getDefaultWorkerScript();
     this.maxQueuedJobs = options.maxQueuedJobs ?? DEFAULT_MAX_QUEUED_WORKER_JOBS;
     this.backgroundAgingMs = options.backgroundAgingMs ?? DEFAULT_BACKGROUND_WORKER_AGING_MS;
-    this.cancellationGraceMs =
-      options.cancellationGraceMs ?? DEFAULT_WORKER_CANCELLATION_GRACE_MS;
+    this.cancellationGraceMs = options.cancellationGraceMs ?? DEFAULT_WORKER_CANCELLATION_GRACE_MS;
   }
 
   run<N extends WorkerJobName>(
@@ -217,7 +216,8 @@ export class WorkerPool {
         priority,
         queuedAt: Date.now(),
         timeoutMs:
-          options.timeoutMs ?? (COALESCIBLE_READ_JOBS.has(name) ? DEFAULT_READ_WORKER_TIMEOUT_MS : undefined),
+          options.timeoutMs ??
+          (COALESCIBLE_READ_JOBS.has(name) ? DEFAULT_READ_WORKER_TIMEOUT_MS : undefined),
         resolve: resolve as (result: WorkerJobResultMap[WorkerJobName]) => void,
         reject,
         onProgress: options.onProgress,

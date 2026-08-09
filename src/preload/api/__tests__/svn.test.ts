@@ -64,6 +64,32 @@ describe('SVN preload IPC contract', () => {
       () => api.mergeInfo('source', 'target', 'eligible'),
       ['svn:mergeInfo', 'source', 'target', 'eligible'],
     ],
+    [
+      'merge readiness',
+      () => api.mergeReadiness('https://repo/branch', '/wc'),
+      ['svn:mergeReadiness', 'https://repo/branch', '/wc'],
+    ],
+    [
+      'revision impact',
+      () => api.revisionImpact('/wc', 20, 8),
+      ['svn:revisionImpact', '/wc', 20, 8],
+    ],
+    [
+      'branch comparison',
+      () => api.compareBranches('https://repo/trunk', 'https://repo/branch'),
+      ['svn:compareBranches', 'https://repo/trunk', 'https://repo/branch'],
+    ],
+    [
+      'working-copy health',
+      () => api.workingCopyHealth('/wc'),
+      ['svn:workingCopyHealth', '/wc'],
+    ],
+    ['command timeline', () => api.commandTimeline(), ['svn:commandTimeline']],
+    [
+      'clear command timeline',
+      () => api.clearCommandTimeline(),
+      ['svn:commandTimeline:clear'],
+    ],
     ['info', () => api.info('/wc'), ['svn:info', '/wc']],
     ['URL info', () => api.infoUrl('https://repo/trunk'), ['svn:infoUrl', 'https://repo/trunk']],
     [

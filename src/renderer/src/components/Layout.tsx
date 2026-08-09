@@ -1,7 +1,8 @@
 import { lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { PanelLeft, Search, StickyNote } from 'lucide-react';
+import { BrainCircuit, PanelLeft, Search, StickyNote } from 'lucide-react';
+import { REVIEW_CENTER_OPEN_EVENT } from '@renderer/features/ai-review-center/reviewCenterEvents';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
@@ -32,6 +33,11 @@ const CommandPaletteController = lazy(() =>
 );
 const ShellDialogs = lazy(() =>
   import('./ui/ShellDialogs').then((m) => ({ default: m.ShellDialogs }))
+);
+const AiReviewCenter = lazy(() =>
+  import('@renderer/features/ai-review-center/AiReviewCenter').then((m) => ({
+    default: m.AiReviewCenter,
+  }))
 );
 
 /**
@@ -98,6 +104,7 @@ export function Layout({ children }: LayoutProps) {
   const [showNotes, setShowNotes] = useState(false);
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [showPluginManager, setShowPluginManager] = useState(false);
+  const [showAiReviewCenter, setShowAiReviewCenter] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(true);
@@ -239,6 +246,12 @@ export function Layout({ children }: LayoutProps) {
         return;
       }
 
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setShowAiReviewCenter((previous) => !previous);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setShowPerformanceDashboard((prev) => !prev);
@@ -256,6 +269,12 @@ export function Layout({ children }: LayoutProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleSidebar]);
+
+  useEffect(() => {
+    const open = () => setShowAiReviewCenter(true);
+    window.addEventListener(REVIEW_CENTER_OPEN_EVENT, open);
+    return () => window.removeEventListener(REVIEW_CENTER_OPEN_EVENT, open);
+  }, []);
 
   const handleGoToPath = (targetPath: string) => {
     navigate({ to: '/files', search: { path: targetPath } });
@@ -357,6 +376,18 @@ export function Layout({ children }: LayoutProps) {
             <StickyNote className="w-4 h-4" aria-hidden="true" />
           </button>
 
+          <button
+            type="button"
+            onClick={() => setShowAiReviewCenter((previous) => !previous)}
+            className={iconButtonClass(showAiReviewCenter)}
+            aria-pressed={showAiReviewCenter}
+            aria-label="AI Review Center"
+            aria-keyshortcuts="Meta+Shift+A Control+Shift+A"
+            title="AI Review Center (⌘⇧A)"
+          >
+            <BrainCircuit className="w-4 h-4" aria-hidden="true" />
+          </button>
+
           <Suspense
             fallback={
               <div className={isWindows ? 'h-8 w-[238px]' : 'h-8 w-[102px]'} aria-hidden="true" />
@@ -448,6 +479,15 @@ export function Layout({ children }: LayoutProps) {
               setShowCommandPalette(false);
               setShowPluginManager(true);
             }}
+          />
+        </Suspense>
+      )}
+
+      {showAiReviewCenter && (
+        <Suspense fallback={null}>
+          <AiReviewCenter
+            workingCopyPath={workingCopyPath}
+            onClose={() => setShowAiReviewCenter(false)}
           />
         </Suspense>
       )}

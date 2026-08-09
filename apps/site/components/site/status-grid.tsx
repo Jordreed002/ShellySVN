@@ -20,7 +20,9 @@ export function StatusGrid() {
         {items.map((item) => (
           <li key={item.label} className="space-y-1">
             <p className="kicker text-[var(--dim)]">{item.label}</p>
-            <p className={`text-[0.95rem] font-medium ${item.tone === 'ready' ? 'text-[var(--teal)]' : 'text-[var(--muted-foreground)]'}`}>
+            <p
+              className={`text-[0.95rem] font-medium ${item.tone === 'ready' ? 'text-[var(--teal)]' : 'text-[var(--muted-foreground)]'}`}
+            >
               <span
                 className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${item.tone === 'ready' ? 'bg-[var(--teal)] shadow-[0_0_8px_currentColor]' : 'bg-[var(--dim)]'}`}
                 aria-hidden

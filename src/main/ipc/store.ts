@@ -12,7 +12,12 @@ function validateStoreKey(key: unknown): string {
   if (
     typeof key !== 'string' ||
     forbiddenKeys.has(key) ||
-    !(key === 'settings' || key === 'onboarding' || key === 'hasLaunchedBefore' || key.startsWith('shellysvn'))
+    !(
+      key === 'settings' ||
+      key === 'onboarding' ||
+      key === 'hasLaunchedBefore' ||
+      key.startsWith('shellysvn')
+    )
   ) {
     throw new Error('Unsupported store key');
   }

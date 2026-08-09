@@ -383,10 +383,9 @@ describe('svn-metadata externals management', () => {
 
     await expect(externalsUpdate('C:\\wc', 'new-lib')).resolves.toEqual({ success: true });
 
-    expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['update', '--', 'C:\\wc'],
-      { trustSslFailures: false }
-    );
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['update', '--', 'C:\\wc'], {
+      trustSslFailures: false,
+    });
   });
 });
 

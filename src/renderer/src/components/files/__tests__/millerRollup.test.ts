@@ -24,7 +24,14 @@ const entry = (over: Partial<FileInfo> = {}): FileInfo =>
 describe('toRollup', () => {
   it('counts the changed descendants of a directory', () => {
     const rollup = toRollup(
-      entry({ svnStatus: { path: '/wc/acme-website/src', status: ' ', isDirectory: true, childChangeCount: 6 } })
+      entry({
+        svnStatus: {
+          path: '/wc/acme-website/src',
+          status: ' ',
+          isDirectory: true,
+          childChangeCount: 6,
+        },
+      })
     );
 
     expect(rollup).toEqual({ modified: 6, added: 0, deleted: 0, conflicted: 0 });
@@ -34,7 +41,14 @@ describe('toRollup', () => {
     // Mark the exception, not the rule.
     expect(
       toRollup(
-        entry({ svnStatus: { path: '/wc/acme-website/docs', status: ' ', isDirectory: true, childChangeCount: 0 } })
+        entry({
+          svnStatus: {
+            path: '/wc/acme-website/docs',
+            status: ' ',
+            isDirectory: true,
+            childChangeCount: 0,
+          },
+        })
       )
     ).toBeNull();
     expect(toRollup(entry())).toBeNull();
@@ -46,7 +60,12 @@ describe('toRollup', () => {
         entry({
           name: 'package.json',
           isDirectory: false,
-          svnStatus: { path: '/wc/acme-website/package.json', status: 'M', isDirectory: false, childChangeCount: 3 },
+          svnStatus: {
+            path: '/wc/acme-website/package.json',
+            status: 'M',
+            isDirectory: false,
+            childChangeCount: 3,
+          },
         })
       )
     ).toBeNull();

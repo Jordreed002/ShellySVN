@@ -52,8 +52,10 @@ for (const step of steps.split('|').filter(Boolean)) {
   const kind = step.slice(0, separator);
   const argument = step.slice(separator + 1);
   try {
-    if (kind === 'row') await page.locator('[role="row"]', { hasText: argument }).first().dblclick();
-    else if (kind === 'rclick') await page.locator('[role="row"]', { hasText: argument }).first().click({ button: 'right' });
+    if (kind === 'row')
+      await page.locator('[role="row"]', { hasText: argument }).first().dblclick();
+    else if (kind === 'rclick')
+      await page.locator('[role="row"]', { hasText: argument }).first().click({ button: 'right' });
     else if (kind === 'click') await page.locator(argument).first().click();
     else if (kind === 'text') await page.getByText(argument, { exact: false }).first().click();
     else if (kind === 'wait') await page.waitForTimeout(Number(argument));

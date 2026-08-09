@@ -20,10 +20,12 @@ import {
   createUpdaterApi,
 } from './api/native';
 import { createSvnApi } from './api/svn';
+import { createAiApi } from './api/ai';
 
 const invokeIpc = createInvokeIpc(ipcRenderer);
 
 const api: ElectronAPI = {
+  ai: createAiApi(invokeIpc),
   svn: createSvnApi(ipcRenderer, invokeIpc),
   external: createExternalApi(invokeIpc),
   externalTools: createExternalToolsApi(invokeIpc),

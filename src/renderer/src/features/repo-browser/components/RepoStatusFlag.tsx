@@ -72,7 +72,11 @@ export interface RepoStatusFlagProps {
 /**
  * One status, as the word and the code together: `Modified M`.
  */
-export function RepoStatusFlag({ code, codeOnly = false, className }: RepoStatusFlagProps): ReactElement {
+export function RepoStatusFlag({
+  code,
+  codeOnly = false,
+  className,
+}: RepoStatusFlagProps): ReactElement {
   const label = STATUS_LABEL[code];
 
   return (
@@ -155,7 +159,10 @@ export interface RepoPresenceFlagProps {
  * noise — so only the ones that *are* on disk get a mark, and it is deliberately
  * quiet.
  */
-export function RepoPresenceFlag({ presence, className }: RepoPresenceFlagProps): ReactElement | null {
+export function RepoPresenceFlag({
+  presence,
+  className,
+}: RepoPresenceFlagProps): ReactElement | null {
   if (presence === 'none') return null;
 
   const label = presence === 'full' ? 'checked out' : 'partly checked out';

@@ -208,10 +208,10 @@ export async function checkout(
   const operationContext: Partial<SvnExecutionContext> = {};
 
   try {
-    const trustedSslFailures = options?.trustSsl
-      && isHttpsRepositoryUrl(url)
-      ? normalizeSslFailures(options.sslFailures)
-      : undefined;
+    const trustedSslFailures =
+      options?.trustSsl && isHttpsRepositoryUrl(url)
+        ? normalizeSslFailures(options.sslFailures)
+        : undefined;
     if (options?.sparsePaths?.length) {
       const result = await runSparseCheckout(url, path, revision, options, trustedSslFailures);
       await persistSslTrust(url, options, trustedSslFailures);
@@ -266,9 +266,10 @@ export async function checkoutWithProgress(
   let revisionBuffer = '';
   let lineBuffer = '';
   const processedPaths = new Set<string>();
-  const trustedSslFailures = options?.trustSsl && isHttpsRepositoryUrl(url)
-    ? normalizeSslFailures(options.sslFailures)
-    : undefined;
+  const trustedSslFailures =
+    options?.trustSsl && isHttpsRepositoryUrl(url)
+      ? normalizeSslFailures(options.sslFailures)
+      : undefined;
 
   try {
     if (options?.sparsePaths?.length) {

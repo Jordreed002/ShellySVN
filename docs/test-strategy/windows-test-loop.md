@@ -15,7 +15,7 @@ pull-at-start / commit-push-at-end and keeps its tests in disjoint files
 The Windows unit suite is **green for all actual code**: a full `bunx vitest run`
 on Windows shows `2210 passed`, with the only remaining failures in two
 out-of-scope buckets (see [Known out-of-scope failures](#known-out-of-scope-failures)).
-Work has therefore moved from *fix-red* to *expand Windows-branch coverage*.
+Work has therefore moved from _fix-red_ to _expand Windows-branch coverage_.
 
 ## Per-iteration workflow
 
@@ -93,57 +93,57 @@ Three genuine Windows bugs were fixed during this loop (commits `fix(win):`):
 ## Prioritized backlog
 
 - [x] **W1** — `process-tree`: Windows `taskkill.exe` termination (graceful→`/F`,
-  no-op early exits, caller grace window).
+      no-op early exits, caller grace window).
 - [x] **W2** — `code-editors`: `PATHEXT`-based launcher discovery (`code.cmd`),
-  bare-launcher preference, custom `PATHEXT`, login-shell skipped on win32;
-  `skipIf(win32)` guards on POSIX-only suites.
+      bare-launcher preference, custom `PATHEXT`, login-shell skipped on win32;
+      `skipIf(win32)` guards on POSIX-only suites.
 - [x] **W3** — `svn-portable-shelves`: separator-agnostic collapsing (**source fix**).
 - [x] **W4** — `svn-working-copy`: cross-platform URL-mapping tests (ancestor walk,
-  nested external).
+      nested external).
 - [x] **W5** — `auth-cache` / `ssl-trust-cache` / `validation`: `@vitest-environment
-  node` + `join()` path expectations.
+node` + `join()` path expectations.
 - [x] **W6** — `svn-runner` / `svn-executor`: LF stdin password (**source fix**) +
-  `svnmucc` sibling-path expectation.
+      `svnmucc` sibling-path expectation.
 - [x] **W7** — `svn-runner` / `svn-worker`: `.cmd`/`.bat` → `cmd.exe` routing to
-  avoid `spawn EINVAL` (**source fix**).
+      avoid `spawn EINVAL` (**source fix**).
 - [x] **W8** — `ipc/fs`: `resolve()`-canonicalized path expectation.
 - [x] **W9** — `external-tool-registry.validate.test.ts`: shell/script rejection,
-  directory rejection, win32 X_OK + world-writable skip.
+      directory rejection, win32 X_OK + world-writable skip.
 - [x] **W10** — `ShellIntegration`: win32 helper `.exe`, `needsAdmin`, overlay/badge
-  gating, missing-helper repair guidance, register refusal.
+      gating, missing-helper repair guidance, register refusal.
 - [x] **W11** — `local-status-server`: win32 named-pipe path derivation (hash,
-  determinism, distinctness, no raw-path leak).
+      determinism, distinctness, no raw-path leak).
 - [x] **W12** — `HookExecutor.test.ts`: win32 X_OK skip + `proc.kill()` termination
-  (no negative-PID signal); argv + exit-code contract.
+      (no negative-PID signal); argv + exit-code contract.
 - [x] **W13** — `protocol-handler.windows.test.ts`: `second-instance` URL dispatch,
-  argv launch path, lock-lost quit.
+      argv launch path, lock-lost quit.
 - [x] **W14** — `status-service`: win32 path-key normalization (case + separator)
-  for cache lookup and invalidation.
+      for cache lookup and invalidation.
 - [x] **W15** — `svn-cache-service`: win32 `clearPath` normalization (case +
-  separator, descendant + sibling-prefix safety).
+      separator, descendant + sibling-prefix safety).
 - [x] **W16** — `svn-diagnostics`: win32 `.exe` binary-name resolution.
 - [x] **W17** — `settings-manager`: win32 custom-SVN-client rules (`svn.exe`
-  default, X_OK skip, `.cmd` rejection at write time).
+      default, X_OK skip, `.cmd` rejection at write time).
 - [x] **W18** — `chmod 0o600` skip on win32. `auth-cache` and `ipc/store`
-  load-time chmod both covered. For `ipc/store`, added a `resetStoreForTests`
-  seam (singleton store loads lazily on first handler call), switched the test
-  to `@vitest-environment node`, and fixed a latent mock-specifier mismatch
-  (store.ts imports bare `'fs/promises'`; the test had mocked `'node:fs/promises'`,
-  so the mocks never applied and existing tests passed by real-fs ENOENT).
+      load-time chmod both covered. For `ipc/store`, added a `resetStoreForTests`
+      seam (singleton store loads lazily on first handler call), switched the test
+      to `@vitest-environment node`, and fixed a latent mock-specifier mismatch
+      (store.ts imports bare `'fs/promises'`; the test had mocked `'node:fs/promises'`,
+      so the mocks never applied and existing tests passed by real-fs ENOENT).
 - [x] **W19** — Sweep for any remaining `process.platform` branches not yet pinned.
-  Found and covered `ipc/fs.ts` `getParentPath`: win32 drive-root navigation,
-  including the drive-relative → `DRIVES://` branch (exported the pure helper,
-  following the existing `getBackgroundStatusScanStateForTests` precedent; the
-  file-wide `os.platform` mock is flipped to `win32` per-describe).
+      Found and covered `ipc/fs.ts` `getParentPath`: win32 drive-root navigation,
+      including the drive-relative → `DRIVES://` branch (exported the pure helper,
+      following the existing `getBackgroundStatusScanStateForTests` precedent; the
+      file-wide `os.platform` mock is flipped to `win32` per-describe).
 - [x] **W20** — `ipc/fs.ts` `listDrives`: win32 `wmic logicaldisk` enumeration —
-  parses caption/volumename rows into named drive entries, `Local Disk` fallback,
-  empty list on spawn failure. Fixed a latent `child_process` mock wiring bug
-  (`default: {}` left `import { spawn }` undefined under CJS interop).
+      parses caption/volumename rows into named drive entries, `Local Disk` fallback,
+      empty list on spawn failure. Fixed a latent `child_process` mock wiring bug
+      (`default: {}` left `import { spawn }` undefined under CJS interop).
 - [x] **W21** — `index.ts` `getPackagedBinaryPaths`: win32 `.exe` suffix on the
-  bundled shelly-engine/svn launchers, extension-less on POSIX. Exported the
-  pure helper (mirrors `getBackgroundStatusScanStateForTests`); `index.ts`
-  lifecycle (`window-all-closed`) was already covered by the macOS agent's
-  platform-boundary tests.
+      bundled shelly-engine/svn launchers, extension-less on POSIX. Exported the
+      pure helper (mirrors `getBackgroundStatusScanStateForTests`); `index.ts`
+      lifecycle (`window-all-closed`) was already covered by the macOS agent's
+      platform-boundary tests.
 
 ## Known out-of-scope failures
 
@@ -186,6 +186,6 @@ area has a Windows counterpart.
 
 The loop is in wind-down: the Windows-specific surface is comprehensively
 covered. Stop with `CronDelete` (job `0f05a8c4`); the 7-day auto-expiry is
-the backstop. Future invocations should re-sweep for any *new*
+the backstop. Future invocations should re-sweep for any _new_
 `process.platform` branches added to the codebase rather than expect
 remaining gaps in the current tree.

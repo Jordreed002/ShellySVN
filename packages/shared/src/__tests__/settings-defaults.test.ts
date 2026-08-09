@@ -92,4 +92,21 @@ describe('DEFAULT_SETTINGS', () => {
     expect(DEFAULT_SETTINGS.recentRepositories).toEqual([]);
     expect(DEFAULT_SETTINGS.bookmarks).toEqual([]);
   });
+
+  it('keeps AI commit generation opt-in and privacy-conscious by default', () => {
+    expect(DEFAULT_SETTINGS.aiCommit).toEqual({
+      enabled: false,
+      provider: 'auto',
+      codexModel: 'gpt-5.6-luna',
+      style: 'conventional',
+      includeRecentHistory: false,
+      historyLimit: 10,
+      maxDiffBytes: 262_144,
+      confirmBeforeSending: true,
+      providerTimeoutMs: 60_000,
+      maxSessionInvocations: 100,
+      usageRetentionDays: 30,
+      usageMaxEntries: 200,
+    });
+  });
 });

@@ -55,32 +55,29 @@ export function RepoBrowserScreen({
 
   const isValid = useMemo(() => isProbablyRepoUrl(urlInput), [urlInput]);
 
-  const connect = useCallback(
-    async (target: string, creds: RepoBrowserCredentials | null) => {
-      setPhase({ kind: 'connecting' });
-      try {
-        const resolved =
-          creds ?? (await loadRepoBrowserCredentials(target, window.api.auth)).credentials;
-        setCredentials(resolved);
-        // A cheap reachability probe: if the root lists, we can browse.
-        const result = await window.api.svn.list(target, 'HEAD', 'immediates', resolved?.id);
-        if (result.error) throw new Error(result.error);
-        setRepoUrl(target);
-        setPhase({ kind: 'connected' });
-      } catch (error) {
-        if (isRepoBrowserAuthError(error)) {
-          const { realm } = await loadRepoBrowserCredentials(target, window.api.auth);
-          setPhase({ kind: 'needs-auth', realm });
-          return;
-        }
-        setPhase({
-          kind: 'failed',
-          message: (error as Error)?.message || 'Could not reach the repository.',
-        });
+  const connect = useCallback(async (target: string, creds: RepoBrowserCredentials | null) => {
+    setPhase({ kind: 'connecting' });
+    try {
+      const resolved =
+        creds ?? (await loadRepoBrowserCredentials(target, window.api.auth)).credentials;
+      setCredentials(resolved);
+      // A cheap reachability probe: if the root lists, we can browse.
+      const result = await window.api.svn.list(target, 'HEAD', 'immediates', resolved?.id);
+      if (result.error) throw new Error(result.error);
+      setRepoUrl(target);
+      setPhase({ kind: 'connected' });
+    } catch (error) {
+      if (isRepoBrowserAuthError(error)) {
+        const { realm } = await loadRepoBrowserCredentials(target, window.api.auth);
+        setPhase({ kind: 'needs-auth', realm });
+        return;
       }
-    },
-    []
-  );
+      setPhase({
+        kind: 'failed',
+        message: (error as Error)?.message || 'Could not reach the repository.',
+      });
+    }
+  }, []);
 
   // Connect automatically when the route already carries a URL.
   useEffect(() => {
@@ -191,8 +188,7 @@ export function RepoBrowserScreen({
                   aria-hidden="true"
                 />
                 <span>
-                  <span className="font-medium text-text">Connection failed.</span>{' '}
-                  {phase.message}
+                  <span className="font-medium text-text">Connection failed.</span> {phase.message}
                 </span>
               </div>
             ) : null}

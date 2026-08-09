@@ -273,9 +273,7 @@ export async function runResolvedSvn(
     // (URLs, paths, commit messages) must never be shell-interpreted.
     const isBatchLauncher =
       process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(options.svnCommand);
-    const launchCommand = isBatchLauncher
-      ? process.env.ComSpec || 'cmd.exe'
-      : options.svnCommand;
+    const launchCommand = isBatchLauncher ? process.env.ComSpec || 'cmd.exe' : options.svnCommand;
     const launchArgs = isBatchLauncher
       ? ['/d', '/s', '/c', options.svnCommand, ...finalArgs]
       : finalArgs;

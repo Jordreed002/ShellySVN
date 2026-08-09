@@ -197,7 +197,8 @@ export default function HomePage() {
         <div className="quote-attrib mt-6">
           <span className="quote-avatar" aria-hidden />
           <span>
-            <span className="text-[var(--foreground-strong)]">Anonymous evaluator</span> · preview tester
+            <span className="text-[var(--foreground-strong)]">Anonymous evaluator</span> · preview
+            tester
           </span>
         </div>
       </section>

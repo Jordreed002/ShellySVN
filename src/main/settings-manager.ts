@@ -25,6 +25,7 @@ import {
 } from './utils/external-tool-validation';
 import { assertPathApprovedForIpc } from './utils/approved-paths';
 import { writeSecureJson } from './utils/secure-json';
+import { isSecureStorageAvailable } from './utils/secure-storage';
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
@@ -42,15 +43,13 @@ class SettingsManager {
   private savePromise: Promise<void> = Promise.resolve();
   private listeners: Set<(settings: AppSettings) => void> = new Set();
   private encryptionAvailable: boolean;
-  private validatedSvnClient:
-    | { path: string; size: number; modifiedAt: number }
-    | null = null;
+  private validatedSvnClient: { path: string; size: number; modifiedAt: number } | null = null;
 
   private constructor() {
     const userDataPath = app.getPath('userData');
     this.filePath = join(userDataPath, 'shellysvn-config.json');
     this.settings = mergeSettings();
-    this.encryptionAvailable = safeStorage.isEncryptionAvailable();
+    this.encryptionAvailable = isSecureStorageAvailable(safeStorage);
     this.loadPromise = this.load();
   }
 
@@ -115,7 +114,9 @@ class SettingsManager {
     const approvedPath = assertPathApprovedForIpc(trimmedPath, 'Custom SVN client selection');
 
     if (/\.(?:cmd|bat|ps1|vbs|js|mjs|cjs|py|pl|rb|sh)$/i.test(approvedPath)) {
-      throw new Error('Custom SVN clients must be native executables, not scripts or command wrappers.');
+      throw new Error(
+        'Custom SVN clients must be native executables, not scripts or command wrappers.'
+      );
     }
 
     if (!existsSync(approvedPath)) {
@@ -248,7 +249,10 @@ class SettingsManager {
       return `enc:${encrypted.toString('base64')}`;
     } catch (error) {
       console.error('[SettingsManager] Failed to encrypt value:', error);
-      return value;
+      // Never turn an OS keychain failure into plaintext persistence. The
+      // in-memory value remains available for the current session, but the
+      // durable settings copy must fail closed.
+      return '';
     }
   }
 
@@ -315,22 +319,22 @@ class SettingsManager {
       if (updates.diffMerge.externalDiffTool.startsWith('registered:')) {
         // Registry ownership and role are checked when the tool is launched.
       } else {
-      validateExternalToolSetting(
-        updates.diffMerge.externalDiffTool,
-        'External diff tool',
-        KNOWN_DIFF_TOOL_ALIASES
-      );
+        validateExternalToolSetting(
+          updates.diffMerge.externalDiffTool,
+          'External diff tool',
+          KNOWN_DIFF_TOOL_ALIASES
+        );
       }
     }
     if (updates.diffMerge?.externalMergeTool !== undefined) {
       if (updates.diffMerge.externalMergeTool.startsWith('registered:')) {
         // Registry ownership and role are checked when the tool is launched.
       } else {
-      validateExternalToolSetting(
-        updates.diffMerge.externalMergeTool,
-        'External merge tool',
-        KNOWN_MERGE_TOOL_ALIASES
-      );
+        validateExternalToolSetting(
+          updates.diffMerge.externalMergeTool,
+          'External merge tool',
+          KNOWN_MERGE_TOOL_ALIASES
+        );
       }
     }
     if (updates.diffMerge?.externalToolOverrides !== undefined) {

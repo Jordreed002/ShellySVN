@@ -8,9 +8,7 @@ export const Route = createFileRoute('/files/')({
       <FileExplorer />
     </RouteErrorBoundary>
   ),
-  validateSearch: (
-    search: Record<string, unknown>
-  ): { path: string; dialog?: 'problems' } => {
+  validateSearch: (search: Record<string, unknown>): { path: string; dialog?: 'problems' } => {
     return {
       path: typeof search.path === 'string' && search.path ? search.path : '/',
       dialog:

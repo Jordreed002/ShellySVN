@@ -47,16 +47,16 @@ describe('getDefaultLocalStatusSocketPath — macOS/POSIX', () => {
   });
 
   it('is deterministic for the same user-data path', () => {
-    expect(getDefaultLocalStatusSocketPath(USER_DATA)).toBe(getDefaultLocalStatusSocketPath(USER_DATA));
+    expect(getDefaultLocalStatusSocketPath(USER_DATA)).toBe(
+      getDefaultLocalStatusSocketPath(USER_DATA)
+    );
   });
 
   it('yields distinct socket paths for distinct user-data paths', () => {
     const alice = getDefaultLocalStatusSocketPath(
       '/Users/alice/Library/Application Support/ShellySVN'
     );
-    const bob = getDefaultLocalStatusSocketPath(
-      '/Users/bob/Library/Application Support/ShellySVN'
-    );
+    const bob = getDefaultLocalStatusSocketPath('/Users/bob/Library/Application Support/ShellySVN');
     expect(alice).not.toBe(bob);
   });
 

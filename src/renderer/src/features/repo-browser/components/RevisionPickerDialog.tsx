@@ -151,7 +151,9 @@ function ModeOption({
             {icon}
             {title}
           </b>
-          <small className="mt-0.5 block text-xs leading-relaxed text-text-secondary">{detail}</small>
+          <small className="mt-0.5 block text-xs leading-relaxed text-text-secondary">
+            {detail}
+          </small>
           <code className="mt-1.5 block overflow-x-auto whitespace-pre font-mono text-[11px] text-text-muted">
             {command}
           </code>
@@ -208,8 +210,8 @@ export function RevisionPickerDialog({
           <History className="mt-0.5 h-4 w-4 flex-none text-accent" aria-hidden="true" />
           <p className="text-xs leading-relaxed text-text-secondary">
             The tree, the listings and the properties all show the repository as it was.{' '}
-            <b className="font-semibold text-text">Your working copies are untouched</b> — nothing is
-            updated, reverted or written to disk.
+            <b className="font-semibold text-text">Your working copies are untouched</b> — nothing
+            is updated, reverted or written to disk.
           </p>
         </div>
         <p className="mb-4 mt-1.5 overflow-x-auto whitespace-pre font-mono text-[11px] text-text-muted">

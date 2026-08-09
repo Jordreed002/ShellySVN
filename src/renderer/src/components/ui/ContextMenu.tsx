@@ -172,16 +172,18 @@ export function getSubmenuPosition(
 ): { left: number; top: number } {
   const fitsRight = anchor.right + size.width + padding <= viewport.width;
   return {
-    left: fitsRight
-      ? anchor.right - 4
-      : Math.max(padding, anchor.left - size.width + 4),
+    left: fitsRight ? anchor.right - 4 : Math.max(padding, anchor.left - size.width + 4),
     top: Math.max(padding, Math.min(anchor.top - 5, viewport.height - size.height - padding)),
   };
 }
 
 export function flattenContextMenuItems(items: ContextMenuItem[]): ContextMenuItem[] {
   return items.flatMap((item) =>
-    item.divider ? [] : item.submenu?.length ? [item, ...flattenContextMenuItems(item.submenu)] : [item]
+    item.divider
+      ? []
+      : item.submenu?.length
+        ? [item, ...flattenContextMenuItems(item.submenu)]
+        : [item]
   );
 }
 
@@ -1031,9 +1033,7 @@ export function getSvnContextMenuItems(
   ) => {
     if (entries.length === 0) return;
     // A group of one is a click for nothing: promote it, keeping its own label.
-    groups.push(
-      entries.length === 1 ? entries[0] : { id, label, icon, submenu: entries }
-    );
+    groups.push(entries.length === 1 ? entries[0] : { id, label, icon, submenu: entries });
   };
 
   addGroup('group-file-actions', 'File actions', Pencil, fileActions);

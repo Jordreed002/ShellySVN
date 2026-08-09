@@ -137,6 +137,11 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
         );
       }),
     mergeInfo: (source, target, kind) => invokeIpc('svn:mergeInfo', source, target, kind),
+    mergeReadiness: (sourceUrl, targetPath) =>
+      invokeIpc('svn:mergeReadiness', sourceUrl, targetPath),
+    revisionImpact: (target, limit?, revision?) =>
+      invokeIpc('svn:revisionImpact', target, limit, revision),
+    compareBranches: (leftUrl, rightUrl) => invokeIpc('svn:compareBranches', leftUrl, rightUrl),
     info: (path) => invokeIpc('svn:info', path),
     infoUrl: (url) => invokeIpc('svn:infoUrl', url),
     getWorkingCopyContext: (path) => invokeIpc('svn:getWorkingCopyContext', path),
@@ -372,6 +377,9 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
         ) as Promise<SvnMutationResult>,
     },
     diagnostics: (workingCopyPath) => invokeIpc('svn:diagnostics', workingCopyPath),
+    workingCopyHealth: (workingCopyPath) => invokeIpc('svn:workingCopyHealth', workingCopyPath),
+    commandTimeline: () => invokeIpc('svn:commandTimeline'),
+    clearCommandTimeline: () => invokeIpc('svn:commandTimeline:clear'),
     trustServerCertificate: (url, errorText) =>
       invokeIpc('svn:trustServerCertificate', url, errorText),
   };

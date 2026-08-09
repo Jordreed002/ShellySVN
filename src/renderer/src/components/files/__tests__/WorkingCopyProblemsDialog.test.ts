@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SvnStatusEntry } from '@shared/types';
 
-import {
-  limitVisibleProblems,
-  needsAttention,
-  relativePath,
-} from '../WorkingCopyProblemsDialog';
+import { limitVisibleProblems, needsAttention, relativePath } from '../WorkingCopyProblemsDialog';
 
 function entry(status: SvnStatusEntry['status'], path = 'C:\\wc\\file.txt'): SvnStatusEntry {
   return { path, status, isDirectory: false } as SvnStatusEntry;

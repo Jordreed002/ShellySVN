@@ -34,10 +34,7 @@ describe('status and progress accessibility', () => {
       />
     );
 
-    expect(screen.getByRole('status')).toHaveAttribute(
-      'aria-label',
-      'Processing. 30% complete.'
-    );
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Processing. 30% complete.');
     expect(screen.getByRole('progressbar', { name: 'Operation progress' })).toHaveAttribute(
       'aria-valuenow',
       '30'

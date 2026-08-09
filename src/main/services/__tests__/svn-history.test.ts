@@ -40,7 +40,9 @@ describe('svn-history', () => {
   it('returns sorted unique merged or eligible revisions from mergeinfo', async () => {
     mockState.runSvnText.mockResolvedValue('r12\nr7\nr12\n');
 
-    await expect(getMergeInfo('https://svn.example.com/branch', 'C:\\wc', 'eligible')).resolves.toEqual({
+    await expect(
+      getMergeInfo('https://svn.example.com/branch', 'C:\\wc', 'eligible')
+    ).resolves.toEqual({
       source: 'https://svn.example.com/branch',
       target: 'C:\\wc',
       kind: 'eligible',
@@ -91,9 +93,7 @@ describe('svn-history', () => {
 
     const result = await getLog('C:\\wc', 50, 10, 12, true);
 
-    expect(mockState.getWorkerLog).toHaveBeenCalledWith(
-      'C:\\wc', 50, 10, 12, true, undefined, {}
-    );
+    expect(mockState.getWorkerLog).toHaveBeenCalledWith('C:\\wc', 50, 10, 12, true, undefined, {});
     expect(result.entries[0]?.revision).toBe(12);
   });
 
@@ -107,7 +107,13 @@ describe('svn-history', () => {
     await getLog('C:\\wc', 50, 10, 12, true, 'job-log-1');
 
     expect(mockState.getWorkerLog).toHaveBeenCalledWith(
-      'C:\\wc', 50, 10, 12, true, 'job-log-1', {}
+      'C:\\wc',
+      50,
+      10,
+      12,
+      true,
+      'job-log-1',
+      {}
     );
   });
 

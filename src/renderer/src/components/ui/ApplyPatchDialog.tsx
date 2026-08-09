@@ -243,7 +243,11 @@ export function ApplyPatchDialog({
               </label>
               <div className="grid grid-cols-2 gap-3 rounded border border-border p-3 text-sm">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={reverse} onChange={(e) => setReverse(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={reverse}
+                    onChange={(e) => setReverse(e.target.checked)}
+                  />
                   Reverse patch
                 </label>
                 <label className="flex items-center gap-2">

@@ -58,6 +58,21 @@ describe('LogViewer', () => {
     window.api = {
       svn: {
         getWorkingCopyContext: vi.fn().mockResolvedValue({ workingCopyRoot: 'C:/repo' }),
+        revisionImpact: vi.fn().mockImplementation((_path, _limit, revision) =>
+          Promise.resolve({
+            target: 'C:/repo',
+            revisions: [revision],
+            authors: ['alice'],
+            changedPathCount: 1,
+            truncated: false,
+            groups: [
+              {
+                category: 'source',
+                evidence: [{ revision, path: '/trunk/src/app.ts', action: 'M' }],
+              },
+            ],
+          })
+        ),
       },
       app: {
         openExternal: vi.fn(),
@@ -173,5 +188,9 @@ describe('LogViewer', () => {
     fireEvent.click(screen.getByText('r401'));
     expect(screen.getByText('review:status')).toBeInTheDocument();
     expect(screen.getByText('approved')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.api.svn.revisionImpact).toHaveBeenCalledWith('C:/repo', 1, 401);
+      expect(screen.getByText('1 paths')).toBeInTheDocument();
+    });
   });
 });

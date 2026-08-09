@@ -14,19 +14,19 @@ This document defines what must exist in `shellysvn-cli` or `shelly-engine` befo
 
 Required CLI commands before parity is claimed:
 
-| Command | Scope | Notes |
-| --- | --- | --- |
-| `status` | Working-copy status | Must expose full local statuses, changelists, locks, externals, switched paths, nested working copies, and remote-check state when requested. |
-| `info` | Working-copy or repository metadata | Must include URL, repository root, revision, UUID, node kind, schedule, copy-from metadata, and lock info when available. |
-| `log` | Revision history | Must support revision ranges, limits, author/message/path filters, changed paths, issue IDs, and pagination-ready output. |
-| `diff` | Unified diff | Must support working-copy paths, revision ranges, binary indicators, properties, copied/renamed paths, and output truncation metadata. |
-| `checkout` | New working copy | Must support revision, depth, credentials, SSL trust, proxy/timeout settings, progress events, and cancellation. |
-| `update` | Existing working copy | Must support revision, depth, ignore externals, force, progress events, cancellation, and conflict summaries. |
-| `commit` | Commit selected paths | Must support selected paths, message validation, issue ID validation, hooks, credentials, and committed revision reporting. |
-| `revert` | Revert selected paths | Must support recursive/non-recursive operation, explicit confirmation in interactive mode, and structured affected-path output. |
-| `cleanup` | Working-copy cleanup | Must expose cleanup options and partial/failure state without crashing. |
-| `export` | Export repository or working-copy content | Must support revision, force, depth where SVN supports it, progress, and output revision. |
-| `diagnostics` | Environment support report | Must report SVN path/version, bundled binary state, encryption availability, shell/Finder state where applicable, and redacted settings. |
+| Command       | Scope                                     | Notes                                                                                                                                         |
+| ------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`      | Working-copy status                       | Must expose full local statuses, changelists, locks, externals, switched paths, nested working copies, and remote-check state when requested. |
+| `info`        | Working-copy or repository metadata       | Must include URL, repository root, revision, UUID, node kind, schedule, copy-from metadata, and lock info when available.                     |
+| `log`         | Revision history                          | Must support revision ranges, limits, author/message/path filters, changed paths, issue IDs, and pagination-ready output.                     |
+| `diff`        | Unified diff                              | Must support working-copy paths, revision ranges, binary indicators, properties, copied/renamed paths, and output truncation metadata.        |
+| `checkout`    | New working copy                          | Must support revision, depth, credentials, SSL trust, proxy/timeout settings, progress events, and cancellation.                              |
+| `update`      | Existing working copy                     | Must support revision, depth, ignore externals, force, progress events, cancellation, and conflict summaries.                                 |
+| `commit`      | Commit selected paths                     | Must support selected paths, message validation, issue ID validation, hooks, credentials, and committed revision reporting.                   |
+| `revert`      | Revert selected paths                     | Must support recursive/non-recursive operation, explicit confirmation in interactive mode, and structured affected-path output.               |
+| `cleanup`     | Working-copy cleanup                      | Must expose cleanup options and partial/failure state without crashing.                                                                       |
+| `export`      | Export repository or working-copy content | Must support revision, force, depth where SVN supports it, progress, and output revision.                                                     |
+| `diagnostics` | Environment support report                | Must report SVN path/version, bundled binary state, encryption availability, shell/Finder state where applicable, and redacted settings.      |
 
 Desktop-only workflows that are not required in CLI parity:
 

@@ -28,6 +28,7 @@ vi.mock('electron', () => ({
     encryptString: vi.fn(),
     decryptString: vi.fn(),
     isEncryptionAvailable: vi.fn(),
+    getSelectedStorageBackend: vi.fn(),
   },
   app: {
     getPath: vi.fn().mockReturnValue('/test/user-data'),
@@ -60,6 +61,7 @@ const mockChmod = vi.mocked(chmod);
 const mockEncryptString = vi.mocked(safeStorage.encryptString);
 const mockDecryptString = vi.mocked(safeStorage.decryptString);
 const mockIsEncryptionAvailable = vi.mocked(safeStorage.isEncryptionAvailable);
+const mockGetSelectedStorageBackend = vi.mocked(safeStorage.getSelectedStorageBackend);
 
 describe('AuthCache', () => {
   let authCache: AuthCache;
@@ -70,6 +72,7 @@ describe('AuthCache', () => {
 
     // Default: encryption available
     mockIsEncryptionAvailable.mockReturnValue(true);
+    mockGetSelectedStorageBackend.mockReturnValue('gnome_libsecret');
 
     // Default: no existing cache file
     mockAccess.mockRejectedValue(new Error('ENOENT'));
@@ -129,6 +132,37 @@ describe('AuthCache', () => {
         password: 'testpass',
       });
       expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+
+    it('should keep credentials memory-only with the Linux basic_text backend', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'linux',
+        configurable: true,
+        writable: true,
+      });
+      mockGetSelectedStorageBackend.mockReturnValue('basic_text');
+
+      try {
+        const cache = new AuthCache('/test/user-data');
+        await cache.ready();
+        cache.set('https://svn.example.com', 'testuser', 'session-only-secret');
+        await vi.runAllTimersAsync();
+
+        expect(cache.isEncryptionAvailable()).toBe(false);
+        expect(cache.get('https://svn.example.com')).toEqual({
+          username: 'testuser',
+          password: 'session-only-secret',
+        });
+        expect(mockEncryptString).not.toHaveBeenCalled();
+        expect(mockWriteSecureJson).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true,
+          writable: true,
+        });
+      }
     });
 
     it('should load existing credentials on init', async () => {

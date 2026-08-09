@@ -60,6 +60,7 @@ vi.mock('fs/promises', () => {
   const methods = {
     appendFile: vi.fn().mockResolvedValue(undefined),
     rename: vi.fn().mockResolvedValue(undefined),
+    rm: vi.fn().mockResolvedValue(undefined),
     stat: vi.fn().mockRejectedValue(new Error('missing')),
   };
   return { ...methods, default: methods };
@@ -216,5 +217,25 @@ describe('UpdateService', () => {
     expect('message' in state ? state.message : '').not.toMatch(
       /updates\.example|secret|Users\/alice/
     );
+  });
+
+  it('continues updater logging when rotation cannot rename the active log', async () => {
+    const fs = await import('fs/promises');
+    vi.mocked(fs.stat).mockResolvedValueOnce({ size: 1_000_000 } as Awaited<
+      ReturnType<typeof fs.stat>
+    >);
+    vi.mocked(fs.rename).mockRejectedValueOnce(new Error('destination is locked'));
+    updater.checkForUpdates.mockImplementation(async () => {
+      updater.emit('update-not-available', { version: '1.1.0-beta.2' });
+      return null;
+    });
+    const service = new UpdateService();
+    await service.initialize();
+
+    await service.check('manual');
+
+    await vi.waitFor(() => expect(fs.appendFile).toHaveBeenCalled());
+    expect(fs.rm).toHaveBeenCalledWith('/tmp/updater.log.1', { force: true });
+    expect(fs.rename).toHaveBeenCalledWith('/tmp/updater.log', '/tmp/updater.log.1');
   });
 });

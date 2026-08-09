@@ -16,6 +16,11 @@ on:
         required: false
         default: 'false'
         type: boolean
+      upgrade_from:
+        description: 'Optional prior version to verify an in-place Windows upgrade (for example 1.0.0)'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +28,7 @@ concurrency:
 
 env:
   SVN_VERSION: '1.14.5'
+  SVN_WINDOWS_SHA256: '0720804a1ae1d0279307e84b54e2b9534f199c5de2b498a5343047829eb19441'
 
 permissions:
   contents: read
@@ -45,10 +51,12 @@ jobs:
 
       - name: Validate public release version
         if: env.PUBLIC_RELEASE == 'true'
-        run: node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+        run: |
+          node scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+          node scripts/validate-release-channel.mjs "$GITHUB_REF_NAME"
 
-      - name: Validate stable release signing
-        if: env.PUBLIC_RELEASE == 'true' && !contains(github.ref_name, '-')
+      - name: Validate public release signing
+        if: env.PUBLIC_RELEASE == 'true'
         run: |
           set -euo pipefail
           missing=()
@@ -59,6 +67,17 @@ jobs:
             echo "Missing public-release signing configuration: ${missing[*]}"
             exit 1
           fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.5'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify release source
+        run: bun run verify:release
 
   # ============================================
   # Build SVN Binaries (with caching)
@@ -94,7 +113,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: binaries/${{ matrix.platform }}-${{ matrix.arch }}
-          key: svn-${{ matrix.platform }}-${{ matrix.arch }}-${{ env.SVN_VERSION }}
+          key: svn-${{ matrix.platform }}-${{ matrix.arch }}-${{ env.SVN_VERSION }}-${{ env.SVN_WINDOWS_SHA256 }}
 
       - name: Download SVN for Windows
         if: matrix.platform == 'win32' && steps.cache-svn.outputs.cache-hit != 'true'
@@ -104,6 +123,10 @@ jobs:
           $svnUrl = "https://www.visualsvn.com/files/Apache-Subversion-${{ env.SVN_VERSION }}-3.zip"
           Write-Host "Downloading SVN from $svnUrl"
           Invoke-WebRequest -Uri $svnUrl -OutFile svn.zip
+          $actualHash = (Get-FileHash svn.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne '${{ env.SVN_WINDOWS_SHA256 }}') {
+            throw "SVN archive SHA-256 mismatch: expected ${{ env.SVN_WINDOWS_SHA256 }}, got $actualHash"
+          }
           Expand-Archive -Path svn.zip -DestinationPath svn-temp
           Move-Item -Path "svn-temp\bin\*" -Destination "binaries\win32-x64\svn\" -Force
           binaries\win32-x64\svn\svn.exe --version
@@ -140,6 +163,25 @@ jobs:
           ldd "$SVN_PATH" | grep "=> /" | awk '{print $3}' | xargs -I '{}' cp -v '{}' binaries/linux-x64/svn/ 2>/dev/null || true
           chmod +x binaries/linux-x64/svn/svn
           binaries/linux-x64/svn/svn --version || true
+
+      - name: Verify prepared SVN version (Windows)
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          $version = (& binaries\win32-x64\svn\svn.exe --version --quiet).Trim()
+          if ($version -notmatch '^1\.14\.\d+$') {
+            throw "Prepared SVN client reported '$version'; expected SVN 1.14.x."
+          }
+
+      - name: Verify prepared SVN version (macOS/Linux)
+        if: matrix.platform != 'win32'
+        run: |
+          svn_binary="binaries/${{ matrix.platform }}-${{ matrix.arch }}/svn/svn"
+          version="$($svn_binary --version --quiet)"
+          case "$version" in
+            1.14.*) ;;
+            *) echo "Prepared SVN client reported '$version'; expected SVN 1.14.x."; exit 1 ;;
+          esac
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
@@ -299,7 +341,9 @@ jobs:
           chmod +x binaries/darwin-${{ matrix.arch }}/svn/svn
 
       - name: Verify bundled binaries
-        run: bun run verify:binaries darwin-${{ matrix.arch }}
+        run: |
+          bun run verify:binaries darwin-${{ matrix.arch }}
+          bun run prepare:binary-manifest darwin-${{ matrix.arch }}
 
       - name: Generate macOS icon
         run: |
@@ -331,21 +375,15 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false' }}
+        if: ${{ env.PUBLIC_RELEASE == 'false' && (env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false') }}
         run: bunx electron-builder --mac --${{ matrix.arch }} --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Warn about unsigned public macOS release
-        if: ${{ env.PUBLIC_RELEASE == 'true' && (env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false') }}
-        run: |
-          echo "::warning::Building an unsigned, unnotarized public macOS release because signing credentials are incomplete."
-          echo "::warning::Set MAC_CERTIFICATE_BASE64, MAC_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID before publishing a trusted macOS release."
-
       - name: Build Electron app (signed)
         if: ${{ env.HAS_MAC_CERTIFICATE == 'true' && env.HAS_MAC_CERTIFICATE_PASSWORD == 'true' && env.HAS_APPLE_ID == 'true' && env.HAS_APPLE_APP_PASSWORD == 'true' && env.HAS_APPLE_TEAM_ID == 'true' }}
-        run: bunx electron-builder --mac --${{ matrix.arch }} --config --publish never
+        run: bunx electron-builder --mac --${{ matrix.arch }} --config --config.mac.notarize=true --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE_BASE64 }}
@@ -354,6 +392,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify packaged macOS resources
+        run: |
+          set -euo pipefail
+          resources_path="$(find release -type d -path '*/ShellySVN.app/Contents/Resources' -print -quit)"
+          test -n "$resources_path"
+          bun run verify:packaged-app "$resources_path" darwin-${{ matrix.arch }}
 
       - name: Validate public macOS artifact
         if: ${{ env.PUBLIC_RELEASE == 'true' && env.HAS_MAC_CERTIFICATE == 'true' && env.HAS_MAC_CERTIFICATE_PASSWORD == 'true' && env.HAS_APPLE_ID == 'true' && env.HAS_APPLE_APP_PASSWORD == 'true' && env.HAS_APPLE_TEAM_ID == 'true' }}
@@ -460,7 +505,9 @@ jobs:
           path: binaries/win32-x64
 
       - name: Verify bundled binaries
-        run: bun run verify:binaries win32-x64
+        run: |
+          bun run verify:binaries win32-x64
+          bun run prepare:binary-manifest win32-x64
 
       - name: Cache Electron build output
         uses: actions/cache@v5
@@ -476,17 +523,10 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ env.HAS_WIN_CERTIFICATE == 'false' || env.HAS_WIN_CERTIFICATE_PASSWORD == 'false' }}
+        if: ${{ env.PUBLIC_RELEASE == 'false' && (env.HAS_WIN_CERTIFICATE == 'false' || env.HAS_WIN_CERTIFICATE_PASSWORD == 'false') }}
         run: bunx electron-builder --win --x64 --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Warn about unsigned public Windows release
-        if: ${{ env.PUBLIC_RELEASE == 'true' && (env.HAS_WIN_CERTIFICATE == 'false' || env.HAS_WIN_CERTIFICATE_PASSWORD == 'false') }}
-        shell: pwsh
-        run: |
-          Write-Warning "Building an unsigned public Windows release because signing credentials are incomplete."
-          Write-Warning "Set WIN_CERTIFICATE_BASE64 and WIN_CERTIFICATE_PASSWORD before publishing a trusted Windows release."
 
       - name: Build Electron app (signed)
         if: ${{ env.HAS_WIN_CERTIFICATE == 'true' && env.HAS_WIN_CERTIFICATE_PASSWORD == 'true' }}
@@ -502,19 +542,28 @@ jobs:
           WIN_CERT_BASE64: ${{ secrets.WIN_CERTIFICATE_BASE64 }}
           WIN_CERT_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
 
+      - name: Verify packaged Windows resources
+        shell: pwsh
+        run: |
+          $resources = Get-ChildItem -Path release -Recurse -Directory -Filter resources |
+            Where-Object { $_.Parent.Name -eq 'win-unpacked' } |
+            Select-Object -First 1
+          if (-not $resources) { throw 'No packaged Windows resources directory found.' }
+          bun run verify:packaged-app $resources.FullName win32-x64
+
       - name: Validate public Windows artifact signature
         if: ${{ env.PUBLIC_RELEASE == 'true' && env.HAS_WIN_CERTIFICATE == 'true' && env.HAS_WIN_CERTIFICATE_PASSWORD == 'true' }}
         shell: pwsh
         run: |
-          $artifacts = Get-ChildItem -Path release -Recurse -File -Include *.exe
-          if (-not $artifacts) {
-            Write-Error "No Windows executable artifacts found for signature validation."
-          }
+          $installer = Get-ChildItem -Path release -Recurse -File -Filter '*-setup.exe' | Select-Object -First 1
+          $app = Get-ChildItem -Path release -Recurse -File -Filter 'ShellySVN.exe' |
+            Where-Object { $_.FullName -like '*win-unpacked*' } | Select-Object -First 1
+          if (-not $installer -or -not $app) { throw 'Installer or packaged ShellySVN.exe is missing.' }
 
-          foreach ($artifact in $artifacts) {
+          foreach ($artifact in @($installer, $app)) {
             $signature = Get-AuthenticodeSignature -FilePath $artifact.FullName
             if ($signature.Status -ne 'Valid') {
-              Write-Error "Invalid signature for $($artifact.FullName): $($signature.Status)"
+              throw "Invalid signature for $($artifact.FullName): $($signature.Status)"
             }
             Write-Host "Valid Authenticode signature: $($artifact.FullName)"
           }
@@ -546,6 +595,48 @@ jobs:
               Write-Error "Packaged app version did not match package.json version $expectedVersion (embedded product version '$productVersion')."
             }
           }
+
+      - name: Clean-machine smoke test Windows installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path release -Recurse -File -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'No NSIS installer found for clean-machine smoke testing.' }
+          $installRoot = Join-Path $env:RUNNER_TEMP 'ShellySVN-clean-install'
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S', "/D=$installRoot" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "NSIS installer exited with $($process.ExitCode)." }
+          $installedApp = Join-Path $installRoot 'ShellySVN.exe'
+          if (-not (Test-Path $installedApp)) { throw "Installed app is missing: $installedApp" }
+          $smoke = Start-Process -FilePath $installedApp -ArgumentList '--smoke-test' -Wait -PassThru
+          if ($smoke.ExitCode -ne 0) { throw "Installed app smoke test exited with $($smoke.ExitCode)." }
+          $uninstaller = Join-Path $installRoot 'Uninstall ShellySVN.exe'
+          if (Test-Path $uninstaller) {
+            Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait | Out-Null
+          }
+
+      - name: Verify in-place upgrade from prior release
+        if: ${{ inputs.upgrade_from != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $upgradeRoot = Join-Path $env:RUNNER_TEMP 'ShellySVN-upgrade-test'
+          $previousDir = Join-Path $env:RUNNER_TEMP 'ShellySVN-previous'
+          New-Item -ItemType Directory -Force -Path $previousDir | Out-Null
+          gh release download "v${{ inputs.upgrade_from }}" --pattern '*-x64-setup.exe' --dir $previousDir
+          $previousInstaller = Get-ChildItem $previousDir -File -Filter '*-setup.exe' | Select-Object -First 1
+          $currentInstaller = Get-ChildItem -Path release -Recurse -File -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $previousInstaller -or -not $currentInstaller) { throw 'Upgrade installers are missing.' }
+          $previous = Start-Process -FilePath $previousInstaller.FullName -ArgumentList '/S', "/D=$upgradeRoot" -Wait -PassThru
+          if ($previous.ExitCode -ne 0) { throw "Prior installer exited with $($previous.ExitCode)." }
+          $upgrade = Start-Process -FilePath $currentInstaller.FullName -ArgumentList '/S', "/D=$upgradeRoot" -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) { throw "Upgrade installer exited with $($upgrade.ExitCode)." }
+          $app = Join-Path $upgradeRoot 'ShellySVN.exe'
+          $expectedVersion = node -p "require('./package.json').version"
+          if ((Get-Item $app).VersionInfo.ProductVersion -ne "$(($expectedVersion -split '-')[0]).0") {
+            throw 'Upgraded executable does not contain the current release version.'
+          }
+          $smoke = Start-Process $app -ArgumentList '--smoke-test' -Wait -PassThru
+          if ($smoke.ExitCode -ne 0) { throw "Upgraded app smoke test exited with $($smoke.ExitCode)." }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
@@ -608,7 +699,9 @@ jobs:
           chmod +x binaries/linux-x64/svn/svn || true
 
       - name: Verify bundled binaries
-        run: bun run verify:binaries linux-x64
+        run: |
+          bun run verify:binaries linux-x64
+          bun run prepare:binary-manifest linux-x64
 
       - name: Cache Electron build output
         uses: actions/cache@v5
@@ -628,6 +721,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify packaged Linux resources
+        run: |
+          set -euo pipefail
+          resources_path="$(find release -type d -path '*/linux-unpacked/resources' -print -quit)"
+          test -n "$resources_path"
+          bun run verify:packaged-app "$resources_path" linux-x64
+
       - name: Smoke test packaged Linux app
         run: |
           set -euo pipefail
@@ -639,6 +739,20 @@ jobs:
           expected_version="$(node -p "require('./package.json').version")"
           smoke_output="$(xvfb-run -a "$app_path" --smoke-test --no-sandbox)"
           echo "$smoke_output"
+          echo "$smoke_output" | grep -F "ShellySVN $expected_version"
+
+      - name: Clean-machine smoke test Debian package
+        run: |
+          set -euo pipefail
+          package_path="$(find release -type f -name '*.deb' -print -quit)"
+          test -n "$package_path"
+          install_root="$(mktemp -d)"
+          trap 'rm -rf "$install_root"' EXIT
+          dpkg-deb --extract "$package_path" "$install_root"
+          installed_app="$(find "$install_root" -type f -path '*/ShellySVN' -print -quit)"
+          test -n "$installed_app"
+          expected_version="$(node -p "require('./package.json').version")"
+          smoke_output="$(xvfb-run -a "$installed_app" --smoke-test --no-sandbox)"
           echo "$smoke_output" | grep -F "ShellySVN $expected_version"
 
       - name: Upload artifact (AppImage)
@@ -721,7 +835,11 @@ jobs:
           SKIP_LINUX: ${{ inputs.skip_linux }}
         run: |
           node scripts/validate-release-version.mjs "$GITHUB_REF_NAME" artifacts
+          node scripts/validate-release-channel.mjs "$GITHUB_REF_NAME"
           node scripts/validate-release-assets.mjs artifacts
+
+      - name: Create release checksums
+        run: node scripts/create-release-checksums.mjs artifacts
 
       - name: List artifacts
         run: find artifacts -type f -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.tar.gz" | head -50
@@ -770,6 +888,7 @@ jobs:
             artifacts/**/*.deb
             artifacts/**/*.rpm
             artifacts/**/*.tar.gz
+            artifacts/SHA256SUMS
           draft: false
           prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-') }}
         env:

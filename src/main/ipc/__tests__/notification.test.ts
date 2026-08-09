@@ -59,8 +59,12 @@ describe('notification:show handler', () => {
   });
 
   it('rejects oversized payloads', async () => {
-    await expect(show({ ...VALID, title: 'x'.repeat(201) })).rejects.toThrow('Invalid notification');
-    await expect(show({ ...VALID, body: 'x'.repeat(2001) })).rejects.toThrow('Invalid notification');
+    await expect(show({ ...VALID, title: 'x'.repeat(201) })).rejects.toThrow(
+      'Invalid notification'
+    );
+    await expect(show({ ...VALID, body: 'x'.repeat(2001) })).rejects.toThrow(
+      'Invalid notification'
+    );
   });
 
   it('accepts payloads at exactly the length limits', async () => {

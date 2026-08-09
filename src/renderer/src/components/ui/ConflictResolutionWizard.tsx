@@ -35,6 +35,13 @@ interface ConflictFile {
   conflictType: 'text' | 'property' | 'tree';
   resolution?: 'mine-full' | 'theirs-full' | 'base' | 'merged' | 'custom';
   error?: string;
+  proposal?: {
+    confidence: number;
+    unresolvedQuestions: string[];
+    sourceFingerprint: string;
+  };
+  sourceFingerprint?: string;
+  proposalStale?: boolean;
 }
 
 type WizardStep = 'overview' | 'select' | 'resolve' | 'review' | 'complete';
@@ -51,6 +58,16 @@ interface ConflictArtifactPaths {
   minePath: string;
   theirsPath: string;
   mergedPath: string;
+}
+
+function conflictSourceFingerprint(contents: MergeEditorContents): string {
+  const source = `${contents.baseContent}\u0000${contents.mineContent}\u0000${contents.theirsContent}`;
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${source.length}-${(hash >>> 0).toString(16)}`;
 }
 
 function getDirectoryAndBaseName(filePath: string): {
@@ -230,19 +247,19 @@ export function ConflictResolutionWizard({
       queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
 
       // Auto-advance to next conflict
-      if (autoAdvance && currentIndex < conflictFiles.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
-      } else if (stats.pending === 1) {
-        // This was the last one
+      const nextIndex = conflictFiles.findIndex(
+        (file, index) => index !== currentIndex && file.status !== 'resolved'
+      );
+      if (autoAdvance && nextIndex >= 0) {
+        setCurrentIndex(nextIndex);
+      } else if (nextIndex < 0) {
         setCurrentStep('complete');
       }
     } catch (err) {
       console.error('Failed to resolve conflict:', err);
       setConflictFiles((prev) =>
         prev.map((f, i) =>
-          i === currentIndex
-            ? { ...f, status: 'pending', error: (err as Error).message }
-            : f
+          i === currentIndex ? { ...f, status: 'pending', error: (err as Error).message } : f
         )
       );
     } finally {
@@ -251,14 +268,37 @@ export function ConflictResolutionWizard({
   };
 
   // Skip current conflict
-  const handleSkip = () => {
+  const handleDefer = () => {
     setConflictFiles((prev) =>
       prev.map((f, i) => (i === currentIndex ? { ...f, status: 'skipped' } : f))
     );
 
-    if (currentIndex < conflictFiles.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
+    const nextIndex = conflictFiles.findIndex(
+      (file, index) => index !== currentIndex && file.status === 'pending'
+    );
+    if (nextIndex >= 0) setCurrentIndex(nextIndex);
+  };
+
+  const handleNextUnresolved = () => {
+    const nextIndex = conflictFiles.findIndex(
+      (file, index) => index !== currentIndex && file.status !== 'resolved'
+    );
+    if (nextIndex >= 0) {
+      setCurrentIndex(nextIndex);
+      setCurrentStep('resolve');
     }
+  };
+
+  const handleReopen = (index: number) => {
+    setConflictFiles((previous) =>
+      previous.map((file, fileIndex) =>
+        fileIndex === index
+          ? { ...file, status: 'pending', resolution: undefined, error: undefined }
+          : file
+      )
+    );
+    setCurrentIndex(index);
+    setCurrentStep('resolve');
   };
 
   // Open merge editor
@@ -269,7 +309,21 @@ export function ConflictResolutionWizard({
     setMergeEditorError(null);
 
     try {
-      setMergeEditorContents(await loadMergeEditorContents(currentFile.path));
+      const contents = await loadMergeEditorContents(currentFile.path);
+      const fingerprint = conflictSourceFingerprint(contents);
+      setMergeEditorContents(contents);
+      setConflictFiles((previous) =>
+        previous.map((file, index) =>
+          index === currentIndex
+            ? {
+                ...file,
+                proposalStale:
+                  file.proposal !== undefined && file.proposal.sourceFingerprint !== fingerprint,
+                sourceFingerprint: fingerprint,
+              }
+            : file
+        )
+      );
       setShowMergeEditor(true);
     } catch (err) {
       setMergeEditorError((err as Error).message || 'Failed to load merge editor files');
@@ -414,13 +468,13 @@ export function ConflictResolutionWizard({
   const handleResolveAllMine = async () => {
     setIsProcessing(true);
     try {
-      for (const file of conflictFiles.filter((f) => f.status === 'pending')) {
+      for (const file of conflictFiles.filter((f) => f.status !== 'resolved')) {
         await window.api.svn.resolve(file.path, 'mine-full');
       }
       queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
       setConflictFiles((prev) =>
         prev.map((f) =>
-          f.status === 'pending'
+          f.status !== 'resolved'
             ? { ...f, status: 'resolved', resolution: 'mine-full' as const }
             : f
         )
@@ -436,13 +490,13 @@ export function ConflictResolutionWizard({
   const handleResolveAllTheirs = async () => {
     setIsProcessing(true);
     try {
-      for (const file of conflictFiles.filter((f) => f.status === 'pending')) {
+      for (const file of conflictFiles.filter((f) => f.status !== 'resolved')) {
         await window.api.svn.resolve(file.path, 'theirs-full');
       }
       queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
       setConflictFiles((prev) =>
         prev.map((f) =>
-          f.status === 'pending'
+          f.status !== 'resolved'
             ? { ...f, status: 'resolved', resolution: 'theirs-full' as const }
             : f
         )
@@ -457,7 +511,7 @@ export function ConflictResolutionWizard({
 
   // Finish
   const handleFinish = () => {
-    onAllResolved?.();
+    if (conflictFiles.every((file) => file.status === 'resolved')) onAllResolved?.();
     onClose();
   };
 
@@ -713,6 +767,29 @@ export function ConflictResolutionWizard({
                 </label>
               </div>
 
+              <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-bg-secondary p-1.5">
+                {conflictFiles.map((file, index) => (
+                  <button
+                    type="button"
+                    key={file.path}
+                    onClick={() => setCurrentIndex(index)}
+                    className={`min-w-0 flex-1 rounded px-2 py-1.5 text-left text-[10px] transition-fast ${
+                      index === currentIndex
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-text-muted hover:bg-bg-tertiary'
+                    }`}
+                    title={file.path}
+                  >
+                    <span className="block truncate font-mono">
+                      {file.path.split(/[/\\]/).pop()}
+                    </span>
+                    <span className="capitalize">
+                      {file.status === 'skipped' ? 'deferred' : file.status}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
               {/* Current file info */}
               <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
                 <div className="flex items-start gap-3">
@@ -726,6 +803,30 @@ export function ConflictResolutionWizard({
                   </div>
                 </div>
               </div>
+
+              {currentFile.proposalStale && (
+                <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  Base, mine, or theirs changed after the saved proposal. Generate a fresh proposal
+                  before relying on it.
+                </div>
+              )}
+
+              {currentFile.proposal && (
+                <div className="rounded-lg border border-border bg-bg-secondary p-3 text-xs text-text-secondary">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-text">Proposal metadata</span>
+                    <span>{Math.round(currentFile.proposal.confidence * 100)}% confidence</span>
+                  </div>
+                  {currentFile.proposal.unresolvedQuestions.length > 0 && (
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-warning">
+                      {currentFile.proposal.unresolvedQuestions.map((question) => (
+                        <li key={question}>{question}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               {/* Resolution options */}
               <div className="space-y-3">
@@ -797,12 +898,23 @@ export function ConflictResolutionWizard({
                     <Eye className="w-4 h-4" />
                   )}
                   Open Built-in Merge Editor
+                  <span className="text-xs text-text-muted">Save &amp; continue</span>
                 </button>
 
-                {/* Skip */}
-                <button onClick={handleSkip} className="btn btn-ghost w-full text-text-muted">
-                  Skip for now
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={handleDefer} className="btn btn-ghost text-text-muted">
+                    Defer
+                  </button>
+                  <button
+                    onClick={handleNextUnresolved}
+                    disabled={conflictFiles.every(
+                      (file, index) => index === currentIndex || file.status === 'resolved'
+                    )}
+                    className="btn btn-secondary"
+                  >
+                    Next unresolved
+                  </button>
+                </div>
               </div>
 
               {/* External tool error */}
@@ -836,7 +948,7 @@ export function ConflictResolutionWizard({
               <h3 className="text-lg font-medium text-text mb-4">Review Resolutions</h3>
 
               <div className="space-y-2 max-h-[400px] overflow-auto">
-                {conflictFiles.map((file) => (
+                {conflictFiles.map((file, index) => (
                   <div
                     key={file.path}
                     className={`
@@ -856,13 +968,31 @@ export function ConflictResolutionWizard({
                       <p className="text-xs text-text-faint truncate">{file.path}</p>
                     </div>
                     {file.status === 'resolved' && (
-                      <span className="text-xs text-svn-added flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" />
-                        {file.resolution}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-svn-added flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          {file.resolution}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleReopen(index)}
+                          className="btn btn-secondary btn-sm text-xs"
+                        >
+                          Reopen
+                        </button>
+                      </div>
                     )}
                     {file.status === 'skipped' && (
-                      <span className="text-xs text-text-muted">Skipped</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted">Deferred</span>
+                        <button
+                          type="button"
+                          onClick={() => handleReopen(index)}
+                          className="btn btn-secondary btn-sm text-xs"
+                        >
+                          Resume
+                        </button>
+                      </div>
                     )}
                     {file.status === 'pending' && (
                       <span className="text-xs text-warning">Pending</span>
@@ -947,6 +1077,22 @@ export function ConflictResolutionWizard({
             mergedContent={mergeEditorContents.mergedContent}
             onClose={() => setShowMergeEditor(false)}
             onSave={handleMergeEditorSave}
+            onProposalMetadata={(metadata) => {
+              setConflictFiles((previous) =>
+                previous.map((file, index) =>
+                  index === currentIndex
+                    ? {
+                        ...file,
+                        proposal: {
+                          ...metadata,
+                          sourceFingerprint: file.sourceFingerprint ?? '',
+                        },
+                        proposalStale: false,
+                      }
+                    : file
+                )
+              );
+            }}
           />
         )}
       </div>
