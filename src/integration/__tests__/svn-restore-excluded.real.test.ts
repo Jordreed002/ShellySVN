@@ -186,9 +186,9 @@ describe.runIf(hasSvnToolchain())('restoring an excluded folder through the Expl
     svn(['-q', 'commit', '-m', 'init'], wc);
 
     // One "Remove from working copy…" over a two-item selection.
-    await expect(
-      excludeFromWorkingCopy([join(wc, 'sub'), join(wc, 'notes.txt')])
-    ).resolves.toEqual({ success: true });
+    await expect(excludeFromWorkingCopy([join(wc, 'sub'), join(wc, 'notes.txt')])).resolves.toEqual(
+      { success: true }
+    );
     expect(existsSync(join(wc, 'sub'))).toBe(false);
     expect(existsSync(join(wc, 'notes.txt'))).toBe(false);
 
@@ -217,7 +217,13 @@ describe.runIf(hasSvnToolchain())('restoring an excluded folder through the Expl
         currentPath: wc,
       });
       await expect(
-        updateToRevision(info.workingCopyRoot!, target.repoUrl, target.localPath!, 'infinity', false)
+        updateToRevision(
+          info.workingCopyRoot!,
+          target.repoUrl,
+          target.localPath!,
+          'infinity',
+          false
+        )
       ).resolves.toMatchObject({ success: true });
     }
 

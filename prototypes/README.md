@@ -31,19 +31,19 @@ checkout — but 11 painted status columns and roll-up counts across the whole r
 implying one continuous truth. Browsing `clients/globex`, which you have never checked out, cannot
 have a modified count.
 
-Now the checked-out subtree is tinted and the footer carries a scope chip — *working copy · status
-from disk* or *repository listing · nothing checked out here*. Status columns and tree roll-ups
+Now the checked-out subtree is tinted and the footer carries a scope chip — _working copy · status
+from disk_ or _repository listing · nothing checked out here_. Status columns and tree roll-ups
 appear only inside a checkout.
 
 Related: **mark the exception, not the rule.** 11 labelled 46 of 51 clients "not checked out",
-which is the normal state. 12 labels the 2 that *are*.
+which is the normal state. 12 labels the 2 that _are_.
 
 ### 2. "Diff" didn't say what it was diffing
 
 Subversion can compare working copy ↔ BASE, working copy ↔ HEAD, BASE ↔ HEAD, one branch against
 another, or any two revisions. These give materially different answers. The detail pane now has a
-comparand control and states the consequence — *"incoming changes only — your edits are not in this
-diff"*.
+comparand control and states the consequence — _"incoming changes only — your edits are not in this
+diff"_.
 
 ### 3. Mixed revisions were invisible
 
@@ -53,7 +53,7 @@ confusion about `svn status`, and no client shows it. The band now draws the ran
 
 ### 4. Merge was a verb, not a question
 
-The useful question is *which revisions from trunk have not landed here yet* — which
+The useful question is _which revisions from trunk have not landed here yet_ — which
 `svn:mergeinfo` can answer. The merge dialog lists the 4 eligible revisions, flags the one that
 touches a file with local edits, distinguishes **sync / reintegrate / record-only**, and offers a
 dry run first.
@@ -93,19 +93,19 @@ from "projects" is served better by **bookmarks, recent locations, working copie
 repository-wide search**.
 
 **The developer-details switch is gone.** There is one vocabulary — Subversion's — used precisely:
-*checkout, update, commit, switch, merge, revision, BASE, HEAD, depth, externals, changelist,
-conflicted, locked*. Status shows the word and the code together (`Modified M`, `Conflicted C`) so a
+_checkout, update, commit, switch, merge, revision, BASE, HEAD, depth, externals, changelist,
+conflicted, locked_. Status shows the word and the code together (`Modified M`, `Conflicted C`) so a
 newcomer learns the letter they'll meet in a terminal instead of a private synonym. Paths, revisions,
 sizes and `svn` command hints are always visible; nothing is gated behind a mode.
 
 ### What's in it
 
-| | |
-|---|---|
-| **Rail** | Working copies (local path, URL, BASE, change count), repository roots, bookmarks, recent locations, disk meter |
-| **Tree** | Lazily expanded, status roll-ups, `ext` badges, ghosting for what isn't checked out, "… 39 more — search instead" |
-| **Contents** | Name · Rev · Author · Date · Size · Status. Sortable, multi-select with space, per-row Diff/Blame/Log/Checkout |
-| **Detail** | Diff · Blame · Log · Properties, always available, collapsible |
+|              |                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| **Rail**     | Working copies (local path, URL, BASE, change count), repository roots, bookmarks, recent locations, disk meter   |
+| **Tree**     | Lazily expanded, status roll-ups, `ext` badges, ghosting for what isn't checked out, "… 39 more — search instead" |
+| **Contents** | Name · Rev · Author · Date · Size · Status. Sortable, multi-select with space, per-row Diff/Blame/Log/Checkout    |
+| **Detail**   | Diff · Blame · Log · Properties, always available, collapsible                                                    |
 
 ### The five additions over 10
 
@@ -141,9 +141,9 @@ four sources in priority order:
 4. **Your working copies** — anything checked out on your disk is a project to you regardless.
 
 **If none apply there are no projects** — plain folders, and the explorer is unchanged. Projects are
-a lens over directories, never a requirement. The header carries a chip saying *which* rule applied
+a lens over directories, never a requirement. The header carries a chip saying _which_ rule applied
 ("found because it contains trunk, branches and tags"), and every folder has an override both ways:
-*Treat this folder as a project* / *This isn't a project*. Detection is per folder, so projects nest.
+_Treat this folder as a project_ / _This isn't a project_. Detection is per folder, so projects nest.
 
 The same inference drives the version menu: `trunk` → "Current work", `branches/*` → "Work in
 progress", `tags/*` → "Released". A project not using that layout simply gets no version menu.
@@ -151,7 +151,7 @@ progress", `tags/*` → "Released". A project not using that layout simply gets 
 ### Wording: no longer a mode
 
 Plain phrasing and technical fact are **both always shown**. Status reads `Edited M`, `Needs you C`,
-`Replaced R`; the version button reads *Current work* with `trunk` beside it; paths, revisions and
+`Replaced R`; the version button reads _Current work_ with `trunk` beside it; paths, revisions and
 sizes are always visible. Nothing is withheld from a non-technical user, and nothing is dumbed down
 for a developer.
 
@@ -187,8 +187,8 @@ none of it on your disk. TortoiseSVN's repo browser is the starting point; four 
    between columns, `↑` `↓` within one. The view opens scrolled to the deepest column, like Finder.
 
 2. **Your local slice is always visible.** Every node carries a dot: ● full checkout, ◐ sparse,
-   ○ not fetched, amber = local modifications inside. The rail shows a disk meter — *18.4 GB of a
-   2.1 TB repo* — split into full / sparse / not fetched. In a monorepo this is the fact you need
+   ○ not fetched, amber = local modifications inside. The rail shows a disk meter — _18.4 GB of a
+   2.1 TB repo_ — split into full / sparse / not fetched. In a monorepo this is the fact you need
    most often and the one TortoiseSVN never shows you.
 
 3. **Projects are a type, not a folder.** Any folder holding `trunk/branches/tags` is detected and
@@ -206,8 +206,8 @@ Two more monorepo-specific pieces:
 - **Status roll-ups on folders.** `clients/` shows `12M 1C` at the repository root, so you can see
   where your uncommitted work is without expanding anything.
 - **The checkout dialog is a working-set editor.** Per-subtree depth (`infinity` / `immediates` /
-  `files` / `exclude`), size per subtree, and a plain consequence line: *"excluding vendor and
-  media-raw saves 5.5 GB"*. This is the honest answer to "how do I work in a repo bigger than my
+  `files` / `exclude`), size per subtree, and a plain consequence line: _"excluding vendor and
+  media-raw saves 5.5 GB"_. This is the honest answer to "how do I work in a repo bigger than my
   laptop".
 
 Context menu is repo-browser flavoured, grouped as **Get it locally** (check out, add sparsely,
@@ -228,11 +228,11 @@ repository model in the file (51 clients, nested projects, trunk/branches/tags, 
 excluded subtrees) and everything renders from it:
 
 - **Expandable tree** with twist chevrons, indentation, project/branch/tag icons, and a
-  *"… 39 more — search instead"* affordance on folders too big to list. Unlisted folders show a
-  spinner and *"listing 380 items…"* so the scale problem is visible rather than pretended away.
+  _"… 39 more — search instead"_ affordance on folders too big to list. Unlisted folders show a
+  spinner and _"listing 380 items…"_ so the scale problem is visible rather than pretended away.
 - **Contents pane** with sortable columns (click a header, click again to reverse), folders always
-  first, multi-select checkboxes, and a footer that says *"Showing 14 of 1,240 — use search to
-  narrow it down"*.
+  first, multi-select checkboxes, and a footer that says _"Showing 14 of 1,240 — use search to
+  narrow it down"_.
 - **Navigation chrome**: back / forward / up / refresh, all wired to a real history stack.
 - **Breadcrumb that's also an address bar** — click any segment to jump, or click the empty space
   (or `⌘L`) to type a path. In developer mode the field holds the full `svn://` URL; otherwise a
@@ -240,10 +240,10 @@ excluded subtrees) and everything renders from it:
 - **Search this folder** filters the current listing live.
 - **Keyboard**: `↑` `↓` move, `→` / `Enter` enter a folder, `←` / `Backspace` go up, and
   **type-ahead** — start typing and it jumps to the match, with the buffer shown on screen.
-- **Status roll-ups everywhere** — `clients/` carries *11 changed · 1 needs a decision* at the
+- **Status roll-ups everywhere** — `clients/` carries _11 changed · 1 needs a decision_ at the
   repository root, so local work is findable from the top without expanding anything. Changes and
   conflicts are separate badges; neither masks the other.
-- **Download state on every node** — ghosted rows and *"not downloaded"*, so you always know which
+- **Download state on every node** — ghosted rows and _"not downloaded"_, so you always know which
   slice you have.
 
 ### 09 · Atlas Lite — the simplification, in detail
@@ -251,15 +251,15 @@ excluded subtrees) and everything renders from it:
 08 is a specialist's tool. 09 keeps every capability but changes what you meet first, on the
 observation that **nobody thinks in paths** — they think "the Acme website".
 
-| | 08 Atlas | 09 Atlas Lite |
-|---|---|---|
-| Opens on | Miller columns at a path | A searchable **directory of projects**, grouped by client |
-| Regions on screen | 4 (rail, columns, inspector, status) | 2 (rail, content) |
-| Inside a project | more columns | folders-left / contents-right — the familiar model |
-| trunk / branches / tags | shown as folders | one **“Version” menu**: Current work · Work in progress · Released |
-| Download state | ● ◐ ○ dots | dots **plus plain words**: “On your computer”, “Not downloaded” |
-| Depth / sparse | always visible | behind **Developer details** |
-| Check out | depth radio group + subtree table | **“Get a copy”** with size and “about 3 minutes”; the subtree table appears only in developer mode |
+|                         | 08 Atlas                             | 09 Atlas Lite                                                                                      |
+| ----------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Opens on                | Miller columns at a path             | A searchable **directory of projects**, grouped by client                                          |
+| Regions on screen       | 4 (rail, columns, inspector, status) | 2 (rail, content)                                                                                  |
+| Inside a project        | more columns                         | folders-left / contents-right — the familiar model                                                 |
+| trunk / branches / tags | shown as folders                     | one **“Version” menu**: Current work · Work in progress · Released                                 |
+| Download state          | ● ◐ ○ dots                           | dots **plus plain words**: “On your computer”, “Not downloaded”                                    |
+| Depth / sparse          | always visible                       | behind **Developer details**                                                                       |
+| Check out               | depth radio group + subtree table    | **“Get a copy”** with size and “about 3 minutes”; the subtree table appears only in developer mode |
 
 The switch matters more here than anywhere else in the set: **Developer details** restores paths,
 `svn://` URLs, revision numbers, depth, the per-subtree sparse editor, and the real command under
@@ -268,10 +268,10 @@ a project manager never turns it on and never sees a revision number.
 
 Some wording it settles on, all reversible:
 
-- *Get a copy* rather than Check out · *Send changes* rather than Commit · *Get latest* rather than Update
-- *Work in progress* for a branch · *Released* for a tag · *Current work* for trunk
-- *Reserved by you* for a lock · *Needs a decision* for a conflict · *Not downloaded* for an excluded subtree
-- *“You keep only the projects you work on. The rest stays on the server.”* for sparse checkout
+- _Get a copy_ rather than Check out · _Send changes_ rather than Commit · _Get latest_ rather than Update
+- _Work in progress_ for a branch · _Released_ for a tag · _Current work_ for trunk
+- _Reserved by you_ for a lock · _Needs a decision_ for a conflict · _Not downloaded_ for an excluded subtree
+- _“You keep only the projects you work on. The rest stays on the server.”_ for sparse checkout
 
 ### 07 · Console v2 — the refined changes workbench
 
@@ -283,7 +283,7 @@ Some wording it settles on, all reversible:
 - **"Explain" checkbox** in the filter bar (or `E`): adds a plain-English line under every row, a
   summary above the diff, a plain label on each hunk, and the real `svn` command in the context
   menu. One control, no modes — the audience bridge without splitting the product in two.
-- **Draggable list ↔ diff split**, sticky group headers with a *why* chip ("Blocks commit",
+- **Draggable list ↔ diff split**, sticky group headers with a _why_ chip ("Blocks commit",
   "Excluded", "Read-only"), a **narrated activity log** with raw output per line, and **hold ⌘** to
   reveal every shortcut in the interface.
 
@@ -293,54 +293,56 @@ Some wording it settles on, all reversible:
 
 Every prototype renders the same moment, so they can be compared on structure rather than content:
 
-| | |
-|---|---|
-| Working copy | `~/dev/atlas-core` at **r4821** |
-| URL | `svn://svn.lineindustries.com/atlas/branches/feature/payments-v2` |
-| Head | **r4838** — 17 incoming revisions |
-| Local changes | 12 files, 9 staged |
+|                  |                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| Working copy     | `~/dev/atlas-core` at **r4821**                                                                         |
+| URL              | `svn://svn.lineindustries.com/atlas/branches/feature/payments-v2`                                       |
+| Head             | **r4838** — 17 incoming revisions                                                                       |
+| Local changes    | 12 files, 9 staged                                                                                      |
 | Statuses present | `M` modified · `A` added · `D` deleted · `C` conflicted · `R` replaced · `?` unversioned · `X` external |
-| Changelists | `payments-ui` (3) · default (5) · `ignore-on-commit` (2) |
-| Locks | 2 held by you, 1 held by devon |
-| Policy | pre-commit hook requiring a `bugtraq` issue reference |
+| Changelists      | `payments-ui` (3) · default (5) · `ignore-on-commit` (2)                                                |
+| Locks            | 2 held by you, 1 held by devon                                                                          |
+| Policy           | pre-commit hook requiring a `bugtraq` issue reference                                                   |
 
 Interactions that work in all six: **right-click** a file row, **⌘K** command surface, commit dialog,
 destructive-action confirm, row selection driving the detail pane.
 
 ---
 
-## Round 2 — developer *and* non-technical
+## Round 2 — developer _and_ non-technical
 
 The brief: excellent for a developer, still usable by someone who has never heard the word
 "revision". Each prototype takes a **different strategy**, built from 01's density and 02's voice.
 
 ### 04 · Studio — one dial, three audiences
+
 **Simple / Standard / Expert** in the title bar (or press `1` `2` `3`). The dial is not a
 show/hide toggle — it drives CSS custom properties and content visibility together:
 
-| | Simple | Standard | Expert |
-|---|---|---|---|
-| Row height | 58px | 42px | 29px |
-| Status shown as | `Edited` pill | `Edited` pill | `M` badge |
-| Path shown as | `svn.ts` + "in src/main/ipc" | same | mono `src/main/ipc/svn.ts` |
-| Columns | file, changed | + rev, author, Δ | + all, tighter |
-| Inspector | plain "what changed" summary | summary, diff on request | unified diff |
-| Operation log | hidden | hidden | docked |
-| Sidebar | 6 items | 8 items | 10 items |
-| Commit dialog | message + counted summary | + manifest | + options, hooks, bugtraq |
+|                 | Simple                       | Standard                 | Expert                     |
+| --------------- | ---------------------------- | ------------------------ | -------------------------- |
+| Row height      | 58px                         | 42px                     | 29px                       |
+| Status shown as | `Edited` pill                | `Edited` pill            | `M` badge                  |
+| Path shown as   | `svn.ts` + "in src/main/ipc" | same                     | mono `src/main/ipc/svn.ts` |
+| Columns         | file, changed                | + rev, author, Δ         | + all, tighter             |
+| Inspector       | plain "what changed" summary | summary, diff on request | unified diff               |
+| Operation log   | hidden                       | hidden                   | docked                     |
+| Sidebar         | 6 items                      | 8 items                  | 10 items                   |
+| Commit dialog   | message + counted summary    | + manifest               | + options, hooks, bugtraq  |
 
 Also carries a light/dark switch. **Take from this:** the density variables, the plain-summary
 inspector ("Added a check so linked folders are looked at separately"), and the idea that a mode
-should change *vocabulary*, not just visibility.
+should change _vocabulary_, not just visibility.
 
 **Risk:** it is two products to design, test and support. Screenshots in docs stop matching.
 
 ### 05 · Guide — plain by default, technical as a layer
+
 The layout **never changes**. Everything is written plainly for everyone; a single
 **"Developer details"** switch in the nav (or press `D`) layers technical truth on top —
 revision numbers, file paths, the literal `svn` command beneath every action, and a command-log dock.
 
-Task-first structure: the page answers *what should I do next?* before it shows a file list.
+Task-first structure: the page answers _what should I do next?_ before it shows a file list.
 A status hero states the situation in a sentence, then cards for **needs you → your changes →
 coming from the team → reserved files**. Detail always opens in a right-hand sheet, never a new screen.
 
@@ -349,11 +351,12 @@ The conflict is presented as two named people's edits side by side, with a recom
 
 **Take from this:** the dual-label button (plain verb + real command underneath — it teaches
 without patronising), the "what should I do next" hero, and the undo dialog offering
-*save to a file first* as a safer third option.
+_save to a file first_ as a safer third option.
 
 **Risk:** card density is generous; a power user scanning 200 changed files will want a table.
 
 ### 06 · Bench — no modes, teach the vocabulary
+
 No dial, no switch, no second-class mode. Console's three-column density, made teachable:
 
 - **Joined badges** — `Edited · M` in one pill. The plain word and the svn letter, always together,
@@ -378,25 +381,25 @@ not the first minute.
 Where a prototype speaks plainly, this is the mapping. It is deliberately consistent across 04–06
 so the wording can be lifted straight into the product.
 
-| Subversion | Plain language |
-|---|---|
-| working copy | your copy / your changes |
-| repository | the team's copy / the project |
-| commit | share changes / send to the team |
-| update | get latest |
-| revision (r4821) | version |
-| HEAD | the team's latest |
-| BASE | when you last synced |
-| conflict | needs your decision |
-| resolve | sort out |
-| revert | undo my edits |
-| changelist | group |
-| lock | reserve |
-| external | borrowed / linked folder |
-| unversioned | not tracked |
-| replaced | deleted then re-created |
-| branch / tag | version of the project / release |
-| patch | save my edits to a file |
+| Subversion       | Plain language                   |
+| ---------------- | -------------------------------- |
+| working copy     | your copy / your changes         |
+| repository       | the team's copy / the project    |
+| commit           | share changes / send to the team |
+| update           | get latest                       |
+| revision (r4821) | version                          |
+| HEAD             | the team's latest                |
+| BASE             | when you last synced             |
+| conflict         | needs your decision              |
+| resolve          | sort out                         |
+| revert           | undo my edits                    |
+| changelist       | group                            |
+| lock             | reserve                          |
+| external         | borrowed / linked folder         |
+| unversioned      | not tracked                      |
+| replaced         | deleted then re-created          |
+| branch / tag     | version of the project / release |
+| patch            | save my edits to a file          |
 
 Two rules the prototypes follow:
 
@@ -412,11 +415,11 @@ Two rules the prototypes follow:
 
 **01 · Console** — industrial flight deck. Rail → context panel → change list → diff, plus a
 streaming operation log. Hairlines, tabular numerals, 26px rows, nested context menus.
-*Round 2 inherits:* the four-zone workbench, the operation log, keyboard-first flow, the nested menu.
+_Round 2 inherits:_ the four-zone workbench, the operation log, keyboard-first flow, the nested menu.
 
 **02 · Ledger** — editorial. Paper stock, Fraunces display serif, wide measure, revision history as
 the spine of the page, tools as drawers and sheets.
-*Round 2 inherits:* the plain-spoken voice, the narrative conflict notice, generous rows, the
+_Round 2 inherits:_ the plain-spoken voice, the narrative conflict notice, generous rows, the
 commit drawer, prose over jargon.
 
 **03 · Carapace** — organic floating canvas, dock, radial context menu, revision graph as hero.

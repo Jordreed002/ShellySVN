@@ -15,8 +15,11 @@ import {
   Copy,
   CheckCircle,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { confirmAppAction } from '../../utils/dialogs';
+import type { AiConflictProposalResult, AiPromptPreviewResult } from '@shared/types';
+import { AiPromptPreviewDialog } from '../ai/AiPromptPreviewDialog';
 
 interface ThreeWayMergeEditorProps {
   isOpen: boolean;
@@ -27,6 +30,7 @@ interface ThreeWayMergeEditorProps {
   mergedContent?: string;
   onClose: () => void;
   onSave: (mergedContent: string) => Promise<void>;
+  onProposalMetadata?: (metadata: { confidence: number; unresolvedQuestions: string[] }) => void;
 }
 
 interface ConflictRegion {
@@ -127,6 +131,7 @@ export function ThreeWayMergeEditor({
   mergedContent: initialMergedContent,
   onClose,
   onSave,
+  onProposalMetadata,
 }: ThreeWayMergeEditorProps) {
   const [viewMode, setViewMode] = useState<'3way' | 'unified'>('3way');
   const [conflicts, setConflicts] = useState<ConflictRegion[]>([]);
@@ -138,10 +143,22 @@ export function ThreeWayMergeEditor({
   const [customEditContent, setCustomEditContent] = useState<string>('');
   const [lastSavedContent, setLastSavedContent] = useState(initialMergedContent ?? mineContent);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [aiProposal, setAiProposal] = useState<AiConflictProposalResult | null>(null);
+  const [aiPromptPreview, setAiPromptPreview] = useState<AiPromptPreviewResult | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
   const sourceContent = initialMergedContent ?? mineContent;
+
+  useEffect(
+    () => () => {
+      aiAbortRef.current?.abort();
+    },
+    []
+  );
 
   // Parse conflict markers from merged content (SVN conflict format).
   useEffect(() => {
@@ -397,6 +414,69 @@ export function ThreeWayMergeEditor({
     handleResetAll();
   };
 
+  const handleAiProposal = async () => {
+    if (isGeneratingProposal) {
+      aiAbortRef.current?.abort();
+      return;
+    }
+    setAiError(null);
+    try {
+      setAiPromptPreview(
+        await window.api.ai.preparePrompt({
+          task: 'conflict-resolution',
+          request: {
+            operationId: window.crypto.randomUUID(),
+            filePath,
+            baseContent,
+            mineContent,
+            theirsContent,
+          },
+        })
+      );
+    } catch (previewError) {
+      setAiError(previewError instanceof Error ? previewError.message : 'Prompt preview failed.');
+    }
+  };
+
+  const generateAiProposal = async () => {
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    setIsGeneratingProposal(true);
+    setAiError(null);
+    setAiProposal(null);
+    try {
+      const proposal = await window.api.ai.proposeConflictResolution(
+        {
+          operationId: window.crypto.randomUUID(),
+          filePath,
+          baseContent,
+          mineContent,
+          theirsContent,
+        },
+        { signal: controller.signal }
+      );
+      setAiProposal(proposal);
+      onProposalMetadata?.({
+        confidence: proposal.confidence,
+        unresolvedQuestions: proposal.unresolvedQuestions,
+      });
+      setAiPromptPreview(null);
+    } catch (proposalError) {
+      if (!controller.signal.aborted) {
+        setAiError(
+          proposalError instanceof Error
+            ? proposalError.message
+            : 'Conflict proposal generation failed.'
+        );
+      }
+    } finally {
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        setIsGeneratingProposal(false);
+      }
+    }
+  };
+
   // Save
   const handleSave = useCallback(async () => {
     if (isSaving) return;
@@ -562,6 +642,22 @@ export function ThreeWayMergeEditor({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleAiProposal()}
+              className="btn btn-secondary btn-sm"
+              aria-busy={isGeneratingProposal}
+            >
+              {isGeneratingProposal ? (
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isGeneratingProposal ? 'Cancel assistant' : 'Suggest resolution'}
+            </button>
             {/* Auto-resolve */}
             <button onClick={handleAutoResolveMine} className="btn btn-secondary btn-sm">
               Use All Mine
@@ -575,6 +671,66 @@ export function ThreeWayMergeEditor({
             </button>
           </div>
         </div>
+
+        {aiError && (
+          <div
+            className="border-b border-error/30 bg-error/10 px-4 py-2 text-xs text-error"
+            role="alert"
+          >
+            {aiError}
+          </div>
+        )}
+
+        {aiProposal && (
+          <section
+            className="max-h-64 flex-shrink-0 overflow-auto border-b border-accent/25 bg-bg-sunk px-4 py-3"
+            aria-live="polite"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-10 font-semibold uppercase tracking-caps text-accent">
+                  AI merge proposal · review only
+                  <span className="font-normal normal-case tracking-normal text-text-faint">
+                    {Math.round(aiProposal.confidence * 100)}% confidence ·{' '}
+                    {(aiProposal.durationMs / 1000).toFixed(1)}s
+                  </span>
+                </div>
+                <p className="mt-1 text-12 text-text-secondary">{aiProposal.explanation}</p>
+                <p className="mt-1 text-11 text-text-muted">
+                  <span className="font-medium text-text-secondary">Likely intent:</span>{' '}
+                  {aiProposal.likelyIntent}
+                </p>
+                {aiProposal.unresolvedQuestions.length > 0 && (
+                  <ul className="mt-2 list-disc pl-4 text-10.5 text-warning">
+                    {aiProposal.unresolvedQuestions.map((question) => (
+                      <li key={question}>{question}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm text-xs"
+                  onClick={() => {
+                    setMergedContent(aiProposal.proposedMergedText);
+                    setViewMode('unified');
+                  }}
+                >
+                  Use as editable draft
+                </button>
+                <button
+                  type="button"
+                  className="btn-icon-sm"
+                  onClick={() => setAiProposal(null)}
+                  aria-label="Dismiss AI merge proposal"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Main content area */}
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -782,6 +938,15 @@ export function ThreeWayMergeEditor({
           </div>
         </div>
       </div>
+      {aiPromptPreview && (
+        <AiPromptPreviewDialog
+          preview={aiPromptPreview}
+          title="Review conflict-resolution prompt"
+          isSending={isGeneratingProposal}
+          onCancel={() => setAiPromptPreview(null)}
+          onConfirm={() => void generateAiProposal()}
+        />
+      )}
     </div>
   );
 }

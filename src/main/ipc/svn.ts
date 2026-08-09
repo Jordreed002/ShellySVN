@@ -2,7 +2,10 @@ import { BrowserWindow, ipcMain } from 'electron';
 
 import type {
   CheckoutOptions,
+  BranchComparisonResult,
+  MergeReadinessReport,
   RepoDiagnostics,
+  RevisionImpactReport,
   OperationResult,
   SvnBlameResult,
   SvnCatResult,
@@ -72,6 +75,11 @@ import {
   getSvnCapabilities,
   trustServerCertificate,
 } from '../services/svn-diagnostics';
+import { scanWorkingCopyHealth } from '../services/svn-working-copy-health';
+import { getMergeReadiness } from '../services/svn-merge-readiness';
+import { getRevisionImpact } from '../services/svn-revision-impact';
+import { compareBranches } from '../services/svn-branch-comparison';
+import { clearSvnCommandTimeline, getSvnCommandTimeline } from '../services/svn-command-timeline';
 import { applyPatch, createPatch } from '../services/svn-patch';
 import {
   copyRepositoryItem,
@@ -267,6 +275,24 @@ export function registerSvnHandlers(): void {
       target: string,
       kind: SvnMergeInfoKind
     ): Promise<SvnMergeInfoResult> => getMergeInfo(source, target, kind)
+  );
+
+  ipcMain.handle(
+    'svn:mergeReadiness',
+    async (_, sourceUrl: string, targetPath: string): Promise<MergeReadinessReport> =>
+      getMergeReadiness(sourceUrl, targetPath)
+  );
+
+  ipcMain.handle(
+    'svn:revisionImpact',
+    async (_, target: string, limit?: number, revision?: number): Promise<RevisionImpactReport> =>
+      getRevisionImpact(target, limit, revision)
+  );
+
+  ipcMain.handle(
+    'svn:compareBranches',
+    async (_, leftUrl: string, rightUrl: string): Promise<BranchComparisonResult> =>
+      compareBranches(leftUrl, rightUrl)
   );
 
   // SVN Info
@@ -900,6 +926,15 @@ export function registerSvnHandlers(): void {
       return getDiagnostics(workingCopyPath);
     }
   );
+
+  ipcMain.handle('svn:workingCopyHealth', async (_, workingCopyPath: string) =>
+    scanWorkingCopyHealth(workingCopyPath)
+  );
+  ipcMain.handle('svn:commandTimeline', () => getSvnCommandTimeline());
+  ipcMain.handle('svn:commandTimeline:clear', () => {
+    clearSvnCommandTimeline();
+    return { success: true };
+  });
 
   ipcMain.handle(
     'svn:trustServerCertificate',

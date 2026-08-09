@@ -468,9 +468,9 @@ describe('CheckoutDialog - Sparse Checkout Error Scenarios', () => {
         )
       )
       .mockResolvedValueOnce({
-      success: true,
-      revision: 125,
-      output: 'Checkout complete',
+        success: true,
+        revision: 125,
+        output: 'Checkout complete',
       });
 
     renderWithProviders(<CheckoutDialog {...defaultProps} />);

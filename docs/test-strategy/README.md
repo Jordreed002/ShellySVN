@@ -7,11 +7,11 @@ codebase.
 
 ## Contents
 
-| File | Purpose |
-|---|---|
+| File                                     | Purpose                                                                                                                                                                             |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`user-journeys.md`](./user-journeys.md) | The 14 user journeys (J1–J14) that drive all test design. Each journey lists steps, the IPC channels/components involved, current coverage, and the remaining gap. Read this first. |
-| [`test-tracker.csv`](./test-tracker.csv) | The **spreadsheet** — one row per test case (journey, layer, area, file, suite, name, status). Open in Excel / Numbers / Google Sheets. Auto-generated; do not hand-edit. |
-| [`test-tracker.md`](./test-tracker.md) | Human-readable summary of the CSV: snapshot totals, coverage by journey, the planned-gap backlog, and a layer/area breakdown. |
+| [`test-tracker.csv`](./test-tracker.csv) | The **spreadsheet** — one row per test case (journey, layer, area, file, suite, name, status). Open in Excel / Numbers / Google Sheets. Auto-generated; do not hand-edit.           |
+| [`test-tracker.md`](./test-tracker.md)   | Human-readable summary of the CSV: snapshot totals, coverage by journey, the planned-gap backlog, and a layer/area breakdown.                                                       |
 
 ## Keeping the tracker in sync
 
@@ -32,7 +32,7 @@ test lands in "Uncategorized", extend the `classify()` rules.
   auth flows, mutation queuing, error classification). Fast, deterministic, no
   Electron. Run with `bun run test:unit`.
 - **E2E tests** (`tests/e2e/*.spec.ts`) chain steps into journeys and assert
-  *outcomes*, not just that a control exists. They launch the real built app
+  _outcomes_, not just that a control exists. They launch the real built app
   (`out/main/index.js`) via Playwright. Run with `bun run test:e2e`.
 - Every new test should map to a journey in `user-journeys.md`.
 

@@ -17,7 +17,10 @@ const NO_EDITORS: readonly CodeEditorInfo[] = [];
 export function useCodeEditors(): readonly CodeEditorInfo[] {
   const { settings } = useSettings();
   const customFingerprint = (settings?.customOpenWithTools ?? [])
-    .map((tool) => `${tool.id}:${tool.name}:${tool.command}:${tool.arguments ?? ''}:${tool.appliesTo ?? 'both'}`)
+    .map(
+      (tool) =>
+        `${tool.id}:${tool.name}:${tool.command}:${tool.arguments ?? ''}:${tool.appliesTo ?? 'both'}`
+    )
     .join('|');
 
   const { data } = useQuery({

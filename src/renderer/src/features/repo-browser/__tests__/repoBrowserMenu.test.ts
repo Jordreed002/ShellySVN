@@ -15,7 +15,13 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { MENU_SHORTCUTS, matchMenuShortcut, buildRepoBrowserMenu, localPathForEntry, type RepoBrowserMenuHandlers } from '../repoBrowserMenu';
+import {
+  MENU_SHORTCUTS,
+  matchMenuShortcut,
+  buildRepoBrowserMenu,
+  localPathForEntry,
+  type RepoBrowserMenuHandlers,
+} from '../repoBrowserMenu';
 import type { ContextMenuItem } from '@renderer/components/ui/ContextMenu';
 import type { RepoEntry, WorkingCopyState } from '../types';
 
@@ -209,7 +215,9 @@ describe('buildRepoBrowserMenu — what a missing checkout disables', () => {
   });
 
   it('still shows the disabled items rather than hiding them', () => {
-    const withCheckout = build().items.filter((item) => !item.divider).map((item) => item.id);
+    const withCheckout = build()
+      .items.filter((item) => !item.divider)
+      .map((item) => item.id);
     const without = build({ workingCopy: null })
       .items.filter((item) => !item.divider)
       .map((item) => item.id);

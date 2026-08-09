@@ -21,7 +21,9 @@ export function OpenWithSettings(_props: OpenWithSettingsProps) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setTools((await window.api.externalTools.list()).filter((tool) => tool.roles.includes('editor')));
+    setTools(
+      (await window.api.externalTools.list()).filter((tool) => tool.roles.includes('editor'))
+    );
   }, []);
 
   useEffect(() => {
@@ -86,7 +88,12 @@ export function OpenWithSettings(_props: OpenWithSettingsProps) {
       ) : (
         <p className="py-2 text-sm text-text-muted">No registered applications.</p>
       )}
-      <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void register()}>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        disabled={busy}
+        onClick={() => void register()}
+      >
         <Plus className="h-4 w-4" aria-hidden="true" />
         Register application
       </button>

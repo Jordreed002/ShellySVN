@@ -11,10 +11,7 @@ import { ContextMenu, useContextMenu } from '@renderer/components/ui/ContextMenu
 import { LockManagementDialog } from '@renderer/components/ui/LockManagementDialog';
 import { useSettings } from '@renderer/hooks/useSettings';
 
-import {
-  RepoAddressBar,
-  type RepoAddressBarHandle,
-} from './components/RepoAddressBar';
+import { RepoAddressBar, type RepoAddressBarHandle } from './components/RepoAddressBar';
 import { RepoBrowserShell } from './components/RepoBrowserShell';
 import { RepoContents } from './components/RepoContents';
 import { DetailMessage, RepoDetailPane } from './components/RepoDetailPane';
@@ -27,10 +24,7 @@ import { RevisionLogView } from './components/RevisionLogView';
 import { WorkingCopyBand } from './components/WorkingCopyBand';
 import { ProblemsDialog } from './components/ProblemsDialog';
 import { MergeDialog, type MergeMode } from './components/MergeDialog';
-import {
-  RevisionPickerDialog,
-  type RevisionPickerMode,
-} from './components/RevisionPickerDialog';
+import { RevisionPickerDialog, type RevisionPickerMode } from './components/RevisionPickerDialog';
 import { SwitchDialog, type SwitchSelection } from './components/SwitchDialog';
 import { CompareDialog, type CompareMode } from './components/CompareDialog';
 import { ShelfDialog, type ShelfAction } from './components/ShelfDialog';
@@ -310,7 +304,6 @@ export function RepoBrowserView({
     }
   }, [removeFromWcTarget, workingCopy]);
 
-
   const expandedPaths = useMemo(() => Array.from(state.expanded), [state.expanded]);
   const tree = useRepoTreeChildren(expandedPaths, state.peg, {
     rootUrl,
@@ -352,9 +345,14 @@ export function RepoBrowserView({
   const blame = useRepoBlame(selectedUrl, {
     enabled: state.detailTab === 'blame' && selectedEntry?.kind === 'file',
   });
-  const diff = useRepoDiff(selectedUrl, state.comparand, workingCopy.workingCopy?.localPath ?? null, {
-    enabled: state.detailTab === 'diff' && selectedEntry?.kind === 'file',
-  });
+  const diff = useRepoDiff(
+    selectedUrl,
+    state.comparand,
+    workingCopy.workingCopy?.localPath ?? null,
+    {
+      enabled: state.detailTab === 'diff' && selectedEntry?.kind === 'file',
+    }
+  );
   const properties = useRepoProperties(selectedUrl, state.peg, {
     enabled: state.detailTab === 'properties',
   });
@@ -422,83 +420,72 @@ export function RepoBrowserView({
    */
   const menuHandlers = useMemo(
     () => ({
-        onOpen: openEntry,
-        onCheckout: (target) => onCheckout?.(target, target.url),
-        onAddToWorkingCopy: (target, targetLocalPath) => {
-          setAddToWcDepth('infinity');
-          setAddToWcTarget({ entry: target, localPath: targetLocalPath });
-        },
-        onRemoveFromWorkingCopy: (target, targetLocalPath) => {
-          setRemoveFromWcTarget({ entry: target, localPath: targetLocalPath });
-        },
-        onExport: (target) => onExport?.(target),
-        onSwitch: (target) => {
-          /*
-           * `svn switch` requires the target URL and the working-copy path to be
-           * the same node kind, and the path being switched is the checkout root
-           * — a directory. Offering a file's own URL produced a command
-           * Subversion refuses, so a file switches to the directory holding it.
-           */
-          setSwitchUrl(
-            target.kind === 'dir' ? target.url : target.url.replace(/\/[^/]+$/, '')
-          );
-          setSwitchSelection({ kind: 'url' });
-          setSwitchOpen(true);
-        },
-        onMerge: (target) => {
-          setMenuMergeSource(target.url);
-          setMergeMode('sync');
-          setMergeOpen(true);
-        },
-        onOpenShelf: () => setShelfOpen(true),
-        onShowLog: (target) => {
-          actions.select(target.path);
-          actions.setDetailTab('log');
-        },
-        onDiff: (target) => {
-          actions.select(target.path);
-          actions.setDetailTab('diff');
-        },
-        onBlame: (target) => {
-          actions.select(target.path);
-          actions.setDetailTab('blame');
-        },
-        onProperties: (target) => {
-          actions.select(target.path);
-          actions.setDetailTab('properties');
-        },
-        onCompare: (target) => {
-          setCompareFrom(`${target.url} @ HEAD`);
-          setCompareTo('');
-          setCompareOpen(true);
-        },
-        onSearchHere: (target) => {
-          // "Inside this folder" means the folder itself for a directory, and
-          // the one you are already looking at for a file.
-          if (target.kind === 'dir') actions.navigate(target.path);
-          actions.setScope('folder');
-          filterRef.current?.focus();
-        },
-        onCopyTo: (target, request) => onCopyTo?.(target, request),
-        onCreateFolder: (target) => onCreateFolder?.(target),
-        onManageLocks: (_target, path) => {
-          setLocksPath(path);
-          setLocksOpen(true);
-        },
-        onDelete: (target) => onDelete?.(target),
-        onBookmark: (target, path) => void addBookmark(path, target.name),
+      onOpen: openEntry,
+      onCheckout: (target) => onCheckout?.(target, target.url),
+      onAddToWorkingCopy: (target, targetLocalPath) => {
+        setAddToWcDepth('infinity');
+        setAddToWcTarget({ entry: target, localPath: targetLocalPath });
+      },
+      onRemoveFromWorkingCopy: (target, targetLocalPath) => {
+        setRemoveFromWcTarget({ entry: target, localPath: targetLocalPath });
+      },
+      onExport: (target) => onExport?.(target),
+      onSwitch: (target) => {
+        /*
+         * `svn switch` requires the target URL and the working-copy path to be
+         * the same node kind, and the path being switched is the checkout root
+         * — a directory. Offering a file's own URL produced a command
+         * Subversion refuses, so a file switches to the directory holding it.
+         */
+        setSwitchUrl(target.kind === 'dir' ? target.url : target.url.replace(/\/[^/]+$/, ''));
+        setSwitchSelection({ kind: 'url' });
+        setSwitchOpen(true);
+      },
+      onMerge: (target) => {
+        setMenuMergeSource(target.url);
+        setMergeMode('sync');
+        setMergeOpen(true);
+      },
+      onOpenShelf: () => setShelfOpen(true),
+      onShowLog: (target) => {
+        actions.select(target.path);
+        actions.setDetailTab('log');
+      },
+      onDiff: (target) => {
+        actions.select(target.path);
+        actions.setDetailTab('diff');
+      },
+      onBlame: (target) => {
+        actions.select(target.path);
+        actions.setDetailTab('blame');
+      },
+      onProperties: (target) => {
+        actions.select(target.path);
+        actions.setDetailTab('properties');
+      },
+      onCompare: (target) => {
+        setCompareFrom(`${target.url} @ HEAD`);
+        setCompareTo('');
+        setCompareOpen(true);
+      },
+      onSearchHere: (target) => {
+        // "Inside this folder" means the folder itself for a directory, and
+        // the one you are already looking at for a file.
+        if (target.kind === 'dir') actions.navigate(target.path);
+        actions.setScope('folder');
+        filterRef.current?.focus();
+      },
+      onCopyTo: (target, request) => onCopyTo?.(target, request),
+      onCreateFolder: (target) => onCreateFolder?.(target),
+      onManageLocks: (_target, path) => {
+        setLocksPath(path);
+        setLocksOpen(true);
+      },
+      onDelete: (target) => onDelete?.(target),
+      onBookmark: (target, path) => void addBookmark(path, target.name),
       onCopyUrl: (target: RepoEntry) => void navigator.clipboard?.writeText(target.url),
     }),
-    [
-      actions,
-      openEntry,
-      addBookmark,
-      onCheckout,
-      onExport,
-      onCopyTo,
-      onCreateFolder,
-      onDelete,
-    ]
+    [actions, openEntry, addBookmark, onCheckout, onExport, onCopyTo, onCreateFolder, onDelete]
   );
 
   const buildMenuFor = useCallback(
@@ -893,9 +880,9 @@ export function RepoBrowserView({
           <AccessibleDialogBody>
             <p className="text-xs leading-relaxed text-text-secondary">
               <b className="font-semibold text-text">{addToWcTarget.entry.name}</b> is in the
-              repository but not on your disk. This fills it in inside the checkout you already
-              have — it does <b className="font-semibold text-text">not</b> create a second working
-              copy, and nothing already on disk is reverted or overwritten.
+              repository but not on your disk. This fills it in inside the checkout you already have
+              — it does <b className="font-semibold text-text">not</b> create a second working copy,
+              and nothing already on disk is reverted or overwritten.
             </p>
 
             <dl className="mt-3 space-y-1.5 rounded-9 border border-border bg-bg-tertiary/40 p-3">
@@ -922,10 +909,7 @@ export function RepoBrowserView({
             </dl>
 
             <div className="mt-3">
-              <label
-                htmlFor="add-to-wc-depth"
-                className="mb-1.5 block text-xs font-bold text-text"
-              >
+              <label htmlFor="add-to-wc-depth" className="mb-1.5 block text-xs font-bold text-text">
                 How much to fetch
               </label>
               <select
@@ -1001,9 +985,9 @@ export function RepoBrowserView({
           <AccessibleDialogBody>
             <p className="text-xs leading-relaxed text-text-secondary">
               <b className="font-semibold text-text">{removeFromWcTarget.entry.name}</b> is removed
-              from your disk only. The repository is{' '}
-              <b className="font-semibold text-text">not</b> changed, nothing is scheduled for
-              commit, and Subversion stops reporting it — later updates leave it out until you use{' '}
+              from your disk only. The repository is <b className="font-semibold text-text">not</b>{' '}
+              changed, nothing is scheduled for commit, and Subversion stops reporting it — later
+              updates leave it out until you use{' '}
               <b className="font-semibold text-text">Add to working copy…</b> to fetch it back.
             </p>
 

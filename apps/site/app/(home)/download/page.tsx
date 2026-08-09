@@ -47,7 +47,9 @@ export default async function DownloadPage() {
             style={{ animationDelay: `${100 + i * 80}ms` }}
           >
             <div className="mb-4 flex items-center justify-between">
-              <p className="text-[0.95rem] font-medium text-[var(--foreground-strong)]">{p.label}</p>
+              <p className="text-[0.95rem] font-medium text-[var(--foreground-strong)]">
+                {p.label}
+              </p>
               <span className="tag">
                 <span className="dot" />
                 {p.badge}

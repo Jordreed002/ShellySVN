@@ -2,15 +2,17 @@
 
 /**
  * HookExecutor runs user-configured hook scripts around SVN operations. It has
- * Windows-specific behaviour (no execute bit, so X_OK is skipped; no negative-PID
- * process-group signalling, so termination calls proc.kill() directly) and had
- * no tests at all. These pin that behaviour plus the core argv/exit-code contract.
+ * Windows-specific executable validation and delegates timed-out process cleanup
+ * to the shared descendant-safe process-tree terminator. These tests pin that
+ * behaviour plus the core argv/exit-code contract without invoking OS processes.
  */
 import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const spawn = vi.hoisted(() => vi.fn());
+const terminateProcessTree = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('child_process', () => ({ spawn }));
+vi.mock('../../utils/process-tree', () => ({ terminateProcessTree }));
 
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('fs')>('fs');
@@ -28,12 +30,16 @@ vi.mock('../../utils/approved-paths', () => ({
 
 vi.mock('../../utils/safe-renderer-send', () => ({ sendToRenderer: vi.fn() }));
 
-vi.mock('electron', () => ({ BrowserWindow: class {} }));
+vi.mock('electron', () => ({ BrowserWindow: vi.fn() }));
 
 import { accessSync, statSync } from 'fs';
 import { executeHook, type HookScript, type HookContext } from '../HookExecutor';
 
-function makeChild(): EventEmitter & { pid: number; kill: ReturnType<typeof vi.fn>; unref: ReturnType<typeof vi.fn> } {
+function makeChild(): EventEmitter & {
+  pid: number;
+  kill: ReturnType<typeof vi.fn>;
+  unref: ReturnType<typeof vi.fn>;
+} {
   const child = new EventEmitter() as EventEmitter & {
     pid: number;
     kill: ReturnType<typeof vi.fn>;
@@ -86,7 +92,16 @@ describe('executeHook — argv and exit code', () => {
 
     expect(spawn).toHaveBeenCalledWith(
       baseHook.path,
-      ['/wc', '--files', 'src/a.ts,src/b.ts', '--message', 'ship it', '--revision', '42', '--force'],
+      [
+        '/wc',
+        '--files',
+        'src/a.ts,src/b.ts',
+        '--message',
+        'ship it',
+        '--revision',
+        '42',
+        '--force',
+      ],
       expect.objectContaining({ detached: true })
     );
     expect(result).toMatchObject({ success: true, exitCode: 0 });
@@ -155,43 +170,55 @@ describe('executeHook — Windows executable validation', () => {
   });
 });
 
-describe('executeHook — Windows process termination on timeout', () => {
-  const originalPlatform = process.platform;
-
+describe('executeHook — process-tree termination on timeout', () => {
   beforeEach(() => {
-    Object.defineProperty(process, 'platform', {
-      value: 'win32',
-      configurable: true,
-      writable: true,
-    });
     vi.useFakeTimers();
+    terminateProcessTree.mockResolvedValue(undefined);
   });
 
-  afterEach(() => {
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
-      configurable: true,
-      writable: true,
-    });
-  });
-
-  it('terminates via proc.kill() (no negative-PID process-group signal on Windows)', async () => {
+  it('waits for descendant-safe termination before resolving the timeout', async () => {
     const child = makeChild();
     spawn.mockReturnValue(child);
-    const killSpy = vi.spyOn(process, 'kill');
+    let completeTermination!: () => void;
+    terminateProcessTree.mockReturnValue(
+      new Promise<void>((resolve) => {
+        completeTermination = resolve;
+      })
+    );
 
     // Minimum allowed timeout is 1s.
     const promise = executeHook({ ...baseHook, timeoutMs: 1000 }, baseContext);
+    let resolved = false;
+    void promise.then(() => {
+      resolved = true;
+    });
 
     await vi.advanceTimersByTimeAsync(1000);
-    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
-    // Windows must NOT signal the process group via a negative PID.
-    expect(killSpy).not.toHaveBeenCalledWith(-4242, 'SIGTERM');
+    expect(terminateProcessTree).toHaveBeenCalledWith(child, 1000);
+    expect(resolved).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(1000);
+    // A close event caused by termination must not win the race and report a normal exit.
+    child.emit('close', 0);
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    completeTermination();
     const result = await promise;
-    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
     expect(result.success).toBe(false);
     expect(result.error).toContain('timed out');
+  });
+
+  it('still resolves as timed out if process-tree termination cannot inspect the child', async () => {
+    const child = makeChild();
+    spawn.mockReturnValue(child);
+    terminateProcessTree.mockRejectedValue(new Error('process already disappeared'));
+
+    const promise = executeHook({ ...baseHook, timeoutMs: 1000 }, baseContext);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(promise).resolves.toMatchObject({
+      success: false,
+      error: 'Hook timed out after 1 seconds.',
+    });
   });
 });

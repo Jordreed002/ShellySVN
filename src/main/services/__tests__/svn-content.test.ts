@@ -17,13 +17,23 @@ describe('svn-content', () => {
   it('retrieves exact binary bytes with an operative revision', async () => {
     const bytes = Buffer.from([0, 255, 1, 2]);
     mockState.runSvn.mockResolvedValue({
-      stdout: '', stderr: '', code: 0, stdoutTruncated: false, stderrTruncated: false,
+      stdout: '',
+      stderr: '',
+      code: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
       stdoutBase64: bytes.toString('base64'),
     });
 
-    await expect(catRepositoryFile('https://svn.example.com/repo/image.bin', '42')).resolves.toEqual({
-      target: 'https://svn.example.com/repo/image.bin', revision: '42',
-      contentBase64: bytes.toString('base64'), byteLength: 4, binary: true, truncated: false,
+    await expect(
+      catRepositoryFile('https://svn.example.com/repo/image.bin', '42')
+    ).resolves.toEqual({
+      target: 'https://svn.example.com/repo/image.bin',
+      revision: '42',
+      contentBase64: bytes.toString('base64'),
+      byteLength: 4,
+      binary: true,
+      truncated: false,
     });
     expect(mockState.runSvn).toHaveBeenCalledWith(
       ['cat', '-r', '42', '--', 'https://svn.example.com/repo/image.bin'],

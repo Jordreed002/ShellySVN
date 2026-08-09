@@ -45,8 +45,7 @@ export function SiteFooter() {
             className="text-[0.875rem] text-[var(--muted-foreground)] hover:text-[var(--foreground-strong)]"
           >
             github.com/{gitConfig.user}
-            <br />
-            /{gitConfig.repo}
+            <br />/{gitConfig.repo}
           </Link>
         </div>
         <div>
@@ -70,9 +69,7 @@ export function SiteFooter() {
       <div className="border-t border-[var(--border)]">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-5 text-[0.75rem] text-[var(--dim)] sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>A modern Subversion client for professionals.</p>
-          <p>
-            Preview channel · built {new Date().getFullYear()}
-          </p>
+          <p>Preview channel · built {new Date().getFullYear()}</p>
         </div>
       </div>
     </footer>

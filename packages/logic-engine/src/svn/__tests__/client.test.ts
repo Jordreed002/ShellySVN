@@ -78,7 +78,12 @@ describe('SvnClient — diff', () => {
   it('flags a binary file', async () => {
     const { client } = makeClient(async () => 'Cannot display: file marked as a binary type');
     const result = await client.diff('/wc/file');
-    expect(result).toEqual({ files: [], hasChanges: true, isBinary: true, rawDiff: expect.any(String) });
+    expect(result).toEqual({
+      files: [],
+      hasChanges: true,
+      isBinary: true,
+      rawDiff: expect.any(String),
+    });
   });
 
   it('reports hasChanges from non-empty output', async () => {
@@ -134,18 +139,27 @@ describe('SvnClient — revision-parsing writes', () => {
 
   it('export parses the exported revision', async () => {
     const { client, execute } = makeClient(async () => 'Exported revision 12.');
-    expect(await client.export('https://svn/r', '/wc', '5')).toMatchObject({ success: true, revision: 12 });
+    expect(await client.export('https://svn/r', '/wc', '5')).toMatchObject({
+      success: true,
+      revision: 12,
+    });
     expect(execute).toHaveBeenCalledWith(['export', 'https://svn/r', '/wc', '-r', '5']);
   });
 
   it('import parses the committed revision', async () => {
     const { client } = makeClient(async () => 'Committed revision 3.');
-    expect(await client.import('/wc', 'https://svn/r', 'msg')).toMatchObject({ success: true, revision: 3 });
+    expect(await client.import('/wc', 'https://svn/r', 'msg')).toMatchObject({
+      success: true,
+      revision: 3,
+    });
   });
 
   it('switch parses the updated revision', async () => {
     const { client, execute } = makeClient(async () => 'Updated to revision 8.');
-    expect(await client.switch('/wc', 'https://svn/r', '2')).toMatchObject({ success: true, revision: 8 });
+    expect(await client.switch('/wc', 'https://svn/r', '2')).toMatchObject({
+      success: true,
+      revision: 8,
+    });
     expect(execute).toHaveBeenCalledWith(['switch', 'https://svn/r', '/wc', '-r', '2']);
   });
 
@@ -212,7 +226,10 @@ describe('SvnClient — output-passing operations', () => {
 
   it('merge passes revisions and returns output', async () => {
     const { client, execute } = makeClient(async () => 'merged');
-    expect(await client.merge('src', 'tgt', ['5', '6'])).toEqual({ success: true, output: 'merged' });
+    expect(await client.merge('src', 'tgt', ['5', '6'])).toEqual({
+      success: true,
+      output: 'merged',
+    });
     expect(execute).toHaveBeenCalledWith(['merge', 'src', 'tgt', '-c', '5,6']);
   });
 
@@ -239,7 +256,12 @@ describe('SvnClient — blame, list, proplist', () => {
 
   it('blame without revisions omits the range', async () => {
     const { client, execute } = makeClient(async () => '<blame/>');
-    expect(await client.blame('/wc/f')).toEqual({ path: '/wc/f', lines: [], startRevision: 0, endRevision: 0 });
+    expect(await client.blame('/wc/f')).toEqual({
+      path: '/wc/f',
+      lines: [],
+      startRevision: 0,
+      endRevision: 0,
+    });
     expect(execute.mock.calls[0][0].includes('-r')).toBe(false);
   });
 

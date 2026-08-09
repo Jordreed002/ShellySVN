@@ -98,13 +98,13 @@ export function EnhancedDiffViewer({
       if (searchMatches.length === 0) return;
 
       setCurrentMatchIndex((prev) =>
-          direction === 'next'
-            ? prev < searchMatches.length - 1
-              ? prev + 1
-              : 0
-            : prev > 0
-              ? prev - 1
-              : searchMatches.length - 1
+        direction === 'next'
+          ? prev < searchMatches.length - 1
+            ? prev + 1
+            : 0
+          : prev > 0
+            ? prev - 1
+            : searchMatches.length - 1
       );
     },
     [searchMatches.length]

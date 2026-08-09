@@ -37,7 +37,9 @@ test.describe('Authentication - Settings Dialog', () => {
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
     // Look for Authentication tab
-    const authTab = page.locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")').first();
+    const authTab = page
+      .locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")')
+      .first();
 
     if ((await authTab.count()) > 0) {
       await authTab.click();
@@ -47,8 +49,8 @@ test.describe('Authentication - Settings Dialog', () => {
       const tabContent = await page.locator('.modal').textContent();
       expect(
         tabContent?.toLowerCase().includes('credential') ||
-        tabContent?.toLowerCase().includes('authentication') ||
-        tabContent?.toLowerCase().includes('password')
+          tabContent?.toLowerCase().includes('authentication') ||
+          tabContent?.toLowerCase().includes('password')
       ).toBe(true);
 
       await page.screenshot({ path: 'tests/results/auth-tab-content.png' });
@@ -62,14 +64,18 @@ test.describe('Authentication - Settings Dialog', () => {
     await settingsButton.click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
-    const authTab = page.locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")').first();
+    const authTab = page
+      .locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")')
+      .first();
 
     if ((await authTab.count()) > 0) {
       await authTab.click();
       await page.waitForTimeout(300);
 
       // Look for credential-related UI elements
-      const credentialsList = page.locator('.modal').locator('text=/credential|password|username|realm/i');
+      const credentialsList = page
+        .locator('.modal')
+        .locator('text=/credential|password|username|realm/i');
       const credentialsCount = await credentialsList.count();
 
       // Should have either credentials or an empty state message
@@ -93,14 +99,18 @@ test.describe('Authentication - Credential Management', () => {
     await settingsButton.click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
-    const authTab = page.locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")').first();
+    const authTab = page
+      .locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")')
+      .first();
 
     if ((await authTab.count()) > 0) {
       await authTab.click();
       await page.waitForTimeout(300);
 
       // Look for add credential button
-      const addButton = page.locator('.modal button:has-text("Add"), .modal button:has-text("New")').first();
+      const addButton = page
+        .locator('.modal button:has-text("Add"), .modal button:has-text("New")')
+        .first();
       const addCount = await addButton.count();
 
       expect(addCount).toBeGreaterThanOrEqual(0);
@@ -114,14 +124,18 @@ test.describe('Authentication - Credential Management', () => {
     await settingsButton.click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
-    const authTab = page.locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")').first();
+    const authTab = page
+      .locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")')
+      .first();
 
     if ((await authTab.count()) > 0) {
       await authTab.click();
       await page.waitForTimeout(300);
 
       // Look for delete/remove buttons (may only appear when credentials exist)
-      const deleteButton = page.locator('.modal button:has-text("Delete"), .modal button:has-text("Remove")').first();
+      const deleteButton = page
+        .locator('.modal button:has-text("Delete"), .modal button:has-text("Remove")')
+        .first();
       const deleteCount = await deleteButton.count();
 
       expect(deleteCount).toBeGreaterThanOrEqual(0);
@@ -135,14 +149,18 @@ test.describe('Authentication - Credential Management', () => {
     await settingsButton.click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
-    const authTab = page.locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")').first();
+    const authTab = page
+      .locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")')
+      .first();
 
     if ((await authTab.count()) > 0) {
       await authTab.click();
       await page.waitForTimeout(300);
 
       // Look for clear all button
-      const clearButton = page.locator('.modal button:has-text("Clear"), .modal button:has-text("Clear All")').first();
+      const clearButton = page
+        .locator('.modal button:has-text("Clear"), .modal button:has-text("Clear All")')
+        .first();
       const clearCount = await clearButton.count();
 
       expect(clearCount).toBeGreaterThanOrEqual(0);
@@ -165,7 +183,9 @@ test.describe('Authentication - Encryption', () => {
     await settingsButton.click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
-    const authTab = page.locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")').first();
+    const authTab = page
+      .locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")')
+      .first();
 
     if ((await authTab.count()) > 0) {
       await authTab.click();
@@ -203,7 +223,9 @@ test.describe('Authentication - During SVN Operations', () => {
     }
 
     // Enter a protected repository URL (this would trigger auth in real scenario)
-    const urlInput = page.locator('.modal input[placeholder*="URL"], .modal input[placeholder*="svn"]').first();
+    const urlInput = page
+      .locator('.modal input[placeholder*="URL"], .modal input[placeholder*="svn"]')
+      .first();
 
     if ((await urlInput.count()) > 0) {
       // Enter a URL that would require authentication
@@ -224,14 +246,18 @@ test.describe('Authentication - During SVN Operations', () => {
     await settingsButton.click();
     await page.waitForSelector('.modal-overlay', { state: 'visible', timeout: 5000 });
 
-    const authTab = page.locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")').first();
+    const authTab = page
+      .locator('.modal button:has-text("Authentication"), .modal button:has-text("Auth")')
+      .first();
 
     if ((await authTab.count()) > 0) {
       await authTab.click();
       await page.waitForTimeout(300);
 
       // Look for "remember credentials" or similar checkbox/option
-      const rememberOption = page.locator('.modal').locator('text=/remember|save credential|store/i');
+      const rememberOption = page
+        .locator('.modal')
+        .locator('text=/remember|save credential|store/i');
       const rememberCount = await rememberOption.count();
 
       expect(rememberCount).toBeGreaterThanOrEqual(0);

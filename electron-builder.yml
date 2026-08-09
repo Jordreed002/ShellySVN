@@ -32,6 +32,7 @@ win:
       to: binaries
       filter:
         - shelly-engine.exe
+        - binary-manifest.json
         - svn/**/*
 
 # NSIS installer options
@@ -64,17 +65,13 @@ mac:
         - arm64
   electronUpdaterCompatibility: '>= 2.16'
   extraResources:
-    # x64 binaries (for Intel Macs)
-    - from: binaries/darwin-x64
+    # electron-builder expands ${arch} for each architecture-specific pack pass.
+    # Universal builds perform x64 and arm64 passes before merging the app bundles.
+    - from: binaries/darwin-${arch}
       to: binaries
       filter:
         - shelly-engine
-        - svn/**/*
-    # arm64 binaries (for Apple Silicon)
-    - from: binaries/darwin-arm64
-      to: binaries
-      filter:
-        - shelly-engine
+        - binary-manifest.json
         - svn/**/*
 
 # DMG options
@@ -111,6 +108,7 @@ linux:
       to: binaries
       filter:
         - shelly-engine
+        - binary-manifest.json
         - svn/**/*
   executableName: ShellySVN
   synopsis: A modern Subversion client for professionals

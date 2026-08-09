@@ -94,7 +94,10 @@ const KIND_LABEL: Record<ProblemKind, string> = {
   'out-of-date': 'Out of date',
 };
 
-const SEVERITY_STYLE: Record<RepoProblem['severity'], { card: string; icon: string; chip: string; label: string }> = {
+const SEVERITY_STYLE: Record<
+  RepoProblem['severity'],
+  { card: string; icon: string; chip: string; label: string }
+> = {
   blocking: {
     card: 'border-svn-conflict/50 bg-svn-conflict/10',
     icon: 'text-svn-conflict',
@@ -160,7 +163,9 @@ function ProblemCard({
         <div className="flex flex-wrap items-center gap-2">
           <b className="text-[13px] font-bold text-text">{problem.title}</b>
           <span className={`badge ${style.chip}`}>{style.label}</span>
-          <span className="badge bg-bg-elevated text-text-secondary">{KIND_LABEL[problem.kind]}</span>
+          <span className="badge bg-bg-elevated text-text-secondary">
+            {KIND_LABEL[problem.kind]}
+          </span>
         </div>
 
         {onRevealPath ? (
@@ -191,7 +196,9 @@ function ProblemCard({
             <dd className="text-text-secondary">{primer.cause}</dd>
           </div>
           <div>
-            <dt className="text-2xs font-bold uppercase tracking-wide text-text-faint">Consequence</dt>
+            <dt className="text-2xs font-bold uppercase tracking-wide text-text-faint">
+              Consequence
+            </dt>
             <dd className="text-text-secondary">{primer.consequence}</dd>
           </div>
         </dl>
@@ -310,7 +317,9 @@ export function ProblemsDialog({
             className="btn btn-primary"
           >
             <Wrench className="h-4 w-4" aria-hidden="true" />
-            {isFixing ? 'Running…' : `Fix the ${safeFixCount} safe ${safeFixCount === 1 ? 'one' : 'ones'}`}
+            {isFixing
+              ? 'Running…'
+              : `Fix the ${safeFixCount} safe ${safeFixCount === 1 ? 'one' : 'ones'}`}
           </button>
         )}
       </AccessibleDialogFooter>

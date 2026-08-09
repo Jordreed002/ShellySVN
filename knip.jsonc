@@ -5,7 +5,8 @@
   "ignoreDependencies": [
     "@fontsource-variable/archivo",
     "@fontsource-variable/jetbrains-mono",
-    "collections"
+    "collections",
+    "electron",
   ],
   "workspaces": {
     ".": {
@@ -18,21 +19,17 @@
         "scripts/**/*.{js,mjs}",
         "tests/**/*.{ts,tsx}",
         "src/**/__tests__/**/*.{ts,tsx}",
-        "src/**/*.{test,spec}.{ts,tsx}"
+        "src/**/*.{test,spec}.{ts,tsx}",
       ],
-      "project": [
-        "src/**/*.{ts,tsx}!",
-        "scripts/**/*.{js,mjs}",
-        "tests/**/*.{ts,tsx}"
-      ]
+      "project": ["src/**/*.{ts,tsx}!", "scripts/**/*.{js,mjs}", "tests/**/*.{ts,tsx}"],
     },
     "apps/site": {
       "ignoreDependencies": ["collections"],
-      "project": ["**/*.{ts,tsx}!", "content/**/*.{md,mdx}!"]
+      "project": ["**/*.{ts,tsx}!", "content/**/*.{md,mdx}!"],
     },
     "packages/logic-engine": {
       "entry": ["src/index.ts!", "src/**/__tests__/**/*.ts"],
-      "project": ["src/**/*.ts!"]
+      "project": ["src/**/*.ts!"],
     },
     "packages/shared": {
       "entry": [
@@ -41,9 +38,9 @@
         "src/ipc-contract.ts!",
         "src/settings-defaults.ts!",
         "src/utils/**/*.ts!",
-        "src/**/__tests__/**/*.ts"
+        "src/**/__tests__/**/*.ts",
       ],
-      "project": ["src/**/*.ts!"]
-    }
-  }
+      "project": ["src/**/*.ts!"],
+    },
+  },
 }

@@ -73,7 +73,9 @@ function measureTime<T>(fn: () => T): { result: T; durationMs: number } {
   };
 }
 
-async function measureAsyncTime<T>(fn: () => Promise<T>): Promise<{ result: T; durationMs: number }> {
+async function measureAsyncTime<T>(
+  fn: () => Promise<T>
+): Promise<{ result: T; durationMs: number }> {
   const startedAt = performance.now();
   const result = await fn();
   return {
@@ -150,7 +152,13 @@ describe('Repository browser lazy-loading performance benchmarks', () => {
       `[PERF] Repo browser node expansion (${LARGE_CHILD_ENTRY_COUNT} children): ${durationMs.toFixed(2)}ms`
     );
     expect(hook.result.current.nodes.size).toBe(1000 + LARGE_CHILD_ENTRY_COUNT);
-    expect(mockSvnList).toHaveBeenNthCalledWith(2, firstDirectory!.url, undefined, 'immediates', undefined);
+    expect(mockSvnList).toHaveBeenNthCalledWith(
+      2,
+      firstDirectory!.url,
+      undefined,
+      'immediates',
+      undefined
+    );
     expect(durationMs).toBeLessThan(PERFORMANCE_TARGETS.NODE_EXPANSION_MS);
   });
 

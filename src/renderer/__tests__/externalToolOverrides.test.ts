@@ -24,9 +24,7 @@ describe('resolveExternalToolForPath', () => {
   });
 
   it('falls back to global tools when an override is missing', () => {
-    expect(resolveExternalToolForPath(settings, 'C:\\wc\\FILE.PNG', 'merge')).toBe(
-      'global-merge'
-    );
+    expect(resolveExternalToolForPath(settings, 'C:\\wc\\FILE.PNG', 'merge')).toBe('global-merge');
     expect(resolveExternalToolForPath(settings, 'C:\\wc\\file.md', 'diff')).toBe('global-diff');
   });
 });

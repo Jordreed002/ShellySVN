@@ -107,7 +107,9 @@ export async function resumeAuthSession(ownerId: number, realmValue: string) {
   await cache.ready();
   const credential = cache.get(realm) ?? cache.findForUrl(realm);
   if (!credential) return null;
-  return publicSession(createRecord(ownerId, realm, credential.username, credential.password, true));
+  return publicSession(
+    createRecord(ownerId, realm, credential.username, credential.password, true)
+  );
 }
 
 export function resolveAuthSession(

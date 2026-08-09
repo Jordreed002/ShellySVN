@@ -1,4 +1,16 @@
 import type {
+  AiCommitMessageRequest,
+  AiCommitMessageResult,
+  AiCommitPlanResult,
+  AiCommitReviewResult,
+  AiConflictProposalRequest,
+  AiConflictProposalResult,
+  AiDiffExplanationRequest,
+  AiDiffExplanationResult,
+  AiReleaseNotesRequest,
+  AiReleaseNotesResult,
+  AiSelectedPathsRequest,
+  AiCommitProviderStatus,
   AuthSession,
   AuthSessionRequest,
   AuthStatus,
@@ -19,6 +31,10 @@ import type {
   MessageDialogOptions,
   NotificationOptions,
   RepoDiagnostics,
+  BranchComparisonResult,
+  MergeReadinessReport,
+  RevisionImpactReport,
+  SvnCommandTimelineEntry,
   RestartAndInstallResult,
   ShellIntegrationStatus,
   SvnBlameResult,
@@ -58,6 +74,7 @@ import type {
   WebhookDeliverRequest,
   WebhookDeliverResult,
   WorkingCopyInfo,
+  WorkingCopyHealthReport,
 } from './types';
 
 type IpcCall<Args extends unknown[], Result> = {
@@ -74,6 +91,40 @@ type RevisionResult = {
 };
 
 export interface IpcInvokeContract {
+  'ai:providers': IpcCall<[], AiCommitProviderStatus[]>;
+  'ai:preparePrompt': IpcCall<
+    [request: import('./types').AiPromptPreviewRequest],
+    import('./types').AiPromptPreviewResult
+  >;
+  'ai:usageHistory': IpcCall<[], import('./types').AiUsageEntry[]>;
+  'ai:clearUsageHistory': IpcCall<[], { success: boolean }>;
+  'ai:repositoryProfile:get': IpcCall<
+    [workingCopyPath: string],
+    import('./types').RepositoryAiPromptProfile | null
+  >;
+  'ai:repositoryProfile:previewImport': IpcCall<
+    [json: string],
+    import('./types').RepositoryAiProfileImportPreview
+  >;
+  'ai:repositoryProfile:save': IpcCall<
+    [workingCopyPath: string, profile: import('./types').RepositoryAiPromptProfile],
+    { success: boolean }
+  >;
+  'ai:repositoryProfile:remove': IpcCall<[workingCopyPath: string], { success: boolean }>;
+  'ai:generateCommitMessage': IpcCall<[request: AiCommitMessageRequest], AiCommitMessageResult>;
+  'ai:transformDraft': IpcCall<
+    [request: import('./types').AiTransformDraftRequest],
+    import('./types').AiTransformDraftResult
+  >;
+  'ai:reviewCommit': IpcCall<[request: AiSelectedPathsRequest], AiCommitReviewResult>;
+  'ai:planCommit': IpcCall<[request: AiSelectedPathsRequest], AiCommitPlanResult>;
+  'ai:explainDiff': IpcCall<[request: AiDiffExplanationRequest], AiDiffExplanationResult>;
+  'ai:generateReleaseNotes': IpcCall<[request: AiReleaseNotesRequest], AiReleaseNotesResult>;
+  'ai:proposeConflictResolution': IpcCall<
+    [request: AiConflictProposalRequest],
+    AiConflictProposalResult
+  >;
+  'ai:cancel': IpcCall<[operationId: string], OperationResult>;
   'svn:capabilities': IpcCall<
     [],
     { shelving: boolean; nativeShelving: boolean; remoteProperties: boolean }
@@ -111,6 +162,12 @@ export interface IpcInvokeContract {
     [source: string, target: string, kind: SvnMergeInfoKind],
     SvnMergeInfoResult
   >;
+  'svn:mergeReadiness': IpcCall<[sourceUrl: string, targetPath: string], MergeReadinessReport>;
+  'svn:revisionImpact': IpcCall<
+    [target: string, limit?: number, revision?: number],
+    RevisionImpactReport
+  >;
+  'svn:compareBranches': IpcCall<[leftUrl: string, rightUrl: string], BranchComparisonResult>;
   'svn:info': IpcCall<[path: string], SvnInfoResult>;
   'svn:infoUrl': IpcCall<[url: string], SvnInfoResult>;
   'svn:getWorkingCopyContext': IpcCall<[path: string], SvnWorkingCopyContext | null>;
@@ -310,6 +367,9 @@ export interface IpcInvokeContract {
     OperationResult
   >;
   'svn:diagnostics': IpcCall<[workingCopyPath: string], RepoDiagnostics>;
+  'svn:workingCopyHealth': IpcCall<[workingCopyPath: string], WorkingCopyHealthReport>;
+  'svn:commandTimeline': IpcCall<[], SvnCommandTimelineEntry[]>;
+  'svn:commandTimeline:clear': IpcCall<[], OperationResult>;
   'svn:trustServerCertificate': IpcCall<
     [url: string, errorText: string],
     { success: boolean; error?: string }

@@ -66,9 +66,7 @@ export function TitlebarControls({
       </button>
 
       {isWindows && (
-        <div
-          className={`flex items-center ml-1 ${isWindows ? 'h-[50px] -mr-3.5' : 'h-full'}`}
-        >
+        <div className={`flex items-center ml-1 ${isWindows ? 'h-[50px] -mr-3.5' : 'h-full'}`}>
           <button
             type="button"
             onClick={onMinimize}

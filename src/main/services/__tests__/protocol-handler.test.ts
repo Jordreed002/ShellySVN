@@ -50,12 +50,12 @@ describe('protocol handler deep-link parsing', () => {
       url: repositoryUrl,
       path: localPath,
     });
-    expect(parseDeepLink(generateDeepLink('log', { path: localPath, revision: '42' }))).toMatchObject(
-      {
-        action: 'log',
-        path: localPath,
-        params: { path: localPath, revision: '42' },
-      }
-    );
+    expect(
+      parseDeepLink(generateDeepLink('log', { path: localPath, revision: '42' }))
+    ).toMatchObject({
+      action: 'log',
+      path: localPath,
+      params: { path: localPath, revision: '42' },
+    });
   });
 });

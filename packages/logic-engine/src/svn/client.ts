@@ -1,4 +1,9 @@
-import { parseSvnStatusXml, parseSvnLogXml, parseSvnInfoXml, parseSvnPropertiesXml } from './parser';
+import {
+  parseSvnStatusXml,
+  parseSvnLogXml,
+  parseSvnInfoXml,
+  parseSvnPropertiesXml,
+} from './parser';
 import type {
   SvnStatusResult,
   SvnLogResult,

@@ -542,9 +542,7 @@ export const FileRow = memo(function FileRow({
             <div className="flex min-w-0 items-center justify-end">
               <span
                 className={`items-center justify-end gap-1 ${
-                  hasTools
-                    ? 'flex group-hover/row:hidden group-focus-within/row:hidden'
-                    : 'flex'
+                  hasTools ? 'flex group-hover/row:hidden group-focus-within/row:hidden' : 'flex'
                 }`}
               >
                 {statusCell}
@@ -632,9 +630,7 @@ export function FileListHeader({
           label={column.label}
           align={column.align}
           width={columnWidths[column.key]}
-          onWidthChange={
-            column.resizable ? (w) => onColumnWidthChange?.(column.key, w) : undefined
-          }
+          onWidthChange={column.resizable ? (w) => onColumnWidthChange?.(column.key, w) : undefined}
           onSort={() => onSort?.(column.key)}
           isSorted={sortColumn === column.key}
           sortDirection={sortDirection}

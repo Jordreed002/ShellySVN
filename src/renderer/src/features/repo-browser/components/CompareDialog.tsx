@@ -186,12 +186,7 @@ export function CompareDialog({
       : ` This subtree holds ${formatCount(estimatedFileCount)} files.`;
 
   return (
-    <AccessibleDialog
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Compare two paths"
-      size="md"
-    >
+    <AccessibleDialog isOpen={isOpen} onClose={onClose} title="Compare two paths" size="md">
       <AccessibleDialogBody>
         <div className="flex items-start gap-2.5">
           <GitCompare className="mt-0.5 h-4 w-4 flex-none text-accent" aria-hidden="true" />

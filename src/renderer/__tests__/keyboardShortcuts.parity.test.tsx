@@ -61,7 +61,11 @@ describe('keyboard shortcut parity', () => {
         expect.objectContaining({ id: 'revert', currentKey: 'Ctrl+R', enabled: true }),
         expect.objectContaining({ id: 'diff', currentKey: 'Ctrl+D', enabled: true }),
         expect.objectContaining({ id: 'log', currentKey: 'Ctrl+L', enabled: true }),
-        expect.objectContaining({ id: 'command-palette', currentKey: 'Ctrl+Shift+P', enabled: true }),
+        expect.objectContaining({
+          id: 'command-palette',
+          currentKey: 'Ctrl+Shift+P',
+          enabled: true,
+        }),
       ])
     );
   });
@@ -114,9 +118,7 @@ describe('keyboard shortcut parity', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
     expect(onNavigateToEntry).toHaveBeenCalledWith(entries[0]);
-    expect(setSelectedPaths).toHaveBeenCalledWith(
-      new Set(['C:\\wc\\src', 'C:\\wc\\src\\app.ts'])
-    );
+    expect(setSelectedPaths).toHaveBeenCalledWith(new Set(['C:\\wc\\src', 'C:\\wc\\src\\app.ts']));
     expect(setSelectedPaths).toHaveBeenCalledWith(new Set());
     expect(setFocusedIndex).toHaveBeenCalledWith(-1);
   });

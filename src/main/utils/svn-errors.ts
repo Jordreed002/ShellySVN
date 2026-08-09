@@ -1,7 +1,4 @@
-import type {
-  SvnCommandErrorCategory,
-  SvnCommandErrorDetails,
-} from '@shared/types';
+import type { SvnCommandErrorCategory, SvnCommandErrorDetails } from '@shared/types';
 import { redactValue } from './redaction';
 
 export interface SvnCommandContext {
@@ -60,9 +57,14 @@ export function classifySvnCommandError(
     category,
     ...(context.command ? { command: context.command } : {}),
     ...(context.target ? { target: context.target } : {}),
-    retryable: ['authentication', 'certificate', 'network', 'locked', 'out-of-date', 'timeout'].includes(
-      category
-    ),
+    retryable: [
+      'authentication',
+      'certificate',
+      'network',
+      'locked',
+      'out-of-date',
+      'timeout',
+    ].includes(category),
     authenticationRequired: category === 'authentication',
     certificateError: category === 'certificate',
     safeStderr: message,
@@ -91,7 +93,10 @@ export class SvnCommandError extends Error {
   }
 }
 
-export function getSvnReadError(error: unknown, context: SvnCommandContext = {}): {
+export function getSvnReadError(
+  error: unknown,
+  context: SvnCommandContext = {}
+): {
   error: string;
   errorCode?: string;
   cancelled?: boolean;

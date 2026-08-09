@@ -8,15 +8,27 @@ import {
   suggestComparisonUrl,
 } from '../src/components/ui/BranchTagCompareDialog';
 
-const diffUrls = vi.fn();
+const compareBranches = vi.fn();
 
 describe('BranchTagCompareDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    diffUrls.mockResolvedValue({ files: [], hasChanges: false, rawDiff: '' });
+    compareBranches.mockResolvedValue({
+      diff: { files: [], hasChanges: false, rawDiff: '' },
+      summary: {
+        leftUrl: 'https://svn.example.com/repo/trunk',
+        rightUrl: 'https://svn.example.com/repo/branches/feature',
+        hasDifferences: false,
+        changedFiles: [],
+        leftOnlyRevisions: [],
+        rightOnlyRevisions: [],
+        impactGroups: [],
+        truncated: false,
+      },
+    });
     window.api = {
       svn: {
-        diffUrls,
+        compareBranches,
       },
     } as unknown as Window['api'];
   });
@@ -49,7 +61,7 @@ describe('BranchTagCompareDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /compare/i }));
 
     await waitFor(() => {
-      expect(diffUrls).toHaveBeenCalledWith(
+      expect(compareBranches).toHaveBeenCalledWith(
         'https://svn.example.com/repo/trunk',
         'https://svn.example.com/repo/branches/feature'
       );

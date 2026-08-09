@@ -30,10 +30,13 @@ describe('LRUCache — estimateSize value-type branches', () => {
   });
 
   it('sizes Map, Set, Date, and typed-array (ArrayBufferView) values', () => {
-    cache.set('map', new Map([
-      ['a', 1],
-      ['b', 2],
-    ]));
+    cache.set(
+      'map',
+      new Map([
+        ['a', 1],
+        ['b', 2],
+      ])
+    );
     cache.set('set', new Set([1, 2, 3]));
     cache.set('date', new Date(0));
     cache.set('view', new Int32Array([1, 2, 3, 4]));

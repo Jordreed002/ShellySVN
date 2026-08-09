@@ -60,9 +60,6 @@ describe('useCommitTemplates', () => {
     });
 
     expect(result.current.templates.some((template) => template.id === templateId)).toBe(false);
-    expect(storeApi.set).toHaveBeenCalledWith(
-      'shellysvn-commit-templates',
-      expect.any(Array)
-    );
+    expect(storeApi.set).toHaveBeenCalledWith('shellysvn-commit-templates', expect.any(Array));
   });
 });

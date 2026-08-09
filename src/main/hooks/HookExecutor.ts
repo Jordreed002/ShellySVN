@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { BrowserWindow } from 'electron';
 import { accessSync, constants, statSync } from 'fs';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { terminateProcessTree } from '../utils/process-tree';
 import { sendToRenderer } from '../utils/safe-renderer-send';
 
 const DEFAULT_HOOK_TIMEOUT_MS = 60_000;
@@ -94,7 +95,8 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
     let stdout = '';
     let stderr = '';
     let settled = false;
-    let forceKillTimer: NodeJS.Timeout | null = null;
+    let terminationStarted = false;
+    let timeout: NodeJS.Timeout | null = null;
 
     const appendBounded = (current: string, data: unknown): string => {
       const next = current + String(data);
@@ -103,24 +105,11 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
         : Buffer.from(next).subarray(0, MAX_HOOK_OUTPUT_BYTES).toString();
     };
 
-    const finish = (result: HookResult, preserveForceKill = false) => {
+    const finish = (result: HookResult) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeout);
-      if (forceKillTimer && !preserveForceKill) clearTimeout(forceKillTimer);
+      if (timeout) clearTimeout(timeout);
       resolve(result);
-    };
-
-    const terminateProcessTree = (signal: NodeJS.Signals) => {
-      try {
-        if (process.platform !== 'win32' && proc.pid) {
-          process.kill(-proc.pid, signal);
-        } else {
-          proc.kill(signal);
-        }
-      } catch {
-        // The process may already have exited.
-      }
     };
 
     proc.stdout?.on('data', (data) => {
@@ -132,6 +121,7 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
     });
 
     proc.on('close', (code) => {
+      if (terminationStarted) return;
       finish({
         success: code === 0,
         output: stdout,
@@ -141,6 +131,7 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
     });
 
     proc.on('error', (err) => {
+      if (terminationStarted) return;
       finish({
         success: false,
         error: err.message,
@@ -148,17 +139,21 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
     });
 
     const timeoutMs = Math.min(Math.max(hook.timeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS, 1_000), 600_000);
-    const timeout = setTimeout(() => {
-      terminateProcessTree('SIGTERM');
-      forceKillTimer = setTimeout(() => terminateProcessTree('SIGKILL'), HOOK_KILL_GRACE_MS);
-      finish(
-        {
-          success: false,
-          output: stdout || undefined,
-          error: `Hook timed out after ${timeoutMs / 1000} seconds.`,
-        },
-        true
-      );
+    timeout = setTimeout(() => {
+      if (settled) return;
+      terminationStarted = true;
+      void terminateProcessTree(proc, HOOK_KILL_GRACE_MS)
+        .catch(() => {
+          // Termination is best-effort. The timeout result still needs to settle if the helper
+          // cannot inspect or signal a process that exited concurrently.
+        })
+        .then(() => {
+          finish({
+            success: false,
+            output: stdout || undefined,
+            error: `Hook timed out after ${timeoutMs / 1000} seconds.`,
+          });
+        });
     }, timeoutMs);
 
     // If not waiting for result, resolve immediately

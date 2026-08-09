@@ -11,6 +11,13 @@ const mockGetPath = vi.hoisted(() =>
   vi.fn().mockReturnValue('C:\\Users\\test\\AppData\\ShellySVN')
 );
 const mockIsEncryptionAvailable = vi.hoisted(() => vi.fn().mockReturnValue(true));
+const mockGetSelectedStorageBackend = vi.hoisted(() => vi.fn().mockReturnValue('gnome_libsecret'));
+const mockEncryptString = vi.hoisted(() =>
+  vi.fn((value: string) => Buffer.from(`encrypted:${value}`))
+);
+const mockDecryptString = vi.hoisted(() =>
+  vi.fn((value: Buffer) => value.toString('utf8').replace(/^encrypted:/, ''))
+);
 const mockExistsSync = vi.hoisted(() => vi.fn().mockReturnValue(false));
 const mockStatSync = vi.hoisted(() => vi.fn());
 const mockAccessSync = vi.hoisted(() => vi.fn());
@@ -23,8 +30,9 @@ vi.mock('electron', () => ({
   },
   safeStorage: {
     isEncryptionAvailable: mockIsEncryptionAvailable,
-    encryptString: vi.fn((value: string) => Buffer.from(`encrypted:${value}`)),
-    decryptString: vi.fn((value: Buffer) => value.toString('utf8').replace(/^encrypted:/, '')),
+    getSelectedStorageBackend: mockGetSelectedStorageBackend,
+    encryptString: mockEncryptString,
+    decryptString: mockDecryptString,
   },
 }));
 
@@ -68,6 +76,11 @@ describe('SettingsManager migration and persistence', () => {
     mockWriteFile.mockResolvedValue(undefined);
     mockWriteSecureJson.mockResolvedValue(undefined);
     mockIsEncryptionAvailable.mockReturnValue(true);
+    mockGetSelectedStorageBackend.mockReturnValue('gnome_libsecret');
+    mockEncryptString.mockImplementation((value: string) => Buffer.from(`encrypted:${value}`));
+    mockDecryptString.mockImplementation((value: Buffer) =>
+      value.toString('utf8').replace(/^encrypted:/, '')
+    );
     mockExistsSync.mockReturnValue(false);
     mockStatSync.mockReset();
     mockAccessSync.mockReset();
@@ -138,6 +151,95 @@ describe('SettingsManager migration and persistence', () => {
     expect(settings.diffMerge.externalToolOverrides).toEqual([]);
     expect(settings.diffMerge.contextLines).toBe(3);
     expect(mockWriteSecureJson).toHaveBeenCalled();
+  });
+
+  it('persists proxy passwords only as OS-encrypted values', async () => {
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+
+    await manager.updateSettings({
+      proxySettings: {
+        enabled: true,
+        host: 'proxy.example.com',
+        password: 'do-not-write-plaintext',
+      },
+    });
+
+    const persisted = mockWriteSecureJson.mock.calls.at(-1)?.[1] as {
+      settings: { proxySettings: { password: string } };
+    };
+    expect(persisted.settings.proxySettings.password).toMatch(/^enc:/);
+    expect(persisted.settings.proxySettings.password).not.toContain('do-not-write-plaintext');
+    expect(mockEncryptString).toHaveBeenCalledWith('do-not-write-plaintext');
+  });
+
+  it('drops proxy passwords from persistence when encryption is unavailable', async () => {
+    mockIsEncryptionAvailable.mockReturnValue(false);
+    resetSettingsManager();
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+
+    await manager.updateSettings({
+      proxySettings: { password: 'session-only-secret' },
+    });
+
+    const persisted = mockWriteSecureJson.mock.calls.at(-1)?.[1] as {
+      settings: { proxySettings: { password: string } };
+    };
+    expect(persisted.settings.proxySettings.password).toBe('');
+    expect(mockEncryptString).not.toHaveBeenCalled();
+  });
+
+  it('keeps proxy passwords session-only with the Linux basic_text backend', async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', {
+      value: 'linux',
+      configurable: true,
+      writable: true,
+    });
+    mockGetSelectedStorageBackend.mockReturnValue('basic_text');
+    resetSettingsManager();
+
+    try {
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+      await manager.updateSettings({
+        proxySettings: { password: 'session-only-secret' },
+      });
+
+      const persisted = mockWriteSecureJson.mock.calls.at(-1)?.[1] as {
+        settings: { proxySettings: { password: string } };
+      };
+      expect(persisted.settings.proxySettings.password).toBe('');
+      expect(manager.getSettings().proxySettings.password).toBe('session-only-secret');
+      expect(mockEncryptString).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+      resetSettingsManager();
+    }
+  });
+
+  it('fails closed instead of persisting plaintext when OS encryption throws', async () => {
+    mockEncryptString.mockImplementation(() => {
+      throw new Error('keychain unavailable');
+    });
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+
+    await manager.updateSettings({
+      proxySettings: { password: 'must-remain-session-only' },
+    });
+
+    const persisted = mockWriteSecureJson.mock.calls.at(-1)?.[1] as {
+      settings: { proxySettings: { password: string } };
+    };
+    expect(persisted.settings.proxySettings.password).toBe('');
+    expect(JSON.stringify(persisted)).not.toContain('must-remain-session-only');
+    expect(manager.getSettings().proxySettings.password).toBe('must-remain-session-only');
   });
 
   it('accepts an approved cache directory and bounded log-cache size', async () => {
@@ -257,9 +359,9 @@ describe('SettingsManager migration and persistence', () => {
       await manager.ready();
 
       // updateSettings validates synchronously and refuses script wrappers.
-      await expect(
-        manager.updateSettings({ svnClientPath: 'C:\\tools\\svn.cmd' })
-      ).rejects.toThrow('native executables, not scripts');
+      await expect(manager.updateSettings({ svnClientPath: 'C:\\tools\\svn.cmd' })).rejects.toThrow(
+        'native executables, not scripts'
+      );
 
       // The invalid path was never stored, so the default still applies.
       expect(manager.getSvnClientPath()).toBe('svn.exe');

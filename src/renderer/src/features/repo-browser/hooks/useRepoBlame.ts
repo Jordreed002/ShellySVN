@@ -57,16 +57,8 @@ export interface UseRepoBlameResult {
 
 const EMPTY_LINES: BlameLine[] = [];
 
-export function useRepoBlame(
-  url: string,
-  options: UseRepoBlameOptions = {}
-): UseRepoBlameResult {
-  const {
-    credentials = null,
-    startRevision = null,
-    endRevision = null,
-    enabled = true,
-  } = options;
+export function useRepoBlame(url: string, options: UseRepoBlameOptions = {}): UseRepoBlameResult {
+  const { credentials = null, startRevision = null, endRevision = null, enabled = true } = options;
 
   const query = useQuery({
     queryKey: repoBlameQueryKey(url, startRevision, endRevision, credentials),

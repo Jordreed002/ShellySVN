@@ -17,7 +17,11 @@
  */
 
 import { ChevronRight, File, Folder, FolderOpen, Loader2 } from 'lucide-react';
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+} from 'react';
 
 import type { RepoEntry } from '../types';
 
@@ -147,8 +151,10 @@ export function RepoTreeNode({
       className={cx(
         ROW_BASE,
         'cursor-pointer',
-        selected ? 'bg-accent/10 font-semibold text-accent' : 'text-text-secondary hover:bg-bg-tertiary hover:text-text',
-        ghosted && 'opacity-50',
+        selected
+          ? 'bg-accent/10 font-semibold text-accent'
+          : 'text-text-secondary hover:bg-bg-tertiary hover:text-text',
+        ghosted && 'opacity-50'
       )}
     >
       <span
@@ -159,14 +165,16 @@ export function RepoTreeNode({
         }}
         className={cx(
           'grid h-[17px] w-[17px] flex-none place-items-center rounded',
-          expandable ? 'text-text-faint hover:bg-bg-elevated hover:text-text-secondary' : 'invisible',
+          expandable
+            ? 'text-text-faint hover:bg-bg-elevated hover:text-text-secondary'
+            : 'invisible'
         )}
       >
         <ChevronRight
           aria-hidden="true"
           className={cx(
             'h-2.5 w-2.5 transition-transform duration-150 ease-out-quart',
-            expanded ? 'rotate-90' : 'rotate-0',
+            expanded ? 'rotate-90' : 'rotate-0'
           )}
         />
       </span>
@@ -177,14 +185,20 @@ export function RepoTreeNode({
       />
 
       {/* Long names truncate from the LEFT so the meaningful tail survives. */}
-      <span className="min-w-0 flex-1 truncate text-left [direction:rtl]" title={entry.path || entry.name}>
+      <span
+        className="min-w-0 flex-1 truncate text-left [direction:rtl]"
+        title={entry.path || entry.name}
+      >
         <bdi>{entry.name}</bdi>
       </span>
 
       <span className="flex flex-none items-center gap-1.5">
         {changed > 0 && (
           <span
-            className={cx(BADGE_BASE, 'border-svn-modified/40 bg-svn-modified/10 text-svn-modified')}
+            className={cx(
+              BADGE_BASE,
+              'border-svn-modified/40 bg-svn-modified/10 text-svn-modified'
+            )}
             title={
               rollup
                 ? `${formatCount(rollup.modified)} modified, ${formatCount(rollup.added)} added below here`
@@ -198,7 +212,10 @@ export function RepoTreeNode({
         {/* Conflicts get their own badge — a conflict must never hide behind a change count. */}
         {conflicted > 0 && (
           <span
-            className={cx(BADGE_BASE, 'border-svn-conflict/40 bg-svn-conflict/10 text-svn-conflict')}
+            className={cx(
+              BADGE_BASE,
+              'border-svn-conflict/40 bg-svn-conflict/10 text-svn-conflict'
+            )}
             title={`${formatCount(conflicted)} conflicted below here`}
           >
             {formatCount(conflicted)}
@@ -207,7 +224,10 @@ export function RepoTreeNode({
         )}
         {entry.isExternal && (
           <span
-            className={cx(BADGE_BASE, 'border-svn-external/40 bg-svn-external/10 text-svn-external')}
+            className={cx(
+              BADGE_BASE,
+              'border-svn-external/40 bg-svn-external/10 text-svn-external'
+            )}
             title={
               entry.externalPegged === false
                 ? 'svn:externals definition — floating, not pinned to a revision'
@@ -218,7 +238,10 @@ export function RepoTreeNode({
           </span>
         )}
         {entry.kind === 'dir' && childCount !== undefined && (
-          <span className="font-mono text-2xs text-text-faint" title={`${formatCount(childCount)} entries`}>
+          <span
+            className="font-mono text-2xs text-text-faint"
+            title={`${formatCount(childCount)} entries`}
+          >
             {formatCount(childCount)}
             <span className="sr-only"> entries</span>
           </span>
@@ -275,7 +298,10 @@ export function RepoTreeMoreRow({
       onKeyDown={onKeyDown}
       onFocus={onFocus}
       style={{ height: TREE_AUX_ROW_HEIGHT, paddingLeft: treeAuxIndent(depth), ...style }}
-      className={cx(ROW_BASE, 'cursor-pointer text-text-muted hover:bg-bg-tertiary hover:text-accent')}
+      className={cx(
+        ROW_BASE,
+        'cursor-pointer text-text-muted hover:bg-bg-tertiary hover:text-accent'
+      )}
     >
       <span className="truncate">{`… ${formatCount(hiddenCount)} more — search instead`}</span>
     </div>
@@ -329,7 +355,9 @@ export function RepoTreeStatusRow({
       style={{ height: TREE_AUX_ROW_HEIGHT, paddingLeft: treeAuxIndent(depth), ...style }}
       className={cx(ROW_BASE, 'gap-2 text-text-faint')}
     >
-      {busy && <Loader2 aria-hidden="true" className="h-2.5 w-2.5 flex-none animate-spin text-accent" />}
+      {busy && (
+        <Loader2 aria-hidden="true" className="h-2.5 w-2.5 flex-none animate-spin text-accent" />
+      )}
       <span className="truncate">{label}</span>
     </div>
   );

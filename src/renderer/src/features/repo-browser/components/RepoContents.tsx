@@ -37,7 +37,11 @@ import {
 } from 'lucide-react';
 
 import type { RepoEntry, RepoScope, RepoSort, SearchScope } from '../types';
-import { REPO_CONTENTS_ROW_HEIGHT, RepoContentsRow, repoContentsGridTemplate } from './RepoContentsRow';
+import {
+  REPO_CONTENTS_ROW_HEIGHT,
+  RepoContentsRow,
+  repoContentsGridTemplate,
+} from './RepoContentsRow';
 import { useRepoBrowserLayout } from './RepoBrowserShell';
 
 type SortKey = RepoSort['key'];
@@ -258,7 +262,8 @@ export function RepoContents({
   });
 
   const activeIndex = useMemo(
-    () => (effectiveActivePath ? sorted.findIndex((entry) => entry.path === effectiveActivePath) : -1),
+    () =>
+      effectiveActivePath ? sorted.findIndex((entry) => entry.path === effectiveActivePath) : -1,
     [sorted, effectiveActivePath]
   );
   /** Exactly one row is tabbable at a time (roving tabindex). */
@@ -466,11 +471,7 @@ export function RepoContents({
 
       <div
         role="grid"
-        aria-label={
-          scope === 'working-copy'
-            ? 'Working copy contents'
-            : 'Repository contents'
-        }
+        aria-label={scope === 'working-copy' ? 'Working copy contents' : 'Repository contents'}
         aria-multiselectable="true"
         aria-rowcount={shown + 1}
         aria-colcount={visibleColumns.length + 2}

@@ -63,9 +63,7 @@ describe('RevisionGraph', () => {
   });
 
   it('shows branches, tags, copies, and merge context in the graph', async () => {
-    renderWithQueryClient(
-      <RevisionGraph isOpen={true} path="C:/repo" onClose={vi.fn()} />
-    );
+    renderWithQueryClient(<RevisionGraph isOpen={true} path="C:/repo" onClose={vi.fn()} />);
 
     expect(await screen.findAllByText('trunk')).not.toHaveLength(0);
     expect(screen.getAllByText('branches/feature')).not.toHaveLength(0);
@@ -93,9 +91,7 @@ describe('RevisionGraph', () => {
       value: revokeObjectUrl,
     });
 
-    renderWithQueryClient(
-      <RevisionGraph isOpen={true} path="C:/repo" onClose={vi.fn()} />
-    );
+    renderWithQueryClient(<RevisionGraph isOpen={true} path="C:/repo" onClose={vi.fn()} />);
 
     await screen.findByText('r300');
     fireEvent.click(screen.getByRole('button', { name: /export/i }));

@@ -49,11 +49,7 @@ vi.mock('../../utils/debug', () => ({
   },
 }));
 
-import {
-  getDiagnostics,
-  getSvnCapabilities,
-  trustServerCertificate,
-} from '../svn-diagnostics';
+import { getDiagnostics, getSvnCapabilities, trustServerCertificate } from '../svn-diagnostics';
 
 describe('svn-diagnostics', () => {
   beforeEach(() => {

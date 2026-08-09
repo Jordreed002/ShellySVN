@@ -20,7 +20,9 @@ export function registerAuthHandlers(): void {
     return { available: Boolean(entry), username: entry?.username, persistent: Boolean(entry) };
   });
 
-  ipcMain.handle('auth:beginSession', (event, request) => beginAuthSession(event.sender.id, request));
+  ipcMain.handle('auth:beginSession', (event, request) =>
+    beginAuthSession(event.sender.id, request)
+  );
   ipcMain.handle('auth:resumeSession', (event, realm: string) =>
     resumeAuthSession(event.sender.id, realm)
   );
@@ -33,7 +35,9 @@ export function registerAuthHandlers(): void {
 
   // List all cached realms (without passwords)
   ipcMain.handle('auth:list', (): AuthListEntry[] => {
-    return getAuthCache().list().filter((entry) => !entry.realm.startsWith('webhook:'));
+    return getAuthCache()
+      .list()
+      .filter((entry) => !entry.realm.startsWith('webhook:'));
   });
 
   // Clear all credentials

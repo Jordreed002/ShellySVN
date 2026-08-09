@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, ExternalLink, GitMerge, HardDrive } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ExternalLink,
+  GitMerge,
+  HardDrive,
+} from 'lucide-react';
 import type { WorkingCopyState } from '../types';
 
 /**
@@ -120,8 +127,14 @@ function MixedRevisionStrip({ state }: { state: WorkingCopyState }) {
             : `Whole working copy is at revision ${lowest}`
         }
       >
-        <i className="absolute inset-y-0 left-0 rounded-full bg-accent/60" style={{ width: `${basePercent}%` }} />
-        <i className="absolute inset-y-0 w-0.5 bg-accent" style={{ left: `calc(${basePercent}% - 1px)` }} />
+        <i
+          className="absolute inset-y-0 left-0 rounded-full bg-accent/60"
+          style={{ width: `${basePercent}%` }}
+        />
+        <i
+          className="absolute inset-y-0 w-0.5 bg-accent"
+          style={{ left: `calc(${basePercent}% - 1px)` }}
+        />
       </span>
       <span className="flex-none font-medium text-text-secondary">r{highest}</span>
       {/* The numbers must never be clipped; the prose may be. */}
@@ -129,9 +142,7 @@ function MixedRevisionStrip({ state }: { state: WorkingCopyState }) {
         · BASE <b className="font-medium text-text-secondary">r{state.baseRevision}</b>
       </span>
       <span className="min-w-0 flex-1 truncate">
-        {isMixed
-          ? '· files sit anywhere in this range until you update'
-          : '· nothing to reconcile'}
+        {isMixed ? '· files sit anywhere in this range until you update' : '· nothing to reconcile'}
       </span>
       {/* Only when it is actually known: `svn info` does not report checkout
           depth through this app's parser, and a permanent "depth unknown"
@@ -233,9 +244,7 @@ export function WorkingCopyBand({
           tone={eligibleRevisionsAvailable && state.eligibleRevisions > 0 ? 'eligible' : 'neutral'}
           label="Eligible to merge"
           detail={
-            eligibleRevisionsAvailable
-              ? `on ${source}, not here yet`
-              : 'pick a source to count'
+            eligibleRevisionsAvailable ? `on ${source}, not here yet` : 'pick a source to count'
           }
           icon={<GitMerge className="h-3.5 w-3.5" />}
           ariaLabel={

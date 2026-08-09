@@ -120,7 +120,11 @@ function main() {
 
     svnRun(['propset', 'svn:externals', `${trunkUrl}/src vendor-src`, wc], { cwd: wc });
     commit(wc, 'add external definition');
-    expectContains(svnRun(['propget', 'svn:externals'], { cwd: wc }).output, 'vendor-src', 'externals property');
+    expectContains(
+      svnRun(['propget', 'svn:externals'], { cwd: wc }).output,
+      'vendor-src',
+      'externals property'
+    );
     svnRun(['update'], { cwd: wc });
     expectContains(svnRun(['list', trunkUrl]).output, 'src/', 'repository browser list');
 

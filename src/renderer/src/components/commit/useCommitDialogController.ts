@@ -1,17 +1,34 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useCommitMessageHistory } from '@renderer/hooks/useCommitMessageHistory';
 import { setTemplateContext, useCommitTemplates } from '@renderer/hooks/useCommitTemplates';
 import { useCommitRules } from '@renderer/hooks/useCommitRules';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
+import { useSettings } from '@renderer/hooks/useSettings';
+import {
+  captureReviewCenterResult,
+  checksumReviewInput,
+} from '@renderer/features/ai-review-center/reviewCenterEvents';
 import { buildPathAutocompleteOptions } from '@renderer/utils/commitAutocomplete';
 import { getCommitWarnings } from '@renderer/utils/commitWarnings';
 import { validateCommitRules } from '@renderer/utils/commitRules';
 import { extractIssueLinks } from '@renderer/utils/issueTracker';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
-import type { FsStatusResult, SvnStatusChar, SvnStatusEntry } from '@shared/types';
+import type {
+  AiCommitPlanResult,
+  AiCommitReviewResult,
+  AiDiffExplanationMode,
+  AiDiffExplanationResult,
+  AiCommitMessageResult,
+  AiCommitProviderStatus,
+  AiDraftTransformation,
+  AiPromptPreviewResult,
+  FsStatusResult,
+  SvnStatusChar,
+  SvnStatusEntry,
+} from '@shared/types';
 import type { AutocompleteOption } from '../ui/AutoCompleteInput';
 import type { DiffViewMode } from '../ui/EnhancedDiffViewer';
 
@@ -55,6 +72,16 @@ const COMMIT_MESSAGE_PREFIXES = [
   'chore: ',
   'style: ',
   'perf: ',
+];
+const ALL_DRAFT_TRANSFORMATIONS: AiDraftTransformation[] = [
+  'shorter',
+  'add-body',
+  'remove-body',
+  'imperative',
+  'match-style',
+  'include-issues',
+  'explain-motivation',
+  'regenerate',
 ];
 
 function canCommitStatus(status: SvnStatusChar, propsStatus?: SvnStatusChar): boolean {
@@ -108,17 +135,70 @@ export function useCommitDialogController({
     []
   );
   const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([]);
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
+  const [showAiConsent, setShowAiConsent] = useState(false);
+  const [aiPromptPreview, setAiPromptPreview] = useState<AiPromptPreviewResult | null>(null);
+  const [isPreparingAiPrompt, setIsPreparingAiPrompt] = useState(false);
+  const [pendingAiAction, setPendingAiAction] = useState<
+    'draft' | 'review' | 'plan' | 'explain' | 'transform' | null
+  >(null);
+  const [pendingDraftTransformation, setPendingDraftTransformation] =
+    useState<AiDraftTransformation | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiGenerationNotice, setAiGenerationNotice] = useState<string | null>(null);
+  const [aiReview, setAiReview] = useState<AiCommitReviewResult | null>(null);
+  const [aiCommitPlan, setAiCommitPlan] = useState<AiCommitPlanResult | null>(null);
+  const [aiDiffExplanation, setAiDiffExplanation] = useState<AiDiffExplanationResult | null>(null);
+  const [aiExplanationMode, setAiExplanationMode] = useState<AiDiffExplanationMode>('summary');
+  const [isRunningAiAssistant, setIsRunningAiAssistant] = useState(false);
   const deferredMessage = useDeferredValue(message);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const submissionInFlightRef = useRef(false);
   const selectionScopeRef = useRef<string | null>(null);
+  const defaultMessageInitializedRef = useRef(false);
+  const generationEpochRef = useRef(0);
+  const activeGenerationRef = useRef<{
+    operationId: string;
+    controller: AbortController;
+    selectionFingerprint: string;
+    initialMessage: string;
+  } | null>(null);
+  const activeAssistantRef = useRef<{
+    operationId: string;
+    controller: AbortController;
+    selectionFingerprint: string;
+  } | null>(null);
+  const messageRef = useRef(message);
+  messageRef.current = message;
+  const { settings, isLoading: isLoadingSettings, updateSettings } = useSettings();
   const { history, addMessage } = useCommitMessageHistory();
   const { templates, applyTemplate } = useCommitTemplates();
   const issueTrackerLookupPath = workingCopyPath;
   const { config: issueTrackerConfig, updateConfig: updateIssueTrackerConfig } =
     useIssueTrackerConfig(workingCopyPath, issueTrackerLookupPath);
   const { rules, updateRules } = useCommitRules(workingCopyPath, issueTrackerConfig);
+
+  const cancelMessageGeneration = useCallback(() => {
+    generationEpochRef.current += 1;
+    const active = activeGenerationRef.current;
+    activeGenerationRef.current = null;
+    if (active) {
+      active.controller.abort();
+      void window.api.ai.cancel(active.operationId).catch(() => undefined);
+    }
+    setIsGeneratingMessage(false);
+  }, []);
+
+  const cancelAiAssistant = useCallback(() => {
+    const active = activeAssistantRef.current;
+    activeAssistantRef.current = null;
+    if (active) {
+      active.controller.abort();
+      void window.api.ai.cancel(active.operationId).catch(() => undefined);
+    }
+    setIsRunningAiAssistant(false);
+  }, []);
 
   const modalRef = useFocusTrap({
     active: isOpen && !success,
@@ -197,9 +277,7 @@ export function useCommitDialogController({
         const previousByPath = new Map(previous.map((file) => [file.path, file]));
         return commitFiles.map((file) => {
           const existing = previousByPath.get(file.path);
-          return existing
-            ? { ...file, selected: file.committable && existing.selected }
-            : file;
+          return existing ? { ...file, selected: file.committable && existing.selected } : file;
         });
       });
     } else if (isOpen) {
@@ -332,6 +410,14 @@ export function useCommitDialogController({
     [files]
   );
   const selectedCount = selectedFiles.length;
+  const selectionFingerprint = useMemo(
+    () =>
+      selectedFiles
+        .map((file) => `${file.status}:${file.path}`)
+        .toSorted()
+        .join('\n'),
+    [selectedFiles]
+  );
   const committableCount = useMemo(() => files.filter((file) => file.committable).length, [files]);
   const commitWarnings = useMemo(
     () => getCommitWarnings(files, statusEntries.length > 0 ? statusEntries : files),
@@ -360,10 +446,509 @@ export function useCommitDialogController({
       setFileFilter('all');
       setDiffViewMode('unified');
       setShowSuggestions(false);
+      setShowAiConsent(false);
+      setAiError(null);
+      setAiGenerationNotice(null);
+      setAiReview(null);
+      setAiCommitPlan(null);
+      setAiDiffExplanation(null);
       setValidationWarnings([]);
       setTimeout(() => textareaRef.current?.focus(), 100);
+    } else {
+      defaultMessageInitializedRef.current = false;
+      cancelMessageGeneration();
+      cancelAiAssistant();
     }
-  }, [isOpen]);
+  }, [cancelAiAssistant, cancelMessageGeneration, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || isLoadingSettings || defaultMessageInitializedRef.current) return;
+    defaultMessageInitializedRef.current = true;
+    setMessage(settings.defaultCommitMessage);
+  }, [isLoadingSettings, isOpen, settings.defaultCommitMessage]);
+
+  useEffect(() => {
+    const active = activeGenerationRef.current;
+    if (active && active.selectionFingerprint !== selectionFingerprint) {
+      cancelMessageGeneration();
+      setAiError('Generation cancelled because the selected files changed.');
+    }
+    const assistant = activeAssistantRef.current;
+    if (assistant && assistant.selectionFingerprint !== selectionFingerprint) {
+      cancelAiAssistant();
+      setAiError('AI analysis cancelled because the selected files changed.');
+    }
+    setAiReview(null);
+    setAiCommitPlan(null);
+  }, [cancelAiAssistant, cancelMessageGeneration, selectionFingerprint]);
+
+  const { data: aiProviders = [], isLoading: isLoadingAiProviders } = useQuery({
+    queryKey: ['ai:providers'],
+    queryFn: () => window.api.ai.providers(),
+    enabled: isOpen && settings.aiCommit.enabled,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: repositoryAiProfile } = useQuery({
+    queryKey: ['ai:repository-profile', workingCopyPath],
+    queryFn: () => window.api.ai.repositoryProfile.get(workingCopyPath),
+    enabled: isOpen && !!workingCopyPath,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const enabledDraftTransformations =
+    repositoryAiProfile?.enabledDraftTransformations ?? ALL_DRAFT_TRANSFORMATIONS;
+
+  const selectedAiProvider = useMemo((): AiCommitProviderStatus | undefined => {
+    if (settings.aiCommit.provider === 'auto') {
+      return aiProviders.find((provider) => provider.available && provider.authenticated !== false);
+    }
+    return aiProviders.find((provider) => provider.provider === settings.aiCommit.provider);
+  }, [aiProviders, settings.aiCommit.provider]);
+
+  const aiProviderAvailable =
+    settings.aiCommit.enabled &&
+    selectedAiProvider?.available === true &&
+    selectedAiProvider.authenticated !== false;
+
+  const runMessageGeneration = useCallback(async () => {
+    if (!settings.aiCommit.enabled) {
+      setAiError('Commit message generation is disabled in Settings.');
+      return;
+    }
+    if (!aiProviderAvailable) {
+      setAiError(selectedAiProvider?.reason || 'No configured AI CLI is available.');
+      return;
+    }
+    if (selectedFiles.length === 0) {
+      setAiError('Select at least one file before generating a commit message.');
+      return;
+    }
+
+    cancelMessageGeneration();
+    const epoch = generationEpochRef.current;
+    const controller = new AbortController();
+    const operationId = window.crypto.randomUUID();
+    const initialMessage = messageRef.current;
+    const requestFingerprint = selectionFingerprint;
+    activeGenerationRef.current = {
+      operationId,
+      controller,
+      selectionFingerprint: requestFingerprint,
+      initialMessage,
+    };
+    setShowAiConsent(false);
+    setAiError(null);
+    setAiGenerationNotice(null);
+    setIsGeneratingMessage(true);
+
+    try {
+      const result: AiCommitMessageResult = await window.api.ai.generateCommitMessage(
+        {
+          operationId,
+          workingCopyPath,
+          paths: selectedFiles.map((file) => file.path),
+          ...(initialMessage.trim() ? { existingMessage: initialMessage } : {}),
+        },
+        { signal: controller.signal }
+      );
+      const active = activeGenerationRef.current;
+      if (
+        generationEpochRef.current !== epoch ||
+        active?.operationId !== operationId ||
+        active.selectionFingerprint !== requestFingerprint ||
+        messageRef.current !== initialMessage
+      ) {
+        return;
+      }
+
+      activeGenerationRef.current = null;
+      setIsGeneratingMessage(false);
+      setMessage(result.message);
+      textareaRef.current?.focus();
+
+      const notes: string[] = [];
+      if (result.diffTruncated) notes.push('the diff was truncated');
+      if (result.omittedBinaryFiles.length > 0) {
+        notes.push(
+          `${result.omittedBinaryFiles.length} binary file${result.omittedBinaryFiles.length === 1 ? ' was' : 's were'} omitted`
+        );
+      }
+      if (result.redacted) notes.push('possible secrets were redacted');
+      const providerLabel = result.model ? `${result.provider} (${result.model})` : result.provider;
+      setAiGenerationNotice(
+        notes.length > 0
+          ? `Generated with ${providerLabel}. Note: ${notes.join('; ')}.`
+          : `Generated with ${providerLabel}. Review and edit before committing.`
+      );
+    } catch (generationError) {
+      if (generationEpochRef.current !== epoch || controller.signal.aborted) return;
+      activeGenerationRef.current = null;
+      setIsGeneratingMessage(false);
+      setAiError(
+        generationError instanceof Error
+          ? generationError.message
+          : 'Failed to generate a commit message.'
+      );
+    }
+  }, [
+    aiProviderAvailable,
+    cancelMessageGeneration,
+    selectedAiProvider?.reason,
+    selectedFiles,
+    selectionFingerprint,
+    settings.aiCommit.enabled,
+    workingCopyPath,
+  ]);
+
+  const handleGenerateMessage = () => {
+    if (settings.aiCommit.confirmBeforeSending) {
+      void prepareAiConsent('draft');
+      return;
+    }
+    void runMessageGeneration();
+  };
+
+  const handleMessageChange = (nextMessage: string) => {
+    if (activeGenerationRef.current) cancelMessageGeneration();
+    setMessage(nextMessage);
+  };
+
+  const runDraftTransformation = useCallback(
+    async (transformation: AiDraftTransformation) => {
+      if (!messageRef.current.trim()) {
+        setAiError('Write or generate a draft before transforming it.');
+        return;
+      }
+      if (!aiProviderAvailable || selectedFiles.length === 0) {
+        setAiError(selectedAiProvider?.reason || 'Select files and configure an AI provider.');
+        return;
+      }
+      cancelMessageGeneration();
+      const epoch = generationEpochRef.current;
+      const controller = new AbortController();
+      const operationId = window.crypto.randomUUID();
+      const initialMessage = messageRef.current;
+      const requestFingerprint = selectionFingerprint;
+      activeGenerationRef.current = {
+        operationId,
+        controller,
+        selectionFingerprint: requestFingerprint,
+        initialMessage,
+      };
+      setShowAiConsent(false);
+      setAiError(null);
+      setAiGenerationNotice(null);
+      setIsGeneratingMessage(true);
+      try {
+        const result = await window.api.ai.transformDraft(
+          {
+            operationId,
+            workingCopyPath,
+            paths: selectedFiles.map((file) => file.path),
+            currentDraft: initialMessage,
+            transformation,
+          },
+          { signal: controller.signal }
+        );
+        const active = activeGenerationRef.current;
+        if (
+          generationEpochRef.current !== epoch ||
+          active?.operationId !== operationId ||
+          active.selectionFingerprint !== requestFingerprint ||
+          messageRef.current !== initialMessage
+        )
+          return;
+        activeGenerationRef.current = null;
+        setIsGeneratingMessage(false);
+        setMessage(result.message);
+        textareaRef.current?.focus();
+        const provider = result.model ? `${result.provider} (${result.model})` : result.provider;
+        setAiGenerationNotice(
+          `Transformed with ${provider} in ${(result.durationMs / 1000).toFixed(1)}s. Review and edit before committing.`
+        );
+      } catch (transformationError) {
+        if (generationEpochRef.current !== epoch || controller.signal.aborted) return;
+        activeGenerationRef.current = null;
+        setIsGeneratingMessage(false);
+        setAiError(
+          transformationError instanceof Error
+            ? transformationError.message
+            : 'Draft transformation failed.'
+        );
+      }
+    },
+    [
+      aiProviderAvailable,
+      cancelMessageGeneration,
+      selectedAiProvider?.reason,
+      selectedFiles,
+      selectionFingerprint,
+      workingCopyPath,
+    ]
+  );
+
+  const handleTransformDraft = (transformation: AiDraftTransformation) => {
+    if (!enabledDraftTransformations.includes(transformation)) return;
+    if (settings.aiCommit.confirmBeforeSending) {
+      setPendingDraftTransformation(transformation);
+      void prepareAiConsent('transform', transformation);
+    } else void runDraftTransformation(transformation);
+  };
+
+  const handleConfirmAiGeneration = async (rememberConsent: boolean) => {
+    const action = pendingAiAction ?? 'draft';
+    setShowAiConsent(false);
+    setPendingAiAction(null);
+    const transformation = pendingDraftTransformation;
+    setPendingDraftTransformation(null);
+    setAiPromptPreview(null);
+    if (rememberConsent) {
+      await updateSettings({
+        aiCommit: { ...settings.aiCommit, confirmBeforeSending: false },
+      });
+    }
+    if (action === 'draft') await runMessageGeneration();
+    else if (action === 'transform' && transformation) await runDraftTransformation(transformation);
+    else if (action === 'review') await runSelectedAiAnalysis('review');
+    else if (action === 'plan') await runSelectedAiAnalysis('plan');
+    else await handleExplainDiff();
+  };
+
+  const runSelectedAiAnalysis = useCallback(
+    async (kind: 'review' | 'plan') => {
+      if (!aiProviderAvailable || selectedFiles.length === 0) {
+        setAiError(selectedAiProvider?.reason || 'Select files and configure an AI provider.');
+        return;
+      }
+      cancelAiAssistant();
+      const operationId = window.crypto.randomUUID();
+      const controller = new AbortController();
+      activeAssistantRef.current = {
+        operationId,
+        controller,
+        selectionFingerprint,
+      };
+      setIsRunningAiAssistant(true);
+      setAiError(null);
+      if (kind === 'review') setAiReview(null);
+      else setAiCommitPlan(null);
+      try {
+        const request = {
+          operationId,
+          workingCopyPath,
+          paths: selectedFiles.map((file) => file.path),
+        };
+        if (kind === 'review') {
+          const result = await window.api.ai.reviewCommit(request, { signal: controller.signal });
+          setAiReview(result);
+          void captureReviewCenterResult({
+            kind: 'review',
+            workingCopyPath,
+            checksum: checksumReviewInput(selectionFingerprint),
+            result,
+          });
+        } else {
+          const result = await window.api.ai.planCommit(request, { signal: controller.signal });
+          setAiCommitPlan(result);
+          void captureReviewCenterResult({
+            kind: 'plan',
+            workingCopyPath,
+            checksum: checksumReviewInput(selectionFingerprint),
+            result,
+          });
+        }
+      } catch (analysisError) {
+        if (!controller.signal.aborted) {
+          setAiError(
+            analysisError instanceof Error ? analysisError.message : 'AI analysis failed.'
+          );
+        }
+      } finally {
+        if (activeAssistantRef.current?.operationId === operationId) {
+          activeAssistantRef.current = null;
+          setIsRunningAiAssistant(false);
+        }
+      }
+    },
+    [
+      aiProviderAvailable,
+      cancelAiAssistant,
+      selectedAiProvider?.reason,
+      selectedFiles,
+      selectionFingerprint,
+      workingCopyPath,
+    ]
+  );
+
+  const handleExplainDiff = useCallback(
+    async (mode: AiDiffExplanationMode = aiExplanationMode) => {
+      if (!selectedDiffFile || !aiProviderAvailable) {
+        setAiError(selectedAiProvider?.reason || 'Select a file and configure an AI provider.');
+        return;
+      }
+      cancelAiAssistant();
+      const operationId = window.crypto.randomUUID();
+      const controller = new AbortController();
+      activeAssistantRef.current = { operationId, controller, selectionFingerprint };
+      setIsRunningAiAssistant(true);
+      setAiError(null);
+      setAiDiffExplanation(null);
+      try {
+        const result = await window.api.ai.explainDiff(
+          {
+            operationId,
+            workingCopyPath,
+            path: selectedDiffFile,
+            mode,
+          },
+          { signal: controller.signal }
+        );
+        setAiDiffExplanation(result);
+        void captureReviewCenterResult({
+          kind: 'explanation',
+          workingCopyPath,
+          filePath: selectedDiffFile,
+          checksum: checksumReviewInput(`${selectionFingerprint}\n${selectedDiffFile}`),
+          mode,
+          result,
+        });
+      } catch (explanationError) {
+        if (!controller.signal.aborted) {
+          setAiError(
+            explanationError instanceof Error
+              ? explanationError.message
+              : 'Diff explanation failed.'
+          );
+        }
+      } finally {
+        if (activeAssistantRef.current?.operationId === operationId) {
+          activeAssistantRef.current = null;
+          setIsRunningAiAssistant(false);
+        }
+      }
+    },
+    [
+      aiExplanationMode,
+      aiProviderAvailable,
+      cancelAiAssistant,
+      selectedAiProvider?.reason,
+      selectedDiffFile,
+      selectionFingerprint,
+      workingCopyPath,
+    ]
+  );
+
+  const prepareAiConsent = useCallback(
+    async (
+      action: 'draft' | 'review' | 'plan' | 'explain' | 'transform',
+      transformation?: AiDraftTransformation
+    ) => {
+      if (selectedFiles.length === 0 || !aiProviderAvailable) {
+        setAiError(selectedAiProvider?.reason || 'Select files and configure an AI provider.');
+        return;
+      }
+      setPendingAiAction(action);
+      setAiError(null);
+      setAiPromptPreview(null);
+      setShowAiConsent(true);
+      setIsPreparingAiPrompt(true);
+      const operationId = window.crypto.randomUUID();
+      const selectedRequest = {
+        operationId,
+        workingCopyPath,
+        paths: selectedFiles.map((file) => file.path),
+      };
+      try {
+        if (action === 'draft') {
+          setAiPromptPreview(
+            await window.api.ai.preparePrompt({
+              task: 'commit-message',
+              request: { ...selectedRequest, existingMessage: message },
+            })
+          );
+        } else if (action === 'transform' && transformation) {
+          setAiPromptPreview(
+            await window.api.ai.preparePrompt({
+              task: 'draft-transformation',
+              request: {
+                ...selectedRequest,
+                currentDraft: message,
+                transformation,
+              },
+            })
+          );
+        } else if (action === 'review') {
+          setAiPromptPreview(
+            await window.api.ai.preparePrompt({
+              task: 'pre-commit-review',
+              request: selectedRequest,
+            })
+          );
+        } else if (action === 'plan') {
+          setAiPromptPreview(
+            await window.api.ai.preparePrompt({ task: 'commit-plan', request: selectedRequest })
+          );
+        } else if (selectedDiffFile) {
+          setAiPromptPreview(
+            await window.api.ai.preparePrompt({
+              task: 'diff-explanation',
+              request: {
+                operationId,
+                workingCopyPath,
+                path: selectedDiffFile,
+                mode: aiExplanationMode,
+              },
+            })
+          );
+        }
+      } catch (previewError) {
+        setAiError(
+          previewError instanceof Error ? previewError.message : 'Could not prepare prompt preview.'
+        );
+      } finally {
+        setIsPreparingAiPrompt(false);
+      }
+    },
+    [
+      aiExplanationMode,
+      aiProviderAvailable,
+      message,
+      selectedAiProvider?.reason,
+      selectedDiffFile,
+      selectedFiles,
+      workingCopyPath,
+    ]
+  );
+
+  const handleApplyCommitGroup = (groupId: string) => {
+    const group = aiCommitPlan?.groups.find((candidate) => candidate.id === groupId);
+    if (!group) return;
+    const groupPaths = new Set(group.paths);
+    setFiles((previous) =>
+      previous.map((file) => ({
+        ...file,
+        selected: file.committable && groupPaths.has(file.path),
+      }))
+    );
+    if (group.suggestedMessage) setMessage(group.suggestedMessage);
+  };
+
+  const handleCreateGroupChangelist = async (groupId: string) => {
+    const group = aiCommitPlan?.groups.find((candidate) => candidate.id === groupId);
+    if (!group) return;
+    const changelistName = group.title
+      .replace(/[\u0000\r\n]/g, ' ')
+      .trim()
+      .slice(0, 80);
+    const result = await window.api.svn.changelist.add(
+      group.paths,
+      changelistName.startsWith('-') ? `Group ${changelistName}` : changelistName
+    );
+    if (!result.success) throw new Error(result.error || 'Failed to create changelist.');
+    await refetch();
+  };
 
   useEffect(() => {
     if (message.trim()) {
@@ -382,6 +967,10 @@ export function useCommitDialogController({
     }
     return undefined;
   }, [message]);
+
+  useEffect(() => {
+    setAiDiffExplanation(null);
+  }, [selectedDiffFile]);
 
   const handleToggleFile = (path: string) => {
     setFiles((previous) =>
@@ -497,6 +1086,8 @@ export function useCommitDialogController({
 
   const handleClose = () => {
     if (!isSubmitting) {
+      cancelMessageGeneration();
+      cancelAiAssistant();
       onClose();
     }
   };
@@ -504,7 +1095,32 @@ export function useCommitDialogController({
   return {
     message,
     setMessage,
+    handleMessageChange,
     isSubmitting,
+    isGeneratingMessage,
+    isRunningAiAssistant,
+    isLoadingAiProviders,
+    aiProviderAvailable,
+    aiProviderName: selectedAiProvider?.provider ?? settings.aiCommit.provider,
+    aiModelName:
+      selectedAiProvider?.provider === 'codex' || settings.aiCommit.provider === 'codex'
+        ? settings.aiCommit.codexModel
+        : undefined,
+    aiProviderReason: settings.aiCommit.enabled
+      ? selectedAiProvider?.reason
+      : 'Enable AI commit messages in Settings > SVN.',
+    showAiConsent,
+    setShowAiConsent,
+    aiPromptPreview,
+    isPreparingAiPrompt,
+    aiError,
+    aiGenerationNotice,
+    enabledDraftTransformations,
+    aiReview,
+    aiCommitPlan,
+    aiDiffExplanation,
+    aiExplanationMode,
+    setAiExplanationMode,
     error,
     success,
     selectedDiffFile,
@@ -557,6 +1173,29 @@ export function useCommitDialogController({
     handleHistorySelect,
     handleApplySuggestion,
     handleApplyRecommendation,
+    handleGenerateMessage,
+    handleTransformDraft,
+    handleConfirmAiGeneration,
+    handleReviewCommit: () => {
+      if (settings.aiCommit.confirmBeforeSending) {
+        void prepareAiConsent('review');
+      } else void runSelectedAiAnalysis('review');
+    },
+    handlePlanCommit: () => {
+      if (settings.aiCommit.confirmBeforeSending) {
+        void prepareAiConsent('plan');
+      } else void runSelectedAiAnalysis('plan');
+    },
+    handleExplainDiff: (mode?: AiDiffExplanationMode) => {
+      if (mode) setAiExplanationMode(mode);
+      if (settings.aiCommit.confirmBeforeSending) {
+        void prepareAiConsent('explain');
+      } else void handleExplainDiff(mode);
+    },
+    handleApplyCommitGroup,
+    handleCreateGroupChangelist,
+    cancelAiAssistant,
+    cancelMessageGeneration,
     handleIssuePatternChange,
     handleOpenIssue: openIssue,
     handleSubmit,

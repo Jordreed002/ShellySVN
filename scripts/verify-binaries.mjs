@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const MIN_BINARY_SIZE_BYTES = 1024;
+const EXPECTED_SVN_SERIES = '1.14';
 
 const PLATFORM_TARGETS = {
   'win32-x64': {
@@ -70,6 +71,16 @@ function verifyExecutable(filePath, args, label) {
     const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
     throw new Error(`${label} version check failed with exit ${result.status}: ${output}`);
   }
+  return [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+}
+
+function verifySvnVersion(output, label) {
+  const version = output.split(/\r?\n/, 1)[0]?.trim() ?? '';
+  if (!new RegExp(`^${EXPECTED_SVN_SERIES.replace('.', '\\.')}\\.\\d+$`).test(version)) {
+    throw new Error(
+      `${label} reported ${version || 'no version'}; expected SVN ${EXPECTED_SVN_SERIES}.x.`
+    );
+  }
 }
 
 const failures = [];
@@ -89,7 +100,8 @@ for (const target of selectedTargets()) {
     verifyFile(enginePath, `${target} logic engine`);
     verifyFile(svnPath, `${target} SVN client`);
     verifyExecutable(enginePath, ['--version'], `${target} logic engine`);
-    verifyExecutable(svnPath, ['--version', '--quiet'], `${target} SVN client`);
+    const svnVersion = verifyExecutable(svnPath, ['--version', '--quiet'], `${target} SVN client`);
+    verifySvnVersion(svnVersion, `${target} SVN client`);
     console.log(`Verified packaged binaries for ${target}`);
   } catch (error) {
     failures.push(error instanceof Error ? error.message : String(error));

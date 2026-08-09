@@ -1,7 +1,8 @@
-import { app, BrowserWindow, dialog, type MessageBoxOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, type MessageBoxOptions } from 'electron';
 import { spawnSync } from 'child_process';
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
+import { pathToFileURL } from 'url';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import { registerSvnHandlers } from './ipc/svn';
 import { registerDialogHandlers } from './ipc/dialog';
@@ -17,6 +18,7 @@ import { registerNotificationHandlers } from './ipc/notification';
 import { registerWebhookHandlers } from './ipc/webhook';
 import { registerSvnCacheHandlers } from './ipc/svn-cache';
 import { registerUpdaterHandlers } from './ipc/updater';
+import { registerAiHandlers } from './ipc/ai';
 import { openValidatedExternalUrl } from './utils/external-url';
 import { shutdownSharedWorkerPool } from './workers/WorkerPool';
 import { startLocalStatusServer, stopLocalStatusServer } from './services/local-status-server';
@@ -24,7 +26,7 @@ import { bootstrapApprovedPaths } from './utils/approved-paths';
 import { sendToRenderer } from './utils/safe-renderer-send';
 import { getUpdateService } from './services/update-service';
 import { clearAuthSessions } from './services/auth-session-manager';
-import { installSecureIpcBoundary } from './utils/secure-ipc';
+import { installRendererSecurityGuards, installSecureIpcBoundary } from './utils/secure-ipc';
 import {
   beginWorkingCopyMutationShutdown,
   hasActiveWorkingCopyMutations,
@@ -35,6 +37,7 @@ import {
   hasActiveSvnProgressOperations,
 } from './services/svn-progress';
 import { cancelAllUpdates } from './services/svn-working-copy';
+import { cancelAllAiCommitMessages } from './services/ai-commit-message';
 
 let mainWindow: BrowserWindow | null = null;
 let shutdownPromise: Promise<void> | null = null;
@@ -42,6 +45,13 @@ let quitApproved = false;
 let quitPromptOpen = false;
 const isSmokeTest = process.argv.includes('--smoke-test');
 const MIN_PACKAGED_BINARY_SIZE_BYTES = 1024;
+
+function getTrustedRendererUrl(): string {
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    return process.env['ELECTRON_RENDERER_URL'];
+  }
+  return pathToFileURL(join(__dirname, '../renderer/index.html')).toString();
+}
 
 export function getPackagedBinaryPaths(): { engine: string; svn: string } {
   const extension = process.platform === 'win32' ? '.exe' : '';
@@ -136,6 +146,8 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
+  installRendererSecurityGuards(mainWindow.webContents, getTrustedRendererUrl());
+
   // HMR for renderer base on electron-vite cli
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
@@ -151,6 +163,7 @@ function shutdownApplicationServices(): Promise<void> {
     closeAllFileWatchers(),
     stopLocalStatusServer(),
     shutdownSharedWorkerPool(),
+    cancelAllAiCommitMessages(),
   ]).then(() => undefined);
   getUpdateService().dispose();
   return shutdownPromise;
@@ -167,7 +180,7 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window);
   });
 
-  installSecureIpcBoundary(() => mainWindow?.webContents.id);
+  installSecureIpcBoundary(() => mainWindow?.webContents.id, getTrustedRendererUrl);
 
   // Register IPC handlers
   registerSvnHandlers();
@@ -183,6 +196,7 @@ app.whenReady().then(async () => {
   registerNotificationHandlers();
   registerWebhookHandlers();
   registerUpdaterHandlers();
+  registerAiHandlers(ipcMain);
   startLocalStatusServer(app.getPath('userData')).catch((error) => {
     console.error('[StatusService] Failed to start local status server:', error);
   });

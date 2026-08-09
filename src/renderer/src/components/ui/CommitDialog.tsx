@@ -3,6 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   X,
   Upload,
+  GitCommitHorizontal,
+  FolderGit2,
   AlertCircle,
   CheckCircle,
   Eye,
@@ -19,10 +21,15 @@ import {
   ExternalLink,
   AlignLeft,
   Columns2,
+  ShieldCheck,
+  SearchCheck,
+  ListTree,
+  Lightbulb,
 } from 'lucide-react';
 import { AutoCompleteInput } from './AutoCompleteInput';
 import type { SvnStatusChar } from '@shared/types';
 import { useCommitDialogController, type CommitFile } from '../commit/useCommitDialogController';
+import { DraftTransformationBar } from '../commit/DraftTransformationBar';
 
 const EnhancedDiffViewer = lazy(() =>
   import('./EnhancedDiffViewer').then((m) => ({ default: m.EnhancedDiffViewer }))
@@ -97,7 +104,7 @@ function CommitFileList({
   const rowVirtualizer = useVirtualizer({
     count: files.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 34,
+    estimateSize: () => 42,
     getItemKey: (index) => files[index]?.path ?? index,
     overscan: 12,
   });
@@ -121,12 +128,18 @@ function CommitFileList({
           const file = files[virtualRow.index];
           const statusInfo = STATUS_CONFIG[file.status];
           const filename = file.path.split(/[/\\]/).pop();
+          const directory = file.path.slice(
+            0,
+            Math.max(0, file.path.length - (filename?.length ?? 0))
+          );
 
           return (
             <div
               key={file.path}
-              className={`flex items-center gap-2 px-3 py-1.5 hover:bg-bg-tertiary cursor-pointer group ${
-                selectedDiffFile === file.path ? 'bg-accent/10' : ''
+              className={`group flex items-center gap-2.5 border-l-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                selectedDiffFile === file.path
+                  ? 'border-l-accent bg-accent/10'
+                  : 'border-l-transparent hover:bg-bg-tertiary/70'
               }`}
               style={{
                 position: 'absolute',
@@ -151,14 +164,17 @@ function CommitFileList({
                 aria-label={`${file.selected ? 'Deselect' : 'Select'} ${filename}`}
               />
               <span
-                className={`text-xs font-mono ${statusInfo.color}`}
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-4 bg-bg-sunk text-10 font-mono font-semibold ${statusInfo.color}`}
                 aria-label={statusInfo.label}
                 title={statusInfo.label}
               >
                 {file.status}
               </span>
-              <span className="flex-1 text-sm truncate text-text" title={file.path}>
-                {filename}
+              <span className="min-w-0 flex-1" title={file.path}>
+                <span className="block truncate text-12.5 font-medium text-text">{filename}</span>
+                {directory && (
+                  <span className="block truncate text-10.5 text-text-faint">{directory}</span>
+                )}
               </span>
               {file.propsStatus && (
                 <span
@@ -206,8 +222,27 @@ function CommitFileList({
 export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: CommitDialogProps) {
   const {
     message,
-    setMessage,
+    handleMessageChange,
     isSubmitting,
+    isGeneratingMessage,
+    isRunningAiAssistant,
+    isLoadingAiProviders,
+    aiProviderAvailable,
+    aiProviderName,
+    aiModelName,
+    aiProviderReason,
+    showAiConsent,
+    setShowAiConsent,
+    aiPromptPreview,
+    isPreparingAiPrompt,
+    aiError,
+    aiGenerationNotice,
+    enabledDraftTransformations,
+    aiReview,
+    aiCommitPlan,
+    aiDiffExplanation,
+    aiExplanationMode,
+    setAiExplanationMode,
     error,
     success,
     selectedDiffFile,
@@ -259,6 +294,16 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     handleHistorySelect,
     handleApplySuggestion,
     handleApplyRecommendation,
+    handleGenerateMessage,
+    handleTransformDraft,
+    handleConfirmAiGeneration,
+    handleReviewCommit,
+    handlePlanCommit,
+    handleExplainDiff,
+    handleApplyCommitGroup,
+    handleCreateGroupChangelist,
+    cancelAiAssistant,
+    cancelMessageGeneration,
     handleIssuePatternChange,
     handleOpenIssue,
     handleSubmit,
@@ -271,7 +316,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     <div className="modal-overlay" onClick={handleClose} role="presentation">
       <div
         ref={modalRef}
-        className="modal w-[900px] max-h-[90vh]"
+        className="modal flex h-[min(780px,calc(100vh-48px))] w-[min(1120px,calc(100vw-48px))] max-h-[calc(100vh-48px)] flex-col"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -280,11 +325,28 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
         id={dialogId}
       >
         {/* Header */}
-        <div className="modal-header">
-          <h2 id={titleId} className="modal-title">
-            <Upload className="w-5 h-5 text-accent" aria-hidden="true" />
-            Commit Changes
-          </h2>
+        <div className="modal-header bg-bg-secondary/80 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-9 border border-accent/20 bg-accent/10 text-accent">
+              <GitCommitHorizontal className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 id={titleId} className="text-18 font-semibold text-text">
+                  Commit changes
+                </h2>
+                <span className="rounded-pill border border-border bg-bg-sunk px-2 py-0.5 text-10.5 font-medium text-text-muted">
+                  {selectedCount} selected
+                </span>
+              </div>
+              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-11 text-text-faint">
+                <FolderGit2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate" title={workingCopyPath}>
+                  {workingCopyPath}
+                </span>
+              </div>
+            </div>
+          </div>
           <button
             onClick={handleClose}
             className="btn-icon-sm"
@@ -315,16 +377,26 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} aria-label="Commit form">
-            <div className="flex" style={{ height: '500px' }}>
+          <form
+            onSubmit={handleSubmit}
+            aria-label="Commit form"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="flex min-h-0 flex-1">
               {/* Left panel - File list */}
               <div
-                className="w-[350px] border-r border-border flex flex-col"
+                className="w-[340px] shrink-0 border-r border-border bg-bg-secondary/35 flex flex-col"
                 role="region"
                 aria-label="Files to commit"
               >
                 {/* File filter */}
-                <div className="px-3 py-2 border-b border-border bg-bg-tertiary">
+                <div className="border-b border-border bg-bg-tertiary/60 px-3 py-2.5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
+                      Changed paths
+                    </span>
+                    <span className="font-mono text-10.5 text-text-faint">{committableCount}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <label htmlFor="file-filter" className="sr-only">
                       Filter files by status
@@ -357,31 +429,32 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
 
                 {/* Select all/none */}
                 <div
-                  className="px-3 py-1.5 border-b border-border flex items-center gap-2 text-xs"
+                  className="flex items-center gap-1.5 border-b border-border px-3 py-2 text-11"
                   role="group"
                   aria-label="Selection controls"
                 >
                   <button
                     type="button"
                     onClick={handleSelectAll}
-                    className="text-accent hover:underline"
+                    className="rounded-5 px-2 py-1 text-accent hover:bg-accent/10"
                     aria-label="Select all files"
                   >
                     Select all
                   </button>
-                  <span className="text-text-faint" aria-hidden="true">
-                    |
-                  </span>
                   <button
                     type="button"
                     onClick={handleDeselectAll}
-                    className="text-accent hover:underline"
+                    className="rounded-5 px-2 py-1 text-text-muted hover:bg-bg-tertiary hover:text-text"
                     aria-label="Deselect all files"
                   >
                     Select none
                   </button>
-                  <span className="text-text-faint ml-auto" aria-live="polite" aria-atomic="true">
-                    {selectedCount}/{committableCount} selected
+                  <span
+                    className="ml-auto font-mono text-10.5 text-text-faint"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    {selectedCount}/{committableCount}
                   </span>
                 </div>
 
@@ -420,19 +493,19 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 aria-label="Commit message and diff"
               >
                 {/* Commit message area */}
-                <div className="border-b border-border p-4">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="border-b border-border bg-bg-secondary/20 p-4">
+                  <div className="mb-2.5 flex items-center justify-between">
                     <label
                       htmlFor="commit-message"
-                      className="text-sm font-medium text-text-secondary"
+                      className="text-10 font-semibold uppercase tracking-caps text-text-muted"
                     >
                       Message{' '}
                       <span className="text-error" aria-label="required">
                         *
                       </span>
                     </label>
-                    <div className="flex items-center gap-2">
-                      {/* AI Suggestions */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Quick suggestions */}
                       {selectedCount > 0 && (
                         <div className="relative">
                           <button
@@ -445,7 +518,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             className="btn btn-sm text-xs bg-accent/10 text-accent hover:bg-accent/20 border-accent/30"
                             aria-expanded={showSuggestions}
                             aria-haspopup="menu"
-                            aria-label="AI-powered suggestions"
+                            aria-label="Quick commit message suggestions"
                           >
                             <Sparkles className="w-3 h-3" aria-hidden="true" />
                             Suggest
@@ -455,7 +528,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             <ul
                               className="absolute right-0 top-full mt-1 w-64 bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
                               role="menu"
-                              aria-label="AI suggestions"
+                              aria-label="Quick suggestions"
                             >
                               <li className="px-3 py-1.5 text-xs text-text-muted bg-bg-tertiary border-b border-border rounded-t-lg flex items-center gap-1">
                                 <Wand2 className="w-3 h-3" />
@@ -724,14 +797,91 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     </div>
                   </div>
 
+                  {selectedCount > 0 && (
+                    <div className="mb-3 flex flex-wrap items-center gap-3 rounded-9 border border-accent/20 bg-gradient-to-r from-accent/10 to-transparent px-3 py-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-7 bg-accent/15 text-accent">
+                        {isGeneratingMessage ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" aria-hidden="true" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-12.5 font-medium text-text">
+                          Draft with AI
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${aiProviderAvailable ? 'bg-success' : 'bg-text-faint'}`}
+                            aria-hidden="true"
+                          />
+                        </div>
+                        <p className="truncate text-10.5 text-text-muted">
+                          {isLoadingAiProviders
+                            ? 'Checking provider…'
+                            : aiProviderAvailable
+                              ? `${aiProviderName}${aiModelName ? ` · ${aiModelName}` : ''} · selected diff only`
+                              : aiProviderReason || 'Configure an AI provider in Settings'}
+                        </p>
+                      </div>
+                      <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleReviewCommit}
+                          className="btn btn-secondary btn-sm text-11.5"
+                          disabled={isRunningAiAssistant || !aiProviderAvailable}
+                          title="Review selected changes for risks and omissions"
+                        >
+                          <SearchCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                          Review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handlePlanCommit}
+                          className="btn btn-secondary btn-sm text-11.5"
+                          disabled={isRunningAiAssistant || !aiProviderAvailable}
+                          title="Group selected changes into logical commits"
+                        >
+                          <ListTree className="h-3.5 w-3.5" aria-hidden="true" />
+                          Plan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={
+                            isGeneratingMessage ? cancelMessageGeneration : handleGenerateMessage
+                          }
+                          className="btn btn-primary btn-sm min-w-[116px] text-11.5"
+                          disabled={
+                            !isGeneratingMessage && (isLoadingAiProviders || !aiProviderAvailable)
+                          }
+                          aria-label={
+                            isGeneratingMessage
+                              ? 'Cancel commit message generation'
+                              : `Generate commit message with ${aiProviderName}`
+                          }
+                          aria-busy={isGeneratingMessage}
+                        >
+                          {isGeneratingMessage ? 'Cancel' : 'Generate draft'}
+                        </button>
+                        {isRunningAiAssistant && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm text-11.5"
+                            onClick={cancelAiAssistant}
+                          >
+                            Cancel analysis
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Autocomplete textarea */}
                   <AutoCompleteInput
                     value={message}
-                    onChange={setMessage}
+                    onChange={handleMessageChange}
                     suggestions={autocompleteOptions}
                     placeholder="Enter commit message...&#10;&#10;Start typing for suggestions or use the buttons above."
                     disabled={isSubmitting}
-                    inputClassName="h-28 text-sm"
+                    inputClassName="h-24 text-13 leading-relaxed"
                     showCategories={true}
                     spellCheck={true}
                     textareaRef={textareaRef}
@@ -740,6 +890,221 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     aria-label="Commit message"
                     id="commit-message"
                   />
+
+                  {message.trim() && enabledDraftTransformations.length > 0 && (
+                    <DraftTransformationBar
+                      transformations={enabledDraftTransformations}
+                      disabled={isGeneratingMessage || isSubmitting || !aiProviderAvailable}
+                      onTransform={handleTransformDraft}
+                    />
+                  )}
+
+                  {showAiConsent && (
+                    <div
+                      className="mt-2 rounded border border-accent/30 bg-accent/5 p-3 text-xs"
+                      role="dialog"
+                      aria-label="Confirm commit message generation"
+                    >
+                      <p className="text-text-secondary">
+                        Selected file paths and their bounded text diff will be sent to the
+                        configured {aiProviderName} CLI. Binary content is omitted and possible
+                        secrets are redacted. The result will remain editable and will never be
+                        committed automatically.
+                      </p>
+                      {isPreparingAiPrompt ? (
+                        <div className="mt-3 flex items-center gap-2 rounded-7 border border-border bg-bg-sunk px-3 py-4 text-text-muted">
+                          <Loader2
+                            className="h-4 w-4 animate-spin text-accent motion-reduce:animate-none"
+                            aria-hidden="true"
+                          />
+                          Preparing the bounded, redacted prompt…
+                        </div>
+                      ) : aiPromptPreview ? (
+                        <div className="mt-3 overflow-hidden rounded-7 border border-border bg-bg-sunk">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2 text-10 text-text-faint">
+                            <span className="font-medium uppercase tracking-caps text-accent">
+                              Exact payload preview
+                            </span>
+                            <span>
+                              {aiPromptPreview.provider}
+                              {aiPromptPreview.model ? ` · ${aiPromptPreview.model}` : ''}
+                            </span>
+                            <span>{(aiPromptPreview.inputBytes / 1024).toFixed(1)} KiB</span>
+                            {aiPromptPreview.redacted && (
+                              <span className="text-warning">Secrets redacted</span>
+                            )}
+                            {aiPromptPreview.truncated && (
+                              <span className="text-warning">Input truncated</span>
+                            )}
+                            {aiPromptPreview.includedHistoryMessages > 0 && (
+                              <span>
+                                {aiPromptPreview.includedHistoryMessages} history messages
+                              </span>
+                            )}
+                          </div>
+                          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-10.5 leading-relaxed text-text-secondary">
+                            {aiPromptPreview.prompt}
+                          </pre>
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm text-xs"
+                          onClick={() => setShowAiConsent(false)}
+                        >
+                          Not now
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm text-xs"
+                          onClick={() => void handleConfirmAiGeneration(true)}
+                          disabled={isPreparingAiPrompt || !aiPromptPreview}
+                        >
+                          Always allow
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm text-xs"
+                          onClick={() => void handleConfirmAiGeneration(false)}
+                          disabled={isPreparingAiPrompt || !aiPromptPreview}
+                        >
+                          Send changes
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {aiError && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-error" role="alert">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                      <span>{aiError}</span>
+                    </div>
+                  )}
+
+                  {aiGenerationNotice && (
+                    <div className="mt-2 text-xs text-text-muted" role="status" aria-live="polite">
+                      {aiGenerationNotice}
+                    </div>
+                  )}
+
+                  {aiReview && (
+                    <section
+                      className="mt-2 max-h-44 overflow-auto rounded-9 border border-border bg-bg-sunk/70 p-3"
+                      aria-live="polite"
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-11 font-semibold uppercase tracking-caps text-text-muted">
+                            <SearchCheck className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+                            Pre-commit review
+                          </div>
+                          <p className="mt-1 text-12 text-text-secondary">{aiReview.summary}</p>
+                        </div>
+                        <span className="shrink-0 text-10 text-text-faint">
+                          {aiReview.provider}
+                          {aiReview.model ? ` · ${aiReview.model}` : ''} ·{' '}
+                          {(aiReview.durationMs / 1000).toFixed(1)}s
+                        </span>
+                      </div>
+                      {aiReview.findings.length === 0 ? (
+                        <p className="text-11.5 text-success">
+                          No notable findings in the selected diff.
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {aiReview.findings.map((finding) => (
+                            <button
+                              key={finding.id}
+                              type="button"
+                              onClick={() =>
+                                finding.filePath && setSelectedDiffFile(finding.filePath)
+                              }
+                              className="flex w-full items-start gap-2 rounded-7 border border-border-muted bg-bg-secondary/70 px-2.5 py-2 text-left hover:border-accent/40"
+                            >
+                              <span
+                                className={`mt-1 h-2 w-2 shrink-0 rounded-full ${finding.severity === 'danger' ? 'bg-error' : finding.severity === 'warning' ? 'bg-warning' : 'bg-info'}`}
+                                aria-hidden="true"
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-11.5 font-medium text-text">
+                                  {finding.title}
+                                </span>
+                                <span className="block font-mono text-9 uppercase tracking-wider text-text-faint">
+                                  {finding.severity} severity · {finding.category}
+                                </span>
+                                <span className="block text-10.5 text-text-muted">
+                                  {finding.detail}
+                                </span>
+                                {finding.filePath && (
+                                  <span className="block truncate font-mono text-9.5 text-text-faint">
+                                    {finding.filePath}
+                                    {finding.line > 0 ? `:${finding.line}` : ''}
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {aiCommitPlan && (
+                    <section
+                      className="mt-2 max-h-52 overflow-auto rounded-9 border border-border bg-bg-sunk/70 p-3"
+                      aria-live="polite"
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-11 font-semibold uppercase tracking-caps text-text-muted">
+                            <ListTree className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+                            Logical commit plan
+                          </div>
+                          <p className="mt-1 text-12 text-text-secondary">{aiCommitPlan.summary}</p>
+                        </div>
+                        <span className="shrink-0 text-10 text-text-faint">
+                          {aiCommitPlan.groups.length} groups ·{' '}
+                          {(aiCommitPlan.durationMs / 1000).toFixed(1)}s
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {aiCommitPlan.groups.map((group) => (
+                          <article
+                            key={group.id}
+                            className="rounded-7 border border-border-muted bg-bg-secondary/70 p-2.5"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h4 className="text-11.5 font-medium text-text">{group.title}</h4>
+                                <p className="text-10.5 text-text-muted">{group.description}</p>
+                                <p className="mt-1 truncate font-mono text-9.5 text-text-faint">
+                                  {group.paths.length} file{group.paths.length === 1 ? '' : 's'} ·{' '}
+                                  {group.suggestedMessage}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 gap-1.5">
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm text-10.5"
+                                  onClick={() => handleApplyCommitGroup(group.id)}
+                                >
+                                  Use group
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm text-10.5"
+                                  onClick={() => void handleCreateGroupChangelist(group.id)}
+                                >
+                                  Changelist
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  )}
 
                   {/* Validation warnings */}
                   {validationWarnings.length > 0 && (
@@ -823,44 +1188,124 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                   {selectedDiffFile ? (
                     diffData?.files && diffData.files.length > 0 ? (
                       <>
-                        <div className="flex items-center justify-between border-b border-border bg-bg-tertiary px-3 py-2">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-bg-tertiary px-3 py-2">
                           <div
                             className="truncate text-xs text-text-muted"
                             title={selectedDiffFile}
                           >
                             {selectedDiffFile}
                           </div>
-                          <div className="flex items-center bg-bg rounded-md p-0.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              value={aiExplanationMode}
+                              onChange={(event) =>
+                                setAiExplanationMode(event.target.value as typeof aiExplanationMode)
+                              }
+                              className="input h-7 py-0 text-10.5"
+                              aria-label="Diff explanation type"
+                            >
+                              <option value="summary">Summarize file</option>
+                              <option value="why">Why it changed</option>
+                              <option value="risks">Risky lines</option>
+                              <option value="questions">Review questions</option>
+                            </select>
                             <button
                               type="button"
-                              onClick={() => setDiffViewMode('unified')}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
-                                diffViewMode === 'unified'
-                                  ? 'bg-accent text-white'
-                                  : 'text-text-secondary hover:text-text'
-                              }`}
-                              aria-pressed={diffViewMode === 'unified'}
-                              title="Unified diff view"
+                              className="btn btn-secondary btn-sm text-10.5"
+                              onClick={() => void handleExplainDiff()}
+                              disabled={!aiProviderAvailable || isRunningAiAssistant}
                             >
-                              <AlignLeft className="w-3.5 h-3.5" />
-                              Unified
+                              {isRunningAiAssistant ? (
+                                <Loader2
+                                  className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <Lightbulb className="h-3.5 w-3.5" />
+                              )}
+                              Explain
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDiffViewMode('side-by-side')}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
-                                diffViewMode === 'side-by-side'
-                                  ? 'bg-accent text-white'
-                                  : 'text-text-secondary hover:text-text'
-                              }`}
-                              aria-pressed={diffViewMode === 'side-by-side'}
-                              title="Side-by-side diff view"
-                            >
-                              <Columns2 className="w-3.5 h-3.5" />
-                              Split
-                            </button>
+                            <div className="flex items-center bg-bg rounded-md p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setDiffViewMode('unified')}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
+                                  diffViewMode === 'unified'
+                                    ? 'bg-accent text-white'
+                                    : 'text-text-secondary hover:text-text'
+                                }`}
+                                aria-pressed={diffViewMode === 'unified'}
+                                title="Unified diff view"
+                              >
+                                <AlignLeft className="w-3.5 h-3.5" />
+                                Unified
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDiffViewMode('side-by-side')}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
+                                  diffViewMode === 'side-by-side'
+                                    ? 'bg-accent text-white'
+                                    : 'text-text-secondary hover:text-text'
+                                }`}
+                                aria-pressed={diffViewMode === 'side-by-side'}
+                                title="Side-by-side diff view"
+                              >
+                                <Columns2 className="w-3.5 h-3.5" />
+                                Split
+                              </button>
+                            </div>
                           </div>
                         </div>
+                        {aiDiffExplanation && (
+                          <section
+                            className="border-b border-border bg-bg-secondary px-3 py-2.5 text-11.5"
+                            aria-live="polite"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-medium text-text">{aiDiffExplanation.summary}</p>
+                                {aiDiffExplanation.rationale && (
+                                  <p className="mt-1 text-text-muted">
+                                    {aiDiffExplanation.rationale}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="shrink-0 text-9.5 text-text-faint">
+                                {aiDiffExplanation.cached
+                                  ? 'Cached'
+                                  : `${(aiDiffExplanation.durationMs / 1000).toFixed(1)}s`}
+                              </span>
+                            </div>
+                            {(aiDiffExplanation.risks.length > 0 ||
+                              aiDiffExplanation.reviewQuestions.length > 0) && (
+                              <div className="mt-2 grid grid-cols-1 gap-3 text-10.5 text-text-secondary sm:grid-cols-2">
+                                {aiDiffExplanation.risks.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-warning">Risks</span>
+                                    <ul className="mt-1 list-disc pl-4">
+                                      {aiDiffExplanation.risks.map((risk) => (
+                                        <li key={risk}>{risk}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {aiDiffExplanation.reviewQuestions.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-accent">
+                                      Review questions
+                                    </span>
+                                    <ul className="mt-1 list-disc pl-4">
+                                      {aiDiffExplanation.reviewQuestions.map((question) => (
+                                        <li key={question}>{question}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </section>
+                        )}
                         <Suspense fallback={<DiffPreviewLoader />}>
                           {diffViewMode === 'unified' || getDiffLineCount(diffData) > 2000 ? (
                             <VirtualizedDiffViewer diff={diffData} className="flex-1 min-h-0" />
@@ -912,9 +1357,18 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
             )}
 
             {/* Footer */}
-            <div className="modal-footer">
-              <div className="flex-1 text-sm text-text-faint" aria-live="polite">
-                {selectedCount} file{selectedCount !== 1 ? 's' : ''} selected
+            <div className="modal-footer bg-bg-secondary/80 py-3">
+              <div
+                className="flex flex-1 items-center gap-2 text-11.5 text-text-muted"
+                aria-live="polite"
+              >
+                <ShieldCheck
+                  className={`h-4 w-4 ${ruleErrors.length > 0 ? 'text-error' : 'text-success'}`}
+                  aria-hidden="true"
+                />
+                {ruleErrors.length > 0
+                  ? `${ruleErrors.length} commit rule${ruleErrors.length === 1 ? '' : 's'} need attention`
+                  : `${selectedCount} file${selectedCount !== 1 ? 's' : ''} ready to commit`}
               </div>
               <button
                 type="button"
@@ -946,7 +1400,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 ) : (
                   <>
                     <Upload className="w-4 h-4" aria-hidden="true" />
-                    Commit ({selectedCount})
+                    Commit {selectedCount} {selectedCount === 1 ? 'file' : 'files'}
                   </>
                 )}
               </button>

@@ -4,17 +4,17 @@ This folder now keeps only living product, release, and engineering records. Com
 
 ## Living Documents
 
-| File | Purpose |
-| --- | --- |
-| `spec.md` | Product and engineering specification. |
-| `tasks.md` | Current task checklist and replacement-readiness tracker. |
-| `production-release-blockers.md` | Public release gate and remaining external verification. |
-| `parity-decisions.md` | Scope decisions for TortoiseSVN replacement readiness. |
-| `adr-logic-engine.md` | Architecture decision for the Electron main-process SVN backend and experimental logic engine. |
-| `architecture-boundaries.md` | Main/preload/renderer/shared ownership boundaries. |
-| `cli-parity-contract.md` | Contract for any future CLI or logic-engine parity claims. |
-| `performance-budgets.md` | Large-repository fixture sizes and timing budgets. |
-| `skipped-tests.md` | Skipped-test baseline and reduction policy. |
+| File                             | Purpose                                                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `spec.md`                        | Product and engineering specification.                                                         |
+| `tasks.md`                       | Current task checklist and replacement-readiness tracker.                                      |
+| `production-release-blockers.md` | Public release gate and remaining external verification.                                       |
+| `parity-decisions.md`            | Scope decisions for TortoiseSVN replacement readiness.                                         |
+| `adr-logic-engine.md`            | Architecture decision for the Electron main-process SVN backend and experimental logic engine. |
+| `architecture-boundaries.md`     | Main/preload/renderer/shared ownership boundaries.                                             |
+| `cli-parity-contract.md`         | Contract for any future CLI or logic-engine parity claims.                                     |
+| `performance-budgets.md`         | Large-repository fixture sizes and timing budgets.                                             |
+| `skipped-tests.md`               | Skipped-test baseline and reduction policy.                                                    |
 
 ## Release State
 

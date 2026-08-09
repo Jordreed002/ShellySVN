@@ -121,6 +121,28 @@ describe('conflict resolution workflows', () => {
     expect(await screen.findByText(/successfully resolved all conflicts/i)).toBeInTheDocument();
   });
 
+  it('defers, resumes, and navigates a coherent unresolved queue', async () => {
+    render(
+      <ConflictResolutionWizard
+        isOpen
+        conflictPaths={['src/first.ts', 'src/second.ts']}
+        workingCopyPath="C:/wc"
+        onClose={vi.fn()}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    fireEvent.click(screen.getByText('resolve'));
+    expect(screen.getAllByText('first.ts')).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Defer' }));
+    expect(screen.getAllByText('second.ts')).not.toHaveLength(0);
+
+    fireEvent.click(screen.getByText('review'));
+    expect(screen.getByText('Deferred')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(screen.getByText(/Conflict 1 of 2/)).toBeInTheDocument();
+  });
+
   it('resolves direct conflict-dialog selections with the selected strategy', async () => {
     const onResolve = vi.fn().mockResolvedValue(undefined);
 

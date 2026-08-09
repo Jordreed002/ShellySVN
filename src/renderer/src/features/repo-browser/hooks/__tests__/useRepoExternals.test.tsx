@@ -34,10 +34,9 @@ beforeEach(() => {
 });
 
 function renderExternals(dirPath: string, enabled = true) {
-  return renderHook(
-    () => useRepoExternals(URL, dirPath, { kind: 'head' }, { enabled }),
-    { wrapper: createWrapper() }
-  );
+  return renderHook(() => useRepoExternals(URL, dirPath, { kind: 'head' }, { enabled }), {
+    wrapper: createWrapper(),
+  });
 }
 
 describe('useRepoExternals', () => {
@@ -55,7 +54,9 @@ describe('useRepoExternals', () => {
 
   it('flags an external pinned by a revision as pegged', async () => {
     proplist.mockResolvedValue({
-      properties: [{ name: 'svn:externals', value: '-r5 vendor/lib https://svn.example.com/repo/lib' }],
+      properties: [
+        { name: 'svn:externals', value: '-r5 vendor/lib https://svn.example.com/repo/lib' },
+      ],
     });
 
     const { result } = renderExternals('deps');

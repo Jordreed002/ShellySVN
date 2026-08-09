@@ -36,10 +36,7 @@ export function formatTime(seconds: number): string {
  * formatDuration(90000)            // "1m 30s"
  * formatDuration(90000, 'long')    // "1 minutes"
  */
-export function formatDuration(
-  ms: number,
-  style: 'short' | 'long' = 'short'
-): string {
+export function formatDuration(ms: number, style: 'short' | 'long' = 'short'): string {
   if (style === 'long') {
     // Long style for user-friendly display
     if (ms < 60000) return '< 1 minute';

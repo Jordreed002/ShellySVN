@@ -299,14 +299,18 @@ function parseExternalDef(def: string, basePath: string): SvnExternal | null {
   const readRevision = (index: number): number | undefined => {
     const compact = /^(?:-r|--revision=)(\d+)$/.exec(parts[index] || '');
     if (compact) return Number(compact[1]);
-    if ((parts[index] === '-r' || parts[index] === '--revision') && /^\d+$/.test(parts[index + 1] || '')) {
+    if (
+      (parts[index] === '-r' || parts[index] === '--revision') &&
+      /^\d+$/.test(parts[index + 1] || '')
+    ) {
       return Number(parts[index + 1]);
     }
     return undefined;
   };
 
   revision = readRevision(0);
-  if (revision !== undefined) definitionIndex = parts[0] === '-r' || parts[0] === '--revision' ? 2 : 1;
+  if (revision !== undefined)
+    definitionIndex = parts[0] === '-r' || parts[0] === '--revision' ? 2 : 1;
   if (parts.length - definitionIndex < 2) return null;
 
   const first = parts[definitionIndex];

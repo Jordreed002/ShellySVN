@@ -7,9 +7,16 @@ import {
   Loader2,
   ChevronRight,
   ChevronLeft,
+  ShieldCheck,
+  Download,
 } from 'lucide-react';
 import { getTextConflictPathsFromSvnOutput } from '@renderer/utils/conflictDetection';
-import type { SvnMergeInfoResult, SvnMergeOptions, SvnOperationProgress } from '@shared/types';
+import type {
+  MergeReadinessReport,
+  SvnMergeInfoResult,
+  SvnMergeOptions,
+  SvnOperationProgress,
+} from '@shared/types';
 
 interface MergeWizardProps {
   isOpen: boolean;
@@ -30,6 +37,58 @@ interface MergeOptions {
   ignoreAncestry: boolean;
   allowMixedRevisions: boolean;
   onlyRecordMerge: boolean;
+}
+
+export function formatMergeReadinessReport(input: {
+  readiness: MergeReadinessReport;
+  revisions: string;
+  conflicts: string[];
+  previewOutput: string;
+}): string {
+  const { readiness, revisions, conflicts, previewOutput } = input;
+  const findings =
+    readiness.findings.length > 0
+      ? readiness.findings
+          .map((finding) => {
+            const evidence = finding.paths.length > 0 ? ` — ${finding.paths.join(', ')}` : '';
+            return `- **${finding.severity.toUpperCase()} · ${finding.kind}**: ${finding.detail}${evidence}`;
+          })
+          .join('\n')
+      : '- No deterministic findings.';
+  const conflictLines =
+    conflicts.length > 0
+      ? conflicts.map((conflict) => `- ${conflict} — unresolved in latest merge output`).join('\n')
+      : '- No text conflicts detected in the latest preview or execution output.';
+  return `# ShellySVN Merge Readiness Report
+
+- Source: ${readiness.sourceUrl}
+- Target working copy: ${readiness.targetPath}
+- Target URL: ${readiness.targetUrl}
+- Repository UUID: ${readiness.repositoryUuid}
+- Requested revisions: ${revisions || 'all eligible'}
+- Readiness: ${readiness.ready ? 'READY — no deterministic blockers' : 'BLOCKED'}
+- Evidence truncated: ${readiness.truncated ? 'yes' : 'no'}
+
+## Findings
+
+${findings}
+
+## Mergeinfo
+
+- Eligible revisions: ${readiness.eligibleRevisions.length > 0 ? readiness.eligibleRevisions.map((revision) => `r${revision}`).join(', ') : 'none'}
+- Already merged: ${readiness.mergedRevisions.length > 0 ? readiness.mergedRevisions.map((revision) => `r${revision}`).join(', ') : 'none'}
+
+## Conflicts and resolution state
+
+${conflictLines}
+
+## Verification
+
+- Repository identity: ${readiness.findings.some((finding) => finding.kind === 'repository-mismatch') ? 'failed' : 'verified'}
+- Working-copy conflict check: ${readiness.findings.some((finding) => finding.kind === 'conflicts') ? 'failed' : 'passed'}
+- Dry-run evidence captured: ${previewOutput.trim() ? 'yes' : 'no'}
+- Final status refresh required after merge: yes
+`;
 }
 
 export function parseMergeRevisionInput(input: string): {
@@ -103,9 +162,12 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isLoadingEligible, setIsLoadingEligible] = useState(false);
   const [eligibleRevisions, setEligibleRevisions] = useState<number[] | null>(null);
-  const [mergeInfoProperties, setMergeInfoProperties] = useState<
-    SvnMergeInfoResult['properties']
-  >([]);
+  const [mergeInfoProperties, setMergeInfoProperties] = useState<SvnMergeInfoResult['properties']>(
+    []
+  );
+  const [readiness, setReadiness] = useState<MergeReadinessReport | null>(null);
+  const [isCheckingReadiness, setIsCheckingReadiness] = useState(false);
+  const [readinessError, setReadinessError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -130,8 +192,37 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
       setIsLoadingEligible(false);
       setEligibleRevisions(null);
       setMergeInfoProperties([]);
+      setReadiness(null);
+      setIsCheckingReadiness(false);
+      setReadinessError(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (page !== 3 || !options.sourceUrl.trim() || options.type === 'tree') return;
+    let cancelled = false;
+    setIsCheckingReadiness(true);
+    setReadiness(null);
+    setReadinessError(null);
+    window.api.svn
+      .mergeReadiness(options.sourceUrl.trim(), targetPath)
+      .then((report) => {
+        if (!cancelled) setReadiness(report);
+      })
+      .catch((checkError) => {
+        if (!cancelled) {
+          setReadinessError(
+            checkError instanceof Error ? checkError.message : 'Merge readiness check failed.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsCheckingReadiness(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [options.sourceUrl, options.type, page, targetPath]);
 
   const handleNext = () => {
     if (
@@ -215,6 +306,10 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   };
 
   const handleMerge = async () => {
+    if (options.type !== 'tree' && (!readiness || !readiness.ready)) {
+      setError('Resolve merge-readiness blockers before running this merge.');
+      return;
+    }
     if (mergeInFlightRef.current) return;
     mergeInFlightRef.current = true;
     setIsMerging(true);
@@ -252,6 +347,22 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
 
   const handleCancelMerge = async () => {
     await window.api.svn.cancelOperation(progress?.operationId);
+  };
+
+  const handleExportReport = () => {
+    if (!readiness) return;
+    const markdown = formatMergeReadinessReport({
+      readiness,
+      revisions: options.revisions,
+      conflicts,
+      previewOutput: mergeOutput,
+    });
+    const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `shellysvn-merge-readiness-${new Date().toISOString().slice(0, 10)}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleClose = () => {
@@ -435,7 +546,9 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                         disabled={isLoadingEligible}
                         className="btn btn-secondary mt-2 text-xs"
                       >
-                        {isLoadingEligible ? 'Loading eligible revisions...' : 'Load eligible revisions'}
+                        {isLoadingEligible
+                          ? 'Loading eligible revisions...'
+                          : 'Load eligible revisions'}
                       </button>
                       {eligibleRevisions && (
                         <div className="mt-2 space-y-1 text-xs text-text-secondary">
@@ -478,6 +591,60 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
               {/* Page 3: Options */}
               {page === 3 && (
                 <div className="space-y-4">
+                  {options.type !== 'tree' && (
+                    <section className="overflow-hidden rounded-lg border border-border bg-bg-secondary">
+                      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-text">
+                          <ShieldCheck className="h-4 w-4 text-accent" /> Merge readiness
+                        </div>
+                        <span className="text-xs text-text-muted">
+                          {isCheckingReadiness
+                            ? 'Checking SVN evidence…'
+                            : readiness?.ready
+                              ? 'No blockers'
+                              : 'Review required'}
+                        </span>
+                      </div>
+                      {isCheckingReadiness && (
+                        <div className="flex items-center gap-2 px-3 py-3 text-xs text-text-muted">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Inspecting status,
+                          ancestry and mergeinfo
+                        </div>
+                      )}
+                      {readinessError && (
+                        <p className="px-3 py-3 text-xs text-error">{readinessError}</p>
+                      )}
+                      {readiness && (
+                        <div className="divide-y divide-border">
+                          <div className="grid grid-cols-2 gap-3 px-3 py-2 text-xs text-text-secondary">
+                            <span>{readiness.eligibleRevisions.length} eligible revisions</span>
+                            <span>{readiness.mergedRevisions.length} already merged</span>
+                          </div>
+                          {readiness.findings.map((finding) => (
+                            <div key={finding.kind} className="px-3 py-2">
+                              <div className="flex items-center gap-2 text-xs">
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${
+                                    finding.severity === 'blocker'
+                                      ? 'bg-error'
+                                      : finding.severity === 'warning'
+                                        ? 'bg-warning'
+                                        : 'bg-accent'
+                                  }`}
+                                />
+                                <span className="font-medium text-text">{finding.detail}</span>
+                              </div>
+                              {finding.paths.length > 0 && (
+                                <p className="mt-1 truncate pl-3.5 font-mono text-[10px] text-text-faint">
+                                  {finding.paths.slice(0, 3).join(' · ')}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  )}
                   <div>
                     <label
                       htmlFor="merge-depth"
@@ -622,6 +789,16 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                 </button>
               ) : (
                 <div className="flex items-center gap-2">
+                  {readiness && (
+                    <button
+                      type="button"
+                      onClick={handleExportReport}
+                      className="btn btn-secondary"
+                      title="Export deterministic merge evidence as Markdown"
+                    >
+                      <Download className="h-4 w-4" /> Report
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handlePreview}
@@ -642,7 +819,19 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
                       Cancel Merge
                     </button>
                   ) : (
-                    <button type="button" onClick={handleMerge} className="btn btn-primary">
+                    <button
+                      type="button"
+                      onClick={handleMerge}
+                      className="btn btn-primary"
+                      disabled={
+                        options.type !== 'tree' && (isCheckingReadiness || !readiness?.ready)
+                      }
+                      title={
+                        options.type !== 'tree' && !readiness?.ready
+                          ? 'Resolve readiness blockers before merging'
+                          : undefined
+                      }
+                    >
                       <GitMerge className="w-4 h-4" />
                       Merge
                     </button>

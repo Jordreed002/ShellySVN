@@ -250,7 +250,9 @@ export const RepoAddressBar = forwardRef<RepoAddressBarHandle, RepoAddressBarPro
         onContextMenu={onCrumbContextMenu ? (event) => onCrumbContextMenu(event, crumb) : undefined}
         title={toRepoUrlShorthand(crumb.path)}
         aria-current={isCurrent ? 'page' : undefined}
-        className={[CRUMB_BASE, isCurrent ? 'font-semibold text-text' : ''].filter(Boolean).join(' ')}
+        className={[CRUMB_BASE, isCurrent ? 'font-semibold text-text' : '']
+          .filter(Boolean)
+          .join(' ')}
       >
         <span className="overflow-hidden text-ellipsis">{crumb.label}</span>
       </button>
@@ -275,7 +277,10 @@ export const RepoAddressBar = forwardRef<RepoAddressBarHandle, RepoAddressBarPro
       >
         <FolderGit2
           aria-hidden="true"
-          className={['h-3.5 w-3.5 flex-none', isPast ? 'text-svn-modified' : 'text-text-muted'].join(' ')}
+          className={[
+            'h-3.5 w-3.5 flex-none',
+            isPast ? 'text-svn-modified' : 'text-text-muted',
+          ].join(' ')}
         />
 
         {isEditing ? (
@@ -350,7 +355,9 @@ export const RepoAddressBar = forwardRef<RepoAddressBarHandle, RepoAddressBarPro
               ].join(' ')}
             >
               <span aria-hidden="true">@</span>
-              <b className={isPast ? 'font-semibold text-bg' : 'font-semibold text-text'}>{pegLabel(peg)}</b>
+              <b className={isPast ? 'font-semibold text-bg' : 'font-semibold text-text'}>
+                {pegLabel(peg)}
+              </b>
             </button>
           </>
         )}

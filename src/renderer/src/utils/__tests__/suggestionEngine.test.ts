@@ -127,7 +127,11 @@ describe('suggestionEngine — getAutocompleteSuggestions', () => {
   });
 
   it('completes the description once a prefix is typed', () => {
-    const out = getAutocompleteSuggestions('feat: a', [{ path: 'src/app.ts', status: 'A' as SvnStatusChar }], []);
+    const out = getAutocompleteSuggestions(
+      'feat: a',
+      [{ path: 'src/app.ts', status: 'A' as SvnStatusChar }],
+      []
+    );
     expect(out).toContain('feat: add app.ts');
   });
 

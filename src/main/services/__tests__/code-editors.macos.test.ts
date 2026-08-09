@@ -55,58 +55,61 @@ function probedPaths(): string[] {
 // macOS-only: these assert POSIX path strings produced by path.join, which
 // uses the host separator — they can only pass on a darwin host. Skip
 // elsewhere so the Windows run stays green; they run in full on macOS.
-describe.skipIf(process.platform !== 'darwin')('code-editors: macOS well-known search directories', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    access.mockRejectedValue(new Error('ENOENT'));
-    spawnSync.mockReturnValue({ stdout: '' });
-    setPlatform('darwin');
-    // Isolate the search to the well-known set: blank PATH and no login shell.
-    process.env.PATH = '';
-    delete process.env.SHELL;
-    setEditorSearchDirectoriesForTests(null); // use the real computed set
-    resetCodeEditorCacheForTests();
-  });
+describe.skipIf(process.platform !== 'darwin')(
+  'code-editors: macOS well-known search directories',
+  () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      access.mockRejectedValue(new Error('ENOENT'));
+      spawnSync.mockReturnValue({ stdout: '' });
+      setPlatform('darwin');
+      // Isolate the search to the well-known set: blank PATH and no login shell.
+      process.env.PATH = '';
+      delete process.env.SHELL;
+      setEditorSearchDirectoriesForTests(null); // use the real computed set
+      resetCodeEditorCacheForTests();
+    });
 
-  afterEach(() => {
-    setPlatform(originalPlatform);
-    process.env.PATH = originalPath;
-    if (originalShell === undefined) delete process.env.SHELL;
-    else process.env.SHELL = originalShell;
-    setEditorSearchDirectoriesForTests(null);
-    resetCodeEditorCacheForTests();
-  });
+    afterEach(() => {
+      setPlatform(originalPlatform);
+      process.env.PATH = originalPath;
+      if (originalShell === undefined) delete process.env.SHELL;
+      else process.env.SHELL = originalShell;
+      setEditorSearchDirectoriesForTests(null);
+      resetCodeEditorCacheForTests();
+    });
 
-  it('searches the Homebrew install directories on macOS', async () => {
-    await listCodeEditors({ refresh: true });
+    it('searches the Homebrew install directories on macOS', async () => {
+      await listCodeEditors({ refresh: true });
 
-    const probed = probedPaths();
-    expect(probed).toContain('/opt/homebrew/bin/code');
-    expect(probed).toContain('/usr/local/bin/code');
-    expect(probed).toContain('/opt/local/bin/code');
-  });
+      const probed = probedPaths();
+      expect(probed).toContain('/opt/homebrew/bin/code');
+      expect(probed).toContain('/usr/local/bin/code');
+      expect(probed).toContain('/opt/local/bin/code');
+    });
 
-  it('searches the macOS JetBrains Toolbox scripts directory', async () => {
-    await listCodeEditors({ refresh: true });
+    it('searches the macOS JetBrains Toolbox scripts directory', async () => {
+      await listCodeEditors({ refresh: true });
 
-    const probed = probedPaths();
-    // darwin-only path; asserted by suffix so the test does not depend on $HOME.
-    expect(
-      probed.some((path) =>
-        path.endsWith('/Library/Application Support/JetBrains/Toolbox/scripts/idea')
-      )
-    ).toBe(true);
-  });
+      const probed = probedPaths();
+      // darwin-only path; asserted by suffix so the test does not depend on $HOME.
+      expect(
+        probed.some((path) =>
+          path.endsWith('/Library/Application Support/JetBrains/Toolbox/scripts/idea')
+        )
+      ).toBe(true);
+    });
 
-  it('does not search the Linux JetBrains Toolbox path on macOS', async () => {
-    await listCodeEditors({ refresh: true });
+    it('does not search the Linux JetBrains Toolbox path on macOS', async () => {
+      await listCodeEditors({ refresh: true });
 
-    const probed = probedPaths();
-    expect(probed.some((path) => path.includes('/.local/share/JetBrains/Toolbox/scripts'))).toBe(
-      false
-    );
-  });
-});
+      const probed = probedPaths();
+      expect(probed.some((path) => path.includes('/.local/share/JetBrains/Toolbox/scripts'))).toBe(
+        false
+      );
+    });
+  }
+);
 
 describe('code-editors: platform boundary vs Windows', () => {
   beforeEach(() => {

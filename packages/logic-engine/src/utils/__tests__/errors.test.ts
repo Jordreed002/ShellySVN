@@ -156,7 +156,7 @@ describe('parseSvnError', () => {
 
   describe('conflict errors', () => {
     it('should parse conflict error', () => {
-      const stderr = 'svn: E155015: Conflict discovered in \'/path/to/file.txt\'';
+      const stderr = "svn: E155015: Conflict discovered in '/path/to/file.txt'";
       const error = parseSvnError(stderr);
 
       expect(error).toBeInstanceOf(ConflictError);

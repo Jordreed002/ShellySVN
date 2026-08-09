@@ -27,10 +27,7 @@ export function ProblemSolutions() {
       {rows.map((row) => (
         <div key={row.problem} className="ps-row">
           <div className="ps-problem">{row.problem}</div>
-          <p
-            className="ps-solution"
-            dangerouslySetInnerHTML={{ __html: row.solution }}
-          />
+          <p className="ps-solution" dangerouslySetInnerHTML={{ __html: row.solution }} />
         </div>
       ))}
     </div>

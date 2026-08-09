@@ -176,8 +176,7 @@ describe('useWorkingCopyForPath', () => {
     status.mockImplementation(
       () =>
         new Promise((resolve) => {
-          releaseStatus = () =>
-            resolve({ path: WC_PATH, entries: [], revision: 4800 });
+          releaseStatus = () => resolve({ path: WC_PATH, entries: [], revision: 4800 });
         })
     );
 
@@ -231,9 +230,7 @@ describe('useWorkingCopyForPath', () => {
     expect(mergeInfo).not.toHaveBeenCalled();
     expect(result.current.eligibleRevisionsAvailable).toBe(false);
     expect(
-      result.current.unsupported.some(
-        (gap) => gap.capability === 'working-copy:eligible-revisions'
-      )
+      result.current.unsupported.some((gap) => gap.capability === 'working-copy:eligible-revisions')
     ).toBe(true);
   });
 
@@ -283,7 +280,12 @@ describe('useWorkingCopyForPath', () => {
     externalsList.mockResolvedValue({
       externals: [
         { name: 'fonts', url: '^/vendor/fonts', path: `${WC_PATH}/vendor/fonts` },
-        { name: 'pinned', url: '^/vendor/icons', path: `${WC_PATH}/vendor/icons`, pegRevision: 2413 },
+        {
+          name: 'pinned',
+          url: '^/vendor/icons',
+          path: `${WC_PATH}/vendor/icons`,
+          pegRevision: 2413,
+        },
       ],
     });
 

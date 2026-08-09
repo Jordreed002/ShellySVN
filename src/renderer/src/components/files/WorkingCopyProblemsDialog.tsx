@@ -70,21 +70,36 @@ export function WorkingCopyProblemsDialog({ path, onClose }: WorkingCopyProblems
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {error ? (
-            <div role="alert" className="m-5 rounded-lg border border-error/40 bg-error/10 p-4 text-sm text-error">
+            <div
+              role="alert"
+              className="m-5 rounded-lg border border-error/40 bg-error/10 p-4 text-sm text-error"
+            >
               {error instanceof Error ? error.message : 'Unable to read working-copy status.'}
             </div>
           ) : !isLoading && problems.length === 0 ? (
-            <p className="p-8 text-center text-sm text-text-muted">No current problems were found.</p>
+            <p className="p-8 text-center text-sm text-text-muted">
+              No current problems were found.
+            </p>
           ) : (
             <div className="divide-y divide-border">
               {visibleProblems.map((entry) => (
-                <div key={entry.path} className="flex min-h-11 items-center gap-3 px-5 py-2 hover:bg-bg-tertiary/55">
+                <div
+                  key={entry.path}
+                  className="flex min-h-11 items-center gap-3 px-5 py-2 hover:bg-bg-tertiary/55"
+                >
                   <StatusIcon status={entry.status} size="sm" showLabel />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary" title={entry.path}>
+                  <span
+                    className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary"
+                    title={entry.path}
+                  >
                     {relativePath(path, entry.path)}
                   </span>
-                  {entry.treeConflict && <span className="text-2xs font-semibold text-svn-conflict">TREE CONFLICT</span>}
-                  {entry.lock && <span className="text-2xs font-semibold text-warning">LOCKED</span>}
+                  {entry.treeConflict && (
+                    <span className="text-2xs font-semibold text-svn-conflict">TREE CONFLICT</span>
+                  )}
+                  {entry.lock && (
+                    <span className="text-2xs font-semibold text-warning">LOCKED</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -93,7 +108,8 @@ export function WorkingCopyProblemsDialog({ path, onClose }: WorkingCopyProblems
 
         {problems.length > MAX_VISIBLE_PROBLEMS && (
           <p className="border-t border-border px-5 py-2 text-2xs text-text-muted">
-            Showing the first {MAX_VISIBLE_PROBLEMS.toLocaleString()} items to keep this view responsive.
+            Showing the first {MAX_VISIBLE_PROBLEMS.toLocaleString()} items to keep this view
+            responsive.
           </p>
         )}
       </div>

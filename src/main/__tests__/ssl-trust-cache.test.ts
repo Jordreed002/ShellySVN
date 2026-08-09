@@ -34,7 +34,7 @@ import { SslTrustCache } from '../ssl-trust-cache';
 const mockAccess = vi.mocked(access);
 const mockReadFile = vi.mocked(readFile);
 
- beforeEach(() => {
+beforeEach(() => {
   vi.clearAllMocks();
   // Default: no existing cache file on disk.
   mockAccess.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
@@ -136,9 +136,7 @@ describe('SslTrustCache', () => {
   it('persists and reloads trusted realms across instances', async () => {
     const stored = JSON.stringify({
       version: 1,
-      trusts: [
-        { realm: 'https://svn.example.com/repo', failures: 'ABCDEF', createdAt: 1 },
-      ],
+      trusts: [{ realm: 'https://svn.example.com/repo', failures: 'ABCDEF', createdAt: 1 }],
     });
     mockAccess.mockResolvedValue(undefined);
     mockReadFile.mockResolvedValue(stored);

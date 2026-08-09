@@ -246,15 +246,7 @@ export function useCachedLog(
 
       throw err;
     }
-  }, [
-    path,
-    limit,
-    useMergeHistory,
-    requestOptions,
-    hasAdvancedOptions,
-    saveToCache,
-    setIsOffline,
-  ]);
+  }, [path, limit, useMergeHistory, requestOptions, hasAdvancedOptions, saveToCache, setIsOffline]);
 
   return {
     refreshLog,

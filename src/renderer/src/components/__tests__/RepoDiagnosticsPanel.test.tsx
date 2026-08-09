@@ -68,4 +68,13 @@ describe('RepoDiagnosticsPanel', () => {
       );
     });
   });
+
+  it('exposes the modal and icon actions with accessible names', async () => {
+    renderPanel();
+
+    expect(await screen.findByRole('dialog', { name: 'Repository Diagnostics' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Copy redacted diagnostics' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Refresh repository diagnostics' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close repository diagnostics' })).toBeTruthy();
+  });
 });

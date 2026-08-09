@@ -35,22 +35,20 @@ beforeEach(() => {
       ],
     })
   );
-  listFn.mockImplementation(
-    async (_url: string, _revision: string, depth: RepoListDepth) => ({
-      path: URL,
-      entries: [
-        {
-          name: `${depth}.txt`,
-          path: `${URL}/${depth}.txt`,
-          url: `${URL}/${depth}.txt`,
-          kind: 'file',
-          revision: 1,
-          author: 'dev',
-          date: '2026-01-01T00:00:00Z',
-        },
-      ],
-    })
-  );
+  listFn.mockImplementation(async (_url: string, _revision: string, depth: RepoListDepth) => ({
+    path: URL,
+    entries: [
+      {
+        name: `${depth}.txt`,
+        path: `${URL}/${depth}.txt`,
+        url: `${URL}/${depth}.txt`,
+        kind: 'file',
+        revision: 1,
+        author: 'dev',
+        date: '2026-01-01T00:00:00Z',
+      },
+    ],
+  }));
 
   Object.defineProperty(window, 'api', {
     configurable: true,

@@ -130,7 +130,11 @@ describe('useRepoDiff', () => {
     });
 
     await waitFor(() => expect(diff).toHaveBeenCalledTimes(1));
-    expect(diff).toHaveBeenCalledWith(WC, undefined, expect.objectContaining({ signal: expect.anything() }));
+    expect(diff).toHaveBeenCalledWith(
+      WC,
+      undefined,
+      expect.objectContaining({ signal: expect.anything() })
+    );
     expect(diffUrls).not.toHaveBeenCalled();
   });
 
@@ -165,8 +169,16 @@ describe('useRepoDiff', () => {
     diff.mockResolvedValue({
       hasChanges: true,
       files: [
-        { oldPath: 'a', newPath: 'a', hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 2, lines: [] }] },
-        { oldPath: 'b', newPath: 'b', hunks: [{ oldStart: 5, oldLines: 0, newStart: 5, newLines: 1, lines: [] }] },
+        {
+          oldPath: 'a',
+          newPath: 'a',
+          hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 2, lines: [] }],
+        },
+        {
+          oldPath: 'b',
+          newPath: 'b',
+          hunks: [{ oldStart: 5, oldLines: 0, newStart: 5, newLines: 1, lines: [] }],
+        },
       ],
     });
 
@@ -180,7 +192,11 @@ describe('useRepoDiff', () => {
   });
 
   it('treats an error field on a resolved diff as an error, not an empty diff', async () => {
-    diff.mockResolvedValue({ files: [], hasChanges: false, error: 'svn: E155007: not a working copy' });
+    diff.mockResolvedValue({
+      files: [],
+      hasChanges: false,
+      error: 'svn: E155007: not a working copy',
+    });
 
     const { result } = renderHook(() => useRepoDiff(URL, 'wc-base', WC, {}), {
       wrapper: createWrapper(),

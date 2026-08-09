@@ -4,6 +4,7 @@ import { safeStorage } from 'electron';
 
 import { debug } from '@shared/utils/debug';
 import { writeSecureJson } from './utils/secure-json';
+import { isSecureStorageAvailable } from './utils/secure-storage';
 
 interface CachedCredential {
   realm: string;
@@ -53,7 +54,7 @@ class AuthCache {
 
   constructor(userDataPath: string) {
     this.storePath = join(userDataPath, 'auth-cache.json');
-    this.encryptionAvailable = safeStorage.isEncryptionAvailable();
+    this.encryptionAvailable = isSecureStorageAvailable(safeStorage);
 
     if (!this.encryptionAvailable) {
       debug.warn(

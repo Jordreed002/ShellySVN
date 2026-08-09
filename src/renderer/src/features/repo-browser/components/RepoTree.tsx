@@ -24,7 +24,12 @@
 
 import { ChevronsDownUp } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { CSSProperties, FocusEvent as ReactFocusEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type {
+  CSSProperties,
+  FocusEvent as ReactFocusEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+} from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { RepoEntry } from '../types';
@@ -161,7 +166,8 @@ interface BuildRowsInput {
 
 /** Flatten the visible part of the tree into rows, adding the honesty rows as we go. */
 function buildRows(input: BuildRowsInput): RepoTreeRow[] {
-  const { roots, childrenByPath, expandedPaths, loadingPaths, childCountByPath, cap, isLoading } = input;
+  const { roots, childrenByPath, expandedPaths, loadingPaths, childCountByPath, cap, isLoading } =
+    input;
   const rows: RepoTreeRow[] = [];
 
   const emitLevel = (
@@ -172,7 +178,7 @@ function buildRows(input: BuildRowsInput): RepoTreeRow[] {
     depth: number,
     loading: boolean,
     /** Server-side entry count for this level, when known. Never inferred for the top level. */
-    declaredTotal: number | undefined,
+    declaredTotal: number | undefined
   ): void => {
     const loaded = entries ?? [];
     const shown = loaded.length > cap ? loaded.slice(0, cap) : loaded;
@@ -219,7 +225,15 @@ function buildRows(input: BuildRowsInput): RepoTreeRow[] {
       });
 
       if (expanded) {
-        emitLevel(loadedChildren, entry.path, entry.path, entry.path, depth + 1, loadingChildren, declaredChildCount);
+        emitLevel(
+          loadedChildren,
+          entry.path,
+          entry.path,
+          entry.path,
+          depth + 1,
+          loadingChildren,
+          declaredChildCount
+        );
       }
     });
 
@@ -256,7 +270,15 @@ function buildRows(input: BuildRowsInput): RepoTreeRow[] {
   // The top level never reads `childCountByPath`: the caller may pass a single
   // synthetic root entry whose own path is `''`, and borrowing its child count
   // here would invent a phantom "… N more" row.
-  emitLevel(isLoading && roots.length === 0 ? undefined : roots, '', ROOT_KEY, null, 0, isLoading, undefined);
+  emitLevel(
+    isLoading && roots.length === 0 ? undefined : roots,
+    '',
+    ROOT_KEY,
+    null,
+    0,
+    isLoading,
+    undefined
+  );
   return rows;
 }
 
@@ -311,7 +333,7 @@ export function RepoTree({
       emptyChildren,
       emptyCounts,
       emptyPaths,
-    ],
+    ]
   );
 
   /* ── roving tabindex: exactly one row is tabbable ── */
@@ -343,7 +365,8 @@ export function RepoTree({
   const virtualizer = useVirtualizer({
     count: shouldVirtualize ? rows.length : 0,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => (rows[index]?.kind === 'entry' ? TREE_ROW_HEIGHT : TREE_AUX_ROW_HEIGHT),
+    estimateSize: (index) =>
+      rows[index]?.kind === 'entry' ? TREE_ROW_HEIGHT : TREE_AUX_ROW_HEIGHT,
     getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 12,
   });
@@ -351,7 +374,8 @@ export function RepoTree({
 
   // The tabbable row can be scrolled out of the virtual window; keep one tab stop
   // by letting the scroll container take the tab and forwarding focus inwards.
-  const activeRowRendered = !shouldVirtualize || virtualItems.some((item) => item.index === activeIndex);
+  const activeRowRendered =
+    !shouldVirtualize || virtualItems.some((item) => item.index === activeIndex);
 
   const focusRow = (index: number): void => {
     const row = rows[index];
@@ -437,9 +461,17 @@ export function RepoTree({
     }
 
     // Type-ahead over entry names, as recommended by the tree pattern.
-    if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey || !/\S/.test(event.key)) return;
+    if (
+      event.key.length !== 1 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      !/\S/.test(event.key)
+    )
+      return;
     const now = Date.now();
-    const text = now - typeaheadRef.current.at > 700 ? event.key : typeaheadRef.current.text + event.key;
+    const text =
+      now - typeaheadRef.current.at > 700 ? event.key : typeaheadRef.current.text + event.key;
     typeaheadRef.current = { text, at: now };
     const needle = text.toLowerCase();
     for (let step = 1; step <= rows.length; step += 1) {
@@ -520,7 +552,7 @@ export function RepoTree({
         'min-h-0 flex-1 overflow-auto px-[7px] pb-3.5 pt-[5px] outline-none',
         // Without a header this element *is* the pane, so it carries the surface
         // and the caller's className.
-        !showHeader && cx(PANE_SURFACE, className),
+        !showHeader && cx(PANE_SURFACE, className)
       )}
     >
       <div

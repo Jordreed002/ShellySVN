@@ -94,8 +94,7 @@ async function validateWebhookUrl(url: string): Promise<ValidatedWebhookTarget> 
   }
 
   const selected = addresses.find(
-    (entry): entry is { address: string; family: 4 | 6 } =>
-      entry.family === 4 || entry.family === 6
+    (entry): entry is { address: string; family: 4 | 6 } => entry.family === 4 || entry.family === 6
   );
   if (!selected) {
     throw new Error('Webhook hostname could not be resolved.');
@@ -201,7 +200,11 @@ async function deliverWebhook(request: WebhookDeliverRequest): Promise<WebhookDe
 export function registerWebhookHandlers(): void {
   ipcMain.handle('webhook:deliver', (_, request: WebhookDeliverRequest) => deliverWebhook(request));
   ipcMain.handle('webhook:setSecret', async (_, webhookId: string, secret: string) => {
-    if (!/^webhook-[A-Za-z0-9_-]+$/.test(webhookId) || typeof secret !== 'string' || secret.length > 16_384) {
+    if (
+      !/^webhook-[A-Za-z0-9_-]+$/.test(webhookId) ||
+      typeof secret !== 'string' ||
+      secret.length > 16_384
+    ) {
       throw new Error('Invalid webhook secret request');
     }
     const cache = getAuthCache();

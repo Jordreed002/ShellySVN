@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "focused-change",
+      "kind": "commit",
+      "paths": ["src/cache.ts", "src/cache.test.ts"],
+      "diff": "Index: src/cache.ts\n--- src/cache.ts\n+++ src/cache.ts\n@@ -1 +1 @@\n-export const ttl = 0;\n+export const ttl = 30;\nIndex: src/cache.test.ts\n--- src/cache.test.ts\n+++ src/cache.test.ts\n+expect(ttl).toBe(30);\n",
+      "style": { "subjectMaxLength": 72, "prefixes": ["fix", "test"] }
+    },
+    {
+      "id": "unrelated-generated-config-todo-missing-test",
+      "kind": "review",
+      "paths": ["src/login.ts", "dist/bundle.js", "config/app.ini", "docs/help.md"],
+      "diff": "Index: src/login.ts\n--- src/login.ts\n+++ src/login.ts\n+console.log('login');\n+// TODO remove bypass\nIndex: dist/bundle.js\n--- dist/bundle.js\n+++ dist/bundle.js\n+minifiedBuild();\nIndex: config/app.ini\n--- config/app.ini\n+++ config/app.ini\n+feature_enabled=true\nIndex: docs/help.md\n--- docs/help.md\n+++ docs/help.md\n+New login behavior.\n",
+      "signals": ["unrelated", "generated", "configuration", "todo", "missing-tests"]
+    },
+    {
+      "id": "synthetic-secret-redaction",
+      "kind": "review",
+      "paths": ["config/example.env"],
+      "diff": "Index: config/example.env\n--- config/example.env\n+++ config/example.env\n+api_key=sk-EXAMPLE-NOT-A-REAL-CREDENTIAL-000000\n",
+      "signals": ["secret"]
+    },
+    {
+      "id": "binary-omission",
+      "kind": "review",
+      "paths": ["src/view.ts", "assets/example.bin"],
+      "diff": "Index: src/view.ts\n--- src/view.ts\n+++ src/view.ts\n+export const ready = true;\nIndex: assets/example.bin\nCannot display: file marked as a binary type.\n",
+      "omittedBinaryFiles": ["assets/example.bin"]
+    },
+    {
+      "id": "repository-style",
+      "kind": "commit",
+      "paths": ["src/status.ts"],
+      "diff": "Index: src/status.ts\n--- src/status.ts\n+++ src/status.ts\n-return oldStatus;\n+return freshStatus;\n",
+      "style": { "subjectMaxLength": 60, "prefixes": ["SVN-123 fix", "SVN-123 refactor"] }
+    },
+    {
+      "id": "ambiguous-conflict",
+      "kind": "conflict",
+      "paths": ["src/theme.ts"],
+      "base": "export const color = 'blue';\n",
+      "mine": "export const color = userChoice;\n",
+      "theirs": "export const color = systemPreference;\n",
+      "expectUnresolvedQuestions": true,
+      "allowConflictMarkers": false
+    },
+    {
+      "id": "breaking-release-range",
+      "kind": "release",
+      "paths": ["src/api.ts", "docs/upgrade.md"],
+      "revisions": [41, 42],
+      "log": "r41 | example-author | Remove legacy login endpoint (BREAKING)\nr42 | example-author | Add upgrade instructions\n"
+    }
+  ]
+}

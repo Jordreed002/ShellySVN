@@ -1,611 +1,1560 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ShellySVN — Long-Term Roadmap</title>
-<meta name="description" content="ShellySVN long-term plan: vision, goals, and milestones across semver releases — past 1.0 and toward 2.0." />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<style>
-  :root {
-    /* Brand palette — dark canvas, teal signature (matches the redesigned app) */
-    --bg: #0b0f14;
-    --bg-sunk: #080b10;
-    --surface: #11161d;
-    --surface-2: #161c25;
-    --elevated: #1d242f;
-    --border: #232c38;
-    --border-muted: #1a212b;
-    --border-strong: #313c4a;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ShellySVN — Long-Term Roadmap</title>
+    <meta
+      name="description"
+      content="ShellySVN long-term plan: vision, goals, and milestones across semver releases — past 1.0 and toward 2.0."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        /* Brand palette — dark canvas, teal signature (matches the redesigned app) */
+        --bg: #0b0f14;
+        --bg-sunk: #080b10;
+        --surface: #11161d;
+        --surface-2: #161c25;
+        --elevated: #1d242f;
+        --border: #232c38;
+        --border-muted: #1a212b;
+        --border-strong: #313c4a;
 
-    --text: #e6edf3;
-    --text-2: #9aa4b0;
-    --text-muted: #727d8a;
-    --text-faint: #4d5866;
+        --text: #e6edf3;
+        --text-2: #9aa4b0;
+        --text-muted: #727d8a;
+        --text-faint: #4d5866;
 
-    /* Teal signature */
-    --teal: #2dd4bf;
-    --teal-deep: #14b8a6;
-    --teal-soft: #5eead4;
-    --teal-tint: rgba(45, 212, 191, 0.08);
+        /* Teal signature */
+        --teal: #2dd4bf;
+        --teal-deep: #14b8a6;
+        --teal-soft: #5eead4;
+        --teal-tint: rgba(45, 212, 191, 0.08);
 
-    /* SVN-flavored accents */
-    --amber: #d9a129;
-    --green: #46b95a;
-    --red: #f2666a;
-    --violet: #a371f7;
-    --blue: #58a6ff;
+        /* SVN-flavored accents */
+        --amber: #d9a129;
+        --green: #46b95a;
+        --red: #f2666a;
+        --violet: #a371f7;
+        --blue: #58a6ff;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-panel: 0 4px 14px -4px rgba(0, 0, 0, 0.6);
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-panel: 0 4px 14px -4px rgba(0, 0, 0, 0.6);
 
-    --radius: 12px;
-    --radius-lg: 18px;
-    --maxw: 1080px;
+        --radius: 12px;
+        --radius-lg: 18px;
+        --maxw: 1080px;
 
-    --font-sans: "Archivo", "Archivo Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    --font-mono: "JetBrains Mono", "JetBrains Mono Variable", ui-monospace, SFMono-Regular, "Fira Code", Consolas, Monaco, monospace;
-  }
+        --font-sans:
+          'Archivo', 'Archivo Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica,
+          Arial, sans-serif;
+        --font-mono:
+          'JetBrains Mono', 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, 'Fira Code',
+          Consolas, Monaco, monospace;
+      }
 
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-padding-top: 84px; }
-  body {
-    margin: 0;
-    background:
-      radial-gradient(1200px 600px at 50% -200px, rgba(45, 212, 191, 0.10), transparent 60%),
-      var(--bg);
-    color: var(--text);
-    font-family: var(--font-sans);
-    font-size: 15px;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-  a { color: var(--teal-soft); text-decoration: none; }
-  a:hover { color: var(--teal); text-decoration: underline; }
-  code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 84px;
+      }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(1200px 600px at 50% -200px, rgba(45, 212, 191, 0.1), transparent 60%),
+          var(--bg);
+        color: var(--text);
+        font-family: var(--font-sans);
+        font-size: 15px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+      a {
+        color: var(--teal-soft);
+        text-decoration: none;
+      }
+      a:hover {
+        color: var(--teal);
+        text-decoration: underline;
+      }
+      code,
+      .mono {
+        font-family: var(--font-mono);
+        font-size: 0.92em;
+      }
 
-  /* ---------- Top bar ---------- */
-  .topbar { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px); background: rgba(11, 15, 20, 0.78); border-bottom: 1px solid var(--border); }
-  .topbar-inner { max-width: var(--maxw); margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
-  .brand svg { width: 26px; height: 26px; display: block; }
-  .brand-name { font-size: 16px; }
-  .brand-name .v { color: var(--text-muted); font-weight: 500; font-family: var(--font-mono); font-size: 13px; margin-left: 6px; }
-  .topbar-spacer { flex: 1; }
-  .topbar nav { display: flex; gap: 4px; flex-wrap: wrap; }
-  .topbar nav a { color: var(--text-2); font-size: 13px; font-weight: 500; padding: 6px 10px; border-radius: 8px; text-decoration: none; }
-  .topbar nav a:hover { color: var(--text); background: var(--surface); text-decoration: none; }
-  .badge-current { font-family: var(--font-mono); font-size: 11px; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--amber); color: var(--amber); background: rgba(217,161,41,0.10); white-space: nowrap; }
+      /* ---------- Top bar ---------- */
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(12px);
+        background: rgba(11, 15, 20, 0.78);
+        border-bottom: 1px solid var(--border);
+      }
+      .topbar-inner {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .brand svg {
+        width: 26px;
+        height: 26px;
+        display: block;
+      }
+      .brand-name {
+        font-size: 16px;
+      }
+      .brand-name .v {
+        color: var(--text-muted);
+        font-weight: 500;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        margin-left: 6px;
+      }
+      .topbar-spacer {
+        flex: 1;
+      }
+      .topbar nav {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .topbar nav a {
+        color: var(--text-2);
+        font-size: 13px;
+        font-weight: 500;
+        padding: 6px 10px;
+        border-radius: 8px;
+        text-decoration: none;
+      }
+      .topbar nav a:hover {
+        color: var(--text);
+        background: var(--surface);
+        text-decoration: none;
+      }
+      .badge-current {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 4px 9px;
+        border-radius: 99px;
+        border: 1px solid var(--amber);
+        color: var(--amber);
+        background: rgba(217, 161, 41, 0.1);
+        white-space: nowrap;
+      }
 
-  /* ---------- Layout ---------- */
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
-  section { padding: 64px 0; border-top: 1px solid var(--border-muted); }
-  section:first-of-type { border-top: none; }
+      /* ---------- Layout ---------- */
+      .wrap {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      section {
+        padding: 64px 0;
+        border-top: 1px solid var(--border-muted);
+      }
+      section:first-of-type {
+        border-top: none;
+      }
 
-  /* ---------- Hero ---------- */
-  .hero { padding: 96px 0 56px; }
-  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--teal-soft); background: var(--teal-tint); border: 1px solid rgba(45, 212, 191, 0.28); padding: 5px 11px; border-radius: 99px; }
-  .eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); }
-  h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.05; letter-spacing: -0.03em; font-weight: 800; margin: 22px 0 0; }
-  h1 .grad { background: linear-gradient(100deg, var(--teal-soft), var(--teal) 60%, var(--teal-deep)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .lede { max-width: 690px; color: var(--text-2); font-size: 18px; margin: 22px 0 0; }
-  .hero-meta { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 28px; color: var(--text-muted); font-size: 13px; }
-  .hero-meta b { color: var(--text-2); font-weight: 600; }
+      /* ---------- Hero ---------- */
+      .hero {
+        padding: 96px 0 56px;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--teal-soft);
+        background: var(--teal-tint);
+        border: 1px solid rgba(45, 212, 191, 0.28);
+        padding: 5px 11px;
+        border-radius: 99px;
+      }
+      .eyebrow::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--teal);
+        box-shadow: 0 0 10px var(--teal);
+      }
+      h1 {
+        font-size: clamp(34px, 6vw, 56px);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        font-weight: 800;
+        margin: 22px 0 0;
+      }
+      h1 .grad {
+        background: linear-gradient(100deg, var(--teal-soft), var(--teal) 60%, var(--teal-deep));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .lede {
+        max-width: 690px;
+        color: var(--text-2);
+        font-size: 18px;
+        margin: 22px 0 0;
+      }
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 28px;
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+      .hero-meta b {
+        color: var(--text-2);
+        font-weight: 600;
+      }
 
-  /* ---------- Headings ---------- */
-  h2 { font-size: 28px; letter-spacing: -0.02em; font-weight: 700; margin: 0 0 8px; }
-  .section-eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--teal); margin-bottom: 10px; }
-  .section-sub { color: var(--text-2); max-width: 720px; margin: 0 0 32px; }
-  h3 { font-size: 18px; margin: 28px 0 10px; font-weight: 600; letter-spacing: -0.01em; }
+      /* ---------- Headings ---------- */
+      h2 {
+        font-size: 28px;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      .section-eyebrow {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--teal);
+        margin-bottom: 10px;
+      }
+      .section-sub {
+        color: var(--text-2);
+        max-width: 720px;
+        margin: 0 0 32px;
+      }
+      h3 {
+        font-size: 18px;
+        margin: 28px 0 10px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
 
-  /* ---------- Cards ---------- */
-  .grid { display: grid; gap: 14px; }
-  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
-  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-  @media (max-width: 820px) { .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; } }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-card); }
-  .card h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
-  .card p { margin: 0; color: var(--text-2); font-size: 13.5px; }
+      /* ---------- Cards ---------- */
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+      .grid.cols-2 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .grid.cols-3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      @media (max-width: 820px) {
+        .grid.cols-2,
+        .grid.cols-3 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+        box-shadow: var(--shadow-card);
+      }
+      .card h4 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .card p {
+        margin: 0;
+        color: var(--text-2);
+        font-size: 13.5px;
+      }
 
-  /* ---------- Timeline ---------- */
-  .timeline { display: flex; gap: 0; overflow-x: auto; padding: 8px 0 20px; border-radius: var(--radius); }
-  .tl-step { flex: 1 0 0; min-width: 104px; position: relative; text-align: center; padding-top: 30px; }
-  .tl-step::before { content: ""; position: absolute; top: 9px; left: 50%; right: -50%; height: 2px; background: var(--border-strong); }
-  .tl-step:last-child::before { display: none; }
-  .tl-dot { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; border-radius: 50%; background: var(--bg); border: 2px solid var(--border-strong); }
-  .tl-step.done .tl-dot { background: var(--teal); border-color: var(--teal); box-shadow: 0 0 0 4px var(--teal-tint); }
-  .tl-step.current .tl-dot { background: var(--bg); border-color: var(--amber); box-shadow: 0 0 0 4px rgba(217,161,41,0.18); }
-  .tl-step.current .tl-dot::after { content:""; position:absolute; inset:4px; border-radius:50%; background: var(--amber); animation: pulse 2s ease-in-out infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
-  .tl-ver { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--text); }
-  .tl-step.current .tl-ver { color: var(--amber); }
-  .tl-name { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; line-height: 1.3; }
-  .tl-when { font-size: 10.5px; color: var(--text-faint); margin-top: 4px; font-family: var(--font-mono); }
+      /* ---------- Timeline ---------- */
+      .timeline {
+        display: flex;
+        gap: 0;
+        overflow-x: auto;
+        padding: 8px 0 20px;
+        border-radius: var(--radius);
+      }
+      .tl-step {
+        flex: 1 0 0;
+        min-width: 104px;
+        position: relative;
+        text-align: center;
+        padding-top: 30px;
+      }
+      .tl-step::before {
+        content: '';
+        position: absolute;
+        top: 9px;
+        left: 50%;
+        right: -50%;
+        height: 2px;
+        background: var(--border-strong);
+      }
+      .tl-step:last-child::before {
+        display: none;
+      }
+      .tl-dot {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--bg);
+        border: 2px solid var(--border-strong);
+      }
+      .tl-step.done .tl-dot {
+        background: var(--teal);
+        border-color: var(--teal);
+        box-shadow: 0 0 0 4px var(--teal-tint);
+      }
+      .tl-step.current .tl-dot {
+        background: var(--bg);
+        border-color: var(--amber);
+        box-shadow: 0 0 0 4px rgba(217, 161, 41, 0.18);
+      }
+      .tl-step.current .tl-dot::after {
+        content: '';
+        position: absolute;
+        inset: 4px;
+        border-radius: 50%;
+        background: var(--amber);
+        animation: pulse 2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+      .tl-ver {
+        font-family: var(--font-mono);
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .tl-step.current .tl-ver {
+        color: var(--amber);
+      }
+      .tl-name {
+        font-size: 11.5px;
+        color: var(--text-muted);
+        margin-top: 3px;
+        line-height: 1.3;
+      }
+      .tl-when {
+        font-size: 10.5px;
+        color: var(--text-faint);
+        margin-top: 4px;
+        font-family: var(--font-mono);
+      }
 
-  /* ---------- Phase blocks ---------- */
-  .phase { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 22px; overflow: hidden; box-shadow: var(--shadow-card); border-left: 3px solid var(--border-strong); }
-  .phase.shipped { border-left-color: var(--green); opacity: 0.92; }
-  .phase.next { border-left-color: var(--amber); box-shadow: 0 0 0 1px rgba(217,161,41,0.14), var(--shadow-panel); }
-  .phase.future { border-left-color: var(--blue); }
-  .phase.vision { border-left-color: var(--violet); }
-  .phase-head { display: flex; align-items: flex-start; gap: 18px; padding: 22px 24px; border-bottom: 1px solid var(--border-muted); flex-wrap: wrap; }
-  .ver-pill { font-family: var(--font-mono); font-weight: 700; font-size: 15px; padding: 7px 13px; border-radius: 10px; line-height: 1; background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); white-space: nowrap; }
-  .phase.next .ver-pill { color: var(--amber); border-color: rgba(217,161,41,0.45); background: rgba(217,161,41,0.10); }
-  .phase.shipped .ver-pill { color: var(--green); border-color: rgba(70,185,90,0.35); }
-  .phase.vision .ver-pill { color: var(--violet); border-color: rgba(163,113,247,0.35); }
-  .phase-head h3 { margin: 0 0 4px; font-size: 20px; }
-  .phase-theme { color: var(--text-2); font-size: 14px; margin: 0; }
-  .phase-status { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .status { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border-strong); color: var(--text-muted); }
-  .status.shipped { color: var(--green); border-color: rgba(70,185,90,0.4); background: rgba(70,185,90,0.08); }
-  .status.next { color: var(--amber); border-color: rgba(217,161,41,0.45); background: rgba(217,161,41,0.10); }
-  .status.planned { color: var(--blue); border-color: rgba(88,166,255,0.4); }
-  .status.vision { color: var(--violet); border-color: rgba(163,113,247,0.4); }
-  .phase-when { font-size: 11.5px; color: var(--text-faint); font-family: var(--font-mono); }
-  .phase-body { padding: 22px 24px; }
-  .goals { color: var(--text-2); margin: 0 0 18px; font-size: 14.5px; }
-  .milestone-group { margin-bottom: 18px; }
-  .milestone-group:last-child { margin-bottom: 0; }
-  .group-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal); margin: 0 0 9px; display: flex; align-items: center; gap: 8px; }
-  .group-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
-  ul.milestones { list-style: none; margin: 0; padding: 0; }
-  ul.milestones li { position: relative; padding: 5px 0 5px 26px; color: var(--text-2); font-size: 14px; line-height: 1.5; }
-  ul.milestones li::before { content: ""; position: absolute; left: 2px; top: 11px; width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid var(--border-strong); background: var(--bg-sunk); }
-  ul.milestones li.done { color: var(--text-muted); }
-  ul.milestones li.done::before { content: "✓"; color: var(--green); background: rgba(70,185,90,0.12); border-color: rgba(70,185,90,0.5); font-size: 10px; font-weight: 700; display: grid; place-items: center; line-height: 1; }
-  ul.milestones li code { color: var(--teal-soft); background: var(--teal-tint); padding: 1px 5px; border-radius: 5px; }
-  ul.milestones li b { color: var(--text); font-weight: 600; }
-  .exit { margin-top: 18px; padding: 14px 16px; border-radius: 10px; background: var(--bg-sunk); border: 1px dashed var(--border-strong); font-size: 13.5px; color: var(--text-2); }
-  .exit b { color: var(--teal-soft); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+      /* ---------- Phase blocks ---------- */
+      .phase {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        margin-bottom: 22px;
+        overflow: hidden;
+        box-shadow: var(--shadow-card);
+        border-left: 3px solid var(--border-strong);
+      }
+      .phase.shipped {
+        border-left-color: var(--green);
+        opacity: 0.92;
+      }
+      .phase.next {
+        border-left-color: var(--amber);
+        box-shadow:
+          0 0 0 1px rgba(217, 161, 41, 0.14),
+          var(--shadow-panel);
+      }
+      .phase.future {
+        border-left-color: var(--blue);
+      }
+      .phase.vision {
+        border-left-color: var(--violet);
+      }
+      .phase-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 18px;
+        padding: 22px 24px;
+        border-bottom: 1px solid var(--border-muted);
+        flex-wrap: wrap;
+      }
+      .ver-pill {
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: 15px;
+        padding: 7px 13px;
+        border-radius: 10px;
+        line-height: 1;
+        background: var(--surface-2);
+        border: 1px solid var(--border-strong);
+        color: var(--text);
+        white-space: nowrap;
+      }
+      .phase.next .ver-pill {
+        color: var(--amber);
+        border-color: rgba(217, 161, 41, 0.45);
+        background: rgba(217, 161, 41, 0.1);
+      }
+      .phase.shipped .ver-pill {
+        color: var(--green);
+        border-color: rgba(70, 185, 90, 0.35);
+      }
+      .phase.vision .ver-pill {
+        color: var(--violet);
+        border-color: rgba(163, 113, 247, 0.35);
+      }
+      .phase-head h3 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+      .phase-theme {
+        color: var(--text-2);
+        font-size: 14px;
+        margin: 0;
+      }
+      .phase-status {
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+      }
+      .status {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 99px;
+        border: 1px solid var(--border-strong);
+        color: var(--text-muted);
+      }
+      .status.shipped {
+        color: var(--green);
+        border-color: rgba(70, 185, 90, 0.4);
+        background: rgba(70, 185, 90, 0.08);
+      }
+      .status.next {
+        color: var(--amber);
+        border-color: rgba(217, 161, 41, 0.45);
+        background: rgba(217, 161, 41, 0.1);
+      }
+      .status.planned {
+        color: var(--blue);
+        border-color: rgba(88, 166, 255, 0.4);
+      }
+      .status.vision {
+        color: var(--violet);
+        border-color: rgba(163, 113, 247, 0.4);
+      }
+      .phase-when {
+        font-size: 11.5px;
+        color: var(--text-faint);
+        font-family: var(--font-mono);
+      }
+      .phase-body {
+        padding: 22px 24px;
+      }
+      .goals {
+        color: var(--text-2);
+        margin: 0 0 18px;
+        font-size: 14.5px;
+      }
+      .milestone-group {
+        margin-bottom: 18px;
+      }
+      .milestone-group:last-child {
+        margin-bottom: 0;
+      }
+      .group-label {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--teal);
+        margin: 0 0 9px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .group-label .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--teal);
+      }
+      ul.milestones {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      ul.milestones li {
+        position: relative;
+        padding: 5px 0 5px 26px;
+        color: var(--text-2);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      ul.milestones li::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 11px;
+        width: 12px;
+        height: 12px;
+        border-radius: 4px;
+        border: 1.5px solid var(--border-strong);
+        background: var(--bg-sunk);
+      }
+      ul.milestones li.done {
+        color: var(--text-muted);
+      }
+      ul.milestones li.done::before {
+        content: '✓';
+        color: var(--green);
+        background: rgba(70, 185, 90, 0.12);
+        border-color: rgba(70, 185, 90, 0.5);
+        font-size: 10px;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+        line-height: 1;
+      }
+      ul.milestones li code {
+        color: var(--teal-soft);
+        background: var(--teal-tint);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+      ul.milestones li b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .exit {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        background: var(--bg-sunk);
+        border: 1px dashed var(--border-strong);
+        font-size: 13.5px;
+        color: var(--text-2);
+      }
+      .exit b {
+        color: var(--teal-soft);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        display: block;
+        margin-bottom: 4px;
+      }
 
-  /* ---------- Table ---------- */
-  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 680px; }
-  thead th { text-align: left; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 12px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
-  tbody td { padding: 13px 16px; border-bottom: 1px solid var(--border-muted); vertical-align: top; color: var(--text-2); }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody td.ver { font-family: var(--font-mono); color: var(--text); font-weight: 600; white-space: nowrap; }
+      /* ---------- Table ---------- */
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+        min-width: 680px;
+      }
+      thead th {
+        text-align: left;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        padding: 12px 16px;
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+      }
+      tbody td {
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--border-muted);
+        vertical-align: top;
+        color: var(--text-2);
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      tbody td.ver {
+        font-family: var(--font-mono);
+        color: var(--text);
+        font-weight: 600;
+        white-space: nowrap;
+      }
 
-  /* ---------- Risks ---------- */
-  .risk { display: grid; grid-template-columns: 150px 1fr; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border-muted); }
-  .risk:last-child { border-bottom: none; }
-  .risk-level { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
-  .risk-level.high { color: var(--red); }
-  .risk-level.med { color: var(--amber); }
-  .risk-level.low { color: var(--teal-soft); }
-  .risk h4 { margin: 0 0 4px; font-size: 15px; }
-  .risk p { margin: 0; color: var(--text-2); font-size: 13.5px; }
-  @media (max-width: 640px) { .risk { grid-template-columns: 1fr; gap: 4px; } }
+      /* ---------- Risks ---------- */
+      .risk {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 16px;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border-muted);
+      }
+      .risk:last-child {
+        border-bottom: none;
+      }
+      .risk-level {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+      .risk-level.high {
+        color: var(--red);
+      }
+      .risk-level.med {
+        color: var(--amber);
+      }
+      .risk-level.low {
+        color: var(--teal-soft);
+      }
+      .risk h4 {
+        margin: 0 0 4px;
+        font-size: 15px;
+      }
+      .risk p {
+        margin: 0;
+        color: var(--text-2);
+        font-size: 13.5px;
+      }
+      @media (max-width: 640px) {
+        .risk {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+      }
 
-  /* ---------- History rail ---------- */
-  .hist { display: grid; grid-template-columns: 130px 1fr; gap: 14px 18px; align-items: baseline; }
-  .hist .hv { font-family: var(--font-mono); font-weight: 600; color: var(--green); }
-  .hist .hd { color: var(--text-2); font-size: 14px; }
-  .hist .hd .when { color: var(--text-faint); font-family: var(--font-mono); font-size: 12px; margin-left: 6px; }
-  @media (max-width: 640px) { .hist { grid-template-columns: 1fr; gap: 2px 0; } .hist .hd { margin-bottom: 10px; } }
+      /* ---------- History rail ---------- */
+      .hist {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        gap: 14px 18px;
+        align-items: baseline;
+      }
+      .hist .hv {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--green);
+      }
+      .hist .hd {
+        color: var(--text-2);
+        font-size: 14px;
+      }
+      .hist .hd .when {
+        color: var(--text-faint);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        margin-left: 6px;
+      }
+      @media (max-width: 640px) {
+        .hist {
+          grid-template-columns: 1fr;
+          gap: 2px 0;
+        }
+        .hist .hd {
+          margin-bottom: 10px;
+        }
+      }
 
-  /* ---------- Footer ---------- */
-  footer { padding: 48px 0 80px; border-top: 1px solid var(--border-muted); color: var(--text-muted); font-size: 13px; }
-  footer .wrap { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: flex-end; }
-  footer a { color: var(--text-2); }
-  .note { margin-top: 40px; padding: 16px 18px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); font-size: 13.5px; }
-  .note b { color: var(--teal-soft); }
-  .pillrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-  .chip { font-family: var(--font-mono); font-size: 11.5px; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); }
-</style>
-</head>
-<body>
-
-<!-- ============================ TOP BAR ============================ -->
-<header class="topbar">
-  <div class="topbar-inner">
-    <div class="brand">
-      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs><linearGradient id="shellg" x1="0" y1="0" x2="32" y2="32"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#14b8a6"/></linearGradient></defs>
-        <path d="M16 3 4 11v9l12 9 12-9v-9L16 3Z" stroke="url(#shellg)" stroke-width="2" stroke-linejoin="round" fill="rgba(45,212,191,0.06)"/>
-        <path d="M16 3v26M4 11l12 4 12-4M4 20l12 4 12-4" stroke="url(#shellg)" stroke-width="1.5" stroke-linejoin="round"/>
-        <circle cx="16" cy="15" r="2.4" fill="#2dd4bf"/>
-      </svg>
-      <span class="brand-name">ShellySVN<span class="v">roadmap</span></span>
-    </div>
-    <div class="topbar-spacer"></div>
-    <nav>
-      <a href="#vision">Vision</a>
-      <a href="#principles">Principles</a>
-      <a href="#versioning">Versioning</a>
-      <a href="#timeline">Timeline</a>
-      <a href="#roadmap">Roadmap</a>
-      <a href="#risks">Risks</a>
-    </nav>
-    <span class="badge-current">current · v1.1.0-beta</span>
-  </div>
-</header>
-
-<!-- ============================ HERO ============================ -->
-<div class="wrap">
-  <section class="hero">
-    <span class="eyebrow">Long-Term Plan · Living document</span>
-    <h1>Stable at 1.0.<br/>Now we <span class="grad">harden, scale &amp; grow</span>.</h1>
-    <p class="lede">
-      ShellySVN shipped its first stable <b>1.0.0</b> in May 2026 and is now in the
-      <b>1.1.0</b> beta (auto-update &amp; release infrastructure). This document sets the vision and a
-      milestone-by-milestone plan keyed to semantic versions — from finishing 1.1, through hardening and
-      feature growth on the 1.x line, toward a 2.0 vision.
-    </p>
-    <div class="hero-meta">
-      <span>📌 <b>Status:</b> v1.1.0-beta (current) — 1.1.0 GA next</span>
-      <span>🗓 <b>Revised:</b> 2026-07-31</span>
-      <span>🔀 <b>Cadence:</b> time-boxed minors, stabilization-first</span>
-    </div>
-  </section>
-
-  <!-- ============================ VISION ============================ -->
-  <section id="vision">
-    <div class="section-eyebrow">Vision</div>
-    <h2>Inspired by TortoiseSVN, rebuilt for today.</h2>
-    <p class="section-sub">
-      Subversion is still the right tool for many teams — yet its clients have stagnated. ShellySVN replaces
-      decades-old UI with a modern, virtualized, keyboard-first desktop app that bundles its own verified SVN
-      binary so it "just works." With a stable 1.0 out, the focus shifts from "make it exist" to "make it the
-      most trustworthy, accessible, and complete SVN client on any platform."
-    </p>
-    <div class="grid cols-3">
-      <div class="card"><h4>Trust &amp; safety first</h4><p>An unobtrusive client must never be the weak link. Hardened process boundaries, encrypted credentials, and data-safe operations come before features.</p></div>
-      <div class="card"><h4>Fast at any scale</h4><p>Working copies with hundreds of thousands of files should feel instant. Virtualization, incremental status, and background indexing are non-negotiable.</p></div>
-      <div class="card"><h4>Accessible by default</h4><p>A developer tool is only "modern" if everyone can use it. WCAG-grade keyboard navigation, focus management, and screen-reader support are release gates, not afterthoughts.</p></div>
-    </div>
-  </section>
-
-  <!-- ============================ PRINCIPLES ============================ -->
-  <section id="principles">
-    <div class="section-eyebrow">Guiding principles</div>
-    <h2>How we decide what goes in each release.</h2>
-    <p class="section-sub">When work competes for a release window, these principles break ties — in order.</p>
-    <div class="grid cols-2">
-      <div class="card"><h4>1 · Correctness over features</h4><p>A bug that corrupts a working copy or leaks credentials blocks a release; a nice-to-have feature does not. Security fixes ship as patches without waiting for a themed minor.</p></div>
-      <div class="card"><h4>2 · Subversion fidelity</h4><p>We wrap the real <code>svn</code> CLI faithfully — no reinvented semantics. TortoiseSVN-class workflows are the parity bar.</p></div>
-      <div class="card"><h4>3 · Cross-platform parity</h4><p>macOS and Windows are first-class; Linux is a close second. A feature isn't "done" until it works everywhere we ship.</p></div>
-      <div class="card"><h4>4 · Performance is a budget</h4><p>Bundle size and large-list performance are enforced in CI. Regressions fail the build, not just the review.</p></div>
-      <div class="card"><h4>5 · Small, shippable minors</h4><p>Time-boxed releases that each deliver one clear theme. Momentum over monoliths.</p></div>
-      <div class="card"><h4>6 · Backward-compatible 1.x</h4><p>1.0 established the stability promise; 1.x minors stay backward-compatible so users can auto-update without fear.</p></div>
-    </div>
-  </section>
-
-  <!-- ============================ VERSIONING ============================ -->
-  <section id="versioning">
-    <div class="section-eyebrow">Versioning philosophy</div>
-    <h2>What the version number promises.</h2>
-    <p class="section-sub">ShellySVN follows semantic versioning. <b>1.0.0 shipped in May 2026</b> and established the stability promise; from here, the 1.x line stays backward-compatible.</p>
-    <div class="grid cols-3">
-      <div class="card">
-        <div class="pillrow"><span class="chip">1.x.Y · patch</span></div>
-        <h4 style="margin-top:10px">Fixes &amp; security</h4>
-        <p>Bugfix or security fix only; all tests green; no new behavior. Critical security fixes ship here <b>as soon as ready</b>, not gated on a minor.</p>
+      /* ---------- Footer ---------- */
+      footer {
+        padding: 48px 0 80px;
+        border-top: 1px solid var(--border-muted);
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+      footer .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+      }
+      footer a {
+        color: var(--text-2);
+      }
+      .note {
+        margin-top: 40px;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text-2);
+        font-size: 13.5px;
+      }
+      .note b {
+        color: var(--teal-soft);
+      }
+      .pillrow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 4px;
+      }
+      .chip {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        padding: 3px 9px;
+        border-radius: 99px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        color: var(--text-2);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============================ TOP BAR ============================ -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <svg
+            viewBox="0 0 32 32"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id="shellg" x1="0" y1="0" x2="32" y2="32">
+                <stop offset="0" stop-color="#5eead4" />
+                <stop offset="1" stop-color="#14b8a6" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M16 3 4 11v9l12 9 12-9v-9L16 3Z"
+              stroke="url(#shellg)"
+              stroke-width="2"
+              stroke-linejoin="round"
+              fill="rgba(45,212,191,0.06)"
+            />
+            <path
+              d="M16 3v26M4 11l12 4 12-4M4 20l12 4 12-4"
+              stroke="url(#shellg)"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+            />
+            <circle cx="16" cy="15" r="2.4" fill="#2dd4bf" />
+          </svg>
+          <span class="brand-name">ShellySVN<span class="v">roadmap</span></span>
+        </div>
+        <div class="topbar-spacer"></div>
+        <nav>
+          <a href="#vision">Vision</a>
+          <a href="#principles">Principles</a>
+          <a href="#versioning">Versioning</a>
+          <a href="#timeline">Timeline</a>
+          <a href="#roadmap">Roadmap</a>
+          <a href="#risks">Risks</a>
+        </nav>
+        <span class="badge-current">current · v1.1.0-beta</span>
       </div>
-      <div class="card">
-        <div class="pillrow"><span class="chip" style="color:var(--amber);border-color:rgba(217,161,41,.4)">1.X.0 · minor</span></div>
-        <h4 style="margin-top:10px">One theme, backward-safe</h4>
-        <p>Additive, compatible features behind a single release theme. Each meets its exit criteria; typecheck + lint + boundaries + coverage + build all green in CI; changelog written.</p>
-      </div>
-      <div class="card">
-        <div class="pillrow"><span class="chip" style="color:var(--violet);border-color:rgba(163,113,247,.4)">2.0.0 · vision</span></div>
-        <h4 style="margin-top:10px">Bigger bets</h4>
-        <p>Exploratory, larger-scope directions (sync, automation, companions) that may shift behavior. Only items validated during 1.x graduate into 2.0 — nothing committed yet.</p>
-      </div>
+    </header>
+
+    <!-- ============================ HERO ============================ -->
+    <div class="wrap">
+      <section class="hero">
+        <span class="eyebrow">Long-Term Plan · Living document</span>
+        <h1>Stable at 1.0.<br />Now we <span class="grad">harden, scale &amp; grow</span>.</h1>
+        <p class="lede">
+          ShellySVN shipped its first stable <b>1.0.0</b> in May 2026 and is now in the
+          <b>1.1.0</b> beta (auto-update &amp; release infrastructure). This document sets the
+          vision and a milestone-by-milestone plan keyed to semantic versions — from finishing 1.1,
+          through hardening and feature growth on the 1.x line, toward a 2.0 vision.
+        </p>
+        <div class="hero-meta">
+          <span>📌 <b>Status:</b> v1.1.0-beta (current) — 1.1.0 GA next</span>
+          <span>🗓 <b>Revised:</b> 2026-07-31</span>
+          <span>🔀 <b>Cadence:</b> time-boxed minors, stabilization-first</span>
+        </div>
+      </section>
+
+      <!-- ============================ VISION ============================ -->
+      <section id="vision">
+        <div class="section-eyebrow">Vision</div>
+        <h2>Inspired by TortoiseSVN, rebuilt for today.</h2>
+        <p class="section-sub">
+          Subversion is still the right tool for many teams — yet its clients have stagnated.
+          ShellySVN replaces decades-old UI with a modern, virtualized, keyboard-first desktop app
+          that bundles its own verified SVN binary so it "just works." With a stable 1.0 out, the
+          focus shifts from "make it exist" to "make it the most trustworthy, accessible, and
+          complete SVN client on any platform."
+        </p>
+        <div class="grid cols-3">
+          <div class="card">
+            <h4>Trust &amp; safety first</h4>
+            <p>
+              An unobtrusive client must never be the weak link. Hardened process boundaries,
+              encrypted credentials, and data-safe operations come before features.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Fast at any scale</h4>
+            <p>
+              Working copies with hundreds of thousands of files should feel instant.
+              Virtualization, incremental status, and background indexing are non-negotiable.
+            </p>
+          </div>
+          <div class="card">
+            <h4>Accessible by default</h4>
+            <p>
+              A developer tool is only "modern" if everyone can use it. WCAG-grade keyboard
+              navigation, focus management, and screen-reader support are release gates, not
+              afterthoughts.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ PRINCIPLES ============================ -->
+      <section id="principles">
+        <div class="section-eyebrow">Guiding principles</div>
+        <h2>How we decide what goes in each release.</h2>
+        <p class="section-sub">
+          When work competes for a release window, these principles break ties — in order.
+        </p>
+        <div class="grid cols-2">
+          <div class="card">
+            <h4>1 · Correctness over features</h4>
+            <p>
+              A bug that corrupts a working copy or leaks credentials blocks a release; a
+              nice-to-have feature does not. Security fixes ship as patches without waiting for a
+              themed minor.
+            </p>
+          </div>
+          <div class="card">
+            <h4>2 · Subversion fidelity</h4>
+            <p>
+              We wrap the real <code>svn</code> CLI faithfully — no reinvented semantics.
+              TortoiseSVN-class workflows are the parity bar.
+            </p>
+          </div>
+          <div class="card">
+            <h4>3 · Cross-platform parity</h4>
+            <p>
+              macOS and Windows are first-class; Linux is a close second. A feature isn't "done"
+              until it works everywhere we ship.
+            </p>
+          </div>
+          <div class="card">
+            <h4>4 · Performance is a budget</h4>
+            <p>
+              Bundle size and large-list performance are enforced in CI. Regressions fail the build,
+              not just the review.
+            </p>
+          </div>
+          <div class="card">
+            <h4>5 · Small, shippable minors</h4>
+            <p>Time-boxed releases that each deliver one clear theme. Momentum over monoliths.</p>
+          </div>
+          <div class="card">
+            <h4>6 · Backward-compatible 1.x</h4>
+            <p>
+              1.0 established the stability promise; 1.x minors stay backward-compatible so users
+              can auto-update without fear.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ VERSIONING ============================ -->
+      <section id="versioning">
+        <div class="section-eyebrow">Versioning philosophy</div>
+        <h2>What the version number promises.</h2>
+        <p class="section-sub">
+          ShellySVN follows semantic versioning. <b>1.0.0 shipped in May 2026</b> and established
+          the stability promise; from here, the 1.x line stays backward-compatible.
+        </p>
+        <div class="grid cols-3">
+          <div class="card">
+            <div class="pillrow"><span class="chip">1.x.Y · patch</span></div>
+            <h4 style="margin-top: 10px">Fixes &amp; security</h4>
+            <p>
+              Bugfix or security fix only; all tests green; no new behavior. Critical security fixes
+              ship here <b>as soon as ready</b>, not gated on a minor.
+            </p>
+          </div>
+          <div class="card">
+            <div class="pillrow">
+              <span class="chip" style="color: var(--amber); border-color: rgba(217, 161, 41, 0.4)"
+                >1.X.0 · minor</span
+              >
+            </div>
+            <h4 style="margin-top: 10px">One theme, backward-safe</h4>
+            <p>
+              Additive, compatible features behind a single release theme. Each meets its exit
+              criteria; typecheck + lint + boundaries + coverage + build all green in CI; changelog
+              written.
+            </p>
+          </div>
+          <div class="card">
+            <div class="pillrow">
+              <span
+                class="chip"
+                style="color: var(--violet); border-color: rgba(163, 113, 247, 0.4)"
+                >2.0.0 · vision</span
+              >
+            </div>
+            <h4 style="margin-top: 10px">Bigger bets</h4>
+            <p>
+              Exploratory, larger-scope directions (sync, automation, companions) that may shift
+              behavior. Only items validated during 1.x graduate into 2.0 — nothing committed yet.
+            </p>
+          </div>
+        </div>
+        <h3>Release cadence</h3>
+        <p style="color: var(--text-2); max-width: 720px">
+          Proposed: one minor every <b>~6–10 weeks</b>, with patches as needed. A release may slip
+          if it isn't ready — but a release never ships before its exit criteria are met. Dates
+          below are <b>proposed targets</b>, adjustable as we learn.
+        </p>
+      </section>
+
+      <!-- ============================ HISTORY ============================ -->
+      <section id="history">
+        <div class="section-eyebrow">Shipped so far</div>
+        <h2>How we got here.</h2>
+        <p class="section-sub">
+          A compact recap of the real release history (per git tags &amp; changelog), so the forward
+          plan has honest context.
+        </p>
+        <div class="card">
+          <div class="hist">
+            <div class="hv">0.1.0</div>
+            <div class="hd">
+              Initial release — core SVN operations (checkout/update/commit/revert), repo browser,
+              file explorer, log/diff viewers, basic conflict detection, cross-platform.
+              <span class="when">2026-02</span>
+            </div>
+            <div class="hv">0.2.0</div>
+            <div class="hd">
+              Sparse checkout support — interactive item picker, virtualized checkbox tree,
+              remote-item display, repo-browser &amp; update-dialog integration.
+              <span class="when">2026-02-20</span>
+            </div>
+            <div class="hv">1.0.0</div>
+            <div class="hd">
+              First stable / preview release with packaged binaries for Windows, macOS, and Linux.
+              Native file-manager integration gated pending full helper signing.
+              <span class="when">2026-05-06</span>
+            </div>
+            <div class="hv">1.1.0-β</div>
+            <div class="hd">
+              Auto-update infrastructure (NSIS / signed macOS / AppImage), stable + preview release
+              channels, signed-artifact &amp; version-match release gates, and a
+              Check-for-Modifications inspector. <span class="when">2026-07-31 · current</span>
+            </div>
+          </div>
+          <p style="margin: 16px 0 0; color: var(--text-muted); font-size: 13px">
+            The modern desktop redesign (teal identity, command palette, Miller view, repo browser)
+            landed in the 1.x cycle and is part of the current momentum into 1.2.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================ TIMELINE ============================ -->
+      <section id="timeline">
+        <div class="section-eyebrow">At a glance</div>
+        <h2>The release arc.</h2>
+        <p class="section-sub">
+          From the shipped 1.0 through the current 1.1 beta, then hardening, accessibility, scale,
+          completeness, and the 2.0 vision.
+        </p>
+        <div class="timeline">
+          <div class="tl-step done">
+            <span class="tl-dot"></span>
+            <div class="tl-ver">1.0.0</div>
+            <div class="tl-name">First stable</div>
+            <div class="tl-when">May 2026 ✓</div>
+          </div>
+          <div class="tl-step current">
+            <span class="tl-dot"></span>
+            <div class="tl-ver">1.1.0</div>
+            <div class="tl-name">Update infra</div>
+            <div class="tl-when">β now</div>
+          </div>
+          <div class="tl-step">
+            <span class="tl-dot"></span>
+            <div class="tl-ver">1.2.0</div>
+            <div class="tl-name">Hardening</div>
+            <div class="tl-when">Q4 2026</div>
+          </div>
+          <div class="tl-step">
+            <span class="tl-dot"></span>
+            <div class="tl-ver">1.3.0</div>
+            <div class="tl-name">A11y &amp; Polish</div>
+            <div class="tl-when">Q1 2027</div>
+          </div>
+          <div class="tl-step">
+            <span class="tl-dot"></span>
+            <div class="tl-ver">1.4.0</div>
+            <div class="tl-name">Scale &amp; Perf</div>
+            <div class="tl-when">Q2 2027</div>
+          </div>
+          <div class="tl-step">
+            <span class="tl-dot"></span>
+            <div class="tl-ver">1.5.0</div>
+            <div class="tl-name">SVN Complete</div>
+            <div class="tl-when">H2 2027</div>
+          </div>
+          <div class="tl-step">
+            <span class="tl-dot"></span>
+            <div class="tl-ver">2.0</div>
+            <div class="tl-name">Vision</div>
+            <div class="tl-when">2028+</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ ROADMAP ============================ -->
+      <section id="roadmap">
+        <div class="section-eyebrow">Milestones</div>
+        <h2>Goals &amp; milestones, by version.</h2>
+        <p class="section-sub">
+          The near-term milestones are grounded in the project's own audits — the security &amp;
+          correctness review and <code>SVN_IMPLEMENTATION_TODO.md</code> (P0 data-safety → P3
+          missing features). Because 1.0 is already out, hardening lands as a fast-follow minor
+          (1.2), with critical fixes shipping as patches.
+        </p>
+
+        <!-- 1.1.0 -->
+        <article class="phase next">
+          <div class="phase-head">
+            <span class="ver-pill">1.1.0</span>
+            <div>
+              <h3>Update Infrastructure — GA</h3>
+              <p class="phase-theme">Ship the beta to a general-availability release.</p>
+            </div>
+            <div class="phase-status">
+              <span class="status next">Current · beta</span
+              ><span class="phase-when">target 2026 Q3</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <p class="goals">
+              <b>Goal:</b> promote user-approved auto-update and the stable/preview channel model
+              from beta to GA, with signed artifacts on every platform.
+            </p>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Finish &amp; ship</div>
+              <ul class="milestones">
+                <li>GA auto-update: Windows NSIS, signed macOS, Linux AppImage</li>
+                <li>
+                  Stable + opt-in preview release channels live; updater metadata/blockmaps
+                  validated
+                </li>
+                <li>
+                  Enforce version-match (git ↔ package) &amp; signed Windows/macOS artifacts as a
+                  release gate
+                </li>
+                <li>Check-for-Modifications inspector (local vs repository status) shipped</li>
+                <li>Mac notarization / Windows code-signing green on the release pipeline</li>
+              </ul>
+            </div>
+            <div class="exit">
+              <b>Exit criteria</b>1.1.0 promoted to stable; auto-update proven end-to-end on all
+              three platforms; no release can publish without signed artifacts.
+            </div>
+          </div>
+        </article>
+
+        <!-- 1.2.0 -->
+        <article class="phase future" style="border-left-color: var(--red)">
+          <div class="phase-head">
+            <span class="ver-pill" style="color: var(--red); border-color: rgba(242, 102, 106, 0.4)"
+              >1.2.0</span
+            >
+            <div>
+              <h3>Security &amp; Hardening</h3>
+              <p class="phase-theme">Close the boundary gaps a shipped 1.0 can't carry.</p>
+            </div>
+            <div class="phase-status">
+              <span class="status planned">Next planned</span
+              ><span class="phase-when">target Q4 2026</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <p class="goals">
+              <b>Goal:</b> close the security boundary and eliminate data-safety risks found in the
+              code review. <b>Critical fixes backport to 1.1.x patches immediately.</b>
+            </p>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Security boundary</div>
+              <ul class="milestones">
+                <li>
+                  Replace the unfiltered <code>ipcRenderer</code> bridge with a channel allowlist
+                  (only curated <code>window.api</code>)
+                </li>
+                <li>
+                  Fix <code>app:getPath</code> self-approving <code>$HOME</code> into the
+                  approved-paths registry
+                </li>
+                <li>
+                  Gate <code>fs:readImageAsBase64</code> through the approval check like every
+                  sibling handler
+                </li>
+                <li>
+                  Validate external diff/merge tool paths (whitelist + Settings-registered custom
+                  tools; reject arbitrary executables)
+                </li>
+                <li>
+                  Validate the custom-editor setting in <code>updateSettings</code>; never
+                  <code>shell:true</code> custom paths
+                </li>
+                <li>
+                  Write auth/config/approved-paths files mode <code>0o600</code>; validate SVN
+                  prop/changelist/shelve names
+                </li>
+              </ul>
+            </div>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Correctness &amp; runtime</div>
+              <ul class="milestones">
+                <li>
+                  Zombie-safe process teardown: process-group kill + SIGTERM→SIGKILL escalation on
+                  cancel/timeout
+                </li>
+                <li>
+                  Monitor interval: re-arm on completion, <code>unref()</code>, clear on quit;
+                  normalize path on <code>removeWorkingCopy</code>
+                </li>
+                <li>
+                  Consistent tagged error envelope across SVN handlers (no more <code>as T</code>)
+                </li>
+                <li>
+                  Upgrade Electron 33 → current (33 is end-of-life; missing Chromium/V8 security
+                  patches)
+                </li>
+                <li>
+                  Build the CLI entrypoint declared in <code>package.json</code>
+                  <code>bin</code> (currently never produced)
+                </li>
+                <li>
+                  Close <b>P0 data-safety</b> items from <code>SVN_IMPLEMENTATION_TODO.md</code>
+                </li>
+              </ul>
+            </div>
+            <div class="exit">
+              <b>Exit criteria</b>Targeted security re-review clean; zero open P0 data-safety items;
+              CLI builds &amp; runs; on a current Electron.
+            </div>
+          </div>
+        </article>
+
+        <!-- 1.3.0 -->
+        <article class="phase future">
+          <div class="phase-head">
+            <span class="ver-pill">1.3.0</span>
+            <div>
+              <h3>Accessibility &amp; Polish</h3>
+              <p class="phase-theme">Usable for everyone; pay down UX debt.</p>
+            </div>
+            <div class="phase-status">
+              <span class="status planned">Planned</span
+              ><span class="phase-when">target Q1 2027</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <p class="goals">
+              <b>Goal:</b> reach a WCAG 2.1 AA baseline on core flows and consolidate the renderer
+              onto one healthy set of patterns.
+            </p>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Accessibility</div>
+              <ul class="milestones">
+                <li>Mount the screen-reader announcer (currently dead infrastructure)</li>
+                <li>Add accessible names to all icon-only buttons (~37 unlabeled close buttons)</li>
+                <li>Fix the focus-trap overlay-click-to-close bug</li>
+                <li>
+                  Migrate ~40 legacy dialogs to <code>AccessibleDialog</code> — one modal mechanism
+                </li>
+                <li>
+                  ARIA + keyboard submenu support for Command Palette &amp; Context Menu; restore
+                  file-list grid semantics
+                </li>
+              </ul>
+            </div>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Code health &amp; perf basics</div>
+              <ul class="milestones">
+                <li>
+                  Stable-identity fixes so <code>FileRow</code> memoization actually works
+                  (<code>folderSizes</code>, <code>handleSelect</code>)
+                </li>
+                <li>Fix virtualization in <code>fileListHeight:'auto'</code></li>
+                <li>
+                  Resolve the dead operation queue (delete, or wire it in for real cancellation)
+                </li>
+                <li>
+                  Fix <code>repo-browser</code> cache-invalidation scope + the
+                  <code>:shelves</code> key mismatch
+                </li>
+                <li>Add re-entrancy guards so concurrent SVN ops can't run on one working copy</li>
+                <li>
+                  Promote oxlint correctness/suspicious to <code>error</code>; run
+                  <code>check:boundaries</code> in CI
+                </li>
+              </ul>
+            </div>
+            <div class="exit">
+              <b>Exit criteria</b>WCAG 2.1 AA on core commit/update/resolve flows; single modal
+              mechanism; file-list memoization effective; <b>P1</b> impl-todo items closed.
+            </div>
+          </div>
+        </article>
+
+        <!-- 1.4.0 -->
+        <article class="phase future">
+          <div class="phase-head">
+            <span class="ver-pill">1.4.0</span>
+            <div>
+              <h3>Performance &amp; Scale</h3>
+              <p class="phase-theme">Stay fast on the largest working copies.</p>
+            </div>
+            <div class="phase-status">
+              <span class="status planned">Planned</span
+              ><span class="phase-when">target Q2 2027</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <p class="goals">
+              <b>Goal:</b> prove the app stays responsive at the extremes, and harden the status
+              cache (<code>SVN_IMPLEMENTATION_TODO.md</code> cache section).
+            </p>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Scale</div>
+              <ul class="milestones">
+                <li>Virtualize Miller columns and every large list/tree</li>
+                <li>Streaming / incremental log &amp; status for very large repositories</li>
+                <li>Background status indexing + persistent, versioned cache with eviction</li>
+                <li>
+                  Runtime performance budgets (large working copy) enforced in CI alongside bundle
+                  budgets
+                </li>
+              </ul>
+            </div>
+            <div class="exit">
+              <b>Exit criteria</b>Smooth, sub-perceived-lag interaction on 100k-file working copies;
+              all budgets green.
+            </div>
+          </div>
+        </article>
+
+        <!-- 1.5.0 -->
+        <article class="phase future">
+          <div class="phase-head">
+            <span class="ver-pill">1.5.0</span>
+            <div>
+              <h3>Subversion Completeness</h3>
+              <p class="phase-theme">Reach full TortoiseSVN-class workflow parity.</p>
+            </div>
+            <div class="phase-status">
+              <span class="status planned">Planned</span
+              ><span class="phase-when">target H2 2027</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <p class="goals">
+              <b>Goal:</b> close the feature gaps against
+              <code>SVN_IMPLEMENTATION_TODO.md</code> P2/P3 so everyday SVN workflows are fully
+              supported in the GUI and CLI.
+            </p>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Feature parity</div>
+              <ul class="milestones">
+                <li>Shelves: save / apply / diff / restore, end-to-end</li>
+                <li>Patch: create / apply / view round-trip</li>
+                <li>Externals editor + status surfacing</li>
+                <li>
+                  Merge wizard hardening (2-URL, record-only, reintegrate) &amp; tree-conflict
+                  resolution
+                </li>
+                <li>
+                  Sparse-checkout depth management; properties &amp; revprop editing with validation
+                </li>
+                <li>Blame/annotate &amp; revision-graph correctness</li>
+                <li>CLI feature parity with the GUI via the shared logic-engine</li>
+              </ul>
+            </div>
+            <div class="exit">
+              <b>Exit criteria</b>Feature checklist green vs the TortoiseSVN baseline; real-SVN CI
+              lab green on macOS/Windows/Linux.
+            </div>
+          </div>
+        </article>
+
+        <!-- 2.0.0 -->
+        <article class="phase vision">
+          <div class="phase-head">
+            <span class="ver-pill">2.0.0</span>
+            <div>
+              <h3>Growth &amp; Vision</h3>
+              <p class="phase-theme">Integrations, automation, and beyond — exploratory.</p>
+            </div>
+            <div class="phase-status">
+              <span class="status vision">Vision</span><span class="phase-when">2028+</span>
+            </div>
+          </div>
+          <div class="phase-body">
+            <p class="goals">
+              <b>Goal:</b> bigger bets that only make sense once the 1.x line is proven and
+              complete. Nothing here is committed; these are directions to validate, not promises.
+            </p>
+            <div class="milestone-group">
+              <div class="group-label"><span class="dot"></span> Exploratory directions</div>
+              <ul class="milestones">
+                <li>Integrations: CI/CD (webhooks), issue-tracker links, IDE/editor plugins</li>
+                <li>Plugin / extension system</li>
+                <li>
+                  Team &amp; collaboration (shared bookmarks, hooks library, multi-repo dashboards)
+                </li>
+                <li>Optional cloud sync of settings, bookmarks, and working-copy metadata</li>
+                <li>
+                  Interactive history graph &amp; workflow automation (hooks, scripted/scheduled
+                  operations)
+                </li>
+                <li>
+                  Optional web/mobile companion; enterprise (SSO, audit logs, managed deployment)
+                </li>
+              </ul>
+            </div>
+            <div class="exit">
+              <b>Exit criteria</b>Each 2.0 item graduates only after a validated 1.x prototype; no
+              schedule committed.
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- ============================ SUMMARY TABLE ============================ -->
+      <section id="summary">
+        <div class="section-eyebrow">Summary</div>
+        <h2>Version table.</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Version</th>
+                <th>Theme</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Key exit gate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="ver">0.2.0</td>
+                <td>Sparse checkout</td>
+                <td>2026-02</td>
+                <td>Shipped</td>
+                <td>Sparse checkout + remote-item workflows</td>
+              </tr>
+              <tr>
+                <td class="ver">1.0.0</td>
+                <td>First stable</td>
+                <td>2026-05</td>
+                <td>Shipped</td>
+                <td>Cross-platform packaged binaries</td>
+              </tr>
+              <tr>
+                <td class="ver" style="color: var(--amber)">1.1.0</td>
+                <td>Update infrastructure</td>
+                <td>2026 Q3</td>
+                <td>Beta</td>
+                <td>Auto-update GA; signed artifacts enforced</td>
+              </tr>
+              <tr>
+                <td class="ver">1.2.0</td>
+                <td>Security &amp; Hardening</td>
+                <td>Q4 2026</td>
+                <td>Planned</td>
+                <td>Security re-review clean; zero P0; current Electron</td>
+              </tr>
+              <tr>
+                <td class="ver">1.3.0</td>
+                <td>Accessibility &amp; Polish</td>
+                <td>Q1 2027</td>
+                <td>Planned</td>
+                <td>WCAG 2.1 AA core flows; one modal mechanism</td>
+              </tr>
+              <tr>
+                <td class="ver">1.4.0</td>
+                <td>Performance &amp; Scale</td>
+                <td>Q2 2027</td>
+                <td>Planned</td>
+                <td>Smooth on 100k-file working copies</td>
+              </tr>
+              <tr>
+                <td class="ver">1.5.0</td>
+                <td>Subversion Completeness</td>
+                <td>H2 2027</td>
+                <td>Planned</td>
+                <td>TortoiseSVN parity checklist green</td>
+              </tr>
+              <tr>
+                <td class="ver" style="color: var(--violet)">2.0.0</td>
+                <td>Growth &amp; Vision</td>
+                <td>2028+</td>
+                <td>Exploratory</td>
+                <td>Validated 1.x prototypes only</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============================ RISKS ============================ -->
+      <section id="risks">
+        <div class="section-eyebrow">Risk &amp; mitigation</div>
+        <h2>What could derail the plan.</h2>
+        <p class="section-sub">The biggest uncertainties, and how each is bounded.</p>
+
+        <div class="risk">
+          <div class="risk-level high">High</div>
+          <div>
+            <h4>Known gaps in a shipped 1.0</h4>
+            <p>
+              The security review found real boundary holes in a product already at 1.0. Mitigation:
+              critical fixes ship as 1.1.x patches immediately; the structural work is the 1.2
+              hardening minor with a re-review gate.
+            </p>
+          </div>
+        </div>
+        <div class="risk">
+          <div class="risk-level high">High</div>
+          <div>
+            <h4>Bundled-SVN maintenance across platforms</h4>
+            <p>
+              Shipping a verified per-platform SVN binary is a standing burden. Mitigation: keep
+              <code>verify:binaries</code> as a hard build gate; track upstream SVN; consider a
+              shared binary pipeline.
+            </p>
+          </div>
+        </div>
+        <div class="risk">
+          <div class="risk-level med">Medium</div>
+          <div>
+            <h4>Scope creep on the 1.x line</h4>
+            <p>
+              Feature requests will compete with hardening/a11y. Mitigation: the versioning
+              philosophy makes correctness &gt; features explicit, and each minor has written exit
+              criteria.
+            </p>
+          </div>
+        </div>
+        <div class="risk">
+          <div class="risk-level med">Medium</div>
+          <div>
+            <h4>Electron major-version churn</h4>
+            <p>
+              Electron's cadence forces periodic migrations. Mitigation: a planned bump per cycle
+              (1.2 → current) rather than emergency jumps; CI runs real-SVN workflows on all
+              platforms.
+            </p>
+          </div>
+        </div>
+        <div class="risk">
+          <div class="risk-level low">Low</div>
+          <div>
+            <h4>Auto-update trust</h4>
+            <p>
+              Users must trust updates once they're automatic. Mitigation: 1.1 user-approves
+              updates, signs every artifact, and separates stable vs preview channels.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
-    <h3>Release cadence</h3>
-    <p style="color:var(--text-2);max-width:720px">
-      Proposed: one minor every <b>~6–10 weeks</b>, with patches as needed. A release may slip if it isn't
-      ready — but a release never ships before its exit criteria are met. Dates below are <b>proposed targets</b>,
-      adjustable as we learn.
-    </p>
-  </section>
 
-  <!-- ============================ HISTORY ============================ -->
-  <section id="history">
-    <div class="section-eyebrow">Shipped so far</div>
-    <h2>How we got here.</h2>
-    <p class="section-sub">A compact recap of the real release history (per git tags &amp; changelog), so the forward plan has honest context.</p>
-    <div class="card">
-      <div class="hist">
-        <div class="hv">0.1.0</div><div class="hd">Initial release — core SVN operations (checkout/update/commit/revert), repo browser, file explorer, log/diff viewers, basic conflict detection, cross-platform. <span class="when">2026-02</span></div>
-        <div class="hv">0.2.0</div><div class="hd">Sparse checkout support — interactive item picker, virtualized checkbox tree, remote-item display, repo-browser &amp; update-dialog integration. <span class="when">2026-02-20</span></div>
-        <div class="hv">1.0.0</div><div class="hd">First stable / preview release with packaged binaries for Windows, macOS, and Linux. Native file-manager integration gated pending full helper signing. <span class="when">2026-05-06</span></div>
-        <div class="hv">1.1.0-β</div><div class="hd">Auto-update infrastructure (NSIS / signed macOS / AppImage), stable + preview release channels, signed-artifact &amp; version-match release gates, and a Check-for-Modifications inspector. <span class="when">2026-07-31 · current</span></div>
-      </div>
-      <p style="margin:16px 0 0;color:var(--text-muted);font-size:13px">The modern desktop redesign (teal identity, command palette, Miller view, repo browser) landed in the 1.x cycle and is part of the current momentum into 1.2.</p>
-    </div>
-  </section>
-
-  <!-- ============================ TIMELINE ============================ -->
-  <section id="timeline">
-    <div class="section-eyebrow">At a glance</div>
-    <h2>The release arc.</h2>
-    <p class="section-sub">From the shipped 1.0 through the current 1.1 beta, then hardening, accessibility, scale, completeness, and the 2.0 vision.</p>
-    <div class="timeline">
-      <div class="tl-step done"><span class="tl-dot"></span><div class="tl-ver">1.0.0</div><div class="tl-name">First stable</div><div class="tl-when">May 2026 ✓</div></div>
-      <div class="tl-step current"><span class="tl-dot"></span><div class="tl-ver">1.1.0</div><div class="tl-name">Update infra</div><div class="tl-when">β now</div></div>
-      <div class="tl-step"><span class="tl-dot"></span><div class="tl-ver">1.2.0</div><div class="tl-name">Hardening</div><div class="tl-when">Q4 2026</div></div>
-      <div class="tl-step"><span class="tl-dot"></span><div class="tl-ver">1.3.0</div><div class="tl-name">A11y &amp; Polish</div><div class="tl-when">Q1 2027</div></div>
-      <div class="tl-step"><span class="tl-dot"></span><div class="tl-ver">1.4.0</div><div class="tl-name">Scale &amp; Perf</div><div class="tl-when">Q2 2027</div></div>
-      <div class="tl-step"><span class="tl-dot"></span><div class="tl-ver">1.5.0</div><div class="tl-name">SVN Complete</div><div class="tl-when">H2 2027</div></div>
-      <div class="tl-step"><span class="tl-dot"></span><div class="tl-ver">2.0</div><div class="tl-name">Vision</div><div class="tl-when">2028+</div></div>
-    </div>
-  </section>
-
-  <!-- ============================ ROADMAP ============================ -->
-  <section id="roadmap">
-    <div class="section-eyebrow">Milestones</div>
-    <h2>Goals &amp; milestones, by version.</h2>
-    <p class="section-sub">
-      The near-term milestones are grounded in the project's own audits — the security &amp; correctness review
-      and <code>SVN_IMPLEMENTATION_TODO.md</code> (P0 data-safety → P3 missing features). Because 1.0 is
-      already out, hardening lands as a fast-follow minor (1.2), with critical fixes shipping as patches.
-    </p>
-
-    <!-- 1.1.0 -->
-    <article class="phase next">
-      <div class="phase-head">
-        <span class="ver-pill">1.1.0</span>
+    <!-- ============================ FOOTER ============================ -->
+    <footer>
+      <div class="wrap">
         <div>
-          <h3>Update Infrastructure — GA</h3>
-          <p class="phase-theme">Ship the beta to a general-availability release.</p>
+          <div class="brand" style="margin-bottom: 8px">
+            <svg
+              viewBox="0 0 32 32"
+              fill="none"
+              aria-hidden="true"
+              style="width: 22px; height: 22px"
+            >
+              <path
+                d="M16 3 4 11v9l12 9 12-9v-9L16 3Z"
+                stroke="#2dd4bf"
+                stroke-width="2"
+                stroke-linejoin="round"
+                fill="rgba(45,212,191,0.06)"
+              />
+              <circle cx="16" cy="15" r="2.4" fill="#2dd4bf" />
+            </svg>
+            <span class="brand-name" style="font-size: 14px">ShellySVN</span>
+          </div>
+          <div>
+            A modern, standalone Subversion client — inspired by TortoiseSVN, rebuilt for today.
+          </div>
+          <div style="margin-top: 6px">
+            <a href="../README.md">README</a> · <a href="../CHANGELOG.md">Changelog</a> ·
+            <a href="project-audit-todo.md">Audit TODO</a> ·
+            <a href="../SVN_IMPLEMENTATION_TODO.md">Implementation TODO</a>
+          </div>
         </div>
-        <div class="phase-status"><span class="status next">Current · beta</span><span class="phase-when">target 2026 Q3</span></div>
+        <div style="text-align: right">
+          <div>MIT Licensed</div>
+          <div style="color: var(--text-faint)">Roadmap · revised 2026-07-31</div>
+        </div>
       </div>
-      <div class="phase-body">
-        <p class="goals"><b>Goal:</b> promote user-approved auto-update and the stable/preview channel model from beta to GA, with signed artifacts on every platform.</p>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Finish &amp; ship</div>
-          <ul class="milestones">
-            <li>GA auto-update: Windows NSIS, signed macOS, Linux AppImage</li>
-            <li>Stable + opt-in preview release channels live; updater metadata/blockmaps validated</li>
-            <li>Enforce version-match (git ↔ package) &amp; signed Windows/macOS artifacts as a release gate</li>
-            <li>Check-for-Modifications inspector (local vs repository status) shipped</li>
-            <li>Mac notarization / Windows code-signing green on the release pipeline</li>
-          </ul>
+      <div class="wrap">
+        <div class="note">
+          <b>This is a living document.</b> Versions, themes, and target windows are
+          <i>proposed</i> and will evolve as the project and its users do. The shipped history (0.1
+          → 0.2 → 1.0 → 1.1-β) is fixed; everything from 1.1 GA onward is a plan, not a promise.
+          Update the status pills and checkboxes here as milestones ship.
         </div>
-        <div class="exit"><b>Exit criteria</b>1.1.0 promoted to stable; auto-update proven end-to-end on all three platforms; no release can publish without signed artifacts.</div>
       </div>
-    </article>
-
-    <!-- 1.2.0 -->
-    <article class="phase future" style="border-left-color: var(--red)">
-      <div class="phase-head">
-        <span class="ver-pill" style="color:var(--red);border-color:rgba(242,102,106,.4)">1.2.0</span>
-        <div>
-          <h3>Security &amp; Hardening</h3>
-          <p class="phase-theme">Close the boundary gaps a shipped 1.0 can't carry.</p>
-        </div>
-        <div class="phase-status"><span class="status planned">Next planned</span><span class="phase-when">target Q4 2026</span></div>
-      </div>
-      <div class="phase-body">
-        <p class="goals"><b>Goal:</b> close the security boundary and eliminate data-safety risks found in the code review. <b>Critical fixes backport to 1.1.x patches immediately.</b></p>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Security boundary</div>
-          <ul class="milestones">
-            <li>Replace the unfiltered <code>ipcRenderer</code> bridge with a channel allowlist (only curated <code>window.api</code>)</li>
-            <li>Fix <code>app:getPath</code> self-approving <code>$HOME</code> into the approved-paths registry</li>
-            <li>Gate <code>fs:readImageAsBase64</code> through the approval check like every sibling handler</li>
-            <li>Validate external diff/merge tool paths (whitelist + Settings-registered custom tools; reject arbitrary executables)</li>
-            <li>Validate the custom-editor setting in <code>updateSettings</code>; never <code>shell:true</code> custom paths</li>
-            <li>Write auth/config/approved-paths files mode <code>0o600</code>; validate SVN prop/changelist/shelve names</li>
-          </ul>
-        </div>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Correctness &amp; runtime</div>
-          <ul class="milestones">
-            <li>Zombie-safe process teardown: process-group kill + SIGTERM→SIGKILL escalation on cancel/timeout</li>
-            <li>Monitor interval: re-arm on completion, <code>unref()</code>, clear on quit; normalize path on <code>removeWorkingCopy</code></li>
-            <li>Consistent tagged error envelope across SVN handlers (no more <code>as T</code>)</li>
-            <li>Upgrade Electron 33 → current (33 is end-of-life; missing Chromium/V8 security patches)</li>
-            <li>Build the CLI entrypoint declared in <code>package.json</code> <code>bin</code> (currently never produced)</li>
-            <li>Close <b>P0 data-safety</b> items from <code>SVN_IMPLEMENTATION_TODO.md</code></li>
-          </ul>
-        </div>
-        <div class="exit"><b>Exit criteria</b>Targeted security re-review clean; zero open P0 data-safety items; CLI builds &amp; runs; on a current Electron.</div>
-      </div>
-    </article>
-
-    <!-- 1.3.0 -->
-    <article class="phase future">
-      <div class="phase-head">
-        <span class="ver-pill">1.3.0</span>
-        <div>
-          <h3>Accessibility &amp; Polish</h3>
-          <p class="phase-theme">Usable for everyone; pay down UX debt.</p>
-        </div>
-        <div class="phase-status"><span class="status planned">Planned</span><span class="phase-when">target Q1 2027</span></div>
-      </div>
-      <div class="phase-body">
-        <p class="goals"><b>Goal:</b> reach a WCAG 2.1 AA baseline on core flows and consolidate the renderer onto one healthy set of patterns.</p>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Accessibility</div>
-          <ul class="milestones">
-            <li>Mount the screen-reader announcer (currently dead infrastructure)</li>
-            <li>Add accessible names to all icon-only buttons (~37 unlabeled close buttons)</li>
-            <li>Fix the focus-trap overlay-click-to-close bug</li>
-            <li>Migrate ~40 legacy dialogs to <code>AccessibleDialog</code> — one modal mechanism</li>
-            <li>ARIA + keyboard submenu support for Command Palette &amp; Context Menu; restore file-list grid semantics</li>
-          </ul>
-        </div>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Code health &amp; perf basics</div>
-          <ul class="milestones">
-            <li>Stable-identity fixes so <code>FileRow</code> memoization actually works (<code>folderSizes</code>, <code>handleSelect</code>)</li>
-            <li>Fix virtualization in <code>fileListHeight:'auto'</code></li>
-            <li>Resolve the dead operation queue (delete, or wire it in for real cancellation)</li>
-            <li>Fix <code>repo-browser</code> cache-invalidation scope + the <code>:shelves</code> key mismatch</li>
-            <li>Add re-entrancy guards so concurrent SVN ops can't run on one working copy</li>
-            <li>Promote oxlint correctness/suspicious to <code>error</code>; run <code>check:boundaries</code> in CI</li>
-          </ul>
-        </div>
-        <div class="exit"><b>Exit criteria</b>WCAG 2.1 AA on core commit/update/resolve flows; single modal mechanism; file-list memoization effective; <b>P1</b> impl-todo items closed.</div>
-      </div>
-    </article>
-
-    <!-- 1.4.0 -->
-    <article class="phase future">
-      <div class="phase-head">
-        <span class="ver-pill">1.4.0</span>
-        <div>
-          <h3>Performance &amp; Scale</h3>
-          <p class="phase-theme">Stay fast on the largest working copies.</p>
-        </div>
-        <div class="phase-status"><span class="status planned">Planned</span><span class="phase-when">target Q2 2027</span></div>
-      </div>
-      <div class="phase-body">
-        <p class="goals"><b>Goal:</b> prove the app stays responsive at the extremes, and harden the status cache (<code>SVN_IMPLEMENTATION_TODO.md</code> cache section).</p>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Scale</div>
-          <ul class="milestones">
-            <li>Virtualize Miller columns and every large list/tree</li>
-            <li>Streaming / incremental log &amp; status for very large repositories</li>
-            <li>Background status indexing + persistent, versioned cache with eviction</li>
-            <li>Runtime performance budgets (large working copy) enforced in CI alongside bundle budgets</li>
-          </ul>
-        </div>
-        <div class="exit"><b>Exit criteria</b>Smooth, sub-perceived-lag interaction on 100k-file working copies; all budgets green.</div>
-      </div>
-    </article>
-
-    <!-- 1.5.0 -->
-    <article class="phase future">
-      <div class="phase-head">
-        <span class="ver-pill">1.5.0</span>
-        <div>
-          <h3>Subversion Completeness</h3>
-          <p class="phase-theme">Reach full TortoiseSVN-class workflow parity.</p>
-        </div>
-        <div class="phase-status"><span class="status planned">Planned</span><span class="phase-when">target H2 2027</span></div>
-      </div>
-      <div class="phase-body">
-        <p class="goals"><b>Goal:</b> close the feature gaps against <code>SVN_IMPLEMENTATION_TODO.md</code> P2/P3 so everyday SVN workflows are fully supported in the GUI and CLI.</p>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Feature parity</div>
-          <ul class="milestones">
-            <li>Shelves: save / apply / diff / restore, end-to-end</li>
-            <li>Patch: create / apply / view round-trip</li>
-            <li>Externals editor + status surfacing</li>
-            <li>Merge wizard hardening (2-URL, record-only, reintegrate) &amp; tree-conflict resolution</li>
-            <li>Sparse-checkout depth management; properties &amp; revprop editing with validation</li>
-            <li>Blame/annotate &amp; revision-graph correctness</li>
-            <li>CLI feature parity with the GUI via the shared logic-engine</li>
-          </ul>
-        </div>
-        <div class="exit"><b>Exit criteria</b>Feature checklist green vs the TortoiseSVN baseline; real-SVN CI lab green on macOS/Windows/Linux.</div>
-      </div>
-    </article>
-
-    <!-- 2.0.0 -->
-    <article class="phase vision">
-      <div class="phase-head">
-        <span class="ver-pill">2.0.0</span>
-        <div>
-          <h3>Growth &amp; Vision</h3>
-          <p class="phase-theme">Integrations, automation, and beyond — exploratory.</p>
-        </div>
-        <div class="phase-status"><span class="status vision">Vision</span><span class="phase-when">2028+</span></div>
-      </div>
-      <div class="phase-body">
-        <p class="goals"><b>Goal:</b> bigger bets that only make sense once the 1.x line is proven and complete. Nothing here is committed; these are directions to validate, not promises.</p>
-        <div class="milestone-group">
-          <div class="group-label"><span class="dot"></span> Exploratory directions</div>
-          <ul class="milestones">
-            <li>Integrations: CI/CD (webhooks), issue-tracker links, IDE/editor plugins</li>
-            <li>Plugin / extension system</li>
-            <li>Team &amp; collaboration (shared bookmarks, hooks library, multi-repo dashboards)</li>
-            <li>Optional cloud sync of settings, bookmarks, and working-copy metadata</li>
-            <li>Interactive history graph &amp; workflow automation (hooks, scripted/scheduled operations)</li>
-            <li>Optional web/mobile companion; enterprise (SSO, audit logs, managed deployment)</li>
-          </ul>
-        </div>
-        <div class="exit"><b>Exit criteria</b>Each 2.0 item graduates only after a validated 1.x prototype; no schedule committed.</div>
-      </div>
-    </article>
-  </section>
-
-  <!-- ============================ SUMMARY TABLE ============================ -->
-  <section id="summary">
-    <div class="section-eyebrow">Summary</div>
-    <h2>Version table.</h2>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Version</th><th>Theme</th><th>Target</th><th>Status</th><th>Key exit gate</th></tr></thead>
-        <tbody>
-          <tr><td class="ver">0.2.0</td><td>Sparse checkout</td><td>2026-02</td><td>Shipped</td><td>Sparse checkout + remote-item workflows</td></tr>
-          <tr><td class="ver">1.0.0</td><td>First stable</td><td>2026-05</td><td>Shipped</td><td>Cross-platform packaged binaries</td></tr>
-          <tr><td class="ver" style="color:var(--amber)">1.1.0</td><td>Update infrastructure</td><td>2026 Q3</td><td>Beta</td><td>Auto-update GA; signed artifacts enforced</td></tr>
-          <tr><td class="ver">1.2.0</td><td>Security &amp; Hardening</td><td>Q4 2026</td><td>Planned</td><td>Security re-review clean; zero P0; current Electron</td></tr>
-          <tr><td class="ver">1.3.0</td><td>Accessibility &amp; Polish</td><td>Q1 2027</td><td>Planned</td><td>WCAG 2.1 AA core flows; one modal mechanism</td></tr>
-          <tr><td class="ver">1.4.0</td><td>Performance &amp; Scale</td><td>Q2 2027</td><td>Planned</td><td>Smooth on 100k-file working copies</td></tr>
-          <tr><td class="ver">1.5.0</td><td>Subversion Completeness</td><td>H2 2027</td><td>Planned</td><td>TortoiseSVN parity checklist green</td></tr>
-          <tr><td class="ver" style="color:var(--violet)">2.0.0</td><td>Growth &amp; Vision</td><td>2028+</td><td>Exploratory</td><td>Validated 1.x prototypes only</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- ============================ RISKS ============================ -->
-  <section id="risks">
-    <div class="section-eyebrow">Risk &amp; mitigation</div>
-    <h2>What could derail the plan.</h2>
-    <p class="section-sub">The biggest uncertainties, and how each is bounded.</p>
-
-    <div class="risk">
-      <div class="risk-level high">High</div>
-      <div><h4>Known gaps in a shipped 1.0</h4><p>The security review found real boundary holes in a product already at 1.0. Mitigation: critical fixes ship as 1.1.x patches immediately; the structural work is the 1.2 hardening minor with a re-review gate.</p></div>
-    </div>
-    <div class="risk">
-      <div class="risk-level high">High</div>
-      <div><h4>Bundled-SVN maintenance across platforms</h4><p>Shipping a verified per-platform SVN binary is a standing burden. Mitigation: keep <code>verify:binaries</code> as a hard build gate; track upstream SVN; consider a shared binary pipeline.</p></div>
-    </div>
-    <div class="risk">
-      <div class="risk-level med">Medium</div>
-      <div><h4>Scope creep on the 1.x line</h4><p>Feature requests will compete with hardening/a11y. Mitigation: the versioning philosophy makes correctness &gt; features explicit, and each minor has written exit criteria.</p></div>
-    </div>
-    <div class="risk">
-      <div class="risk-level med">Medium</div>
-      <div><h4>Electron major-version churn</h4><p>Electron's cadence forces periodic migrations. Mitigation: a planned bump per cycle (1.2 → current) rather than emergency jumps; CI runs real-SVN workflows on all platforms.</p></div>
-    </div>
-    <div class="risk">
-      <div class="risk-level low">Low</div>
-      <div><h4>Auto-update trust</h4><p>Users must trust updates once they're automatic. Mitigation: 1.1 user-approves updates, signs every artifact, and separates stable vs preview channels.</p></div>
-    </div>
-  </section>
-</div>
-
-<!-- ============================ FOOTER ============================ -->
-<footer>
-  <div class="wrap">
-    <div>
-      <div class="brand" style="margin-bottom:8px">
-        <svg viewBox="0 0 32 32" fill="none" aria-hidden="true" style="width:22px;height:22px">
-          <path d="M16 3 4 11v9l12 9 12-9v-9L16 3Z" stroke="#2dd4bf" stroke-width="2" stroke-linejoin="round" fill="rgba(45,212,191,0.06)"/>
-          <circle cx="16" cy="15" r="2.4" fill="#2dd4bf"/>
-        </svg>
-        <span class="brand-name" style="font-size:14px">ShellySVN</span>
-      </div>
-      <div>A modern, standalone Subversion client — inspired by TortoiseSVN, rebuilt for today.</div>
-      <div style="margin-top:6px"><a href="../README.md">README</a> · <a href="../CHANGELOG.md">Changelog</a> · <a href="project-audit-todo.md">Audit TODO</a> · <a href="../SVN_IMPLEMENTATION_TODO.md">Implementation TODO</a></div>
-    </div>
-    <div style="text-align:right">
-      <div>MIT Licensed</div>
-      <div style="color:var(--text-faint)">Roadmap · revised 2026-07-31</div>
-    </div>
-  </div>
-  <div class="wrap">
-    <div class="note">
-      <b>This is a living document.</b> Versions, themes, and target windows are <i>proposed</i> and will
-      evolve as the project and its users do. The shipped history (0.1 → 0.2 → 1.0 → 1.1-β) is fixed;
-      everything from 1.1 GA onward is a plan, not a promise. Update the status pills and checkboxes here as
-      milestones ship.
-    </div>
-  </div>
-</footer>
-
-</body>
+    </footer>
+  </body>
 </html>

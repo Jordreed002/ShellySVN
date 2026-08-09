@@ -92,11 +92,14 @@ describe('listCodeEditors', () => {
    * the filter is a no-op there and Windows resolution relies on PATHEXT
    * instead (covered in the 'Windows editor resolution' block below).
    */
-  it.skipIf(process.platform === 'win32')('ignores a file that is present but not executable', async () => {
-    fakeNonExecutable('cursor');
+  it.skipIf(process.platform === 'win32')(
+    'ignores a file that is present but not executable',
+    async () => {
+      fakeNonExecutable('cursor');
 
-    await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
-  });
+      await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
+    }
+  );
 
   it('offers nothing when PATH holds no editor at all', async () => {
     await expect(listCodeEditors({ refresh: true })).resolves.toEqual([]);
@@ -188,11 +191,7 @@ describe('buildCustomArgs', () => {
   });
 
   it('puts the path exactly where {path} is', () => {
-    expect(buildCustomArgs('--diff {path} --wait', '/wc/x')).toEqual([
-      '--diff',
-      '/wc/x',
-      '--wait',
-    ]);
+    expect(buildCustomArgs('--diff {path} --wait', '/wc/x')).toEqual(['--diff', '/wc/x', '--wait']);
   });
 
   it('keeps a quoted argument in one piece', () => {

@@ -49,18 +49,24 @@ describe('getCachedCredentialsForUrl', () => {
   });
 
   it('returns undefined when there is no match', async () => {
-    await expect(getCachedCredentialsForUrl('https://svn.example.com/repo')).resolves.toBeUndefined();
+    await expect(
+      getCachedCredentialsForUrl('https://svn.example.com/repo')
+    ).resolves.toBeUndefined();
   });
 
   it('swallows cache errors and returns undefined', async () => {
     authCache.ready.mockRejectedValue(new Error('cache locked'));
-    await expect(getCachedCredentialsForUrl('https://svn.example.com/repo')).resolves.toBeUndefined();
+    await expect(
+      getCachedCredentialsForUrl('https://svn.example.com/repo')
+    ).resolves.toBeUndefined();
   });
 });
 
 describe('getCachedTrustedSslFailuresForUrl', () => {
   it('skips the SSL cache entirely for non-https URLs', async () => {
-    await expect(getCachedTrustedSslFailuresForUrl('svn://svn.example.com/repo')).resolves.toBeUndefined();
+    await expect(
+      getCachedTrustedSslFailuresForUrl('svn://svn.example.com/repo')
+    ).resolves.toBeUndefined();
     expect(sslCache.findForUrl).not.toHaveBeenCalled();
   });
 
@@ -72,7 +78,9 @@ describe('getCachedTrustedSslFailuresForUrl', () => {
   });
 
   it('returns undefined when no trust is cached for the https URL', async () => {
-    await expect(getCachedTrustedSslFailuresForUrl('https://svn.example.com/repo')).resolves.toBeUndefined();
+    await expect(
+      getCachedTrustedSslFailuresForUrl('https://svn.example.com/repo')
+    ).resolves.toBeUndefined();
   });
 });
 

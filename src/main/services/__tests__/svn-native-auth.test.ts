@@ -7,11 +7,15 @@ import { listNativeAuth, parseNativeAuthList, removeNativeAuth } from '../svn-na
 describe('svn native auth', () => {
   beforeEach(() => vi.clearAllMocks());
   it('parses credentials without exposing password fields', () => {
-    expect(parseNativeAuthList(`Credential kind: svn.simple
+    expect(
+      parseNativeAuthList(`Credential kind: svn.simple
 Authentication realm: <https://svn.example.com:443> Repo
 Username: alice
 Password: (not shown)
-`)).toEqual([{ kind: 'svn.simple', realm: '<https://svn.example.com:443> Repo', username: 'alice' }]);
+`)
+    ).toEqual([
+      { kind: 'svn.simple', realm: '<https://svn.example.com:443> Repo', username: 'alice' },
+    ]);
   });
   it('never requests passwords and removes only explicit patterns', async () => {
     state.runSvnText.mockResolvedValue('');

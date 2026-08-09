@@ -65,9 +65,13 @@ describe('useBranchList', () => {
   it('fetches branches and tags, deriving trunkUrl and the youngest revision', async () => {
     mockSvnList.mockImplementation((url: string) => {
       if (url.endsWith('/branches'))
-        return Promise.resolve(listResult(`${ROOT}/branches`, [{ name: 'feature', kind: 'dir', revision: 42 }]));
+        return Promise.resolve(
+          listResult(`${ROOT}/branches`, [{ name: 'feature', kind: 'dir', revision: 42 }])
+        );
       if (url.endsWith('/tags'))
-        return Promise.resolve(listResult(`${ROOT}/tags`, [{ name: 'v1', kind: 'dir', revision: 7 }]));
+        return Promise.resolve(
+          listResult(`${ROOT}/tags`, [{ name: 'v1', kind: 'dir', revision: 7 }])
+        );
       return Promise.reject(new Error('unexpected url'));
     });
 
@@ -80,7 +84,11 @@ describe('useBranchList', () => {
     expect(result.current.data).toMatchObject({ trunkUrl: `${ROOT}/trunk`, youngestRev: 42 });
     expect(result.current.data?.branches).toHaveLength(1);
     expect(result.current.data?.tags).toHaveLength(1);
-    expect(result.current.data?.branches[0]).toMatchObject({ name: 'feature', revision: 42, author: 'alice' });
+    expect(result.current.data?.branches[0]).toMatchObject({
+      name: 'feature',
+      revision: 42,
+      author: 'alice',
+    });
   });
 
   it('keeps only directories, dropping files', async () => {

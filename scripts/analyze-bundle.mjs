@@ -7,6 +7,8 @@ const DEFAULT_RAW_LIMIT_BYTES = 750 * KIB;
 const DEFAULT_GZIP_LIMIT_BYTES = 160 * KIB;
 const PREFERRED_RAW_TARGET_BYTES = 720 * KIB;
 const PREFERRED_GZIP_TARGET_BYTES = 150 * KIB;
+const MIN_GZIP_HEADROOM_BYTES = 8 * KIB;
+const MIN_DYNAMIC_ENTRY_COUNT = 10;
 const REPORT_PATH = resolve(process.cwd(), 'reports/bundle/renderer-bundle-report.json');
 
 function formatBytes(bytes) {
@@ -70,6 +72,7 @@ function checkBundleBudget() {
   }
 
   const initialChunks = getInitialChunks(chunks);
+  const dynamicEntries = chunks.filter((chunk) => chunk.isDynamicEntry);
   const rawBytes = initialChunks.reduce((total, chunk) => total + chunk.bytes, 0);
   const gzipBytes = initialChunks.reduce((total, chunk) => total + chunk.gzipBytes, 0);
   const rawLimitBytes = readBudgetBytes(
@@ -87,6 +90,7 @@ function checkBundleBudget() {
   console.log(`  Gzip: ${formatBytes(gzipBytes)} / ${formatBytes(gzipLimitBytes)}`);
   console.log(`  Raw hard-limit headroom: ${formatHeadroom(rawLimitBytes - rawBytes)}`);
   console.log(`  Gzip hard-limit headroom: ${formatHeadroom(gzipLimitBytes - gzipBytes)}`);
+  console.log(`  Lazy entry chunks: ${dynamicEntries.length} (minimum ${MIN_DYNAMIC_ENTRY_COUNT})`);
 
   const preferredMet =
     rawBytes <= PREFERRED_RAW_TARGET_BYTES && gzipBytes <= PREFERRED_GZIP_TARGET_BYTES;
@@ -109,6 +113,17 @@ function checkBundleBudget() {
   }
   if (gzipBytes > gzipLimitBytes) {
     failures.push(`gzip ${formatBytes(gzipBytes)} exceeds ${formatBytes(gzipLimitBytes)}`);
+  }
+  if (gzipLimitBytes - gzipBytes < MIN_GZIP_HEADROOM_BYTES) {
+    failures.push(
+      `gzip headroom ${formatBytes(gzipLimitBytes - gzipBytes)} is below the ` +
+        `${formatBytes(MIN_GZIP_HEADROOM_BYTES)} release reserve`
+    );
+  }
+  if (dynamicEntries.length < MIN_DYNAMIC_ENTRY_COUNT) {
+    failures.push(
+      `only ${dynamicEntries.length} lazy entry chunks remain; expected at least ${MIN_DYNAMIC_ENTRY_COUNT}`
+    );
   }
 
   if (failures.length > 0) {

@@ -4,8 +4,10 @@ import { runSvnText } from './svn-executor';
 function validatePatterns(patterns: string[]): void {
   for (const pattern of patterns) {
     if (!pattern.trim()) throw new Error('Authentication pattern must not be empty');
-    if (/\p{Cc}/u.test(pattern)) throw new Error('Authentication pattern contains control characters');
-    if (pattern.startsWith('-')) throw new Error('Authentication pattern must not begin with an option prefix');
+    if (/\p{Cc}/u.test(pattern))
+      throw new Error('Authentication pattern contains control characters');
+    if (pattern.startsWith('-'))
+      throw new Error('Authentication pattern must not begin with an option prefix');
   }
 }
 
@@ -14,9 +16,12 @@ export function parseNativeAuthList(output: string): SvnNativeAuthEntry[] {
   let current: Partial<SvnNativeAuthEntry> = {};
   const flush = () => {
     if (current.kind || current.realm) {
-      entries.push({ kind: current.kind || 'unknown', realm: current.realm || 'unknown',
+      entries.push({
+        kind: current.kind || 'unknown',
+        realm: current.realm || 'unknown',
         ...(current.username ? { username: current.username } : {}),
-        ...(current.certificate ? { certificate: current.certificate } : {}) });
+        ...(current.certificate ? { certificate: current.certificate } : {}),
+      });
     }
     current = {};
   };
@@ -32,7 +37,8 @@ export function parseNativeAuthList(output: string): SvnNativeAuthEntry[] {
     if (key === 'credential kind') current.kind = value;
     else if (key === 'authentication realm') current.realm = value;
     else if (key === 'username') current.username = value;
-    else if (key.includes('certificate') && !key.includes('passphrase')) current.certificate = value;
+    else if (key.includes('certificate') && !key.includes('passphrase'))
+      current.certificate = value;
   }
   flush();
   return entries;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, GitCompare, Loader2, X } from 'lucide-react';
-import type { SvnDiffResult } from '@shared/types';
+import type { BranchComparisonReport, SvnDiffResult } from '@shared/types';
 import { EnhancedDiffViewer } from './EnhancedDiffViewer';
 import { VirtualizedDiffViewer } from './VirtualizedDiffViewer';
 
@@ -44,6 +44,7 @@ export function BranchTagCompareDialog({
   const [leftUrl, setLeftUrl] = useState('');
   const [rightUrl, setRightUrl] = useState('');
   const [diff, setDiff] = useState<SvnDiffResult | null>(null);
+  const [summary, setSummary] = useState<BranchComparisonReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +53,7 @@ export function BranchTagCompareDialog({
     setLeftUrl(sourceUrl);
     setRightUrl(suggestComparisonUrl(sourceUrl));
     setDiff(null);
+    setSummary(null);
     setError(null);
     setIsLoading(false);
   }, [isOpen, sourceUrl]);
@@ -74,10 +76,12 @@ export function BranchTagCompareDialog({
     setIsLoading(true);
     setError(null);
     setDiff(null);
+    setSummary(null);
 
     try {
-      const result = await window.api.svn.diffUrls(leftUrl.trim(), rightUrl.trim());
-      setDiff(result);
+      const result = await window.api.svn.compareBranches(leftUrl.trim(), rightUrl.trim());
+      setDiff(result.diff);
+      setSummary(result.summary);
     } catch (err) {
       setError((err as Error).message || 'Failed to compare branches or tags');
     } finally {
@@ -152,7 +156,7 @@ export function BranchTagCompareDialog({
           </div>
         </form>
 
-        <div className="flex-1 overflow-hidden bg-bg">
+        <div className="flex flex-1 flex-col overflow-hidden bg-bg">
           {error && (
             <div className="m-4 flex items-center gap-2 rounded border border-error/30 bg-error/10 p-3 text-sm text-error">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -167,16 +171,57 @@ export function BranchTagCompareDialog({
             </div>
           )}
 
+          {!isLoading && summary && (
+            <section className="flex-shrink-0 border-b border-border bg-bg-sunk px-4 py-3">
+              <div className="grid grid-cols-[auto_auto_1fr] items-start gap-4">
+                <SummaryMetric label="Changed paths" value={summary.changedFiles.length} />
+                <SummaryMetric
+                  label="Unique revisions"
+                  value={summary.leftOnlyRevisions.length + summary.rightOnlyRevisions.length}
+                />
+                <div className="min-w-0">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-text-faint">
+                    Deterministic impact evidence
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {summary.impactGroups.map((group) => (
+                      <span
+                        key={group.category}
+                        className="rounded border border-border bg-bg-secondary px-2 py-1 text-xs text-text-secondary"
+                        title={group.evidence
+                          .slice(0, 10)
+                          .map((item) => `r${item.revision} ${item.action} ${item.path}`)
+                          .join('\n')}
+                      >
+                        {impactLabel(group.category)} · {group.evidence.length}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {(summary.leftOnlyRevisions.length > 0 || summary.rightOnlyRevisions.length > 0) && (
+                <div className="mt-2 flex gap-4 font-mono text-[10px] text-text-muted">
+                  <span title={summary.leftOnlyRevisions.join(', ')}>
+                    Base only: {formatRevisions(summary.leftOnlyRevisions)}
+                  </span>
+                  <span title={summary.rightOnlyRevisions.join(', ')}>
+                    Compare only: {formatRevisions(summary.rightOnlyRevisions)}
+                  </span>
+                </div>
+              )}
+            </section>
+          )}
+
           {!isLoading &&
             diff &&
             diff.hasChanges &&
             (getDiffLineCount(diff) > 2000 ? (
-              <VirtualizedDiffViewer diff={diff} className="h-full" />
+              <VirtualizedDiffViewer diff={diff} className="min-h-0 flex-1" />
             ) : (
               <EnhancedDiffViewer
                 diff={diff}
                 filePath={`${leftUrl.trim()} -> ${rightUrl.trim()}`}
-                className="h-full"
+                className="min-h-0 flex-1"
               />
             ))}
 
@@ -195,4 +240,23 @@ export function BranchTagCompareDialog({
       </div>
     </div>
   );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-24 border-l-2 border-accent pl-2">
+      <div className="font-mono text-lg font-semibold text-text">{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-text-faint">{label}</div>
+    </div>
+  );
+}
+
+function impactLabel(category: BranchComparisonReport['impactGroups'][number]['category']) {
+  return category.replace('branch-or-tag', 'branches / tags').replace('documentation', 'docs');
+}
+
+function formatRevisions(revisions: number[]): string {
+  if (revisions.length === 0) return 'none';
+  const visible = revisions.slice(0, 8).map((revision) => `r${revision}`);
+  return `${visible.join(', ')}${revisions.length > visible.length ? ` +${revisions.length - visible.length}` : ''}`;
 }

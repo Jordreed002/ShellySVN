@@ -80,7 +80,7 @@ For release go/no-go status, use `production-release-blockers.md`. For scope dec
 - [x] Move webhook delivery to a main-process service with URL validation and timeout handling.
 - [x] Correct shell integration status when native helpers are missing.
 - [x] Split large modules: `svn.ts`, `SettingsDialog.tsx`, and `FileExplorer.tsx`.
-  First boundary identified and started by extracting `src/main/services/svn-executor.ts`.
+      First boundary identified and started by extracting `src/main/services/svn-executor.ts`.
 - [x] Execute the refactor and codebase improvement backlog from the completed planning audit.
 - [x] Execute the performance improvement backlog from the completed planning audit.
 

@@ -169,7 +169,10 @@ export interface RepoSort {
 export type SearchScope = 'folder' | 'repository';
 
 /** A peg revision applied to the whole browser, or HEAD. */
-export type PegRevision = { kind: 'head' } | { kind: 'revision'; revision: number } | { kind: 'date'; date: string };
+export type PegRevision =
+  | { kind: 'head' }
+  | { kind: 'revision'; revision: number }
+  | { kind: 'date'; date: string };
 
 /**
  * What `Copy to…` was asked for. The browser never copies anything itself —

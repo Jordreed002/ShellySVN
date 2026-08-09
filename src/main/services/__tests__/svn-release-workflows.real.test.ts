@@ -230,7 +230,10 @@ describeIfSvn('release-critical SVN workflows against a real repository', () => 
     'reads and mutates over svn:// and reports authentication failures structurally',
     async () => {
       const confPath = join(repoPath, 'conf', 'svnserve.conf');
-      writeFileSync(join(repoPath, 'conf', 'passwd'), ['[users]', 'reader = secret', ''].join('\n'));
+      writeFileSync(
+        join(repoPath, 'conf', 'passwd'),
+        ['[users]', 'reader = secret', ''].join('\n')
+      );
       writeFileSync(
         confPath,
         [

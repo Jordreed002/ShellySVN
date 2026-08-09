@@ -72,26 +72,59 @@
       dir('tests', `${WC_REPO}/tests`, 4744, 'tao.n', '2026-07-19T09:00:00Z'),
       dir('vendor', `${WC_REPO}/vendor`, 4831, 'tao.n', '2026-07-24T09:00:00Z'),
       file('package.json', `${WC_REPO}/package.json`, 4838, 'mira.k', '2026-07-26T09:12:00Z', 4100),
-      file('tailwind.config.js', `${WC_REPO}/tailwind.config.js`, 4811, 'jordan', '2026-07-25T09:00:00Z', 3200),
+      file(
+        'tailwind.config.js',
+        `${WC_REPO}/tailwind.config.js`,
+        4811,
+        'jordan',
+        '2026-07-25T09:00:00Z',
+        3200
+      ),
       file('README.md', `${WC_REPO}/README.md`, 4790, 'jordan', '2026-07-20T09:00:00Z', 8800),
     ],
   };
 
   function listFor(url) {
-    const rel = String(url).replace(ROOT, '').replace(/^\/+|\/+$/g, '');
+    const rel = String(url)
+      .replace(ROOT, '')
+      .replace(/^\/+|\/+$/g, '');
     return LISTINGS[rel] || [];
   }
 
   /** One conflict, one replace, one add, one lock — the interesting states. */
   const STATUS_ENTRIES = [
-    { path: `${WC_LOCAL}/src`, status: 'normal', isDirectory: true, childChangeCount: 6, revision: 4802 },
+    {
+      path: `${WC_LOCAL}/src`,
+      status: 'normal',
+      isDirectory: true,
+      childChangeCount: 6,
+      revision: 4802,
+    },
     { path: `${WC_LOCAL}/src/main/svn.ts`, status: 'M', isDirectory: false, revision: 4802 },
     { path: `${WC_LOCAL}/src/main/client.ts`, status: 'C', isDirectory: false, revision: 4802 },
     { path: `${WC_LOCAL}/src/main/auth.ts`, status: 'R', isDirectory: false, revision: 4790 },
     { path: `${WC_LOCAL}/src/renderer/MergePreview.tsx`, status: 'A', isDirectory: false },
-    { path: `${WC_LOCAL}/packages`, status: 'normal', isDirectory: true, childChangeCount: 1, revision: 4838 },
-    { path: `${WC_LOCAL}/docs`, status: 'normal', isDirectory: true, childChangeCount: 1, revision: 4835 },
-    { path: `${WC_LOCAL}/tests`, status: 'normal', isDirectory: true, childChangeCount: 1, revision: 4744 },
+    {
+      path: `${WC_LOCAL}/packages`,
+      status: 'normal',
+      isDirectory: true,
+      childChangeCount: 1,
+      revision: 4838,
+    },
+    {
+      path: `${WC_LOCAL}/docs`,
+      status: 'normal',
+      isDirectory: true,
+      childChangeCount: 1,
+      revision: 4835,
+    },
+    {
+      path: `${WC_LOCAL}/tests`,
+      status: 'normal',
+      isDirectory: true,
+      childChangeCount: 1,
+      revision: 4744,
+    },
     {
       path: `${WC_LOCAL}/package.json`,
       status: 'M',
@@ -103,10 +136,37 @@
   ];
 
   const LOG = [
-    { revision: 4838, author: 'mira.k', date: '2026-07-26T14:00:00Z', message: 'Fix lock retention when releasing stale locks', paths: [{ action: 'M', path: '/trunk/src/main/svn.ts' }, { action: 'M', path: '/trunk/package.json' }] },
-    { revision: 4837, author: 'devon', date: '2026-07-26T11:00:00Z', message: 'Add merge preview scaffolding', paths: [{ action: 'A', path: '/trunk/src/renderer/MergePreview.tsx' }] },
-    { revision: 4836, author: 'tao.n', date: '2026-07-26T08:00:00Z', message: 'Bump oxlint to 1.4.0', paths: [{ action: 'M', path: '/trunk/package.json' }] },
-    { revision: 4835, author: 'jordan', date: '2026-07-25T16:04:00Z', message: 'Harden SVN operations and compatibility coverage', paths: [{ action: 'M', path: '/trunk/docs/CHANGELOG.md' }] },
+    {
+      revision: 4838,
+      author: 'mira.k',
+      date: '2026-07-26T14:00:00Z',
+      message: 'Fix lock retention when releasing stale locks',
+      paths: [
+        { action: 'M', path: '/trunk/src/main/svn.ts' },
+        { action: 'M', path: '/trunk/package.json' },
+      ],
+    },
+    {
+      revision: 4837,
+      author: 'devon',
+      date: '2026-07-26T11:00:00Z',
+      message: 'Add merge preview scaffolding',
+      paths: [{ action: 'A', path: '/trunk/src/renderer/MergePreview.tsx' }],
+    },
+    {
+      revision: 4836,
+      author: 'tao.n',
+      date: '2026-07-26T08:00:00Z',
+      message: 'Bump oxlint to 1.4.0',
+      paths: [{ action: 'M', path: '/trunk/package.json' }],
+    },
+    {
+      revision: 4835,
+      author: 'jordan',
+      date: '2026-07-25T16:04:00Z',
+      message: 'Harden SVN operations and compatibility coverage',
+      paths: [{ action: 'M', path: '/trunk/docs/CHANGELOG.md' }],
+    },
   ];
 
   const mkFile = (base) => (name, isDirectory, size) => ({
@@ -124,12 +184,21 @@
       '/Users/demo': [mk('wc', true), mk('Documents', true), mk('Downloads', true)],
       '/Users/demo/wc': [mk('acme-website', true), mk('globex-portal', true)],
       [WC_LOCAL]: [
-        mk('src', true), mk('packages', true), mk('docs', true), mk('tests', true),
-        mk('vendor', true), mk('package.json', false, 4100),
-        mk('tailwind.config.js', false, 3200), mk('README.md', false, 8800),
+        mk('src', true),
+        mk('packages', true),
+        mk('docs', true),
+        mk('tests', true),
+        mk('vendor', true),
+        mk('package.json', false, 4100),
+        mk('tailwind.config.js', false, 3200),
+        mk('README.md', false, 8800),
       ],
       [`${WC_LOCAL}/src`]: [mk('main', true), mk('preload', true), mk('renderer', true)],
-      [`${WC_LOCAL}/src/main`]: [mk('svn.ts', false, 12000), mk('client.ts', false, 19000), mk('auth.ts', false, 8000)],
+      [`${WC_LOCAL}/src/main`]: [
+        mk('svn.ts', false, 12000),
+        mk('client.ts', false, 19000),
+        mk('auth.ts', false, 8000),
+      ],
       [`${WC_LOCAL}/src/renderer`]: [mk('components', true), mk('routes', true)],
       [`${WC_LOCAL}/packages`]: [mk('shared', true)],
       [`${WC_LOCAL}/docs`]: [mk('CHANGELOG.md', false, 11000)],
@@ -185,7 +254,12 @@
     /* Onboarding must report "already seen" or the tutorial covers everything. */
     'store.get': async (key) => {
       if (key === 'onboarding') {
-        return { hasCompletedTutorial: true, hasSkippedTutorial: true, currentStep: 0, completedSteps: [] };
+        return {
+          hasCompletedTutorial: true,
+          hasSkippedTutorial: true,
+          currentStep: 0,
+          completedSteps: [],
+        };
       }
       if (key === 'hasLaunchedBefore') return true;
       if (key === 'settings') {
@@ -236,13 +310,22 @@
     'svn.status': async () => ({ path: WC_LOCAL, entries: STATUS_ENTRIES, revision: 4821 }),
     'svn.info': async (path) => info(path),
     'svn.infoUrl': async () => ({
-      path: '/', url: ROOT, repositoryRoot: ROOT, repositoryUuid: 'demo', revision: 4838,
-      nodeKind: 'dir', lastChangedAuthor: 'mira.k', lastChangedRevision: 4838,
+      path: '/',
+      url: ROOT,
+      repositoryRoot: ROOT,
+      repositoryUuid: 'demo',
+      revision: 4838,
+      nodeKind: 'dir',
+      lastChangedAuthor: 'mira.k',
+      lastChangedRevision: 4838,
       lastChangedDate: '2026-07-26T14:00:00Z',
     }),
     'svn.getWorkingCopyContext': async () => ({
-      workingCopyRoot: WC_LOCAL, repositoryRoot: ROOT, repositoryUuid: 'demo',
-      workingCopyUrl: `${ROOT}/${WC_REPO}`, mappingLocalPath: WC_LOCAL,
+      workingCopyRoot: WC_LOCAL,
+      repositoryRoot: ROOT,
+      repositoryUuid: 'demo',
+      workingCopyUrl: `${ROOT}/${WC_REPO}`,
+      mappingLocalPath: WC_LOCAL,
     }),
 
     /* `svn:diff` returns { files: [...] } — NOT { hunks }. Getting this wrong
@@ -254,14 +337,44 @@
           newPath: path,
           hunks: [
             {
-              oldStart: 12, oldLines: 7, newStart: 12, newLines: 9,
+              oldStart: 12,
+              oldLines: 7,
+              newStart: 12,
+              newLines: 9,
               lines: [
-                { type: 'context', content: 'export function resolveScope(repoPath, roots) {', oldLineNumber: 12, newLineNumber: 12 },
-                { type: 'removed', content: '  return roots.some((root) => repoPath.startsWith(root))', oldLineNumber: 13 },
-                { type: 'added', content: '  // A prefix test matches clients/acme against clients/acme-corp.', newLineNumber: 13 },
-                { type: 'added', content: '  return roots.some((root) => containsPath(root, repoPath))', newLineNumber: 14 },
-                { type: 'context', content: "    ? 'working-copy'", oldLineNumber: 14, newLineNumber: 15 },
-                { type: 'context', content: "    : 'repository';", oldLineNumber: 15, newLineNumber: 16 },
+                {
+                  type: 'context',
+                  content: 'export function resolveScope(repoPath, roots) {',
+                  oldLineNumber: 12,
+                  newLineNumber: 12,
+                },
+                {
+                  type: 'removed',
+                  content: '  return roots.some((root) => repoPath.startsWith(root))',
+                  oldLineNumber: 13,
+                },
+                {
+                  type: 'added',
+                  content: '  // A prefix test matches clients/acme against clients/acme-corp.',
+                  newLineNumber: 13,
+                },
+                {
+                  type: 'added',
+                  content: '  return roots.some((root) => containsPath(root, repoPath))',
+                  newLineNumber: 14,
+                },
+                {
+                  type: 'context',
+                  content: "    ? 'working-copy'",
+                  oldLineNumber: 14,
+                  newLineNumber: 15,
+                },
+                {
+                  type: 'context',
+                  content: "    : 'repository';",
+                  oldLineNumber: 15,
+                  newLineNumber: 16,
+                },
                 { type: 'context', content: '}', oldLineNumber: 16, newLineNumber: 17 },
               ],
             },
@@ -273,18 +386,58 @@
 
     'svn.blame': async () => ({
       lines: [
-        { revision: 4802, author: 'jordan', date: '2026-07-26T18:38:00Z', lineNumber: 1, content: "import { resolveScope } from './adapters';" },
-        { revision: 4802, author: 'jordan', date: '2026-07-26T18:38:00Z', lineNumber: 2, content: '' },
-        { revision: 4790, author: 'mira.k', date: '2026-07-20T09:00:00Z', lineNumber: 3, content: 'export function listing(entries) {' },
-        { revision: null, author: 'jordan', date: '', lineNumber: 4, content: '  // uncommitted local edit' },
-        { revision: 4838, author: 'devon', date: '2026-07-26T14:00:00Z', lineNumber: 5, content: '  return entries.map(toRow);' },
-        { revision: 4790, author: 'mira.k', date: '2026-07-20T09:00:00Z', lineNumber: 6, content: '}' },
+        {
+          revision: 4802,
+          author: 'jordan',
+          date: '2026-07-26T18:38:00Z',
+          lineNumber: 1,
+          content: "import { resolveScope } from './adapters';",
+        },
+        {
+          revision: 4802,
+          author: 'jordan',
+          date: '2026-07-26T18:38:00Z',
+          lineNumber: 2,
+          content: '',
+        },
+        {
+          revision: 4790,
+          author: 'mira.k',
+          date: '2026-07-20T09:00:00Z',
+          lineNumber: 3,
+          content: 'export function listing(entries) {',
+        },
+        {
+          revision: null,
+          author: 'jordan',
+          date: '',
+          lineNumber: 4,
+          content: '  // uncommitted local edit',
+        },
+        {
+          revision: 4838,
+          author: 'devon',
+          date: '2026-07-26T14:00:00Z',
+          lineNumber: 5,
+          content: '  return entries.map(toRow);',
+        },
+        {
+          revision: 4790,
+          author: 'mira.k',
+          date: '2026-07-20T09:00:00Z',
+          lineNumber: 6,
+          content: '}',
+        },
       ],
     }),
 
     'svn.mergeInfo': async () => ({
-      source: '', target: '', kind: 'eligible',
-      revisions: [4831, 4835, 4836, 4838], properties: [], rawOutput: '',
+      source: '',
+      target: '',
+      kind: 'eligible',
+      revisions: [4831, 4835, 4836, 4838],
+      properties: [],
+      rawOutput: '',
     }),
     'svn.proplist': async () => ({
       properties: [

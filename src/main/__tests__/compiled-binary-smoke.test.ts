@@ -11,7 +11,8 @@ describe('compiled binary smoke verification', () => {
     }
 
     expect(verifier).toContain("verifyExecutable(enginePath, ['--version']");
-    expect(verifier).toContain("verifyExecutable(svnPath, ['--version', '--quiet']");
+    expect(verifier).toContain('verifySvnVersion(svnVersion');
+    expect(verifier).toContain("const EXPECTED_SVN_SERIES = '1.14'");
     expect(verifier).toContain("args.includes('all')");
   });
 });

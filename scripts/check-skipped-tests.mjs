@@ -2,26 +2,25 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOTS = ['src', 'packages', 'tests'];
-const BASELINE_SKIPS = 28;
-const SKIP_PATTERN = /\b(?:describe|it|test)\.skip\b/g;
-const APPROVED_SKIP_COUNTS = new Map([
-  ['src/main/__tests__/auth-cache.test.ts', 3],
-  ['src/main/ipc/__tests__/external.test.ts', 1],
-  ['src/main/services/__tests__/svn-release-workflows.real.test.ts', 1],
-  ['src/main/services/__tests__/svn-working-copy.real.test.ts', 1],
-  ['src/main/utils/__tests__/validation.test.ts', 4],
-  ['src/renderer/__tests__/CheckoutDialog.sparse.test.tsx', 2],
-  ['src/renderer/__tests__/ChooseItemsDialog.test.tsx', 1],
-  ['src/renderer/__tests__/ProgressIndicator.test.tsx', 2],
-  ['src/renderer/__tests__/RepoBrowser.add-to-wc.test.tsx', 1],
-  ['src/renderer/__tests__/UpdateToRevisionDialog.sparse.test.tsx', 3],
-  ['src/renderer/__tests__/integration/sparse-checkout.test.tsx', 1],
-  ['src/renderer/src/hooks/__tests__/useCommitMessageHistory.test.ts', 2],
-  ['tests/e2e/conflict-resolution.spec.ts', 1],
-  ['tests/e2e/file-operations.spec.ts', 3],
-  ['tests/e2e/keyboard-interactions.spec.ts', 2],
-  ['tests/e2e/macos-integrations.spec.ts', 1],
-  ['tests/e2e/svn-operations.spec.ts', 2],
+const TEST_EXTENSIONS = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
+const SKIP_PATTERN = /\b(?:describe|suite|it|test)\.(skipIf|runIf|skip)\b/g;
+
+// This is intentionally an exact inventory. Removing a skip is good, but its inventory entry must
+// be removed in the same change so .spec/skipped-tests.md cannot drift from the executable guard.
+const APPROVED_INVENTORY = new Map([
+  ['src/integration/__tests__/svn-restore-excluded.real.test.ts', { runIf: 1 }],
+  ['src/main/ipc/__tests__/fs.test.ts', { skipIf: 1 }],
+  ['src/main/services/__tests__/code-editors.macos.test.ts', { skipIf: 1 }],
+  ['src/main/services/__tests__/code-editors.test.ts', { skipIf: 2 }],
+  ['src/main/services/__tests__/external-tool-registry.macos.test.ts', { skipIf: 1 }],
+  ['src/main/services/__tests__/svn-release-workflows.real.test.ts', { skip: 1, skipIf: 2 }],
+  ['src/main/services/__tests__/svn-working-copy.real.test.ts', { skip: 1, skipIf: 1 }],
+  ['src/main/utils/__tests__/approved-paths.test.ts', { skipIf: 1 }],
+  ['src/main/utils/__tests__/process-tree.test.ts', { skipIf: 1 }],
+  ['tests/e2e/conflict-resolution.spec.ts', { skip: 1 }],
+  ['tests/e2e/file-operations.spec.ts', { skip: 3 }],
+  ['tests/e2e/macos-integrations.spec.ts', { skip: 1 }],
+  ['tests/e2e/svn-operations.spec.ts', { skip: 2 }],
 ]);
 
 function walk(dir) {
@@ -34,7 +33,7 @@ function walk(dir) {
     if (stats.isDirectory()) {
       if (entry === 'node_modules' || entry === '.git') continue;
       files.push(...walk(path));
-    } else if (/\.(ts|tsx|js|jsx)$/.test(entry)) {
+    } else if (TEST_EXTENSIONS.test(entry)) {
       files.push(path);
     }
   }
@@ -42,51 +41,85 @@ function walk(dir) {
   return files;
 }
 
-const matches = [];
-const countsByFile = new Map();
+function emptyCounts() {
+  return { skip: 0, skipIf: 0, runIf: 0 };
+}
+
+function normalizeCounts(counts = {}) {
+  return {
+    skip: counts.skip ?? 0,
+    skipIf: counts.skipIf ?? 0,
+    runIf: counts.runIf ?? 0,
+  };
+}
+
+function describeCounts(counts) {
+  return Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => `${kind}=${count}`)
+    .join(', ');
+}
+
+const foundInventory = new Map();
+const locations = [];
 
 for (const root of ROOTS) {
   for (const file of walk(root)) {
-    const content = readFileSync(file, 'utf8');
-    const lines = content.split(/\r?\n/);
+    const normalizedFile = file.replaceAll('\\', '/');
+    const lines = readFileSync(file, 'utf8').split(/\r?\n/);
 
     lines.forEach((line, index) => {
-      const count = line.match(SKIP_PATTERN)?.length ?? 0;
-      for (let i = 0; i < count; i++) {
-        matches.push(`${file}:${index + 1}`);
-      }
-      if (count > 0) {
-        const normalizedFile = file.replaceAll('\\', '/');
-        countsByFile.set(normalizedFile, (countsByFile.get(normalizedFile) ?? 0) + count);
+      SKIP_PATTERN.lastIndex = 0;
+      for (const match of line.matchAll(SKIP_PATTERN)) {
+        const kind = match[1];
+        const counts = foundInventory.get(normalizedFile) ?? emptyCounts();
+        counts[kind]++;
+        foundInventory.set(normalizedFile, counts);
+        locations.push(`${normalizedFile}:${index + 1} (${kind})`);
       }
     });
   }
 }
 
-const inventoryViolations = [];
-for (const [file, count] of countsByFile) {
-  const approved = APPROVED_SKIP_COUNTS.get(file) ?? 0;
-  if (count > approved) {
-    inventoryViolations.push(`${file}: ${count} skips found, ${approved} approved`);
+const violations = [];
+const inventoriedFiles = new Set([...APPROVED_INVENTORY.keys(), ...foundInventory.keys()]);
+
+for (const file of [...inventoriedFiles].toSorted()) {
+  const approved = normalizeCounts(APPROVED_INVENTORY.get(file));
+  const found = normalizeCounts(foundInventory.get(file));
+  if (
+    approved.skip !== found.skip ||
+    approved.skipIf !== found.skipIf ||
+    approved.runIf !== found.runIf
+  ) {
+    violations.push(
+      `${file}: found ${describeCounts(found) || 'no skips'}; ` +
+        `inventory requires ${describeCounts(approved) || 'no skips'}`
+    );
   }
 }
 
-if (inventoryViolations.length > 0) {
-  console.error(
-    'Skipped tests were added outside the approved triage inventory in .spec/skipped-tests.md.'
-  );
-  console.error('Update the task/issue inventory before adding skips.');
-  console.error(inventoryViolations.join('\n'));
+if (violations.length > 0) {
+  console.error('Skipped-test usage does not match the exact inventory in .spec/skipped-tests.md.');
+  console.error('Triage the test and update the executable and documented inventories together.');
+  console.error(violations.join('\n'));
+  if (locations.length > 0) {
+    console.error('\nDetected skip locations:');
+    console.error(locations.join('\n'));
+  }
   process.exit(1);
 }
 
-if (matches.length > BASELINE_SKIPS) {
-  console.error(
-    `Skipped test count increased from ${BASELINE_SKIPS} to ${matches.length}. ` +
-      'Triage or unskip tests instead of adding more skips.'
-  );
-  console.error(matches.join('\n'));
-  process.exit(1);
-}
+const totals = [...foundInventory.values()].reduce(
+  (result, counts) => ({
+    skip: result.skip + counts.skip,
+    skipIf: result.skipIf + counts.skipIf,
+    runIf: result.runIf + counts.runIf,
+  }),
+  emptyCounts()
+);
 
-console.log(`Skipped test count: ${matches.length}/${BASELINE_SKIPS}`);
+console.log(
+  `Skipped-test inventory verified: ${totals.skip} direct .skip, ` +
+    `${totals.skipIf} skipIf, ${totals.runIf} runIf.`
+);

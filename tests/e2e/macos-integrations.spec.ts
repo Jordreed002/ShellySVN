@@ -17,11 +17,12 @@ test.describe('macOS integration', () => {
   });
 
   test('platform IPC reaches the renderer as darwin', async ({ page }) => {
-    const platform = await page.evaluate(
-      () =>
-        (window as unknown as {
+    const platform = await page.evaluate(() =>
+      (
+        window as unknown as {
           api: { app: { getPlatform: () => Promise<string> } };
-        }).api.app.getPlatform()
+        }
+      ).api.app.getPlatform()
     );
     expect(platform).toBe('darwin');
   });
@@ -30,12 +31,14 @@ test.describe('macOS integration', () => {
     await electronApp.firstWindow(); // createWindow() runs in app.whenReady; wait for it
 
     // The window is created with show:false and shown on ready-to-show.
-    await expect.poll(async () =>
-      electronApp.evaluate(({ BrowserWindow }) => {
-        const first = BrowserWindow.getAllWindows()[0];
-        return first ? first.isVisible() : false;
-      })
-    ).toBe(true);
+    await expect
+      .poll(async () =>
+        electronApp.evaluate(({ BrowserWindow }) => {
+          const first = BrowserWindow.getAllWindows()[0];
+          return first ? first.isVisible() : false;
+        })
+      )
+      .toBe(true);
 
     const state = await electronApp.evaluate(({ BrowserWindow }) => {
       const windows = BrowserWindow.getAllWindows();
