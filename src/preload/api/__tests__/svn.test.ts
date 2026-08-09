@@ -79,6 +79,17 @@ describe('SVN preload IPC contract', () => {
       () => api.compareBranches('https://repo/trunk', 'https://repo/branch'),
       ['svn:compareBranches', 'https://repo/trunk', 'https://repo/branch'],
     ],
+    [
+      'working-copy health',
+      () => api.workingCopyHealth('/wc'),
+      ['svn:workingCopyHealth', '/wc'],
+    ],
+    ['command timeline', () => api.commandTimeline(), ['svn:commandTimeline']],
+    [
+      'clear command timeline',
+      () => api.clearCommandTimeline(),
+      ['svn:commandTimeline:clear'],
+    ],
     ['info', () => api.info('/wc'), ['svn:info', '/wc']],
     ['URL info', () => api.infoUrl('https://repo/trunk'), ['svn:infoUrl', 'https://repo/trunk']],
     [
