@@ -33,10 +33,10 @@ for (const arch of ['x64', 'arm64']) {
 const macMetadata = resolve(root, 'update-metadata/latest-mac.yml');
 if (!files.includes(macMetadata)) throw new Error('Merged macOS metadata is missing.');
 if (includeLinux) {
-  requireOne('Linux AppImage', new RegExp(`ShellySVN-${version}-x64\\.AppImage$`, 'i'));
+  requireOne('Linux AppImage', new RegExp(`ShellySVN-${version}-x86_64\\.AppImage$`, 'i'));
   requireOne('Linux metadata', /^latest-linux\.yml$/i);
-  requireOne('Linux Debian package', new RegExp(`ShellySVN-${version}-x64\\.deb$`, 'i'));
-  requireOne('Linux RPM package', new RegExp(`ShellySVN-${version}-x64\\.rpm$`, 'i'));
+  requireOne('Linux Debian package', new RegExp(`ShellySVN-${version}-amd64\\.deb$`, 'i'));
+  requireOne('Linux RPM package', new RegExp(`ShellySVN-${version}-x86_64\\.rpm$`, 'i'));
   requireOne('Linux tarball', new RegExp(`ShellySVN-${version}-x64\\.tar\\.gz$`, 'i'));
 }
 

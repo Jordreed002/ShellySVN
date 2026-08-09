@@ -55,14 +55,8 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   icon: build/icon.icns
   target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
+    - dmg
+    - zip
   electronUpdaterCompatibility: '>= 2.16'
   extraResources:
     # electron-builder expands ${arch} for each architecture-specific pack pass.

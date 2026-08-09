@@ -643,7 +643,7 @@ jobs:
         with:
           name: ShellySVN-Windows-x64
           path: |
-            release/**/*.exe
+            release/**/*-setup.exe
             release/**/*.zip
             release/**/latest.yml
             release/**/*.blockmap
@@ -861,9 +861,10 @@ jobs:
             - `ShellySVN-x.x.x-arm64.dmg` - macOS Apple Silicon (M1/M2/M3)
 
             #### Linux
-            - `ShellySVN-x.x.x-x64.AppImage` - Universal Linux binary
+            - `ShellySVN-x.x.x-x86_64.AppImage` - Universal Linux binary
             - `ShellySVN-x.x.x-amd64.deb` - Debian/Ubuntu package
-            - `ShellySVN-x.x.x.tar.gz` - Portable tarball
+            - `ShellySVN-x.x.x-x86_64.rpm` - RPM package
+            - `ShellySVN-x.x.x-x64.tar.gz` - Portable tarball
 
             ### System Requirements
             - **Windows**: Windows 10/11 (64-bit)
