@@ -1,44 +1,72 @@
+import Link from 'next/link';
+import { Band } from '@/components/site/band';
+import { Icon } from '@/components/site/icons';
 import { PageHero } from '@/components/site/page-hero';
-
-const items = [
-  {
-    question: 'Is ShellySVN production-ready today?',
-    answer:
-      'The public site keeps a preview label on purpose. Packaged builds exist, but the project still tracks final production-release gates such as signing, notarization, and release-candidate verification.',
-  },
-  {
-    question: 'What platforms are available?',
-    answer:
-      'The repo and releases currently target Windows x64, macOS Intel, macOS Apple Silicon, and Linux x64 packaging where artifacts are published.',
-  },
-  {
-    question: 'Why emphasize sparse checkout so heavily?',
-    answer:
-      'Because it is one of the clearest strengths already represented in the codebase and README. Large repositories are painful without a selective working-copy story.',
-  },
-  {
-    question: 'Does the public site expose internal engineering specs?',
-    answer:
-      'No. Contributor and engineering records stay in-repo. The public docs are curated for users and evaluators instead of mirroring `.spec` directly.',
-  },
-];
+import { faqItems } from '@/lib/faq';
+import { gitConfig } from '@/lib/shared';
 
 export default function FaqPage() {
   return (
-    <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14">
+    <>
       <PageHero
         eyebrow="FAQ"
-        title="Straight answers about scope, maturity, and rollout."
-        summary="This first site release is intentionally conservative: it tells evaluators what exists, what is preview-only, and where to dig deeper in the docs."
+        title={
+          <>
+            Twelve questions, <em>answered straight</em>.
+          </>
+        }
+        summary={
+          <>
+            Including the three where the answer is not the one we would prefer to give: the
+            licence, the signing and the untested top end.{' '}
+            <strong>Those are questions 2, 3 and 9.</strong>
+          </>
+        }
       />
-      <div className="space-y-4">
-        {items.map((item) => (
-          <article key={item.question} className="section-frame rounded-3xl p-6">
-            <h2 className="text-2xl">{item.question}</h2>
-            <p className="mt-4 text-sm leading-7 text-stone-700">{item.answer}</p>
-          </article>
-        ))}
-      </div>
-    </div>
+
+      <Band tight>
+        <div className="faq-list">
+          {faqItems.map((item, i) => (
+            <details className="section-frame tile faq" key={item.question} open={i < 2}>
+              <summary>
+                <span className="n">{String(i + 1).padStart(2, '0')}</span>
+                {item.question}
+              </summary>
+              <div className="a">
+                <p>{item.answer}</p>
+              </div>
+            </details>
+          ))}
+        </div>
+      </Band>
+
+      <Band alt>
+        <div className="cta">
+          <p className="eyebrow green" style={{ margin: '0 auto' }}>
+            Still unanswered?
+          </p>
+          <h2 className="display">
+            Ask it on <em>GitHub</em>.
+          </h2>
+          <p>
+            Issues and discussions are the whole support surface. There is no ticket system behind
+            this, which is a genuine trade-off rather than a feature.
+          </p>
+          <div className="actions">
+            <Link
+              className="btn btn-primary btn-lg"
+              href={`https://github.com/${gitConfig.user}/${gitConfig.repo}/issues`}
+            >
+              <Icon name="ext" />
+              Open an issue
+            </Link>
+            <Link className="btn btn-secondary btn-lg" href="/docs">
+              <Icon name="book" />
+              Read the docs
+            </Link>
+          </div>
+        </div>
+      </Band>
+    </>
   );
 }

@@ -27,7 +27,7 @@ const cards = [
 
 export function GradientCards() {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="gradient-cards">
       {cards.map((card, idx) => (
         <article
           key={card.title}
@@ -36,8 +36,8 @@ export function GradientCards() {
         >
           <div className="gc-body">
             <span className="gc-eyebrow">{card.eyebrow}</span>
-            <h3 className="mt-5 text-2xl leading-[1.1] sm:text-[1.75rem]">{card.title}</h3>
-            <p className="mt-4 text-[0.95rem] leading-7">{card.body}</p>
+            <h3>{card.title}</h3>
+            <p>{card.body}</p>
           </div>
         </article>
       ))}

@@ -1,25 +1,32 @@
-import { Bricolage_Grotesque, Geist_Mono, Plus_Jakarta_Sans } from 'next/font/google';
+import { Archivo, JetBrains_Mono } from 'next/font/google';
 import type { Metadata } from 'next';
 import { Provider } from '@/components/provider';
+import { IconSprite } from '@/components/site/icons';
 import { appName, siteDescription, siteUrl } from '@/lib/shared';
 import './global.css';
 
-const body = Plus_Jakarta_Sans({
+// Archivo and JetBrains Mono are the desktop app's own typefaces. The site
+// previously used Bricolage Grotesque + Plus Jakarta Sans, which matched
+// nothing in the product.
+const body = Archivo({
   subsets: ['latin'],
   variable: '--font-body',
-  weight: ['400', '500', '600', '700'],
-});
-
-const display = Bricolage_Grotesque({
-  subsets: ['latin'],
-  variable: '--font-display',
-  weight: ['500', '600', '700', '800'],
+  weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 });
 
-const mono = Geist_Mono({
+const display = Archivo({
+  subsets: ['latin'],
+  variable: '--font-display',
+  weight: ['400', '500', '600', '700', '800'],
+  display: 'swap',
+});
+
+const mono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
+  weight: ['400', '500', '600'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -39,6 +46,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
       suppressHydrationWarning
     >
       <body className="flex flex-col min-h-screen">
+        <IconSprite />
         <Provider>{children}</Provider>
       </body>
     </html>
