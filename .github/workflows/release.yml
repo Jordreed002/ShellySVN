@@ -56,7 +56,9 @@ jobs:
           node scripts/validate-release-channel.mjs "$GITHUB_REF_NAME"
 
       - name: Validate public release signing
-        if: env.PUBLIC_RELEASE == 'true'
+        # Prereleases (beta/rc) may ship unsigned for testing; stable releases
+        # require the full macOS notarization and Windows Authenticode setup.
+        if: env.PUBLIC_RELEASE == 'true' && !contains(github.ref_name, '-')
         run: |
           set -euo pipefail
           missing=()
@@ -375,7 +377,7 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ env.PUBLIC_RELEASE == 'false' && (env.HAS_MAC_CERTIFICATE == 'false' || env.HAS_MAC_CERTIFICATE_PASSWORD == 'false' || env.HAS_APPLE_ID == 'false' || env.HAS_APPLE_APP_PASSWORD == 'false' || env.HAS_APPLE_TEAM_ID == 'false') }}
+        if: ${{ !(env.HAS_MAC_CERTIFICATE == 'true' && env.HAS_MAC_CERTIFICATE_PASSWORD == 'true' && env.HAS_APPLE_ID == 'true' && env.HAS_APPLE_APP_PASSWORD == 'true' && env.HAS_APPLE_TEAM_ID == 'true') }}
         run: bunx electron-builder --mac --${{ matrix.arch }} --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -523,7 +525,7 @@ jobs:
         run: bun run build
 
       - name: Build Electron app (unsigned)
-        if: ${{ env.PUBLIC_RELEASE == 'false' && (env.HAS_WIN_CERTIFICATE == 'false' || env.HAS_WIN_CERTIFICATE_PASSWORD == 'false') }}
+        if: ${{ !(env.HAS_WIN_CERTIFICATE == 'true' && env.HAS_WIN_CERTIFICATE_PASSWORD == 'true') }}
         run: bunx electron-builder --win --x64 --config --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
