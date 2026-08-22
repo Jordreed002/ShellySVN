@@ -1,3 +1,6 @@
+import Link from 'next/link';
+import { Band } from '@/components/site/band';
+import { Icon } from '@/components/site/icons';
 import { PageHero } from '@/components/site/page-hero';
 import { getSiteReleases } from '@/lib/releases';
 
@@ -5,39 +8,85 @@ export default async function ChangelogPage() {
   const releases = await getSiteReleases();
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14">
+    <>
       <PageHero
         eyebrow="Changelog"
-        title="Release notes sourced from GitHub metadata."
-        summary="This page lists the release feed used by the download surface. It is built from GitHub Releases at build time and falls back to a checked-in snapshot when remote metadata is unavailable."
-      />
-      <div className="space-y-4">
-        {releases.map((release) => (
-          <article key={release.tag} className="section-frame rounded-3xl p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        title={
+          <>
+            What changed, <em>and when</em>.
+          </>
+        }
+        summary={
+          <>
+            Release notes for every published build, sourced from GitHub Releases at build time.
+            Preview releases are listed here the same as stable ones —{' '}
+            <strong>nothing is hidden until it is finished</strong>.
+          </>
+        }
+      >
+        <Link className="btn btn-primary btn-lg" href="/download">
+          <Icon name="dl" />
+          Download the current build
+        </Link>
+        <Link className="btn btn-secondary btn-lg" href="/roadmap">
+          What&rsquo;s next →
+        </Link>
+      </PageHero>
+
+      <Band tight>
+        {releases.length ? (
+          releases.map((release) => (
+            <div className="cl-entry" key={release.tag}>
               <div>
-                <p className="eyebrow">{release.channel}</p>
-                <h2 className="mt-4 text-3xl">{release.tag}</h2>
+                <p className="v">{release.tag}</p>
+                <p className="date">
+                  {new Date(release.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'long' })}
+                </p>
+                <p style={{ marginTop: '0.7rem' }}>
+                  <span className="tag preview">
+                    <span className="dot" />
+                    {release.channel}
+                  </span>
+                </p>
               </div>
-              <a
-                href={release.notesUrl}
-                className="rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium text-stone-900 hover:bg-white"
-              >
-                Open release
-              </a>
+              <div>
+                {release.bodyMd ? (
+                  <p className="notes">{release.bodyMd}</p>
+                ) : (
+                  <p className="notes" style={{ color: 'var(--faint)' }}>
+                    No release notes were published with this tag.
+                  </p>
+                )}
+                <p style={{ marginTop: '1rem' }}>
+                  <Link className="btn btn-secondary" href={release.notesUrl}>
+                    <Icon name="ext" />
+                    Open release
+                  </Link>
+                </p>
+              </div>
             </div>
-            <p className="mt-4 text-sm text-stone-700">
-              Published{' '}
-              {new Date(release.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'long' })}
+          ))
+        ) : (
+          <p className="lede">No releases have been published yet.</p>
+        )}
+      </Band>
+
+      <Band alt>
+        <div className="callout" style={{ maxWidth: '70ch', marginTop: 0 }}>
+          <Icon name="help" />
+          <div>
+            <p>
+              <b>Versioning.</b> Minor releases carry a theme and an exit gate; patch releases fix
+              defects and never add surface. If a change needs a new setting or a new pane, it waits
+              for a minor.
             </p>
-            {release.bodyMd ? (
-              <pre className="mt-5 overflow-x-auto rounded-3xl bg-[#141210] p-5 text-sm leading-7 text-stone-200 whitespace-pre-wrap">
-                {release.bodyMd}
-              </pre>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </div>
+            <p>
+              Full commit history and release artifacts live on GitHub. Every entry above
+              corresponds to a tagged release.
+            </p>
+          </div>
+        </div>
+      </Band>
+    </>
   );
 }

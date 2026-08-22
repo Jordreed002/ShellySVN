@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
 
+/**
+ * The interior-page header, in the Bands language: kicker, display heading,
+ * lede constrained to a readable measure, optional actions row.
+ */
 export function PageHero({
   eyebrow,
   title,
@@ -8,21 +12,15 @@ export function PageHero({
 }: {
   children?: ReactNode;
   eyebrow: string;
-  summary: string;
-  title: string;
+  summary: ReactNode;
+  title: ReactNode;
 }) {
   return (
-    <header className="mb-12 space-y-6">
-      <p className="eyebrow reveal reveal-1">{eyebrow}</p>
-      <div className="max-w-4xl">
-        <h1 className="display reveal reveal-2 text-5xl leading-[0.98] sm:text-6xl lg:text-[5rem]">
-          {title}
-        </h1>
-        <p className="reveal reveal-3 mt-6 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-          {summary}
-        </p>
-      </div>
-      {children ? <div className="reveal reveal-4">{children}</div> : null}
+    <header className="wrap page-head">
+      <p className="kicker reveal reveal-1">{eyebrow}</p>
+      <h1 className="reveal reveal-2">{title}</h1>
+      <p className="lede reveal reveal-3">{summary}</p>
+      {children ? <div className="actions reveal reveal-4">{children}</div> : null}
     </header>
   );
 }
