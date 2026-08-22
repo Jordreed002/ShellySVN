@@ -1,6 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { RouterProvider, createRouter } from '@tanstack/react-router';
+import {
+  RouterProvider,
+  createRouter,
+  createBrowserHistory,
+  createHashHistory,
+} from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsPreviewProvider } from './contexts/SettingsPreviewContext';
 import { GlobalErrorBoundary } from './components/ErrorBoundary';
@@ -20,8 +25,14 @@ import './styles/global.css';
 // Import the generated route tree
 import { routeTree } from './routeTree.gen';
 
-// Create a new router instance
-const router = createRouter({ routeTree });
+// Create a new router instance.
+//
+// Packaged builds are served from `file://`, where browser-history pushState
+// produces unreachable locations such as `file:///repo-browser`. Those locations
+// also fail the main process's trusted-renderer check, so route with the URL
+// fragment there and keep browser history for the dev server origin.
+const history = window.location.protocol === 'file:' ? createHashHistory() : createBrowserHistory();
+const router = createRouter({ routeTree, history });
 
 // Register the router for type safety
 declare module '@tanstack/react-router' {

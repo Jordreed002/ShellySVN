@@ -262,7 +262,7 @@ test.describe('SVN Operations - History/Log', () => {
   });
 
   test('explains that a working copy must be opened first', async ({ page }) => {
-    await expect(page.getByText('No working copy open')).toBeVisible();
+    await expect(page.getByText('No working copy open').first()).toBeVisible();
   });
 });
 
