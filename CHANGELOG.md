@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.2] - Unreleased
+## [1.1.0-beta.3] - 2026-08-22
+
+### Added
+
+- AI Review Center for reviewing pending changes, planning commit groups, and explaining diffs with persisted findings per working copy
+- Commit stack and repository profile tracking behind the review center
+- Packaged binary manifest verification for the bundled SVN client and logic engine
+- Cross-platform SVN workflow coverage, end-to-end user journeys, and expanded unit test suites
+
+### Changed
+
+- Hardened the IPC boundary: renderer invokes are now validated by sender identity, frame, and trusted entry URL
+- Repository browser refreshed with a rebuilt tree, address bar, status flag, and dialog suite
+
+### Fixed
+
+- Packaged builds no longer lose trusted-renderer authorization after in-app navigation (file protocol routing now uses URL fragments)
+
+## [1.1.0-beta.2] - 2026-08-08
 
 ### Added
 

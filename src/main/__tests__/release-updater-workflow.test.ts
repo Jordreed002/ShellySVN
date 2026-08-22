@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest';
 
 describe('trusted release workflow', () => {
   it('rejects a tag that differs from the committed package version', () => {
+    const packageVersion = JSON.parse(readFileSync('package.json', 'utf8')).version as string;
     const current = spawnSync(process.execPath, [
       'scripts/validate-release-version.mjs',
-      'v1.1.0-beta.2',
+      `v${packageVersion}`,
     ]);
     const mismatch = spawnSync(process.execPath, [
       'scripts/validate-release-version.mjs',
