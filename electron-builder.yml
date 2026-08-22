@@ -54,15 +54,13 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   icon: build/icon.icns
+  # Do not pin arch lists here: an explicit arch array makes every invocation
+  # package both flavors regardless of the CLI flag, so the arm64 CI job would
+  # emit an x64 app without any darwin-x64 binaries. One architecture per CI
+  # job is selected with --x64/--arm64 instead.
   target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
+    - dmg
+    - zip
   electronUpdaterCompatibility: '>= 2.16'
   extraResources:
     # electron-builder expands ${arch} for each architecture-specific pack pass.

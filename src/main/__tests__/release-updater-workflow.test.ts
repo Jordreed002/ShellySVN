@@ -53,16 +53,22 @@ describe('trusted release workflow', () => {
     const builder = parse(readFileSync('electron-builder.yml', 'utf8')) as {
       mac?: {
         extraResources?: Array<{ from?: string; to?: string; filter?: string[] }>;
-        target?: Array<{ arch?: string[]; target?: string }>;
+        target?: Array<string | { arch?: string[]; target?: string }>;
       };
     };
     const mac = builder.mac;
     const resources = mac?.extraResources ?? [];
-    const configuredArchitectures = new Set(
-      (mac?.target ?? []).flatMap((target) => target.arch ?? [])
-    );
 
-    expect(configuredArchitectures).toEqual(new Set(['x64', 'arm64']));
+    // Targets must not pin an arch list: electron-builder would then package
+    // both flavors in every CI job, and the job without that architecture's
+    // binaries would emit a broken app. The workflow's --x64/--arm64 flag
+    // selects exactly one architecture per job instead.
+    for (const target of mac?.target ?? []) {
+      expect(typeof target === 'string' || target.arch === undefined).toBe(true);
+      if (typeof target !== 'string') {
+        expect(['dmg', 'zip']).toContain(target.target);
+      }
+    }
     expect(resources).toEqual([
       {
         from: 'binaries/darwin-${arch}',
@@ -71,7 +77,7 @@ describe('trusted release workflow', () => {
       },
     ]);
 
-    for (const arch of configuredArchitectures) {
+    for (const arch of ['x64', 'arm64']) {
       const source = resources[0]?.from?.replace('${arch}', arch);
       expect(source).toBe(`binaries/darwin-${arch}`);
       expect(source).not.toContain(arch === 'x64' ? 'arm64' : 'x64');
