@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { AuthSession, LazyTreeLoaderState, LazyTreeNode, SvnListResult } from '@shared/types';
 import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
+import { svnTree } from '../lib/queryKeys';
+import { withIpcTimeout } from '../lib/queryTimeout';
 
 /**
  * Cached tree data structure for TanStack Query
@@ -17,7 +19,7 @@ const TREE_CACHE_STALE_TIME = 5 * 60 * 1000; // 5 minutes staleTime as required
 const TREE_CACHE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
 function getTreeQueryKey(rootUrl: string, credentials?: AuthSession) {
-  return ['svn:tree', rootUrl, credentials?.id] as const;
+  return svnTree(rootUrl, credentials?.id);
 }
 
 function svnListToLazyTreeNode(result: SvnListResult): LazyTreeNode[] {
@@ -100,11 +102,18 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthSession) {
     queryKey: rootQueryKey,
     queryFn: async () => {
       try {
-        const result = await window.api.svn.list(
-          rootUrl,
-          undefined, // revision
-          'immediates', // depth: get immediate children only
-          credentials?.id
+        // The timeout turns a wedged `svn list` into an error the tree can
+        // render, instead of a root that spins forever.
+        const result = await withIpcTimeout(
+          () =>
+            window.api.svn.list(
+              rootUrl,
+              undefined, // revision
+              'immediates', // depth: get immediate children only
+              credentials?.id
+            ),
+          undefined,
+          'svn:tree'
         );
 
         return {
@@ -136,11 +145,16 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthSession) {
       setLoadingNodes((prev) => new Set(prev).add(path));
 
       try {
-        const result = await window.api.svn.list(
-          path,
-          undefined, // revision
-          'immediates', // depth: immediate children only
-          nodeCredentials?.id
+        const result = await withIpcTimeout(
+          () =>
+            window.api.svn.list(
+              path,
+              undefined, // revision
+              'immediates', // depth: immediate children only
+              nodeCredentials?.id
+            ),
+          undefined,
+          'svn:tree'
         );
 
         return {
@@ -317,11 +331,10 @@ export function useLazyTreeLoader(rootUrl: string, credentials?: AuthSession) {
       queryClient.prefetchQuery({
         queryKey: getTreeQueryKey(path, nodeCredentials),
         queryFn: async () => {
-          const result = await window.api.svn.list(
-            path,
+          const result = await withIpcTimeout(
+            () => window.api.svn.list(path, undefined, 'immediates', nodeCredentials?.id),
             undefined,
-            'immediates',
-            nodeCredentials?.id
+            'svn:tree'
           );
           return {
             path,

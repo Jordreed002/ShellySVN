@@ -4,6 +4,8 @@ import type { SvnOperationProgress, SvnStatusEntry, SvnStatusChar } from '@share
 import { useSettings } from './useSettings';
 import { confirmAppAction, promptAppInput } from '../utils/dialogs';
 import { invalidateWorkingCopyViews } from '../features/files/useInvalidateStatus';
+import { resetRepositoryQueries } from '../lib/queryKeys';
+import { withIpcTimeout } from '../lib/queryTimeout';
 
 interface SvnActionResult {
   success: boolean;
@@ -528,6 +530,98 @@ export function useSvnActions() {
     [actionFailure, confirmRiskyAction, invalidateStatus, updateOverlayIfEnabled]
   );
 
+  /**
+   * SVN Relocate
+   *
+   * Rewrites the working copy's recorded repository URL. On success every
+   * React Query entry keyed by the *old* URL is dropped and every path-keyed
+   * entry for the working copy is invalidated — otherwise the cache keeps
+   * serving listings and logs from a repository this copy no longer points at.
+   */
+  const relocate = useCallback(
+    async (fromUrl: string, toUrl: string, path: string): Promise<SvnActionResult> => {
+      setIsUpdating(true);
+      setLastError(null);
+
+      try {
+        const result = await withIpcTimeout(
+          () => window.api.svn.relocate(fromUrl, toUrl, path),
+          undefined,
+          'svn relocate'
+        );
+
+        if (result.success) {
+          resetRepositoryQueries(queryClient, { previousRepoUrl: fromUrl, workingCopyPath: path });
+          invalidateStatus(path);
+          return { success: true };
+        }
+
+        // The relocate IPC reports failure through `output`, not `error`.
+        const output = result.output?.trim();
+        const message = output || 'Relocate failed';
+        setLastError(message);
+        return { success: false, message };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        setLastError(message);
+        return { success: false, message };
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [invalidateStatus, queryClient]
+  );
+
+  /**
+   * SVN Switch
+   *
+   * Points the working copy at a different URL in the same repository. Queries
+   * keyed by the previous URL are dropped (that location is no longer what
+   * this path reflects) and path-keyed queries are invalidated so status, log
+   * and info re-read against the new target.
+   */
+  const switchTo = useCallback(
+    async (
+      path: string,
+      targetUrl: string,
+      revision?: string,
+      previousUrl?: string
+    ): Promise<SvnActionResult> => {
+      setIsUpdating(true);
+      setLastError(null);
+
+      try {
+        const result = await withIpcTimeout(
+          () => window.api.svn.switch(path, targetUrl, revision),
+          undefined,
+          'svn switch'
+        );
+
+        if (result.success) {
+          resetRepositoryQueries(queryClient, {
+            previousRepoUrl: previousUrl ?? null,
+            workingCopyPath: path,
+          });
+          invalidateStatus(path);
+          return { success: true, revision: result.revision ?? undefined };
+        }
+
+        // The switch IPC reports failure through `output`, not `error`.
+        const output = result.output?.trim();
+        const message = output || 'Switch failed';
+        setLastError(message);
+        return { success: false, message };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        setLastError(message);
+        return { success: false, message };
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [invalidateStatus, queryClient]
+  );
+
   const clearError = useCallback(() => {
     setLastError(null);
   }, []);
@@ -563,6 +657,8 @@ export function useSvnActions() {
       lock,
       resolve,
       unlock,
+      relocate,
+      switchTo,
       isUpdating,
       lastError,
       clearError,
@@ -582,6 +678,8 @@ export function useSvnActions() {
       lock,
       resolve,
       unlock,
+      relocate,
+      switchTo,
       isUpdating,
       lastError,
       clearError,

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, ArrowRightLeft, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { useSvnActions } from '../../hooks/useSvnActions';
 
 interface SwitchDialogProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export function SwitchDialog({
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ revision: number; url: string } | null>(null);
+  const { switchTo } = useSvnActions();
 
   useEffect(() => {
     if (isOpen) {
@@ -43,22 +45,20 @@ export function SwitchDialog({
     setIsSwitching(true);
     setError(null);
 
-    try {
-      const result = await window.api.svn.switch(
-        currentPath,
-        targetUrl.trim(),
-        revision === 'HEAD' ? undefined : revision
-      );
+    // The action drops queries keyed by the URL being switched away from and
+    // invalidates this working copy's path-keyed queries on success.
+    const result = await switchTo(
+      currentPath,
+      targetUrl.trim(),
+      revision === 'HEAD' ? undefined : revision,
+      currentUrl
+    );
+    setIsSwitching(false);
 
-      if (result.success) {
-        setSuccess({ revision: result.revision ?? 0, url: targetUrl.trim() });
-      } else {
-        setError('Switch failed');
-      }
-    } catch (err) {
-      setError((err as Error).message || 'Switch failed');
-    } finally {
-      setIsSwitching(false);
+    if (result.success) {
+      setSuccess({ revision: result.revision ?? 0, url: targetUrl.trim() });
+    } else {
+      setError(result.message || 'Switch failed');
     }
   };
 

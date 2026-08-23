@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { debug } from '@shared/utils/debug';
 import type { SvnLogEntry, SvnLogResult } from '@shared/types';
 
+import { withIpcTimeout } from '../lib/queryTimeout';
+
 const MAX_CACHE_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface CachedLog {
@@ -212,16 +214,28 @@ export function useCachedLog(
     setIsOffline(false);
 
     try {
+      // The deadline is the "grace period" the log UI spins for: a hung
+      // `svn log` rejects here (and falls back to cache below) instead of
+      // leaving the viewer's spinner up forever.
       const result = hasAdvancedOptions
-        ? await window.api.svn.log(
-            path,
-            limit,
+        ? await withIpcTimeout(
+            () =>
+              window.api.svn.log(
+                path,
+                limit,
+                undefined,
+                undefined,
+                useMergeHistory,
+                requestOptions
+              ),
             undefined,
-            undefined,
-            useMergeHistory,
-            requestOptions
+            'svn:log'
           )
-        : await window.api.svn.log(path, limit, undefined, undefined, useMergeHistory);
+        : await withIpcTimeout(
+            () => window.api.svn.log(path, limit, undefined, undefined, useMergeHistory),
+            undefined,
+            'svn:log'
+          );
       if (result.cancelled) {
         throw new Error(result.error || 'Log request was cancelled');
       }

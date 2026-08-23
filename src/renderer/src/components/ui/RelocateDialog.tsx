@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, ArrowRightLeft, AlertCircle, CheckCircle, Loader2, Info } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
+import { useSvnActions } from '../../hooks/useSvnActions';
+import { svnInfo } from '../../lib/queryKeys';
 import { confirmAppAction } from '../../utils/dialogs';
 
 interface RelocateDialogProps {
@@ -25,10 +27,11 @@ export function RelocateDialog({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const { settings } = useSettings();
+  const { relocate } = useSvnActions();
 
   // Get current repository info
   const { data: repoInfo } = useQuery({
-    queryKey: ['svn:info', workingCopyPath],
+    queryKey: svnInfo(workingCopyPath),
     queryFn: () => window.api.svn.info(workingCopyPath),
     enabled: isOpen && !!workingCopyPath,
   });
@@ -65,19 +68,16 @@ export function RelocateDialog({
     setIsRelocating(true);
     setError(null);
 
-    try {
-      const result = await window.api.svn.relocate(fromUrl.trim(), toUrl.trim(), workingCopyPath);
+    // The action drops every query keyed by the old URL and invalidates the
+    // working copy's path-keyed queries, so nothing serves pre-relocate data.
+    const result = await relocate(fromUrl.trim(), toUrl.trim(), workingCopyPath);
+    setIsRelocating(false);
 
-      if (result.success) {
-        setSuccess(true);
-        onSuccess?.();
-      } else {
-        setError(result.output || 'Relocate failed');
-      }
-    } catch (err) {
-      setError((err as Error).message || 'Relocate failed');
-    } finally {
-      setIsRelocating(false);
+    if (result.success) {
+      setSuccess(true);
+      onSuccess?.();
+    } else {
+      setError(result.message || 'Relocate failed');
     }
   };
 

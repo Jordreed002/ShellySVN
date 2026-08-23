@@ -6,10 +6,11 @@ import {
   createBrowserHistory,
   createHashHistory,
 } from '@tanstack/react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { SettingsPreviewProvider } from './contexts/SettingsPreviewContext';
 import { GlobalErrorBoundary } from './components/ErrorBoundary';
 import { AppMotionProvider } from './lib/AppMotionProvider';
+import { createAppQueryClient } from './lib/queryTimeout';
 import { DEFAULT_QUERY_STALE_TIME_MS } from '@shared/constants';
 
 // Import styles.
@@ -42,11 +43,15 @@ declare module '@tanstack/react-router' {
 }
 
 // Create a query client
-const queryClient = new QueryClient({
+//
+// `createAppQueryClient` wraps every queryFn in a timeout (a hung IPC call
+// becomes an error, not an eternal spinner) and skips the one automatic retry
+// for timeouts — re-running a wedged call only doubles the wait. See
+// lib/queryTimeout.ts; individual queries can tune or opt out via `meta`.
+const queryClient = createAppQueryClient({
   defaultOptions: {
     queries: {
       staleTime: DEFAULT_QUERY_STALE_TIME_MS,
-      retry: 1,
     },
   },
 });
