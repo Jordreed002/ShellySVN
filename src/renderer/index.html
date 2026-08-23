@@ -3,9 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Enforced renderer CSP. Fully strict: no 'unsafe-inline'/'unsafe-eval'
+      anywhere and no remote origins. Rationale for the two delicate bits:
+
+      - style-src has no 'unsafe-inline'. React style={{...}} and .style.*
+      writes go through the CSSOM, which CSP does not govern, and the renderer
+      has zero setAttribute('style') calls and zero <style> elements (audited;
+      enforced by `bun run check:csp`). Production CSS is a single same-origin
+      stylesheet emitted by the build.
+      - img-src keeps data:/blob: only (no remote schemes); every other
+      directive is 'self' or 'none'.
+
+      Development: `bun run dev` relaxes script-src/style-src with
+      'unsafe-inline' via a serve-only plugin in electron.vite.config.ts
+      because Vite's HMR injects an inline preamble script and runtime
+      <style> elements. The shipped policy stays strict.
+
+      Report-only rollout (follow-up for src/main/index.ts, owned by another
+      track): a meta tag cannot express Content-Security-Policy-Report-Only.
+      To run the next tightening step in report-only first, register in main:
+        session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+          cb({ responseHeaders: { ...details.responseHeaders,
+            'Content-Security-Policy-Report-Only': [REPORT_ONLY_CSP] } });
+        });
+      and point a report-uri/report-to at a local collector before enforcing.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self';"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; worker-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <title>ShellySVN</title>
   </head>

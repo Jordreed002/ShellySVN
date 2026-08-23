@@ -20,6 +20,10 @@ files:
   - '!src/**/*'
   - package.json
 
+# Flip Electron security fuses on every platform pack pass, before signing.
+# Runs once per architecture (macOS builds one arch per invocation).
+afterPack: ./scripts/fuses.mjs
+
 # Windows configuration
 win:
   target:

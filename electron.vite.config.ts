@@ -5,6 +5,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import type { Plugin, OutputBundle, OutputChunk } from 'rollup';
+import type { Plugin as VitePlugin } from 'vite';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -123,6 +124,52 @@ function createRendererBundleReportPlugin(): Plugin {
   };
 }
 
+/**
+ * The production CSP in src/renderer/index.html is fully strict (no
+ * 'unsafe-inline'; verified by `bun run check:csp`). Two dev-server behaviors
+ * cannot satisfy that policy:
+ *
+ *   1. Vite injects the react-refresh preamble as an inline module script.
+ *   2. Vite applies imported CSS through runtime-created <style> elements
+ *      during HMR, and CSP governs those exactly like inline stylesheets.
+ *
+ * This serve-only plugin appends 'unsafe-inline' to just script-src and
+ * style-src while serving `electron-vite dev`; the packaged app keeps the
+ * strict policy baked into index.html.
+ */
+function createDevCspRelaxationPlugin(): VitePlugin {
+  const CSP_META_PATTERN = /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"\s*\/>/;
+
+  return {
+    name: 'shellysvn-dev-csp-relaxation',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      const match = CSP_META_PATTERN.exec(html);
+      if (!match) {
+        throw new Error(
+          '[dev-csp] Content-Security-Policy meta tag not found in src/renderer/index.html — update scripts/check-csp.mjs and this plugin together.'
+        );
+      }
+
+      const relaxed = match[1]
+        .split(';')
+        .map((directive) => directive.trim())
+        .filter(Boolean)
+        .map((directive) =>
+          directive.startsWith('script-src') || directive.startsWith('style-src')
+            ? `${directive} 'unsafe-inline'`
+            : directive
+        )
+        .join('; ');
+
+      return html.replace(
+        match[0],
+        `<meta http-equiv="Content-Security-Policy" content="${relaxed}" />`
+      );
+    },
+  };
+}
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -176,6 +223,7 @@ export default defineConfig({
         routesDirectory: resolve(__dirname, 'src/renderer/src/routes'),
         generatedRouteTree: resolve(__dirname, 'src/renderer/src/routeTree.gen.ts'),
       }),
+      createDevCspRelaxationPlugin(),
       react(),
       createRendererBundleReportPlugin(),
     ],
