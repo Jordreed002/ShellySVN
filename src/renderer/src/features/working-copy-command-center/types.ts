@@ -68,4 +68,13 @@ export interface BatchUpdateController {
   cancelAll: () => Promise<void>;
   retryFailed: () => Promise<void>;
   clearCompleted: () => void;
+  /**
+   * One-shot batch update of an explicit path set (#58): measure, then run
+   * every eligible member through the same pipeline `startSelected` uses —
+   * one shared dirty-working-copy confirmation for the whole set instead of
+   * one per row. Skipped silently when a batch is already in flight.
+   */
+  updatePaths: (paths: readonly string[]) => Promise<void>;
+  /** {@link updatePaths} over every configured working copy. */
+  updateAll: () => Promise<void>;
 }

@@ -520,6 +520,79 @@ export function BatchUpdateProvider({ children }: { children: ReactNode }) {
     );
   }, [commitItems]);
 
+  /**
+   * Sidebar "Update All" / "Update group" entry point (#58).
+   *
+   * Measures the requested paths, runs every ready member that is not already
+   * at HEAD, and folds all dirty members into the single confirmation the
+   * batch flow already uses. It deliberately reuses `measureItems`/`runPaths`
+   * — the sidebar enqueues into the one pipeline the command center renders,
+   * not a second one.
+   */
+  const updatePaths = useCallback(
+    async (requested: readonly string[]) => {
+      if (
+        checkingRef.current ||
+        itemsRef.current.some((item) => item.status === 'running' || item.status === 'queued')
+      ) {
+        return;
+      }
+      const requestedSet = new Set(requested);
+      // Paths the provider has not reconciled yet still get a one-shot item so
+      // the sidebar can update a working copy added in this tick.
+      commitItems((current) => {
+        const missing = [...requestedSet].filter((path) => !current.some((i) => i.path === path));
+        return missing.length > 0 ? [...current, ...missing.map(initialItem)] : current;
+      });
+      const candidates = itemsRef.current.filter((item) => requestedSet.has(item.path));
+      if (candidates.length === 0) return;
+
+      checkingRef.current = true;
+      setIsChecking(true);
+      let measured: BatchUpdateItem[] = [];
+      try {
+        measured = await measureItems(candidates, { autoSelect: false });
+        const replacements = new Map(measured.map((item) => [item.path, item]));
+        commitItems((current) => current.map((item) => replacements.get(item.path) ?? item));
+      } finally {
+        checkingRef.current = false;
+        setIsChecking(false);
+      }
+
+      const eligible = measured.filter(
+        (item) => item.status === 'ready' && item.blockedKind !== 'at-head' && !item.blockedKind
+      );
+      if (eligible.length === 0) return;
+
+      const dirty = eligible.filter((item) => item.requiresDirtyConfirmation);
+      let runSet: Set<string> | null = null;
+      if (dirty.length > 0) {
+        const includeDirty = await confirmAppAction({
+          type: 'warning',
+          message: `Update ${dirty.length} working cop${dirty.length === 1 ? 'y' : 'ies'} with local changes?`,
+          detail:
+            'Subversion may merge incoming changes into local edits or create conflicts. Clean working copies are always included.',
+          confirmLabel: 'Update all selected',
+        });
+        runSet = new Set(
+          includeDirty
+            ? eligible.map((item) => item.path)
+            : eligible.filter((item) => !item.requiresDirtyConfirmation).map((item) => item.path)
+        );
+      } else {
+        runSet = new Set(eligible.map((item) => item.path));
+      }
+      if (runSet.size === 0) return;
+      await runPaths([...runSet]);
+    },
+    [commitItems, measureItems, runPaths]
+  );
+
+  const updateAll = useCallback(
+    () => updatePaths(configuredPathsRef.current),
+    [updatePaths]
+  );
+
   const summary = useMemo(() => summarizeBatch(items), [items]);
   const value = useMemo<BatchUpdateController>(
     () => ({
@@ -533,6 +606,8 @@ export function BatchUpdateProvider({ children }: { children: ReactNode }) {
       cancelAll,
       retryFailed,
       clearCompleted,
+      updatePaths,
+      updateAll,
     }),
     [
       items,
@@ -545,6 +620,8 @@ export function BatchUpdateProvider({ children }: { children: ReactNode }) {
       cancelAll,
       retryFailed,
       clearCompleted,
+      updatePaths,
+      updateAll,
     ]
   );
   return <BatchContext.Provider value={value}>{children}</BatchContext.Provider>;

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   Clock,
@@ -6,7 +6,9 @@ import {
   ExternalLink,
   FolderGit2,
   FolderOpen,
+  FolderPlus,
   Globe,
+  HardDrive,
   History,
   Home,
   Key,
@@ -15,24 +17,19 @@ import {
   Pin,
   PinOff,
   Plus,
+  RefreshCw,
   Search,
   Settings,
   Star,
   Trash2,
+  Unlink,
   X,
 } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useHomePath } from '@renderer/hooks/useHomePath';
 
-import { m, useMotionEnabled, variants } from '../lib/motion';
-import {
-  RailLinkRow,
-  RailSection,
-  RepoRailItem,
-  railRowClass,
-  WorkingCopyRow,
-} from './sidebar/RepoRow';
+import { RailLinkRow, RailSection, RepoRailItem, railRowClass } from './sidebar/RepoRow';
 import {
   collectRepositoryRoots,
   describeRepo,
@@ -41,7 +38,18 @@ import {
 } from './sidebar/workingCopyOverview';
 import { usePinnedRepos } from './sidebar/pinnedRepositories';
 import { shouldLoadSidebarInsights } from './sidebar/sidebarInsightsGate';
-import { WorkingCopyPanel } from './sidebar/WorkingCopyPanel';
+import { WorkingCopyList } from './sidebar/WorkingCopyGroups';
+import { useWorkingCopyGroups } from './sidebar/useWorkingCopyGroups';
+import { useSidebarUiState } from './sidebar/useSidebarUiState';
+import { groupWorkingCopies } from '@renderer/lib/workingCopyGroups';
+import type { SidebarSortMode } from '@renderer/lib/sidebarUiState';
+import { aggregateWorkingCopyStatus } from './sidebar/groupAggregates';
+import {
+  BatchCompletionNotice,
+  UpdateAllButton,
+} from '@renderer/features/working-copy-command-center/BatchUpdateControls';
+import { useBatchUpdate } from '@renderer/features/working-copy-command-center/BatchUpdateProvider';
+import { promptAppInput } from '@renderer/utils/dialogs';
 import type { SettingsTab } from './ui/SettingsDialog';
 
 const AddRepoModal = lazy(() =>
@@ -58,6 +66,12 @@ const ShelveDialog = lazy(() =>
 );
 const SidebarInsights = lazy(() =>
   import('./sidebar/SidebarInsightsPanel').then((mod) => ({ default: mod.SidebarInsights }))
+);
+const RelinkDialog = lazy(() =>
+  import('./ui/RelinkDialog').then((mod) => ({ default: mod.RelinkDialog }))
+);
+const DiskUsagePanel = lazy(() =>
+  import('./ui/DiskUsagePanel').then((mod) => ({ default: mod.DiskUsagePanel }))
 );
 
 /** Recent locations are a shortcut list, not a history log — keep it short. */
@@ -82,7 +96,6 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const { settings, addRecentRepo, removeRecentRepo, addBookmark, removeBookmark } = useSettings();
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const motionEnabled = useMotionEnabled();
 
   const currentPath = (routerState.location.search as { path?: string })?.path || '';
   const currentPathWithDefault = currentPath;
@@ -105,8 +118,14 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; repo: string } | null>(
     null
   );
+  // Working copies whose relink (#60) / disk-usage (#61) dialogs are open.
+  const [relinkFor, setRelinkFor] = useState<string | null>(null);
+  const [diskUsageFor, setDiskUsageFor] = useState<string | null>(null);
 
   const { isPinned, togglePin } = usePinnedRepos();
+  const groupsController = useWorkingCopyGroups();
+  const sidebarUi = useSidebarUiState();
+  const { updatePaths } = useBatchUpdate();
 
   const recentRepos = settings?.recentRepositories || [];
   const bookmarks = settings?.bookmarks || [];
@@ -119,7 +138,18 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
 
   const filteredRepos = recentRepos.filter((repo) => matchesSearch(repo));
   // Pinned repos float to the top (stable within each group).
-  const sortedRepos = [...filteredRepos].sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
+  const sortedRepos = filteredRepos.toSorted((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
+
+  // The expanded list renders sections (groups + ungrouped) in the active sort
+  // mode; the collapsed rail keeps the flat pinned-first order.
+  const sections = useMemo(
+    () =>
+      groupWorkingCopies(filteredRepos, groupsController.state, {
+        sortMode: sidebarUi.state.sortMode,
+        isPinned,
+      }),
+    [filteredRepos, groupsController.state, sidebarUi.state.sortMode, isPinned]
+  );
 
   // The recent repo that contains the current path, if any (drives the panel).
   const activeRepo = recentRepos.find(
@@ -128,6 +158,12 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
 
   /* ── working-copy facts: one query feeds every row and the disk card ── */
   const overview = useWorkingCopyOverview(recentRepos);
+
+  // Union of every working copy's local state — the rail's aggregate badge.
+  const railAggregate = useMemo(
+    () => aggregateWorkingCopyStatus(filteredRepos, overview),
+    [filteredRepos, overview]
+  );
 
   const repositoryRoots = collectRepositoryRoots(recentRepos, overview).filter(
     (root) => matchesSearch(root.url) || root.workingCopies.some((wc) => matchesSearch(wc))
@@ -211,6 +247,50 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
     setSettingsTab(requestedTab);
     setIsSettingsDialogOpen(true);
   }, []);
+
+  /* ── groups (#59) ── */
+  const handleCreateGroup = useCallback(
+    async (memberPath?: string) => {
+      const name = await promptAppInput({
+        title: memberPath ? 'New group' : 'New working-copy group',
+        message: 'Group name',
+        placeholder: 'e.g. Client work',
+        confirmLabel: 'Create group',
+      });
+      if (!name) return;
+      const id = await groupsController.create(name);
+      if (id && memberPath) groupsController.assign(memberPath, id);
+    },
+    [groupsController]
+  );
+
+  const handleSortModeChange = useCallback(
+    (event: { target: { value: string } }) => {
+      const mode = event.target.value as SidebarSortMode;
+      if (mode === 'default' || mode === 'manual' || mode === 'name') {
+        sidebarUi.setSortMode(mode);
+      }
+    },
+    [sidebarUi]
+  );
+
+  /* ── relink (#60) + disk usage (#61) ── */
+  const openRelink = useCallback((repo: string) => {
+    setRelinkFor(repo);
+    setContextMenu(null);
+  }, []);
+
+  const openDiskUsage = useCallback((repo: string) => {
+    setDiskUsageFor(repo);
+    setContextMenu(null);
+  }, []);
+
+  const handleRelinkApplied = useCallback(
+    (_oldPath: string, newPath: string) => {
+      navigate({ to: '/files', search: { path: newPath } });
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -299,6 +379,16 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
           )}
 
           <div className="my-1 h-px w-6 bg-border" />
+
+          <UpdateAllButton
+            iconOnly
+            label="Update all working copies"
+            title={
+              railAggregate.changes + railAggregate.conflicts > 0
+                ? `Update all — ${railAggregate.changes} pending changes across ${filteredRepos.length} working copies`
+                : `Update all working copies (${filteredRepos.length})`
+            }
+          />
 
           <div className="flex-1 w-full overflow-y-auto scrollbar-overlay flex flex-col items-center gap-1 py-1">
             {sortedRepos.map((repo) => (
@@ -399,17 +489,51 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             <RailSection
               title="Working copies"
               action={
-                <button
-                  type="button"
-                  onClick={() => setIsAddRepoModalOpen(true)}
-                  className="text-text-muted hover:text-text transition-fast"
-                  title="Add working copy"
-                  aria-label="Add working copy"
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
+                <span className="flex items-center gap-1">
+                  <UpdateAllButton
+                    className="btn-icon-sm"
+                    label="Update all"
+                    title="Update every working copy through the batch pipeline"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateGroup()}
+                    className="text-text-muted hover:text-text transition-fast"
+                    title="New group"
+                    aria-label="Create a working-copy group"
+                    data-testid="create-group-button"
+                  >
+                    <FolderPlus className="h-3 w-3" />
+                  </button>
+                  <label className="flex items-center text-text-muted hover:text-text transition-fast">
+                    <span className="sr-only">Sort working copies</span>
+                    <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                    <select
+                      value={sidebarUi.state.sortMode}
+                      onChange={handleSortModeChange}
+                      className="cursor-pointer appearance-none bg-transparent pl-0.5 pr-1 text-2xs font-semibold normal-case tracking-normal focus:outline-none"
+                      title="Sort working copies"
+                      data-testid="sort-mode-select"
+                    >
+                      <option value="default">Recent</option>
+                      <option value="manual">Manual</option>
+                      <option value="name">Name</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddRepoModalOpen(true)}
+                    className="text-text-muted hover:text-text transition-fast"
+                    title="Add working copy"
+                    aria-label="Add working copy"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </span>
               }
             />
+
+            <BatchCompletionNotice />
 
             {sortedRepos.length === 0 ? (
               <div className="px-3 py-8 text-center">
@@ -430,39 +554,17 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                 )}
               </div>
             ) : (
-              <m.div
-                className="space-y-0.5 px-1.5"
-                variants={variants.staggerList}
-                initial={motionEnabled ? 'initial' : false}
-                animate="animate"
-              >
-                {sortedRepos.map((repo) => {
-                  const isActive = currentPath === repo || currentPath.startsWith(repo + '/');
-                  const summary = overview.get(repo);
-                  return (
-                    <div key={repo}>
-                      <WorkingCopyRow
-                        repo={repo}
-                        isActive={isActive}
-                        isPinned={isPinned(repo)}
-                        isMenuOpen={contextMenu?.repo === repo}
-                        presence={summary?.presence ?? 'unknown'}
-                        status={summary?.status}
-                        info={summary?.info}
-                        onOpen={(r) => void addRecentRepo(r)}
-                        onMenu={openContextMenu}
-                      />
-                      {isActive && (
-                        <WorkingCopyPanel
-                          repoPath={repo}
-                          info={summary?.info}
-                          status={summary?.status}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </m.div>
+              <WorkingCopyList
+                sections={sections}
+                overview={overview}
+                currentPath={currentPath}
+                contextMenuRepo={contextMenu?.repo ?? null}
+                isPinned={isPinned}
+                groups={groupsController}
+                ui={sidebarUi}
+                onOpen={(r) => void addRecentRepo(r)}
+                onMenu={openContextMenu}
+              />
             )}
 
             {/* ── Repository ── */}
@@ -654,6 +756,86 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             <Key className="w-4 h-4" />
             Manage credentials
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              void updatePaths([contextMenu.repo]);
+              setContextMenu(null);
+            }}
+            className="context-menu-item w-full"
+            data-testid="context-update-now"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Update now
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => openDiskUsage(contextMenu.repo)}
+            className="context-menu-item w-full"
+            data-testid="context-disk-usage"
+          >
+            <HardDrive className="w-4 h-4" />
+            Disk usage…
+          </button>
+          {overview.get(contextMenu.repo)?.presence === 'none' && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => openRelink(contextMenu.repo)}
+              className="context-menu-item w-full"
+              data-testid="context-relink"
+            >
+              <Unlink className="w-4 h-4" />
+              Relink working copy…
+            </button>
+          )}
+          {groupsController.state.groups.length > 0 && (
+            <>
+              <div className="context-menu-divider" />
+              {groupsController.state.groups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    groupsController.assign(contextMenu.repo, group.id);
+                    setContextMenu(null);
+                  }}
+                  className="context-menu-item w-full pl-7"
+                >
+                  <span className="truncate">{group.name}</span>
+                </button>
+              ))}
+              {groupsController.state.assignments[contextMenu.repo] && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    groupsController.assign(contextMenu.repo, null);
+                    setContextMenu(null);
+                  }}
+                  className="context-menu-item w-full pl-7"
+                >
+                  <X className="w-4 h-4" />
+                  No group
+                </button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void handleCreateGroup(contextMenu.repo);
+                  setContextMenu(null);
+                }}
+                className="context-menu-item w-full pl-7"
+              >
+                <FolderPlus className="w-4 h-4" />
+                New group…
+              </button>
+            </>
+          )}
           <div className="context-menu-divider" />
           <button
             type="button"
@@ -715,6 +897,33 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             isOpen={isImportDialogOpen}
             onClose={() => setIsImportDialogOpen(false)}
             initialPath={currentPath}
+          />
+        </Suspense>
+      )}
+
+      {/* Relink flow for a working copy whose folder went missing (#60) */}
+      {relinkFor && (
+        <Suspense fallback={null}>
+          <RelinkDialog
+            isOpen={true}
+            onClose={() => setRelinkFor(null)}
+            oldPath={relinkFor}
+            expected={{
+              url: overview.get(relinkFor)?.info?.url,
+              repositoryRoot: overview.get(relinkFor)?.info?.repositoryRoot,
+            }}
+            onApplied={handleRelinkApplied}
+          />
+        </Suspense>
+      )}
+
+      {/* Pristine-store disk usage for one working copy (#61) */}
+      {diskUsageFor && (
+        <Suspense fallback={null}>
+          <DiskUsagePanel
+            isOpen={true}
+            onClose={() => setDiskUsageFor(null)}
+            workingCopyPath={diskUsageFor}
           />
         </Suspense>
       )}
