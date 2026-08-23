@@ -13,8 +13,14 @@ import {
 import { buildPathAutocompleteOptions } from '@renderer/utils/commitAutocomplete';
 import { getCommitWarnings } from '@renderer/utils/commitWarnings';
 import { validateCommitRules } from '@renderer/utils/commitRules';
-import { extractIssueLinks } from '@renderer/utils/issueTracker';
+import {
+  DEFAULT_ISSUE_TRACKER_CONFIG,
+  extractIssueIds,
+  extractIssueLinks,
+  isValidIssuePattern,
+} from '@renderer/utils/issueTracker';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { useRecentCommitMessages } from './useRecentCommitMessages';
 import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
 import type {
   AiCommitPlanResult,
@@ -173,6 +179,9 @@ export function useCommitDialogController({
   messageRef.current = message;
   const { settings, isLoading: isLoadingSettings, updateSettings } = useSettings();
   const { history, addMessage } = useCommitMessageHistory();
+  const { recentMessages, addRecentMessage } = useRecentCommitMessages(
+    isOpen ? workingCopyPath : ''
+  );
   const { templates, applyTemplate } = useCommitTemplates();
   const issueTrackerLookupPath = workingCopyPath;
   const { config: issueTrackerConfig, updateConfig: updateIssueTrackerConfig } =
@@ -427,10 +436,6 @@ export function useCommitDialogController({
     () => (message.trim() ? validateCommitRules(message, rules) : []),
     [message, rules]
   );
-  const issueLinks = useMemo(
-    () => extractIssueLinks(message, issueTrackerConfig),
-    [message, issueTrackerConfig]
-  );
 
   useEffect(() => {
     if (isOpen) {
@@ -499,6 +504,35 @@ export function useCommitDialogController({
   });
   const enabledDraftTransformations =
     repositoryAiProfile?.enabledDraftTransformations ?? ALL_DRAFT_TRANSFORMATIONS;
+
+  /*
+   * Issue-key autolink (#73d): when the repository profile carries an issue ID
+   * pattern and the tracker config still sits on the global default, the
+   * profile wins for extraction. A pattern the user typed themselves is never
+   * overridden — the comparison is exact, so this only upgrades the untouched
+   * default.
+   */
+  const profileIssuePattern =
+    typeof repositoryAiProfile?.issueIdPattern === 'string'
+      ? repositoryAiProfile.issueIdPattern.trim()
+      : '';
+  const issuePatternFromProfile =
+    profileIssuePattern &&
+    isValidIssuePattern(profileIssuePattern) &&
+    issueTrackerConfig.issueIdPattern === DEFAULT_ISSUE_TRACKER_CONFIG.issueIdPattern
+      ? profileIssuePattern
+      : null;
+  const effectiveIssueTrackerConfig = useMemo(
+    () =>
+      issuePatternFromProfile
+        ? { ...issueTrackerConfig, issueIdPattern: issuePatternFromProfile }
+        : issueTrackerConfig,
+    [issuePatternFromProfile, issueTrackerConfig]
+  );
+  const issueLinks = useMemo(
+    () => extractIssueLinks(message, effectiveIssueTrackerConfig),
+    [message, effectiveIssueTrackerConfig]
+  );
 
   const selectedAiProvider = useMemo((): AiCommitProviderStatus | undefined => {
     if (settings.aiCommit.provider === 'auto') {
@@ -1003,6 +1037,7 @@ export function useCommitDialogController({
       setTemplateContext({
         path: workingCopyPath,
         files: selectedFiles.map((file) => file.path),
+        issueHint: extractIssueIds(message, effectiveIssueTrackerConfig.issueIdPattern)[0] ?? '',
       });
       setMessage(await applyTemplate(templateId));
       setShowTemplates(false);
@@ -1072,6 +1107,9 @@ export function useCommitDialogController({
 
       if (result.success) {
         addMessage(message.trim(), workingCopyPath);
+        // Awaited so the recall write settles before the success panel shows;
+        // storage failures are swallowed by the hook itself.
+        await addRecentMessage(message.trim());
         setSuccess({ revision: result.revision || 0 });
       } else {
         setError(result.message || 'Commit failed');
@@ -1143,9 +1181,13 @@ export function useCommitDialogController({
     commitWarnings,
     textareaRef,
     history,
+    recentMessages,
     templates,
     issueTrackerConfig,
     updateIssueTrackerConfig,
+    effectiveIssueTrackerConfig,
+    issuePatternFromProfile,
+    profileSubjectMaxLength: repositoryAiProfile?.subjectMaxLength,
     rules,
     updateRules,
     isLoadingStatus,

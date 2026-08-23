@@ -1,4 +1,4 @@
-import { Suspense, lazy, useRef } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   X,
@@ -30,6 +30,12 @@ import { AutoCompleteInput } from './AutoCompleteInput';
 import type { SvnStatusChar } from '@shared/types';
 import { useCommitDialogController, type CommitFile } from '../commit/useCommitDialogController';
 import { DraftTransformationBar } from '../commit/DraftTransformationBar';
+import { IssueTrackerPresetPicker } from '../commit/IssueTrackerPresetPicker';
+import { MessageGuide } from '../commit/MessageGuide';
+import { OodCheckPanel } from '../commit/OodCheckPanel';
+import { PreCommitChecklist } from '../commit/PreCommitChecklist';
+import { useOutOfDateCommitGate } from '../../hooks/useWorkingCopyFreshness';
+import { useSvnActions } from '../../hooks/useSvnActions';
 
 const EnhancedDiffViewer = lazy(() =>
   import('./EnhancedDiffViewer').then((m) => ({ default: m.EnhancedDiffViewer }))
@@ -265,12 +271,17 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     commitWarnings,
     textareaRef,
     history,
+    recentMessages,
     templates,
     issueTrackerConfig,
     updateIssueTrackerConfig,
+    effectiveIssueTrackerConfig,
+    issuePatternFromProfile,
+    profileSubjectMaxLength,
     rules,
     updateRules,
     isLoadingStatus,
+    files,
     refetch,
     aiSuggestions,
     templateRecommendations,
@@ -309,6 +320,53 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     handleSubmit,
     handleClose,
   } = useCommitDialogController({ isOpen, workingCopyPath, onClose, onSubmit });
+
+  /*
+   * Out-of-date gate in front of the controller's submit path. The check is a
+   * repository round trip, so it runs only after the dialog's own validation
+   * would let a commit start, and every non-conclusive answer (offline, auth,
+   * cancelled, skipped) falls straight through to `handleSubmit` untouched.
+   * "Update and retry" reuses `useSvnActions().update` — the same action the
+   * Files toolbar runs — then re-runs the commit flow exactly once.
+   */
+  const { update } = useSvnActions();
+  const {
+    state: oodState,
+    gateSubmit,
+    updateAndRetry,
+    commitAnyway,
+    cancel: cancelOodCheck,
+    skipCheck,
+    reset: resetOodGate,
+  } = useOutOfDateCommitGate({
+    workingCopyPath,
+    isCommitReady: () => Boolean(message.trim()) && selectedCount > 0 && ruleErrors.length === 0,
+    /*
+     * The visible list; a file hidden by the filter dropdown stays selected
+     * for commit, but the working copy's own out-of-date entry (".") is
+     * always checked too, which is the case Subversion itself rejects.
+     */
+    getSelectedPaths: () =>
+      filteredFiles.filter((file) => file.selected && file.committable).map((file) => file.path),
+    runCommit: (event) => handleSubmit(event),
+    runUpdate: () => update(workingCopyPath),
+    onUpdated: () => {
+      void refetch();
+    },
+  });
+
+  useEffect(() => {
+    if (!isOpen) resetOodGate();
+  }, [isOpen, resetOodGate]);
+
+  /** Selected, committable files the pre-commit checklist scans (#75). */
+  const checklistFiles = useMemo(
+    () =>
+      files
+        .filter((file) => file.selected && file.committable)
+        .map((file) => ({ path: file.path, isDirectory: file.isDirectory })),
+    [files]
+  );
 
   if (!isOpen) return null;
 
@@ -378,7 +436,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
           </div>
         ) : (
           <form
-            onSubmit={handleSubmit}
+            onSubmit={gateSubmit}
             aria-label="Commit form"
             className="flex min-h-0 flex-1 flex-col"
           >
@@ -652,6 +710,20 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                               <p className="text-xs text-text-faint">
                                 Use {'{id}'} or {'{issue}'} where the issue ID belongs.
                               </p>
+                              {/* Provider presets (#74): derive the pattern and
+                                  URL template from a Jira/GitHub base URL. */}
+                              <IssueTrackerPresetPicker
+                                workingCopyPath={workingCopyPath}
+                                config={effectiveIssueTrackerConfig}
+                                onApply={(updates) => updateIssueTrackerConfig(updates)}
+                              />
+                              {issuePatternFromProfile && (
+                                <p className="text-xs text-text-faint">
+                                  Issue pattern defaults to the repository profile (
+                                  <span className="font-mono">{issuePatternFromProfile}</span>);
+                                  edit the pattern above to override it.
+                                </p>
+                              )}
                             </div>
                             <p className="text-xs text-text-faint">
                               Rules and tracker settings are saved for this working copy.
@@ -736,6 +808,13 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                                 Manage templates
                               </button>
                             </li>
+                            <li
+                              className="px-3 py-1.5 text-10 text-text-faint border-t border-border"
+                              aria-hidden="true"
+                            >
+                              Variables: {'{{branch}} {{date}} {{issue}} {{files}}'} — substituted
+                              when applied.
+                            </li>
                           </ul>
                         )}
                         {showTemplateManager && (
@@ -750,7 +829,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                         )}
                       </div>
 
-                      {/* History dropdown */}
+                      {/* History dropdown — per-working-copy recall first, then
+                          the global history (#73a). */}
                       <div className="relative">
                         <button
                           type="button"
@@ -760,24 +840,55 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             setShowSuggestions(false);
                           }}
                           className="btn btn-secondary btn-sm text-xs"
-                          disabled={history.length === 0}
+                          disabled={history.length === 0 && recentMessages.length === 0}
                           aria-expanded={showHistory}
                           aria-haspopup="menu"
                           aria-label="Insert from commit history"
-                          aria-disabled={history.length === 0}
+                          aria-disabled={history.length === 0 && recentMessages.length === 0}
                         >
                           <Clock className="w-3 h-3" aria-hidden="true" />
                           History
                           <ChevronDown className="w-3 h-3" aria-hidden="true" />
                         </button>
-                        {showHistory && history.length > 0 && (
+                        {showHistory && (history.length > 0 || recentMessages.length > 0) && (
                           <ul
-                            className="absolute right-0 top-full mt-1 w-72 max-h-48 overflow-auto bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
+                            className="absolute right-0 top-full mt-1 w-72 max-h-64 overflow-auto bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
                             role="menu"
                             aria-label="Recent commit messages"
                           >
+                            {recentMessages.length > 0 && (
+                              <li
+                                className="px-3 py-1 text-9.5 font-semibold uppercase tracking-caps text-text-faint bg-bg-tertiary sticky top-0"
+                                aria-hidden="true"
+                              >
+                                This working copy
+                              </li>
+                            )}
+                            {recentMessages.slice(0, 20).map((entry) => (
+                              <li key={`recent-${entry.timestamp}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleHistorySelect(entry.message)}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
+                                  role="menuitem"
+                                >
+                                  <div className="truncate text-text">{entry.message}</div>
+                                  <div className="text-text-faint text-xs mt-0.5">
+                                    {new Date(entry.timestamp).toLocaleDateString()}
+                                  </div>
+                                </button>
+                              </li>
+                            ))}
+                            {history.length > 0 && (
+                              <li
+                                className="px-3 py-1 text-9.5 font-semibold uppercase tracking-caps text-text-faint bg-bg-tertiary sticky top-0"
+                                aria-hidden="true"
+                              >
+                                All working copies
+                              </li>
+                            )}
                             {history.slice(0, 10).map((h, i) => (
-                              <li key={i}>
+                              <li key={`global-${h.timestamp}-${i}`}>
                                 <button
                                   type="button"
                                   onClick={() => handleHistorySelect(h.message)}
@@ -874,7 +985,8 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     </div>
                   )}
 
-                  {/* Autocomplete textarea */}
+                  {/* Autocomplete textarea — native spellcheck underlines
+                      suspect words; MessageGuide adds the length/word counts. */}
                   <AutoCompleteInput
                     value={message}
                     onChange={handleMessageChange}
@@ -889,6 +1001,12 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                     openOnFocus={false}
                     aria-label="Commit message"
                     id="commit-message"
+                  />
+
+                  <MessageGuide
+                    message={message}
+                    subjectMaxLength={profileSubjectMaxLength}
+                    className="mt-1"
                   />
 
                   {message.trim() && enabledDraftTransformations.length > 0 && (
@@ -1177,6 +1295,15 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       )}
                     </div>
                   )}
+
+                  {/* Pre-commit checklist (#75) — advisory only. Findings never
+                      disable the submit button; the out-of-date gate further
+                      below keeps its submit-blocking semantics untouched. */}
+                  <PreCommitChecklist
+                    files={checklistFiles}
+                    disabled={isSubmitting}
+                    className="mt-2"
+                  />
                 </div>
 
                 {/* Diff preview with enhanced viewer */}
@@ -1356,6 +1483,19 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
               </div>
             )}
 
+            {/* Out-of-date check — holds the commit only when the repository
+                is provably ahead for the selected paths. */}
+            <OodCheckPanel
+              phase={oodState.phase}
+              incoming={oodState.incoming}
+              error={oodState.error}
+              selectedCount={selectedCount}
+              onUpdateAndRetry={() => void updateAndRetry()}
+              onCommitAnyway={commitAnyway}
+              onCancel={cancelOodCheck}
+              onSkipCheck={() => skipCheck()}
+            />
+
             {/* Footer */}
             <div className="modal-footer bg-bg-secondary/80 py-3">
               <div
@@ -1383,7 +1523,13 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 type="submit"
                 className="btn btn-primary"
                 disabled={
-                  isSubmitting || !message.trim() || selectedCount === 0 || ruleErrors.length > 0
+                  isSubmitting ||
+                  !message.trim() ||
+                  selectedCount === 0 ||
+                  ruleErrors.length > 0 ||
+                  oodState.phase === 'checking' ||
+                  oodState.phase === 'updating' ||
+                  oodState.phase === 'blocked'
                 }
                 aria-label={
                   isSubmitting

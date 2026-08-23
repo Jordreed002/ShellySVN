@@ -2,11 +2,16 @@ import { useState, useCallback, useEffect } from 'react';
 import { debug } from '@shared/utils/debug';
 
 /**
- * Template context for variable resolvers
+ * Template context for variable substitution
  */
 interface TemplateContext {
   path?: string;
   files?: string[];
+  /**
+   * Issue key already typed in the draft (matched with the working copy's
+   * issue ID pattern), consumed by the `{{issue}}` variable. (#73b)
+   */
+  issueHint?: string;
 }
 
 let templateContext: TemplateContext = {};
@@ -122,6 +127,12 @@ const BUILTIN_VARIABLES: TemplateVariable[] = [
       const { files } = getContext();
       return String(files?.length || 0);
     },
+  },
+  {
+    name: 'issue',
+    description: 'Issue key from the current draft (working copy issue pattern)',
+    example: 'PROJ-123',
+    resolver: () => getContext().issueHint || '',
   },
 ];
 
@@ -302,8 +313,17 @@ export function useCommitTemplates() {
   };
 }
 
+/** Escape a variable name so it can be embedded in a substitution RegExp. */
+function escapeRegExpName(name: string): string {
+  return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
- * Apply variable substitution to a template string
+ * Apply variable substitution to a template string.
+ *
+ * Both `{{name}}` and the single-brace `{name}` spelling are substituted so
+ * templates written as `{branch}` / `{date}` / `{issue}` keep working. The
+ * double-brace form is replaced first so nested spellings are left alone.
  */
 export async function applyTemplateString(
   template: string,
@@ -313,15 +333,19 @@ export async function applyTemplateString(
 
   // Apply built-in variables
   for (const variable of BUILTIN_VARIABLES) {
-    const regex = new RegExp(`\\{\\{${variable.name}\\}\\}`, 'g');
+    const escaped = escapeRegExpName(variable.name);
     const value = await Promise.resolve(variable.resolver());
-    result = result.replace(regex, value);
+    result = result
+      .replace(new RegExp(`\\{\\{${escaped}\\}\\}`, 'g'), value)
+      .replace(new RegExp(`\\{${escaped}\\}`, 'g'), value);
   }
 
   // Apply custom variables
   for (const [name, value] of Object.entries(customVariables)) {
-    const regex = new RegExp(`\\{\\{${name}\\}\\}`, 'g');
-    result = result.replace(regex, value);
+    const escaped = escapeRegExpName(name);
+    result = result
+      .replace(new RegExp(`\\{\\{${escaped}\\}\\}`, 'g'), value)
+      .replace(new RegExp(`\\{${escaped}\\}`, 'g'), value);
   }
 
   return result;
