@@ -2,6 +2,7 @@ import { writeFile } from 'fs/promises';
 
 import type { SvnPatchApplyOptions, SvnPatchResult } from '@shared/types';
 import { debug } from '../utils/debug';
+import { assertSanitizedPath } from '../utils/path-guard';
 import { runSvnText } from './svn-executor';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 
@@ -11,8 +12,12 @@ export async function createPatch(
 ): Promise<{ success: boolean; output: string }> {
   try {
     validateSvnTargets(paths, 'Patch target');
+    // SECURITY: the write destination comes from renderer input; reject null
+    // bytes, UNC/Win32 namespace prefixes, drive-relative paths and reserved
+    // device names before handing it to writeFile.
+    const sanitizedOutputPath = assertSanitizedPath(outputPath, 'Patch output');
     const output = await runSvnText(withSvnTargets(['diff'], paths));
-    await writeFile(outputPath, output, 'utf-8');
+    await writeFile(sanitizedOutputPath, output, 'utf-8');
     return { success: true, output };
   } catch (error) {
     debug.error('[SVN] Patch create error:', error);
@@ -28,6 +33,11 @@ export async function applyPatch(
 ): Promise<SvnPatchResult> {
   try {
     validateSvnTargets([patchPath, targetPath], 'Patch target');
+    // SECURITY: sanitize both paths (null bytes, UNC, device names) before
+    // they reach the svn CLI. Patch *extraction* itself is performed by
+    // `svn patch`, which writes only inside the target working copy.
+    assertSanitizedPath(patchPath, 'Patch file');
+    assertSanitizedPath(targetPath, 'Patch target');
     if (
       options.stripCount !== undefined &&
       (!Number.isInteger(options.stripCount) || options.stripCount < 0 || options.stripCount > 100)

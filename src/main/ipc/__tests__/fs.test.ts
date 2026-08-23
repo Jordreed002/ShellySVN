@@ -40,16 +40,20 @@ const mockState = vi.hoisted(() => ({
     }),
     kill: vi.fn(),
   }),
-  chokidarWatch: vi.fn().mockReturnValue({
-    on: vi.fn().mockReturnThis(),
-    close: vi.fn().mockResolvedValue(undefined),
-  }),
+  chokidarWatch: vi.fn(),
   existsSync: vi.fn().mockReturnValue(true),
   statSync: vi.fn().mockReturnValue({
     isFile: () => true,
     isDirectory: () => false,
     size: 100,
   }),
+  // path-guard symlink auditing: identity realpath by default (no symlinks);
+  // individual tests override this to simulate symlink redirection.
+  realpathSync: (() => {
+    const fn = vi.fn((p: string) => p);
+    return Object.assign(fn, { native: fn });
+  })(),
+  lstatSync: vi.fn().mockReturnValue({ isSymbolicLink: () => false }),
   workerRun: vi.fn().mockResolvedValue({}),
   workerCancel: vi.fn().mockReturnValue(true),
 }));
@@ -101,18 +105,26 @@ vi.mock('node:fs', () => ({
   default: {
     existsSync: mockState.existsSync,
     statSync: mockState.statSync,
+    realpathSync: mockState.realpathSync,
+    lstatSync: mockState.lstatSync,
   },
   existsSync: mockState.existsSync,
   statSync: mockState.statSync,
+  realpathSync: mockState.realpathSync,
+  lstatSync: mockState.lstatSync,
 }));
 
 vi.mock('fs', () => ({
   default: {
     existsSync: mockState.existsSync,
     statSync: mockState.statSync,
+    realpathSync: mockState.realpathSync,
+    lstatSync: mockState.lstatSync,
   },
   existsSync: mockState.existsSync,
   statSync: mockState.statSync,
+  realpathSync: mockState.realpathSync,
+  lstatSync: mockState.lstatSync,
 }));
 
 // Mock child_process — expose spawn both as a named export and on default so
@@ -157,7 +169,16 @@ vi.mock('../../workers/WorkerPool', () => ({
 }));
 
 // Import after mocking
-import { registerFsHandlers, applySvnStatusToFiles, getParentPath } from '../fs';
+import {
+  registerFsHandlers,
+  applySvnStatusToFiles,
+  getParentPath,
+  closeAllFileWatchers,
+  closeFileWatchersForPath,
+  FILE_WATCH_EVENT_DEBOUNCE_MS,
+  FILE_WATCH_EVENT_MAX_WAIT_MS,
+  getActiveFileWatcherPathsForTests,
+} from '../fs';
 import {
   approvePathForIpc,
   clearApprovedPathsForTests,
@@ -168,10 +189,16 @@ import type { FileInfo } from '@shared/types';
 describe('FS IPC Handlers', () => {
   // Store registered handlers
   const handlers: Map<string, (...args: unknown[]) => unknown> = new Map();
+  // Fresh chokidar watcher mock per fs:watch call, for lifecycle assertions.
+  const createdWatchers: Array<{
+    on: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  }> = [];
 
   beforeEach(() => {
     handlers.clear();
     clearApprovedPathsForTests();
+    createdWatchers.length = 0;
 
     // Reset mock call counts but keep implementations
     mockState.ipcMainHandle.mockClear();
@@ -182,9 +209,11 @@ describe('FS IPC Handlers', () => {
     mockState.copyFile.mockClear();
     mockState.mkdir.mockClear();
     mockState.spawn.mockClear();
-    mockState.chokidarWatch.mockClear();
+    mockState.chokidarWatch.mockReset();
     mockState.existsSync.mockClear();
     mockState.statSync.mockClear();
+    mockState.realpathSync.mockClear();
+    mockState.lstatSync.mockClear();
 
     // Reset mock implementations
     mockState.readdir.mockResolvedValue([]);
@@ -204,6 +233,18 @@ describe('FS IPC Handlers', () => {
       isDirectory: () => false,
       size: 100,
     });
+    // Identity realpath (and realpathSync.native — same function) plus
+    // regular-file lstat: the default "no symlinks on disk" world.
+    mockState.realpathSync.mockImplementation((p: string) => p);
+    mockState.lstatSync.mockReturnValue({ isSymbolicLink: () => false });
+    mockState.chokidarWatch.mockImplementation(() => {
+      const watcher = {
+        on: vi.fn().mockReturnThis(),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      createdWatchers.push(watcher);
+      return watcher;
+    });
     mockState.workerRun.mockResolvedValue({});
     mockState.workerCancel.mockReturnValue(true);
 
@@ -218,8 +259,9 @@ describe('FS IPC Handlers', () => {
     registerFsHandlers();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     clearApprovedPathsForTests();
+    await closeAllFileWatchers();
   });
 
   describe('handler registration', () => {
@@ -458,22 +500,37 @@ describe('FS IPC Handlers', () => {
       expect(mockState.readFile).toHaveBeenCalledWith(resolve('/workspace/readme.txt'), 'utf-8');
     });
 
-    it('should reject unapproved Windows absolute, drive-relative, and UNC paths', async () => {
+    it('should reject unapproved Windows absolute paths', async () => {
       const handler = handlers.get('fs:readFile');
 
-      for (const path of [
-        'C:\\Windows\\win.ini',
-        'C:Windows\\win.ini',
-        '\\\\server\\share\\file.txt',
-      ]) {
-        const result = (await handler!({}, path)) as {
-          success: boolean;
-          error?: string;
-        };
+      const result = (await handler!({}, 'C:\\Windows\\win.ini')) as {
+        success: boolean;
+        error?: string;
+      };
 
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('only allowed inside a folder selected through ShellySVN');
-      }
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('only allowed inside a folder selected through ShellySVN');
+    });
+
+    it('should reject drive-relative paths and UNC paths at sanitization', async () => {
+      const handler = handlers.get('fs:readFile');
+
+      // 'C:Windows\\win.ini' is drive-relative; '\\\\server\\share' is UNC.
+      // Both are rejected by the path-guard sanitizer before containment runs.
+      const driveRelative = (await handler!({}, 'C:Windows\\win.ini')) as {
+        success: boolean;
+        error?: string;
+      };
+      expect(driveRelative.success).toBe(false);
+      expect(driveRelative.error).toContain('drive-relative paths are not accepted');
+
+      const unc = (await handler!({}, '\\\\server\\share\\file.txt')) as {
+        success: boolean;
+        error?: string;
+      };
+      expect(unc.success).toBe(false);
+      expect(unc.error).toContain('UNC or Win32 namespace paths are not accepted');
+      expect(mockState.readFile).not.toHaveBeenCalled();
     });
 
     it('should reject path traversal in original path', async () => {
@@ -735,9 +792,12 @@ describe('FS IPC Handlers', () => {
       const unwatchHandler = handlers.get('fs:unwatch');
 
       await watchHandler!({ sender }, '/test/path');
+      const watcher = createdWatchers[createdWatchers.length - 1];
       const result = (await unwatchHandler!({ sender }, '/test/path')) as { success: boolean };
 
       expect(result.success).toBe(true);
+      expect(watcher.close).toHaveBeenCalledTimes(1);
+      expect(getActiveFileWatcherPathsForTests()).toEqual([]);
     });
 
     it('should succeed even if no watcher exists', async () => {
@@ -748,6 +808,291 @@ describe('FS IPC Handlers', () => {
       const result = (await handler!({ sender }, '/nonexistent')) as { success: boolean };
 
       expect(result.success).toBe(true);
+    });
+
+    it('should never reject, even for unapproved paths', async () => {
+      const handler = handlers.get('fs:unwatch');
+      const sender = { id: 5, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() };
+      // The renderer fires unwatch without awaiting; a rejection would surface
+      // as an unhandled promise rejection.
+      await expect(handler!({ sender }, '/unapproved/path')).resolves.toEqual({
+        success: true,
+      });
+    });
+  });
+
+  describe('path-guard hardening on fs handlers (Item 7)', () => {
+    it('fs:readFile rejects null bytes inside an otherwise approved root', async () => {
+      approvePathForIpc('/test');
+
+      const handler = handlers.get('fs:readFile');
+      const result = (await handler!({}, '/test/file\0.txt')) as {
+        success: boolean;
+        error?: string;
+      };
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('null byte');
+      expect(mockState.readFile).not.toHaveBeenCalled();
+    });
+
+    it('fs:writeFile rejects null bytes and device names inside an approved root', async () => {
+      approvePathForIpc('/test');
+
+      const handler = handlers.get('fs:writeFile');
+
+      const nullByte = (await handler!({}, '/test/file\0.txt', 'data')) as {
+        success: boolean;
+        error?: string;
+      };
+      expect(nullByte.success).toBe(false);
+      expect(nullByte.error).toContain('null byte');
+
+      const device = (await handler!({}, '/test/con', 'data')) as {
+        success: boolean;
+        error?: string;
+      };
+      expect(device.success).toBe(false);
+      expect(device.error).toContain('reserved Windows device name');
+      expect(mockState.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('fs:watch rejects null bytes before creating a watcher', async () => {
+      approvePathForIpc('/test/path');
+
+      const handler = handlers.get('fs:watch');
+      const sender = { id: 11, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() };
+      const result = (await handler!({ sender }, '/test/path\0')) as {
+        success: boolean;
+        error?: string;
+      };
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('null byte');
+      expect(mockState.chokidarWatch).not.toHaveBeenCalled();
+    });
+
+    it('fs:writeFile blocks paths whose realpath escapes the approved root via symlink', async () => {
+      approvePathForIpc('/test/path');
+      // Simulate `/test/path/escape` being a symlink to /etc on disk.
+      mockState.realpathSync.mockImplementation((p: string) =>
+        p.startsWith('/test/path/escape') ? p.replace('/test/path/escape', '/etc') : p
+      );
+
+      const handler = handlers.get('fs:writeFile');
+      const result = (await handler!({}, '/test/path/escape/passwd', 'pwn')) as {
+        success: boolean;
+        error?: string;
+      };
+
+      expect(result.success).toBe(false);
+      // Either containment layer may report the escape.
+      expect(result.error).toMatch(/selected through ShellySVN|symlinks/);
+      expect(mockState.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('fs:copyFile guards both ends of the copy against realpath escapes', async () => {
+      approvePathForIpc('/test/path');
+      mockState.realpathSync.mockImplementation((p: string) =>
+        p.startsWith('/test/path/escape') ? p.replace('/test/path/escape', '/etc') : p
+      );
+
+      const handler = handlers.get('fs:copyFile');
+      const result = (await handler!({}, '/test/path/escape/passwd', '/test/path/copy.txt')) as {
+        success: boolean;
+        error?: string;
+      };
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/selected through ShellySVN|symlinks/);
+      expect(mockState.copyFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fs:watch — burst debouncing (Item 26)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function watchAndGetAllHandler(id: number, path = '/test/path') {
+      approvePathForIpc(path);
+      const sender = {
+        id,
+        send: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+        once: vi.fn(),
+      };
+      const handler = handlers.get('fs:watch')!;
+      return handler({ sender }, path).then(() => {
+        const watcher = createdWatchers[createdWatchers.length - 1];
+        const allCall = watcher.on.mock.calls.find(([event]) => event === 'all');
+        const onAll = allCall?.[1] as (eventType: string, changedPath: string) => void;
+        return { sender, onAll };
+      });
+    }
+
+    it('coalesces a save-storm into a single trailing change notification', async () => {
+      const { sender, onAll } = await watchAndGetAllHandler(20);
+
+      for (let index = 0; index < 25; index++) {
+        onAll('change', `/test/path/file-${index}.ts`);
+      }
+
+      await vi.advanceTimersByTimeAsync(FILE_WATCH_EVENT_DEBOUNCE_MS - 10);
+      expect(sender.send).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(FILE_WATCH_EVENT_DEBOUNCE_MS + 10);
+      expect(sender.send).toHaveBeenCalledTimes(1);
+      expect(sender.send).toHaveBeenCalledWith('fs:watch:change', {
+        path: '/test/path',
+        eventType: 'change',
+        changedPath: '/test/path/file-24.ts',
+      });
+    });
+
+    it('flushes at the max-wait cap during a sustained burst', async () => {
+      const { sender, onAll } = await watchAndGetAllHandler(21);
+
+      onAll('change', '/test/path/first.ts');
+      // Keep resetting the trailing edge; the max-wait cap must still fire.
+      for (let step = 0; step < 7; step++) {
+        await vi.advanceTimersByTimeAsync(250);
+        onAll('change', `/test/path/burst-${step}.ts`);
+      }
+
+      // Virtual time is now 1750ms; the max-wait timer (armed at t=0) fires
+      // at 2000ms while the trailing edge keeps being pushed past it.
+      await vi.advanceTimersByTimeAsync(249);
+      expect(sender.send).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sender.send).toHaveBeenCalledTimes(1);
+      expect(sender.send).toHaveBeenCalledWith(
+        'fs:watch:change',
+        expect.objectContaining({ changedPath: '/test/path/burst-6.ts' })
+      );
+
+      await vi.advanceTimersByTimeAsync(FILE_WATCH_EVENT_MAX_WAIT_MS * 2);
+      expect(sender.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('honors watchSvnOnly filtering before queueing notifications', async () => {
+      approvePathForIpc('/test/path');
+      const sender = { id: 22, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() };
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
+        { sender },
+        '/test/path',
+        { watchSvnOnly: true }
+      );
+      const watcher = createdWatchers[createdWatchers.length - 1];
+      const onAll = watcher.on.mock.calls.find(([event]) => event === 'all')?.[1] as (
+        eventType: string,
+        changedPath: string
+      ) => void;
+
+      onAll('change', '/test/path/regular-file.ts');
+      await vi.advanceTimersByTimeAsync(FILE_WATCH_EVENT_DEBOUNCE_MS + 100);
+      expect(sender.send).not.toHaveBeenCalled();
+
+      onAll('change', '/test/path/.svn/wc.db');
+      await vi.advanceTimersByTimeAsync(FILE_WATCH_EVENT_DEBOUNCE_MS + 100);
+      expect(sender.send).toHaveBeenCalledTimes(1);
+      expect(sender.send).toHaveBeenCalledWith(
+        'fs:watch:change',
+        expect.objectContaining({ changedPath: '/test/path/.svn/wc.db' })
+      );
+    });
+
+    it('drops pending burst events when the watcher is unwatched', async () => {
+      const { sender, onAll } = await watchAndGetAllHandler(23);
+
+      onAll('change', '/test/path/pending.ts');
+      await (handlers.get('fs:unwatch') as (...args: unknown[]) => unknown)(
+        { sender: { id: 23, send: vi.fn(), isDestroyed: vi.fn(() => false), once: vi.fn() } },
+        '/test/path'
+      );
+
+      await vi.advanceTimersByTimeAsync(FILE_WATCH_EVENT_MAX_WAIT_MS * 2);
+      expect(sender.send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fs:watch — lifecycle (Item 26)', () => {
+    function makeSender(id: number) {
+      return {
+        id,
+        send: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+        once: vi.fn(),
+      };
+    }
+
+    it('closes watchers when the owning webContents is destroyed', async () => {
+      approvePathForIpc('/test/path');
+      const sender = makeSender(30);
+
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
+        { sender },
+        '/test/path'
+      );
+      const watcher = createdWatchers[createdWatchers.length - 1];
+      expect(getActiveFileWatcherPathsForTests()).toHaveLength(1);
+
+      const destroyedCall = sender.once.mock.calls.find(([event]) => event === 'destroyed');
+      const onDestroyed = destroyedCall?.[1] as () => void;
+      onDestroyed();
+      // closeWatchersOwnedBy awaits watcher.close() before removing the entry.
+      await vi.waitFor(() => expect(getActiveFileWatcherPathsForTests()).toEqual([]));
+
+      expect(watcher.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes watchers on and under a removed working-copy path, leaving others running', async () => {
+      approvePathForIpc('/test/wc');
+      approvePathForIpc('/other');
+
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
+        { sender: makeSender(31) },
+        '/test/wc'
+      );
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
+        { sender: makeSender(32) },
+        '/test/wc/sub'
+      );
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
+        { sender: makeSender(33) },
+        '/other'
+      );
+
+      const [wcWatcher, subWatcher, otherWatcher] = createdWatchers;
+      await closeFileWatchersForPath('/test/wc');
+
+      expect(wcWatcher.close).toHaveBeenCalledTimes(1);
+      expect(subWatcher.close).toHaveBeenCalledTimes(1);
+      expect(otherWatcher.close).not.toHaveBeenCalled();
+      expect(getActiveFileWatcherPathsForTests()).toEqual(['/other']);
+    });
+
+    it('allows re-watching a path after its working copy was removed', async () => {
+      approvePathForIpc('/test/wc');
+      const sender = makeSender(34);
+
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
+        { sender },
+        '/test/wc'
+      );
+      await closeFileWatchersForPath('/test/wc');
+
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
+        { sender },
+        '/test/wc'
+      );
+      expect(createdWatchers).toHaveLength(2);
+      expect(getActiveFileWatcherPathsForTests()).toHaveLength(1);
     });
   });
 

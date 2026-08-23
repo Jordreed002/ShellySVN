@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdir, mkdtemp, symlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
   resolveSvnExecution: vi.fn(),
   workerRun: vi.fn(),
   workerCancel: vi.fn(),
+  chokidarWatch: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -15,7 +19,7 @@ vi.mock('electron', () => ({
 
 vi.mock('chokidar', () => ({
   default: {
-    watch: vi.fn(),
+    watch: mockState.chokidarWatch,
   },
 }));
 
@@ -32,10 +36,17 @@ vi.mock('../../workers/WorkerPool', () => ({
 }));
 
 import {
+  closeAllFileWatchers,
+  closeFileWatchersForPath,
+  FILE_WATCH_EVENT_DEBOUNCE_MS,
+  getActiveFileWatcherPathsForTests,
   getBackgroundStatusScanStateForTests,
   MAX_BACKGROUND_STATUS_SCAN_CONCURRENCY,
+  registerFsHandlers,
   startDeepScan,
 } from '../fs';
+import { approvePathForIpc, clearApprovedPathsForTests } from '../../utils/approved-paths';
+import { ipcMain } from 'electron';
 
 interface PendingSvnCall {
   id: string;
@@ -200,5 +211,127 @@ describe('background status scan queue', () => {
     await expect(navigationScan).resolves.toMatchObject({
       allEntries: [expect.objectContaining({ fullPath: expect.stringContaining('navigated') })],
     });
+  });
+});
+
+/*
+ * Watcher lifecycle, end to end against the real approved-roots registry and
+ * the real path-guard symlink auditing (this file does not mock node:fs).
+ */
+describe('file watcher lifecycle and hardening', () => {
+  const handlers = new Map<string, (...args: unknown[]) => unknown>();
+  const sleep = (ms: number) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+
+  beforeEach(async () => {
+    clearApprovedPathsForTests();
+    await closeAllFileWatchers();
+    handlers.clear();
+
+    vi.mocked(ipcMain.handle).mockImplementation(
+      (channel: string, handler: (...args: unknown[]) => unknown) => {
+        handlers.set(channel, handler);
+      }
+    );
+    mockState.chokidarWatch.mockImplementation(() => ({
+      on: vi.fn().mockReturnThis(),
+      close: vi.fn().mockResolvedValue(undefined),
+    }));
+    registerFsHandlers();
+  });
+
+  afterEach(async () => {
+    await closeAllFileWatchers();
+    clearApprovedPathsForTests();
+  });
+
+  function makeSender(id: number) {
+    return {
+      id,
+      send: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      once: vi.fn(),
+    };
+  }
+
+  function lastWatcher(): { on: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> } {
+    const results = mockState.chokidarWatch.mock.results;
+    return results[results.length - 1].value as {
+      on: ReturnType<typeof vi.fn>;
+      close: ReturnType<typeof vi.fn>;
+    };
+  }
+
+  it('closes a watcher on a real approved working-copy path when it is removed', async () => {
+    const workingCopy = await mkdtemp(join(tmpdir(), 'shellysvn-wc-'));
+    approvePathForIpc(workingCopy);
+
+    const sender = makeSender(41);
+    const result = (await handlers.get('fs:watch')!({ sender }, workingCopy)) as {
+      success: boolean;
+      error?: string;
+    };
+
+    expect(result.success).toBe(true);
+    expect(mockState.chokidarWatch).toHaveBeenCalledTimes(1);
+    expect(getActiveFileWatcherPathsForTests()).toHaveLength(1);
+
+    await closeFileWatchersForPath(workingCopy);
+
+    expect(lastWatcher().close).toHaveBeenCalledTimes(1);
+    expect(getActiveFileWatcherPathsForTests()).toEqual([]);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'refuses to watch through a symlink that escapes the approved root',
+    async () => {
+      const base = await mkdtemp(join(tmpdir(), 'shellysvn-symlink-'));
+      const approved = join(base, 'approved');
+      const outside = join(base, 'outside');
+      await Promise.all([mkdir(approved, { recursive: true }), mkdir(outside, { recursive: true })]);
+      await symlink(outside, join(approved, 'escape'));
+      approvePathForIpc(approved);
+
+      const sender = makeSender(42);
+      const result = (await handlers.get('fs:watch')!({ sender }, join(approved, 'escape'))) as {
+        success: boolean;
+        error?: string;
+      };
+
+      expect(result.success).toBe(false);
+      // The escape is caught by approved-roots canonicalization and/or the
+      // path-guard realpath audit — either way, no watcher is created.
+      expect(result.error).toMatch(/selected through ShellySVN|symlink/);
+      expect(mockState.chokidarWatch).not.toHaveBeenCalled();
+      expect(getActiveFileWatcherPathsForTests()).toEqual([]);
+    }
+  );
+
+  it('coalesces a burst of watcher events into one renderer notification (real timers)', async () => {
+    const workingCopy = await mkdtemp(join(tmpdir(), 'shellysvn-wc-'));
+    approvePathForIpc(workingCopy);
+
+    const sender = makeSender(43);
+    await handlers.get('fs:watch')!({ sender }, workingCopy);
+
+    const watcher = mockState.chokidarWatch.mock.results[0].value as { on: ReturnType<typeof vi.fn> };
+    const onAll = watcher.on.mock.calls.find(([event]) => event === 'all')?.[1] as (
+      eventType: string,
+      changedPath: string
+    ) => void;
+
+    for (let index = 0; index < 20; index++) {
+      onAll('change', join(workingCopy, `file-${index}.ts`));
+    }
+    await sleep(FILE_WATCH_EVENT_DEBOUNCE_MS + 250);
+
+    expect(sender.send).toHaveBeenCalledTimes(1);
+    expect(sender.send).toHaveBeenCalledWith(
+      'fs:watch:change',
+      expect.objectContaining({
+        path: workingCopy,
+        eventType: 'change',
+        changedPath: join(workingCopy, 'file-19.ts'),
+      })
+    );
   });
 });

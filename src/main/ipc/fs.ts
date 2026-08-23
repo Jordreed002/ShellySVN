@@ -1,7 +1,7 @@
 import { ipcMain, type WebContents } from 'electron';
 import fs from 'node:fs/promises';
 import chokidar from 'chokidar';
-import { join, normalize, dirname } from 'path';
+import { join, normalize, dirname, relative, resolve, isAbsolute } from 'path';
 import { spawn } from 'child_process';
 import os from 'node:os';
 import type {
@@ -13,6 +13,7 @@ import type {
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
 import { validatePath, InputValidationError } from '../utils/validation';
 import { assertPathApprovedForIpc, isPathApprovedForIpc } from '../utils/approved-paths';
+import { assertRealpathSatisfies, assertSanitizedPath, realpathOfLongestExistingPrefix } from '../utils/path-guard';
 import { resolveSvnExecution, runSvnText } from '../services/svn-executor';
 import { getWorkerFsStatus } from '../services/svn-status-worker';
 import {
@@ -266,30 +267,136 @@ async function getDirectoryMetadata(
 const queuedScans: QueuedDeepScan[] = [];
 
 // Track active file watchers
+interface PendingWatchEvent {
+  eventType: string;
+  changedPath: string;
+}
+
 interface OwnedWatcher {
   watcher: chokidar.FSWatcher;
   owner: WebContents;
   path: string;
+  /** Latest event of a burst, flushed once per debounce window (bounded: one slot per watcher). */
+  pending?: PendingWatchEvent;
+  trailingTimer?: NodeJS.Timeout;
+  maxWaitTimer?: NodeJS.Timeout;
 }
 
 const activeWatchers = new Map<string, OwnedWatcher>();
 
+/**
+ * Save-storms (builds, checkouts, editor autosave bursts) fire one chokidar
+ * event per file. Coalesce them into a single trailing refresh notification
+ * per watcher, with a max-wait cap so long storms still notify periodically.
+ */
+export const FILE_WATCH_EVENT_DEBOUNCE_MS = 300;
+export const FILE_WATCH_EVENT_MAX_WAIT_MS = 2_000;
+
 function watcherKey(owner: WebContents, path: string): string {
   return `${owner.id}:${path}`;
+}
+
+function clearWatchTimers(subscription: OwnedWatcher): void {
+  if (subscription.trailingTimer) {
+    clearTimeout(subscription.trailingTimer);
+    subscription.trailingTimer = undefined;
+  }
+  if (subscription.maxWaitTimer) {
+    clearTimeout(subscription.maxWaitTimer);
+    subscription.maxWaitTimer = undefined;
+  }
+}
+
+async function disposeOwnedWatcher(subscription: OwnedWatcher): Promise<void> {
+  clearWatchTimers(subscription);
+  subscription.pending = undefined;
+  await subscription.watcher.close();
+}
+
+function flushWatchEvents(subscription: OwnedWatcher, displayPath: string): void {
+  clearWatchTimers(subscription);
+  const pending = subscription.pending;
+  subscription.pending = undefined;
+  if (!pending) return;
+
+  if (
+    !sendToRenderer(subscription.owner, 'fs:watch:change', {
+      path: displayPath,
+      eventType: pending.eventType,
+      changedPath: pending.changedPath,
+    })
+  ) {
+    void closeWatchersOwnedBy(subscription.owner);
+  }
+}
+
+function queueWatchEvent(
+  subscription: OwnedWatcher,
+  eventType: string,
+  changedPath: string,
+  displayPath: string
+): void {
+  const hadPending = Boolean(subscription.pending);
+  subscription.pending = { eventType, changedPath };
+
+  // Trailing-edge debounce: each event pushes the flush point out; the
+  // max-wait timer (armed at burst start) bounds the total delay.
+  if (subscription.trailingTimer) clearTimeout(subscription.trailingTimer);
+  subscription.trailingTimer = setTimeout(
+    () => flushWatchEvents(subscription, displayPath),
+    FILE_WATCH_EVENT_DEBOUNCE_MS
+  );
+  subscription.trailingTimer.unref?.();
+  if (!hadPending) {
+    subscription.maxWaitTimer = setTimeout(
+      () => flushWatchEvents(subscription, displayPath),
+      FILE_WATCH_EVENT_MAX_WAIT_MS
+    );
+    subscription.maxWaitTimer.unref?.();
+  }
 }
 
 async function closeWatchersOwnedBy(owner: WebContents): Promise<void> {
   const matches = Array.from(activeWatchers.entries()).filter(
     ([, subscription]) => subscription.owner === owner
   );
-  await Promise.allSettled(matches.map(([, subscription]) => subscription.watcher.close()));
+  await Promise.allSettled(matches.map(([, subscription]) => disposeOwnedWatcher(subscription)));
   for (const [key] of matches) activeWatchers.delete(key);
 }
 
 export async function closeAllFileWatchers(): Promise<void> {
   const subscriptions = Array.from(activeWatchers.values());
   activeWatchers.clear();
-  await Promise.allSettled(subscriptions.map(({ watcher }) => watcher.close()));
+  await Promise.allSettled(subscriptions.map((subscription) => disposeOwnedWatcher(subscription)));
+}
+
+function isPathEqualOrInside(parent: string, child: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+/**
+ * Close every watcher whose watched path is `rootPath` or lives underneath it.
+ * Intended for working-copy removal/relocation: watchers pointing into a
+ * removed or moved working copy must not keep running against stale paths.
+ * Matching is done on both the lexical and the canonical form of `rootPath`
+ * so callers may pass either the renderer-visible or the real path.
+ */
+export async function closeFileWatchersForPath(rootPath: string): Promise<void> {
+  const lexicalRoot = resolve(rootPath);
+  const canonicalRoot = realpathOfLongestExistingPrefix(lexicalRoot);
+  const matches = Array.from(activeWatchers.values()).filter(({ path: watchedPath }) =>
+    isPathEqualOrInside(lexicalRoot, watchedPath) || isPathEqualOrInside(canonicalRoot, watchedPath)
+  );
+  await Promise.allSettled(matches.map((subscription) => disposeOwnedWatcher(subscription)));
+  for (const subscription of matches) {
+    activeWatchers.delete(watcherKey(subscription.owner, subscription.path));
+  }
+}
+
+/** Test-only introspection of active watcher paths. */
+export function getActiveFileWatcherPathsForTests(): string[] {
+  return Array.from(activeWatchers.values()).map(({ path }) => path);
 }
 
 function createDeepStatusProgress(
@@ -577,7 +684,7 @@ export function getParentPath(path: string): string | null {
  */
 async function calculateFolderSizes(folderPaths: string[]): Promise<Record<string, number>> {
   const approvedPaths = folderPaths.map((folderPath) =>
-    assertPathApprovedForIpc(folderPath, 'Folder size calculation')
+    assertApprovedFsPath(folderPath, 'Folder size calculation')
   );
 
   return getSharedWorkerPool().run(
@@ -592,9 +699,22 @@ async function calculateFolderSizes(folderPaths: string[]): Promise<Record<strin
   );
 }
 
+/**
+ * SECURITY: single validation funnel for every renderer-supplied filesystem
+ * path handled in this module.
+ * 1. `assertSanitizedPath` rejects null bytes, UNC/Win32 namespace prefixes,
+ *    drive-relative paths and reserved Windows device names.
+ * 2. `validatePath` + `assertPathApprovedForIpc` enforce lexical containment
+ *    inside an approved root (native-picker selection or application home).
+ * 3. `assertRealpathSatisfies` audits symlinks: the target canonicalized
+ *    through every existing ancestor must still resolve inside an approved
+ *    root, so `approved/link -> /etc` cannot escape.
+ */
 function assertApprovedFsPath(path: string, operation: string): string {
+  assertSanitizedPath(path, operation);
   const validatedPath = validatePath(path, { allowAbsolute: true });
-  return assertPathApprovedForIpc(validatedPath, operation);
+  const approvedPath = assertPathApprovedForIpc(validatedPath, operation);
+  return assertRealpathSatisfies(approvedPath, isPathApprovedForIpc, operation);
 }
 
 function getApprovedParentPath(path: string): string | null {
@@ -841,21 +961,21 @@ export function registerFsHandlers(): void {
     'fs:copyFile',
     async (_, source: string, target: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        // SECURITY: Validate both paths
-        const validatedSource = validatePath(source, {
+        // SECURITY: Validate both paths (sanitization, approved roots and
+        // symlink audit first, then the file-specific existence checks).
+        const approvedSource = assertApprovedFsPath(source, 'File copy source');
+        const validatedSource = validatePath(approvedSource, {
           mustExist: true,
           mustBeFile: true,
           allowAbsolute: true,
         });
-        const validatedTarget = validatePath(target, { allowAbsolute: true });
-        const approvedSource = assertPathApprovedForIpc(validatedSource, 'File copy source');
-        const approvedTarget = assertPathApprovedForIpc(validatedTarget, 'File copy target');
+        const approvedTarget = assertApprovedFsPath(target, 'File copy target');
 
         // Ensure target directory exists (mkdir with recursive won't throw if exists)
         const targetDir = dirname(approvedTarget);
         await mkdir(targetDir, { recursive: true });
 
-        await fsCopyFile(approvedSource, approvedTarget);
+        await fsCopyFile(validatedSource, approvedTarget);
         return { success: true };
       } catch (err) {
         if (err instanceof InputValidationError) {
@@ -872,14 +992,14 @@ export function registerFsHandlers(): void {
     'fs:writeFile',
     async (_, path: string, content: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        // SECURITY: Validate path (allow absolute for plugin files)
-        // Validate content size (limit to 10MB for safety)
+        // SECURITY: sanitize + approved-root + symlink-audit the path
+        // (allow absolute for plugin files), and validate content size
+        // (limit to 10MB for safety).
         if (content.length > 10 * 1024 * 1024) {
           return { success: false, error: 'Content too large (max 10MB)' };
         }
 
-        const validatedPath = validatePath(path, { allowAbsolute: true });
-        const approvedPath = assertPathApprovedForIpc(validatedPath, 'File write');
+        const approvedPath = assertApprovedFsPath(path, 'File write');
 
         // Ensure directory exists
         const dir = dirname(approvedPath);
@@ -915,8 +1035,7 @@ export function registerFsHandlers(): void {
           return { success: false, error: 'Content too large (max 32MB)' };
         }
 
-        const validatedPath = validatePath(path, { allowAbsolute: true });
-        const approvedPath = assertPathApprovedForIpc(validatedPath, 'Binary file write');
+        const approvedPath = assertApprovedFsPath(path, 'Binary file write');
         await mkdir(dirname(approvedPath), { recursive: true });
         await fsWriteFile(approvedPath, content);
         return { success: true };
@@ -941,7 +1060,7 @@ export function registerFsHandlers(): void {
       }
     ): Promise<{ success: boolean; error?: string }> => {
       try {
-        const approvedPath = assertPathApprovedForIpc(path, 'File watching');
+        const approvedPath = assertApprovedFsPath(path, 'File watching');
         const key = watcherKey(event.sender, approvedPath);
 
         if (activeWatchers.has(key)) {
@@ -963,27 +1082,26 @@ export function registerFsHandlers(): void {
           depth: watchSvnOnly ? 0 : undefined,
         });
 
+        const subscription: OwnedWatcher = {
+          watcher,
+          owner: event.sender,
+          path: approvedPath,
+        };
+
         watcher.on('all', (eventType, changedPath) => {
           if (watchSvnOnly && !changedPath.includes('.svn')) {
             return;
           }
 
-          if (
-            !sendToRenderer(event.sender, 'fs:watch:change', {
-              path,
-              eventType,
-              changedPath,
-            })
-          ) {
-            void closeWatchersOwnedBy(event.sender);
-          }
+          // Coalesce burst events (save-storms) into one trailing refresh.
+          queueWatchEvent(subscription, eventType, changedPath, path);
         });
 
         watcher.on('error', (error) => {
           console.error('[FS] Watcher error:', error);
         });
 
-        activeWatchers.set(key, { watcher, owner: event.sender, path: approvedPath });
+        activeWatchers.set(key, subscription);
         event.sender.once('destroyed', () => {
           void closeWatchersOwnedBy(event.sender);
         });
@@ -995,14 +1113,19 @@ export function registerFsHandlers(): void {
   );
 
   ipcMain.handle('fs:unwatch', async (event, path: string): Promise<{ success: boolean }> => {
-    const approvedPath = assertPathApprovedForIpc(path, 'File watching');
-    const key = watcherKey(event.sender, approvedPath);
-    const subscription = activeWatchers.get(key);
-    if (subscription) {
-      await subscription.watcher.close();
-      activeWatchers.delete(key);
+    try {
+      const approvedPath = assertApprovedFsPath(path, 'File watching');
+      const key = watcherKey(event.sender, approvedPath);
+      const subscription = activeWatchers.get(key);
+      if (subscription) {
+        await disposeOwnedWatcher(subscription);
+        activeWatchers.delete(key);
+      }
+      return { success: true };
+    } catch {
+      // The renderer fires unwatch without awaiting the result; never reject.
+      return { success: true };
     }
-    return { success: true };
   });
 
   ipcMain.handle('fs:exists', async (_, path: string): Promise<boolean> => {

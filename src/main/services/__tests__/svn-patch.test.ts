@@ -61,6 +61,38 @@ describe('svn-patch createPatch', () => {
     });
     expect(writeFile).not.toHaveBeenCalled();
   });
+
+  /*
+   * Path-guard hardening: the output destination is renderer input. Null
+   * bytes, UNC/Win32 namespace prefixes, drive-relative paths and reserved
+   * device names must be rejected before the write.
+   */
+  it('rejects a null byte in the patch output path', async () => {
+    mockState.runSvnText.mockResolvedValue('diff content');
+
+    const result = await createPatch(['/wc/a.txt'], 'C:\\patches\\bad\0.patch');
+
+    expect(result.success).toBe(false);
+    expect(result.output).toContain('null byte');
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects UNC, drive-relative and device-name output paths', async () => {
+    mockState.runSvnText.mockResolvedValue('diff content');
+
+    const unc = await createPatch(['/wc/a.txt'], '\\\\server\\share\\changes.patch');
+    expect(unc.success).toBe(false);
+    expect(unc.output).toContain('UNC or Win32 namespace');
+
+    const driveRelative = await createPatch(['/wc/a.txt'], 'C:changes.patch');
+    expect(driveRelative.success).toBe(false);
+    expect(driveRelative.output).toContain('drive-relative');
+
+    const device = await createPatch(['/wc/a.txt'], '/tmp/con');
+    expect(device.success).toBe(false);
+    expect(device.output).toContain('reserved Windows device name');
+    expect(writeFile).not.toHaveBeenCalled();
+  });
 });
 
 describe('svn-patch applyPatch', () => {

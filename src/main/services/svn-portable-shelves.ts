@@ -1,12 +1,13 @@
 import { app, shell } from 'electron';
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { SvnMutationResult, SvnShelve, SvnShelveListResult } from '@shared/types';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
+import { assertSafeEntryRelativePath, assertWithinRoot } from '../utils/path-guard';
 import { runSvnText } from './svn-executor';
 import { collapseNestedFiles, type PortableShelfFile } from './svn-portable-shelf-files';
 
@@ -35,8 +36,12 @@ function shelfDirectory(workingCopyPath: string, name: string): string {
 
 function assertInsideWorkingCopy(workingCopyPath: string, candidate: string): string {
   const root = resolve(workingCopyPath);
-  const absolute = resolve(candidate);
-  const relativePath = relative(root, absolute);
+  // SECURITY: path-guard containment — rejects lexical escapes (`..`, absolute
+  // overrides) and symlinks under the working copy that redirect outside it.
+  assertWithinRoot(root, candidate, 'Portable shelf entry');
+  // Derive the relative path from the lexical form (the guard may re-anchor
+  // the candidate under the canonical root).
+  const relativePath = relative(root, resolve(root, candidate));
   if (relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
     throw new Error('Portable shelf entry escapes the working copy');
   }
@@ -132,10 +137,25 @@ export async function portableShelfSave(
     ) {
       continue;
     }
-    const source = resolve(workingCopyPath, file.relativePath);
-    const destination = join(directory, 'files', file.relativePath);
+    // SECURITY: both ends of the copy are guarded. The source must stay inside
+    // the working copy (symlinks included) and the destination inside the
+    // shelf's own `files` directory, so entry names cannot write elsewhere.
+    const source = assertWithinRoot(
+      workingCopyPath,
+      resolve(workingCopyPath, file.relativePath),
+      'Portable shelf capture'
+    );
+    const destinationRoot = join(directory, 'files');
+    const destination = assertWithinRoot(
+      destinationRoot,
+      join(destinationRoot, file.relativePath),
+      'Portable shelf capture'
+    );
     await mkdir(resolve(destination, '..'), { recursive: true });
-    await cp(source, destination, { recursive: file.kind === 'directory', force: false });
+    await cp(source, destination, {
+      recursive: file.kind === 'directory',
+      force: false,
+    });
   }
 
   const patch = await runSvnText(withSvnTargets(['diff', '--git'], [workingCopyPath]));
@@ -193,6 +213,13 @@ export async function portableShelfApply(
   }
 
   for (const file of metadata.files) {
+    // SECURITY (zip-slip): `metadata.json` is on-disk data whose entry names
+    // could be crafted. Every entry must be a safe relative path (no `..`,
+    // absolute paths, null bytes, UNC or device-name tricks), the restore
+    // target must stay inside the working copy under real path semantics
+    // (symlinked directories cannot redirect the copy outside it), and the
+    // copy source must stay inside the shelf's own `files` directory.
+    assertSafeEntryRelativePath(file?.relativePath, 'Portable shelf entry');
     const target = resolve(workingCopyPath, file.relativePath);
     assertInsideWorkingCopy(workingCopyPath, target);
     if (
@@ -201,7 +228,20 @@ export async function portableShelfApply(
     ) {
       continue;
     }
-    const source = join(directory, 'files', file.relativePath);
+    const filesRoot = join(directory, 'files');
+    const source = assertWithinRoot(
+      filesRoot,
+      join(filesRoot, file.relativePath),
+      'Portable shelf restore'
+    );
+    // SECURITY: a symlink planted in the shelf must not be copied verbatim
+    // into the working copy, where later writes through it would escape.
+    const sourceStat = await lstat(source).catch(() => null);
+    if (sourceStat?.isSymbolicLink()) {
+      throw new Error(
+        `Portable shelf entry "${file.relativePath}" is a symlink and cannot be restored safely.`
+      );
+    }
     await mkdir(resolve(target, '..'), { recursive: true });
     await cp(source, target, { recursive: file.kind === 'directory', force: true });
     if (file.status === 'added') {
