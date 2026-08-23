@@ -178,3 +178,80 @@ describe('StatusService — POSIX path-key normalization (platform boundary)', (
     expect(service.getDeepStatus('/repo')).toBeNull();
   });
 });
+
+/*
+ * Unicode case-collision enrichment (backlog item 29). Deep scans bypass
+ * getWorkerFsStatus, so setDeepStatus enriches the cached result in place
+ * with collisions found in a single pass over the scanned entry set.
+ * Detection and reporting only — nothing is renamed.
+ */
+describe('StatusService — unicode case-collision enrichment', () => {
+  const originalPlatform = process.platform;
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('enriches cached deep status in place with case collisions', () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'darwin',
+      configurable: true,
+      writable: true,
+    });
+    const service = new StatusService();
+    const result = {
+      directStatus: {},
+      allEntries: [
+        { status: ' ' as const, fullPath: '/repo/Readme.md' },
+        { status: '!' as const, fullPath: '/repo/README.md' },
+      ],
+    };
+
+    service.setDeepStatus('/repo', result);
+
+    expect(result.unicodeWarnings).toEqual({
+      normalizationMismatches: [],
+      caseCollisions: [{ pathA: '/repo/Readme.md', pathB: '/repo/README.md' }],
+    });
+    expect(service.getDeepStatus('/repo')).toBe(result);
+  });
+
+  it('adds no unicodeWarnings field when there is nothing to report', () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'darwin',
+      configurable: true,
+      writable: true,
+    });
+    const service = new StatusService();
+    const result = statusResult('/repo');
+
+    service.setDeepStatus('/repo', result);
+
+    expect(result.unicodeWarnings).toBeUndefined();
+    expect('unicodeWarnings' in result).toBe(false);
+  });
+
+  it('skips collision detection on case-sensitive platforms', () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'linux',
+      configurable: true,
+      writable: true,
+    });
+    const service = new StatusService();
+    const result = {
+      directStatus: {},
+      allEntries: [
+        { status: ' ' as const, fullPath: '/repo/Readme.md' },
+        { status: ' ' as const, fullPath: '/repo/README.md' },
+      ],
+    };
+
+    service.setDeepStatus('/repo', result);
+
+    expect('unicodeWarnings' in result).toBe(false);
+  });
+});

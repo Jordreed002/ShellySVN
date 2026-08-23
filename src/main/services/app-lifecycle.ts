@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, powerMonitor } from 'electron';
 import type { InterruptedMutationRecord, StaleWorkingCopyLockInfo } from '@shared/types';
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, normalize } from 'node:path';
 import { getSettingsManager } from '../settings-manager';
 import { debug } from '../utils/debug';
 import { sendToRenderer } from '../utils/safe-renderer-send';
@@ -18,7 +18,14 @@ import {
   markActiveWorkingCopyMutationsInterrupted,
   readInterruptedWorkingCopyMutations,
 } from './svn-mutation-queue';
-import { detectStaleWorkingCopyLock, removeStaleWorkingCopyLock } from './svn-working-copy-health';
+import {
+  buildInterruptedMutationRecoveryPlan,
+  detectPartialWorkingCopyMutation,
+  detectStaleWorkingCopyLock,
+  executeInterruptedMutationRecoveryPlan,
+  removeStaleWorkingCopyLock,
+  type InterruptedMutationRecoveryPlan,
+} from './svn-working-copy-health';
 
 /**
  * App lifecycle service (beta backlog items #22–#25).
@@ -47,6 +54,7 @@ let startupChecksStarted = false;
 let lifecycleIpcRegistered = false;
 let detectedStaleLocks: StaleWorkingCopyLockInfo[] = [];
 let interruptedMutations: InterruptedMutationRecord[] = [];
+let interruptedMutationRecoveryPlans: InterruptedMutationRecoveryPlan[] = [];
 
 // ---------------------------------------------------------------------------
 // Item #22 — single-instance lock with second-instance handoff
@@ -157,7 +165,9 @@ export async function probeSvnConnectivity(urls: string[]): Promise<boolean> {
       cache: 'no-store',
       signal: AbortSignal.timeout(RESUME_PROBE_TIMEOUT_MS),
     });
-    debug.log(`[lifecycle] Post-resume connectivity probe ${origin.origin} -> HTTP ${response.status}`);
+    debug.log(
+      `[lifecycle] Post-resume connectivity probe ${origin.origin} -> HTTP ${response.status}`
+    );
     return true;
   } catch (error) {
     debug.warn('[lifecycle] Post-resume connectivity probe failed:', error);
@@ -292,6 +302,10 @@ export function getInterruptedWorkingCopyMutations(): InterruptedMutationRecord[
   return interruptedMutations;
 }
 
+export function getInterruptedMutationRecoveryPlans(): InterruptedMutationRecoveryPlan[] {
+  return interruptedMutationRecoveryPlans;
+}
+
 export function getDetectedStaleWorkingCopyLocks(): StaleWorkingCopyLockInfo[] {
   return detectedStaleLocks;
 }
@@ -304,6 +318,35 @@ function broadcastToRenderers(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
     sendToRenderer(window.webContents, channel, payload);
   }
+}
+
+/**
+ * Compose the Phase 1 interruption journal with current-state detection
+ * (backlog item #31): the journal claims a mutation was interrupted on a
+ * working copy; detection confirms the working copy still shows the damage
+ * (leftover lock, missing/incomplete trees). Only corroborated records get a
+ * recovery proposal — a journal entry alone keeps the existing
+ * interrupted-mutations signal, and detection failures never block startup.
+ * Proposals are broadcast as data; nothing is executed without the renderer
+ * explicitly invoking the recovery executor.
+ */
+async function buildStartupInterruptedMutationRecoveryPlans(): Promise<
+  InterruptedMutationRecoveryPlan[]
+> {
+  const plans: InterruptedMutationRecoveryPlan[] = [];
+  for (const record of interruptedMutations) {
+    try {
+      const detection = await detectPartialWorkingCopyMutation(record.workingCopyPath);
+      if (!detection.hasEvidence) continue;
+      plans.push(buildInterruptedMutationRecoveryPlan(record.workingCopyPath, detection, record));
+    } catch (error) {
+      debug.warn(
+        `[lifecycle] Interrupted-mutation recovery scan failed for ${record.workingCopyPath}:`,
+        error
+      );
+    }
+  }
+  return plans;
 }
 
 /**
@@ -327,6 +370,16 @@ export async function initializeAppLifecycle(): Promise<void> {
       `[lifecycle] ${interruptedMutations.length} working-copy mutation(s) were interrupted by the previous session.`
     );
     broadcastToRenderers('lifecycle:interruptedWorkingCopyMutations', interruptedMutations);
+  }
+
+  try {
+    interruptedMutationRecoveryPlans = await buildStartupInterruptedMutationRecoveryPlans();
+  } catch (error) {
+    debug.warn('[lifecycle] Interrupted-mutation recovery planning failed:', error);
+    interruptedMutationRecoveryPlans = [];
+  }
+  for (const plan of interruptedMutationRecoveryPlans) {
+    broadcastToRenderers('lifecycle:interruptedMutationRecoveryPlan', plan);
   }
 
   try {
@@ -375,10 +428,50 @@ export function registerAppLifecycleIpcHandlers(): void {
     getInterruptedWorkingCopyMutations()
   );
 
+  ipcMain.handle('lifecycle:getInterruptedMutationRecoveryPlans', () =>
+    getInterruptedMutationRecoveryPlans()
+  );
+
+  // Explicitly invoked recovery execution — proposals are data only until the
+  // renderer asks for them to run (backlog item #31).
+  ipcMain.handle(
+    'lifecycle:executeInterruptedMutationRecoveryPlan',
+    async (
+      _event,
+      workingCopyPath: unknown
+    ): Promise<{
+      success: boolean;
+      error?: string;
+      workingCopyPath?: string;
+      steps?: Awaited<ReturnType<typeof executeInterruptedMutationRecoveryPlan>>['steps'];
+    }> => {
+      if (typeof workingCopyPath !== 'string' || workingCopyPath.trim().length === 0) {
+        return { success: false, error: 'A working-copy path is required.' };
+      }
+      const requested = normalize(workingCopyPath.trim());
+      const plan = interruptedMutationRecoveryPlans.find(
+        (candidate) => normalize(candidate.workingCopyPath) === requested
+      );
+      if (!plan) {
+        return {
+          success: false,
+          error: 'No interrupted-mutation recovery plan found for that working copy.',
+        };
+      }
+      try {
+        const result = await executeInterruptedMutationRecoveryPlan(workingCopyPath, plan);
+        return { success: result.allSucceeded, ...result };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+  );
+
   ipcMain.handle('lifecycle:clearInterruptedWorkingCopyMutations', () => {
     try {
       clearInterruptedWorkingCopyMutations(getJournalPath());
       interruptedMutations = [];
+      interruptedMutationRecoveryPlans = [];
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -394,4 +487,5 @@ export function resetAppLifecycleForTests(): void {
   lifecycleIpcRegistered = false;
   detectedStaleLocks = [];
   interruptedMutations = [];
+  interruptedMutationRecoveryPlans = [];
 }

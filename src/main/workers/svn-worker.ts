@@ -11,6 +11,7 @@ import {
   parseSvnStatusXml as parseWorkingCopyStatusXml,
 } from '../svn/parsers';
 import { parseDiffStreaming } from '../utils/diff-parser';
+import { escapeLocalPegTargets } from '../utils/svn-targets';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import type {
   BlamePayload,
@@ -154,7 +155,7 @@ function buildDiffArgs(payload: DiffPayload): string[] {
   if (payload.revision) {
     args.push('-c', payload.revision);
   }
-  args.push('--', payload.path);
+  args.push('--', ...escapeLocalPegTargets([payload.path]));
   return args;
 }
 
@@ -204,7 +205,7 @@ async function runDiffUrls(job: WorkerJobMessage<'svn:diffUrls'>) {
   const payload: DiffUrlsPayload = job.payload;
   const output = await runSvnXml(
     job.id,
-    ['diff', '--', payload.leftUrl, payload.rightUrl],
+    ['diff', '--', ...escapeLocalPegTargets([payload.leftUrl, payload.rightUrl])],
     {
       svnCommand: payload.svnCommand,
       context: payload.context,
@@ -237,7 +238,7 @@ async function runLog(job: WorkerJobMessage<'svn:log'>) {
       if (name) args.push('--with-revprop', name);
     }
   }
-  args.push(payload.path);
+  args.push('--', ...escapeLocalPegTargets([payload.path]));
 
   const xml = await runSvnXml(
     job.id,
@@ -260,7 +261,7 @@ async function runBlame(job: WorkerJobMessage<'svn:blame'>) {
   if (payload.startRevision !== undefined && payload.endRevision !== undefined) {
     args.push('-r', `${payload.startRevision}:${payload.endRevision}`);
   }
-  args.push(payload.path);
+  args.push('--', ...escapeLocalPegTargets([payload.path]));
 
   const xml = await runSvnXml(
     job.id,

@@ -9,11 +9,17 @@ const mockState = vi.hoisted(() => ({
   sslSet: vi.fn(),
 }));
 
-vi.mock('../svn-executor', () => ({
-  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
-  runSvn: mockState.runSvn,
-  runSvnText: mockState.runSvnText,
-}));
+vi.mock('../svn-executor', async (importOriginal) => {
+  // Keep the pure disk-full classifiers real (item #30 coverage) while the
+  // spawning path stays mocked.
+  const actual = await importOriginal<typeof import('../svn-executor')>();
+  return {
+    ...actual,
+    DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
+    runSvn: mockState.runSvn,
+    runSvnText: mockState.runSvnText,
+  };
+});
 
 vi.mock('../../utils/debug', () => ({
   debug: {
@@ -77,6 +83,7 @@ describe('svn-checkout progress', () => {
         '--non-interactive',
         '--depth',
         'infinity',
+        '--',
         'https://example.test/svn/project',
         'C:\\wc',
       ],
@@ -109,6 +116,7 @@ describe('svn-checkout progress', () => {
         '123',
         '--depth',
         'files',
+        '--',
         'https://example.test/svn/project',
         'C:\\wc',
       ],
@@ -118,6 +126,15 @@ describe('svn-checkout progress', () => {
         credentials: { username: 'alice', password: 'secret' },
       })
     );
+  });
+
+  it('rejects an invalid checkout revision before spawning svn', async () => {
+    const result = await checkout('https://example.test/svn/project', 'C:\\wc', 'latest');
+
+    expect(result.success).toBe(false);
+    expect(result.revision).toBeNull();
+    expect(result.output).toContain('not a valid SVN revision');
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
   });
 
   it('persists trusted SSL failures after a permanent-trust checkout succeeds', async () => {
@@ -191,6 +208,7 @@ describe('svn-checkout progress', () => {
         '--non-interactive',
         '--depth',
         'empty',
+        '--',
         'https://example.test/svn/project/trunk',
         'C:\\wc',
       ],
@@ -273,6 +291,7 @@ describe('svn-checkout progress', () => {
         '7',
         '--depth',
         'immediates',
+        '--',
         'https://example.test/svn/project',
         'C:\\wc',
       ],
@@ -309,5 +328,62 @@ describe('svn-checkout progress', () => {
       revision: null,
       output: 'SVN operation cancelled',
     });
+  });
+
+  it('maps a disk-full checkout failure to the typed recovery hint (item #30)', async () => {
+    mockState.runSvnText.mockRejectedValue(
+      new Error("svn: E720164: Can't write to file: There is not enough space on the disk.")
+    );
+
+    const result = await checkout('https://example.test/svn/project', 'C:\\wc');
+
+    expect(result.success).toBe(false);
+    expect(result.revision).toBeNull();
+    expect(result.diskFull).toMatchObject({
+      operationKind: 'checkout',
+      targetPath: 'C:\\wc',
+    });
+    expect(result.output).toBe(result.diskFull?.recoveryHint);
+    expect(result.output).toContain('Free up space');
+    expect(result.output).toContain('C:\\wc');
+    expect(result.output).not.toContain('E720164');
+  });
+
+  it('surfaces typed disk-full details from a failed progress checkout', async () => {
+    const send = vi.fn();
+    mockState.runSvn.mockRejectedValue(
+      Object.assign(new Error('write failed: no space left on device'), {
+        code: 'SVN_DISK_FULL',
+        diskFull: { operationKind: 'checkout', targetPath: null, recoveryHint: '' },
+      })
+    );
+
+    const result = await checkoutWithProgress(
+      { sender: { send } } as never,
+      'checkout-disk-full',
+      'https://example.test/svn/project',
+      '/tmp/wc'
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.diskFull).toMatchObject({
+      operationKind: 'checkout',
+      targetPath: '/tmp/wc',
+    });
+    expect(result.output).toBe(result.diskFull?.recoveryHint);
+    expect(result.output).toContain('partial destination');
+  });
+
+  it('keeps ordinary checkout failures as raw messages without disk-full details', async () => {
+    mockState.runSvnText.mockRejectedValue(new Error('svn: E175002: connection refused'));
+
+    const result = await checkout('https://example.test/svn/project', 'C:\\wc');
+
+    expect(result).toEqual({
+      success: false,
+      revision: null,
+      output: 'svn: E175002: connection refused',
+    });
+    expect(result.diskFull).toBeUndefined();
   });
 });

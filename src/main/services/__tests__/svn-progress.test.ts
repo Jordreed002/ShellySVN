@@ -6,10 +6,16 @@ const mockState = vi.hoisted(() => ({
   runSvn: vi.fn(),
 }));
 
-vi.mock('../svn-executor', () => ({
-  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
-  runSvn: mockState.runSvn,
-}));
+vi.mock('../svn-executor', async (importOriginal) => {
+  // Keep the pure disk-full classifiers real (item #30 coverage) while the
+  // spawning path stays mocked.
+  const actual = await importOriginal<typeof import('../svn-executor')>();
+  return {
+    ...actual,
+    DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
+    runSvn: mockState.runSvn,
+  };
+});
 
 import { cancelSvnOperation, runSvnOperationWithProgress } from '../svn-progress';
 
@@ -200,5 +206,65 @@ describe('svn-progress', () => {
       })
     );
     expect(JSON.stringify(send.mock.calls)).not.toContain('hunter2');
+  });
+
+  it('maps a disk-full export failure to the typed recovery hint instead of raw stderr', async () => {
+    const send = vi.fn();
+    mockState.runSvn.mockRejectedValue(
+      Object.assign(
+        new Error("svn: E720164: Can't write to file: There is not enough space on the disk."),
+        {
+          code: 'SVN_DISK_FULL',
+          diskFull: { operationKind: null, targetPath: null, recoveryHint: '' },
+        }
+      )
+    );
+
+    const result = await runSvnOperationWithProgress(
+      { sender: { send } } as never,
+      'export-disk-full',
+      'export',
+      ['export', '--non-interactive', 'https://example.test/repo', 'C:\\exports\\repo'],
+      { cwd: 'C:\\work' }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.diskFull).toMatchObject({
+      operationKind: 'export',
+      targetPath: 'C:\\exports\\repo',
+    });
+    expect(result.error).toBe(result.diskFull?.recoveryHint);
+    expect(result.error).toContain('Free up space');
+    expect(result.error).not.toContain('E720164');
+    expect(send).toHaveBeenCalledWith(
+      'svn:operation:progress',
+      expect.objectContaining({
+        operationId: 'export-disk-full',
+        operation: 'export',
+        status: 'error',
+        error: result.diskFull?.recoveryHint,
+      })
+    );
+  });
+
+  it('derives the update kind and cwd target when a raw ENOSPC error escapes the executor', async () => {
+    const send = vi.fn();
+    mockState.runSvn.mockRejectedValue(
+      Object.assign(new Error('write failed: no space left on device'), { code: 'ENOSPC' })
+    );
+
+    const result = await runSvnOperationWithProgress(
+      { sender: { send } } as never,
+      'update-disk-full',
+      'update',
+      ['update'],
+      { cwd: 'C:\\working-copy' }
+    );
+
+    expect(result.diskFull).toMatchObject({
+      operationKind: 'update',
+      targetPath: 'C:\\working-copy',
+    });
+    expect(result.error).toContain('Run cleanup');
   });
 });

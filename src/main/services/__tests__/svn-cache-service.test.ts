@@ -327,4 +327,80 @@ describe('SvnCacheService', () => {
       await expect(service.get('log', 'repo')).resolves.toMatchObject({ key: 'repo' });
     });
   });
+
+  /*
+   * URL keys are canonicalized as repository URLs (scheme/host casing,
+   * percent-encoding, trailing slashes) — never lowercased like a win32
+   * filesystem path, because URL paths are case-sensitive even when the host
+   * is not.
+   */
+  describe('normalizeCachePath — URL keys', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('canonicalizes URL keys as repository URLs instead of lowercasing them', async () => {
+      await service.set(
+        'log',
+        'repo',
+        'HTTPS://svn.example.com/Repo/Trunk/',
+        { revisions: [1] },
+        { ttlMs: 60_000 }
+      );
+
+      await expect(service.get('log', 'repo')).resolves.toMatchObject({
+        path: 'https://svn.example.com/Repo/Trunk',
+      });
+    });
+
+    it('matches a URL path clear through canonicalization', async () => {
+      await service.set(
+        'entries',
+        'repo',
+        'https://svn.example.com/Repo/Trunk',
+        ['src'],
+        { ttlMs: 60_000 }
+      );
+
+      await service.clearPath('https://svn.example.com/Repo/');
+
+      await expect(service.get('entries', 'repo')).resolves.toBeNull();
+    });
+
+    it('does not clear a URL entry whose path differs only by case', async () => {
+      await service.set(
+        'log',
+        'url',
+        'https://svn.example.com/Repo/Trunk',
+        { revisions: [1] },
+        { ttlMs: 60_000 }
+      );
+
+      await service.clearPath('https://svn.example.com/repo/trunk');
+
+      await expect(service.get('log', 'url')).resolves.toMatchObject({ key: 'url' });
+    });
+
+    it('keeps filesystem behavior for non-URL keys', async () => {
+      await service.set('status', 'path', 'C:\\Repo\\src', {}, { ttlMs: 60_000 });
+
+      await service.clearPath('c:/repo');
+
+      await expect(service.get('status', 'path')).resolves.toBeNull();
+    });
+  });
 });

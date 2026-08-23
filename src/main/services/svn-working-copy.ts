@@ -21,8 +21,16 @@ import { debug } from '../utils/debug';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { getSvnReadError, isNotAWorkingCopyError } from '../utils/svn-errors';
 import { sendToRenderer } from '../utils/safe-renderer-send';
+import { requireSvnRevision } from '../utils/svn-revision';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
-import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
+import {
+  buildSvnDiskFullRecoveryHint,
+  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+  extractSvnDiskFullDetails,
+  runSvn,
+  runSvnText,
+  type SvnDiskFullErrorDetails,
+} from './svn-executor';
 import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
 import { getWorkerSvnStatus } from './svn-status-worker';
 
@@ -68,13 +76,12 @@ function buildUpdateArgs(
   const args = ['update'];
   const revision = options?.revision?.trim();
   if (revision && revision.toUpperCase() !== 'HEAD') {
-    args.push('-r', revision);
+    args.push('-r', requireSvnRevision(revision, 'update revision'));
   }
   if (depth) args.push('--depth', depth);
   if (options?.ignoreExternals) args.push('--ignore-externals');
   if (options?.force) args.push('--force');
-  args.push(path);
-  return args;
+  return withSvnTargets(args, [path]);
 }
 
 function parseSvnProgressLine(line: string): { action: string | null; path: string | null } {
@@ -463,6 +470,7 @@ export async function updateWithProgress(
   revision: SvnOperationRevision;
   error?: string;
   output?: string;
+  diskFull?: SvnDiskFullErrorDetails;
 }> {
   const controller = new AbortController();
   activeUpdates.set(updateId, controller);
@@ -487,6 +495,7 @@ async function updateWithProgressUnserialized(
   revision: SvnOperationRevision;
   error?: string;
   output?: string;
+  diskFull?: SvnDiskFullErrorDetails;
 }> {
   let filesProcessed = 0;
   let currentFile = '';
@@ -579,13 +588,30 @@ async function updateWithProgressUnserialized(
   } catch (error) {
     const message = getErrorMessage(error);
     const cancelled = message.toLowerCase().includes('cancelled');
+    // Disk-full parity with checkout (item #30): the typed details carry the
+    // actionable recovery hint instead of a raw stderr dump.
+    const diskFull = extractSvnDiskFullDetails(error);
+    const failure = diskFull
+      ? {
+          ...diskFull,
+          operationKind: 'update' as const,
+          targetPath: path,
+          recoveryHint: buildSvnDiskFullRecoveryHint('update', path),
+        }
+      : undefined;
+    const failureMessage = failure ? failure.recoveryHint : message;
     sendProgress({
       status: cancelled ? 'cancelled' : 'error',
       currentFile,
       filesProcessed,
-      error: message,
+      error: failureMessage,
     });
-    return { success: false, revision: null, error: message };
+    return {
+      success: false,
+      revision: null,
+      error: failureMessage,
+      ...(failure ? { diskFull: failure } : {}),
+    };
   }
 }
 
@@ -744,10 +770,9 @@ async function updateToRevisionUnserialized(
     } else {
       args.push('--depth', depth);
     }
-    args.push(relativePath);
 
     debug.log('[updateToRevision] Running svn with args:', args);
-    const output = await runSvnText(args, {
+    const output = await runSvnText(withSvnTargets(args, [relativePath]), {
       cwd: workingCopyRoot,
       trustSslFailures: trustedSslFailures !== undefined,
       trustedSslFailures,

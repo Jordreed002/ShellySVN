@@ -123,4 +123,57 @@ describe('svn-history-worker', () => {
       expect.any(Object)
     );
   });
+
+  it('canonicalizes repository URLs when deriving shared worker job ids', async () => {
+    await getWorkerLog('HTTPS://svn.example.com/Repo/Trunk/', 25);
+    await getWorkerDiff('https://svn.example.com/Repo/Trunk/', '5');
+    await getWorkerDiffStreaming('https://svn.example.com/Repo/Trunk/', '5');
+    await getWorkerBlame('HTTPS://svn.example.com/Repo/Trunk/', 1, 5);
+    await getWorkerUrlDiff(
+      'https://svn.example.com/Repo/Trunk/',
+      'https://svn.example.com/Repo/Branches/A/'
+    );
+
+    const jobIds = mockState.workerRun.mock.calls.map((call) => (call[2] as { id: string }).id);
+    expect(jobIds).toEqual([
+      `svn-log:${JSON.stringify([
+        'https://svn.example.com/Repo/Trunk',
+        25,
+        undefined,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ])}`,
+      'svn-diff:https://svn.example.com/Repo/Trunk:5',
+      'svn-diff-streaming:https://svn.example.com/Repo/Trunk:5',
+      'svn-blame:https://svn.example.com/Repo/Trunk:1:5',
+      'svn-diff-urls:https://svn.example.com/Repo/Trunk:https://svn.example.com/Repo/Branches/A',
+    ]);
+    // The payloads still carry the caller's original targets untouched.
+    expect(mockState.workerRun.mock.calls[0][1]).toMatchObject({
+      path: 'HTTPS://svn.example.com/Repo/Trunk/',
+    });
+  });
+
+  it('keeps working-copy path job ids byte-identical to the caller target', async () => {
+    await getWorkerLog('C:\\wc\\src\\file.ts', 25);
+
+    const options = mockState.workerRun.mock.calls[0][2] as { id: string };
+    expect(options.id).toBe(
+      `svn-log:${JSON.stringify([
+        'C:\\wc\\src\\file.ts',
+        25,
+        undefined,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ])}`
+    );
+  });
 });

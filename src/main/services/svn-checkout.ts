@@ -1,13 +1,54 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import type { CheckoutOptions, SvnExecutionContext, SvnOperationRevision } from '@shared/types';
-import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, runSvnText } from './svn-executor';
+import {
+  buildSvnDiskFullRecoveryHint,
+  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+  extractSvnDiskFullDetails,
+  runSvn,
+  runSvnText,
+  type SvnDiskFullErrorDetails,
+} from './svn-executor';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
+import { requireSvnRevision } from '../utils/svn-revision';
+import { withSvnTargets } from '../utils/svn-targets';
 import { sendToRenderer } from '../utils/safe-renderer-send';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 
 const activeCheckouts = new Map<string, AbortController>();
+
+/**
+ * Disk-full failure shape for checkout results (backlog item #30): instead of a
+ * raw stderr dump the caller gets the actionable recovery hint plus the typed
+ * details (operation kind, destination, guidance) for the renderer to render.
+ */
+interface CheckoutFailure {
+  success: false;
+  revision: null;
+  output: string;
+  diskFull?: SvnDiskFullErrorDetails;
+}
+
+function toCheckoutFailure(error: unknown, destinationPath: string): CheckoutFailure {
+  const diskFull = extractSvnDiskFullDetails(error);
+  if (diskFull) {
+    // The checkout service knows the real destination; refine the executor's
+    // argv-derived details with it.
+    const details: SvnDiskFullErrorDetails = {
+      ...diskFull,
+      operationKind: 'checkout',
+      targetPath: destinationPath,
+      recoveryHint: buildSvnDiskFullRecoveryHint('checkout', destinationPath),
+    };
+    return { success: false, revision: null, output: details.recoveryHint, diskFull: details };
+  }
+  return {
+    success: false,
+    revision: null,
+    output: error instanceof Error ? error.message : 'Checkout failed',
+  };
+}
 
 function isHttpsRepositoryUrl(url: string): boolean {
   return /^https:\/\//i.test(url);
@@ -67,11 +108,10 @@ function buildCheckoutArgs(
 ): string[] {
   const args = ['checkout', '--non-interactive'];
 
-  if (revision) args.push('-r', revision);
+  if (revision) args.push('-r', requireSvnRevision(revision, 'checkout revision'));
   if (depth) args.push('--depth', depth);
 
-  args.push(url, path);
-  return args;
+  return withSvnTargets(args, [url, path]);
 }
 
 function parseSvnRevision(output: string): number | null {
@@ -204,7 +244,12 @@ export async function checkout(
   revision?: string,
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   options?: InternalCheckoutOptions
-): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }> {
+): Promise<{
+  success: boolean;
+  revision: SvnOperationRevision;
+  output?: string;
+  diskFull?: SvnDiskFullErrorDetails;
+}> {
   const operationContext: Partial<SvnExecutionContext> = {};
 
   try {
@@ -232,11 +277,7 @@ export async function checkout(
       output,
     };
   } catch (error) {
-    return {
-      success: false,
-      revision: null,
-      output: error instanceof Error ? error.message : 'Checkout failed',
-    };
+    return toCheckoutFailure(error, path);
   }
 }
 
@@ -253,6 +294,7 @@ export async function checkoutWithProgress(
   revision: SvnOperationRevision;
   output?: string;
   filesProcessed?: number;
+  diskFull?: SvnDiskFullErrorDetails;
 }> {
   const operationContext: Partial<SvnExecutionContext> = {};
   const controller = new AbortController();
@@ -380,11 +422,7 @@ export async function checkoutWithProgress(
       filesProcessed,
     };
   } catch (error) {
-    return {
-      success: false,
-      revision: null,
-      output: error instanceof Error ? error.message : 'Checkout failed',
-    };
+    return toCheckoutFailure(error, path);
   } finally {
     if (activeCheckouts.get(checkoutId) === controller) {
       activeCheckouts.delete(checkoutId);

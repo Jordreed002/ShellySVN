@@ -102,6 +102,15 @@ vi.mock('../../utils/process-tree', () => ({
 
 import { runSvn, runSvnMuccText, runSvnText } from '../svn-executor';
 import { buildSvnSshCommand } from '../svn-runner';
+import {
+  buildSvnDiskFullRecoveryHint,
+  extractSvnDiskFullDetails,
+  getSvnDiskFullOperationKind,
+  isSvnDiskFullText,
+  resolveSvnDiskFullTargetPath,
+  SVN_DISK_FULL_ERROR_CODE,
+  type SvnDiskFullError,
+} from '../svn-executor';
 
 async function startSvn(args: string[], options = {}) {
   const proc = createMockProcess();
@@ -342,7 +351,10 @@ describe('svn-executor', () => {
     await expect(promise).rejects.toThrow('client certificate load failed');
     expect(mockState.spawn).toHaveBeenCalledWith(
       'custom-svn',
-      expect.arrayContaining(['--certificate', 'C:\\certs\\client.p12']),
+      expect.arrayContaining([
+        '--config-option',
+        'servers:global:ssl-client-cert-file=C:\\certs\\client.p12',
+      ]),
       expect.any(Object)
     );
   });
@@ -581,11 +593,13 @@ describe('svn-executor', () => {
       '--trust-server-cert-failures',
       '--username',
       '--password-from-stdin',
-      '--certificate',
+      '--config-option',
     ]) {
       expect(spawnedArgs.indexOf(option)).toBeGreaterThanOrEqual(0);
       expect(spawnedArgs.indexOf(option)).toBeLessThan(separatorIndex);
     }
+    expect(spawnedArgs).toContain('servers:global:ssl-client-cert-file=C:\\certs\\client.p12');
+    expect(spawnedArgs).not.toContain('--certificate');
     expect(spawnedArgs.slice(separatorIndex)).toEqual(['--', url]);
   });
 
@@ -647,6 +661,164 @@ describe('svn-executor', () => {
     await expect(promise).resolves.toMatchObject({
       stderr: 'abc',
       stderrTruncated: true,
+    });
+  });
+
+  describe('disk-full classification (item #30)', () => {
+    it.each([
+      "svn: E720164: Can't write to file '/wc/x': No space left on device",
+      'svn: E175002: PROPFIND failed: disk full',
+      'There is not enough space on the disk.',
+      'write error: file system full',
+      "svn: E700028: Can't write to file",
+      'svn: E700112: write failed',
+      'write failed: ENOSPC',
+    ])('recognizes disk-full message %j', (message) => {
+      expect(isSvnDiskFullText(message)).toBe(true);
+    });
+
+    it.each([
+      'svn: E175002: connection refused',
+      'svn: E155007: not a working copy',
+      'SVN operation cancelled',
+      'not enough entropy in the pool',
+      'no spare capacity',
+    ])('does not misclassify %j', (message) => {
+      expect(isSvnDiskFullText(message)).toBe(false);
+    });
+
+    it('maps argv to the operation kind and the local target path', () => {
+      expect(
+        getSvnDiskFullOperationKind(['checkout', '--non-interactive', 'https://x/repo', '/tmp/wc'])
+      ).toBe('checkout');
+      expect(getSvnDiskFullOperationKind(['co', 'https://x/repo', '/tmp/wc'])).toBe('checkout');
+      expect(
+        getSvnDiskFullOperationKind(['export', '-r', '5', 'https://x/repo', 'C:\\exports\\r'])
+      ).toBe('export');
+      expect(getSvnDiskFullOperationKind(['up'])).toBe('update');
+      expect(getSvnDiskFullOperationKind(['status'])).toBeNull();
+
+      expect(
+        resolveSvnDiskFullTargetPath([
+          'checkout',
+          '--non-interactive',
+          '--depth',
+          'infinity',
+          'https://x/repo',
+          '/tmp/wc',
+        ])
+      ).toBe('/tmp/wc');
+      expect(resolveSvnDiskFullTargetPath(['export', '-r', '123', 'https://x/repo'])).toBeNull();
+      expect(resolveSvnDiskFullTargetPath(['update', '-r', '5'])).toBeNull();
+      expect(resolveSvnDiskFullTargetPath(['update'], '/tmp/wc')).toBe('/tmp/wc');
+      // Relative update targets resolve against the command cwd.
+      expect(resolveSvnDiskFullTargetPath(['update', 'src/module'], '/tmp/wc')).toBe(
+        join('/tmp/wc', 'src/module')
+      );
+      // Windows drive-letter targets survive POSIX hosts untouched.
+      expect(
+        resolveSvnDiskFullTargetPath(['export', 'https://x/repo', 'C:\\exports\\repo'], '/tmp')
+      ).toBe('C:\\exports\\repo');
+    });
+
+    it('wraps a disk-full checkout failure in the typed, actionable error', async () => {
+      const { proc, promise } = await startSvnResult([
+        'checkout',
+        '--non-interactive',
+        'https://svn.example.com/repo',
+        '/tmp/wc',
+      ]);
+
+      proc.stderr.emit(
+        'data',
+        Buffer.from("svn: E720164: Can't write to file '/tmp/wc/f': No space left on device")
+      );
+      proc.emit('close', 1);
+
+      const error = (await promise.then(
+        () => null,
+        (reason: SvnDiskFullError) => reason
+      )) as SvnDiskFullError;
+      expect(error).not.toBeNull();
+      expect(error.name).toBe('SvnDiskFullError');
+      expect(error.code).toBe(SVN_DISK_FULL_ERROR_CODE);
+      expect(error.message).toContain('No space left on device');
+      expect(error.diskFull).toEqual({
+        operationKind: 'checkout',
+        targetPath: '/tmp/wc',
+        recoveryHint: expect.stringContaining('/tmp/wc'),
+      });
+      expect(error.diskFull?.recoveryHint).toContain('Free up space');
+      expect(error.diskFull?.recoveryHint).toContain('retry');
+    });
+
+    it('reports the cwd as the update target when the argv has no positional', async () => {
+      const { proc, promise } = await startSvnResult(['update'], { cwd: '/tmp/wc' });
+
+      proc.stderr.emit('data', Buffer.from('svn: E175002: disk full during update'));
+      proc.emit('close', 1);
+
+      const error = (await promise.then(
+        () => null,
+        (reason: SvnDiskFullError) => reason
+      )) as SvnDiskFullError;
+      expect(error.diskFull).toMatchObject({ operationKind: 'update', targetPath: '/tmp/wc' });
+      expect(error.diskFull?.recoveryHint).toContain('Run cleanup on the working copy first');
+    });
+
+    it('leaves non-disk-full failures untouched', async () => {
+      const { proc, promise } = await startSvnResult(['checkout', 'https://x/repo', '/tmp/wc']);
+
+      proc.stderr.emit('data', Buffer.from('svn: E175002: connection refused'));
+      proc.emit('close', 1);
+
+      const error = (await promise.then(
+        () => null,
+        (reason: unknown) => reason
+      )) as { code?: string; diskFull?: unknown };
+      expect(error.message).toContain('connection refused');
+      expect(error.code).not.toBe(SVN_DISK_FULL_ERROR_CODE);
+      expect(error.diskFull).toBeUndefined();
+    });
+
+    it('classifies a raw Node ENOSPC spawn error as disk-full', async () => {
+      const { proc, promise } = await startSvnResult(['export', 'https://x/repo', '/tmp/wc']);
+
+      proc.emit('error', Object.assign(new Error('spawn ENOSPC'), { code: 'ENOSPC' }));
+
+      const error = (await promise.then(
+        () => null,
+        (reason: SvnDiskFullError) => reason
+      )) as SvnDiskFullError;
+      expect(error.code).toBe(SVN_DISK_FULL_ERROR_CODE);
+      expect(error.diskFull).toMatchObject({ operationKind: 'export', targetPath: '/tmp/wc' });
+    });
+
+    it('extracts details from wrapped and raw errors alike', () => {
+      const wrapped = Object.assign(new Error('disk full'), {
+        name: 'SvnDiskFullError',
+        code: SVN_DISK_FULL_ERROR_CODE,
+        diskFull: {
+          operationKind: 'checkout' as const,
+          targetPath: '/tmp/wc',
+          recoveryHint: buildSvnDiskFullRecoveryHint('checkout', '/tmp/wc'),
+        },
+      });
+      expect(extractSvnDiskFullDetails(wrapped)).toMatchObject({
+        operationKind: 'checkout',
+        targetPath: '/tmp/wc',
+      });
+
+      expect(
+        extractSvnDiskFullDetails(Object.assign(new Error('write failed'), { code: 'ENOSPC' }))
+      ).toMatchObject({ operationKind: null, targetPath: null });
+
+      // A diskFull payload without the marker code is not trusted.
+      expect(
+        extractSvnDiskFullDetails({ diskFull: { operationKind: 'update', targetPath: '/x' } })
+      ).toBeNull();
+      expect(extractSvnDiskFullDetails(new Error('connection refused'))).toBeNull();
+      expect(extractSvnDiskFullDetails(undefined)).toBeNull();
     });
   });
 });

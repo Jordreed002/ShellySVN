@@ -23,11 +23,17 @@ vi.mock('fs', async () => {
   };
 });
 
-vi.mock('../svn-executor', () => ({
-  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
-  runSvn: mockState.runSvn,
-  runSvnText: mockState.runSvnText,
-}));
+vi.mock('../svn-executor', async (importOriginal) => {
+  // Keep the pure disk-full classifiers real (item #30 coverage) while the
+  // spawning path stays mocked.
+  const actual = await importOriginal<typeof import('../svn-executor')>();
+  return {
+    ...actual,
+    DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES: 1024 * 1024,
+    runSvn: mockState.runSvn,
+    runSvnText: mockState.runSvnText,
+  };
+});
 
 vi.mock('../svn-status-worker', () => ({
   getWorkerSvnStatus: mockState.getWorkerSvnStatus,
@@ -483,7 +489,7 @@ describe('svn-working-copy updateToRevision sparse additions', () => {
     expect(result).toEqual({ success: true, revision: 99 });
     expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
     expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['update', '--parents', '--set-depth', 'infinity', 'src\\features'],
+      ['update', '--parents', '--set-depth', 'infinity', '--', 'src\\features'],
       expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: false })
     );
   });
@@ -500,7 +506,7 @@ describe('svn-working-copy updateToRevision sparse additions', () => {
     expect(result).toEqual({ success: true, revision: 99 });
     expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
     expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['update', '--parents', '--set-depth', 'empty', 'src\\index.ts'],
+      ['update', '--parents', '--set-depth', 'empty', '--', 'src\\index.ts'],
       expect.objectContaining({ cwd: 'C:\\wc', trustSslFailures: false })
     );
   });
@@ -751,7 +757,7 @@ describe('svn-working-copy update progress', () => {
       output: 'Updated to revision 99.\n',
     });
     expect(mockState.runSvn).toHaveBeenCalledWith(
-      ['update', '--depth', 'infinity', '/wc'],
+      ['update', '--depth', 'infinity', '--', '/wc'],
       expect.objectContaining({
         trustSslFailures: false,
         maxStdoutBytes: 1024 * 1024,
@@ -802,11 +808,93 @@ describe('svn-working-copy update progress', () => {
     });
 
     expect(mockState.runSvn).toHaveBeenCalledWith(
-      ['update', '-r', '42', '--depth', 'files', '--ignore-externals', '--force', '/wc'],
+      [
+        'update',
+        '-r',
+        '42',
+        '--depth',
+        'files',
+        '--ignore-externals',
+        '--force',
+        '--',
+        '/wc',
+      ],
       expect.objectContaining({
         trustSslFailures: false,
       })
     );
+  });
+
+  it('peg-escapes update targets that svn would read as a peg revision', async () => {
+    const send = vi.fn();
+    mockState.runSvnText.mockResolvedValue('');
+    mockState.runSvn.mockResolvedValue({
+      stdout: 'Updated to revision 7.\n',
+      stderr: '',
+      code: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+
+    await updateWithProgress({ sender: { send } } as never, 'update-peg', '/wc/pic@2.png');
+
+    expect(mockState.runSvn).toHaveBeenCalledWith(
+      ['update', '--', '/wc/pic@2.png@'],
+      expect.objectContaining({ trustSslFailures: false })
+    );
+  });
+
+  it('rejects an invalid update revision before spawning svn', async () => {
+    const send = vi.fn();
+    mockState.runSvnText.mockResolvedValue('');
+
+    const result = await updateWithProgress({ sender: { send } } as never, 'update-bad-rev', '/wc', undefined, {
+      revision: '12x',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('not a valid SVN revision');
+    expect(mockState.runSvn).not.toHaveBeenCalled();
+  });
+
+  it('maps a disk-full update failure to the typed recovery hint (item #30 parity)', async () => {
+    const send = vi.fn();
+    mockState.runSvnText.mockResolvedValue('');
+    mockState.runSvn.mockRejectedValue(
+      new Error("svn: E720123: Can't write to file: No space left on device")
+    );
+
+    const result = await updateWithProgress({ sender: { send } } as never, 'update-disk-full', '/wc');
+
+    expect(result.success).toBe(false);
+    expect(result.revision).toBeNull();
+    expect(result.diskFull).toMatchObject({
+      operationKind: 'update',
+      targetPath: '/wc',
+    });
+    expect(result.error).toBe(result.diskFull?.recoveryHint);
+    expect(result.error).toContain('Free up space');
+    expect(result.error).toContain('/wc');
+    expect(result.error).not.toContain('E720123');
+    expect(send).toHaveBeenCalledWith(
+      'svn:update:progress',
+      expect.objectContaining({ status: 'error', error: result.diskFull?.recoveryHint })
+    );
+  });
+
+  it('keeps ordinary update failures as raw messages without disk-full details', async () => {
+    const send = vi.fn();
+    mockState.runSvnText.mockResolvedValue('');
+    mockState.runSvn.mockRejectedValue(new Error('svn: E175002: connection refused'));
+
+    const result = await updateWithProgress({ sender: { send } } as never, 'update-net', '/wc');
+
+    expect(result).toEqual({
+      success: false,
+      revision: null,
+      error: 'svn: E175002: connection refused',
+    });
+    expect(result.diskFull).toBeUndefined();
   });
 
   it('uses streamed revision when stored update output is capped', async () => {

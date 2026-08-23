@@ -1,4 +1,12 @@
 import type {
+  BuildInterruptedMutationRecoveryPlanOptions,
+  InterruptedMutationRecord,
+  InterruptedMutationRecoveryPlan,
+  InterruptedMutationRecoveryStep,
+  InterruptedMutationRecoveryStepResult,
+  PartialMutationDetection,
+  PartialMutationEvidence,
+  PartialMutationEvidenceKind,
   StaleWorkingCopyLockInfo,
   SvnStatusEntry,
   WorkingCopyHealthIssue,
@@ -11,6 +19,7 @@ import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { parseSvnStatusXml } from '@shared/svn-parsers';
 import { createSvnXmlParser } from '../utils/svn-xml';
 import { withSvnTargets } from '../utils/svn-targets';
+import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
 import { runSvnText } from './svn-executor';
 
 // Hardened factory (input size/depth guards, entity expansion disabled);
@@ -337,4 +346,331 @@ export async function removeStaleWorkingCopyLock(path: string): Promise<{
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Item #31 — interrupted-mutation recovery (partial update/commit detection)
+// ---------------------------------------------------------------------------
+//
+// The evidence / detection / recovery-plan shapes live in @shared/types (they
+// cross IPC on the lifecycle channels); re-exported here for compatibility
+// with existing main-process imports.
+
+export type {
+  BuildInterruptedMutationRecoveryPlanOptions,
+  InterruptedMutationRecoveryPlan,
+  InterruptedMutationRecoveryStep,
+  InterruptedMutationRecoveryStepKind,
+  InterruptedMutationRecoveryStepResult,
+  PartialMutationDetection,
+  PartialMutationEvidence,
+  PartialMutationEvidenceKind,
+} from '@shared/types';
+
+const MAX_EVIDENCE_PATHS_LISTED = 10;
+const MAX_RECOVERY_STEP_OUTPUT_CHARS = 4_000;
+const LOCKED_WORKING_COPY_PATTERN = /\bE155004\b|working copy.*\blocked\b|run 'svn cleanup'/i;
+const INCOMPLETE_WORKING_COPY_PATTERN = /\bis incomplete\b|\bE155015\b/i;
+
+function summarizeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || 'unknown error');
+}
+
+/** Resolve a status entry path (often relative to the target) and keep it inside the root. */
+function containedEntryPath(root: string, entryPath: string): string | null {
+  if (!entryPath) return null;
+  const resolved = isAbsolute(entryPath) ? entryPath : join(root, entryPath);
+  return isPathWithinRoot(root, resolved) ? resolved : null;
+}
+
+/**
+ * Pull the interrupted-mutation markers out of a `svn status --xml` response:
+ * `item="missing"` (versioned path never materialized / deleted mid-update)
+ * and `item="incomplete"` (directory whose update was cut short).
+ */
+function parseInterruptedStatusMarkers(
+  xml: string,
+  root: string
+): { missing: string[]; incomplete: string[] } {
+  const parsed = xmlParser.parse(xml) as {
+    status?: {
+      target?: {
+        entry?:
+          | Array<{ '@_path'?: string; 'wc-status'?: { '@_item'?: string } }>
+          | {
+              '@_path'?: string;
+              'wc-status'?: { '@_item'?: string };
+            };
+        changelist?:
+          | Array<{ entry?: Array<{ '@_path'?: string; 'wc-status'?: { '@_item'?: string } }> }>
+          | { entry?: Array<{ '@_path'?: string; 'wc-status'?: { '@_item'?: string } }> };
+      };
+    };
+  };
+
+  const rawEntries = parsed.status?.target?.entry;
+  const entries = rawEntries ? (Array.isArray(rawEntries) ? rawEntries : [rawEntries]) : [];
+  const changelists = parsed.status?.target?.changelist;
+  for (const changelist of changelists
+    ? Array.isArray(changelists)
+      ? changelists
+      : [changelists]
+    : []) {
+    for (const entry of changelist.entry ?? []) entries.push(entry);
+  }
+
+  const missing: string[] = [];
+  const incomplete: string[] = [];
+  for (const entry of entries) {
+    const item = entry['wc-status']?.['@_item'];
+    const resolved = containedEntryPath(root, entry['@_path'] ?? '');
+    if (!resolved) continue;
+    if (item === 'missing') missing.push(resolved);
+    else if (item === 'incomplete') incomplete.push(resolved);
+  }
+  return { missing, incomplete };
+}
+
+/**
+ * Scan a working copy for evidence that a mutation (update/commit) was
+ * interrupted (backlog item #31). Evidence, in order of reliability:
+ * 1. a leftover `.svn/lock` administrative file (reuses the item #23 detector),
+ * 2. SVN itself refusing to operate — "working copy locked" / E155004,
+ * 3. `svn status` markers: `missing` and `incomplete` entries,
+ * 4. `svn info` reporting the working copy as incomplete.
+ *
+ * Read-only probes only, and deliberately no IPC-approval assert: like the
+ * item #23 startup scan, this runs against recently used paths that may not be
+ * approved yet. The mutating recovery executor below does assert approval.
+ */
+export async function detectPartialWorkingCopyMutation(
+  workingCopyPath: string
+): Promise<PartialMutationDetection> {
+  const evidence: PartialMutationEvidence[] = [];
+  const notes: string[] = [];
+  const has = (kind: PartialMutationEvidenceKind) => evidence.some((item) => item.kind === kind);
+
+  try {
+    const stale = await detectStaleWorkingCopyLock(workingCopyPath);
+    if (stale) {
+      evidence.push({
+        kind: 'stale-admin-lock',
+        detail: `Leftover administrative lock file: ${stale.lockPath}`,
+        paths: [stale.lockPath],
+      });
+    }
+  } catch (error) {
+    notes.push(`Lock probe failed: ${summarizeError(error)}`);
+  }
+
+  try {
+    const statusXml = await runSvnText(
+      withSvnTargets(['status', '--xml', '--no-ignore'], [workingCopyPath]),
+      { cwd: workingCopyPath, maxStdoutBytes: 16 * 1024 * 1024, maxStderrBytes: 64 * 1024 }
+    );
+    if (typeof statusXml === 'string') {
+      const { missing, incomplete } = parseInterruptedStatusMarkers(statusXml, workingCopyPath);
+      if (missing.length > 0 && !has('missing-versioned-paths')) {
+        evidence.push({
+          kind: 'missing-versioned-paths',
+          detail: `${missing.length} versioned path${missing.length === 1 ? '' : 's'} ${
+            missing.length === 1 ? 'is' : 'are'
+          } missing — consistent with an interrupted update.`,
+          paths: missing.slice(0, MAX_EVIDENCE_PATHS_LISTED),
+        });
+      }
+      if (incomplete.length > 0 && !has('incomplete-tree')) {
+        evidence.push({
+          kind: 'incomplete-tree',
+          detail: `${incomplete.length} director${
+            incomplete.length === 1 ? 'y was' : 'ies were'
+          } left incomplete by a cut-short update.`,
+          paths: incomplete.slice(0, MAX_EVIDENCE_PATHS_LISTED),
+        });
+      }
+    }
+  } catch (error) {
+    const message = summarizeError(error);
+    if (LOCKED_WORKING_COPY_PATTERN.test(message) && !has('stale-admin-lock')) {
+      evidence.push({
+        kind: 'stale-admin-lock',
+        detail: 'SVN reports the working copy as locked (run "svn cleanup").',
+        paths: [],
+      });
+    } else {
+      notes.push(`svn status probe failed: ${message}`);
+    }
+  }
+
+  try {
+    await runSvnText(withSvnTargets(['info', '--xml'], [workingCopyPath]), {
+      cwd: workingCopyPath,
+      maxStdoutBytes: 16 * 1024 * 1024,
+      maxStderrBytes: 64 * 1024,
+    });
+  } catch (error) {
+    const message = summarizeError(error);
+    if (INCOMPLETE_WORKING_COPY_PATTERN.test(message) && !has('incomplete-tree')) {
+      evidence.push({
+        kind: 'incomplete-tree',
+        detail: 'svn info reports the working copy as incomplete.',
+        paths: [],
+      });
+    } else if (LOCKED_WORKING_COPY_PATTERN.test(message) && !has('stale-admin-lock')) {
+      evidence.push({
+        kind: 'stale-admin-lock',
+        detail: 'SVN reports the working copy as locked (run "svn cleanup").',
+        paths: [],
+      });
+    } else {
+      notes.push(`svn info probe failed: ${message}`);
+    }
+  }
+
+  return {
+    workingCopyPath,
+    detectedAt: new Date().toISOString(),
+    hasEvidence: evidence.length > 0,
+    evidence,
+    notes,
+  };
+}
+
+function describeEvidence(evidence: PartialMutationEvidence[]): string {
+  if (evidence.length === 0) return 'no current-state evidence';
+  return evidence.map((item) => item.kind).join(', ');
+}
+
+/**
+ * Compose the Phase 1 interruption journal with current-state detection into an
+ * ordered, data-only remediation proposal (backlog item #31): the journal says
+ * "a mutation was interrupted here", detection confirms the working copy still
+ * shows the damage, and the proposal is `svn cleanup` first, then the retry
+ * step the evidence supports, then a verification status. Proposals are never
+ * executed here — see `executeInterruptedMutationRecoveryPlan`.
+ */
+export function buildInterruptedMutationRecoveryPlan(
+  workingCopyPath: string,
+  detection: PartialMutationDetection,
+  journal?: InterruptedMutationRecord | null,
+  options: BuildInterruptedMutationRecoveryPlanOptions = {}
+): InterruptedMutationRecoveryPlan {
+  const steps: InterruptedMutationRecoveryStep[] = [];
+  const hasJournal = Boolean(journal);
+  const suggestsUpdate = detection.evidence.some(
+    (item) => item.kind === 'missing-versioned-paths' || item.kind === 'incomplete-tree'
+  );
+
+  if (detection.hasEvidence || hasJournal) {
+    steps.push({
+      kind: 'svn-cleanup',
+      command: ['cleanup'],
+      description:
+        'Release leftover administrative locks and finish any interrupted bookkeeping. Idempotent: safe to re-run.',
+    });
+
+    const interruptedOperation = options.interruptedOperation ?? (suggestsUpdate ? 'update' : null);
+    if (interruptedOperation === 'update') {
+      steps.push({
+        kind: 'retry-update',
+        command: ['update'],
+        description:
+          'Re-run the update to fetch the paths the interrupted pass never materialized.',
+      });
+    } else if (interruptedOperation === 'commit') {
+      steps.push({
+        kind: 'retry-commit',
+        command: ['status'],
+        description:
+          'List the local changes that were mid-commit, then re-run the commit (its message must be re-confirmed).',
+      });
+    }
+
+    steps.push({
+      kind: 'verify-status',
+      command: ['status'],
+      description: 'Verify the working copy is healthy again after recovery.',
+    });
+  }
+
+  const evidenceSummary = describeEvidence(detection.evidence);
+  const rationale = hasJournal
+    ? `A mutation was interrupted on ${journal?.interruptedAt} (reason: ${journal?.reason}); the journal is corroborated by: ${evidenceSummary}.`
+    : `Current working-copy state shows: ${evidenceSummary}.`;
+
+  return {
+    workingCopyPath,
+    createdAt: new Date().toISOString(),
+    source: hasJournal ? (detection.hasEvidence ? 'journal+detection' : 'journal') : 'detection',
+    rationale,
+    evidence: detection.evidence,
+    steps,
+  };
+}
+
+/**
+ * Explicitly invoked executor for a proposed recovery plan (never automatic).
+ * Every step runs serialized with other working-copy mutations, targets are
+ * pinned to the IPC-approved working copy (step commands carry no paths of
+ * their own, so a mismatched plan cannot redirect them), and execution stops
+ * at the first failing step — the rest are reported as skipped. Re-running a
+ * plan is safe: `svn cleanup`/`svn update`/`svn status` are idempotent on an
+ * already-recovered working copy.
+ */
+export async function executeInterruptedMutationRecoveryPlan(
+  workingCopyPath: string,
+  plan: InterruptedMutationRecoveryPlan
+): Promise<{
+  workingCopyPath: string;
+  steps: InterruptedMutationRecoveryStepResult[];
+  allSucceeded: boolean;
+}> {
+  const approvedPath = assertPathApprovedForIpc(workingCopyPath, 'Interrupted-mutation recovery');
+
+  return runSerializedWorkingCopyMutation(approvedPath, async () => {
+    const results: InterruptedMutationRecoveryStepResult[] = [];
+    let failed = false;
+
+    for (const step of plan.steps) {
+      const command = withSvnTargets(step.command, [approvedPath]);
+      if (failed) {
+        results.push({
+          kind: step.kind,
+          command,
+          success: false,
+          skipped: true,
+          output: '',
+          error: 'Skipped because an earlier recovery step failed.',
+        });
+        continue;
+      }
+
+      try {
+        const output = await runSvnText(command, {
+          cwd: approvedPath,
+          maxStdoutBytes: 1024 * 1024,
+          maxStderrBytes: 64 * 1024,
+        });
+        results.push({
+          kind: step.kind,
+          command,
+          success: true,
+          skipped: false,
+          output: (output ?? '').slice(0, MAX_RECOVERY_STEP_OUTPUT_CHARS),
+        });
+      } catch (error) {
+        failed = true;
+        results.push({
+          kind: step.kind,
+          command,
+          success: false,
+          skipped: false,
+          output: '',
+          error: summarizeError(error),
+        });
+      }
+    }
+
+    return { workingCopyPath: approvedPath, steps: results, allSucceeded: !failed };
+  });
 }

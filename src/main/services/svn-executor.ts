@@ -1,14 +1,14 @@
-import type { SvnExecutionContext } from '@shared/types';
-import { dirname, extname, join } from 'node:path';
+import type {
+  SvnDiskFullErrorDetails,
+  SvnDiskFullOperationKind,
+  SvnExecutionContext,
+} from '@shared/types';
+import { dirname, extname, isAbsolute, join } from 'node:path';
 import { getSettingsManager } from '../settings-manager';
 import { getAuthCache } from '../auth-cache';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
-import {
-  createSvnNetworkSuspendedError,
-  runResolvedSvn,
-  type RunSvnResult,
-} from './svn-runner';
+import { createSvnNetworkSuspendedError, runResolvedSvn, type RunSvnResult } from './svn-runner';
 import {
   beginSvnTimelineEntry,
   completeSvnTimelineEntry,
@@ -16,6 +16,179 @@ import {
 } from './svn-command-timeline';
 
 export { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, type RunSvnResult } from './svn-runner';
+// The disk-full shapes live in @shared/types (they cross IPC on operation
+// results); re-exported here so existing service imports keep working.
+export type { SvnDiskFullErrorDetails, SvnDiskFullOperationKind } from '@shared/types';
+
+// ---------------------------------------------------------------------------
+// Disk-full classification (backlog item #30)
+// ---------------------------------------------------------------------------
+
+/**
+ * Marker (`error.code`) for an ENOSPC-condition failure during an SVN command.
+ * Distinguished from SVN's own exit codes, which are not unique for disk-full
+ * failures (svn reuses exit 1 and encodes the cause in stderr).
+ */
+export const SVN_DISK_FULL_ERROR_CODE = 'SVN_DISK_FULL';
+
+export type SvnDiskFullError = Error & {
+  name: 'SvnDiskFullError';
+  code: typeof SVN_DISK_FULL_ERROR_CODE;
+  diskFull: SvnDiskFullErrorDetails;
+  cause: unknown;
+};
+
+/**
+ * SVN surfaces ENOSPC through the OS strerror text wrapped in its own E-code
+ * output. Recognized variants:
+ * - POSIX strerror(ENOSPC): "No space left on device" (shown as svn E700028,
+ *   APR_OS_START_SYSERR + 28).
+ * - Windows strerror(ERROR_DISK_FULL): "There is not enough space on the disk."
+ *   (svn E700112, APR_OS_START_SYSERR + 112).
+ * - Raw Node errno (`error.code === 'ENOSPC'`) when an fs write caused the
+ *   failure, and SVN's own "disk full"/"file system full" phrasings.
+ */
+const SVN_DISK_FULL_MESSAGE_PATTERN =
+  /\bno space left on device\b|\bthere is not enough space on the disk\b|\bdisk (?:is )?full\b|\bfile system full\b|\b(?:E700028|E700112)\b|\bENOSPC\b/i;
+
+const SVN_DISK_FULL_OPERATION_ALIASES: Record<string, SvnDiskFullOperationKind> = {
+  checkout: 'checkout',
+  co: 'checkout',
+  export: 'export',
+  update: 'update',
+  up: 'update',
+};
+
+/** Option forms whose following argument is a value, not a positional target. */
+const VALUE_TAKING_OPTIONS = new Set([
+  '-r',
+  '--revision',
+  '--depth',
+  '--set-depth',
+  '--username',
+  '--password',
+  '--config-dir',
+  '--certificate',
+  '--trust-server-cert-failures',
+  '-m',
+  '--message',
+  '--change',
+  '--accept',
+  '--old',
+  '--new',
+  '--limit',
+  '-l',
+]);
+
+/** Windows drive/UNC absolutes that `path.isAbsolute` misses on POSIX hosts. */
+const WINDOWS_ABSOLUTE_PATH_PATTERN = /^(?:[a-zA-Z]:[\\/]|\\\\)/;
+
+function looksLikeRepositoryUrlArg(candidate: string): boolean {
+  return /^(?:https?|svn(?:\+ssh)?|file):\/\//i.test(candidate);
+}
+
+/** Pure predicate: does this error text describe a disk-full (ENOSPC) failure? */
+export function isSvnDiskFullText(text: string): boolean {
+  return SVN_DISK_FULL_MESSAGE_PATTERN.test(text);
+}
+
+/** Map an SVN argv to the disk-full-relevant operation kind, if any. */
+export function getSvnDiskFullOperationKind(args: string[]): SvnDiskFullOperationKind | null {
+  return SVN_DISK_FULL_OPERATION_ALIASES[args[0]?.toLowerCase() ?? ''] ?? null;
+}
+
+/**
+ * Best-effort local target of the failing operation, derived from the argv.
+ * Scans backwards for the last positional argument that is neither an option,
+ * an option value, nor a repository URL; relative targets resolve against the
+ * command's cwd. Used for messaging only — never for path authorization.
+ */
+export function resolveSvnDiskFullTargetPath(args: string[], cwd?: string): string | null {
+  for (let index = args.length - 1; index >= 1; index -= 1) {
+    const candidate = args[index];
+    if (candidate === '--') break; // only option values can precede the targets
+    if (candidate.startsWith('-')) continue;
+    if (VALUE_TAKING_OPTIONS.has(args[index - 1] ?? '')) continue; // an option's value
+    if (looksLikeRepositoryUrlArg(candidate)) continue;
+    if (WINDOWS_ABSOLUTE_PATH_PATTERN.test(candidate) || isAbsolute(candidate) || !cwd) {
+      return candidate;
+    }
+    return join(cwd, candidate);
+  }
+  return cwd ?? null;
+}
+
+export function buildSvnDiskFullRecoveryHint(
+  operationKind: SvnDiskFullOperationKind | null,
+  targetPath: string | null
+): string {
+  const operation = operationKind ?? 'SVN operation';
+  const target = targetPath ? ` at ${targetPath}` : '';
+  const retryAdvice =
+    operationKind === 'update'
+      ? 'Run cleanup on the working copy first if SVN then reports it as locked.'
+      : 'A partial destination may have been left behind: run cleanup on the working copy (or delete the partial export destination) before retrying.';
+  return `The disk ran out of free space during the ${operation}${target}. Free up space on that disk, or choose a destination with more free space, then retry. ${retryAdvice}`;
+}
+
+/**
+ * Extract disk-full details from any thrown error: either one already wrapped
+ * by this executor, or a raw error whose message/errno carries an ENOSPC
+ * signature. Returns null when the error is not disk-full related.
+ */
+export function extractSvnDiskFullDetails(error: unknown): SvnDiskFullErrorDetails | null {
+  if (error && typeof error === 'object') {
+    const existing = (error as { diskFull?: unknown }).diskFull;
+    if (
+      existing &&
+      typeof existing === 'object' &&
+      (error as { code?: unknown }).code === SVN_DISK_FULL_ERROR_CODE
+    ) {
+      const details = existing as SvnDiskFullErrorDetails;
+      return {
+        operationKind: details.operationKind ?? null,
+        targetPath: details.targetPath ?? null,
+        recoveryHint: buildSvnDiskFullRecoveryHint(
+          details.operationKind ?? null,
+          details.targetPath ?? null
+        ),
+      };
+    }
+  }
+
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const errnoCode = (error as { code?: unknown } | null)?.code;
+  if (errnoCode !== 'ENOSPC' && !isSvnDiskFullText(rawMessage)) {
+    return null;
+  }
+  return {
+    operationKind: null,
+    targetPath: null,
+    recoveryHint: buildSvnDiskFullRecoveryHint(null, null),
+  };
+}
+
+/** Wrap a disk-full failure in the typed error, or return null to re-throw as-is. */
+function toSvnDiskFullError(error: unknown, args: string[], cwd?: string): SvnDiskFullError | null {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const errnoCode = (error as { code?: unknown } | null)?.code;
+  if (errnoCode !== 'ENOSPC' && !isSvnDiskFullText(rawMessage)) {
+    return null;
+  }
+
+  const operationKind = getSvnDiskFullOperationKind(args);
+  const targetPath = resolveSvnDiskFullTargetPath(args, cwd);
+  return Object.assign(new Error(rawMessage), {
+    name: 'SvnDiskFullError',
+    code: SVN_DISK_FULL_ERROR_CODE,
+    diskFull: {
+      operationKind,
+      targetPath,
+      recoveryHint: buildSvnDiskFullRecoveryHint(operationKind, targetPath),
+    },
+    cause: error,
+  }) as SvnDiskFullError;
+}
 
 export interface RunSvnOptions {
   cwd?: string;
@@ -216,7 +389,9 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
     return result;
   } catch (error) {
     failSvnTimelineEntry(timelineId, startedAt, error, options.signal?.aborted === true);
-    throw error;
+    // Disk-full failures carry typed, actionable recovery details (item #30)
+    // instead of a raw stderr dump; everything else propagates unchanged.
+    throw toSvnDiskFullError(error, args, options.cwd) ?? error;
   }
 }
 

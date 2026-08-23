@@ -57,4 +57,12 @@ describe('svn-content', () => {
     ]);
     await expect(catRepositoryFile('/wc/file', '1:2')).rejects.toThrow(/invalid svn revision/i);
   });
+
+  it('rejects numeric revisions beyond the shared safe-length bound', async () => {
+    mockState.runSvn.mockResolvedValue({ stdoutBase64: '', stdoutTruncated: false });
+    await expect(catRepositoryFile('/wc/file', '1234567890123456789')).rejects.toThrow(
+      /not a valid svn revision/i
+    );
+    expect(mockState.runSvn).not.toHaveBeenCalled();
+  });
 });

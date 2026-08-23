@@ -255,4 +255,116 @@ describe('svn-history', () => {
       cancelled: true,
     });
   });
+
+  it('reports an empty r0 repository instead of surfacing E160006 from svn log -r 1:...', async () => {
+    mockState.getWorkerLog.mockRejectedValue(
+      new Error('svn: E160006: No such revision 1 in file:///empty-repo')
+    );
+
+    await expect(getLog('file:///empty-repo', 100, 1, undefined)).resolves.toEqual({
+      entries: [],
+      startRevision: 0,
+      endRevision: 0,
+      youngestRevision: 0,
+    });
+  });
+
+  it('treats start revision 0 like revision 1 when detecting empty repositories', async () => {
+    mockState.getWorkerLog.mockRejectedValue(new Error('svn: E160006: No such revision 1'));
+
+    const result = await getLog('svn://svn.example.com/repo', 50, 0, 0);
+    expect(result).toEqual({
+      entries: [],
+      startRevision: 0,
+      endRevision: 0,
+      youngestRevision: 0,
+    });
+  });
+
+  it('keeps E160006 failures that do not prove an empty repository', async () => {
+    mockState.getWorkerLog.mockRejectedValue(new Error('svn: E160006: No such revision 500'));
+
+    await expect(getLog('svn://svn.example.com/repo', 50, 500, undefined)).resolves.toMatchObject({
+      entries: [],
+      errorCode: 'E160006',
+      error: 'svn: E160006: No such revision 500',
+    });
+
+    mockState.getWorkerLog.mockRejectedValue(
+      new Error('svn: E160013: Path not found')
+    );
+    await expect(getLog('svn://svn.example.com/repo', 50, 1, undefined)).resolves.toMatchObject({
+      entries: [],
+      errorCode: 'E160013',
+    });
+  });
+
+  it('derives youngestRevision from populated log results', async () => {
+    mockState.getWorkerLog.mockResolvedValue({
+      entries: [
+        {
+          revision: 12,
+          author: 'alice',
+          date: '2026-04-25T10:00:00.000Z',
+          message: 'Initial import',
+          paths: [],
+        },
+        {
+          revision: 7,
+          author: 'bob',
+          date: '2026-04-24T10:00:00.000Z',
+          message: 'Bootstrap',
+          paths: [],
+        },
+      ],
+      startRevision: 7,
+      endRevision: 12,
+    });
+
+    await expect(getLog('C:\\wc', 50)).resolves.toMatchObject({
+      youngestRevision: 12,
+    });
+  });
+
+  it('canonicalizes URL targets so worker job ids and cache keys stay stable', async () => {
+    mockState.getWorkerLog.mockResolvedValue({ entries: [], startRevision: 0, endRevision: 0 });
+    mockState.getWorkerUrlDiff.mockResolvedValue({ files: [], hasChanges: false, rawDiff: '' });
+
+    await getLog('SVN://SVN.Example.COM:3690/Répo Dir/', 100);
+    expect(mockState.getWorkerLog).toHaveBeenCalledWith(
+      'svn://svn.example.com/R%C3%A9po%20Dir',
+      100,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      {}
+    );
+
+    await getUrlDiff('svn://[0:0:0:0:0:0:0:1]:3690/repo/trunk', 'svn://[::1]/repo/trunk');
+    expect(mockState.getWorkerUrlDiff).toHaveBeenCalledWith(
+      'svn://[::1]/repo/trunk',
+      'svn://[::1]/repo/trunk'
+    );
+  });
+
+  it('normalizes mergeinfo URL targets without touching working-copy paths', async () => {
+    mockState.runSvnText.mockResolvedValue('');
+
+    await expect(
+      getMergeInfo('svn://HÖST:3690/repo/branches/feature', 'C:\\wc', 'merged')
+    ).resolves.toMatchObject({
+      source: 'svn://xn--hst-sna/repo/branches/feature',
+      target: 'C:\\wc',
+    });
+
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(1, [
+      'mergeinfo',
+      '--show-revs',
+      'merged',
+      '--',
+      'svn://xn--hst-sna/repo/branches/feature',
+      'C:\\wc',
+    ]);
+  });
 });

@@ -1,5 +1,6 @@
 import type { SvnCatResult } from '@shared/types';
 
+import { requireSvnRevision } from '../utils/svn-revision';
 import { escapeLocalPegTargets, validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { runSvn } from './svn-executor';
 import { resolveSvnExecution } from './svn-executor';
@@ -27,7 +28,7 @@ export async function catRepositoryFile(
   validateRevision(revision);
 
   const args = ['cat'];
-  if (revision) args.push('-r', revision.trim());
+  if (revision) args.push('-r', requireSvnRevision(revision, 'cat revision'));
   const targetArgs = withSvnTargets(args, [target]);
   const networkOptions = /^(?:https?|svn(?:\+ssh)?|file):\/\//i.test(target)
     ? await getNetworkOptionsForUrl(target)

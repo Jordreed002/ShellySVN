@@ -40,12 +40,15 @@ vi.mock('../../utils/debug', () => ({
 }));
 
 import {
+  classifyRepoLayout,
   externalsAdd,
   externalsEdit,
   externalsList,
   externalsRemove,
   externalsUpdate,
+  getRepositoryLayout,
   listRepository,
+  parseRepositoryListing,
   propdel,
   propdelRemote,
   propget,
@@ -60,6 +63,7 @@ import {
   shelveList,
   shelveSave,
 } from '../svn-metadata';
+import { normalizeRepoUrl } from '../../utils/svn-url';
 
 beforeEach(() => {
   mockState.runSvnText.mockReset();
@@ -149,6 +153,269 @@ describe('svn-metadata repository browsing', () => {
         category: 'authentication',
         authenticationRequired: true,
       },
+    });
+  });
+
+  it('returns a well-formed empty listing for an r0 repository (no error fields)', async () => {
+    // Real `svn list --xml` output for a repository with zero commits.
+    mockState.runSvnText.mockResolvedValue(`<?xml version="1.0" encoding="UTF-8"?>
+<lists>
+<list
+   path="file:///tmp/empty-repo">
+</list>
+</lists>`);
+
+    await expect(listRepository('file:///tmp/empty-repo')).resolves.toEqual({
+      path: 'file:///tmp/empty-repo',
+      entries: [],
+    });
+  });
+
+  it('canonicalizes the listing root before invoking SVN and reporting paths', async () => {
+    mockState.runSvnText.mockResolvedValue(`<?xml version="1.0" encoding="UTF-8"?>
+<lists>
+  <list path="ignored" />
+</lists>`);
+
+    await listRepository('SVN://SVN.Example.COM:3690/repo/trunk/');
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['list', '--xml', '--non-interactive', '--', 'svn://svn.example.com/repo/trunk'],
+      { credentials: undefined }
+    );
+    const result = await listRepository('svn://[0:0:0:0:0:0:0:1]:3690/Répo Dir');
+    expect(result.path).toBe('svn://[::1]/R%C3%A9po%20Dir');
+  });
+
+  it('builds child entry URLs that round-trip unicode, spaces, and literal percents', async () => {
+    // `svn list --xml` emits DECODED names: a raw `Répo Dir`, an `Ünicode
+    // File.txt`, and a file literally named `a%20b.txt` (whose URL must
+    // escape the percent to `%2520` so SVN does not resolve `a b.txt`).
+    mockState.runSvnText.mockResolvedValue(`<?xml version="1.0" encoding="UTF-8"?>
+<lists>
+  <list path="svn://svn.example.com/repo/trunk">
+    <entry kind="dir">
+      <name>Répo Dir</name>
+      <commit revision="12"><author>alice</author><date>2026-04-25T10:00:00.000Z</date></commit>
+    </entry>
+    <entry kind="file">
+      <name>Ünicode File.txt</name>
+      <size>3</size>
+      <commit revision="12"><author>alice</author><date>2026-04-25T10:00:00.000Z</date></commit>
+    </entry>
+    <entry kind="file">
+      <name>a%20b.txt</name>
+      <size>3</size>
+      <commit revision="12"><author>alice</author><date>2026-04-25T10:00:00.000Z</date></commit>
+    </entry>
+  </list>
+</lists>`);
+
+    const result = await listRepository('svn://svn.example.com/repo/trunk');
+
+    expect(result.entries.map((entry) => entry.url)).toEqual([
+      'svn://svn.example.com/repo/trunk/R%C3%A9po%20Dir',
+      'svn://svn.example.com/repo/trunk/%C3%9Cnicode%20File.txt',
+      'svn://svn.example.com/repo/trunk/a%2520b.txt',
+    ]);
+    expect(result.entries.every((entry) => entry.path === entry.url)).toBe(true);
+    for (const entry of result.entries) {
+      expect(entry.url).toBe(normalizeRepoUrl(entry.url));
+    }
+  });
+
+  it('re-encodes list names exactly once regardless of prior encoding', () => {
+    const listing = parseRepositoryListing(
+      `<?xml version="1.0" encoding="UTF-8"?>
+<lists>
+  <list path="https://example.test/svn/repo">
+    <entry kind="dir">
+      <name>Feature Folder</name>
+      <commit revision="1"><author>a</author><date>2026-01-01T00:00:00.000Z</date></commit>
+    </entry>
+  </list>
+</lists>`,
+      'https://example.test/svn/repo'
+    );
+
+    expect(listing.entries[0]).toMatchObject({
+      name: 'Feature Folder',
+      url: 'https://example.test/svn/repo/Feature%20Folder',
+    });
+  });
+});
+
+describe('svn-metadata repository layout detection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function infoXml(url: string, revision: number): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<info>
+<entry revision="${revision}" kind="dir" path="repo">
+<url>${url}</url>
+<repository><root>${url}</root><uuid>layout-uuid</uuid></repository>
+<commit revision="${revision}"><date>2026-08-23T00:00:00.000Z</date></commit>
+</entry>
+</info>`;
+  }
+
+  function listXml(rootUrl: string, entries: Array<{ name: string; kind: 'dir' | 'file' }>): string {
+    const entryXml = entries
+      .map(
+        (entry) => `    <entry kind="${entry.kind}">
+      <name>${entry.name}</name>
+      <commit revision="4"><author>alice</author><date>2026-04-25T10:00:00.000Z</date></commit>
+    </entry>`
+      )
+      .join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<lists>
+  <list path="${rootUrl}">
+${entryXml}
+  </list>
+</lists>`;
+  }
+
+  it('classifies standard, trunk-only, and custom layouts as data', () => {
+    const standard = classifyRepoLayout(
+      'svn://svn.example.com/repo',
+      [
+        { name: 'trunk', kind: 'dir' },
+        { name: 'branches', kind: 'dir' },
+        { name: 'tags', kind: 'dir' },
+      ],
+      4
+    );
+    expect(standard).toMatchObject({
+      kind: 'standard',
+      empty: false,
+      youngestRevision: 4,
+      trunk: 'svn://svn.example.com/repo/trunk',
+      branches: 'svn://svn.example.com/repo/branches',
+      tags: 'svn://svn.example.com/repo/tags',
+    });
+    expect(standard.customDirs).toEqual([]);
+
+    const trunkOnly = classifyRepoLayout(
+      'svn://svn.example.com/repo',
+      [
+        { name: 'trunk', kind: 'dir' },
+        { name: 'docs', kind: 'dir' },
+      ],
+      4
+    );
+    expect(trunkOnly).toMatchObject({ kind: 'trunk-only', trunk: 'svn://svn.example.com/repo/trunk' });
+    expect(trunkOnly.branches).toBeUndefined();
+    expect(trunkOnly.customDirs).toEqual([
+      { name: 'docs', url: 'svn://svn.example.com/repo/docs', kind: 'dir' },
+    ]);
+
+    const custom = classifyRepoLayout(
+      'svn://svn.example.com/repo',
+      [
+        { name: 'src', kind: 'dir' },
+        { name: 'README.md', kind: 'file' },
+      ],
+      7
+    );
+    expect(custom).toMatchObject({ kind: 'custom', empty: false });
+    expect(custom.trunk).toBeUndefined();
+    expect(custom.customDirs).toEqual([
+      { name: 'src', url: 'svn://svn.example.com/repo/src', kind: 'dir' },
+      { name: 'README.md', url: 'svn://svn.example.com/repo/README.md', kind: 'file' },
+    ]);
+  });
+
+  it('detects conventional directories case-insensitively and canonicalizes their URLs', () => {
+    const layout = classifyRepoLayout(
+      'svn://svn.example.com/repo',
+      [{ name: 'Trunk', kind: 'dir' }],
+      3
+    );
+    expect(layout).toMatchObject({
+      kind: 'trunk-only',
+      trunk: 'svn://svn.example.com/repo/Trunk',
+    });
+  });
+
+  it('detects an empty r0 repository without assuming any layout', () => {
+    const layout = classifyRepoLayout('svn://svn.example.com/repo', [], 0);
+    expect(layout).toEqual({
+      kind: 'empty',
+      rootUrl: 'svn://svn.example.com/repo',
+      customDirs: [],
+      empty: true,
+      youngestRevision: 0,
+    });
+  });
+
+  it('keeps an empty root folder of a non-empty repository distinct from r0', () => {
+    // Youngest revision > 0 with no root entries: an empty directory, not an
+    // empty repository — classified as custom so the renderer can present it.
+    const layout = classifyRepoLayout('svn://svn.example.com/repo/trunk', [], 9);
+    expect(layout).toMatchObject({ kind: 'custom', empty: false, youngestRevision: 9 });
+  });
+
+  it('detects the layout of an r0 repository from info + list without errors', async () => {
+    mockState.runSvnText.mockImplementation(async (args: string[]) =>
+      args[0] === 'info'
+        ? infoXml('file:///tmp/empty-repo', 0)
+        : listXml('file:///tmp/empty-repo', [])
+    );
+
+    await expect(getRepositoryLayout('file:///tmp/empty-repo')).resolves.toEqual({
+      kind: 'empty',
+      rootUrl: 'file:///tmp/empty-repo',
+      customDirs: [],
+      empty: true,
+      youngestRevision: 0,
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['info', '--xml', '--non-interactive', '--', 'file:///tmp/empty-repo'],
+      { credentials: undefined }
+    );
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['list', '--xml', '--non-interactive', '--depth', 'immediates', '--', 'file:///tmp/empty-repo'],
+      { credentials: undefined }
+    );
+  });
+
+  it('detects a standard layout and reports canonical child URLs', async () => {
+    mockState.runSvnText.mockImplementation(async (args: string[]) =>
+      args[0] === 'info'
+        ? infoXml('svn://svn.example.com/repo', 12)
+        : listXml('svn://svn.example.com/repo', [
+            { name: 'trunk', kind: 'dir' },
+            { name: 'branches', kind: 'dir' },
+            { name: 'tags', kind: 'dir' },
+            { name: 'website', kind: 'dir' },
+          ])
+    );
+
+    await expect(getRepositoryLayout('svn://svn.example.com/repo/')).resolves.toMatchObject({
+      kind: 'standard',
+      rootUrl: 'svn://svn.example.com/repo',
+      trunk: 'svn://svn.example.com/repo/trunk',
+      branches: 'svn://svn.example.com/repo/branches',
+      tags: 'svn://svn.example.com/repo/tags',
+      customDirs: [{ name: 'website', url: 'svn://svn.example.com/repo/website', kind: 'dir' }],
+      empty: false,
+      youngestRevision: 12,
+    });
+  });
+
+  it('reports layout failures structurally instead of throwing or claiming emptiness', async () => {
+    mockState.runSvnText.mockRejectedValue(
+      new Error("svn: E170001: Authentication failed for 'svn://svn.example.com/repo'")
+    );
+
+    await expect(getRepositoryLayout('svn://svn.example.com/repo')).resolves.toMatchObject({
+      kind: 'custom',
+      empty: false,
+      errorCode: 'E170001',
+      commandError: { category: 'authentication', authenticationRequired: true },
     });
   });
 });

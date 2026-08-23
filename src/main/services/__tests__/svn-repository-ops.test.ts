@@ -288,6 +288,109 @@ describe('svn-repository-ops createRemoteFolder', () => {
       { credentials }
     );
   });
+
+  it('encodes unicode folder names exactly once without double-encoding literal percents', async () => {
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      const target = args.at(-1) || '';
+      if (args[0] === 'info' && target === 'svn://svn.example.com/repo/trunk') {
+        return infoXml(target);
+      }
+      if (args[0] === 'info') throw new Error('svn: E160013: Path not found');
+      return 'Committed revision 56.';
+    });
+
+    await createRemoteFolder('svn://svn.example.com/repo/trunk', 'Répo Dir', 'msg');
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
+      [
+        'mkdir',
+        '-m',
+        'msg',
+        '--non-interactive',
+        '--',
+        'svn://svn.example.com/repo/trunk/R%C3%A9po%20Dir',
+      ],
+      { credentials: undefined }
+    );
+
+    // A folder literally named `50% off` must escape the percent (`%25`),
+    // otherwise SVN decodes `%20 o...` and creates the wrong name.
+    await createRemoteFolder('svn://svn.example.com/repo/trunk', '50% off', 'msg');
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
+      [
+        'mkdir',
+        '-m',
+        'msg',
+        '--non-interactive',
+        '--',
+        'svn://svn.example.com/repo/trunk/50%25%20off',
+      ],
+      { credentials: undefined }
+    );
+  });
+
+  it('canonicalizes IDN and IPv6 parents before building the child URL', async () => {
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      const target = args.at(-1) || '';
+      if (args[0] === 'info' && target === 'svn://xn--hst-sna/repo') {
+        return infoXml(target);
+      }
+      if (args[0] === 'info') throw new Error('svn: E160013: Path not found');
+      return 'Committed revision 56.';
+    });
+
+    await createRemoteFolder('svn://HÖST:3690/repo/', 'trunk', 'msg');
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith(
+      ['info', '--xml', '--non-interactive', '--', 'svn://xn--hst-sna/repo'],
+      { credentials: undefined }
+    );
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
+      [
+        'mkdir',
+        '-m',
+        'msg',
+        '--non-interactive',
+        '--',
+        'svn://xn--hst-sna/repo/trunk',
+      ],
+      { credentials: undefined }
+    );
+  });
+
+  it('creates the first folder in an empty r0 repository', async () => {
+    // A repository with zero commits still answers `svn info` for its root
+    // with revision 0, repository uuid, and root URL — folder creation must
+    // work without tripping over the r0 identity.
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      const target = args.at(-1) || '';
+      if (args[0] === 'info' && /\/trunk$/.test(target)) {
+        throw new Error('svn: E160013: Path not found');
+      }
+      if (args[0] === 'info') {
+        return `<info><entry kind="dir" path="." revision="0"><url>${target}</url><repository><root>${target}</root><uuid>empty-uuid</uuid></repository><commit revision="0"><date>2026-08-23T00:00:00.000Z</date></commit></entry></info>`;
+      }
+      return 'Committed revision 1.';
+    });
+
+    await expect(
+      createRemoteFolder('file:///tmp/empty-repo', 'trunk', 'Bootstrap layout')
+    ).resolves.toEqual({
+      success: true,
+      revision: 1,
+      output: 'Committed revision 1.',
+    });
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
+      [
+        'mkdir',
+        '-m',
+        'Bootstrap layout',
+        '--non-interactive',
+        '--',
+        'file:///tmp/empty-repo/trunk',
+      ],
+      { credentials: undefined }
+    );
+  });
 });
 
 describe('svn-repository-ops deleteRemoteItem', () => {
@@ -426,6 +529,63 @@ describe('svn-repository-ops moveRemoteItem', () => {
       error: 'Remote move source and destination must belong to the same repository.',
     });
     expect(mockState.runSvnText).not.toHaveBeenCalledWith(expect.arrayContaining(['move']));
+  });
+
+  it('rejects moves into themselves across encoding and host spellings', async () => {
+    // %20 vs a raw space and http default-port spelling refer to the same
+    // path; the raw-string prefix check used to miss this.
+    await expect(
+      moveRemoteItem(
+        'https://example.test/svn/repo/trunk/Old%20Folder',
+        'https://EXAMPLE.test:443/svn/repo/trunk/Old Folder/inner',
+        'msg'
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'A repository folder cannot be moved inside itself.',
+    });
+
+    await expect(
+      moveRemoteItem(
+        'svn://svn.example.com:3690/repo/trunk/',
+        'svn://svn.example.com/repo/trunk',
+        'msg'
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Remote move destination must be different from the source.',
+    });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+
+  it('normalizes remote move source and destination before invoking svn', async () => {
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      const target = args.at(-1) || '';
+      if (args[0] === 'info' && target.endsWith('/Neu')) {
+        throw new Error('svn: E160013: Path not found');
+      }
+      if (args[0] === 'info') return infoXml(target);
+      return 'Committed revision 58.';
+    });
+
+    await moveRemoteItem(
+      'svn://HÖST:3690/repo/trunk/Old Dir',
+      'svn://xn--hst-sna/repo/trunk/Neu',
+      'msg'
+    );
+
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith(
+      [
+        'move',
+        '-m',
+        'msg',
+        '--non-interactive',
+        '--',
+        'svn://xn--hst-sna/repo/trunk/Old%20Dir',
+        'svn://xn--hst-sna/repo/trunk/Neu',
+      ],
+      { credentials: undefined }
+    );
   });
 });
 

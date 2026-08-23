@@ -11,6 +11,17 @@ import {
   getNetworkOptionsForUrl,
   getNetworkOptionsForWorkingCopyPath,
 } from './svn-network-context';
+import { normalizeRepoUrl } from '../utils/svn-url';
+
+/**
+ * Job-id component for a target that may be a repository URL. URLs are
+ * canonicalized defensively so encoding/case variants of the same repository
+ * join the same in-flight job instead of duplicating it; working-copy paths
+ * pass through `normalizeRepoUrl` unchanged.
+ */
+function toJobIdTarget(target: string): string {
+  return normalizeRepoUrl(target);
+}
 
 export async function getWorkerLog(
   path: string,
@@ -45,7 +56,7 @@ export async function getWorkerLog(
       id:
         workerJobId ??
         `svn-log:${JSON.stringify([
-          path,
+          toJobIdTarget(path),
           limit,
           startRev,
           endRev,
@@ -80,7 +91,7 @@ export async function getWorkerDiff(
       ...networkOptions,
     },
     {
-      id: workerJobId ?? `svn-diff:${path}:${revision ?? ''}`,
+      id: workerJobId ?? `svn-diff:${toJobIdTarget(path)}:${revision ?? ''}`,
       priority: 'interactive',
       joinExisting: true,
     }
@@ -106,7 +117,7 @@ export async function getWorkerDiffStreaming(
       ...networkOptions,
     },
     {
-      id: workerJobId ?? `svn-diff-streaming:${path}:${revision ?? ''}`,
+      id: workerJobId ?? `svn-diff-streaming:${toJobIdTarget(path)}:${revision ?? ''}`,
       priority: 'interactive',
       joinExisting: true,
     }
@@ -130,7 +141,7 @@ export async function getWorkerUrlDiff(
       ...networkOptions,
     },
     {
-      id: workerJobId ?? `svn-diff-urls:${leftUrl}:${rightUrl}`,
+      id: workerJobId ?? `svn-diff-urls:${toJobIdTarget(leftUrl)}:${toJobIdTarget(rightUrl)}`,
       priority: 'interactive',
       joinExisting: true,
     }
@@ -158,7 +169,7 @@ export async function getWorkerBlame(
       ...networkOptions,
     },
     {
-      id: workerJobId ?? `svn-blame:${path}:${startRevision ?? ''}:${endRevision ?? ''}`,
+      id: workerJobId ?? `svn-blame:${toJobIdTarget(path)}:${startRevision ?? ''}:${endRevision ?? ''}`,
       priority: 'interactive',
       joinExisting: true,
     }

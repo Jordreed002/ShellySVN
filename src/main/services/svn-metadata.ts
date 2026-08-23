@@ -7,11 +7,14 @@ import type {
   SvnPropertyGetOptions,
   SvnPropertyListResult,
   SvnPropertyValueResult,
+  SvnRepoLayout,
+  SvnRepoLayoutDir,
+  SvnRepoLayoutKind,
   SvnShelveListResult,
 } from '@shared/types';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { parseSvnExternals, parseSvnListXml } from '../svn/parsers';
+import { parseSvnExternals, parseSvnInfoXml, parseSvnListXml } from '../svn/parsers';
 import {
   parseSvnPropertiesXml,
   parseSvnShelvesXml,
@@ -19,7 +22,9 @@ import {
 } from '../utils/svn-xml';
 import { debug } from '../utils/debug';
 import { getSvnReadError } from '../utils/svn-errors';
+import { requireSvnRevision, SvnRevisionError } from '../utils/svn-revision';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
+import { joinRepoUrl, normalizeRepoUrl } from '../utils/svn-url';
 import { runSvnMuccText, runSvnText } from './svn-executor';
 import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 
@@ -80,19 +85,157 @@ export async function listRepository(
   depth?: 'empty' | 'files' | 'immediates' | 'infinity',
   credentials?: { username: string; password: string }
 ): Promise<SvnListResult> {
+  // Canonicalize the listing root (IDN/IPv6 hosts, percent-encoded segments,
+  // trailing slashes) so children are joined onto a stable base and cache
+  // keys derived from `path` match across browsing sessions.
+  const rootUrl = normalizeRepoUrl(url);
   try {
     const args = ['list', '--xml', '--non-interactive'];
-    if (revision) args.push('-r', assertRevision(revision));
+    if (revision) args.push('-r', assertRevision(revision, 'list revision'));
     if (depth) args.push('--depth', depth);
-    const xml = await runSvnText(withSvnTargets(args, [url]), { credentials });
-    return parseSvnListXml(xml, url);
+    const xml = await runSvnText(withSvnTargets(args, [rootUrl]), { credentials });
+    return parseRepositoryListing(xml, rootUrl);
   } catch (error) {
     return {
-      path: url,
+      path: rootUrl,
       entries: [],
-      ...getSvnReadError(error, { command: 'list', target: url }),
+      ...getSvnReadError(error, { command: 'list', target: rootUrl }),
     };
   }
+}
+
+/**
+ * Parse `svn list --xml` output into entries whose child URLs are built with
+ * the shared URL utilities. `svn list --xml` emits DECODED entry names
+ * (`Répo Dir`, a literal `a%20b.txt`), so naive `baseUrl + '/' + name`
+ * concatenation produces URLs that SVN resolves to different paths; each
+ * name is re-encoded exactly once here.
+ */
+export function parseRepositoryListing(xml: string, rootUrl: string): SvnListResult {
+  const canonicalRoot = normalizeRepoUrl(rootUrl);
+  const parsed = parseSvnListXml(xml, canonicalRoot);
+  const entries = parsed.entries.map((entry) => {
+    const childUrl = joinRepoUrl(canonicalRoot, entry.name.replace(/\/+$/, ''));
+    return { ...entry, path: childUrl, url: childUrl };
+  });
+  return { ...parsed, path: canonicalRoot, entries };
+}
+
+// ============================================
+// Repository layout detection (data-only; the renderer decides presentation)
+// ============================================
+//
+// The SvnRepoLayoutKind / SvnRepoLayoutDir / SvnRepoLayout shapes live in
+// @shared/types (the layout crosses IPC); re-exported here for compatibility
+// with existing main-process imports.
+
+export type { SvnRepoLayout, SvnRepoLayoutDir, SvnRepoLayoutKind } from '@shared/types';
+
+const LAYOUT_DIR_NAMES = new Set(['trunk', 'branches', 'tags']);
+
+/**
+ * Classify repository root entries into a layout description without
+ * assuming a trunk URL: 'standard' (trunk+branches+tags), 'trunk-only',
+ * 'custom' (any other shape, including empty folders), or 'empty' (r0
+ * repository — a root with no entries at youngest revision 0).
+ */
+export function classifyRepoLayout(
+  rootUrl: string,
+  entries: Array<{ name: string; kind: 'file' | 'dir' }>,
+  youngestRevision: number
+): Omit<SvnRepoLayout, 'error' | 'errorCode' | 'cancelled' | 'partial' | 'commandError'> {
+  const canonicalRoot = normalizeRepoUrl(rootUrl);
+  const empty = youngestRevision === 0 && entries.length === 0;
+
+  const layoutDirs = new Map<string, string>();
+  const customDirs: SvnRepoLayoutDir[] = [];
+  for (const entry of entries) {
+    const name = entry.name.replace(/\/+$/, '');
+    if (!name) continue;
+    const lowerName = name.toLowerCase();
+    if (entry.kind === 'dir' && LAYOUT_DIR_NAMES.has(lowerName) && !layoutDirs.has(lowerName)) {
+      layoutDirs.set(lowerName, joinRepoUrl(canonicalRoot, name));
+    } else {
+      customDirs.push({ name, url: joinRepoUrl(canonicalRoot, name), kind: entry.kind });
+    }
+  }
+
+  const kind: SvnRepoLayoutKind = empty
+    ? 'empty'
+    : layoutDirs.has('trunk') && layoutDirs.has('branches') && layoutDirs.has('tags')
+      ? 'standard'
+      : layoutDirs.has('trunk')
+        ? 'trunk-only'
+        : 'custom';
+
+  return {
+    kind,
+    rootUrl: canonicalRoot,
+    ...(layoutDirs.has('trunk') && { trunk: layoutDirs.get('trunk') }),
+    ...(layoutDirs.has('branches') && { branches: layoutDirs.get('branches') }),
+    ...(layoutDirs.has('tags') && { tags: layoutDirs.get('tags') }),
+    customDirs,
+    empty,
+    youngestRevision,
+  };
+}
+
+/**
+ * Detect the trunk/branches/tags layout of a repository root. Runs
+ * `svn info` (youngest revision; r0 repositories answer revision 0) and
+ * `svn list --depth immediates`, then returns structured layout data —
+ * never throws and never assumes a trunk URL for non-conventional layouts.
+ * When either command fails the result carries the structured error with
+ * `empty: false` (emptiness is only claimed from successful answers).
+ */
+export async function getRepositoryLayout(
+  url: string,
+  credentials?: { username: string; password: string }
+): Promise<SvnRepoLayout> {
+  const rootUrl = normalizeRepoUrl(url);
+  let youngestRevision = 0;
+  let infoFailure: ReturnType<typeof getSvnReadError> | null = null;
+  try {
+    const infoXml = await runSvnText(
+      withSvnTargets(['info', '--xml', '--non-interactive'], [rootUrl]),
+      { credentials }
+    );
+    const info = parseSvnInfoXml(infoXml);
+    if (info.parseError) throw new Error(info.parseError);
+    youngestRevision = info.revision;
+  } catch (error) {
+    infoFailure = getSvnReadError(error, { command: 'info', target: rootUrl });
+  }
+
+  const listing = await listRepository(rootUrl, undefined, 'immediates', credentials);
+  if (listing.error || listing.commandError) {
+    // The listing is the classification input; without it no layout (and no
+    // emptiness) can be claimed — report the structured failure as data.
+    return {
+      kind: 'custom',
+      rootUrl,
+      customDirs: [],
+      empty: false,
+      youngestRevision,
+      error: listing.error,
+      errorCode: listing.errorCode,
+      cancelled: listing.cancelled,
+      partial: listing.partial,
+      commandError: listing.commandError,
+    };
+  }
+  if (infoFailure?.error) {
+    const layout = classifyRepoLayout(rootUrl, listing.entries, youngestRevision);
+    return {
+      // An unknown youngest revision cannot prove an r0 repository.
+      ...(layout.empty ? { ...layout, kind: 'custom' as const, empty: false } : layout),
+      error: infoFailure.error,
+      errorCode: infoFailure.errorCode,
+      cancelled: infoFailure.cancelled,
+      commandError: infoFailure.commandError,
+    };
+  }
+  return classifyRepoLayout(rootUrl, listing.entries, youngestRevision);
 }
 
 export async function changelistAdd(
@@ -234,7 +377,9 @@ export async function proplist(
 ): Promise<SvnPropertyListResult> {
   try {
     const args = ['proplist', '--xml', '-v'];
-    if (options.revision) args.push('-r', assertRevision(options.revision));
+    if (options.revision) {
+      args.push('-r', assertRevision(options.revision, 'proplist revision'));
+    }
     if (options.depth) args.push('--depth', options.depth);
     if (options.showInherited) args.push('--show-inherited-props');
     const output = await runSvnText(withSvnTargets(args, [path]));
@@ -247,12 +392,20 @@ export async function proplist(
   }
 }
 
-function assertRevision(revision: string): string {
-  const normalized = revision.trim();
-  if (!/^(?:\d+|HEAD|BASE|COMMITTED|PREV|\{[^\r\n{}]+\})$/i.test(normalized)) {
-    throw new Error('Invalid SVN revision');
+/**
+ * Revision grammar lives in `utils/svn-revision` (single source of truth);
+ * this adapter only keeps the historical "Invalid SVN revision" error
+ * phrasing so the renderer-side validation classification is unchanged.
+ */
+function assertRevision(revision: string, field: string): string {
+  try {
+    return requireSvnRevision(revision, field);
+  } catch (error) {
+    if (error instanceof SvnRevisionError) {
+      throw new Error(`Invalid SVN revision: ${error.message}`);
+    }
+    throw error;
   }
-  return normalized;
 }
 
 export async function propget(
@@ -264,7 +417,9 @@ export async function propget(
     assertPropertyName(name);
     validateSvnTargets([target], 'Property target');
     const args = ['propget', name];
-    if (options.revision) args.push('-r', assertRevision(options.revision));
+    if (options.revision) {
+      args.push('-r', assertRevision(options.revision, 'propget revision'));
+    }
     if (options.depth) args.push('--depth', options.depth);
     if (options.showInherited) args.push('--show-inherited-props');
     return { value: await runSvnText(withSvnTargets(args, [target])) };
@@ -337,7 +492,10 @@ export async function revpropget(
     validateSvnTargets([target], 'Revision property target');
     return {
       value: await runSvnText(
-        withSvnTargets(['propget', '--revprop', '-r', assertRevision(revision), name], [target])
+        withSvnTargets(
+          ['propget', '--revprop', '-r', assertRevision(revision, 'revprop revision'), name],
+          [target]
+        )
       ),
     };
   } catch (error) {
@@ -356,7 +514,10 @@ export async function revpropset(
   assertPropertyName(name);
   validateSvnTargets([target], 'Revision property target');
   await runSvnText(
-    withSvnTargets(['propset', '--revprop', '-r', assertRevision(revision), name, value], [target])
+    withSvnTargets(
+      ['propset', '--revprop', '-r', assertRevision(revision, 'revprop revision'), name, value],
+      [target]
+    )
   );
   return { success: true };
 }
@@ -369,7 +530,10 @@ export async function revpropdel(
   assertPropertyName(name);
   validateSvnTargets([target], 'Revision property target');
   await runSvnText(
-    withSvnTargets(['propdel', '--revprop', '-r', assertRevision(revision), name], [target])
+    withSvnTargets(
+      ['propdel', '--revprop', '-r', assertRevision(revision, 'revprop revision'), name],
+      [target]
+    )
   );
   return { success: true };
 }

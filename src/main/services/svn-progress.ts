@@ -2,9 +2,53 @@ import type { IpcMainInvokeEvent } from 'electron';
 import type { CheckoutProgress, SvnOperationProgress } from '@shared/types';
 import { redactValue } from '../utils/redaction';
 import { sendToRenderer } from '../utils/safe-renderer-send';
-import { DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES, runSvn, type RunSvnOptions } from './svn-executor';
+import {
+  buildSvnDiskFullRecoveryHint,
+  DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
+  extractSvnDiskFullDetails,
+  resolveSvnDiskFullTargetPath,
+  runSvn,
+  type RunSvnOptions,
+  type SvnDiskFullErrorDetails,
+  type SvnDiskFullOperationKind,
+} from './svn-executor';
 
 const activeOperations = new Map<string, AbortController>();
+
+const DISK_FULL_OPERATION_KINDS = new Set<SvnDiskFullOperationKind>([
+  'checkout',
+  'export',
+  'update',
+]);
+
+/**
+ * Typed disk-full recovery details for failed long operations (backlog item
+ * #30). When the underlying failure was an out-of-space condition, `error`
+ * carries the actionable recovery hint instead of the raw stderr dump.
+ */
+function describeOperationFailure(
+  error: unknown,
+  operation: SvnOperationProgress['operation'],
+  args: string[],
+  options: RunSvnOptions
+): { message: string; diskFull?: SvnDiskFullErrorDetails } {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const message = redactValue(rawMessage) as string;
+
+  const diskFull = extractSvnDiskFullDetails(error);
+  if (!diskFull) return { message };
+
+  const operationKind = DISK_FULL_OPERATION_KINDS.has(operation as SvnDiskFullOperationKind)
+    ? (operation as SvnDiskFullOperationKind)
+    : diskFull.operationKind;
+  const targetPath = diskFull.targetPath ?? resolveSvnDiskFullTargetPath(args, options.cwd);
+  const details: SvnDiskFullErrorDetails = {
+    operationKind,
+    targetPath,
+    recoveryHint: buildSvnDiskFullRecoveryHint(operationKind, targetPath),
+  };
+  return { message: details.recoveryHint, diskFull: details };
+}
 
 export function hasActiveSvnProgressOperations(): boolean {
   return activeOperations.size > 0;
@@ -39,7 +83,13 @@ export async function runSvnOperationWithProgress(
   operation: SvnOperationProgress['operation'],
   args: string[],
   options: RunSvnOptions = {}
-): Promise<{ success: boolean; revision: number | null; output?: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  revision: number | null;
+  output?: string;
+  error?: string;
+  diskFull?: SvnDiskFullErrorDetails;
+}> {
   const controller = new AbortController();
   activeOperations.set(operationId, controller);
 
@@ -103,8 +153,7 @@ export async function runSvnOperationWithProgress(
 
     return { success: true, revision, output: result.stdout };
   } catch (error) {
-    const rawMessage = error instanceof Error ? error.message : String(error || '');
-    const message = redactValue(rawMessage) as string;
+    const { message, diskFull } = describeOperationFailure(error, operation, args, options);
     const cancelled = message.toLowerCase().includes('cancelled');
     sendProgress({
       status: cancelled ? 'cancelled' : 'error',
@@ -112,7 +161,7 @@ export async function runSvnOperationWithProgress(
       filesProcessed,
       error: message,
     });
-    return { success: false, revision: null, error: message };
+    return { success: false, revision: null, error: message, ...(diskFull ? { diskFull } : {}) };
   } finally {
     if (activeOperations.get(operationId) === controller) {
       activeOperations.delete(operationId);

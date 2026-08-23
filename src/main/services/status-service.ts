@@ -1,5 +1,6 @@
-import type { FsStatusResult } from '@shared/types';
-import type { SvnStatusChar } from '@shared/types';
+import type { FsStatusResult, SvnStatusChar } from '@shared/types';
+
+import { detectCaseCollisions } from '../utils/unicode-paths';
 
 export const DEEP_STATUS_CACHE_TTL_MS = 2 * 60 * 1000;
 export const DEEP_STATUS_CACHE_MAX_ENTRIES = 500;
@@ -37,6 +38,23 @@ function getWorstStatus(current: SvnStatusChar, next: SvnStatusChar): SvnStatusC
   return STATUS_PRIORITY[next] > STATUS_PRIORITY[current] ? next : current;
 }
 
+/**
+ * Deep scans arrive from the worker pool directly (ipc/fs.ts), so the
+ * synchronous part of unicode detection — case collisions over the scanned
+ * entry set, a single pass over a case-folded map — happens here before
+ * caching. Enrichment is additive and in place, so the caller's reference
+ * (returned to the renderer right after) observes the same warnings as the
+ * cache, and nothing is added when there is nothing to report. Normalization
+ * mismatch detection needs async readdir and lives in svn-status-worker.
+ * Detection and reporting only — files are never renamed automatically.
+ */
+function attachUnicodeWarningsInPlace(result: FsStatusResult): void {
+  if (process.platform !== 'darwin' && process.platform !== 'win32') return;
+  const collisions = detectCaseCollisions(result.allEntries.map((entry) => entry.fullPath));
+  if (collisions.length === 0) return;
+  result.unicodeWarnings = { normalizationMismatches: [], caseCollisions: collisions };
+}
+
 export class StatusService {
   private readonly deepStatusCache = new Map<string, DeepStatusCacheEntry>();
 
@@ -58,6 +76,7 @@ export class StatusService {
   }
 
   setDeepStatus(path: string, result: FsStatusResult): void {
+    attachUnicodeWarningsInPlace(result);
     const cacheKey = normalizeStatusPath(path);
     this.deepStatusCache.delete(cacheKey);
     this.deepStatusCache.set(cacheKey, {

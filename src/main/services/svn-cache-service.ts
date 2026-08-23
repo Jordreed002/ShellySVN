@@ -8,6 +8,7 @@ import type { SvnCacheEntry, SvnCacheNamespace, SvnCacheStats } from '@shared/ty
 
 import { getSettingsManager } from '../settings-manager';
 import { isPathApprovedForIpc } from '../utils/approved-paths';
+import { normalizeRepoUrl } from '../utils/svn-url';
 
 const CACHE_FILE_NAME = 'svn-cache-v2.json';
 const MAX_TOMBSTONES = 500;
@@ -43,7 +44,17 @@ function entryId(namespace: SvnCacheNamespace, key: string): string {
   return JSON.stringify([namespace, key]);
 }
 
+/** URL-shaped keys (`scheme://…`), distinguished from `C:\`-style drive paths. */
+const URL_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
+
 function normalizeCachePath(path: string): string {
+  // URL keys are canonicalized as repository URLs (scheme/host casing,
+  // percent-encoding, trailing slashes) instead of being lowercased like a
+  // win32 filesystem path: URL hosts are case-insensitive but their paths
+  // are not.
+  if (URL_SCHEME_PREFIX.test(path)) {
+    return normalizeRepoUrl(path);
+  }
   const slashNormalized = path.replace(/\\/g, '/');
   const normalized =
     slashNormalized.length > 1 ? slashNormalized.replace(/\/+$/, '') : slashNormalized;

@@ -149,8 +149,9 @@ process.exit(1);
       '--strict',
       '--with-revprop',
       'review:status',
-      workingCopy,
       '--non-interactive',
+      '--',
+      workingCopy,
     ];
     const svnCommand = await createFakeSvnCommand(`
 const actual = process.argv.slice(2);
@@ -207,6 +208,58 @@ process.stdout.write(${JSON.stringify(`<?xml version="1.0" encoding="UTF-8"?>
             }),
           ],
         })
+      );
+    } finally {
+      await pool.shutdown();
+    }
+  });
+
+  it('terminates and peg-escapes log targets so svn never reads a filename as an option or peg', async () => {
+    const workingCopy = await createTempDir();
+    const pegTarget = join(workingCopy, 'pic@2.png');
+    const expectedArgs = [
+      'log',
+      '--xml',
+      '-v',
+      '-l',
+      '5',
+      '--non-interactive',
+      '--',
+      `${pegTarget}@`,
+    ];
+    const svnCommand = await createFakeSvnCommand(`
+const actual = process.argv.slice(2);
+const expected = ${JSON.stringify(expectedArgs)};
+if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+  process.stderr.write('Unexpected arguments: ' + JSON.stringify(actual));
+  process.exit(2);
+}
+process.stdout.write('<?xml version="1.0" encoding="UTF-8"?><log></log>');
+`);
+    const payload: LogPayload = {
+      path: pegTarget,
+      limit: 5,
+      svnCommand,
+      context: {
+        proxySettings: {
+          enabled: false,
+          host: '',
+          port: 0,
+          username: '',
+          password: '',
+          bypassForLocal: true,
+        },
+        connectionTimeout: 0,
+        sslVerify: true,
+        clientCertificatePath: '',
+        svnConfigPath: '',
+      },
+    };
+    const pool = new WorkerPool({ maxWorkers: 1 });
+
+    try {
+      await expect(pool.run('svn:log', payload, { id: 'peg-escaped-log-target' })).resolves.toEqual(
+        expect.objectContaining({ entries: [] })
       );
     } finally {
       await pool.shutdown();

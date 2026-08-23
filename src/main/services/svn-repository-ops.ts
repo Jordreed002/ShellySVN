@@ -10,7 +10,16 @@ import {
 } from './svn-network-context';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { parseSvnStatusXml } from '../svn/parsers';
+import { requireSvnRevision } from '../utils/svn-revision';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
+import {
+  isChildUrl,
+  isSvnRepoUrl,
+  joinRepoUrl,
+  normalizeRepoUrl,
+  parentRepoUrl,
+  repoUrlEquals,
+} from '../utils/svn-url';
 
 type SvnCredentials = { username: string; password: string };
 
@@ -36,7 +45,7 @@ export async function exportRepository(
   revision?: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
   const args = ['export', '--non-interactive'];
-  if (revision) args.push('-r', revision);
+  if (revision) args.push('-r', requireSvnRevision(revision, 'export revision'));
   const output = await runSvnText(withSvnTargets(args, [url, path]));
   const match = output.match(/Exported revision (\d+)\./);
   return {
@@ -54,7 +63,7 @@ export async function exportRepositoryWithProgress(
   revision?: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
   const args = ['export', '--non-interactive'];
-  if (revision) args.push('-r', revision);
+  if (revision) args.push('-r', requireSvnRevision(revision, 'export revision'));
   return runSvnOperationWithProgress(
     event,
     operationId,
@@ -126,7 +135,7 @@ export async function switchWorkingCopy(
   revision?: string
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
   const args = ['switch'];
-  if (revision) args.push('-r', revision);
+  if (revision) args.push('-r', requireSvnRevision(revision, 'switch revision'));
   const output = await runSvnText(withSvnTargets(args, [url, path]));
   return {
     success: true,
@@ -141,14 +150,18 @@ export async function copyRepositoryItem(
   message: string,
   credentials?: SvnCredentials
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
-  const validationError = await validateCopyTarget(src, dst, message, credentials);
+  // Canonical URL targets (IDN/IPv6 hosts, percent-encoding, trailing
+  // slashes); working-copy sources pass through normalizeRepoUrl untouched.
+  const source = normalizeRepoUrl(src);
+  const destination = normalizeRepoUrl(dst);
+  const validationError = await validateCopyTarget(source, destination, message, credentials);
   if (validationError) {
     return { success: false, revision: null, error: validationError };
   }
 
   const args = withSvnTargets(
     ['copy', '-m', message.trim().replace(/\0/g, ''), '--non-interactive'],
-    [src, dst]
+    [source, destination]
   );
   const output = credentials ? await runSvnText(args, { credentials }) : await runSvnText(args);
   return {
@@ -169,8 +182,11 @@ export async function createRemoteFolder(
     return { success: false, revision: null, error: validationError };
   }
 
-  const targetUrl = buildRemoteChildUrl(parentUrl, folderName.trim());
-  await requireRepositoryTarget(parentUrl, 'Remote folder parent', credentials);
+  // folderName is a decoded single segment; joinRepoUrl percent-encodes it
+  // exactly once (a literal `%20` in a name becomes `%2520`).
+  const parent = normalizeRepoUrl(parentUrl);
+  const targetUrl = joinRepoUrl(parent, folderName.trim());
+  await requireRepositoryTarget(parent, 'Remote folder parent', credentials);
   const destinationError = await validateDestinationDoesNotExist(
     targetUrl,
     'Remote folder destination',
@@ -193,15 +209,16 @@ export async function deleteRemoteItem(
   message: string,
   credentials?: SvnCredentials
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
-  const validationError = validateRemoteMutation(url, message, 'Remote delete');
+  const target = normalizeRepoUrl(url);
+  const validationError = validateRemoteMutation(target, message, 'Remote delete');
   if (validationError) {
     return { success: false, revision: null, error: validationError };
   }
 
-  await requireRepositoryTarget(url, 'Remote delete target', credentials);
+  await requireRepositoryTarget(target, 'Remote delete target', credentials);
 
   const args = ['delete', '-m', message.trim().replace(/\0/g, ''), '--non-interactive'];
-  const output = await runSvnText(withSvnTargets(args, [url]), { credentials });
+  const output = await runSvnText(withSvnTargets(args, [target]), { credentials });
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -215,14 +232,16 @@ export async function moveRemoteItem(
   message: string,
   credentials?: SvnCredentials
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
-  const validationError = validateRemoteMove(srcUrl, dstUrl, message);
+  const source = normalizeRepoUrl(srcUrl);
+  const destination = normalizeRepoUrl(dstUrl);
+  const validationError = validateRemoteMove(source, destination, message);
   if (validationError) {
     return { success: false, revision: null, error: validationError };
   }
 
-  const sourceIdentity = await requireRepositoryTarget(srcUrl, 'Remote move source', credentials);
+  const sourceIdentity = await requireRepositoryTarget(source, 'Remote move source', credentials);
   const parentIdentity = await requireRepositoryTarget(
-    getRemoteParentUrl(dstUrl),
+    parentRepoUrl(destination),
     'Remote move destination parent',
     credentials
   );
@@ -231,7 +250,7 @@ export async function moveRemoteItem(
     return { success: false, revision: null, error: identityError };
   }
   const destinationError = await validateDestinationDoesNotExist(
-    dstUrl,
+    destination,
     'Remote move destination',
     credentials
   );
@@ -240,7 +259,7 @@ export async function moveRemoteItem(
   }
 
   const args = ['move', '-m', message.trim().replace(/\0/g, ''), '--non-interactive'];
-  const output = await runSvnText(withSvnTargets(args, [srcUrl, dstUrl]), { credentials });
+  const output = await runSvnText(withSvnTargets(args, [source, destination]), { credentials });
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -272,7 +291,7 @@ async function validateCopyTarget(
 
   const sourceIdentity = await requireRepositoryTarget(src, 'Branch/tag source', credentials);
   const parentIdentity = await requireRepositoryTarget(
-    getRemoteParentUrl(dst),
+    parentRepoUrl(dst),
     'Branch/tag destination parent',
     credentials
   );
@@ -341,24 +360,13 @@ function isMissingTargetError(error: unknown): boolean {
   return /\b(?:E160013|E200009|W160013)\b|\bnot found\b|does not exist/i.test(message);
 }
 
-function getRemoteParentUrl(value: string): string {
-  const url = new URL(value);
-  const segments = url.pathname.split('/').filter(Boolean);
-  if (segments.length === 0) {
-    return url.toString();
-  }
-  segments.pop();
-  url.pathname = `/${segments.join('/')}`;
-  return url.toString().replace(/\/$/, '');
-}
-
 function hasUnsafePathText(value: string): boolean {
   return /[\0\r\n]/.test(value);
 }
 
 function isValidSvnTarget(value: string): boolean {
   return (
-    isValidSvnUrl(value) ||
+    isSvnRepoUrl(value) ||
     /^[a-zA-Z]:[\\/]/.test(value) ||
     value.startsWith('/') ||
     value.startsWith('\\\\')
@@ -366,12 +374,7 @@ function isValidSvnTarget(value: string): boolean {
 }
 
 function isValidSvnUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return ['http:', 'https:', 'svn:', 'svn+ssh:', 'file:'].includes(url.protocol);
-  } catch {
-    return false;
-  }
+  return isSvnRepoUrl(value);
 }
 
 function validateRemoteFolder(
@@ -438,25 +441,15 @@ function validateRemoteMove(srcUrl: string, dstUrl: string, message: string): st
     return 'Remote move destination must not contain control characters.';
   }
 
-  if (srcUrl === dstUrl) {
+  if (repoUrlEquals(srcUrl, dstUrl)) {
     return 'Remote move destination must be different from the source.';
   }
 
-  const source = new URL(srcUrl);
-  const destination = new URL(dstUrl);
-
-  const sourcePath = source.pathname.replace(/\/+$/, '');
-  const destinationPath = destination.pathname.replace(/\/+$/, '');
-  if (destinationPath.startsWith(`${sourcePath}/`)) {
+  if (isChildUrl(srcUrl, dstUrl)) {
     return 'A repository folder cannot be moved inside itself.';
   }
 
   return null;
-}
-
-function buildRemoteChildUrl(parentUrl: string, folderName: string): string {
-  const separator = parentUrl.endsWith('/') ? '' : '/';
-  return `${parentUrl}${separator}${encodeURIComponent(folderName)}`;
 }
 
 export async function mergeRepositoryRange(

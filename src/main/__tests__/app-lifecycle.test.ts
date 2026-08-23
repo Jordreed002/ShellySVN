@@ -31,6 +31,9 @@ const state = vi.hoisted(() => {
     suspendedUrls: [] as string[],
     readInterrupted: vi.fn(() => [] as Array<unknown>),
     clearInterrupted: vi.fn(),
+    runSerializedWorkingCopyMutation: vi.fn(async (_key: string, task: () => Promise<unknown>) =>
+      task()
+    ),
     recentRepositories: [] as string[],
   };
 });
@@ -78,6 +81,9 @@ vi.mock('../services/svn-mutation-queue', () => ({
   markActiveWorkingCopyMutationsInterrupted: vi.fn(() => 0),
   readInterruptedWorkingCopyMutations: state.readInterrupted,
   clearInterruptedWorkingCopyMutations: state.clearInterrupted,
+  // The interrupted-mutation recovery executor (item #31) serializes its steps
+  // through the real mutation queue; stand it in so tests observe the task.
+  runSerializedWorkingCopyMutation: state.runSerializedWorkingCopyMutation,
 }));
 
 vi.mock('../settings-manager', () => ({
@@ -90,6 +96,7 @@ vi.mock('../settings-manager', () => ({
 import {
   ensureSingleInstanceLock,
   extractDeepLinkArgv,
+  getInterruptedMutationRecoveryPlans,
   handleSystemResume,
   handleSystemSuspend,
   initializeAppLifecycle,
@@ -252,7 +259,10 @@ describe('power monitor suspend/resume gate (item #25)', () => {
 
   it('retries the probe with backoff before releasing the gate', async () => {
     state.networkSuspended = true;
-    const probe = vi.fn(async () => false).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const probe = vi
+      .fn(async () => false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
 
     await handleSystemResume({ probe, backoffMs: 1 });
 
@@ -307,9 +317,7 @@ describe('startup signals and IPC surface (items #23/#24)', () => {
 
   function rendererWindow() {
     const send = vi.fn();
-    state.getAllWindows.mockReturnValue([
-      { webContents: { isDestroyed: () => false, send } },
-    ]);
+    state.getAllWindows.mockReturnValue([{ webContents: { isDestroyed: () => false, send } }]);
     return send;
   }
 
@@ -424,10 +432,10 @@ describe('startup signals and IPC surface (items #23/#24)', () => {
     const approved = (await handler(undefined, root)) as { success: boolean; error?: string };
     expect(approved.success).toBe(true);
 
-    const unapproved = (await handler(
-      undefined,
-      '/definitely/not/approved/wc'
-    )) as { success: boolean; error?: string };
+    const unapproved = (await handler(undefined, '/definitely/not/approved/wc')) as {
+      success: boolean;
+      error?: string;
+    };
     expect(unapproved.success).toBe(false);
     expect(unapproved.error).toMatch(/only allowed inside a folder selected/i);
 
@@ -466,5 +474,105 @@ describe('startup signals and IPC surface (items #23/#24)', () => {
 
     const remaining = ipcHandler('lifecycle:getInterruptedWorkingCopyMutations')() as unknown[];
     expect(remaining).toEqual([]);
+  });
+
+  it('composes interrupted mutations with current-state detection into recovery plans (item #31)', async () => {
+    const send = rendererWindow();
+    const root = await createWorkingCopy('file');
+    state.readInterrupted.mockReturnValue([
+      {
+        workingCopyPath: root,
+        interruptedAt: '2026-01-01T00:00:00.000Z',
+        reason: 'shutdown',
+      },
+    ]);
+
+    await initializeAppLifecycle();
+
+    const planEvents = send.mock.calls.filter(
+      (call) => call[0] === 'lifecycle:interruptedMutationRecoveryPlan'
+    );
+    expect(planEvents).toHaveLength(1);
+    const plan = planEvents[0][1];
+    expect(plan).toMatchObject({
+      workingCopyPath: root,
+      source: 'journal+detection',
+      rationale: expect.stringContaining('shutdown'),
+    });
+    expect(plan.evidence.map((item: { kind: string }) => item.kind)).toEqual(['stale-admin-lock']);
+    // Lock-only evidence: cleanup + verify, no inferred retry step.
+    expect(plan.steps.map((step: { kind: string }) => step.kind)).toEqual([
+      'svn-cleanup',
+      'verify-status',
+    ]);
+    expect(getInterruptedMutationRecoveryPlans()).toEqual([plan]);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('does not propose a recovery plan when the journal has no current-state corroboration', async () => {
+    const send = rendererWindow();
+    const root = await createWorkingCopy('none');
+    state.readInterrupted.mockReturnValue([
+      {
+        workingCopyPath: root,
+        interruptedAt: '2026-01-01T00:00:00.000Z',
+        reason: 'shutdown',
+      },
+    ]);
+
+    await initializeAppLifecycle();
+
+    const channels = send.mock.calls.map((call) => call[0]);
+    expect(channels).not.toContain('lifecycle:interruptedMutationRecoveryPlan');
+    expect(getInterruptedMutationRecoveryPlans()).toEqual([]);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('registers the recovery-plan IPC channels and executes a plan only on explicit request', async () => {
+    registerAppLifecycleIpcHandlers();
+    const root = await createWorkingCopy('file');
+    approvePathForIpc(root, 'directory');
+    state.readInterrupted.mockReturnValue([
+      {
+        workingCopyPath: root,
+        interruptedAt: '2026-01-01T00:00:00.000Z',
+        reason: 'shutdown',
+      },
+    ]);
+    await initializeAppLifecycle();
+    expect(getInterruptedMutationRecoveryPlans()).toHaveLength(1);
+
+    const channels = state.ipcHandle.mock.calls.map((call) => call[0]);
+    expect(channels).toEqual(
+      expect.arrayContaining([
+        'lifecycle:getInterruptedMutationRecoveryPlans',
+        'lifecycle:executeInterruptedMutationRecoveryPlan',
+      ])
+    );
+
+    const getPlans = ipcHandler('lifecycle:getInterruptedMutationRecoveryPlans');
+    expect((getPlans() as unknown[]).length).toBe(1);
+
+    const execute = ipcHandler('lifecycle:executeInterruptedMutationRecoveryPlan');
+    const executed = (await execute(undefined, root)) as {
+      success: boolean;
+      steps: Array<{ kind: string; success: boolean }>;
+    };
+    expect(executed.success).toBe(true);
+    expect(executed.steps.map((step) => step.kind)).toEqual(['svn-cleanup', 'verify-status']);
+
+    const unknown = (await execute(undefined, '/not/in/journal')) as {
+      success: boolean;
+      error?: string;
+    };
+    expect(unknown.success).toBe(false);
+    expect(unknown.error).toMatch(/no interrupted-mutation recovery plan/i);
+
+    const malformed = (await execute(undefined, '  ')) as { success: boolean };
+    expect(malformed.success).toBe(false);
+
+    await rm(root, { recursive: true, force: true });
   });
 });
