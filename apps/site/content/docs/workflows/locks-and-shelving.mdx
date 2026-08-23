@@ -1,15 +1,47 @@
 ---
 title: Locks and shelving
-description: Understand what your active SVN client baseline supports before depending on advanced flows.
+description: Lock files that must not be merged, and set changes aside as shelves — what works today and what is still pending.
 category: Workflows
 status: preview
-lastReviewed: '2026-06-01'
+lastReviewed: '2026-08-23'
 ---
 
-## Important baseline
+Locks and shelves solve two different problems: locks keep other people out of unmergeable files, shelves set your own uncommitted work aside without committing it. Both are supported in ShellySVN, with one honest caveat each — read the "pending" notes before you depend on the parts marked below.
 
-Advanced workflows such as shelving depend on the active SVN client capabilities. Treat them as environment-sensitive until your rollout validates the exact packaged client behavior you intend to support.
+## Locks
 
-## Recommendation
+Subversion locks are advisory reminders plus an ownership token: they matter most for binaries that cannot be merged.
 
-Test locking, unlocking, and any shelving-adjacent flow against the same release artifact that your team would actually install.
+- **Lock / unlock a file** from its context menu (Get lock / Release lock — locks apply to files, not folders).
+- **Manage locks** opens the lock manager: the list of locked files with owner, age, and details, plus steal and break actions — each behind an explicit confirmation, because both take the lock from its current owner.
+- **Stale-lock warnings.** SVN locks never expire on their own. Locks older than two weeks surface as warnings in the Problems dialog, naming the owner and the age, so a forgotten lock does not silently block a team.
+
+Good practice: lock only unmergeable files, say why in the lock message where your team convention has one, and release the lock the moment you commit.
+
+## Shelves
+
+A shelf is your uncommitted changes set aside as a patch, restorable later. In Subversion a shelf is **local**: it lives in the working copy's administrative area, it is not on the server, it is not backed up, and nobody else sees it until the changes are committed or the patch is handed over.
+
+### Creating and applying shelves
+
+- **Shelve** from a versioned folder's context menu ("Shelve changes…"), the command palette, or the `+` next to a working copy's Shelves entry in the sidebar rail.
+- **The shelf manager** (toolbar button) lists every shelf for the current working copy with name, message, and age. From there you can:
+  - **Apply** a shelf (unshelve it back into the working copy),
+  - **Delete** it,
+  - configure an **expiry nudge** — shelves older than a chosen number of days (30 by default) are flagged so old shelves get cleaned up instead of accumulating forever.
+
+Unshelving reports conflicts exactly the way an update does; if the shelf cannot apply cleanly, resolve the conflicts before retrying.
+
+### If your SVN client does not support shelving
+
+`svn shelve` needs a modern client (1.10+ with experimental shelving, best on 1.14). When the packaged SVN does not support it, ShellySVN falls back to its own **portable shelving**: the changed files are copied into the app's data directory per working copy and can be listed, applied, and deleted the same way. The behavior is the same from the shelf manager; only the storage location differs. Portable shelves require a clean-ish state — conflicted files must be resolved before shelving, and the working copy should be clean before applying.
+
+### Pending — do not depend on these yet
+
+The shelf manager renders buttons for **rename**, **diff against working copy or HEAD**, and **portable export / import**, but these are disabled placeholders: the backend channels they need do not exist yet. The shelf detail view reachable from the repository browser is also display-oriented today — it shows the shelf's facts, and its action buttons close the dialog without performing the operation, because `svn shelf-list` does not enumerate a shelf's files and the actions are not wired to SVN yet.
+
+Until those land: to hand a shelf to a teammate, unshelve it into a scratch working copy and export a patch from there, or commit to a branch — the classic SVN review flow.
+
+## Verification
+
+If your team relies on either feature, test against the exact client you package: lock behavior (and whether shelving is native or portable) depends on the bundled SVN version, not just on the app.

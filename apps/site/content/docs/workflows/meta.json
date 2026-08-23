@@ -5,6 +5,7 @@
     "sparse-checkout",
     "update",
     "commit",
+    "ai-review-center",
     "history-and-diff",
     "branch-tag-merge",
     "conflicts-and-resolve",

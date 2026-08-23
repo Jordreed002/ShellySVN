@@ -1,0 +1,37 @@
+---
+title: Error map
+description: Match the SVN error on screen to the fix, with the app surface that handles each case.
+category: Troubleshooting
+status: available
+lastReviewed: '2026-08-23'
+---
+
+Every failing SVN command in ShellySVN is classified before it is shown, so most errors arrive with a category and a suggested way out. This map pairs the codes you are most likely to see with the part of the app that handles them.
+
+## Error to app guidance
+
+| Error / message | What it means | Where the app helps | What to do |
+| --- | --- | --- | --- |
+| `E155007`, `E155010` — "is not a working copy" | The folder you opened is not inside a checkout. | Opening a plain folder is treated as a normal state, not an error. If a working copy you already added stopped resolving, the app offers to relink it after a move. | Open the working copy root, or re-add the repository. If the folder moved on disk, use the relink offer. |
+| `E155004` — "working copy locked", "previous operation has not finished" | An earlier operation was interrupted and left the working copy's internal lock in place. | The Problems dialog shows a blocking "needs cleanup" entry with the exact fix; the working copy's health report recognizes the same pattern. | Run cleanup from the problem entry, then retry the operation. Nothing is lost. |
+| `E155015` — "is incomplete" | The working copy records an incomplete subtree, usually from an interrupted checkout or update. | The working copy health scan flags incomplete copies. | Run an update to complete the subtree, then re-scan. |
+| `E160028` / "out of date" | The repository has newer revisions of the paths you are committing. | The commit dialog checks for incoming changes **before** committing and offers Update and retry, Commit anyway, and Cancel. The Problems dialog also lists how many revisions behind you are. | Choose **Update and retry**. If Subversion itself rejected the commit, reopen the commit dialog — the check runs again. |
+| Mixed-revision notice (a banner, not an error code) | A partial update left parts of the checkout at newer revisions than the root — the file list looks fine, but commits and branch operations can trip over it. | The Files surface shows a mixed-revision banner with a one-click **Update to HEAD** for the folder; the status bar lists the affected items; the merge wizard has an explicit "Allow mixed revisions" option for merges where it is safe. | Click **Update to HEAD** on the banner before committing or branching. |
+| `E170001`, `E215004` — authentication failed | Credentials were rejected or none are stored for that repository. | The Files surface and the repository browser each show a credential prompt instead of failing silently; batch update marks the working copy as needing credentials. Saved credentials are encrypted with your OS secure storage when available and are listed in Settings. | Re-enter credentials when prompted. If prompts repeat, review the saved list in Settings and confirm the username matches the repository realm. |
+| `E175002` / `E175001` — "Unable to connect", often chained with `E720xxx` or `E730xxx` | The repository URL could not be reached. `E720xxx` chains usually mean DNS or hostname problems; `E730xxx` chains point at the TLS layer. | Connection failures are grouped as network errors and are retryable; repository diagnostics runs targeted connectivity checks. | For `E720xxx`, fix the URL (typo, renamed host, VPN/proxy down). For `E730xxx`, continue to the certificate row below. |
+| Certificate verification failed (`E230001`, "unknown CA", hostname mismatch — usually inside an `E175001`/`E175002` chain) | The server's TLS certificate did not verify. | The trust prompt shows subject, issuer, validity, and fingerprint, lists the concrete failures (untrusted issuer, hostname mismatch, expired, not yet valid), and lets you trust once or permanently. | Verify the fingerprint with your server team, then trust — permanently only for long-lived internal CAs. For a hostname mismatch, fix the URL rather than trusting the certificate. |
+| `E200009`, `E160013` — "not found" | The URL or path does not exist in the repository: moved, renamed, deleted, a typo, or a case mismatch. | Classified as not-found; the failing operation reports the target path, and browsing the parent folder in the repository browser shows what is actually there. | Re-browse the parent folder and use the current path. Watch casing on case-sensitive servers. |
+| Conflict (`C` status; tree conflicts often appear as missing items) | Your changes collided with incoming changes. | The conflict resolution wizard covers text, property, binary, and tree conflicts, with a three-way merge editor for text. The Problems dialog explains each conflicted path. An optional AI proposal can explain the conflict and suggest a resolution — advisory only, and only with per-working-copy consent. | Resolve through the wizard. Treat an AI proposal as a hint to check, not an answer to accept blind. |
+| Stale repository lock (a warning, not an E-code) | A lock on a file is still held long after it was needed — Subversion locks never expire on their own. | The Problems dialog warns about locks held longer than two weeks; the lock manager lists, releases, and breaks locks. | Review locks in the lock manager and deliberately break stale ones. |
+| Disk full (`E700028` / `E700112`, "No space left on device") | The disk filled up mid-operation. | Disk-full failures are detected and reported as such, and interrupted working-copy operations are recorded so they can be surfaced on the next launch instead of silently corrupting state. | Free space and re-run the operation. If the app was closed mid-write, read the interrupted-operation notice at next launch first. |
+| Changes not reflected in the file list | Filesystem events were missed or coalesced (bursty builds, network drives). | Watching is debounced per folder, and refresh is always available (F5). | Refresh explicitly. Avoid placing working copies on unreliable network mounts. |
+
+## A good debugging order
+
+1. Read the notification or Problems entry first — it names the category and the recovery command.
+2. Two different codes can be the same problem: classification groups upstream spellings, so follow the row for the *category* you see.
+3. "Retryable" means retry **after** applying the row's fix — re-running into an authentication or out-of-date wall without changing anything just reproduces the error.
+
+<Callout title="Authentication keeps failing?">
+See [SSL, auth, and connectivity](/docs/troubleshooting/ssl-auth-and-connectivity) for realm scoping, repeated prompts, and what the app stores.
+</Callout>

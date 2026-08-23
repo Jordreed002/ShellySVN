@@ -1,0 +1,85 @@
+---
+title: AI Review Center
+description: A walkthrough of commit review, findings triage, the commit stack, the repository profile, and the consent model that governs it all.
+category: Workflows
+status: preview
+lastReviewed: '2026-08-23'
+---
+
+The AI Review Center is the single place where ShellySVN's advisory AI output collects: review findings, per-file explanations, the planned commit stack, and the repository profile that shapes suggestions. It is a side panel, not a gate — nothing in it can change your working copy, and every AI result is marked advisory.
+
+Open it from the toolbar's AI Review Center button or with <kbd>⌘⇧A</kbd> / <kbd>Ctrl+Shift+A</kbd>. It requires a working copy and a configured AI provider — the commit window shows provider status next to its AI actions and points to Settings when none is configured.
+
+## Where the content comes from
+
+The Review Center does not run anything by itself. It captures results from actions you start elsewhere:
+
+- **Review** in the commit window analyzes the selected diff for risks and omissions, and its findings land in the Open queue here.
+- **Plan** in the commit window groups your changes into logical commits, which become the commit stack on the Groups tab.
+- **Explain** on a file in the commit diff preview leaves a per-file summary on the Files tab.
+
+Runs, findings, and explanations are stored per working copy, on your machine, through the app's local store. Prompts and diffs are not retained — the Runs tab records only what ran, when, with which provider and model.
+
+## Consent and privacy first
+
+Before any of this runs, two gates apply, and both are visible in the panel's header:
+
+- **Per-working-copy consent.** A three-way switch — Not set / On / Off — governs each working copy independently. A new working copy starts at **Not set**: nothing runs until you choose. Choosing **Off** blocks AI features for that working copy outright; the app refuses with an explicit consent error rather than silently skipping. Switching back to **Not set** clears the recorded choice.
+- **Outbound secret blocking.** Every prompt is scanned before it leaves the app. High-confidence credential shapes — AWS keys, GitHub tokens, private key blocks, JWTs — block the request with a clear error instead of sending. Secret-looking assignments are masked before sending. This applies to every AI action, not just the Review Center.
+
+The repository profile (below) is stored in the app's own data; ShellySVN never searches your repository for instruction files, and profile import is explicit-paste with a preview step.
+
+## Triage: the Open queue
+
+Findings arrive in the **Open** tab with a severity chip (Critical / Warning / Info). The header shows open count, files analyzed, and how many stored runs are stale — a run goes stale when its content no longer matches what is on disk, so you can see when a review predates your latest edits.
+
+Two workflows cover triage:
+
+**Mouse.** Severity chips filter the queue; *Accept all* and *Dismiss all* act on what is visible after filtering. Every triage action offers a short **Undo** window.
+
+**Keyboard.** This is the fast path:
+
+| Key | Action |
+| --- | --- |
+| <kbd>J</kbd> / <kbd>K</kbd> | Move down / up the findings |
+| <kbd>A</kbd> / ⇧A | Accept the highlighted finding / accept all visible |
+| <kbd>D</kbd> / ⇧D | Dismiss the highlighted finding / dismiss all visible |
+| <kbd>U</kbd> | Undo the last triage action |
+| <kbd>1</kbd>–<kbd>7</kbd> | Switch tabs |
+| <kbd>Esc</kbd> | Close the panel |
+
+Accepted and dismissed findings move to the **Triaged** tab, where the same keys restore them — <kbd>D</kbd> and ⇧D restore there instead of dismissing. Use **Copy Markdown** in the footer to export the whole workspace as a review report, and **Clear** to delete stored results for the working copy.
+
+## The commit stack (Groups tab)
+
+When you run **Plan** in the commit window, the proposed groups arrive here as an ordered stack. Each group shows a status — ready, committed, or stale — with its draft commit message, its file list, and the changelist it maps to. You can:
+
+- edit each draft message in place,
+- move a file between groups (or to unassigned) with the per-file selector,
+- reorder groups,
+- create or update a real SVN changelist from a group, then
+- commit a group with one click; committed groups lock and record their revision.
+
+A diagnostics line warns about duplicate path assignments and unassigned files, so a stack can never quietly drop a file. Unassigned paths appear in a tray at the bottom until you place them.
+
+## The repository profile (Profile tab)
+
+The profile teaches the AI your repository's conventions. Everything is local and explicit:
+
+- Commit prefixes, issue ID pattern, subject length cap, body style, and preferred terminology for drafts.
+- Path conventions: test, generated, and documentation paths, plus paths excluded from AI entirely.
+- Required review questions — asked on every review run.
+- Enabled draft transformations (shorten, add body, imperative tone, match style, include issues, explain motivation…).
+- **Learn style from history** samples recent commit messages and derives statistics locally — subject lengths, imperative mood, prefixes. Nothing is sent to a provider.
+
+Importing a profile is paste-only with a preview-and-confirm step; the panel shows counts of what a valid import contains before anything is applied.
+
+## Files, Questions, and Runs
+
+- **Files** keeps the per-file explanations from the commit diff preview, with a current/stale freshness marker per file.
+- **Questions** collects unresolved questions review runs raised — a checklist of things the AI could not decide for you.
+- **Runs** is the audit log: kind, summary, provider/model, duration, and freshness. Stale runs are highlighted so you know which results predate later edits.
+
+## What it is not
+
+The Review Center is advisory by design. Findings do not block commits, AI conflict proposals inside the conflict wizard are hints to inspect — never auto-applied — and consent plus secret-blocking govern every AI feature in the app, not only this panel.

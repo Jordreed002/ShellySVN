@@ -1,25 +1,41 @@
 ---
 title: Sparse checkout
-description: Select only the folders and files you need from a large repository.
+description: Check out only the folders you need, expand later in place, and drop what you no longer use — without a second checkout.
 category: Workflows
 status: available
-lastReviewed: '2026-06-01'
+lastReviewed: '2026-08-23'
 ---
 
-## Why sparse checkout matters
+Sparse checkout is the clearest way to keep large SVN repositories usable on modern laptops. It reduces disk cost, shrinks update scope, and lets you focus on just the part of the tree you actually own. In ShellySVN it is not a one-time checkout option — it is a loop you can run for the whole life of the working copy.
 
-Sparse checkout is the clearest way to keep large SVN repositories usable on modern laptops. It reduces disk cost, shrinks update scope, and lets teams focus on just the part of the tree they actually own.
+## Starting sparse: checkout
 
-## Where it appears
+The checkout dialog offers a **checkout depth** — fully recursive (`infinity`), immediate children (`immediates`), files only (`files`), or just the root (`empty`).
 
-- During initial checkout
-- During later update flows
-- From repository browsing when you want to add remote-only paths
+The leaner path is to select specific folders in the repository browser and check those out: checking out selected paths performs a sparse checkout rooted at `empty` and pulls in exactly the chosen subtrees, so nothing else lands on disk.
 
-## Recommended usage
+## Expanding in place: remote-only rows
 
-Start lean. Pull the folders you need now, then expand the working copy only when a real task requires additional paths.
+After a sparse checkout, the file list shows the rest of the repository as **remote-only** rows — paths the working copy knows about but does not have on disk. That is the expansion loop:
+
+- Select remote-only paths and add them to the working copy (or download them directly) to materialize just those.
+- Checking out a remote-only folder from the repository browser fills the sparse checkout **in place** — it is an expansion, not a second checkout, so you never end up with nested duplicate working copies.
+
+## Shrinking: remove from working copy
+
+Sparse is only sustainable if you can also let go. Versioned folders (other than the working copy root) have a **Remove from working copy…** action — the `--set-depth exclude` operation. Two things worth knowing:
+
+- The exclusion is **sticky**: later updates do not silently bring the folder back. If you need it again, a fully recursive update of that path restores it.
+- Folders containing local-only (unversioned) files are handled safely: the app moves the local-only content to the trash first, because an exclusion that leaves unversioned files behind would corrupt the working copy's depth bookkeeping.
+
+## Update depth and reverting to full
+
+An update can also carry a depth: updating a subtree with a chosen depth can set the sticky depth for it (use this to make a previously excluded or shallow folder fully recursive again). A plain fully recursive update of the working copy root reconciles depth state everywhere below it.
+
+## Errors during sparse operations
+
+Sparse operations fail like any other SVN operation — authentication, connectivity, out-of-date, not-found — and are classified the same way. The [error map](/docs/troubleshooting/error-map) covers each code and the app surface that handles it.
 
 ## Operational habit
 
-Treat sparse expansion as part of normal repository hygiene instead of as a rescue operation after a full checkout becomes painful.
+Start lean. Pull the folders you need now, expand through remote-only rows only when a real task requires more, and exclude what you stopped using. Treat sparse maintenance as normal repository hygiene instead of as a rescue operation after a full checkout becomes painful.

@@ -1,15 +1,125 @@
 ---
 title: Keyboard shortcuts
-description: The app is built around a faster desktop workflow, including command access from the keyboard.
+description: Default key bindings, remapping, the command palette, and the AI Review Center hotkeys — with macOS annotations.
 category: Reference
 status: available
-lastReviewed: '2026-06-01'
+lastReviewed: '2026-08-23'
 ---
 
-## Core expectation
+ShellySVN is built around keyboard access: a command palette, a remappable binding set, per-surface hotkeys, and a full-screen triage flow in the AI Review Center. On macOS, read `Ctrl` below as `⌘` where a modifier is shown — the app treats Command and Control as the same modifier.
 
-ShellySVN exposes a command palette and keyboard-driven workflows so frequent SVN actions do not require hunting through menus.
+Press <kbd>?</kbd> anywhere (outside a text field) to open the in-app shortcuts dialog with the live cheat sheet and the customization tab.
 
-## During evaluation
+## Remappable defaults
 
-Validate the shortcuts that matter to your team rather than trying to memorize everything at once. Start with command access, navigation, and commit-review flows.
+These are the shipped defaults, exactly as they appear in the in-app **Customize** tab. Any of them can be re-recorded, disabled, or reset there.
+
+### General
+
+| Action | Default |
+| --- | --- |
+| Open Repository | Ctrl+O |
+| Command Palette | Ctrl+Shift+P |
+| Open Settings | Ctrl+, |
+
+### Navigation
+
+| Action | Default |
+| --- | --- |
+| Refresh | F5 |
+| Go to Parent Folder | Backspace |
+| Search Files | Ctrl+F |
+
+### File Operations
+
+| Action | Default |
+| --- | --- |
+| Select All | Ctrl+A |
+| Copy Path | Ctrl+Shift+C |
+| Delete | Delete |
+
+### SVN Operations
+
+| Action | Default |
+| --- | --- |
+| Commit | Ctrl+S |
+| Update | Ctrl+U |
+| Revert | Ctrl+R |
+| Diff | Ctrl+D |
+| Show Log | Ctrl+L |
+
+### View
+
+| Action | Default |
+| --- | --- |
+| Toggle Sidebar | Ctrl+B |
+| Toggle Details Panel | Ctrl+Shift+D |
+
+## Remapping
+
+Open the shortcuts dialog (<kbd>?</kbd>) and switch to the **Customize** tab to change bindings:
+
+- Click the pencil icon next to an action, then press the new combo; <kbd>Esc</kbd> cancels recording.
+- Assigning a key that is already taken shows a conflict warning and is refused.
+- Each binding has an enable/disable checkbox; disabled actions show struck through in the cheat sheet.
+- The arrow icon resets one binding to its default; **Reset all to defaults** restores everything.
+- Bindings are stored as overrides — the defaults themselves never change.
+
+Two honesty notes. The remapped keys are reflected in the cheat sheet and persisted across sessions, while the small set of fixed global keys below is not remappable today. And remapping is recorded per combo as shown; modifier-less keys such as <kbd>?</kbd> are not part of the remappable set.
+
+## Fixed global keys
+
+| Keys | Action |
+| --- | --- |
+| ⌘K / Ctrl+K, or ⌘⇧P / Ctrl+Shift+P | Command palette |
+| ⌘⇧A / Ctrl+Shift+A | Open (or close) the AI Review Center |
+| ⌥⌘P / Ctrl+Alt+P | Performance dashboard |
+| <kbd>?</kbd> | Shortcuts dialog |
+
+## Surface hotkeys
+
+These belong to specific screens and apply while that screen has focus.
+
+### Command palette (Ctrl+K)
+
+Type to filter commands across the app — navigation, SVN actions, toggles such as the preview panel, and opening the AI Review Center. Arrow keys move through results; <kbd>Enter</kbd> runs the selected command.
+
+### AI Review Center (⌘⇧A)
+
+| Key | Action |
+| --- | --- |
+| <kbd>J</kbd> / <kbd>K</kbd> (or ↓ / ↑) | Move through findings |
+| <kbd>A</kbd> | Accept the highlighted finding |
+| ⇧A | Accept every visible finding |
+| <kbd>D</kbd> | Dismiss the highlighted finding (restores it on the Triaged tab) |
+| ⇧D | Bulk dismiss (or bulk restore on the Triaged tab) |
+| <kbd>U</kbd> | Undo the last triage action — offered for a short window after every triage change, single or bulk |
+| <kbd>1</kbd>–<kbd>7</kbd> | Switch tabs: Open, Triaged, Files, Groups, Questions, Runs, Profile |
+| <kbd>Esc</kbd> | Close the Review Center |
+
+These keys are ignored while you are typing in an input field.
+
+### Conflict editing
+
+| Keys | Action |
+| --- | --- |
+| F3 / Shift+F3 | Next / previous conflict in the three-way merge editor |
+| Ctrl+S | Save the merge result |
+| F3 (or Ctrl+G) | Next match in the diff viewer |
+| <kbd>Esc</kbd> | Close the conflict editor |
+
+### Files and dialogs
+
+| Keys | Action |
+| --- | --- |
+| ↑ / ↓ | Navigate the file list |
+| <kbd>Enter</kbd> | Open folder / confirm the focused dialog action |
+| <kbd>Backspace</kbd> | Go to the parent folder |
+| <kbd>Tab</kbd> | Switch panes in dual-pane mode; move focus in dialogs |
+| Ctrl+Click / Shift+Click | Toggle selection / range select |
+| Ctrl+P | Toggle the preview panel |
+| <kbd>Esc</kbd> | Clear selection, or close the open dialog |
+
+## Verifying against the app
+
+The in-app dialog is the source of truth for your install: its cheat sheet shows your *current* keys (including any remapping), which may differ from the defaults table above if you or your team customized bindings.

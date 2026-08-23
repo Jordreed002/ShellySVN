@@ -1,4 +1,4 @@
 {
   "title": "Troubleshooting",
-  "pages": ["common-errors", "ssl-auth-and-connectivity"]
+  "pages": ["error-map", "common-errors", "ssl-auth-and-connectivity"]
 }

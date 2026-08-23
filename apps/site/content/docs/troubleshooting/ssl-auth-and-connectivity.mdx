@@ -19,3 +19,7 @@ Validate SSL and authentication behavior early in a rollout, especially for olde
 ## If prompts repeat
 
 Treat repeated prompts as a signal to investigate certificate trust, URL mismatch, or credential scoping before retrying the same operation indefinitely.
+
+## Specific codes
+
+The [error map](/docs/troubleshooting/error-map) covers the individual codes — authentication failures (`E170001`, `E215004`), connection failures (`E175001`, `E175002` with `E720xxx`/`E730xxx` chains), and certificate verification failures — and what the app shows for each.
