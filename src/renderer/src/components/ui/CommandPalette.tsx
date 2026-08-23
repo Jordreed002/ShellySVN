@@ -27,6 +27,7 @@ import {
   ListChecks,
   Archive,
   ArchiveRestore,
+  Bell,
   Puzzle,
   Lock,
   LockOpen,
@@ -39,10 +40,21 @@ import {
   Trash2,
   Wrench,
   CheckCircle2,
+  HelpCircle,
   Move,
   Copy,
   Pencil,
+  Home,
+  FolderOpen,
+  BrainCircuit,
+  KeyRound,
+  Sun,
+  Minus,
+  Square,
+  X,
 } from 'lucide-react';
+import { rankCommands } from '../../lib/commandPaletteFuzzy';
+import { loadPaletteUsage, recordPaletteUsage, savePaletteUsage } from '../../lib/commandPaletteUsage';
 
 interface CommandItem {
   id: string;
@@ -60,6 +72,9 @@ interface CommandItem {
   action: () => void;
   keywords?: string[];
 }
+
+/** Shell destinations the palette can navigate to (mirrors the sidebar rail). */
+export type PaletteRoute = 'home' | 'files' | 'repo-browser' | 'history';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -110,6 +125,22 @@ interface CommandPaletteProps {
   onApplyPatch?: () => void;
   // Plugin management
   onManagePlugins?: () => void;
+  // Shell navigation (sidebar rail destinations)
+  onGoToRoute?: (route: PaletteRoute) => void;
+  // Shell surfaces reached through the palette
+  onOpenAiReviewCenter?: () => void;
+  onManageCredentials?: () => void;
+  onToggleTheme?: () => void;
+  // Help: the status-overlay legend (#94)
+  onShowStatusLegend?: () => void;
+  // Shell surfaces opened through lib/shellActions (#49/#64/#81)
+  onOpenDiffWizard?: () => void;
+  onOpenShelfManager?: () => void;
+  onOpenNotificationCenter?: () => void;
+  // Window controls (titlebar buttons)
+  onMinimizeWindow?: () => void;
+  onMaximizeWindow?: () => void;
+  onCloseWindow?: () => void;
   // Recent paths
   recentPaths?: string[];
   // Bookmarks
@@ -161,6 +192,17 @@ export function CommandPalette({
   onCreatePatch,
   onApplyPatch,
   onManagePlugins,
+  onGoToRoute,
+  onOpenAiReviewCenter,
+  onManageCredentials,
+  onToggleTheme,
+  onShowStatusLegend,
+  onOpenDiffWizard,
+  onOpenShelfManager,
+  onOpenNotificationCenter,
+  onMinimizeWindow,
+  onMaximizeWindow,
+  onCloseWindow,
   recentPaths = [],
   bookmarks = [],
 }: CommandPaletteProps) {
@@ -374,6 +416,19 @@ export function CommandPalette({
       });
     }
 
+    // #49: arbitrary revision-to-revision / URL-to-URL diff wizard.
+    if (onOpenDiffWizard) {
+      items.push({
+        id: 'diff-wizard',
+        title: 'Diff wizard…',
+        description: 'Diff any two revisions or URLs, with saved comparisons',
+        icon: GitCompare,
+        category: 'SVN',
+        action: onOpenDiffWizard,
+        keywords: ['diff', 'wizard', 'compare', 'revision', 'url', 'changes'],
+      });
+    }
+
     if (onSwitch) {
       items.push({
         id: 'switch',
@@ -481,6 +536,19 @@ export function CommandPalette({
       });
     }
 
+    // #64: shelf manager — rename/diff/expiry/portable shelves.
+    if (onOpenShelfManager) {
+      items.push({
+        id: 'shelf-manager',
+        title: 'Shelf manager…',
+        description: 'Manage shelves: apply, delete, expiry, portable import/export',
+        icon: Archive,
+        category: 'SVN',
+        action: onOpenShelfManager,
+        keywords: ['shelf', 'shelve', 'manager', 'expiry', 'portable'],
+      });
+    }
+
     if (onLock) {
       items.push({
         id: 'lock',
@@ -581,6 +649,50 @@ export function CommandPalette({
         action: onApplyPatch,
         keywords: ['patch', 'apply'],
       });
+    }
+
+    // Navigation — the sidebar rail's destinations
+    if (onGoToRoute) {
+      items.push(
+        {
+          id: 'go-home',
+          title: 'Go to Home',
+          description: 'Open the home briefing screen',
+          icon: Home,
+          category: 'Navigation',
+          action: () => onGoToRoute('home'),
+          keywords: ['go', 'navigate', 'start', 'dashboard'],
+        },
+        {
+          id: 'go-files',
+          title: 'Go to Files',
+          description: 'Browse the local working copy',
+          icon: FolderOpen,
+          category: 'Navigation',
+          action: () => onGoToRoute('files'),
+          keywords: ['go', 'navigate', 'explorer', 'working', 'copy'],
+        },
+        {
+          id: 'go-repo-browser',
+          title: 'Go to Repository browser',
+          description: 'Browse repository contents on the server',
+          icon: Globe,
+          category: 'Navigation',
+          action: () => onGoToRoute('repo-browser'),
+          keywords: ['go', 'navigate', 'remote', 'server', 'svn'],
+        }
+      );
+      if (currentPath) {
+        items.push({
+          id: 'go-history',
+          title: 'Go to History',
+          description: `Revision history for ${currentPath}`,
+          icon: History,
+          category: 'Navigation',
+          action: () => onGoToRoute('history'),
+          keywords: ['go', 'navigate', 'log', 'revisions'],
+        });
+      }
     }
 
     // Navigation
@@ -703,6 +815,31 @@ export function CommandPalette({
       });
     }
 
+    if (onShowStatusLegend) {
+      items.push({
+        id: 'status-legend',
+        title: 'What the status colors mean',
+        description: 'Open the Subversion status legend',
+        icon: HelpCircle,
+        category: 'Help',
+        action: onShowStatusLegend,
+        keywords: ['status', 'legend', 'colors', 'svn', 'help', 'overlay'],
+      });
+    }
+
+    // #81: notification center history.
+    if (onOpenNotificationCenter) {
+      items.push({
+        id: 'notification-center',
+        title: 'Notification center',
+        description: 'Review past notifications and operation results',
+        icon: Bell,
+        category: 'Help',
+        action: onOpenNotificationCenter,
+        keywords: ['notifications', 'history', 'alerts', 'toasts', 'bell'],
+      });
+    }
+
     if (onOpenSettings) {
       items.push({
         id: 'settings',
@@ -725,6 +862,78 @@ export function CommandPalette({
         category: 'Tools',
         action: onManagePlugins,
         keywords: ['plugin', 'extension', 'addon', 'manage'],
+      });
+    }
+
+    if (onOpenAiReviewCenter) {
+      items.push({
+        id: 'ai-review-center',
+        title: 'Open AI Review Center',
+        description: 'Review AI findings and commit plans',
+        icon: BrainCircuit,
+        shortcut: 'Ctrl+Shift+A',
+        category: 'Tools',
+        action: onOpenAiReviewCenter,
+        keywords: ['ai', 'review', 'findings', 'commit', 'plan'],
+      });
+    }
+
+    if (onManageCredentials) {
+      items.push({
+        id: 'manage-credentials',
+        title: 'Manage credentials',
+        description: 'Open settings on the authentication tab',
+        icon: KeyRound,
+        category: 'Tools',
+        action: onManageCredentials,
+        keywords: ['auth', 'login', 'password', 'settings', 'credentials'],
+      });
+    }
+
+    // View
+    if (onToggleTheme) {
+      items.push({
+        id: 'toggle-theme',
+        title: 'Toggle light/dark theme',
+        description: 'Switch between light and dark appearance',
+        icon: Sun,
+        category: 'View',
+        action: onToggleTheme,
+        keywords: ['theme', 'appearance', 'dark', 'light', 'mode'],
+      });
+    }
+
+    // Window — the titlebar controls
+    if (onMinimizeWindow) {
+      items.push({
+        id: 'window-minimize',
+        title: 'Minimize window',
+        icon: Minus,
+        category: 'Window',
+        action: onMinimizeWindow,
+        keywords: ['window', 'minimize', 'hide'],
+      });
+    }
+
+    if (onMaximizeWindow) {
+      items.push({
+        id: 'window-maximize',
+        title: 'Maximize or restore window',
+        icon: Square,
+        category: 'Window',
+        action: onMaximizeWindow,
+        keywords: ['window', 'maximize', 'restore', 'fullscreen'],
+      });
+    }
+
+    if (onCloseWindow) {
+      items.push({
+        id: 'window-close',
+        title: 'Close window',
+        icon: X,
+        category: 'Window',
+        action: onCloseWindow,
+        keywords: ['window', 'close', 'quit', 'exit'],
       });
     }
 
@@ -771,6 +980,14 @@ export function CommandPalette({
     onCreatePatch,
     onApplyPatch,
     onManagePlugins,
+    onGoToRoute,
+    onOpenAiReviewCenter,
+    onManageCredentials,
+    onToggleTheme,
+    onShowStatusLegend,
+    onMinimizeWindow,
+    onMaximizeWindow,
+    onCloseWindow,
     currentPath,
     recentPaths,
     bookmarks,
@@ -778,20 +995,37 @@ export function CommandPalette({
 
   const deferredQuery = useDeferredValue(query);
 
-  // Filter commands based on query
-  const filteredCommands = useMemo(() => {
-    if (!deferredQuery.trim()) return commands;
+  // Recent executions boost entries the user reaches for often.
+  const [recentUsage, setRecentUsage] = useState<Record<string, number>>({});
 
-    const lowerQuery = deferredQuery.toLowerCase();
-    return commands.filter((cmd) => {
-      const titleMatch = cmd.title.toLowerCase().includes(lowerQuery);
-      const descMatch = cmd.description?.toLowerCase().includes(lowerQuery);
-      const categoryMatch = cmd.category.toLowerCase().includes(lowerQuery);
-      const keywordMatch = cmd.keywords?.some((k) => k.includes(lowerQuery));
-
-      return titleMatch || descMatch || categoryMatch || keywordMatch;
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void loadPaletteUsage().then((usage) => {
+      if (!cancelled) setRecentUsage(usage);
     });
-  }, [commands, deferredQuery]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  const trackUsage = useCallback(
+    (commandId: string) => {
+      setRecentUsage((previous) => {
+        const next = recordPaletteUsage(previous, commandId);
+        void savePaletteUsage(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  // Fuzzy filter + rank: exact > prefix > word-start > substring > subsequence,
+  // weighted title > keywords > description > category, recent use boosted.
+  const filteredCommands = useMemo(
+    () => rankCommands(commands, deferredQuery, recentUsage),
+    [commands, deferredQuery, recentUsage]
+  );
   const rowVirtualizer = useVirtualizer({
     count: filteredCommands.length,
     getScrollElement: () => listRef.current,
@@ -841,6 +1075,7 @@ export function CommandPalette({
         e.preventDefault();
         const selected = filteredCommands[selectedIndex];
         if (selected) {
+          trackUsage(selected.id);
           selected.action();
           onClose();
         }
@@ -852,7 +1087,7 @@ export function CommandPalette({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filteredCommands, selectedIndex, onClose]);
+  }, [isOpen, filteredCommands, selectedIndex, onClose, trackUsage]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -871,10 +1106,11 @@ export function CommandPalette({
 
   const handleExecute = useCallback(
     (cmd: CommandItem) => {
+      trackUsage(cmd.id);
       cmd.action();
       onClose();
     },
-    [onClose]
+    [onClose, trackUsage]
   );
 
   if (!isOpen) return null;

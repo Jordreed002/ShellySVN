@@ -1,5 +1,15 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { debug } from '@shared/utils/debug';
+import {
+  findConflictingBinding,
+  findConflicts,
+  loadShortcutOverrides,
+  normalizeShortcutKey,
+  resolveBindings,
+  saveShortcutOverrides,
+  toOverrideMap,
+  type ShortcutConflict,
+} from '../lib/shortcutStore';
 
 /**
  * Customizable shortcut binding
@@ -22,8 +32,6 @@ export interface ShortcutCategory {
   name: string;
   description?: string;
 }
-
-const STORAGE_KEY = 'shellysvn-shortcut-bindings';
 
 const CATEGORIES: ShortcutCategory[] = [
   { id: 'navigation', name: 'Navigation' },
@@ -177,20 +185,13 @@ export function useShortcutBindings() {
   const [isLoading, setIsLoading] = useState(true);
 
   /**
-   * Load bindings from storage
+   * Load the persisted override map and merge it over the defaults.
    */
   const loadBindings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const stored = await window.api.store.get<ShortcutBinding[]>(STORAGE_KEY);
-      if (stored) {
-        // Merge with defaults to ensure all shortcuts exist
-        const merged = DEFAULT_BINDINGS.map((defaultBinding) => {
-          const storedBinding = stored.find((s) => s.id === defaultBinding.id);
-          return storedBinding ? { ...defaultBinding, ...storedBinding } : defaultBinding;
-        });
-        setBindings(merged);
-      }
+      const overrides = await loadShortcutOverrides();
+      setBindings(resolveBindings(DEFAULT_BINDINGS, overrides));
     } catch (error) {
       debug.error('Failed to load shortcut bindings:', error);
     } finally {
@@ -199,11 +200,11 @@ export function useShortcutBindings() {
   }, []);
 
   /**
-   * Save bindings to storage
+   * Persist only the deltas from the defaults as an override map.
    */
   const saveBindings = useCallback(async (newBindings: ShortcutBinding[]) => {
     try {
-      await window.api.store.set(STORAGE_KEY, newBindings);
+      await saveShortcutOverrides(toOverrideMap(newBindings));
     } catch (error) {
       debug.error('Failed to save shortcut bindings:', error);
     }
@@ -214,14 +215,17 @@ export function useShortcutBindings() {
    */
   const updateBinding = useCallback(
     async (id: string, newKey: string): Promise<boolean> => {
+      const normalized = normalizeShortcutKey(newKey);
+      if (!normalized) return false;
+
       // Check for conflicts
-      const conflict = bindings.find((b) => b.id !== id && b.currentKey === newKey && b.enabled);
+      const conflict = findConflictingBinding(bindings, id, normalized);
       if (conflict) {
-        setConflictWarning(`Key "${newKey}" is already bound to "${conflict.name}"`);
+        setConflictWarning(`Key "${normalized}" is already bound to "${conflict.name}"`);
         return false;
       }
 
-      const newBindings = bindings.map((b) => (b.id === id ? { ...b, currentKey: newKey } : b));
+      const newBindings = bindings.map((b) => (b.id === id ? { ...b, currentKey: normalized } : b));
 
       setBindings(newBindings);
       setConflictWarning(null);
@@ -327,6 +331,9 @@ export function useShortcutBindings() {
     setIsRecording(null);
   }, []);
 
+  // Keys claimed by more than one enabled binding, recomputed as bindings change.
+  const conflicts = useMemo<ShortcutConflict[]>(() => findConflicts(bindings), [bindings]);
+
   // Load on mount
   useEffect(() => {
     loadBindings();
@@ -338,6 +345,7 @@ export function useShortcutBindings() {
     isLoading,
     isRecording,
     conflictWarning,
+    conflicts,
     updateBinding,
     setBindingEnabled,
     resetBinding,
