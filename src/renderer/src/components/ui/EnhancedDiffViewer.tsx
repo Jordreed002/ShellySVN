@@ -14,6 +14,13 @@ import {
 import type { SvnDiffResult, SvnDiffHunk, SvnDiffLine } from '@shared/types';
 import { detectLanguage } from '../../utils/detectLanguage';
 import { useSettings } from '@renderer/hooks/useSettings';
+import {
+  applyDiffOptions,
+  DEFAULT_DIFF_DISPLAY_OPTIONS,
+  type DiffDisplayOptions,
+} from '@renderer/lib/diffOptions';
+import { computeWordDiff, type WordDiffSegment } from '@renderer/lib/wordDiff';
+import { buildSideBySideRows, pairUnifiedLines, type UnifiedWordPair } from './diffRows';
 
 export type DiffViewMode = 'unified' | 'side-by-side';
 
@@ -25,6 +32,9 @@ interface EnhancedDiffViewerProps {
   showLineNumbers?: boolean;
   className?: string;
   onOpenExternal?: () => void;
+  /** Whitespace/EOL options (#47); uncontrolled when omitted. */
+  displayOptions?: DiffDisplayOptions;
+  onDisplayOptionsChange?: (options: DiffDisplayOptions) => void;
 }
 
 /**
@@ -39,11 +49,32 @@ export function EnhancedDiffViewer({
   showLineNumbers = true,
   className = '',
   onOpenExternal,
+  displayOptions: displayOptionsProp,
+  onDisplayOptionsChange,
 }: EnhancedDiffViewerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [copiedLine, setCopiedLine] = useState<number | null>(null);
+  const [internalDisplayOptions, setInternalDisplayOptions] =
+    useState<DiffDisplayOptions>(DEFAULT_DIFF_DISPLAY_OPTIONS);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Controlled when supplied, self-managed otherwise (#47).
+  const displayOptions = displayOptionsProp ?? internalDisplayOptions;
+  const setDisplayOptions = useCallback(
+    (options: DiffDisplayOptions) => {
+      if (displayOptionsProp === undefined) setInternalDisplayOptions(options);
+      onDisplayOptionsChange?.(options);
+    },
+    [displayOptionsProp, onDisplayOptionsChange]
+  );
+
+  // Whitespace/EOL options re-compute the parsed diff client-side (#47). The
+  // input is non-null here, so the result never actually falls back.
+  const effectiveDiff = useMemo(
+    () => applyDiffOptions(diff, displayOptions) ?? diff,
+    [diff, displayOptions]
+  );
 
   const { settings } = useSettings();
   const isDarkTheme =
@@ -59,7 +90,7 @@ export function EnhancedDiffViewer({
     let deletions = 0;
     let unchanged = 0;
 
-    for (const file of diff.files) {
+    for (const file of effectiveDiff.files) {
       for (const hunk of file.hunks) {
         for (const line of hunk.lines) {
           if (line.type === 'added') additions++;
@@ -70,7 +101,7 @@ export function EnhancedDiffViewer({
     }
 
     return { additions, deletions, unchanged };
-  }, [diff]);
+  }, [effectiveDiff]);
 
   // Search matches
   const searchMatches = useMemo(() => {
@@ -79,7 +110,7 @@ export function EnhancedDiffViewer({
     const matches: Array<{ fileIndex: number; hunkIndex: number; lineIndex: number }> = [];
     const query = searchQuery.toLowerCase();
 
-    diff.files.forEach((file, fileIndex) => {
+    effectiveDiff.files.forEach((file, fileIndex) => {
       file.hunks.forEach((hunk, hunkIndex) => {
         hunk.lines.forEach((line, lineIndex) => {
           if (line.content.toLowerCase().includes(query)) {
@@ -90,7 +121,7 @@ export function EnhancedDiffViewer({
     });
 
     return matches;
-  }, [diff, searchQuery]);
+  }, [effectiveDiff, searchQuery]);
 
   // Navigate to match
   const navigateMatch = useCallback(
@@ -196,6 +227,35 @@ export function EnhancedDiffViewer({
               <span className="text-text-muted">{stats.unchanged} unchanged</span>
             )}
           </div>
+
+          {/* Whitespace options (#47) */}
+          <div className="flex items-center gap-3 text-xs ml-3">
+            <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={displayOptions.ignoreWhitespace}
+                onChange={() =>
+                  setDisplayOptions({
+                    ...displayOptions,
+                    ignoreWhitespace: !displayOptions.ignoreWhitespace,
+                  })
+                }
+              />
+              Ignore whitespace
+            </label>
+            <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={displayOptions.ignoreEol}
+                onChange={() =>
+                  setDisplayOptions({ ...displayOptions, ignoreEol: !displayOptions.ignoreEol })
+                }
+              />
+              Ignore EOL
+            </label>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -248,7 +308,7 @@ export function EnhancedDiffViewer({
       <div ref={contentRef} className="flex-1 overflow-auto font-mono text-xs">
         {mode === 'unified' ? (
           <UnifiedDiffView
-            diff={diff}
+            diff={effectiveDiff}
             language={language}
             showLineNumbers={showLineNumbers}
             searchQuery={searchQuery}
@@ -260,7 +320,7 @@ export function EnhancedDiffViewer({
           />
         ) : (
           <SideBySideDiffView
-            diff={diff}
+            diff={effectiveDiff}
             language={language}
             showLineNumbers={showLineNumbers}
             searchQuery={searchQuery}
@@ -331,7 +391,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
 
               {/* Lines */}
               <div className="relative">
-                {hunk.lines.map((line, lineIndex) => {
+                {pairUnifiedLines(hunk.lines).map(({ line, lineIndex, wordPair }) => {
                   const matchIndex = searchMatches.findIndex(
                     (m) =>
                       m.fileIndex === fileIndex &&
@@ -349,6 +409,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
                       key={lineIndex}
                       line={line}
                       lineIndex={lineIndex}
+                      wordPair={wordPair}
                       language={language}
                       showLineNumbers={showLineNumbers}
                       searchQuery={searchQuery}
@@ -376,6 +437,8 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
 interface UnifiedDiffLineProps {
   line: SvnDiffLine;
   lineIndex: number;
+  /** Counterpart text for word-level highlighting of changed lines (#47). */
+  wordPair?: UnifiedWordPair;
   language: string;
   showLineNumbers: boolean;
   searchQuery: string;
@@ -390,6 +453,7 @@ interface UnifiedDiffLineProps {
 const UnifiedDiffLine = memo(function UnifiedDiffLine({
   line,
   lineIndex,
+  wordPair,
   language,
   showLineNumbers,
   searchQuery,
@@ -464,6 +528,34 @@ const UnifiedDiffLine = memo(function UnifiedDiffLine({
   const renderContent = () => {
     if (line.type === 'hunk') {
       return <span className="text-text-muted">{line.content}</span>;
+    }
+
+    // Changed line with a counterpart: token-level highlight of the changed
+    // part (#47). Takes precedence over syntax colours — which token changed
+    // is the question this line exists to answer.
+    if (wordPair && (line.type === 'added' || line.type === 'removed')) {
+      const segments: WordDiffSegment[] =
+        wordPair.side === 'old'
+          ? computeWordDiff(wordPair.oldText, wordPair.newText).oldSegments
+          : computeWordDiff(wordPair.oldText, wordPair.newText).newSegments;
+      return (
+        <span className={line.type === 'removed' ? 'text-svn-deleted' : ''}>
+          {segments.map((segment, index) =>
+            segment.changed ? (
+              <span
+                key={index}
+                className={`rounded-sm ${
+                  line.type === 'removed' ? 'bg-red-500/30' : 'bg-green-500/30'
+                }`}
+              >
+                {segment.text}
+              </span>
+            ) : (
+              segment.text
+            )
+          )}
+        </span>
+      );
     }
 
     // For code lines, apply syntax highlighting
@@ -630,76 +722,17 @@ const SideBySideHunk = memo(function SideBySideHunk({
   copiedLine,
   isDarkTheme,
 }: SideBySideHunkProps) {
-  // Build paired lines for side-by-side view
-  const pairedLines = useMemo(() => {
-    type PairedLine = {
-      oldLine: SvnDiffLine | null;
-      newLine: SvnDiffLine | null;
-      oldIndex: number;
-      newIndex: number;
-    };
+  // Aligned rows with gap filling, shared with the VirtualizedDiffViewer (#47).
+  const pairedLines = useMemo(() => buildSideBySideRows(hunk.lines), [hunk.lines]);
 
-    const pairs: PairedLine[] = [];
-    const lines = hunk.lines;
-
-    let lineIndex = 0;
-
-    while (lineIndex < lines.length) {
-      const line = lines[lineIndex];
-
-      if (line.type === 'context' || line.type === 'hunk') {
-        pairs.push({
-          oldLine: line,
-          newLine: line,
-          oldIndex: lineIndex,
-          newIndex: lineIndex,
-        });
-        lineIndex++;
-        continue;
-      }
-
-      if (line.type === 'removed') {
-        const removedLines: Array<{ line: SvnDiffLine; index: number }> = [];
-        const addedLines: Array<{ line: SvnDiffLine; index: number }> = [];
-
-        while (lines[lineIndex]?.type === 'removed') {
-          removedLines.push({ line: lines[lineIndex], index: lineIndex });
-          lineIndex++;
-        }
-
-        while (lines[lineIndex]?.type === 'added') {
-          addedLines.push({ line: lines[lineIndex], index: lineIndex });
-          lineIndex++;
-        }
-
-        const rowCount = Math.max(removedLines.length, addedLines.length);
-        for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-          pairs.push({
-            oldLine: removedLines[rowIndex]?.line ?? null,
-            newLine: addedLines[rowIndex]?.line ?? null,
-            oldIndex: removedLines[rowIndex]?.index ?? -1,
-            newIndex: addedLines[rowIndex]?.index ?? -1,
-          });
-        }
-        continue;
-      }
-
-      if (line.type === 'added') {
-        pairs.push({
-          oldLine: null,
-          newLine: line,
-          oldIndex: -1,
-          newIndex: lineIndex,
-        });
-        lineIndex++;
-        continue;
-      }
-
-      lineIndex++;
-    }
-
-    return pairs;
-  }, [hunk.lines]);
+  // Word-diff segments per row, computed once for both sides (#47).
+  const wordDiffs = useMemo(() => {
+    return pairedLines.map((pair) => {
+      if (!pair.paired || !pair.left || !pair.right) return null;
+      if (pair.left.content === pair.right.content) return null;
+      return computeWordDiff(pair.left.content, pair.right.content);
+    });
+  }, [pairedLines]);
 
   return (
     <div>
@@ -718,26 +751,27 @@ const SideBySideHunk = memo(function SideBySideHunk({
           {pairedLines.map((pair, idx) => (
             <SideBySideLine
               key={`old-${idx}`}
-              line={pair.oldLine}
+              line={pair.left}
               side="old"
-              lineIndex={pair.oldIndex}
+              lineIndex={pair.leftIndex}
+              wordSegments={wordDiffs[idx]?.oldSegments}
               language={language}
               showLineNumbers={showLineNumbers}
               searchQuery={searchQuery}
               isMatch={
-                pair.oldIndex >= 0 &&
+                pair.leftIndex >= 0 &&
                 searchMatches.some(
                   (m) =>
                     m.fileIndex === fileIndex &&
                     m.hunkIndex === hunkIndex &&
-                    m.lineIndex === pair.oldIndex
+                    m.lineIndex === pair.leftIndex
                 )
               }
               isCurrentMatch={
-                pair.oldIndex >= 0 &&
+                pair.leftIndex >= 0 &&
                 searchMatches[currentMatchIndex]?.fileIndex === fileIndex &&
                 searchMatches[currentMatchIndex]?.hunkIndex === hunkIndex &&
-                searchMatches[currentMatchIndex]?.lineIndex === pair.oldIndex
+                searchMatches[currentMatchIndex]?.lineIndex === pair.leftIndex
               }
               highlightStyle={highlightStyle}
               onCopyLine={onCopyLine}
@@ -755,26 +789,27 @@ const SideBySideHunk = memo(function SideBySideHunk({
           {pairedLines.map((pair, idx) => (
             <SideBySideLine
               key={`new-${idx}`}
-              line={pair.newLine}
+              line={pair.right}
               side="new"
-              lineIndex={pair.newIndex}
+              lineIndex={pair.rightIndex}
+              wordSegments={wordDiffs[idx]?.newSegments}
               language={language}
               showLineNumbers={showLineNumbers}
               searchQuery={searchQuery}
               isMatch={
-                pair.newIndex >= 0 &&
+                pair.rightIndex >= 0 &&
                 searchMatches.some(
                   (m) =>
                     m.fileIndex === fileIndex &&
                     m.hunkIndex === hunkIndex &&
-                    m.lineIndex === pair.newIndex
+                    m.lineIndex === pair.rightIndex
                 )
               }
               isCurrentMatch={
-                pair.newIndex >= 0 &&
+                pair.rightIndex >= 0 &&
                 searchMatches[currentMatchIndex]?.fileIndex === fileIndex &&
                 searchMatches[currentMatchIndex]?.hunkIndex === hunkIndex &&
-                searchMatches[currentMatchIndex]?.lineIndex === pair.newIndex
+                searchMatches[currentMatchIndex]?.lineIndex === pair.rightIndex
               }
               highlightStyle={highlightStyle}
               onCopyLine={onCopyLine}
@@ -795,6 +830,8 @@ interface SideBySideLineProps {
   line: SvnDiffLine | null;
   side: 'old' | 'new';
   lineIndex: number;
+  /** Token segments for the changed part of a changed pair (#47). */
+  wordSegments?: WordDiffSegment[];
   language: string;
   showLineNumbers: boolean;
   searchQuery: string;
@@ -810,6 +847,7 @@ const SideBySideLine = memo(function SideBySideLine({
   line,
   side,
   lineIndex: _lineIndex,
+  wordSegments,
   language,
   showLineNumbers,
   searchQuery: _searchQuery,
@@ -860,6 +898,28 @@ const SideBySideLine = memo(function SideBySideLine({
   const renderContent = () => {
     if (line.type === 'hunk') {
       return <span className="text-text-muted">{line.content}</span>;
+    }
+
+    // Token-level highlight of the changed part of a changed pair (#47).
+    if (wordSegments && wordSegments.some((segment) => segment.changed)) {
+      return (
+        <span className={line.type === 'removed' ? 'text-svn-deleted' : ''}>
+          {wordSegments.map((segment, index) =>
+            segment.changed ? (
+              <span
+                key={index}
+                className={`rounded-sm ${
+                  line.type === 'removed' ? 'bg-red-500/30' : 'bg-green-500/30'
+                }`}
+              >
+                {segment.text}
+              </span>
+            ) : (
+              segment.text
+            )
+          )}
+        </span>
+      );
     }
 
     if (language !== 'text' && line.type !== 'removed') {

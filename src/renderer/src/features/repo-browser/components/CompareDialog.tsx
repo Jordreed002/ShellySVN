@@ -1,11 +1,18 @@
+import { useState, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
-import { AlignLeft, ArrowRight, Copy, GitCompare, Info, ListTree } from 'lucide-react';
+import { AlignLeft, ArrowRight, Copy, GitCompare, Info, ListTree, Wand2 } from 'lucide-react';
 import {
   AccessibleDialog,
   AccessibleDialogBody,
   AccessibleDialogFooter,
 } from '@renderer/components/AccessibleDialog';
+import type { DiffComparisonSide } from '@renderer/lib/savedComparisons';
 import type { Comparand } from '../types';
+
+// The wizard drags in the whole DiffViewer family; only pay for it on demand.
+const DiffWizard = lazy(() =>
+  import('@renderer/components/ui/DiffWizard').then((m) => ({ default: m.DiffWizard }))
+);
 
 /**
  * CompareDialog — diff any two locations or revisions in the repository.
@@ -111,6 +118,23 @@ function formatCount(count: number): string {
   return count.toLocaleString('en-US');
 }
 
+/**
+ * Pre-fill a wizard side from this dialog's text field: `^/trunk @ HEAD` or
+ * `^/trunk@4712` become `{ kind: 'url', target, revision }`.
+ */
+function toWizardSide(value: string): DiffComparisonSide | null {
+  const normalized = normalizeComparand(value);
+  if (normalized === '') return null;
+  const at = normalized.lastIndexOf('@');
+  if (at <= 0) return { kind: 'url', target: normalized, revision: 'HEAD' };
+  const revision = normalized.slice(at + 1).trim();
+  return {
+    kind: 'url',
+    target: normalized.slice(0, at),
+    revision: revision === '' || revision.toUpperCase() === 'HEAD' ? 'HEAD' : revision,
+  };
+}
+
 function ModeOption({
   selected,
   icon,
@@ -170,6 +194,11 @@ export function CompareDialog({
   onCopyCommand,
   isBusy = false,
 }: CompareDialogProps) {
+  // The wizard (#49) opens on top of this dialog with the current sides
+  // pre-filled. It renders its own result, so it works no matter what the
+  // surrounding route does with this dialog's `onCompare`.
+  const [wizardOpen, setWizardOpen] = useState(false);
+
   const derived = deriveComparand(fromValue, toValue);
   const effectiveComparand: Comparand = comparand ?? derived;
   const copy = COMPARAND_COPY[derived];
@@ -185,7 +214,7 @@ export function CompareDialog({
       ? ''
       : ` This subtree holds ${formatCount(estimatedFileCount)} files.`;
 
-  return (
+  const dialog = (
     <AccessibleDialog isOpen={isOpen} onClose={onClose} title="Compare two paths" size="md">
       <AccessibleDialogBody>
         <div className="flex items-start gap-2.5">
@@ -285,6 +314,15 @@ export function CompareDialog({
 
       <AccessibleDialogFooter>
         <span className="mr-auto text-2xs text-text-muted">Result opens in the detail pane.</span>
+        <button
+          type="button"
+          onClick={() => setWizardOpen(true)}
+          className="btn btn-secondary"
+          title="Open the diff wizard: any revision against any revision, with saved comparisons"
+        >
+          <Wand2 className="h-4 w-4" aria-hidden="true" />
+          Diff wizard…
+        </button>
         <button type="button" onClick={onClose} className="btn btn-secondary" disabled={isBusy}>
           Cancel
         </button>
@@ -302,6 +340,24 @@ export function CompareDialog({
         </button>
       </AccessibleDialogFooter>
     </AccessibleDialog>
+  );
+
+  // The wizard portals to the top layer as a sibling, above this dialog —
+  // not inside it — so the two focus traps never fight over the same DOM.
+  return (
+    <>
+      {dialog}
+      {wizardOpen && (
+        <Suspense fallback={null}>
+          <DiffWizard
+            isOpen={wizardOpen}
+            onClose={() => setWizardOpen(false)}
+            defaultLeft={toWizardSide(fromValue)}
+            defaultRight={toWizardSide(toValue)}
+          />
+        </Suspense>
+      )}
+    </>
   );
 }
 

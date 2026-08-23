@@ -13,7 +13,15 @@ import {
   Maximize2,
   FileX,
 } from 'lucide-react';
+import type { SvnDiffResult } from '@shared/types';
 import { detectLanguage } from '../../utils/detectLanguage';
+import { withIpcTimeout } from '../../lib/queryTimeout';
+import {
+  applyDiffOptions,
+  DEFAULT_DIFF_DISPLAY_OPTIONS,
+  type DiffDisplayOptions,
+} from '../../lib/diffOptions';
+import { ErrorPanel } from './ErrorPanel';
 
 const CodeHighlighter = lazy(() =>
   import('./CodeHighlighter').then((m) => ({ default: m.CodeHighlighter }))
@@ -111,6 +119,10 @@ export const FilePreview = memo(function FilePreview({
 
   // Diff state
   const [diffContent, setDiffContent] = useState<string | null>(null);
+  /** Parsed diff, kept so the whitespace options can re-compute it (#47). */
+  const [diffResult, setDiffResult] = useState<SvnDiffResult | null>(null);
+  const [diffDisplayOptions, setDiffDisplayOptions] =
+    useState<DiffDisplayOptions>(DEFAULT_DIFF_DISPLAY_OPTIONS);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -118,6 +130,8 @@ export const FilePreview = memo(function FilePreview({
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  /** Bumped by the error panel's Retry to re-run the content read. */
+  const [contentReloadNonce, setContentReloadNonce] = useState(0);
 
   useEffect(() => {
     if (!isOpen) {
@@ -187,6 +201,8 @@ export const FilePreview = memo(function FilePreview({
     setImageRotation(0);
     setShowDiff(false);
     setDiffContent(null);
+    setDiffResult(null);
+    setDiffDisplayOptions(DEFAULT_DIFF_DISPLAY_OPTIONS);
     setDiffError(null);
     setError(null);
   }, [activeFilePath]);
@@ -212,7 +228,13 @@ export const FilePreview = memo(function FilePreview({
       setIsLoading(true);
       setError(null);
       try {
-        const result = await window.api.fs.readFile(activeFilePath);
+        // The deadline makes a wedged read an error the panel can show (and
+        // retry) rather than a spinner that never resolves.
+        const result = await withIpcTimeout(
+          () => window.api.fs.readFile(activeFilePath),
+          undefined,
+          'fs:readFile'
+        );
         if (cancelled) return;
         if (result.success && result.content) {
           setContent(result.content);
@@ -234,7 +256,7 @@ export const FilePreview = memo(function FilePreview({
     return () => {
       cancelled = true;
     };
-  }, [activeFilePath, isOpen, fileType]);
+  }, [activeFilePath, isOpen, fileType, contentReloadNonce]);
 
   // Load diff when requested
   const loadDiff = useCallback(async () => {
@@ -243,9 +265,14 @@ export const FilePreview = memo(function FilePreview({
     setIsDiffLoading(true);
     setDiffError(null);
     try {
-      const result = await window.api.svn.diff(activeFilePath);
+      const result = await withIpcTimeout(
+        () => window.api.svn.diff(activeFilePath),
+        undefined,
+        'svn:diff'
+      );
       if (result && result.files && result.files.length > 0) {
-        // Format diff content for display
+        setDiffResult(result);
+        // Format diff content for the clipboard copy
         const diffText = result.files
           .map((file) => {
             const hunks = file.hunks
@@ -266,6 +293,7 @@ export const FilePreview = memo(function FilePreview({
         setDiffContent(diffText);
         setShowDiff(true);
       } else {
+        setDiffResult(result ?? null);
         setDiffContent('No changes detected');
         setShowDiff(true);
       }
@@ -463,15 +491,17 @@ export const FilePreview = memo(function FilePreview({
             <div className="spinner" />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-4">
-            <File className="w-12 h-12 text-error mb-3" />
-            <p className="text-sm text-error">{error}</p>
-          </div>
+          <ErrorPanel
+            title="Preview unavailable"
+            message={error}
+            onRetry={() => setContentReloadNonce((nonce) => nonce + 1)}
+          />
         ) : diffError ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-4">
-            <GitCompare className="w-12 h-12 text-error mb-3" />
-            <p className="text-sm text-error">{diffError}</p>
-          </div>
+          <ErrorPanel
+            title="Diff unavailable"
+            message={diffError}
+            onRetry={() => void loadDiff()}
+          />
         ) : fileType === 'binary' ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <FileX className="w-12 h-12 text-text-muted mb-3" />
@@ -494,6 +524,8 @@ export const FilePreview = memo(function FilePreview({
               }}
             />
           </div>
+        ) : showDiff && diffResult ? (
+          <QuickDiff result={diffResult} options={diffDisplayOptions} onOptionsChange={setDiffDisplayOptions} />
         ) : showDiff && diffContent ? (
           <div className="h-full overflow-auto font-mono text-xs">
             <pre className="p-4 text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
@@ -536,3 +568,95 @@ export const FilePreview = memo(function FilePreview({
     </div>
   );
 });
+
+/**
+ * Quick diff for the narrow preview panel: the parsed hunks rendered with
+ * add/remove colouring, plus the ignore-whitespace / ignore-EOL options that
+ * re-compute the hunks client-side (#47). The full viewer is one click away
+ * via the expand button.
+ */
+function QuickDiff({
+  result,
+  options,
+  onOptionsChange,
+}: {
+  result: SvnDiffResult;
+  options: DiffDisplayOptions;
+  onOptionsChange: (options: DiffDisplayOptions) => void;
+}) {
+  const effective = useMemo(
+    () => applyDiffOptions(result, options) ?? result,
+    [result, options]
+  );
+
+  const rows = useMemo(() => {
+    const out: Array<{ kind: 'context' | 'added' | 'removed'; text: string }> = [];
+    for (const file of effective.files) {
+      for (const hunk of file.hunks) {
+        for (const line of hunk.lines) {
+          if (line.type === 'context' || line.type === 'added' || line.type === 'removed') {
+            out.push({ kind: line.type, text: line.content });
+          }
+        }
+      }
+    }
+    return out;
+  }, [effective]);
+
+  if (!effective.hasChanges || rows.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+        <FileText className="h-8 w-8 text-text-muted" aria-hidden="true" />
+        <p className="text-xs text-text-muted">
+          {options.ignoreWhitespace || options.ignoreEol
+            ? 'No differences beyond whitespace'
+            : 'No changes detected'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col min-h-0">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg-tertiary px-3 py-1.5 text-[11px] text-text-secondary">
+        <label className="flex cursor-pointer items-center gap-1">
+          <input
+            type="checkbox"
+            className="accent-accent"
+            checked={options.ignoreWhitespace}
+            onChange={() =>
+              onOptionsChange({ ...options, ignoreWhitespace: !options.ignoreWhitespace })
+            }
+          />
+          Ignore whitespace
+        </label>
+        <label className="flex cursor-pointer items-center gap-1">
+          <input
+            type="checkbox"
+            className="accent-accent"
+            checked={options.ignoreEol}
+            onChange={() => onOptionsChange({ ...options, ignoreEol: !options.ignoreEol })}
+          />
+          Ignore EOL
+        </label>
+      </div>
+      <div className="flex-1 overflow-auto p-2 font-mono text-[11px] leading-relaxed">
+        {rows.map((row, index) => (
+          <div
+            key={index}
+            className={`whitespace-pre-wrap break-all border-l-2 pl-1.5 ${
+              row.kind === 'added'
+                ? 'border-svn-added bg-svn-added/10 text-text'
+                : row.kind === 'removed'
+                  ? 'border-svn-deleted bg-svn-deleted/10 text-text'
+                  : 'border-transparent text-text-secondary'
+            }`}
+          >
+            {row.kind === 'added' ? '+ ' : row.kind === 'removed' ? '- ' : '  '}
+            {row.text === '' ? ' ' : row.text}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

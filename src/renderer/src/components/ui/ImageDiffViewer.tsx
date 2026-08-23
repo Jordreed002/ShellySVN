@@ -15,12 +15,32 @@ import { isImageFile } from './image-utils';
 interface ImageDiffViewerProps {
   isOpen: boolean;
   filePath: string;
+  /** Explicit revision spec for the left side; defaults to the file's BASE. */
   oldRevision?: string;
   onClose: () => void;
 }
 
 type ViewMode = 'side-by-side' | 'overlay' | 'swipe' | 'difference';
 type ZoomLevel = 'fit' | '100' | '200' | '400';
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  tiff: 'image/tiff',
+  tif: 'image/tiff',
+};
+
+function dataUrlFor(path: string, base64: string): string {
+  if (base64.startsWith('data:')) return base64;
+  const ext = path.split('.').pop()?.toLowerCase() || 'png';
+  return `data:${MIME_BY_EXTENSION[ext] || 'image/png'};base64,${base64}`;
+}
 
 export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: ImageDiffViewerProps) {
   const [isLoading, setIsLoading] = useState(true);
@@ -42,37 +62,21 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
   const oldImageRef = useRef<HTMLImageElement>(null);
   const newImageRef = useRef<HTMLImageElement>(null);
 
-  // Load images
+  // Load images: the working file via fs, the previous version via `svn cat`
+  // at BASE (or the revision given). A missing/unversioned BASE is not an
+  // error — it just means there is nothing to compare against yet.
   useEffect(() => {
     if (isOpen && filePath) {
       setIsLoading(true);
       setError(null);
 
-      const loadImage = async (path: string, _revision?: string): Promise<string> => {
+      let cancelled = false;
+
+      const loadWorkingImage = async (path: string): Promise<string> => {
         try {
-          // Get file content as base64 data URL
           const result = await window.api.fs.readFile(path);
           if (result.success && result.content) {
-            // Check if it's already a data URL or needs conversion
-            if (result.content.startsWith('data:')) {
-              return result.content;
-            }
-            // Assume it's base64 encoded
-            const ext = path.split('.').pop()?.toLowerCase() || 'png';
-            const mimeTypes: Record<string, string> = {
-              png: 'image/png',
-              jpg: 'image/jpeg',
-              jpeg: 'image/jpeg',
-              gif: 'image/gif',
-              bmp: 'image/bmp',
-              webp: 'image/webp',
-              svg: 'image/svg+xml',
-              ico: 'image/x-icon',
-              tiff: 'image/tiff',
-              tif: 'image/tiff',
-            };
-            const mimeType = mimeTypes[ext] || 'image/png';
-            return `data:${mimeType};base64,${result.content}`;
+            return dataUrlFor(path, result.content);
           }
           throw new Error('Failed to read file');
         } catch (err) {
@@ -80,28 +84,53 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
         }
       };
 
-      // For now, load current file as new image
-      // In a full implementation, we'd also load the BASE revision
-      Promise.all([
-        loadImage(filePath),
-        oldRevision ? loadImage(filePath, oldRevision) : Promise.resolve(null),
+      const loadRepositoryImage = async (path: string, revision: string): Promise<string | null> => {
+        try {
+          const result = await window.api.svn.cat(path, revision);
+          if (cancelled) return null;
+          if (!result.contentBase64) return null;
+          return dataUrlFor(path, result.contentBase64);
+        } catch {
+          return null;
+        }
+      };
+
+      void Promise.all([
+        loadWorkingImage(filePath),
+        loadRepositoryImage(filePath, oldRevision ?? 'BASE'),
       ])
         .then(([newImg, oldImg]) => {
+          if (cancelled) return;
           setNewImage(newImg);
           setOldImage(oldImg);
           setIsLoading(false);
         })
         .catch((err) => {
+          if (cancelled) return;
           setError(err.message || 'Failed to load images');
           setIsLoading(false);
         });
+
+      return () => {
+        cancelled = true;
+      };
     }
+    return undefined;
   }, [isOpen, filePath, oldRevision]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
+
+      // Never steal keys from a field the user is typing in.
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      ) {
+        return;
+      }
 
       switch (e.key) {
         case 'Escape':
@@ -146,6 +175,39 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // The swipe handle is a slider: arrow keys move the divider so the wipe can
+  // be driven without a pointer (#48). Shift multiplies the step.
+  const nudgeSwipe = useCallback((deltaPercent: number) => {
+    setSwipePosition((prev) => Math.max(0, Math.min(100, prev + deltaPercent)));
+  }, []);
+
+  const handleSwipeHandleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const step = e.shiftKey ? 10 : 2;
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          nudgeSwipe(-step);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          nudgeSwipe(step);
+          break;
+        case 'Home':
+          e.preventDefault();
+          setSwipePosition(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          setSwipePosition(100);
+          break;
+        default:
+          break;
+      }
+    },
+    [nudgeSwipe]
+  );
 
   // Handle swipe dragging
   const handleSwipeMouseDown = useCallback(
@@ -263,27 +325,42 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
           </h2>
           <div className="flex items-center gap-2">
             {/* View Mode Buttons */}
-            <div className="flex items-center gap-1 mr-2">
+            <div className="flex items-center gap-1 mr-2" role="group" aria-label="Image compare mode">
               <button
                 onClick={() => setViewMode('side-by-side')}
                 className={`btn-icon-sm ${viewMode === 'side-by-side' ? 'bg-accent/20 text-accent' : ''}`}
                 title="Side by Side (1)"
+                aria-label="Side by side comparison"
+                aria-pressed={viewMode === 'side-by-side'}
               >
-                <Columns className="w-4 h-4" />
+                <Columns className="w-4 h-4" aria-hidden="true" />
               </button>
               <button
                 onClick={() => setViewMode('overlay')}
                 className={`btn-icon-sm ${viewMode === 'overlay' ? 'bg-accent/20 text-accent' : ''}`}
-                title="Overlay (2)"
+                title="Overlay with opacity fade (2)"
+                aria-label="Overlay comparison with opacity fade"
+                aria-pressed={viewMode === 'overlay'}
               >
-                <Maximize2 className="w-4 h-4" />
+                <Maximize2 className="w-4 h-4" aria-hidden="true" />
               </button>
               <button
                 onClick={() => setViewMode('swipe')}
                 className={`btn-icon-sm ${viewMode === 'swipe' ? 'bg-accent/20 text-accent' : ''}`}
-                title="Swipe (3)"
+                title="Swipe slider (3) — drag, or focus the handle and use arrow keys"
+                aria-label="Swipe slider comparison"
+                aria-pressed={viewMode === 'swipe'}
               >
-                <Columns className="w-4 h-4" />
+                <Columns className="w-4 h-4" aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => setViewMode('difference')}
+                className={`btn-icon-sm ${viewMode === 'difference' ? 'bg-accent/20 text-accent' : ''}`}
+                title="Pixel difference (4)"
+                aria-label="Pixel difference comparison"
+                aria-pressed={viewMode === 'difference'}
+              >
+                <Rows className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -331,6 +408,7 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
                 value={overlayOpacity}
                 onChange={(e) => setOverlayOpacity(Number(e.target.value))}
                 className="w-24 accent-accent"
+                aria-label="Overlay opacity of the original image"
               />
               <span className="text-xs text-text-muted w-8">{overlayOpacity}%</span>
             </div>
@@ -339,7 +417,9 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
           {viewMode === 'swipe' && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-text-secondary">Drag to compare</span>
-              <span className="text-xs text-text-muted">({Math.round(swipePosition)}%)</span>
+              <span className="text-xs text-text-muted">
+                ({Math.round(swipePosition)}% — or focus the handle and use ← →)
+              </span>
             </div>
           )}
 
@@ -547,13 +627,22 @@ export function ImageDiffViewer({ isOpen, filePath, oldRevision, onClose }: Imag
                     </div>
                   )}
 
-                  {/* Swipe handle */}
+                  {/* Swipe handle — focusable, arrow-key driven (#48) */}
                   <div
-                    className="absolute top-0 bottom-0 w-1 bg-accent cursor-col-resize z-10"
+                    role="slider"
+                    tabIndex={0}
+                    aria-label="Swipe comparison position"
+                    aria-orientation="vertical"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(swipePosition)}
+                    aria-valuetext={`${Math.round(swipePosition)}% across the image`}
+                    className="absolute top-0 bottom-0 w-1 bg-accent cursor-col-resize z-10 focus:outline-none"
                     style={{ left: `${swipePosition}%` }}
+                    onKeyDown={handleSwipeHandleKeyDown}
                   >
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-accent rounded-full flex items-center justify-center shadow-lg">
-                      <Rows className="w-4 h-4 text-white rotate-90" />
+                      <Rows className="w-4 h-4 text-white rotate-90" aria-hidden="true" />
                     </div>
                   </div>
 
