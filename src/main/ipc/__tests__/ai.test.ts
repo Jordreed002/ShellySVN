@@ -13,6 +13,15 @@ const mockPrepare = vi.hoisted(() => vi.fn());
 const mockHistory = vi.hoisted(() => vi.fn());
 const mockClearHistory = vi.hoisted(() => vi.fn());
 const mockTransform = vi.hoisted(() => vi.fn());
+const mockListModels = vi.hoisted(() => vi.fn());
+const mockEstimateCost = vi.hoisted(() => vi.fn());
+const mockCredentialsStore = vi.hoisted(() => ({
+  summary: vi.fn(),
+  saveProviderCredential: vi.fn(),
+  removeProviderCredential: vi.fn(),
+}));
+const mockConsentGet = vi.hoisted(() => vi.fn());
+const mockConsentSet = vi.hoisted(() => vi.fn());
 
 vi.mock('../../services/ai-commit-message', () => ({
   getAiCommitProviders: mockProviders,
@@ -27,6 +36,17 @@ vi.mock('../../services/ai-commit-message', () => ({
   getAiUsageHistory: mockHistory,
   clearStoredAiUsageHistory: mockClearHistory,
   transformAiCommitDraft: mockTransform,
+  listAiProviderModels: mockListModels,
+  estimateAiCostForRequest: mockEstimateCost,
+}));
+
+vi.mock('../../services/ai-credentials', () => ({
+  currentAiCredentialsStore: () => mockCredentialsStore,
+}));
+
+vi.mock('../../services/ai-privacy-scanner', () => ({
+  getAiWorkingCopyConsent: mockConsentGet,
+  setAiWorkingCopyConsent: mockConsentSet,
 }));
 
 import { registerAiHandlers } from '../ai';
@@ -61,6 +81,13 @@ describe('AI IPC handlers', () => {
       'ai:generateReleaseNotes',
       'ai:proposeConflictResolution',
       'ai:cancel',
+      'ai:credentials:summary',
+      'ai:credentials:save',
+      'ai:credentials:remove',
+      'ai:estimateCost',
+      'ai:listModels',
+      'ai:consent:get',
+      'ai:consent:set',
     ]);
   });
 
@@ -126,5 +153,34 @@ describe('AI IPC handlers', () => {
       success: false,
       error: 'No matching AI generation is running.',
     });
+  });
+
+  it('registers credentials, estimate, model, and consent handlers', async () => {
+    mockCredentialsStore.summary.mockResolvedValue({ encryptionAvailable: true, providers: [] });
+    mockCredentialsStore.saveProviderCredential.mockResolvedValue(undefined);
+    mockCredentialsStore.removeProviderCredential.mockResolvedValue(undefined);
+    mockEstimateCost.mockResolvedValue({ estimatedCostUsd: 0 });
+    mockListModels.mockResolvedValue([]);
+    mockConsentGet.mockResolvedValue(null);
+    mockConsentSet.mockResolvedValue(undefined);
+
+    await handlers.get('ai:credentials:summary')!({});
+    await handlers.get('ai:credentials:save')!({}, { provider: 'anthropic', apiKey: 'k' });
+    await handlers.get('ai:credentials:remove')!({}, 'anthropic');
+    await handlers.get('ai:estimateCost')!({}, { provider: 'anthropic', inputChars: 400 });
+    await handlers.get('ai:listModels')!({}, 'ollama');
+    await handlers.get('ai:consent:get')!({}, '/wc');
+    await handlers.get('ai:consent:set')!({}, '/wc', false);
+
+    expect(mockCredentialsStore.summary).toHaveBeenCalled();
+    expect(mockCredentialsStore.saveProviderCredential).toHaveBeenCalledWith({
+      provider: 'anthropic',
+      apiKey: 'k',
+    });
+    expect(mockCredentialsStore.removeProviderCredential).toHaveBeenCalledWith('anthropic');
+    expect(mockEstimateCost).toHaveBeenCalledWith({ provider: 'anthropic', inputChars: 400 });
+    expect(mockListModels).toHaveBeenCalledWith('ollama');
+    expect(mockConsentGet).toHaveBeenCalledWith('/wc');
+    expect(mockConsentSet).toHaveBeenCalledWith('/wc', false);
   });
 });

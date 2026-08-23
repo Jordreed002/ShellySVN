@@ -1,7 +1,8 @@
-import type { ElectronAPI } from '@shared/types';
+import type { IpcRenderer } from 'electron';
+import type { ElectronAPI, AiStreamEvent } from '@shared/types';
 import type { InvokeIpc } from './ipc';
 
-export function createAiApi(invokeIpc: InvokeIpc): ElectronAPI['ai'] {
+export function createAiApi(invokeIpc: InvokeIpc, ipcRenderer?: IpcRenderer): ElectronAPI['ai'] {
   const cancellable = <T>(
     operationId: string,
     request: Promise<T>,
@@ -14,6 +15,13 @@ export function createAiApi(invokeIpc: InvokeIpc): ElectronAPI['ai'] {
     signal.addEventListener('abort', abortHandler, { once: true });
     if (signal.aborted) abortHandler();
     return request.finally(() => signal.removeEventListener('abort', abortHandler));
+  };
+
+  const onAiStream = (callback: (event: AiStreamEvent) => void): (() => void) => {
+    if (!ipcRenderer || typeof ipcRenderer.on !== 'function') return () => undefined;
+    const handler = (_: unknown, event: unknown) => callback(event as AiStreamEvent);
+    ipcRenderer.on('ai:stream', handler);
+    return () => ipcRenderer.removeListener('ai:stream', handler);
   };
 
   return {
@@ -56,5 +64,18 @@ export function createAiApi(invokeIpc: InvokeIpc): ElectronAPI['ai'] {
         options?.signal
       ),
     cancel: (operationId) => invokeIpc('ai:cancel', operationId),
+    onAiStream,
+    credentials: {
+      summary: () => invokeIpc('ai:credentials:summary'),
+      save: (input) => invokeIpc('ai:credentials:save', input),
+      remove: (provider) => invokeIpc('ai:credentials:remove', provider),
+    },
+    estimateCost: (request) => invokeIpc('ai:estimateCost', request),
+    listModels: (provider) => invokeIpc('ai:listModels', provider),
+    consent: {
+      get: (workingCopyPath) => invokeIpc('ai:consent:get', workingCopyPath),
+      set: (workingCopyPath, aiEnabled) =>
+        invokeIpc('ai:consent:set', workingCopyPath, aiEnabled),
+    },
   };
 }

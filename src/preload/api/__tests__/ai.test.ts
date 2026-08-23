@@ -120,4 +120,55 @@ describe('AI preload IPC contract', () => {
 
     await expect(pending).resolves.toEqual(result);
   });
+
+  it('subscribes and unsubscribes to ai:stream events', () => {
+    const listeners = new Map<string, unknown[]>();
+    const ipcRenderer = {
+      on: vi.fn((channel: string, handler: unknown) => {
+        listeners.set(channel, [...(listeners.get(channel) ?? []), handler]);
+      }),
+      removeListener: vi.fn((channel: string, handler: unknown) => {
+        listeners.set(channel, (listeners.get(channel) ?? []).filter((entry) => entry !== handler));
+      }),
+    };
+    const streamApi = createAiApi(invoke as unknown as InvokeIpc, ipcRenderer as never);
+    const received: unknown[] = [];
+    const unsubscribe = streamApi.onAiStream((event) => received.push(event));
+
+    const handler = (listeners.get('ai:stream') ?? [])[0] as
+      | ((...args: unknown[]) => void)
+      | undefined;
+    handler?.({}, { operationId: 'op-1', delta: 'partial' });
+    expect(received).toEqual([{ operationId: 'op-1', delta: 'partial' }]);
+
+    unsubscribe();
+    expect(listeners.get('ai:stream')).toHaveLength(0);
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith('ai:stream', handler);
+  });
+
+  it('maps credentials, estimate, model, and consent calls to their channels', async () => {
+    invoke.mockResolvedValue({ success: true });
+
+    await api.credentials.summary();
+    await api.credentials.save({ provider: 'anthropic', apiKey: 'secret' });
+    await api.credentials.remove('anthropic');
+    await api.estimateCost({ provider: 'anthropic', inputChars: 4_000 });
+    await api.listModels('ollama');
+    await api.consent.get('/wc');
+    await api.consent.set('/wc', false);
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'ai:credentials:summary');
+    expect(invoke).toHaveBeenNthCalledWith(2, 'ai:credentials:save', {
+      provider: 'anthropic',
+      apiKey: 'secret',
+    });
+    expect(invoke).toHaveBeenNthCalledWith(3, 'ai:credentials:remove', 'anthropic');
+    expect(invoke).toHaveBeenNthCalledWith(4, 'ai:estimateCost', {
+      provider: 'anthropic',
+      inputChars: 4_000,
+    });
+    expect(invoke).toHaveBeenNthCalledWith(5, 'ai:listModels', 'ollama');
+    expect(invoke).toHaveBeenNthCalledWith(6, 'ai:consent:get', '/wc');
+    expect(invoke).toHaveBeenNthCalledWith(7, 'ai:consent:set', '/wc', false);
+  });
 });

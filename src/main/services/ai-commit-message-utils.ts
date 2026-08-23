@@ -304,6 +304,12 @@ export function formatAiProviderExitError(
 
 export function classifyAiProviderError(message: string): AiErrorCode {
   const normalized = message.toLowerCase();
+  // Gate and storage codes must win over looser keyword matches below
+  // (e.g. storage errors mention "API keys", which would otherwise map to
+  // authentication_required).
+  if (normalized.includes('consent_required')) return 'consent_required';
+  if (normalized.includes('secret_detected')) return 'secret_detected';
+  if (normalized.includes('storage_unavailable')) return 'storage_unavailable';
   if (/cancelled|canceled|signal/.test(normalized)) return 'cancelled';
   if (/timed out|timeout/.test(normalized)) return 'timeout';
   if (/not found|enoent/.test(normalized)) return 'cli_not_found';
@@ -342,6 +348,23 @@ export function parseAiStructuredOutput(output: string): Record<string, unknown>
   }
   if (!value || typeof value !== 'object') throw new Error('AI provider returned invalid JSON.');
   return value as Record<string, unknown>;
+}
+
+/**
+ * Extract a bare JSON object from an HTTP provider's free-form completion:
+ * strips markdown fences and any surrounding prose, then returns the outermost
+ * `{...}` span for `parseAiStructuredOutput`.
+ */
+export function extractStructuredJsonText(output: string): string {
+  let text = output.trim();
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(text);
+  if (fenced) text = fenced[1].trim();
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error('AI provider returned invalid JSON.');
+  }
+  return text.slice(start, end + 1);
 }
 
 export function parseAiCommitMessageOutput(output: string): StructuredCommitMessage {

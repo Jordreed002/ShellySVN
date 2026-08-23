@@ -1,20 +1,26 @@
 import type {
   AiCommitMessageRequest,
+  AiCommitProvider,
   AiConflictProposalRequest,
+  AiCostEstimateRequest,
   AiDiffExplanationRequest,
+  AiProviderCredentialInput,
   AiReleaseNotesRequest,
   AiSelectedPathsRequest,
+  AiStreamEvent,
   AiPromptPreviewRequest,
   RepositoryAiPromptProfile,
   AiTransformDraftRequest,
 } from '@shared/types';
-import { app } from 'electron';
+import { app, webContents } from 'electron';
 import {
   cancelAiCommitMessage,
+  estimateAiCostForRequest,
   explainAiDiff,
   generateAiCommitMessage,
   generateAiReleaseNotes,
   getAiCommitProviders,
+  listAiProviderModels,
   planAiCommit,
   proposeAiConflictResolution,
   reviewAiCommit,
@@ -23,10 +29,16 @@ import {
   clearStoredAiUsageHistory,
   transformAiCommitDraft,
 } from '../services/ai-commit-message';
+import { currentAiCredentialsStore } from '../services/ai-credentials';
+import {
+  getAiWorkingCopyConsent,
+  setAiWorkingCopyConsent,
+} from '../services/ai-privacy-scanner';
 import {
   previewRepositoryAiProfileImport,
   RepositoryAiProfileStore,
 } from '../services/ai-repository-profile';
+import { setAiStreamListener } from '../services/ai-providers/stream-emitter';
 
 interface AiIpcEvent {
   sender: { id: number };
@@ -43,7 +55,27 @@ function getProfileStore(): RepositoryAiProfileStore {
   return profileStore;
 }
 
+/**
+ * Forward AI stream events to every renderer on the `ai:stream` channel.
+ * The main-process service owns the event shapes; this layer only transports.
+ */
+function forwardStreamEvent(event: AiStreamEvent): void {
+  if (typeof webContents?.getAllWebContents !== 'function') return;
+  for (const contents of webContents.getAllWebContents()) {
+    try {
+      contents.send('ai:stream', event);
+    } catch {
+      // A closed renderer must never break other subscribers.
+    }
+  }
+}
+
+function toOperationResult(error: unknown): { success: boolean; error?: string } {
+  return { success: false, error: error instanceof Error ? error.message : String(error) };
+}
+
 export function registerAiHandlers(ipcMain: AiIpcMain): void {
+  setAiStreamListener(forwardStreamEvent);
   ipcMain.handle('ai:providers', () => getAiCommitProviders());
   ipcMain.handle('ai:preparePrompt', (_event, ...args) =>
     prepareAiPrompt(args[0] as AiPromptPreviewRequest)
@@ -94,5 +126,31 @@ export function registerAiHandlers(ipcMain: AiIpcMain): void {
       success,
       error: success ? undefined : 'No matching AI generation is running.',
     }))
+  );
+  ipcMain.handle('ai:credentials:summary', () => currentAiCredentialsStore().summary());
+  ipcMain.handle('ai:credentials:save', (_event, ...args) =>
+    currentAiCredentialsStore()
+      .saveProviderCredential(args[0] as AiProviderCredentialInput)
+      .then(() => ({ success: true }))
+      .catch((error: unknown) => toOperationResult(error))
+  );
+  ipcMain.handle('ai:credentials:remove', (_event, ...args) =>
+    currentAiCredentialsStore()
+      .removeProviderCredential(args[0] as AiCommitProvider)
+      .then(() => ({ success: true }))
+  );
+  ipcMain.handle('ai:estimateCost', (_event, ...args) =>
+    estimateAiCostForRequest(args[0] as AiCostEstimateRequest)
+  );
+  ipcMain.handle('ai:listModels', (_event, ...args) =>
+    listAiProviderModels(args[0] as AiCommitProvider)
+  );
+  ipcMain.handle('ai:consent:get', (_event, ...args) =>
+    getAiWorkingCopyConsent(args[0] as string)
+  );
+  ipcMain.handle('ai:consent:set', (_event, ...args) =>
+    setAiWorkingCopyConsent(args[0] as string, args[1] === true)
+      .then(() => ({ success: true }))
+      .catch((error: unknown) => toOperationResult(error))
   );
 }
