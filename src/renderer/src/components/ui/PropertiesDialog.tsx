@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Settings, Plus, Trash2, AlertCircle, Loader2, Check, Save } from 'lucide-react';
+import { X, Settings, Plus, Trash2, AlertCircle, Loader2, Check, Save, Eye, FileCode, Link2 } from 'lucide-react';
 import { confirmAppAction } from '../../utils/dialogs';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
+import { KeywordsEditorDialog } from './KeywordsEditorDialog';
+import { ExternalsManagerDialog } from './ExternalsManagerDialog';
+import { IgnoreDialog } from './IgnoreDialog';
 
 interface PropertiesDialogProps {
   isOpen: boolean;
@@ -53,6 +56,10 @@ export function PropertiesDialog({
   const [revisionPropertyValue, setRevisionPropertyValue] = useState('');
   const [isRevisionPropertyLoaded, setIsRevisionPropertyLoaded] = useState(false);
   const [isSavingRevisionProperty, setIsSavingRevisionProperty] = useState(false);
+  /** Which structured property editor is open (keywords / externals / ignore patterns). */
+  const [structuredEditor, setStructuredEditor] = useState<
+    'keywords' | 'externals' | 'ignore' | null
+  >(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -60,9 +67,25 @@ export function PropertiesDialog({
       setRevisionPropertyName('svn:log');
       setRevisionPropertyValue('');
       setIsRevisionPropertyLoaded(false);
+      setStructuredEditor(null);
       loadProperties();
     }
   }, [isOpen, path]);
+
+  /**
+   * Structured editors (keywords / externals / ignore patterns) apply their
+   * result to the draft; the existing "Save Changes" flow performs the single
+   * actual propset, so there is exactly one write path.
+   */
+  const applyStructuredValue = (name: string, value: string) => {
+    setProperties((current) =>
+      current.map((prop) => (prop.name === name && !prop.inherited ? { ...prop, value } : prop))
+    );
+    setStructuredEditor(null);
+  };
+
+  const structuredEditorTarget = (name: string) =>
+    properties.find((prop) => prop.name === name && !prop.inherited);
 
   const loadProperties = async () => {
     setIsLoading(true);
@@ -300,9 +323,53 @@ export function PropertiesDialog({
 
   if (!isOpen) return null;
 
+  const keywordsTarget = structuredEditorTarget('svn:keywords');
+  const externalsTarget = structuredEditorTarget('svn:externals');
+  const ignoreTarget =
+    structuredEditorTarget('svn:ignore') ?? structuredEditorTarget('svn:global-ignores');
+  const mimeType = properties.find(
+    (prop) => prop.name === 'svn:mime-type' && !prop.inherited
+  )?.value;
+  const eolStyle = properties.find(
+    (prop) => prop.name === 'svn:eol-style' && !prop.inherited
+  )?.value;
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[600px] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+    <>
+      {structuredEditor === 'keywords' && keywordsTarget && (
+        <KeywordsEditorDialog
+          isOpen
+          onClose={() => setStructuredEditor(null)}
+          path={path}
+          initialValue={keywordsTarget.value}
+          mimeType={mimeType ?? null}
+          eolStyle={eolStyle ?? null}
+          onApply={(value) => applyStructuredValue('svn:keywords', value)}
+        />
+      )}
+      {structuredEditor === 'externals' && externalsTarget && (
+        <ExternalsManagerDialog
+          isOpen
+          onClose={() => setStructuredEditor(null)}
+          path={path}
+          initialValue={externalsTarget.value}
+          onApply={(value) => applyStructuredValue('svn:externals', value)}
+        />
+      )}
+      {structuredEditor === 'ignore' && ignoreTarget && (
+        <IgnoreDialog
+          isOpen
+          onClose={() => setStructuredEditor(null)}
+          path={path}
+          propertyName={
+            ignoreTarget.name === 'svn:global-ignores' ? 'svn:global-ignores' : 'svn:ignore'
+          }
+          initialValue={ignoreTarget.value}
+          onApplyValue={(value) => applyStructuredValue(ignoreTarget.name, value)}
+        />
+      )}
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal w-[600px] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">
@@ -340,6 +407,36 @@ export function PropertiesDialog({
                     <div className="flex items-center gap-1">
                       {!prop.inherited && (!isRemote || allowRemoteChanges) && (
                         <>
+                          {prop.name === 'svn:keywords' && (
+                            <button
+                              onClick={() => setStructuredEditor('keywords')}
+                              className="btn-icon-sm"
+                              title="Keyword editor (checkbox list + live expansion preview)"
+                              aria-label="Open keyword editor"
+                            >
+                              <FileCode className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {prop.name === 'svn:externals' && (
+                            <button
+                              onClick={() => setStructuredEditor('externals')}
+                              className="btn-icon-sm"
+                              title="Externals manager (table editor with peg/operative revisions)"
+                              aria-label="Open externals manager"
+                            >
+                              <Link2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {(prop.name === 'svn:ignore' || prop.name === 'svn:global-ignores') && (
+                            <button
+                              onClick={() => setStructuredEditor('ignore')}
+                              className="btn-icon-sm"
+                              title="Pattern editor (lint + live match preview)"
+                              aria-label="Open ignore pattern editor"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleEdit(index)}
                             className="btn-icon-sm"
@@ -600,5 +697,6 @@ export function PropertiesDialog({
         </div>
       </div>
     </div>
+    </>
   );
 }
