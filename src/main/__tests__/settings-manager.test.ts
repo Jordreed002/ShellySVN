@@ -242,6 +242,124 @@ describe('SettingsManager migration and persistence', () => {
     expect(manager.getSettings().proxySettings.password).toBe('must-remain-session-only');
   });
 
+  /*
+   * Legacy plaintext migration. Settings written before OS encryption shipped
+   * keep the proxy password as raw plaintext in shellysvn-config.json. On
+   * first load the value must be re-encrypted (or scrubbed when safeStorage is
+   * unavailable) and the store rewritten, so no plaintext copy survives on
+   * disk. The serialized-store scan below is the guard for backlog item 3:
+   * after migration, no password value may appear in the persisted JSON
+   * unless it is `enc:`-prefixed ciphertext.
+   */
+  describe('legacy proxy password migration', () => {
+    const legacyPlaintext = 'legacy-plaintext-proxy-password';
+
+    function persistedStore(): { serialized: string; persisted: Record<string, unknown> } {
+      const persisted = mockWriteSecureJson.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+      return { serialized: JSON.stringify(persisted), persisted };
+    }
+
+    function passwordValuesIn(serialized: string): string[] {
+      return [...serialized.matchAll(/"password":\s*"([^"]*)"/g)].map((match) => match[1]);
+    }
+
+    it('re-encrypts a legacy plaintext proxy password on first load', async () => {
+      mockReadFile.mockResolvedValueOnce(
+        JSON.stringify({
+          settings: {
+            proxySettings: {
+              enabled: true,
+              host: 'proxy.example.com',
+              username: 'proxy-user',
+              password: legacyPlaintext,
+            },
+          },
+        })
+      );
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+      // save() is serialized-but-async; flush the migration rewrite.
+      await vi.waitFor(() => expect(mockWriteSecureJson).toHaveBeenCalled());
+
+      // The credential survives for the session...
+      expect(manager.getSettings().proxySettings.password).toBe(legacyPlaintext);
+      expect(mockEncryptString).toHaveBeenCalledWith(legacyPlaintext);
+
+      // ...and the persisted store only contains the ciphertext copy.
+      const { serialized, persisted } = persistedStore();
+      const passwordValues = passwordValuesIn(serialized);
+      expect(passwordValues).toHaveLength(1);
+      expect(passwordValues[0].startsWith('enc:')).toBe(true);
+      expect(serialized).not.toContain(legacyPlaintext);
+      expect(
+        (persisted as { settings: { proxySettings: { password: string } } }).settings
+          .proxySettings.password
+      ).toMatch(/^enc:/);
+    });
+
+    it('is idempotent: already-encrypted passwords are decrypted without a rewrite', async () => {
+      mockReadFile.mockResolvedValueOnce(
+        JSON.stringify({
+          settings: {
+            proxySettings: {
+              enabled: true,
+              password: `enc:${Buffer.from('encrypted:stored-secret').toString('base64')}`,
+            },
+          },
+        })
+      );
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+
+      expect(manager.getSettings().proxySettings.password).toBe('stored-secret');
+      expect(mockWriteSecureJson).not.toHaveBeenCalled();
+    });
+
+    it('scrubs legacy plaintext from disk when encryption is unavailable', async () => {
+      mockIsEncryptionAvailable.mockReturnValue(false);
+      mockReadFile.mockResolvedValueOnce(
+        JSON.stringify({
+          settings: { proxySettings: { enabled: true, password: legacyPlaintext } },
+        })
+      );
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+      await vi.waitFor(() => expect(mockWriteSecureJson).toHaveBeenCalled());
+
+      // Fail closed: the password cannot be preserved without a keychain, so
+      // it is dropped everywhere instead of being re-persisted as plaintext.
+      expect(manager.getSettings().proxySettings.password).toBe('');
+      expect(mockEncryptString).not.toHaveBeenCalled();
+
+      const { serialized } = persistedStore();
+      expect(serialized).not.toContain(legacyPlaintext);
+      expect(passwordValuesIn(serialized)).toEqual(['']);
+    });
+
+    it('drops undecryptable encrypted passwords from memory without rewriting the store', async () => {
+      mockReadFile.mockResolvedValueOnce(
+        JSON.stringify({
+          settings: {
+            proxySettings: {
+              enabled: true,
+              password: `enc:${Buffer.from('encrypted:rotting-entry').toString('base64')}`,
+            },
+          },
+        })
+      );
+      mockDecryptString.mockImplementationOnce(() => {
+        throw new Error('keychain changed');
+      });
+      const manager = SettingsManager.getInstance();
+      await manager.ready();
+
+      expect(manager.getSettings().proxySettings.password).toBe('');
+      // Ciphertext is not plaintext: the unusable copy is left alone rather
+      // than triggering a rewrite on every launch.
+      expect(mockWriteSecureJson).not.toHaveBeenCalled();
+    });
+  });
+
   it('accepts an approved cache directory and bounded log-cache size', async () => {
     mockExistsSync.mockReturnValue(true);
     mockStatSync.mockReturnValue({ isDirectory: () => true });

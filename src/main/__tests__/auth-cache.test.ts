@@ -544,6 +544,125 @@ describe('AuthCache', () => {
     });
   });
 
+  /*
+   * Legacy plaintext migration. Pre-safeStorage builds persisted credentials
+   * as plain base64 when the OS keyring was unavailable — an encoding, not
+   * encryption. On first load those entries are re-encrypted and the store is
+   * atomically rewritten so no plaintext-format copy survives on disk. The
+   * migration must be idempotent and must not misclassify corrupted
+   * ciphertext as recoverable plaintext.
+   */
+  describe('legacy credential migration', () => {
+    it('should re-encrypt legacy base64-only credentials on load', async () => {
+      const legacyPassword = 'legacy-plaintext-secret';
+      const legacyBlob = Buffer.from(legacyPassword).toString('base64');
+      mockAccess.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(
+        JSON.stringify({
+          version: 1,
+          credentials: [
+            {
+              realm: 'https://svn.example.com',
+              username: 'legacy-user',
+              password: legacyBlob,
+              createdAt: 1704067200000,
+            },
+          ],
+        })
+      );
+      // Default decryptString mock throws for anything not produced by the
+      // default encryptString mock, so the legacy blob fails decryption.
+
+      const cache = new AuthCache('/test/user-data');
+      await cache.ready();
+      await vi.runAllTimersAsync();
+
+      // The credential survives, now stored as safeStorage ciphertext.
+      expect(cache.get('https://svn.example.com')).toEqual({
+        username: 'legacy-user',
+        password: legacyPassword,
+      });
+      expect(mockEncryptString).toHaveBeenCalledWith(legacyPassword);
+
+      // The rewritten store contains no plaintext-format copy.
+      expect(mockWriteSecureJson).toHaveBeenCalledTimes(1);
+      const saved = mockWriteSecureJson.mock.calls[0][1] as {
+        credentials: Array<{ realm: string; password: string }>;
+      };
+      const serialized = JSON.stringify(saved);
+      expect(serialized).not.toContain(legacyBlob);
+      expect(serialized).not.toContain(legacyPassword);
+      expect(saved.credentials[0].password).toBe(
+        Buffer.from(`encrypted:${legacyPassword}`).toString('base64')
+      );
+    });
+
+    it('should not rewrite the cache when all entries are already encrypted', async () => {
+      mockAccess.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(
+        JSON.stringify({
+          version: 1,
+          credentials: [
+            {
+              realm: 'https://svn.example.com',
+              username: 'testuser',
+              password: Buffer.from('encrypted:testpass').toString('base64'),
+              createdAt: 1704067200000,
+            },
+          ],
+        })
+      );
+
+      const cache = new AuthCache('/test/user-data');
+      await cache.ready();
+      await vi.runAllTimersAsync();
+
+      expect(cache.get('https://svn.example.com')).toEqual({
+        username: 'testuser',
+        password: 'testpass',
+      });
+      expect(mockWriteSecureJson).not.toHaveBeenCalled();
+    });
+
+    it('should skip corrupted ciphertext instead of treating it as legacy plaintext', async () => {
+      const corruptedBlob = Buffer.from([0x00, 0x9f, 0x92, 0x96, 0xff, 0xfe]).toString('base64');
+      mockAccess.mockResolvedValue(undefined);
+      mockReadFile.mockResolvedValue(
+        JSON.stringify({
+          version: 1,
+          credentials: [
+            {
+              realm: 'https://svn.example.com',
+              username: 'testuser',
+              password: corruptedBlob,
+              createdAt: 1704067200000,
+            },
+          ],
+        })
+      );
+
+      const cache = new AuthCache('/test/user-data');
+      await cache.ready();
+      await vi.runAllTimersAsync();
+
+      expect(cache.has('https://svn.example.com')).toBe(false);
+      expect(mockWriteSecureJson).not.toHaveBeenCalled();
+    });
+
+    it('should fail closed when the keychain refuses to encrypt a new credential', async () => {
+      mockEncryptString.mockImplementationOnce(() => {
+        throw new Error('keychain locked');
+      });
+
+      authCache.set('https://svn.example.com', 'testuser', 'must-not-be-cached');
+      await vi.runAllTimersAsync();
+
+      // Never cache or persist a value the OS keychain could not encrypt.
+      expect(authCache.has('https://svn.example.com')).toBe(false);
+      expect(mockWriteSecureJson).not.toHaveBeenCalled();
+    });
+  });
+
   describe('security considerations', () => {
     it('should not expose passwords in list output', async () => {
       authCache.set('https://svn.example.com', 'testuser', 'supersecret');

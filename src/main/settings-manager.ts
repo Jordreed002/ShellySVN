@@ -8,7 +8,9 @@
  * to the actual SVN command execution.
  *
  * SECURITY: Sensitive fields like proxy password are encrypted using
- * electron's safeStorage before being persisted to disk.
+ * electron's safeStorage before being persisted to disk. Legacy plaintext
+ * values found in pre-encryption settings files are migrated (re-encrypted)
+ * or scrubbed on first load — see migrateProxyPassword().
  */
 
 import { app, safeStorage } from 'electron';
@@ -25,7 +27,12 @@ import {
 } from './utils/external-tool-validation';
 import { assertPathApprovedForIpc } from './utils/approved-paths';
 import { writeSecureJson } from './utils/secure-json';
-import { isSecureStorageAvailable } from './utils/secure-storage';
+import {
+  ENCRYPTED_VALUE_PREFIX,
+  decryptSecret,
+  encryptSecret,
+  isSecureStorageAvailable,
+} from './utils/secure-storage';
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
@@ -94,16 +101,59 @@ class SettingsManager {
         .filter((override) => override.diffTool || override.mergeTool);
       this.settings.customOpenWithTools = [];
 
-      // SECURITY: Decrypt proxy password if it exists and is encrypted
-      if (this.settings.proxySettings?.password) {
-        this.settings.proxySettings.password = this.decryptSensitiveValue(
-          this.settings.proxySettings.password
-        );
-      }
+      // SECURITY: Migrate or decrypt the proxy password (see method docs).
+      await this.migrateProxyPassword();
     } catch {
       // File doesn't exist or parse error, use defaults
       this.settings = mergeSettings();
     }
+  }
+
+  /**
+   * SECURITY: one-time migration of the persisted proxy password.
+   *
+   * Encrypted values (`enc:` + safeStorage base64) are decrypted into memory.
+   * Legacy plaintext values (written before OS encryption shipped) are kept
+   * for the session and the store is rewritten immediately so the plaintext
+   * copy disappears from disk. When encryption is unavailable the password
+   * cannot be preserved, so the rewrite scrubs it (fail closed) rather than
+   * re-persisting plaintext. Idempotent: after a successful rewrite the
+   * on-disk value is `enc:`-prefixed or empty, so this never fires twice.
+   * Crash safe: writes are atomic (temp file + rename), so a crash
+   * mid-migration either leaves the old file — and migration retries on the
+   * next launch — or the fully re-encrypted one. Undecryptable `enc:` values
+   * (e.g. keychain changed) are dropped from memory but left on disk, since
+   * ciphertext is not plaintext and the keychain may become readable again.
+   */
+  private async migrateProxyPassword(): Promise<void> {
+    const stored = this.settings.proxySettings?.password;
+    if (!stored) return;
+
+    if (stored.startsWith(ENCRYPTED_VALUE_PREFIX)) {
+      if (!this.encryptionAvailable) {
+        console.warn('[SECURITY] Dropping encrypted proxy password - encryption not available');
+        this.settings.proxySettings.password = '';
+        return;
+      }
+
+      const decrypted = decryptSecret(safeStorage, stored.slice(ENCRYPTED_VALUE_PREFIX.length));
+      if (decrypted === null) {
+        console.warn('[SECURITY] Dropping undecryptable proxy password (keychain changed?)');
+        this.settings.proxySettings.password = '';
+      } else {
+        this.settings.proxySettings.password = decrypted;
+      }
+      return;
+    }
+
+    if (this.encryptionAvailable) {
+      console.warn('[SECURITY] Migrating legacy plaintext proxy password to OS-encrypted storage');
+      // Keep the plaintext in memory; the save below re-encrypts it.
+    } else {
+      console.warn('[SECURITY] Scrubbing legacy plaintext proxy password - encryption unavailable');
+      this.settings.proxySettings.password = '';
+    }
+    await this.save();
   }
 
   private validateSvnClientPath(path: string): void {
@@ -234,54 +284,20 @@ class SettingsManager {
   }
 
   /**
-   * Encrypt a sensitive value using safeStorage.
+   * Encrypt a sensitive value using safeStorage (via the secure-storage util).
    */
   private encryptSensitiveValue(value: string): string {
     if (!value) return value;
 
-    if (!this.encryptionAvailable) {
-      console.warn('[SECURITY] Cannot encrypt sensitive value - encryption not available');
-      return '';
-    }
-
-    try {
-      const encrypted = safeStorage.encryptString(value);
-      return `enc:${encrypted.toString('base64')}`;
-    } catch (error) {
-      console.error('[SettingsManager] Failed to encrypt value:', error);
+    const encrypted = encryptSecret(safeStorage, value);
+    if (encrypted === null) {
+      console.error('[SettingsManager] Failed to encrypt sensitive value');
       // Never turn an OS keychain failure into plaintext persistence. The
       // in-memory value remains available for the current session, but the
       // durable settings copy must fail closed.
       return '';
     }
-  }
-
-  /**
-   * Decrypt a sensitive value that was encrypted with safeStorage
-   * Returns the original value if decryption fails or value wasn't encrypted
-   */
-  private decryptSensitiveValue(value: string): string {
-    if (!value) return value;
-
-    // Check if this is an encrypted value (prefixed with 'enc:')
-    if (!value.startsWith('enc:')) {
-      console.warn('[SECURITY] Dropping plaintext sensitive value from settings');
-      return '';
-    }
-
-    if (!this.encryptionAvailable) {
-      console.warn('[SECURITY] Cannot decrypt proxy password - encryption not available');
-      return ''; // Return empty - user will need to re-enter
-    }
-
-    try {
-      const encryptedBase64 = value.substring(4); // Remove 'enc:' prefix
-      const buffer = Buffer.from(encryptedBase64, 'base64');
-      return safeStorage.decryptString(buffer);
-    } catch (error) {
-      console.error('[SettingsManager] Failed to decrypt value:', error);
-      return ''; // Return empty on decryption failure - user will need to re-enter
-    }
+    return `${ENCRYPTED_VALUE_PREFIX}${encrypted}`;
   }
 
   /**

@@ -4,7 +4,12 @@ import { safeStorage } from 'electron';
 
 import { debug } from '@shared/utils/debug';
 import { writeSecureJson } from './utils/secure-json';
-import { isSecureStorageAvailable } from './utils/secure-storage';
+import {
+  decodeLegacyBase64Secret,
+  decryptSecret,
+  encryptSecret,
+  isSecureStorageAvailable,
+} from './utils/secure-storage';
 
 interface CachedCredential {
   realm: string;
@@ -77,7 +82,18 @@ class AuthCache {
   }
 
   set(realm: string, username: string, password: string): void {
-    const storedPassword = this.encryptionAvailable ? this.encrypt(password) : password;
+    let storedPassword = password;
+    if (this.encryptionAvailable) {
+      const encrypted = encryptSecret(safeStorage, password);
+      if (encrypted === null) {
+        // Fail closed: caching the value would require keeping it in
+        // plaintext, so drop the credential entirely and let the user
+        // re-authenticate instead of persisting a recoverable secret.
+        debug.error('[AUTH] OS keychain refused to encrypt credential for realm:', realm);
+        return;
+      }
+      storedPassword = encrypted;
+    }
     const credential: CachedCredential = {
       realm,
       username,
@@ -97,19 +113,16 @@ class AuthCache {
       return null;
     }
 
-    try {
-      const decryptedPassword = this.encryptionAvailable
-        ? this.decrypt(credential.password)
-        : credential.password;
-      return {
-        username: credential.username,
-        password: decryptedPassword,
-      };
-    } catch {
+    const decryptedPassword = this.readablePassword(credential.password);
+    if (decryptedPassword === null) {
       debug.error('[AUTH] Failed to decrypt credential for realm:', realm);
       this.delete(realm);
       return null;
     }
+    return {
+      username: credential.username,
+      password: decryptedPassword,
+    };
   }
 
   delete(realm: string): void {
@@ -162,33 +175,30 @@ class AuthCache {
     }
 
     if (bestMatch) {
-      try {
-        const decryptedPassword = this.encryptionAvailable
-          ? this.decrypt(bestMatch.credential.password)
-          : bestMatch.credential.password;
-        return {
-          username: bestMatch.credential.username,
-          password: decryptedPassword,
-          realm: bestMatch.realm,
-        };
-      } catch {
+      const decryptedPassword = this.readablePassword(bestMatch.credential.password);
+      if (decryptedPassword === null) {
         debug.error('[AUTH] Failed to decrypt credential for realm:', bestMatch.realm);
         this.delete(bestMatch.realm);
         return null;
       }
+      return {
+        username: bestMatch.credential.username,
+        password: decryptedPassword,
+        realm: bestMatch.realm,
+      };
     }
 
     return null;
   }
 
-  private encrypt(plaintext: string): string {
-    const encrypted = safeStorage.encryptString(plaintext);
-    return encrypted.toString('base64');
-  }
-
-  private decrypt(ciphertext: string): string {
-    const buffer = Buffer.from(ciphertext, 'base64');
-    return safeStorage.decryptString(buffer);
+  /**
+   * Decrypt a stored password, or return null when it cannot be recovered.
+   * Session-only entries (encryption unavailable) hold plaintext in memory
+   * and are returned as-is; they are never written to disk.
+   */
+  private readablePassword(stored: string): string | null {
+    if (!this.encryptionAvailable) return stored;
+    return decryptSecret(safeStorage, stored);
   }
 
   private async load(): Promise<void> {
@@ -204,17 +214,42 @@ class AuthCache {
       const data: StoredCache = JSON.parse(content);
 
       if (data.version === 1 && Array.isArray(data.credentials)) {
+        let migratedAny = false;
+
         for (const cred of data.credentials) {
-          if (this.encryptionAvailable) {
-            try {
-              this.decrypt(cred.password);
-              this.credentials.set(cred.realm, cred);
-            } catch {
-              debug.warn('[AUTH] Could not decrypt stored credential for:', cred.realm);
-            }
-          } else {
+          if (decryptSecret(safeStorage, cred.password) !== null) {
+            // Healthy safeStorage entry — keep the stored ciphertext as-is.
             this.credentials.set(cred.realm, cred);
+            continue;
           }
+
+          // One-time migration: pre-safeStorage builds persisted credentials
+          // as plain base64 when the OS keyring was unavailable, which is
+          // recoverable by anyone with file access. Re-encrypt such entries
+          // immediately; the single atomic save below (temp file + rename)
+          // removes every plaintext-format copy at once. This is idempotent —
+          // migrated entries decrypt normally on the next launch — and crash
+          // safe: dying before the save leaves the original file untouched so
+          // the migration simply retries.
+          const legacyPlaintext = decodeLegacyBase64Secret(cred.password);
+          if (legacyPlaintext === null) {
+            debug.warn('[AUTH] Could not decrypt stored credential for:', cred.realm);
+            continue;
+          }
+
+          const reEncrypted = encryptSecret(safeStorage, legacyPlaintext);
+          if (reEncrypted === null) {
+            debug.warn('[AUTH] Could not re-encrypt legacy credential for:', cred.realm);
+            continue;
+          }
+
+          this.credentials.set(cred.realm, { ...cred, password: reEncrypted });
+          migratedAny = true;
+        }
+
+        if (migratedAny) {
+          debug.log('[AUTH] Migrating legacy credentials to safeStorage format');
+          await this.save();
         }
         debug.log('[AUTH] Loaded', this.credentials.size, 'credentials from disk');
       }
