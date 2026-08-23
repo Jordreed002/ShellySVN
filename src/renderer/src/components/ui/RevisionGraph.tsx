@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
+import { buildRevisionGraph } from '../../lib/revisionGraph';
 import {
   X,
   GitBranch,
@@ -50,16 +51,8 @@ interface BranchColumn {
   x: number;
 }
 
-const BRANCH_COLORS = [
-  '#3b82f6', // blue
-  '#10b981', // green
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-];
+const LANE_COLUMN_WIDTH = 120;
+const LANE_ORIGIN_X = 100;
 
 export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
   const [zoom, setZoom] = useState(1);
@@ -86,158 +79,52 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
     enabled: isOpen && !!path,
   });
 
-  // Convert log to graph nodes with branch tracking
+  // Convert log to graph nodes with branch tracking via the shared pure model
+  // (lib/revisionGraph.ts): stable branch lanes, copy-from markers, merge
+  // heuristics and lane column recycling all live there.
   const { nodes, edges, branches } = useMemo(() => {
     if (!logData?.entries) return { nodes: [], edges: [], branches: [] };
 
-    const nodes: GraphNode[] = [];
-    const edges: GraphEdge[] = [];
-    const branchMap = new Map<string, number>(); // branch name -> column index
-    const branches: BranchColumn[] = [];
+    const model = buildRevisionGraph(logData.entries, { maxLanes: 12 });
+    const xForColumn = (columnIndex: number) => LANE_ORIGIN_X + columnIndex * LANE_COLUMN_WIDTH;
 
-    // Detect branches from paths
-    const detectBranch = (
-      paths: { path: string; action: string; copyFromPath?: string; copyFromRev?: number }[]
-    ): string => {
-      for (const p of paths) {
-        const pathParts = p.path.split('/');
-        const branchIndex = pathParts.findIndex(
-          (part) => part === 'trunk' || part === 'branches' || part === 'tags'
-        );
-        if (branchIndex >= 0) {
-          if (pathParts[branchIndex] === 'trunk') return 'trunk';
-          if (pathParts[branchIndex + 1]) {
-            return `${pathParts[branchIndex]}/${pathParts[branchIndex + 1]}`;
-          }
-          return pathParts[branchIndex];
-        }
-      }
-      return 'trunk';
-    };
+    const graphNodes: GraphNode[] = model.nodes.map((node) => ({
+      revision: node.revision,
+      author: node.author,
+      date: node.date,
+      message: node.message,
+      branch: node.branch,
+      x: xForColumn(model.laneById.get(node.laneId)?.columnIndex ?? 0),
+      y: node.rowIndex * 60 + 50,
+      isHead: node.isHead,
+      isMerge: node.merges.length > 0,
+      mergeSources: node.merges.map((merge) => merge.branch),
+      copyFromPath: node.copyPoint?.fromPath,
+      copyFromRev: node.copyPoint?.fromRev,
+    }));
 
-    const detectBranchReferences = (
-      message: string,
-      paths: { path: string; action: string; copyFromPath?: string; copyFromRev?: number }[],
-      currentBranch: string
-    ): string[] => {
-      const references = new Set<string>();
-      const branchPattern = /\b(?:trunk|branches\/[^/\s,;:)]+|tags\/[^/\s,;:)]+)/g;
-      const text = [
-        message,
-        ...paths.map((p) => [p.path, p.copyFromPath].filter(Boolean).join(' ')),
-      ]
-        .join(' ')
-        .replaceAll('\\', '/');
-
-      for (const match of text.matchAll(branchPattern)) {
-        const branch = match[0];
-        if (branch !== currentBranch) {
-          references.add(branch);
-        }
-      }
-
-      return Array.from(references);
-    };
-
-    // Assign branches to columns
-    let nextColumn = 0;
-    const getBranchColumn = (branchName: string): number => {
-      if (!branchMap.has(branchName)) {
-        branchMap.set(branchName, nextColumn);
-        branches.push({
-          name: branchName,
-          color: BRANCH_COLORS[nextColumn % BRANCH_COLORS.length],
-          x: nextColumn * 120 + 100,
-        });
-        nextColumn++;
-      }
-      return branchMap.get(branchName) ?? 0;
-    };
-
-    // Process entries
-    logData.entries.forEach((entry, index) => {
-      const branch = detectBranch(entry.paths);
-      const column = getBranchColumn(branch);
-      const branchInfo = branches[column];
-
-      // Check for copy (branch creation)
-      let copyFromPath: string | undefined;
-      let copyFromRev: number | undefined;
-      for (const p of entry.paths) {
-        if (p.copyFromPath) {
-          copyFromPath = p.copyFromPath;
-          copyFromRev = p.copyFromRev;
-        }
-      }
-      const mergeSources = /merge/i.test(entry.message)
-        ? detectBranchReferences(entry.message, entry.paths, branch)
-        : [];
-
-      nodes.push({
-        revision: entry.revision,
-        author: entry.author,
-        date: entry.date,
-        message: entry.message,
-        branch,
-        x: branchInfo?.x || 100,
-        y: index * 60 + 50,
-        isHead: index === 0,
-        isMerge: mergeSources.length > 0,
-        mergeSources,
-        copyFromPath,
-        copyFromRev,
+    // One column label per branch path, even if a branch was re-created.
+    const seenBranches = new Set<string>();
+    const graphBranches: BranchColumn[] = [];
+    for (const lane of model.lanes) {
+      if (seenBranches.has(lane.branch)) continue;
+      seenBranches.add(lane.branch);
+      graphBranches.push({
+        name: lane.branch,
+        color: lane.color,
+        x: xForColumn(lane.columnIndex),
       });
-    });
-
-    // Create edges
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      const branchInfo = branches.find((b) => b.name === node.branch);
-
-      // Regular parent-child edge
-      if (i < nodes.length - 1) {
-        const nextNode = nodes[i + 1];
-        // Check if same branch or if this is a continuation
-        if (node.branch === nextNode.branch || node.copyFromRev === nextNode.revision) {
-          edges.push({
-            from: nextNode.revision,
-            to: node.revision,
-            color: branchInfo?.color,
-          });
-        }
-      }
-
-      // Copy edge (branch creation)
-      if (node.copyFromRev && node.copyFromPath) {
-        const sourceNode = nodes.find((n) => n.revision === node.copyFromRev);
-        if (sourceNode) {
-          edges.push({
-            from: node.copyFromRev,
-            to: node.revision,
-            isCopy: true,
-            color: branchInfo?.color,
-          });
-        }
-      }
-
-      if (node.isMerge) {
-        for (const sourceBranch of node.mergeSources || []) {
-          const sourceNode = nodes.find(
-            (candidate) => candidate.branch === sourceBranch && candidate.revision < node.revision
-          );
-          if (sourceNode) {
-            edges.push({
-              from: sourceNode.revision,
-              to: node.revision,
-              isMerge: true,
-              color: branchInfo?.color,
-            });
-          }
-        }
-      }
     }
 
-    return { nodes, edges, branches };
+    const graphEdges: GraphEdge[] = model.edges.map((edge) => ({
+      from: edge.from.revision,
+      to: edge.to.revision,
+      isCopy: edge.kind === 'branch',
+      isMerge: edge.kind === 'merge',
+      color: model.laneById.get(edge.laneId)?.color,
+    }));
+
+    return { nodes: graphNodes, edges: graphEdges, branches: graphBranches };
   }, [logData]);
 
   // Filtered nodes
