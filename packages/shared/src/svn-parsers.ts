@@ -1,15 +1,259 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { SvnLogResult, SvnStatusChar, SvnStatusResult } from './types';
 
+/**
+ * Hardened limits for XML produced by the SVN CLI.
+ *
+ * `svn status --xml` emits roughly 200-400 bytes per entry, so a 100k-file
+ * working copy produces ~20-40 MB of XML. The caps below keep generous
+ * headroom over that worst case while guaranteeing that hostile XML (from a
+ * compromised server or crafted patch/shelf data) can never trigger
+ * unbounded memory or CPU use:
+ *
+ * - `maxInputChars` (128 MiB): 3-6x the largest realistic payload; bounds the
+ *   parsed object tree (fast-xml-parser amplifies input ~3-6x) to well under
+ *   1 GB instead of OOM-ing the process.
+ * - `maxDepth` (64): the deepest legitimate SVN structure is ~6 elements
+ *   (status > target > entry > wc-status > commit > author); 64 is >10x
+ *   headroom and far below any nesting depth that could stress consumers.
+ * - `maxValueChars` (8 MiB): applied to every attribute value and text node
+ *   after parsing. Real values are paths, dates, UUIDs, log messages, and
+ *   property values (svn:mergeinfo can reach hundreds of KB); 8 MiB is ample
+ *   while keeping any single value bounded.
+ */
+export const SVN_XML_LIMITS = {
+  maxInputChars: 128 * 1024 * 1024,
+  maxDepth: 64,
+  maxValueChars: 8 * 1024 * 1024,
+} as const;
+
+/** Controlled error thrown when XML input violates the hardened limits. */
+export class SvnXmlInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SvnXmlInputError';
+  }
+}
+
+/**
+ * Decode the well-known XML entities that fast-xml-parser would have decoded
+ * with `processEntities: true`. Only the five predefined XML entities (and
+ * their numeric aliases, e.g. `&#39;`/`&#x27;`) are decoded; every other
+ * reference stays literal. The single-pass replace means `&amp;lt;` decodes to
+ * `&lt;` (matching fast-xml-parser's ampersand-last ordering) instead of `<`.
+ */
+const SVN_XML_ENTITY_PATTERN = /&(amp|lt|gt|quot|apos|#38|#34|#39|#60|#62|#x26|#x22|#x27|#x3C|#x3E|#x3c|#x3e);/g;
+const SVN_XML_ENTITY_VALUES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  '#38': '&',
+  '#34': '"',
+  '#39': "'",
+  '#60': '<',
+  '#62': '>',
+  '#x26': '&',
+  '#x22': '"',
+  '#x27': "'",
+  '#x3C': '<',
+  '#x3E': '>',
+  '#x3c': '<',
+  '#x3e': '>',
+};
+
+export function decodeSvnXmlEntities(value: string): string {
+  if (!value.includes('&')) {
+    return value;
+  }
+  return value.replace(SVN_XML_ENTITY_PATTERN, (match, name: string) =>
+    SVN_XML_ENTITY_VALUES[name] ?? match
+  );
+}
+
+/**
+ * Fail fast when the raw XML nests deeper than `maxDepth`. Runs before the
+ * parser sees the input so deeply nested bombs are rejected in O(n) without
+ * building a tree. Comments, CDATA sections, processing instructions, and
+ * DOCTYPE declarations (including `<!ENTITY` lines) never count towards the
+ * depth, so entity-declaration bombs are inert by construction.
+ */
+function assertSvnXmlDepthWithinLimit(xml: string): void {
+  const { maxDepth } = SVN_XML_LIMITS;
+  let depth = 0;
+  for (let i = 0; i < xml.length; i += 1) {
+    if (xml.charCodeAt(i) !== 0x3c /* < */) {
+      continue;
+    }
+    const next = xml[i + 1];
+    if (next === '/') {
+      if (depth > 0) depth -= 1;
+    } else if (next === '!') {
+      if (xml.startsWith('<![CDATA[', i)) {
+        const end = xml.indexOf(']]>', i);
+        i = end === -1 ? xml.length : end + 2;
+      } else if (xml.startsWith('<!--', i)) {
+        const end = xml.indexOf('-->', i);
+        i = end === -1 ? xml.length : end + 2;
+      } else {
+        // DOCTYPE and other declarations cannot increase the depth.
+        const end = xml.indexOf('>', i);
+        i = end === -1 ? xml.length : end;
+      }
+    } else if (next === '?') {
+      const end = xml.indexOf('?>', i);
+      i = end === -1 ? xml.length : end + 1;
+    } else if (next !== undefined && /[A-Za-z_:]/.test(next)) {
+      // Find the real end of this tag, ignoring '>' inside quoted attribute
+      // values, so that hostile quoted content cannot hide tag boundaries.
+      let j = i + 1;
+      let quote = '';
+      while (j < xml.length) {
+        const ch = xml[j];
+        if (quote) {
+          if (ch === quote) quote = '';
+        } else if (ch === '"' || ch === "'") {
+          quote = ch;
+        } else if (ch === '>') {
+          break;
+        }
+        j += 1;
+      }
+      // Self-closing tags (<wc-status .../>) never increase the depth: real
+      // `svn status` output contains hundreds of thousands of them.
+      const selfClosing = j > i && xml[j - 1] === '/';
+      if (!selfClosing) {
+        depth += 1;
+        if (depth > maxDepth) {
+          throw new SvnXmlInputError(
+            `SVN XML nesting depth exceeds ${maxDepth} (possible hostile input)`
+          );
+        }
+      }
+      i = j;
+    }
+    // Any other '<' is malformed markup; the lenient parser handles it.
+  }
+}
+
+/**
+ * Walk the freshly parsed tree with an explicit stack (no recursion):
+ * enforce the depth and per-value caps the raw scan cannot express, and
+ * decode the well-known entities in text nodes and attribute values.
+ */
+function sanitizeSvnXmlTree(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  const { maxDepth, maxValueChars } = SVN_XML_LIMITS;
+  const stack: Array<{ node: Record<string, unknown> | unknown[]; depth: number }> = [
+    { node: value as Record<string, unknown> | unknown[], depth: 0 },
+  ];
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop() as { node: Record<string, unknown> | unknown[]; depth: number };
+    if (depth > maxDepth) {
+      throw new SvnXmlInputError(
+        `SVN XML nesting depth exceeds ${maxDepth} (possible hostile input)`
+      );
+    }
+    if (Array.isArray(node)) {
+      // fast-xml-parser can store leaf values as array items (e.g. v4 with an
+      // empty attributeNamePrefix wraps attribute values in arrays), so
+      // strings inside arrays get the same cap + decode treatment.
+      for (let index = 0; index < node.length; index += 1) {
+        const item = node[index];
+        if (typeof item === 'string') {
+          if (item.length > maxValueChars) {
+            throw new SvnXmlInputError(
+              `SVN XML value exceeds ${maxValueChars} characters (possible hostile input)`
+            );
+          }
+          if (item.includes('&')) {
+            node[index] = decodeSvnXmlEntities(item);
+          }
+        } else if (item !== null && typeof item === 'object') {
+          stack.push({ node: item as Record<string, unknown>, depth });
+        }
+      }
+      continue;
+    }
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      if (typeof child === 'string') {
+        if (child.length > maxValueChars) {
+          throw new SvnXmlInputError(
+            `SVN XML value of "${key}" exceeds ${maxValueChars} characters (possible hostile input)`
+          );
+        }
+        if (child.includes('&')) {
+          node[key] = decodeSvnXmlEntities(child);
+        }
+      } else if (child !== null && typeof child === 'object') {
+        stack.push({ node: child as Record<string, unknown>, depth: depth + 1 });
+      }
+    }
+  }
+  return value;
+}
+
+/**
+ * Pre-parse input guards shared by every hardened parser entry point:
+ * type check, total size cap, null-byte rejection (NUL is illegal in every
+ * XML version and svn never emits it), and the depth pre-scan.
+ */
+function guardSvnXmlInput(xml: string): void {
+  if (typeof xml !== 'string') {
+    throw new SvnXmlInputError(`SVN XML input must be a string, received ${typeof xml}`);
+  }
+  const { maxInputChars } = SVN_XML_LIMITS;
+  if (xml.length > maxInputChars) {
+    throw new SvnXmlInputError(
+      `SVN XML input of ${xml.length} characters exceeds the ${maxInputChars} character limit`
+    );
+  }
+  if (xml.includes('\u0000')) {
+    throw new SvnXmlInputError('SVN XML input contains a null byte (possible hostile input)');
+  }
+  if (xml.length > 0) {
+    assertSvnXmlDepthWithinLimit(xml);
+  }
+}
+
+/**
+ * Parse with the hardened pipeline: input guards (type, size, null bytes,
+ * depth pre-scan), entity-expansion-free parsing, then a depth/size-capped
+ * and entity-decoded result tree. Throws {@link SvnXmlInputError} on guard
+ * violations; parser errors propagate unchanged.
+ *
+ * This is the canonical guard implementation: the main-process factory in
+ * `src/main/utils/svn-xml.ts` and the standalone logic-engine copy in
+ * `packages/logic-engine/src/svn/parser-enhanced.ts` must stay consistent
+ * with it (the logic-engine binary cannot import this package at runtime).
+ */
+export function parseSvnXmlWithGuards(parser: XMLParser, xml: string): unknown {
+  guardSvnXmlInput(xml);
+  const parsed = parser.parse(xml);
+  return sanitizeSvnXmlTree(parsed);
+}
+
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   textNodeName: '#text',
+  // Security: never expand entities inside the parser. fast-xml-parser does
+  // not fetch external entities by design, and `processEntities: false`
+  // additionally leaves every entity reference (including DOCTYPE-declared
+  // ones) as literal text, which makes billion-laughs payloads inert. The
+  // well-known five entities are decoded afterwards by sanitizeSvnXmlTree.
+  processEntities: false,
   parseAttributeValue: true,
   trimValues: true,
   parseTagValue: false,
   allowBooleanAttributes: true,
 });
+
+const parseXmlHardened = (xml: string): unknown => parseSvnXmlWithGuards(xmlParser, xml);
 
 const SVN_STATUS_MAP: Record<string, SvnStatusChar> = {
   none: ' ',
@@ -75,7 +319,7 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
   const entries: SvnStatusResult['entries'] = [];
 
   try {
-    const parsed = xmlParser.parse(xml) as {
+    const parsed = parseXmlHardened(xml) as {
       status?: {
         target?: {
           entry?: StatusXmlEntry[] | StatusXmlEntry;
@@ -173,7 +417,7 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
   let parseError: string | undefined;
 
   try {
-    const parsed = xmlParser.parse(xml) as {
+    const parsed = parseXmlHardened(xml) as {
       log?: {
         logentry?:
           | Array<{

@@ -1,13 +1,67 @@
-import { XMLParser } from 'fast-xml-parser';
+import type { X2jOptions, XMLParser } from 'fast-xml-parser';
+import { XMLParser as FxpXMLParser } from 'fast-xml-parser';
+import {
+  SVN_XML_LIMITS,
+  SvnXmlInputError,
+  decodeSvnXmlEntities,
+  parseSvnXmlWithGuards,
+} from '@shared/svn-parsers';
 
-const svnXmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-  textNodeName: '#text',
+/**
+ * Hardened XML parser factory for every fast-xml-parser call site in the
+ * main process. All SVN CLI XML must go through here (or through
+ * `@shared/svn-parsers`, which shares the same guard implementation).
+ *
+ * Security properties:
+ * - `processEntities: false` is forced regardless of the options passed:
+ *   fast-xml-parser never resolves external entities by design, and with
+ *   entity processing off, DOCTYPE/ENTITY declarations (billion laughs,
+ *   quadratic blowup) stay inert text. The well-known five XML entities are
+ *   decoded afterwards by the shared sanitizer, so benign `&amp;`-style
+ *   values decode exactly as before.
+ * - Input guards (shared `parseSvnXmlWithGuards`): max total size, null-byte
+ *   rejection, and a nesting depth pre-scan — see SVN_XML_LIMITS for the
+ *   rationale vs 100k-file working copies.
+ * - Post-parse walk: caps attribute values/text nodes and decodes entities.
+ *
+ * Guard violations throw {@link SvnXmlInputError}; every existing call site
+ * already wraps `parse` in try/catch and maps failures to its established
+ * error shape, so hostile input degrades to a controlled error, never a
+ * crash.
+ */
+export type SvnXmlParserOptions = Omit<
+  X2jOptions,
+  'processEntities' | 'ignoreAttributes' | 'textNodeName' | 'parseTagValue'
+>;
+
+export interface SvnXmlParser {
+  parse<T = unknown>(xml: string): T;
+}
+
+export function createSvnXmlParser(options: SvnXmlParserOptions = {}): SvnXmlParser {
+  const parser: XMLParser = new FxpXMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    textNodeName: '#text',
+    parseTagValue: false,
+    allowBooleanAttributes: true,
+    ...options,
+    // Forced last: entity expansion can never be re-enabled by a call site.
+    processEntities: false,
+  });
+
+  return {
+    parse<T = unknown>(xml: string): T {
+      return parseSvnXmlWithGuards(parser, xml) as T;
+    },
+  };
+}
+
+export { SVN_XML_LIMITS, SvnXmlInputError, decodeSvnXmlEntities };
+
+const svnXmlParser = createSvnXmlParser({
   parseAttributeValue: true,
   trimValues: false,
-  parseTagValue: false,
-  allowBooleanAttributes: true,
 });
 
 export interface SvnStatusXmlEntry {

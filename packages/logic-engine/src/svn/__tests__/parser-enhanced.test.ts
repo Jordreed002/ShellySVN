@@ -11,6 +11,9 @@ import {
   parseSvnInfoXml,
   parseSvnListXml,
   SvnXmlParseError,
+  SVN_XML_LIMITS,
+  SvnXmlInputError,
+  decodeSvnXmlEntities,
 } from '../parser-enhanced';
 
 describe('SvnXmlParseError', () => {
@@ -432,5 +435,91 @@ describe('parseSvnListXml', () => {
       expect(result).toBeDefined();
       expect(Array.isArray(result.entries)).toBe(true);
     });
+  });
+});
+
+/**
+ * Hostile-input coverage for the hardened parser configuration in this
+ * package (mirrors src/main/__tests__/xml-hardening.test.ts for the
+ * standalone binary, which uses fast-xml-parser v4). Every payload either
+ * parses to a bounded, unexpanded result or throws the package's established
+ * error shapes — never unbounded memory/CPU.
+ */
+describe('hardened XML parsing (hostile input)', () => {
+  const billionLaughsXml = (() => {
+    let entities = '  <!ENTITY lol "lol">\n';
+    for (let i = 1; i <= 9; i += 1) {
+      entities += `  <!ENTITY lol${i} "&lol${i - 1};&lol${i - 1};&lol${i - 1};&lol${i - 1};&lol${i - 1};&lol${i - 1};&lol${i - 1};&lol${i - 1};&lol${i - 1};&lol${i - 1};">\n`;
+    }
+    return `<?xml version="1.0"?>
+<!DOCTYPE status [
+${entities}]>
+<status><target path="/test/repo"><entry path="&lol9;"><wc-status item="modified" props="none"/></entry></target></status>`;
+  })();
+
+  it('keeps billion-laughs entity declarations inert', () => {
+    const result = parseSvnStatusXml(billionLaughsXml, '/test/repo');
+    expect(result.entries).toHaveLength(1);
+    // The reference stays literal: no expansion anywhere in the output.
+    expect(result.entries[0].path).toBe('&lol9;');
+    expect(JSON.stringify(result).length).toBeLessThan(500);
+  });
+
+  it('decodes the well-known five entities for benign input', () => {
+    const xml = `<?xml version="1.0"?>
+<status><target path="/test/repo"><entry path="A&amp;B.txt"><wc-status item="modified" props="none"/></entry></target></status>`;
+    const result = parseSvnStatusXml(xml, '/test/repo');
+    expect(result.entries[0].path).toBe('A&B.txt');
+
+    expect(decodeSvnXmlEntities('&amp;&lt;&gt;&quot;&apos;&#39;')).toBe('&<>"\'\'');
+    expect(decodeSvnXmlEntities('&amp;lt;')).toBe('&lt;');
+    expect(decodeSvnXmlEntities('&nbsp;')).toBe('&nbsp;');
+  });
+
+  it('rejects deep nesting with the established SvnXmlParseError shape', () => {
+    const xml = '<a>'.repeat(SVN_XML_LIMITS.maxDepth + 1) + '</a>'.repeat(SVN_XML_LIMITS.maxDepth + 1);
+    expect(() => parseSvnStatusXml(xml, '/test/repo')).toThrow(SvnXmlParseError);
+    expect(() => parseSvnLogXml(xml)).toThrow(SvnXmlParseError);
+  });
+
+  it('does not count self-closing tags towards the depth limit', () => {
+    const entries = Array.from(
+      { length: 2000 },
+      (_, i) => `<entry path="f${i}.txt"><wc-status item="modified" props="none"/></entry>`
+    ).join('');
+    const xml = `<?xml version="1.0"?><status><target path="/t">${entries}</target></status>`;
+    const result = parseSvnStatusXml(xml, '/t');
+    expect(result.entries).toHaveLength(2000);
+  });
+
+  it('rejects null bytes with the established error shape', () => {
+    expect(() => parseSvnStatusXml('<status>\u0000</status>', '/t')).toThrow(SvnXmlParseError);
+  });
+
+  it('rejects oversized single attribute values with the established error shape', () => {
+    const huge = 'a'.repeat(SVN_XML_LIMITS.maxValueChars + 1);
+    const xml = `<?xml version="1.0"?><status><target path="${huge}"></target></status>`;
+    expect(() => parseSvnStatusXml(xml, '/t')).toThrow(SvnXmlParseError);
+  });
+
+  it('never resolves DOCTYPE SYSTEM entities', () => {
+    const xml = `<?xml version="1.0"?>
+<!DOCTYPE status [<!ENTITY ext SYSTEM "file:///etc/passwd">]>
+<status><target path="/t"><entry path="&ext;"><wc-status item="normal"/></entry></target></status>`;
+    // fast-xml-parser v4 refuses external entities outright; the failure is
+    // the established controlled error shape, never a fetch or expansion.
+    expect(() => parseSvnStatusXml(xml, '/t')).toThrow(SvnXmlParseError);
+  });
+
+  it('exposes SvnXmlInputError as the cause of wrapped parse failures', () => {
+    try {
+      parseSvnStatusXml('<status><target>\u0000</target></status>', '/t');
+      expect.unreachable('expected SvnXmlParseError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(SvnXmlParseError);
+      const cause = (error as SvnXmlParseError).cause;
+      expect(cause).toBeInstanceOf(SvnXmlInputError);
+      expect((cause as Error).message).toMatch(/null byte/);
+    }
   });
 });

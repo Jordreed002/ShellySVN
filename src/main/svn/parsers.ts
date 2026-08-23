@@ -1,4 +1,3 @@
-import { XMLParser } from 'fast-xml-parser';
 import type {
   SvnBlameResult,
   SvnChildCommitInfo,
@@ -10,19 +9,20 @@ import type {
   SvnListResult,
   SvnLockInfo,
 } from '@shared/types';
-import { parseSvnBlameEntriesXml, parseSvnListEntriesXml } from '../utils/svn-xml';
+import {
+  createSvnXmlParser,
+  parseSvnBlameEntriesXml,
+  parseSvnListEntriesXml,
+} from '../utils/svn-xml';
 import { debug } from '../utils/debug';
 
 export { parseSvnLogXml, parseSvnStatusXml } from '@shared/svn-parsers';
 
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-  textNodeName: '#text',
+// Hardened central factory: entity expansion off, input size/depth guards,
+// attribute/text value caps (see src/main/utils/svn-xml.ts).
+const xmlParser = createSvnXmlParser({
   parseAttributeValue: true,
   trimValues: true,
-  parseTagValue: false,
-  allowBooleanAttributes: true,
 });
 
 export function parseSvnInfoXml(xml: string): SvnInfoResult {
