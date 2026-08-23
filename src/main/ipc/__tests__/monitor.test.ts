@@ -166,3 +166,56 @@ describe('monitor IPC handlers', () => {
     await expect(call('monitor:stopMonitoring')).resolves.toEqual({ success: true });
   });
 });
+
+describe('monitor registry helpers (item 60 relink support)', () => {
+  async function freshMonitor() {
+    // The outer beforeEach already imported a fresh module; grab our own
+    // instance so the helpers under test come from the same module state.
+    vi.resetModules();
+    const mod = await import('../monitor');
+    mod.registerMonitorHandlers();
+    return mod;
+  }
+
+  it('snapshots monitored working copies without an IPC round-trip', async () => {
+    const monitor = await freshMonitor();
+    mocks.parseSvnInfoSummaryXml.mockReturnValue({ url: 'https://svn/repo', revision: 5 });
+    await call('monitor:addWorkingCopy', '/wc');
+
+    expect(monitor.getMonitoredWorkingCopies()).toEqual([
+      expect.objectContaining({ path: '/wc', url: 'https://svn/repo', isMonitored: true }),
+    ]);
+  });
+
+  it('rekeys a monitored working copy when its folder moved (relink apply)', async () => {
+    const monitor = await freshMonitor();
+    mocks.parseSvnInfoSummaryXml.mockReturnValue({ url: 'https://svn/repo', revision: 5 });
+    await call('monitor:addWorkingCopy', '/old/wc');
+
+    expect(monitor.renameMonitoredWorkingCopy('/old/wc', '/new/wc')).toBe(true);
+
+    const copies = (await call('monitor:getWorkingCopies')) as Array<{
+      path: string;
+      url: string;
+    }>;
+    expect(copies).toEqual([
+      expect.objectContaining({ path: '/new/wc', url: 'https://svn/repo' }),
+    ]);
+    // The old key is gone — no duplicate entries after a relink.
+    await expect(call('monitor:removeWorkingCopy', '/old/wc')).resolves.toMatchObject({
+      removed: false,
+    });
+    expect(monitor.getMonitoredWorkingCopies()).toHaveLength(1);
+  });
+
+  it('refuses renames for unknown, empty, or identical paths', async () => {
+    const monitor = await freshMonitor();
+    mocks.parseSvnInfoSummaryXml.mockReturnValue({ url: 'https://svn/repo', revision: 1 });
+    await call('monitor:addWorkingCopy', '/wc');
+
+    expect(monitor.renameMonitoredWorkingCopy('/missing', '/elsewhere')).toBe(false);
+    expect(monitor.renameMonitoredWorkingCopy('', '/elsewhere')).toBe(false);
+    expect(monitor.renameMonitoredWorkingCopy('/wc', '/wc')).toBe(false);
+    expect(monitor.getMonitoredWorkingCopies()).toHaveLength(1);
+  });
+});

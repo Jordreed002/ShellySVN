@@ -38,6 +38,31 @@ export function stopMonitoring(): void {
   monitorTimer = null;
 }
 
+// Item 60 (relink support): registry access for the WC relink detector. The
+// in-memory map above IS the monitor registry; these helpers let
+// wc-relink-detector consume and update it without an IPC round-trip.
+// Detection itself lives in src/main/services/wc-relink-detector.ts.
+
+/** Snapshot of the monitored working copies (same data as monitor:getWorkingCopies). */
+export function getMonitoredWorkingCopies(): WorkingCopyInfo[] {
+  return Array.from(monitoredWorkingCopies.values());
+}
+
+/**
+ * Rekey a monitored working copy after its folder moved/renamed on disk.
+ * Preserves the recorded url/revision; status refreshes on the next monitor
+ * cycle. Returns false when oldPath was not monitored. No automatic callers —
+ * invoked only through an explicit relink apply.
+ */
+export function renameMonitoredWorkingCopy(oldPath: string, newPath: string): boolean {
+  if (!oldPath || !newPath || oldPath === newPath) return false;
+  const info = monitoredWorkingCopies.get(oldPath);
+  if (!info) return false;
+  monitoredWorkingCopies.delete(oldPath);
+  monitoredWorkingCopies.set(newPath, { ...info, path: newPath, lastChecked: Date.now() });
+  return true;
+}
+
 export function registerMonitorHandlers(): void {
   // Get all monitored working copies
   ipcMain.handle('monitor:getWorkingCopies', async (): Promise<WorkingCopyInfo[]> => {
