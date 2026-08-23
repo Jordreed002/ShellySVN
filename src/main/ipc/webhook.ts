@@ -1,28 +1,19 @@
 import { createHmac } from 'crypto';
-import { lookup } from 'dns/promises';
 import { ipcMain } from 'electron';
 import { request as httpsRequest } from 'https';
-import { BlockList, isIP, type LookupFunction } from 'net';
 import type { WebhookDeliverRequest, WebhookDeliverResult } from '@shared/types';
 import { getAuthCache } from '../auth-cache';
 import { redactForLog } from '../utils/redaction';
+import {
+  createPinnedLookup,
+  validateOutboundUrl,
+  type SafeOutboundTarget,
+} from '../utils/ssrf-guard';
 
 const DEFAULT_WEBHOOK_TIMEOUT = 10000;
 const MAX_WEBHOOK_TIMEOUT = 60000;
 const MAX_WEBHOOK_PAYLOAD_BYTES = 256 * 1024;
-const BLOCKED_WEBHOOK_ADDRESSES = new BlockList();
-
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('0.0.0.0', 8, 'ipv4');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('10.0.0.0', 8, 'ipv4');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('100.64.0.0', 10, 'ipv4');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('127.0.0.0', 8, 'ipv4');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('169.254.0.0', 16, 'ipv4');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('172.16.0.0', 12, 'ipv4');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('192.168.0.0', 16, 'ipv4');
-BLOCKED_WEBHOOK_ADDRESSES.addAddress('::', 'ipv6');
-BLOCKED_WEBHOOK_ADDRESSES.addAddress('::1', 'ipv6');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('fc00::', 7, 'ipv6');
-BLOCKED_WEBHOOK_ADDRESSES.addSubnet('fe80::', 10, 'ipv6');
+const WEBHOOK_ALLOWED_PORTS = [443, 8443];
 
 function getWebhookSecretRealm(id: string): string {
   return `webhook:${id}`;
@@ -36,92 +27,38 @@ function normalizeTimeout(timeout?: number): number {
   return Math.min(Math.max(timeout, 1000), MAX_WEBHOOK_TIMEOUT);
 }
 
-function isBlockedWebhookAddress(address: string): boolean {
-  const mappedIpv4 = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address)?.[1];
-  if (mappedIpv4) {
-    return isBlockedWebhookAddress(mappedIpv4);
-  }
-  const ipVersion = isIP(address);
-  if (ipVersion !== 4 && ipVersion !== 6) {
-    return true;
-  }
-
-  return BLOCKED_WEBHOOK_ADDRESSES.check(address, ipVersion === 4 ? 'ipv4' : 'ipv6');
-}
-
-interface ValidatedWebhookTarget {
-  url: URL;
-  address: string;
-  family: 4 | 6;
-}
-
-async function validateWebhookUrl(url: string): Promise<ValidatedWebhookTarget> {
-  const parsed = new URL(url);
-  if (parsed.protocol !== 'https:') {
-    throw new Error('Webhook URL must use https.');
-  }
-  if (!parsed.hostname) {
-    throw new Error('Webhook URL must include a hostname.');
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error('Webhook URL must not include credentials.');
-  }
-
-  const hostname = parsed.hostname
-    .toLowerCase()
-    .replace(/^\[(.*)\]$/, '$1')
-    .replace(/\.$/, '');
-  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
-    throw new Error('Webhook URL must not target local or private network addresses.');
-  }
-
-  if (isIP(hostname)) {
-    if (isBlockedWebhookAddress(hostname)) {
-      throw new Error('Webhook URL must not target local or private network addresses.');
-    }
-    return { url: parsed, address: hostname, family: isIP(hostname) as 4 | 6 };
-  }
-
-  let addresses: Array<{ address: string; family: number }>;
-  try {
-    addresses = await lookup(hostname, { all: true, verbatim: true });
-  } catch {
-    throw new Error('Webhook hostname could not be resolved.');
-  }
-
-  if (addresses.length === 0 || addresses.some(({ address }) => isBlockedWebhookAddress(address))) {
-    throw new Error('Webhook URL must not target local or private network addresses.');
-  }
-
-  const selected = addresses.find(
-    (entry): entry is { address: string; family: 4 | 6 } => entry.family === 4 || entry.family === 6
-  );
-  if (!selected) {
-    throw new Error('Webhook hostname could not be resolved.');
-  }
-
-  return { url: parsed, address: selected.address, family: selected.family };
+/*
+ * SSRF validation is delegated to the shared guard (see
+ * ../utils/ssrf-guard for the full threat model). Webhooks additionally
+ * restrict the scheme to https and the port to 443/8443.
+ */
+function validateWebhookUrl(url: string): Promise<SafeOutboundTarget> {
+  return validateOutboundUrl(url, {
+    label: 'Webhook URL',
+    allowedSchemes: ['https:'],
+    allowedPorts: WEBHOOK_ALLOWED_PORTS,
+  });
 }
 
 function buildSignature(secret: string, payload: string): string {
   return `sha256=${createHmac('sha256', secret).update(payload).digest('hex')}`;
 }
 
+/*
+ * DNS-rebinding approach: the hostname is resolved inside deliverWebhook, at
+ * request time, and every answer is validated then. The request is pinned to
+ * the validated address via a custom `lookup`, so the connection path never
+ * consults the resolver again — a rebinding between check and connect is
+ * impossible. Redirects are refused outright, which removes the only other
+ * path where a different host could be contacted without re-validation.
+ */
 function postWebhook(
-  target: ValidatedWebhookTarget,
+  target: SafeOutboundTarget,
   headers: Record<string, string>,
   payload: string,
   timeout: number
 ): Promise<number> {
   return new Promise((resolve, reject) => {
-    const pinnedLookup = ((_: string, options: unknown, callback: (...args: unknown[]) => void) => {
-      if (typeof options === 'object' && options !== null && 'all' in options && options.all) {
-        callback(null, [{ address: target.address, family: target.family }]);
-      } else {
-        callback(null, target.address, target.family);
-      }
-    }) as LookupFunction;
-
     const request = httpsRequest(
       target.url,
       {
@@ -130,7 +67,7 @@ function postWebhook(
           ...headers,
           'Content-Length': String(Buffer.byteLength(payload, 'utf8')),
         },
-        lookup: pinnedLookup,
+        lookup: createPinnedLookup(target.address, target.family),
       },
       (response) => {
         response.resume();

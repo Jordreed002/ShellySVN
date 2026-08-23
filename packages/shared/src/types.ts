@@ -1432,6 +1432,16 @@ export interface WebhookDeliverResult {
   error?: string;
 }
 
+/**
+ * Discovery payload for the app's loopback (127.0.0.1) status HTTP server:
+ * the port it bound to this session and the per-session bearer token required
+ * as `Authorization: Bearer <token>` on every request.
+ */
+export interface LocalStatusServerInfo {
+  port: number;
+  token: string;
+}
+
 export interface CancellableRequestOptions {
   signal?: AbortSignal;
 }
@@ -2003,6 +2013,24 @@ export interface ElectronAPI {
       }) => void
     ) => () => void;
   };
+  lifecycle: {
+    /** Stale `.svn/lock` leftovers detected at startup (one event per working copy). */
+    onStaleWorkingCopyLock: (
+      callback: (info: StaleWorkingCopyLockInfo) => void
+    ) => () => void;
+    getStaleWorkingCopyLocks: () => Promise<StaleWorkingCopyLockInfo[]>;
+    /** Explicitly confirmed removal of a stale `.svn/lock` file. */
+    removeStaleWorkingCopyLock: (
+      workingCopyPath: string
+    ) => Promise<{ success: boolean; error?: string }>;
+    /** Mutations interrupted by the previous session's shutdown. */
+    onInterruptedWorkingCopyMutations: (
+      callback: (records: InterruptedMutationRecord[]) => void
+    ) => () => void;
+    getInterruptedWorkingCopyMutations: () => Promise<InterruptedMutationRecord[]>;
+    /** Acknowledge recovery; clears the persisted interruption journal. */
+    clearInterruptedWorkingCopyMutations: () => Promise<{ success: boolean; error?: string }>;
+  };
   notification: {
     show: (options: NotificationOptions) => Promise<boolean>;
   };
@@ -2055,6 +2083,28 @@ export interface RepoDiagnostics {
 }
 
 export type WorkingCopyHealthSeverity = 'info' | 'warning' | 'danger';
+
+/**
+ * A leftover `.svn/lock` file (backlog item #23): the working-copy admin area
+ * is locked, most likely by a crashed or force-quit SVN command, and every
+ * subsequent SVN command fails with "working copy locked" until it is removed.
+ */
+export interface StaleWorkingCopyLockInfo {
+  workingCopyPath: string;
+  lockPath: string;
+  detectedAt: string;
+}
+
+/**
+ * A working-copy mutation cancelled mid-flight by app shutdown (backlog item
+ * #24), persisted across launches so the next session can offer recovery.
+ */
+export interface InterruptedMutationRecord {
+  workingCopyPath: string;
+  interruptedAt: string;
+  reason: string;
+}
+
 
 export interface WorkingCopyHealthIssue {
   id: string;

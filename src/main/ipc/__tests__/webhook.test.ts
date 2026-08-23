@@ -166,6 +166,141 @@ describe('Webhook IPC Handlers', () => {
     expect(mockHttpsRequest).not.toHaveBeenCalled();
   });
 
+  it('rejects non-canonical IPv4 bypass encodings before resolution', async () => {
+    const handler = handlers.get('webhook:deliver');
+    const bypassUrls = [
+      'https://2130706433/hook', // decimal encoding of 127.0.0.1
+      'https://0x7f000001/hook', // hex dword
+      'https://0x7f.0.0.1/hook', // hex octets
+      'https://0177.0.0.1/hook', // octal octets
+      'https://127.1/hook', // partial dotted-quad
+    ];
+
+    for (const [index, url] of bypassUrls.entries()) {
+      const result = await handler!(
+        {},
+        {
+          webhookId: 'webhook-1',
+          deliveryId: `delivery-${index}`,
+          url,
+          event: 'commit',
+          timestamp: 1704067200000,
+          payload: {},
+        }
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringMatching(
+          /local or private network addresses|non-canonical IP address formats/
+        ),
+      });
+    }
+
+    // Blocked by the URL/literal rules, never by asking the resolver.
+    expect(mockDnsLookup).not.toHaveBeenCalled();
+    expect(mockHttpsRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects IPv4-in-IPv6 and NAT64 bypass encodings', async () => {
+    const handler = handlers.get('webhook:deliver');
+    const bypassUrls = [
+      'https://[::ffff:7f00:1]/hook', // hex-form IPv4-mapped 127.0.0.1
+      'https://[::ffff:10.0.0.1]/hook', // dotted-form IPv4-mapped private
+      'https://[64:ff9b::7f00:1]/hook', // well-known NAT64 wrapping 127.0.0.1
+    ];
+
+    for (const [index, url] of bypassUrls.entries()) {
+      const result = await handler!(
+        {},
+        {
+          webhookId: 'webhook-1',
+          deliveryId: `delivery-mapped-${index}`,
+          url,
+          event: 'commit',
+          timestamp: 1704067200000,
+          payload: {},
+        }
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Webhook URL must not target local or private network addresses.',
+      });
+    }
+
+    expect(mockDnsLookup).not.toHaveBeenCalled();
+    expect(mockHttpsRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects multicast, reserved, and CGNAT webhook literals', async () => {
+    const handler = handlers.get('webhook:deliver');
+
+    for (const url of [
+      'https://224.0.0.1/hook',
+      'https://240.0.0.1/hook',
+      'https://255.255.255.255/hook',
+      'https://100.64.0.1/hook',
+      'https://[ff02::1]/hook',
+    ]) {
+      const result = await handler!(
+        {},
+        {
+          webhookId: 'webhook-1',
+          deliveryId: 'delivery-range',
+          url,
+          event: 'commit',
+          timestamp: 1704067200000,
+          payload: {},
+        }
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        error: 'Webhook URL must not target local or private network addresses.',
+      });
+    }
+
+    expect(mockHttpsRequest).not.toHaveBeenCalled();
+  });
+
+  it('caps webhook destination ports to the https allowlist', async () => {
+    const handler = handlers.get('webhook:deliver');
+
+    const rejected = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-port',
+        url: 'https://example.com:22/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: {},
+      }
+    );
+
+    expect(rejected).toMatchObject({
+      success: false,
+      error: 'Webhook URL port must be one of: 443, 8443.',
+    });
+    expect(mockHttpsRequest).not.toHaveBeenCalled();
+
+    const allowed = await handler!(
+      {},
+      {
+        webhookId: 'webhook-1',
+        deliveryId: 'delivery-port-ok',
+        url: 'https://example.com:8443/hook',
+        event: 'commit',
+        timestamp: 1704067200000,
+        payload: {},
+      }
+    );
+
+    expect(allowed).toMatchObject({ success: true, statusCode: 204 });
+    expect(mockHttpsRequest).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects oversized payloads before fetching', async () => {
     const handler = handlers.get('webhook:deliver');
 

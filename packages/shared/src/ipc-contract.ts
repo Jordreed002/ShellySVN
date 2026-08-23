@@ -73,8 +73,11 @@ import type {
   UpdateOptions,
   WebhookDeliverRequest,
   WebhookDeliverResult,
+  LocalStatusServerInfo,
   WorkingCopyInfo,
   WorkingCopyHealthReport,
+  InterruptedMutationRecord,
+  StaleWorkingCopyLockInfo,
 } from './types';
 
 type IpcCall<Args extends unknown[], Result> = {
@@ -508,6 +511,16 @@ export interface IpcInvokeContract {
   'shell:updateOverlay': IpcCall<[path: string, status: string], OperationResult>;
   'shell:clearOverlay': IpcCall<[path: string], OperationResult>;
   'shell:clearAllOverlays': IpcCall<[], OperationResult>;
+
+  'lifecycle:getStaleWorkingCopyLocks': IpcCall<[], StaleWorkingCopyLockInfo[]>;
+  'lifecycle:removeStaleWorkingCopyLock': IpcCall<
+    [workingCopyPath: string],
+    OperationResult
+  >;
+  'lifecycle:getInterruptedWorkingCopyMutations': IpcCall<[], InterruptedMutationRecord[]>;
+  'lifecycle:clearInterruptedWorkingCopyMutations': IpcCall<[], OperationResult>;
+
+  'status:local-server-info': IpcCall<[], LocalStatusServerInfo | null>;
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeContract;
@@ -530,6 +543,8 @@ export type IpcEventContract = {
     requiresConfirmation?: boolean;
   };
   'updater:state': AppUpdateState;
+  'lifecycle:staleWorkingCopyLock': StaleWorkingCopyLockInfo;
+  'lifecycle:interruptedWorkingCopyMutations': InterruptedMutationRecord[];
 };
 
 export type IpcEventChannel = keyof IpcEventContract;
