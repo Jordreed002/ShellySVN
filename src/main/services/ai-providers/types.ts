@@ -1,8 +1,18 @@
-import type { AiCommitProvider, AiHttpProvider } from '@shared/types';
+import type {
+  AiCustomProviderProtocol,
+  AiHttpProvider,
+  AiProviderId,
+} from '@shared/types';
 
 /** Runtime configuration resolved from the encrypted credential store. */
 export interface HttpProviderRuntimeConfig {
-  provider: AiHttpProvider;
+  provider: AiProviderId;
+  /**
+   * Wire protocol the provider speaks; selects the adapter and drives config
+   * validation and model defaults. Equals the built-in id for built-ins and
+   * the user-chosen protocol for `custom:*` providers.
+   */
+  protocol: AiCustomProviderProtocol;
   apiKey?: string;
   baseUrl?: string;
   modelOverride?: string;
@@ -30,7 +40,12 @@ export interface ProviderTaskInput {
 /** Fetch implementation seam so tests can serve canned SSE responses. */
 export type ProviderFetch = typeof globalThis.fetch;
 
-export function isHttpAiProvider(provider: AiCommitProvider): provider is AiHttpProvider {
+/** True for user-defined provider ids (`custom:<slug>`). */
+export function isCustomProviderId(id: string): id is `custom:${string}` {
+  return id.startsWith('custom:');
+}
+
+export function isHttpAiProvider(provider: AiProviderId): provider is AiHttpProvider {
   return (
     provider === 'anthropic' ||
     provider === 'azure-openai' ||
@@ -39,6 +54,12 @@ export function isHttpAiProvider(provider: AiCommitProvider): provider is AiHttp
   );
 }
 
+/** True for every provider served by the HTTP adapter registry (built-in or custom). */
+export function isHttpProviderId(id: AiProviderId): boolean {
+  return isCustomProviderId(id) || isHttpAiProvider(id);
+}
+
+/** Built-in HTTP providers, in auto-selection order. */
 export const HTTP_PROVIDER_ORDER: readonly AiHttpProvider[] = [
   'anthropic',
   'azure-openai',

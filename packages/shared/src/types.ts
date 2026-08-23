@@ -691,6 +691,10 @@ export type AiCommitProvider =
   | 'azure-openai'
   | 'openai-compatible'
   | 'ollama';
+/** Wire protocol a custom provider speaks; maps 1:1 onto the HTTP adapter registry. */
+export type AiCustomProviderProtocol = 'anthropic' | 'azure-openai' | 'openai-compatible' | 'ollama';
+/** Built-in provider id, or a user-defined custom provider id (`custom:<slug>`). */
+export type AiProviderId = AiCommitProvider | `custom:${string}`;
 export type AiCodexModel = 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol';
 export type AiTaskKind =
   | 'commit-message'
@@ -714,7 +718,7 @@ export type AiErrorCode =
   | 'secret_detected'
   | 'storage_unavailable'
   | 'unknown';
-type AiCommitProviderPreference = 'auto' | AiCommitProvider;
+type AiCommitProviderPreference = 'auto' | AiProviderId;
 type AiCommitMessageStyle = 'concise' | 'conventional';
 
 interface AiCommitSettings {
@@ -735,7 +739,7 @@ interface AiCommitSettings {
 export interface AiUsageEntry {
   id: string;
   task: AiTaskKind;
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   model?: string;
   startedAt: string;
   durationMs: number;
@@ -759,7 +763,7 @@ export interface AiPromptPreviewRequest {
 
 export interface AiPromptPreviewResult {
   task: AiTaskKind;
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   model?: string;
   prompt: string;
   inputBytes: number;
@@ -839,7 +843,7 @@ export interface RepositoryAiProfileImportPreview {
 }
 
 export interface AiCommitProviderStatus {
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   available: boolean;
   version?: string;
   authenticated?: boolean;
@@ -848,6 +852,10 @@ export interface AiCommitProviderStatus {
   reason?: string;
   /** 'cli' providers execute a local CLI; 'http' providers call a remote or local HTTP endpoint. */
   kind?: 'cli' | 'http';
+  /** Present on custom providers: the user-chosen display name. */
+  displayName?: string;
+  /** Present on custom providers: the wire protocol the provider speaks. */
+  protocol?: AiCustomProviderProtocol;
 }
 
 export interface AiCommitMessageRequest {
@@ -859,7 +867,7 @@ export interface AiCommitMessageRequest {
 
 export interface AiCommitMessageResult {
   message: string;
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   model?: string;
   diffTruncated: boolean;
   omittedBinaryFiles: string[];
@@ -870,7 +878,7 @@ export type AiReviewSeverity = 'info' | 'warning' | 'danger';
 export type AiDiffExplanationMode = 'summary' | 'why' | 'risks' | 'questions';
 
 export interface AiTaskMetadata {
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   model?: string;
   durationMs: number;
   truncated: boolean;
@@ -984,7 +992,7 @@ export type AiHttpProvider = Extract<
 export interface AiModelInfo {
   id: string;
   label: string;
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   local: boolean;
   contextTokens?: number;
   defaultForProvider?: boolean;
@@ -993,7 +1001,7 @@ export interface AiModelInfo {
 }
 
 export interface AiCostEstimate {
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   model: string;
   inputChars: number;
   estimatedInputTokens: number;
@@ -1008,18 +1016,22 @@ export interface AiCostEstimate {
 }
 
 export interface AiCostEstimateRequest {
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   model?: string;
   inputChars: number;
 }
 
 export interface AiProviderCredentialStatus {
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   hasApiKey: boolean;
   hasBaseUrl: boolean;
   baseUrl?: string;
   modelOverride?: string;
   updatedAt?: string;
+  /** Present on custom providers: the user-chosen display name. */
+  displayName?: string;
+  /** Present on custom providers: the wire protocol the provider speaks. */
+  protocol?: AiCustomProviderProtocol;
 }
 
 export interface AiCredentialsSummary {
@@ -1029,7 +1041,20 @@ export interface AiCredentialsSummary {
 }
 
 export interface AiProviderCredentialInput {
-  provider: AiCommitProvider;
+  provider: AiProviderId;
+  apiKey?: string;
+  baseUrl?: string;
+  modelOverride?: string;
+}
+
+/**
+ * Create (no id) or edit/rename (id) a custom provider. Credentials ride along
+ * so the Add Provider dialog is a single atomic IPC call.
+ */
+export interface AiCustomProviderUpsertInput {
+  id?: string;
+  displayName: string;
+  protocol: AiCustomProviderProtocol;
   apiKey?: string;
   baseUrl?: string;
   modelOverride?: string;
@@ -1689,10 +1714,15 @@ export interface ElectronAPI {
     credentials: {
       summary: () => Promise<AiCredentialsSummary>;
       save: (input: AiProviderCredentialInput) => Promise<{ success: boolean; error?: string }>;
-      remove: (provider: AiCommitProvider) => Promise<{ success: boolean }>;
+      remove: (provider: AiProviderId) => Promise<{ success: boolean }>;
+    };
+    customProviders: {
+      upsert: (
+        input: AiCustomProviderUpsertInput
+      ) => Promise<{ success: boolean; id?: string; error?: string }>;
     };
     estimateCost: (request: AiCostEstimateRequest) => Promise<AiCostEstimate>;
-    listModels: (provider: AiCommitProvider) => Promise<AiModelInfo[]>;
+    listModels: (provider: AiProviderId) => Promise<AiModelInfo[]>;
     consent: {
       get: (workingCopyPath: string) => Promise<AiWorkingCopyConsent | null>;
       set: (workingCopyPath: string, aiEnabled: boolean) => Promise<{ success: boolean }>;

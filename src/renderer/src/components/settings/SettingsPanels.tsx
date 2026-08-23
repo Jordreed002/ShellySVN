@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -32,6 +32,7 @@ import {
 import type {
   AppSettings,
   AiCommitProviderStatus,
+  AiProviderCredentialStatus,
   AiUsageEntry,
   AuthListEntry,
   FontSize,
@@ -51,7 +52,32 @@ import {
 import { ExternalToolsSettings } from './ExternalToolsSettings';
 import { OpenWithSettings } from './OpenWithSettings';
 import { SettingsGroup } from './SettingsGroup';
+import { HTTP_PROVIDER_ORDER, providerLabel } from './AddProviderDialog';
 import { useAppUpdater } from '../../hooks/useAppUpdater';
+
+/**
+ * Configured HTTP/custom AI providers for the aiCommit.provider select
+ * (fetched once from the credentials summary). Customs carry their display
+ * name; built-ins get friendly labels. Returns null while loading.
+ */
+function useConfiguredAiProviders(): AiProviderCredentialStatus[] | null {
+  const [configured, setConfigured] = useState<AiProviderCredentialStatus[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    window.api.ai
+      .credentials.summary()
+      .then((result) => {
+        if (active) setConfigured(result.providers);
+      })
+      .catch(() => {
+        if (active) setConfigured([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return configured;
+}
 
 function clampedInteger(value: string, minimum: number, maximum: number, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
@@ -373,6 +399,37 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
   useEffect(() => {
     if (settings.aiCommit.enabled) void refreshAiProviders();
   }, [refreshAiProviders, settings.aiCommit.enabled]);
+
+  // Provider preference options: the four built-in HTTP providers and every
+  // custom provider, but only ones that are actually configured.
+  const configuredAiProviders = useConfiguredAiProviders();
+  const aiProviderOptions = useMemo(() => {
+    if (!configuredAiProviders) return [];
+    const options = HTTP_PROVIDER_ORDER.filter((id) =>
+      configuredAiProviders.some((entry) => entry.provider === id)
+    ).map((id) => ({ value: id as string, label: providerLabel(id) }));
+    const customs = configuredAiProviders
+      .filter((entry) => entry.provider.startsWith('custom:'))
+      .toSorted((a, b) =>
+        (a.displayName ?? a.provider).localeCompare(b.displayName ?? b.provider)
+      );
+    return [
+      ...options,
+      ...customs.map((entry) => ({
+        value: entry.provider,
+        label: providerLabel(entry.provider, entry.displayName),
+      })),
+    ];
+  }, [configuredAiProviders]);
+  // A stale preference (e.g. a deleted custom provider) must stay visible —
+  // selects always show their current value — so it is appended, disabled.
+  const staleProviderId = settings.aiCommit.provider === 'auto' ? undefined : settings.aiCommit.provider;
+  const staleAiProvider =
+    staleProviderId !== undefined &&
+    staleProviderId !== 'codex' &&
+    staleProviderId !== 'claude' &&
+    !aiProviderOptions.some((option) => option.value === staleProviderId);
+
   const handleBrowseSvnPath = async () => {
     const path = await window.api.dialog.openFile([
       { name: 'Executables', extensions: ['exe', 'app'] },
@@ -510,6 +567,16 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
                 <option value="auto">Auto (prefer Codex)</option>
                 <option value="codex">Codex CLI</option>
                 <option value="claude">Claude CLI (API/cloud auth)</option>
+                {aiProviderOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+                {staleProviderId && staleAiProvider && (
+                  <option value={staleProviderId} disabled>
+                    {providerLabel(staleProviderId)} (no longer configured)
+                  </option>
+                )}
               </select>
             </label>
             <label className="block">

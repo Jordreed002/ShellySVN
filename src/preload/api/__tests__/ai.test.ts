@@ -171,4 +171,26 @@ describe('AI preload IPC contract', () => {
     expect(invoke).toHaveBeenNthCalledWith(6, 'ai:consent:get', '/wc');
     expect(invoke).toHaveBeenNthCalledWith(7, 'ai:consent:set', '/wc', false);
   });
+
+  it('maps custom provider upserts, credentials removal, and model lists with custom ids', async () => {
+    invoke.mockResolvedValue({ success: true, id: 'custom:acme' });
+    const upsert = {
+      displayName: 'Acme',
+      protocol: 'openai-compatible' as const,
+      apiKey: 'k',
+      baseUrl: 'https://acme.test/v1',
+      modelOverride: 'acme-model',
+    };
+
+    await expect(api.customProviders.upsert(upsert)).resolves.toEqual({
+      success: true,
+      id: 'custom:acme',
+    });
+    await api.credentials.remove('custom:acme');
+    await api.listModels('custom:acme');
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'ai:custom-providers:upsert', upsert);
+    expect(invoke).toHaveBeenNthCalledWith(2, 'ai:credentials:remove', 'custom:acme');
+    expect(invoke).toHaveBeenNthCalledWith(3, 'ai:listModels', 'custom:acme');
+  });
 });

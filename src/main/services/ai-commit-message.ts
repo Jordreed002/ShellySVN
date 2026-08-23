@@ -13,8 +13,8 @@ import type {
   AiCodexModel,
   AiCommitProvider,
   AiCommitProviderStatus,
-  AiHttpProvider,
   AiModelInfo,
+  AiProviderId,
   AiPromptPrivacyReport,
   AiReleaseNotesRequest,
   AiReleaseNotesResult,
@@ -69,7 +69,7 @@ import {
   isPathExcludedByRepositoryProfile,
   RepositoryAiProfileStore,
 } from './ai-repository-profile';
-import { currentAiCredentialsStore } from './ai-credentials';
+import { currentAiCredentialsStore, type AiCustomProviderInfo } from './ai-credentials';
 import { assertAiConsentForPath, scanOutboundPrompt } from './ai-privacy-scanner';
 import { emitAiStreamEvent } from './ai-providers/stream-emitter';
 import { resolveOllamaChatUrl } from './ai-providers/openai-chat';
@@ -82,10 +82,12 @@ import {
 } from './ai-providers';
 import {
   HTTP_PROVIDER_ORDER,
+  isCustomProviderId,
   isHttpAiProvider,
+  isHttpProviderId,
   type HttpProviderRuntimeConfig,
 } from './ai-providers/types';
-import { defaultModelForProvider, estimateAiCost } from './ai-providers/model-catalog';
+import { defaultModelForProtocol, estimateAiCost } from './ai-providers/model-catalog';
 
 const DEFAULT_MAX_DIFF_BYTES = 256 * 1024;
 const MIN_MAX_DIFF_BYTES = 16 * 1024;
@@ -462,49 +464,99 @@ async function executeProvider(
 }
 
 interface SelectedProvider {
-  provider: AiCommitProvider;
+  provider: AiProviderId;
   /** Present for local CLI providers (codex/claude). */
   executable?: ResolvedProviderExecutable;
-  /** Present for HTTP providers (Anthropic, Azure OpenAI, OpenAI-compatible, Ollama). */
+  /** Present for HTTP providers (built-ins and `custom:*` providers). */
   httpConfig?: HttpProviderRuntimeConfig;
 }
 
-async function httpRuntimeConfig(provider: AiHttpProvider): Promise<HttpProviderRuntimeConfig> {
+/** Custom providers degrade gracefully when the store cannot describe them. */
+async function findCustomProvider(
+  provider: AiProviderId
+): Promise<AiCustomProviderInfo | undefined> {
+  try {
+    return await currentAiCredentialsStore().getCustomProviderInfo(provider);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Custom provider ids in creation order; empty when the store is unreadable. */
+async function listCustomProviders(): Promise<AiCustomProviderInfo[]> {
+  try {
+    return await currentAiCredentialsStore().listCustomProviders();
+  } catch {
+    return [];
+  }
+}
+
+/** Custom provider ids are `custom:<slug>` by store construction. */
+function customProviderId(info: AiCustomProviderInfo): AiProviderId {
+  return info.id as `custom:${string}`;
+}
+
+async function httpRuntimeConfig(provider: AiProviderId): Promise<HttpProviderRuntimeConfig> {
+  if (isCustomProviderId(provider)) {
+    const info = await findCustomProvider(provider);
+    if (!info) {
+      // Unknown or deleted custom provider: report a config that fails
+      // validation like any unconfigured provider so statuses degrade gracefully.
+      return { provider, protocol: 'openai-compatible' };
+    }
+    const credential = await currentAiCredentialsStore().getProviderCredential(provider);
+    return {
+      provider,
+      protocol: info.protocol,
+      apiKey: credential.apiKey,
+      baseUrl: info.baseUrl ?? credential.baseUrl,
+      modelOverride: info.modelOverride ?? credential.modelOverride,
+    };
+  }
+  if (!isHttpAiProvider(provider)) {
+    // CLI providers have no HTTP runtime configuration.
+    return { provider, protocol: 'openai-compatible' };
+  }
   const credential = await currentAiCredentialsStore().getProviderCredential(provider);
   return {
     provider,
+    protocol: provider,
     apiKey: credential.apiKey,
     baseUrl: credential.baseUrl,
     modelOverride: credential.modelOverride,
   };
 }
 
-async function trySelectHttpProvider(provider: AiHttpProvider): Promise<SelectedProvider | null> {
+async function trySelectHttpProvider(provider: AiProviderId): Promise<SelectedProvider | null> {
   const config = await httpRuntimeConfig(provider);
   if (httpProviderConfigError(provider, config)) return null;
-  if (provider === 'ollama' && !(await isOllamaReachable(config.baseUrl))) return null;
+  if (config.protocol === 'ollama' && !(await isOllamaReachable(config.baseUrl))) return null;
   return { provider, httpConfig: config };
 }
 
 async function selectProvider(
-  preference: 'auto' | AiCommitProvider
+  preference: AppSettings['aiCommit']['provider']
 ): Promise<SelectedProvider> {
-  if (preference !== 'auto' && isHttpAiProvider(preference)) {
+  if (preference !== 'auto' && isHttpProviderId(preference)) {
     const config = await httpRuntimeConfig(preference);
     const configError = httpProviderConfigError(preference, config);
     if (configError) throw new Error(configError);
-    if (preference === 'ollama' && !(await isOllamaReachable(config.baseUrl))) {
+    if (config.protocol === 'ollama' && !(await isOllamaReachable(config.baseUrl))) {
       throw new Error('[provider_unavailable] No local Ollama or LM Studio server is reachable at the configured URL.');
     }
     return { provider: preference, httpConfig: config };
   }
   // 'auto' keeps the established CLI providers first so existing setups are
-  // unchanged, then falls back to configured HTTP providers in order.
-  const order: AiCommitProvider[] =
-    preference === 'auto' ? ['codex', 'claude', ...HTTP_PROVIDER_ORDER] : [preference];
+  // unchanged, then falls back to configured HTTP providers in order: the
+  // built-ins, then user-defined customs in creation order.
+  const customIds: AiProviderId[] = preference === 'auto'
+    ? (await listCustomProviders()).map((info) => customProviderId(info))
+    : [];
+  const order: AiProviderId[] =
+    preference === 'auto' ? ['codex', 'claude', ...HTTP_PROVIDER_ORDER, ...customIds] : [preference];
   let executableFound = false;
   for (const provider of order) {
-    if (isHttpAiProvider(provider)) {
+    if (isCustomProviderId(provider) || isHttpAiProvider(provider)) {
       const selected = await trySelectHttpProvider(provider);
       if (selected) return selected;
       continue;
@@ -529,9 +581,9 @@ async function selectProvider(
  */
 async function resolveProviderHint(
   settings: AppSettings['aiCommit']
-): Promise<{ provider: AiCommitProvider; model?: string }> {
+): Promise<{ provider: AiProviderId; model?: string }> {
   if (settings.provider !== 'auto') {
-    if (isHttpAiProvider(settings.provider)) {
+    if (isHttpProviderId(settings.provider)) {
       const config = await httpRuntimeConfig(settings.provider);
       return { provider: settings.provider, model: httpProviderModel(config) };
     }
@@ -545,7 +597,12 @@ async function resolveProviderHint(
       return { provider, model: provider === 'codex' ? selectedCodexModel(settings) : undefined };
     }
   }
-  for (const provider of HTTP_PROVIDER_ORDER) {
+  // Same order as selectProvider('auto'): built-ins first, then customs.
+  const autoHttpOrder: AiProviderId[] = [
+    ...HTTP_PROVIDER_ORDER,
+    ...(await listCustomProviders()).map((info) => customProviderId(info)),
+  ];
+  for (const provider of autoHttpOrder) {
     const config = await httpRuntimeConfig(provider);
     if (!httpProviderConfigError(provider, config)) {
       return { provider, model: httpProviderModel(config) };
@@ -653,7 +710,7 @@ async function recentCommitMessages(
 
 function taskMetadata(
   startedAt: number,
-  provider: AiCommitProvider,
+  provider: AiProviderId,
   model: string | undefined,
   truncated: boolean,
   redacted: boolean
@@ -711,7 +768,7 @@ async function runStructuredProvider(
   taskKind: AiTaskKind,
   metadata: { truncated: boolean; redacted: boolean },
   workingCopyPath?: string
-): Promise<{ output: Record<string, unknown>; provider: AiCommitProvider; model?: string }> {
+): Promise<{ output: Record<string, unknown>; provider: AiProviderId; model?: string }> {
   // Privacy gate (#18): consent first, then the outbound secret scan. Both run
   // BEFORE any provider selection or network/CLI activity. Gate failures still
   // emit a terminal stream event so renderer subscribers see the outcome.
@@ -764,7 +821,11 @@ async function runStructuredProvider(
         onDelta: (delta) => emitAiStreamEvent({ operationId, delta }),
       });
       rawOutput = result.text;
-    } else if (selected.executable) {
+    } else if (
+      selected.executable &&
+      // CLI execution is genuinely limited to the built-in CLI providers.
+      (selected.provider === 'codex' || selected.provider === 'claude')
+    ) {
       rawOutput = await executeProvider(
         selected.provider,
         selected.executable,
@@ -1155,11 +1216,64 @@ export async function getAiCommitProviders(): Promise<AiCommitProviderStatus[]> 
       };
     })
   );
-  return [...cliStatuses, ...httpStatuses];
+
+  // One status per user-defined custom provider, mirroring the built-in HTTP
+  // wording (including the ollama reachability probe for ollama protocols).
+  const customStatuses = await Promise.all(
+    (await listCustomProviders()).map(async (info): Promise<AiCommitProviderStatus> => {
+      const id = customProviderId(info);
+      const config = await httpRuntimeConfig(id);
+      const configError = httpProviderConfigError(id, config);
+      if (info.protocol === 'ollama') {
+        const reachable = configError ? false : await isOllamaReachable(config.baseUrl);
+        let host: string | undefined;
+        try {
+          host = new URL(resolveOllamaChatUrl(config.baseUrl)).host;
+        } catch {
+          host = undefined;
+        }
+        return {
+          provider: id,
+          kind: 'http',
+          displayName: info.displayName,
+          protocol: info.protocol,
+          available: reachable,
+          authenticated: reachable,
+          version: reachable && host ? `local server at ${host}` : undefined,
+          reason: reachable
+            ? undefined
+            : 'No local Ollama or LM Studio server is reachable. Start the server or set its base URL in AI provider settings.',
+        };
+      }
+      const ready = !configError;
+      return {
+        provider: id,
+        kind: 'http',
+        displayName: info.displayName,
+        protocol: info.protocol,
+        available: ready,
+        authenticated: ready,
+        reason: ready
+          ? undefined
+          : info.protocol === 'azure-openai'
+            ? 'Save the Azure OpenAI deployment URL and API key in ShellySVN AI provider settings.'
+            : info.protocol === 'anthropic'
+              ? 'Save an Anthropic API key in ShellySVN AI provider settings.'
+              : 'Save the base URL and API key in ShellySVN AI provider settings.',
+      };
+    })
+  );
+  return [...cliStatuses, ...httpStatuses, ...customStatuses];
 }
 
 /** Selectable models for a provider: live for Ollama, catalog otherwise. */
-export async function listAiProviderModels(provider: AiCommitProvider): Promise<AiModelInfo[]> {
+export async function listAiProviderModels(provider: AiProviderId): Promise<AiModelInfo[]> {
+  if (isCustomProviderId(provider)) {
+    // Unknown custom ids have no catalog to offer.
+    if (!(await findCustomProvider(provider))) return [];
+    const config = await httpRuntimeConfig(provider);
+    return listHttpProviderModels(provider, config);
+  }
   if (isHttpAiProvider(provider)) {
     const config = await httpRuntimeConfig(provider);
     return listHttpProviderModels(provider, config);
@@ -1185,9 +1299,13 @@ export async function estimateAiCostForRequest(
     throw new Error('A cost estimate request is required.');
   }
   const inputChars = Math.max(0, Math.floor(Number(request.inputChars) || 0));
-  const model =
-    request.model?.trim() ||
-    (isHttpAiProvider(request.provider) ? defaultModelForProvider(request.provider) : '');
+  // Default model comes from the provider's wire protocol (custom or built-in).
+  let protocolDefaultModel = '';
+  if (isHttpProviderId(request.provider)) {
+    const config = await httpRuntimeConfig(request.provider);
+    protocolDefaultModel = defaultModelForProtocol(config.protocol);
+  }
+  const model = request.model?.trim() || protocolDefaultModel;
   return estimateAiCost(request.provider, model, inputChars);
 }
 

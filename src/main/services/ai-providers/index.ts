@@ -1,4 +1,9 @@
-import type { AiHttpProvider, AiModelInfo } from '@shared/types';
+import type {
+  AiCustomProviderProtocol,
+  AiHttpProvider,
+  AiModelInfo,
+  AiProviderId,
+} from '@shared/types';
 import { anthropicSseSemantics, buildAnthropicRequest } from './anthropic';
 import {
   buildAzureChatRequest,
@@ -9,7 +14,7 @@ import {
 } from './openai-chat';
 import { buildOllamaTagsRequest, parseOllamaTags } from './ollama';
 import { callHttpProvider, HttpProviderError, streamHttpProvider, type SseEventSemantics } from './http-client';
-import { catalogModelsForProvider, defaultModelForProvider } from './model-catalog';
+import { catalogModelsForProvider, defaultModelForProtocol } from './model-catalog';
 import type { HttpProviderRuntimeConfig, ProviderHttpRequest, ProviderTaskInput } from './types';
 
 export interface HttpProviderAdapter {
@@ -21,7 +26,7 @@ export interface HttpProviderAdapter {
   needsBaseUrl: boolean;
 }
 
-const ADAPTERS: Record<AiHttpProvider, HttpProviderAdapter> = {
+const ADAPTERS: Record<AiCustomProviderProtocol, HttpProviderAdapter> = {
   anthropic: { buildRequest: buildAnthropicRequest, sse: anthropicSseSemantics, needsApiKey: true, needsBaseUrl: false },
   'azure-openai': { buildRequest: buildAzureChatRequest, sse: openAiChatSseSemantics, needsApiKey: true, needsBaseUrl: true },
   'openai-compatible': {
@@ -33,20 +38,27 @@ const ADAPTERS: Record<AiHttpProvider, HttpProviderAdapter> = {
   ollama: { buildRequest: buildOllamaChatRequest, sse: openAiChatSseSemantics, needsApiKey: false, needsBaseUrl: false },
 };
 
+/** Adapter lookup keys off the wire protocol; `config.provider` is only an id. */
+export function resolveAdapter(config: HttpProviderRuntimeConfig): HttpProviderAdapter {
+  return ADAPTERS[config.protocol];
+}
+
 export function getHttpProviderAdapter(provider: AiHttpProvider): HttpProviderAdapter {
   return ADAPTERS[provider];
 }
 
 export function httpProviderModel(config: HttpProviderRuntimeConfig): string {
-  return config.modelOverride?.trim() || defaultModelForProvider(config.provider);
+  return config.modelOverride?.trim() || defaultModelForProtocol(config.protocol);
 }
 
 /** Static credential requirements a provider must satisfy before a call. */
 export function httpProviderConfigError(
-  provider: AiHttpProvider,
+  _provider: AiProviderId,
   config: HttpProviderRuntimeConfig
 ): string | undefined {
-  const adapter = ADAPTERS[provider];
+  // The provider id is kept for a stable call signature; validation keys off
+  // the wire protocol so built-ins and custom providers share one code path.
+  const adapter = resolveAdapter(config);
   if (adapter.needsApiKey && !config.apiKey?.trim()) {
     return `[authentication_required] Save an API key for this provider in ShellySVN AI provider settings.`;
   }
@@ -69,7 +81,7 @@ export async function executeHttpProviderTask(
   config: HttpProviderRuntimeConfig,
   task: ProviderTaskInput
 ): Promise<HttpProviderTaskResult> {
-  const adapter = ADAPTERS[config.provider];
+  const adapter = resolveAdapter(config);
   const model = httpProviderModel(config);
   const request = adapter.buildRequest(config, task);
   const text = await streamHttpProvider({
@@ -83,12 +95,17 @@ export async function executeHttpProviderTask(
   return { text, model };
 }
 
-/** List selectable models for a provider (live for Ollama, catalog otherwise). */
+/**
+ * List selectable models for a provider (live /api/tags for any
+ * ollama-protocol provider — built-in or custom — catalog otherwise).
+ * Returned entries always carry the ACTUAL provider id so the renderer can
+ * key them.
+ */
 export async function listHttpProviderModels(
-  provider: AiHttpProvider,
+  provider: AiProviderId,
   config: HttpProviderRuntimeConfig
 ): Promise<AiModelInfo[]> {
-  if (provider === 'ollama') {
+  if (config.protocol === 'ollama') {
     try {
       const { status, body } = await callHttpProvider({
         request: buildOllamaTagsRequest(config.baseUrl),
@@ -97,13 +114,15 @@ export async function listHttpProviderModels(
       });
       if (status >= 200 && status < 300) {
         const live = parseOllamaTags(body);
-        if (live.length > 0) return live;
+        if (live.length > 0) {
+          return live.map((model) => ({ ...model, provider }));
+        }
       }
     } catch {
       // Fall back to the static catalog when no local server answers.
     }
   }
-  return catalogModelsForProvider(provider);
+  return catalogModelsForProvider(provider, config.protocol);
 }
 
 /** Cheap reachability probe used for provider status and auto selection. */

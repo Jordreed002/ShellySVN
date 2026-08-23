@@ -101,8 +101,11 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
   { tab: 'connections', section: 'Working Copies', label: 'AI opt-in state per working copy', keywords: ['ai', 'consent', 'opt in', 'privacy'] },
 
   // AI Providers
+  { tab: 'ai', section: 'HTTP Providers', label: 'Add provider dialog', keywords: ['add', 'provider', 'new', 'connect', 'endpoint', 'anthropic', 'azure', 'openai', 'ollama', 'api key'] },
+  { tab: 'ai', section: 'HTTP Providers', label: 'Custom provider with name and protocol', keywords: ['custom', 'provider', 'display name', 'protocol', 'openai-compatible', 'openrouter', 'groq', 'together', 'lm studio', 'endpoint', 'base url', 'proxy'] },
   { tab: 'ai', section: 'HTTP Providers', label: 'Enable a provider and save its API key', keywords: ['anthropic', 'azure', 'openai', 'ollama', 'api key', 'safe storage'] },
   { tab: 'ai', section: 'HTTP Providers', label: 'Base URL for openai-compatible or azure', keywords: ['base url', 'endpoint', 'openai-compatible', 'azure'] },
+  { tab: 'ai', section: 'HTTP Providers', label: 'Rename or delete a custom provider', keywords: ['rename', 'delete', 'remove', 'custom', 'display name'] },
   { tab: 'ai', section: 'HTTP Providers', label: 'Model picker and refresh', keywords: ['model', 'list', 'refresh', 'override'] },
   { tab: 'ai', section: 'Cost Estimate', label: 'Preview cost for a sample diff', keywords: ['cost', 'estimate', 'tokens', 'pricing'] },
   { tab: 'ai', section: 'CLI Providers', label: 'Installed CLI provider status', keywords: ['codex', 'claude', 'cli', 'installed', 'signed in'] },

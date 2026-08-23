@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   catalogModelsForProvider,
+  defaultModelForProtocol,
   defaultModelForProvider,
   estimateAiCost,
   estimateTokensFromChars,
   getModelPricing,
 } from '../ai-providers/model-catalog';
+import { getHttpProviderAdapter, httpProviderConfigError, httpProviderModel, resolveAdapter } from '../ai-providers';
+import type { HttpProviderRuntimeConfig } from '../ai-providers/types';
+import { isCustomProviderId, isHttpProviderId } from '../ai-providers/types';
 import {
   buildAnthropicRequest,
   resolveAnthropicUrl,
@@ -55,6 +59,70 @@ describe('model catalog and pricing (#109)', () => {
       expect(models.filter((model) => model.defaultForProvider)).toHaveLength(1);
     }
   });
+
+  it('resolves defaults, catalogs, and adapters by wire protocol for custom providers', () => {
+    expect(defaultModelForProtocol('anthropic')).toBe(defaultModelForProvider('anthropic'));
+    expect(defaultModelForProtocol('azure-openai')).toBe(defaultModelForProvider('azure-openai'));
+    expect(defaultModelForProtocol('openai-compatible')).toBe(defaultModelForProvider('openai-compatible'));
+    expect(defaultModelForProtocol('ollama')).toBe(defaultModelForProvider('ollama'));
+
+    // A custom provider gets the protocol catalog re-tagged with its own id.
+    const custom = catalogModelsForProvider('custom:acme', 'anthropic');
+    const builtIn = catalogModelsForProvider('anthropic');
+    expect(custom.map((model) => model.id)).toEqual(builtIn.map((model) => model.id));
+    expect(custom.every((model) => model.provider === 'custom:acme')).toBe(true);
+    expect(custom.filter((model) => model.defaultForProvider)).toHaveLength(1);
+    // Without a protocol the custom id alone cannot resolve a catalog.
+    expect(catalogModelsForProvider('custom:acme')).toEqual([]);
+
+    const adapterConfig: HttpProviderRuntimeConfig = {
+      provider: 'custom:acme',
+      protocol: 'openai-compatible',
+    };
+    expect(resolveAdapter(adapterConfig)).toBe(getHttpProviderAdapter('openai-compatible'));
+    expect(httpProviderModel(adapterConfig)).toBe('gpt-4o-mini');
+    expect(
+      httpProviderModel({ ...adapterConfig, modelOverride: 'acme-model' })
+    ).toBe('acme-model');
+  });
+
+  it('classifies ids and validates custom provider configs per protocol', () => {
+    expect(isCustomProviderId('custom:acme')).toBe(true);
+    expect(isCustomProviderId('anthropic')).toBe(false);
+    expect(isHttpProviderId('custom:acme')).toBe(true);
+    expect(isHttpProviderId('anthropic')).toBe(true);
+    expect(isHttpProviderId('codex')).toBe(false);
+
+    const anthropicCustom: HttpProviderRuntimeConfig = {
+      provider: 'custom:acme',
+      protocol: 'anthropic',
+      baseUrl: 'https://proxy.internal',
+    };
+    expect(httpProviderConfigError('custom:acme', anthropicCustom)).toMatch(
+      /^\[authentication_required\]/
+    );
+    const azureCustom: HttpProviderRuntimeConfig = {
+      provider: 'custom:acme-azure',
+      protocol: 'azure-openai',
+      apiKey: 'key-1',
+    };
+    expect(httpProviderConfigError('custom:acme-azure', azureCustom)).toMatch(
+      /^\[provider_unavailable\]/
+    );
+    // Ollama needs neither key nor URL; a missing model is NOT a config error
+    // (model defaulting happens at request time).
+    const ollamaCustom: HttpProviderRuntimeConfig = { provider: 'custom:acme-local', protocol: 'ollama' };
+    expect(httpProviderConfigError('custom:acme-local', ollamaCustom)).toBeUndefined();
+  });
+
+  it('knows pricing for custom providers only when the model id matches', () => {
+    const known = estimateAiCost('custom:acme', 'claude-sonnet-4-5', 4_000);
+    expect(known.pricingKnown).toBe(true);
+    expect(known.provider).toBe('custom:acme');
+    const unknown = estimateAiCost('custom:acme', 'acme-private-model', 4_000);
+    expect(unknown.pricingKnown).toBe(false);
+    expect(unknown.estimatedCostUsd).toBe(0);
+  });
 });
 
 describe('provider URL and request building (#108)', () => {
@@ -62,7 +130,7 @@ describe('provider URL and request building (#108)', () => {
     expect(resolveAnthropicUrl()).toBe('https://api.anthropic.com/v1/messages');
     expect(resolveAnthropicUrl('https://proxy.internal/')).toBe('https://proxy.internal/v1/messages');
     const request = buildAnthropicRequest(
-      { provider: 'anthropic', apiKey: 'key-1' },
+      { provider: 'anthropic', protocol: 'anthropic', apiKey: 'key-1' },
       { prompt: 'p', outputSchema: {}, timeoutMs: 1_000, signal: new AbortController().signal, onDelta: () => undefined }
     );
     expect(request.url).toBe('https://api.anthropic.com/v1/messages');
@@ -90,9 +158,9 @@ describe('provider URL and request building (#108)', () => {
 
   it('authenticates each provider shape differently and honors model overrides', () => {
     const task = { prompt: 'p', outputSchema: { type: 'object' }, timeoutMs: 1_000, signal: new AbortController().signal, onDelta: () => undefined };
-    expect(buildOpenAiCompatibleChatRequest({ provider: 'openai-compatible', apiKey: 'k', baseUrl: 'https://api.vendor.io/v1' }, task).headers.authorization).toBe('Bearer k');
-    expect(buildAzureChatRequest({ provider: 'azure-openai', apiKey: 'az' , baseUrl: 'https://res.openai.azure.com/openai/deployments/gpt-4o' }, task).headers['api-key']).toBe('az');
-    const ollama = buildOllamaChatRequest({ provider: 'ollama', modelOverride: 'qwen2.5-coder' }, task);
+    expect(buildOpenAiCompatibleChatRequest({ provider: 'openai-compatible', protocol: 'openai-compatible', apiKey: 'k', baseUrl: 'https://api.vendor.io/v1' }, task).headers.authorization).toBe('Bearer k');
+    expect(buildAzureChatRequest({ provider: 'azure-openai', protocol: 'azure-openai', apiKey: 'az' , baseUrl: 'https://res.openai.azure.com/openai/deployments/gpt-4o' }, task).headers['api-key']).toBe('az');
+    const ollama = buildOllamaChatRequest({ provider: 'ollama', protocol: 'ollama', modelOverride: 'qwen2.5-coder' }, task);
     expect(ollama.headers.authorization).toBeUndefined();
     expect(JSON.parse(ollama.body ?? '{}').model).toBe('qwen2.5-coder');
   });

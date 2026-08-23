@@ -19,6 +19,7 @@ const mockCredentialsStore = vi.hoisted(() => ({
   summary: vi.fn(),
   saveProviderCredential: vi.fn(),
   removeProviderCredential: vi.fn(),
+  upsertCustomProvider: vi.fn(),
 }));
 const mockConsentGet = vi.hoisted(() => vi.fn());
 const mockConsentSet = vi.hoisted(() => vi.fn());
@@ -84,6 +85,7 @@ describe('AI IPC handlers', () => {
       'ai:credentials:summary',
       'ai:credentials:save',
       'ai:credentials:remove',
+      'ai:custom-providers:upsert',
       'ai:estimateCost',
       'ai:listModels',
       'ai:consent:get',
@@ -182,5 +184,48 @@ describe('AI IPC handlers', () => {
     expect(mockListModels).toHaveBeenCalledWith('ollama');
     expect(mockConsentGet).toHaveBeenCalledWith('/wc');
     expect(mockConsentSet).toHaveBeenCalledWith('/wc', false);
+  });
+
+  it('upserts custom providers and forwards provider ids unchanged', async () => {
+    mockCredentialsStore.upsertCustomProvider.mockResolvedValue({ id: 'custom:acme' });
+    mockCredentialsStore.removeProviderCredential.mockResolvedValue(undefined);
+    mockListModels.mockResolvedValue([]);
+
+    const upsert = await handlers.get('ai:custom-providers:upsert')!({}, {
+      displayName: 'Acme',
+      protocol: 'openai-compatible',
+      apiKey: 'k',
+      baseUrl: 'https://acme.test/v1',
+      modelOverride: 'acme-model',
+    });
+    await handlers.get('ai:credentials:remove')!({}, 'custom:acme');
+    await handlers.get('ai:listModels')!({}, 'custom:acme');
+
+    expect(upsert).toEqual({ success: true, id: 'custom:acme' });
+    expect(mockCredentialsStore.upsertCustomProvider).toHaveBeenCalledWith({
+      displayName: 'Acme',
+      protocol: 'openai-compatible',
+      apiKey: 'k',
+      baseUrl: 'https://acme.test/v1',
+      modelOverride: 'acme-model',
+    });
+    expect(mockCredentialsStore.removeProviderCredential).toHaveBeenCalledWith('custom:acme');
+    expect(mockListModels).toHaveBeenCalledWith('custom:acme');
+  });
+
+  it('wraps custom provider upsert failures into a failed operation result', async () => {
+    mockCredentialsStore.upsertCustomProvider.mockRejectedValue(
+      new Error('Custom provider names must be 1 to 80 characters.')
+    );
+
+    const result = await handlers.get('ai:custom-providers:upsert')!({}, {
+      displayName: '',
+      protocol: 'ollama',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Custom provider names must be 1 to 80 characters.',
+    });
   });
 });

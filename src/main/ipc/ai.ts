@@ -1,10 +1,11 @@
 import type {
   AiCommitMessageRequest,
-  AiCommitProvider,
   AiConflictProposalRequest,
   AiCostEstimateRequest,
+  AiCustomProviderUpsertInput,
   AiDiffExplanationRequest,
   AiProviderCredentialInput,
+  AiProviderId,
   AiReleaseNotesRequest,
   AiSelectedPathsRequest,
   AiStreamEvent,
@@ -136,14 +137,20 @@ export function registerAiHandlers(ipcMain: AiIpcMain): void {
   );
   ipcMain.handle('ai:credentials:remove', (_event, ...args) =>
     currentAiCredentialsStore()
-      .removeProviderCredential(args[0] as AiCommitProvider)
+      .removeProviderCredential(args[0] as AiProviderId)
       .then(() => ({ success: true }))
+  );
+  ipcMain.handle('ai:custom-providers:upsert', (_event, ...args) =>
+    currentAiCredentialsStore()
+      .upsertCustomProvider(args[0] as AiCustomProviderUpsertInput)
+      .then(({ id }) => ({ success: true, id }))
+      .catch((error: unknown) => toOperationResult(error))
   );
   ipcMain.handle('ai:estimateCost', (_event, ...args) =>
     estimateAiCostForRequest(args[0] as AiCostEstimateRequest)
   );
   ipcMain.handle('ai:listModels', (_event, ...args) =>
-    listAiProviderModels(args[0] as AiCommitProvider)
+    listAiProviderModels(args[0] as AiProviderId)
   );
   ipcMain.handle('ai:consent:get', (_event, ...args) =>
     getAiWorkingCopyConsent(args[0] as string)

@@ -1,4 +1,11 @@
-import type { AiCommitProvider, AiCostEstimate, AiHttpProvider, AiModelInfo } from '@shared/types';
+import type {
+  AiCostEstimate,
+  AiCustomProviderProtocol,
+  AiHttpProvider,
+  AiModelInfo,
+  AiProviderId,
+} from '@shared/types';
+import { isHttpAiProvider } from './types';
 
 /** USD per one million tokens. Unknown models get generous zeros. */
 export interface AiModelPricing {
@@ -27,7 +34,7 @@ const MODEL_PRICING: Record<string, AiModelPricing> = {
   // Codex CLI models run through the signed-in CLI; pricing is not published here.
 };
 
-const PROVIDER_DEFAULT_MODEL: Record<AiHttpProvider, string> = {
+const PROTOCOL_DEFAULT_MODEL: Record<AiCustomProviderProtocol, string> = {
   anthropic: 'claude-sonnet-4-5',
   'azure-openai': 'gpt-4o',
   'openai-compatible': 'gpt-4o-mini',
@@ -35,7 +42,7 @@ const PROVIDER_DEFAULT_MODEL: Record<AiHttpProvider, string> = {
 };
 
 export interface AiModelCatalogEntry extends AiModelInfo {
-  provider: AiCommitProvider;
+  provider: AiHttpProvider;
 }
 
 const CATALOG: readonly AiModelCatalogEntry[] = [
@@ -87,12 +94,29 @@ export function getModelPricing(model: string | undefined): AiModelPricing {
   return MODEL_PRICING[model] ?? { inputUsdPerMillion: 0, outputUsdPerMillion: 0 };
 }
 
-export function defaultModelForProvider(provider: AiHttpProvider): string {
-  return PROVIDER_DEFAULT_MODEL[provider];
+/** Default model for a wire protocol (identical for built-in and custom providers). */
+export function defaultModelForProtocol(protocol: AiCustomProviderProtocol): string {
+  return PROTOCOL_DEFAULT_MODEL[protocol];
 }
 
-export function catalogModelsForProvider(provider: AiHttpProvider): AiModelInfo[] {
-  return CATALOG.filter((entry) => entry.provider === provider).map(
+export function defaultModelForProvider(provider: AiHttpProvider): string {
+  return defaultModelForProtocol(provider);
+}
+
+/**
+ * Catalog suggestions for a provider. Custom providers pass their wire
+ * `protocol` and receive that protocol's catalog re-tagged with the custom id,
+ * so the renderer can key models by the actual provider.
+ */
+export function catalogModelsForProvider(
+  provider: AiProviderId,
+  protocol?: AiCustomProviderProtocol
+): AiModelInfo[] {
+  // Without an explicit protocol only built-ins can be resolved; the catalog
+  // intentionally has no codex/claude entries (CLI models are fixed elsewhere).
+  const wireProtocol = protocol ?? (isHttpAiProvider(provider) ? provider : undefined);
+  if (!wireProtocol) return [];
+  return CATALOG.filter((entry) => entry.provider === wireProtocol).map(
     ({ id, label, local, contextTokens, defaultForProvider }) => ({
       id,
       label,
@@ -113,8 +137,12 @@ function assumedOutputTokens(inputTokens: number): number {
   return Math.min(Math.max(256, Math.floor(inputTokens / 8)), 2048);
 }
 
+/**
+ * Pre-send cost estimate. Pricing is keyed purely by model id, so a custom
+ * provider only reports `pricingKnown` when its model matches a known entry.
+ */
 export function estimateAiCost(
-  provider: AiCommitProvider,
+  provider: AiProviderId,
   model: string,
   inputChars: number,
   outputChars?: number

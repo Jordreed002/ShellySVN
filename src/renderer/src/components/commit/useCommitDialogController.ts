@@ -20,6 +20,7 @@ import {
   isValidIssuePattern,
 } from '@renderer/utils/issueTracker';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { providerLabel } from '../settings/AddProviderDialog';
 import { useRecentCommitMessages } from './useRecentCommitMessages';
 import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
 import type {
@@ -610,11 +611,14 @@ export function useCommitDialogController({
         );
       }
       if (result.redacted) notes.push('possible secrets were redacted');
-      const providerLabel = result.model ? `${result.provider} (${result.model})` : result.provider;
+      // Custom providers report their `custom:<slug>` id — prefer the display
+      // name from the resolved provider status for the user-facing notice.
+      const providerName = providerLabel(result.provider, selectedAiProvider?.displayName);
+      const providerSummary = result.model ? `${providerName} (${result.model})` : providerName;
       setAiGenerationNotice(
         notes.length > 0
-          ? `Generated with ${providerLabel}. Note: ${notes.join('; ')}.`
-          : `Generated with ${providerLabel}. Review and edit before committing.`
+          ? `Generated with ${providerSummary}. Note: ${notes.join('; ')}.`
+          : `Generated with ${providerSummary}. Review and edit before committing.`
       );
     } catch (generationError) {
       if (generationEpochRef.current !== epoch || controller.signal.aborted) return;
@@ -629,6 +633,7 @@ export function useCommitDialogController({
   }, [
     aiProviderAvailable,
     cancelMessageGeneration,
+    selectedAiProvider?.displayName,
     selectedAiProvider?.reason,
     selectedFiles,
     selectionFingerprint,
@@ -1139,7 +1144,11 @@ export function useCommitDialogController({
     isRunningAiAssistant,
     isLoadingAiProviders,
     aiProviderAvailable,
-    aiProviderName: selectedAiProvider?.provider ?? settings.aiCommit.provider,
+    aiProviderName: selectedAiProvider
+      ? providerLabel(selectedAiProvider.provider, selectedAiProvider.displayName)
+      : settings.aiCommit.provider === 'auto'
+        ? 'Auto'
+        : providerLabel(settings.aiCommit.provider),
     aiModelName:
       selectedAiProvider?.provider === 'codex' || settings.aiCommit.provider === 'codex'
         ? settings.aiCommit.codexModel

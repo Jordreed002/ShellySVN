@@ -156,15 +156,19 @@ export interface IpcInvokeContract {
     OperationResult
   >;
   'ai:credentials:remove': IpcCall<
-    [provider: import('./types').AiCommitProvider],
+    [provider: import('./types').AiProviderId],
     { success: boolean }
+  >;
+  'ai:custom-providers:upsert': IpcCall<
+    [input: import('./types').AiCustomProviderUpsertInput],
+    { success: boolean; id?: string; error?: string }
   >;
   'ai:estimateCost': IpcCall<
     [request: import('./types').AiCostEstimateRequest],
     import('./types').AiCostEstimate
   >;
   'ai:listModels': IpcCall<
-    [provider: import('./types').AiCommitProvider],
+    [provider: import('./types').AiProviderId],
     import('./types').AiModelInfo[]
   >;
   'ai:consent:get': IpcCall<

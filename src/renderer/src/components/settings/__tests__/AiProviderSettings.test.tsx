@@ -1,10 +1,14 @@
 /**
  * AI provider settings section — state machine with a mocked window.api.ai.
  *
- * The things worth defending: the storage-unavailable state surfaces the main
- * process reason verbatim and disables key saving; API keys are write-only
- * (never rendered back — set/unset comes from the summary); and the model +
- * cost preview call the documented IPC shapes.
+ * The page renders only configured providers as cards (built-ins with a
+ * credentials-summary entry plus every custom provider) and moves all setup
+ * into the Add Provider dialog. The things worth defending: the
+ * storage-unavailable state surfaces the main process reason verbatim and
+ * disables key saving; API keys are write-only (never rendered back —
+ * set/unset comes from the summary); custom cards rename via
+ * `customProviders.upsert` and delete via `credentials.remove(customId)`; and
+ * the model + cost preview call the documented IPC shapes.
  */
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -14,6 +18,7 @@ import type {
   AiCommitProviderStatus,
   AiCostEstimate,
   AiCredentialsSummary,
+  AiProviderCredentialStatus,
 } from '@shared/types';
 
 import { AiProviderSettings } from '../AiProviderSettings';
@@ -22,6 +27,7 @@ const providers = vi.fn();
 const summary = vi.fn();
 const save = vi.fn();
 const remove = vi.fn();
+const upsert = vi.fn();
 const listModels = vi.fn();
 const estimateCost = vi.fn();
 
@@ -31,6 +37,22 @@ const httpStatus = (provider: string, overrides: Partial<AiCommitProviderStatus>
   kind: 'http',
   ...overrides,
 });
+
+function credential(
+  provider: string,
+  overrides: Partial<AiProviderCredentialStatus> = {}
+): AiProviderCredentialStatus {
+  return { provider: provider as AiProviderCredentialStatus['provider'], hasApiKey: false, hasBaseUrl: false, ...overrides };
+}
+
+/** Every built-in HTTP provider configured — closest to the pre-dialog page. */
+function allBuiltInsSummary(overrides: Partial<AiCredentialsSummary> = {}): AiCredentialsSummary {
+  return {
+    encryptionAvailable: true,
+    providers: ['anthropic', 'azure-openai', 'openai-compatible', 'ollama'].map((id) => credential(id)),
+    ...overrides,
+  };
+}
 
 function defaultSummary(overrides: Partial<AiCredentialsSummary> = {}): AiCredentialsSummary {
   return { encryptionAvailable: true, providers: [], ...overrides };
@@ -44,6 +66,7 @@ beforeEach(() => {
       ai: {
         providers,
         credentials: { summary, save, remove },
+        customProviders: { upsert },
         listModels,
         estimateCost,
       },
@@ -57,9 +80,10 @@ beforeEach(() => {
     { provider: 'codex', available: true, kind: 'cli', version: '0.9.1' },
     { provider: 'claude', available: false, kind: 'cli', reason: 'Not installed' },
   ]);
-  summary.mockResolvedValue(defaultSummary());
+  summary.mockResolvedValue(allBuiltInsSummary());
   save.mockResolvedValue({ success: true });
   remove.mockResolvedValue({ success: true });
+  upsert.mockResolvedValue({ success: true, id: 'custom:new' });
   listModels.mockResolvedValue([]);
   estimateCost.mockResolvedValue({
     provider: 'anthropic',
@@ -77,35 +101,47 @@ beforeEach(() => {
 afterEach(cleanup);
 
 async function rendered() {
-  const utils = render(<AiProviderSettings />);
-  await waitFor(() => expect(screen.getByTestId('ai-provider-anthropic')).toBeInTheDocument());
-  return utils;
+  render(<AiProviderSettings />);
+  await waitFor(() => expect(screen.getByTestId('ai-add-provider-open')).toBeInTheDocument());
 }
 
-describe('AiProviderSettings state machine', () => {
-  it('renders every provider, split into HTTP and CLI groups', async () => {
+describe('AiProviderSettings configured-card model', () => {
+  it('shows the empty state and Add button when nothing is configured; CLI rows still render', async () => {
+    summary.mockResolvedValue(defaultSummary());
     await rendered();
-    expect(screen.getByTestId('ai-provider-anthropic')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-provider-azure-openai')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-provider-openai-compatible')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-provider-ollama')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-providers-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-add-provider-open')).toBeInTheDocument();
+    // Unconfigured built-ins no longer render cards.
+    expect(screen.queryByTestId('ai-provider-anthropic')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-provider-azure-openai')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-provider-openai-compatible')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-provider-ollama')).not.toBeInTheDocument();
+    // CLI providers are read-only — no key entry.
     expect(screen.getByTestId('ai-provider-codex')).toBeInTheDocument();
     expect(screen.getByTestId('ai-provider-claude')).toBeInTheDocument();
-    // CLI providers are read-only — no key entry.
     expect(screen.queryByTestId('ai-api-key-codex')).not.toBeInTheDocument();
     expect(screen.getByText('Not installed')).toBeInTheDocument();
   });
 
+  it('renders a card only for a configured built-in', async () => {
+    summary.mockResolvedValue(defaultSummary({ providers: [credential('anthropic')] }));
+    await rendered();
+    expect(screen.getByTestId('ai-provider-anthropic')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-api-key-anthropic')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-model-anthropic')).toBeInTheDocument();
+    expect(screen.queryByTestId('ai-provider-azure-openai')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-provider-openai-compatible')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ai-provider-ollama')).not.toBeInTheDocument();
+  });
+
   it('shows key set/unset from the credentials summary, never the key itself', async () => {
     summary.mockResolvedValue(
-      defaultSummary({
+      allBuiltInsSummary({
         providers: [
-          {
-            provider: 'anthropic',
-            hasApiKey: true,
-            hasBaseUrl: false,
-            updatedAt: '2026-08-01T10:00:00.000Z',
-          },
+          credential('anthropic', { hasApiKey: true, updatedAt: '2026-08-01T10:00:00.000Z' }),
+          credential('azure-openai'),
+          credential('openai-compatible'),
+          credential('ollama'),
         ],
       })
     );
@@ -210,12 +246,192 @@ describe('AiProviderSettings state machine', () => {
   });
 });
 
+describe('custom provider cards', () => {
+  const CUSTOM_ID = 'custom:openrouter';
+
+  beforeEach(() => {
+    providers.mockResolvedValue([
+      httpStatus('anthropic', { available: true }),
+      httpStatus('azure-openai'),
+      httpStatus('openai-compatible'),
+      httpStatus('ollama'),
+      httpStatus(CUSTOM_ID, {
+        available: true,
+        displayName: 'OpenRouter',
+        protocol: 'openai-compatible',
+      }),
+      { provider: 'codex', available: true, kind: 'cli', version: '0.9.1' },
+      { provider: 'claude', available: false, kind: 'cli', reason: 'Not installed' },
+    ]);
+    summary.mockResolvedValue(
+      allBuiltInsSummary({
+        providers: [
+          credential('anthropic'),
+          credential('azure-openai'),
+          credential('openai-compatible'),
+          credential('ollama'),
+          credential(CUSTOM_ID, {
+            hasApiKey: true,
+            hasBaseUrl: true,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            displayName: 'OpenRouter',
+            protocol: 'openai-compatible',
+          }),
+        ],
+      })
+    );
+  });
+
+  it('renders the display name, protocol badge, and protocol-shaped fields', async () => {
+    await rendered();
+    const card = screen.getByTestId(`ai-provider-${CUSTOM_ID}`);
+    expect(card.textContent).toContain('OPENAI-COMPATIBLE');
+    // openai-compatible protocol → key + required base URL.
+    expect(screen.getByTestId(`ai-api-key-${CUSTOM_ID}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`ai-base-url-${CUSTOM_ID}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`ai-key-status-${CUSTOM_ID}`).textContent).toContain('Key set');
+    // Rename is an inline text input seeded with the display name.
+    expect((screen.getByTestId(`ai-rename-${CUSTOM_ID}`) as HTMLInputElement).value).toBe('OpenRouter');
+  });
+
+  it('commits an inline rename through customProviders.upsert on blur', async () => {
+    await rendered();
+    const input = screen.getByTestId(`ai-rename-${CUSTOM_ID}`) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'OpenRouter 2' } });
+    fireEvent.blur(input);
+    await waitFor(() =>
+      expect(upsert).toHaveBeenCalledWith({
+        id: CUSTOM_ID,
+        displayName: 'OpenRouter 2',
+        protocol: 'openai-compatible',
+      })
+    );
+  });
+
+  it('deletes the custom definition via credentials.remove(customId)', async () => {
+    await rendered();
+    fireEvent.click(screen.getByTestId(`ai-delete-${CUSTOM_ID}`));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(CUSTOM_ID));
+  });
+
+  it('loads the model list for the custom id', async () => {
+    listModels.mockResolvedValue([
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini', provider: CUSTOM_ID, local: false },
+    ]);
+    await rendered();
+    fireEvent.focus(screen.getByTestId(`ai-model-${CUSTOM_ID}`));
+    await waitFor(() => expect(listModels).toHaveBeenCalledWith(CUSTOM_ID));
+    const options = (screen.getByTestId(`ai-model-${CUSTOM_ID}`) as HTMLSelectElement).options;
+    await waitFor(() => expect(options.length).toBe(2));
+    expect(options[1].value).toBe('gpt-4o-mini');
+  });
+});
+
+describe('Add provider dialog (through the page)', () => {
+  it('adds a built-in: azure requires key + base URL before submit, then saves and closes', async () => {
+    summary.mockResolvedValue(defaultSummary());
+    await rendered();
+    fireEvent.click(screen.getByTestId('ai-add-provider-open'));
+    expect(screen.getByTestId('ai-add-dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('ai-add-option-azure-openai'));
+    const submit = screen.getByTestId('ai-add-submit') as HTMLButtonElement;
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByTestId('ai-add-api-key'), { target: { value: 'k' } });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByTestId('ai-add-base-url'), {
+      target: { value: 'https://example.openai.azure.com' },
+    });
+    expect(submit).not.toBeDisabled();
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'azure-openai',
+          apiKey: 'k',
+          baseUrl: 'https://example.openai.azure.com',
+          modelOverride: '',
+        })
+      )
+    );
+    await waitFor(() => expect(screen.queryByTestId('ai-add-dialog')).not.toBeInTheDocument());
+    expect(await screen.findByTestId('ai-provider-message')).toHaveTextContent(
+      'Azure OpenAI configuration saved.'
+    );
+  });
+
+  it('adds a custom provider: name + protocol + key + base URL + model are required', async () => {
+    summary.mockResolvedValue(defaultSummary());
+    await rendered();
+    fireEvent.click(screen.getByTestId('ai-add-provider-open'));
+    fireEvent.click(screen.getByTestId('ai-add-option-custom'));
+    const submit = screen.getByTestId('ai-add-submit') as HTMLButtonElement;
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByTestId('ai-add-name'), { target: { value: 'OpenRouter' } });
+    expect((screen.getByTestId('ai-add-protocol') as HTMLSelectElement).value).toBe('openai-compatible');
+    expect(screen.queryByTestId('ai-add-api-key')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('ai-add-api-key'), { target: { value: 'sk-or' } });
+    fireEvent.change(screen.getByTestId('ai-add-base-url'), {
+      target: { value: 'https://openrouter.ai/api/v1' },
+    });
+    // Model is required for non-ollama custom protocols.
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-4o-mini' } });
+    expect(submit).not.toBeDisabled();
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(upsert).toHaveBeenCalledWith({
+        displayName: 'OpenRouter',
+        protocol: 'openai-compatible',
+        apiKey: 'sk-or',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        modelOverride: 'gpt-4o-mini',
+      })
+    );
+    await waitFor(() => expect(screen.queryByTestId('ai-add-dialog')).not.toBeInTheDocument());
+    expect(await screen.findByTestId('ai-provider-message')).toHaveTextContent('added');
+  });
+
+  it('shows the upsert error inline and keeps the dialog open on failure', async () => {
+    upsert.mockResolvedValue({ success: false, error: 'duplicate name' });
+    summary.mockResolvedValue(defaultSummary());
+    await rendered();
+    fireEvent.click(screen.getByTestId('ai-add-provider-open'));
+    fireEvent.click(screen.getByTestId('ai-add-option-custom'));
+    fireEvent.change(screen.getByTestId('ai-add-name'), { target: { value: 'OpenRouter' } });
+    fireEvent.change(screen.getByTestId('ai-add-api-key'), { target: { value: 'sk-or' } });
+    fireEvent.change(screen.getByTestId('ai-add-base-url'), {
+      target: { value: 'https://openrouter.ai/api/v1' },
+    });
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-4o-mini' } });
+    fireEvent.click(screen.getByTestId('ai-add-submit'));
+    const error = await screen.findByTestId('ai-add-error');
+    expect(error).toHaveAttribute('role', 'alert');
+    expect(error.textContent).toContain('duplicate name');
+    expect(screen.getByTestId('ai-add-dialog')).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('disables already-configured built-ins in the dialog with a Configured badge', async () => {
+    summary.mockResolvedValue(defaultSummary({ providers: [credential('anthropic')] }));
+    await rendered();
+    fireEvent.click(screen.getByTestId('ai-add-provider-open'));
+    const anthropic = screen.getByTestId('ai-add-option-anthropic') as HTMLButtonElement;
+    expect(anthropic).toBeDisabled();
+    expect(anthropic.textContent).toContain('Configured');
+    // Default selection skips the configured row.
+    expect(screen.getByTestId('ai-add-option-azure-openai')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('ai-add-option-anthropic')).toHaveAttribute('aria-checked', 'false');
+  });
+});
+
 describe('storage-unavailable state', () => {
   const reason =
     'OS-protected credential storage (safeStorage) is unavailable on this system, so API keys cannot be stored securely.';
 
   it('displays the storageUnavailableReason verbatim and disables key saving', async () => {
-    summary.mockResolvedValue(defaultSummary({ encryptionAvailable: false, storageUnavailableReason: reason }));
+    summary.mockResolvedValue(
+      allBuiltInsSummary({ encryptionAvailable: false, storageUnavailableReason: reason })
+    );
     await rendered();
     const banner = screen.getByTestId('ai-storage-unavailable');
     expect(banner.textContent).toContain(reason);
@@ -227,9 +443,22 @@ describe('storage-unavailable state', () => {
   });
 
   it('still allows saving when no key material is involved', async () => {
-    summary.mockResolvedValue(defaultSummary({ encryptionAvailable: false, storageUnavailableReason: reason }));
+    summary.mockResolvedValue(
+      allBuiltInsSummary({ encryptionAvailable: false, storageUnavailableReason: reason })
+    );
     await rendered();
     // No typed key → the save button stays enabled (base URL / model config only).
     expect(screen.getByTestId('ai-save-openai-compatible')).not.toBeDisabled();
+  });
+
+  it('disables the API key input inside the Add provider dialog', async () => {
+    summary.mockResolvedValue(
+      defaultSummary({ encryptionAvailable: false, storageUnavailableReason: reason })
+    );
+    await rendered();
+    fireEvent.click(screen.getByTestId('ai-add-provider-open'));
+    const keyInput = screen.getByTestId('ai-add-api-key') as HTMLInputElement;
+    expect(keyInput).toBeDisabled();
+    expect(screen.getByTestId('ai-add-dialog').textContent).toContain(reason);
   });
 });

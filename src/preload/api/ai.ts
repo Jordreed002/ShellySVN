@@ -70,6 +70,9 @@ export function createAiApi(invokeIpc: InvokeIpc, ipcRenderer?: IpcRenderer): El
       save: (input) => invokeIpc('ai:credentials:save', input),
       remove: (provider) => invokeIpc('ai:credentials:remove', provider),
     },
+    customProviders: {
+      upsert: (input) => invokeIpc('ai:custom-providers:upsert', input),
+    },
     estimateCost: (request) => invokeIpc('ai:estimateCost', request),
     listModels: (provider) => invokeIpc('ai:listModels', provider),
     consent: {
