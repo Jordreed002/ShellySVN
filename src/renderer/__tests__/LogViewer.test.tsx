@@ -1,10 +1,25 @@
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SvnLogEntry, SvnLogResult } from '@shared/types';
 
 import { LogViewer } from '../src/components/ui/LogViewer';
+
+/**
+ * LogViewer's saved-view surface (useLogViewState) reads the query cache for
+ * optimistic deletes, so it — like the app itself — runs under a provider.
+ */
+function renderViewer() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />, { wrapper });
+}
 
 const logCacheMocks = vi.hoisted(() => ({
   refreshLog: vi.fn(),
@@ -89,7 +104,7 @@ describe('LogViewer', () => {
       )
     );
 
-    render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />);
+    renderViewer();
 
     await screen.findByText('r130');
     expect(screen.getByText('r106')).toBeInTheDocument();
@@ -113,7 +128,7 @@ describe('LogViewer', () => {
       ])
     );
 
-    render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />);
+    renderViewer();
 
     await screen.findByText('r203');
     fireEvent.change(screen.getByLabelText('Path'), {
@@ -123,13 +138,14 @@ describe('LogViewer', () => {
       target: { value: 'shell' },
     });
 
+    // Filters are debounced, so wait on the post-filter footer rather than on
+    // an entry that is also present before filtering.
     await waitFor(() => {
-      expect(screen.getByText('r201')).toBeInTheDocument();
+      expect(screen.getByText(/Showing 1-1 of 1 matching revisions/)).toBeInTheDocument();
     });
 
     expect(screen.queryByText('r203')).not.toBeInTheDocument();
     expect(screen.queryByText('r202')).not.toBeInTheDocument();
-    expect(screen.getByText(/Showing 1-1 of 1 matching revisions/)).toBeInTheDocument();
 
     expect(screen.getByText(/Refactor shell integration/)).toBeInTheDocument();
   });
@@ -137,7 +153,7 @@ describe('LogViewer', () => {
   it('reloads log data with merge tracking enabled', async () => {
     logCacheMocks.refreshLog.mockResolvedValue(makeLog([makeEntry(300, '/trunk/src/app.ts')]));
 
-    render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />);
+    renderViewer();
 
     await screen.findByText('r300');
     expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, false, {
@@ -169,7 +185,7 @@ describe('LogViewer', () => {
       ])
     );
 
-    render(<LogViewer isOpen={true} path="C:/repo" onClose={vi.fn()} />);
+    renderViewer();
 
     await screen.findByText('r401');
     fireEvent.change(screen.getByLabelText('Revision properties'), {

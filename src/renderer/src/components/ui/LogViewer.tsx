@@ -8,8 +8,7 @@ import {
   GitCommit,
   RefreshCw,
   ExternalLink,
-  Filter,
-  Search,
+  GitCompare,
   RotateCcw,
   GitMerge,
   Sparkles,
@@ -18,14 +17,12 @@ import {
 } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { useCachedLog } from '@renderer/hooks/useLogCache';
+import { withIpcTimeout } from '@renderer/lib/queryTimeout';
 import { AiPromptPreviewDialog } from '../ai/AiPromptPreviewDialog';
-import {
-  EMPTY_LOG_FILTERS,
-  countActiveLogFilters,
-  filterLogEntries,
-  type LogFilterState,
-} from '@renderer/utils/logFilters';
+import { ErrorPanel } from './ErrorPanel';
+import { SkeletonBlock, SkeletonLine, SkeletonList } from './Skeleton';
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
+import { useLogViewSurface } from '../history/useLogViewState';
 import type {
   AiReleaseNotesResult,
   AiPromptPreviewResult,
@@ -51,9 +48,9 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [revisionImpact, setRevisionImpact] = useState<RevisionImpactReport | null>(null);
   const [revisionImpactError, setRevisionImpactError] = useState<string | null>(null);
   const [isLoadingRevisionImpact, setIsLoadingRevisionImpact] = useState(false);
+  const [revisionImpactNonce, setRevisionImpactNonce] = useState(0);
   const [limit, setLimit] = useState(50);
   const [configPath, setConfigPath] = useState(path);
-  const [filters, setFilters] = useState<LogFilterState>(EMPTY_LOG_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [showMergeHistory, setShowMergeHistory] = useState(false);
   const [stopOnCopy, setStopOnCopy] = useState(false);
@@ -96,11 +93,14 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   );
   const { cachedLog, cacheInfo, hasCachedData, isRefreshing, refreshLog, clearCache } =
     useCachedLog(isOpen ? path : null, limit, showMergeHistory, logRequestOptions);
-  const filteredEntries = useMemo(
-    () => filterLogEntries(log?.entries || [], filters, issueTrackerConfig),
-    [log, filters, issueTrackerConfig]
-  );
-  const activeFilterCount = countActiveLogFilters(filters);
+  const logView = useLogViewSurface({
+    path: isOpen ? path : null,
+    entries: log?.entries ?? [],
+    issueTrackerConfig,
+    sortColumns: ['revision', 'date', 'author'],
+    countLabel: 'revisions',
+  });
+  const { filters, filteredEntries, requestShowChanges } = logView;
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / LOG_PAGE_SIZE));
   const pageStartIndex = (currentPage - 1) * LOG_PAGE_SIZE;
   const pagedEntries = filteredEntries.slice(pageStartIndex, pageStartIndex + LOG_PAGE_SIZE);
@@ -163,8 +163,11 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     setIsLoadingRevisionImpact(true);
     setRevisionImpact(null);
     setRevisionImpactError(null);
-    window.api.svn
-      .revisionImpact(path, 1, selectedEntry.revision)
+    withIpcTimeout(
+      () => window.api.svn.revisionImpact(path, 1, selectedEntry.revision),
+      undefined,
+      'svn:revisionImpact'
+    )
       .then((report) => {
         if (!cancelled) setRevisionImpact(report);
       })
@@ -181,13 +184,12 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     return () => {
       cancelled = true;
     };
-  }, [isOpen, path, selectedEntry]);
+  }, [isOpen, path, selectedEntry, revisionImpactNonce]);
 
   useEffect(() => {
     setCurrentPage(1);
     listRef.current?.scrollTo?.({ top: 0 });
   }, [filters, log]);
-
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -238,6 +240,56 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
       releaseNotesAbortRef.current?.abort();
     },
     []
+  );
+
+  // Keyboard navigation over the entry list (#72): arrows move the selection
+  // (following it across pages), Enter opens "Show changes" for the selected
+  // revision.
+  const handleListKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (filteredEntries.length === 0) return;
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'Enter') return;
+
+      const currentIndex = selectedEntry
+        ? filteredEntries.findIndex((entry) => entry.revision === selectedEntry.revision)
+        : -1;
+
+      if (event.key === 'Enter') {
+        if (currentIndex >= 0) {
+          event.preventDefault();
+          requestShowChanges(filteredEntries[currentIndex].revision, path);
+        }
+        return;
+      }
+
+      event.preventDefault();
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex =
+        currentIndex === -1
+          ? event.key === 'ArrowDown'
+            ? 0
+            : filteredEntries.length - 1
+          : Math.min(filteredEntries.length - 1, Math.max(0, currentIndex + delta));
+      const nextEntry = filteredEntries[nextIndex];
+      setSelectedEntry(nextEntry);
+
+      // Keep the focused row visible even across page boundaries.
+      setCurrentPage(Math.floor(nextIndex / LOG_PAGE_SIZE) + 1);
+      const focusRow = () => {
+        const row = listRef.current?.querySelector<HTMLElement>(`[data-revision="${nextEntry.revision}"]`);
+        if (!row) return;
+        row.focus({ preventScroll: true });
+        try {
+          row.scrollIntoView({ block: 'nearest' });
+        } catch {
+          // scrollIntoView is not implemented in every host (e.g. jsdom).
+        }
+      };
+      // jsdom and reduced-capability hosts may not provide rAF.
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusRow);
+      else setTimeout(focusRow, 0);
+    },
+    [filteredEntries, path, requestShowChanges, selectedEntry]
   );
 
   const selectedReleaseRange = () => {
@@ -310,9 +362,6 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   if (!isOpen) return null;
 
   const pathName = path.split(/[/\\]/).pop() || path;
-  const updateFilter = (name: keyof LogFilterState, value: string) => {
-    setFilters((currentFilters) => ({ ...currentFilters, [name]: value }));
-  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -433,8 +482,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex-shrink-0 border-b border-border bg-bg-secondary px-4 py-3">
+        {/* Filters, saved views, export (#66/#67) */}
+        <div className="flex-shrink-0 border-b border-border bg-bg-secondary px-4 pt-3">
           <label className="mb-3 block text-xs text-text-secondary">
             Revision properties
             <input
@@ -447,82 +496,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               aria-label="Revision properties"
             />
           </label>
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium text-text-secondary">
-              <Filter className="h-4 w-4 text-text-muted" aria-hidden="true" />
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">
-                  {activeFilterCount}
-                </span>
-              )}
-            </div>
-            {activeFilterCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilters(EMPTY_LOG_FILTERS)}
-                className="btn btn-secondary btn-sm text-xs"
-              >
-                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                Clear
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            <FilterInput
-              label="Author"
-              value={filters.author}
-              onChange={(value) => updateFilter('author', value)}
-              placeholder="author"
-            />
-            <FilterInput
-              label="Message"
-              value={filters.message}
-              onChange={(value) => updateFilter('message', value)}
-              placeholder="message"
-            />
-            <FilterInput
-              label="Path"
-              value={filters.path}
-              onChange={(value) => updateFilter('path', value)}
-              placeholder="path"
-            />
-            <FilterInput
-              label="Issue"
-              value={filters.issueId}
-              onChange={(value) => updateFilter('issueId', value)}
-              placeholder="issue ID"
-            />
-          </div>
-          <div className="mt-2 grid grid-cols-4 gap-2">
-            <FilterInput
-              label="Revision from"
-              type="number"
-              value={filters.revisionFrom}
-              onChange={(value) => updateFilter('revisionFrom', value)}
-              placeholder="rev from"
-            />
-            <FilterInput
-              label="Revision to"
-              type="number"
-              value={filters.revisionTo}
-              onChange={(value) => updateFilter('revisionTo', value)}
-              placeholder="rev to"
-            />
-            <FilterInput
-              label="Date from"
-              type="date"
-              value={filters.dateFrom}
-              onChange={(value) => updateFilter('dateFrom', value)}
-            />
-            <FilterInput
-              label="Date to"
-              type="date"
-              value={filters.dateTo}
-              onChange={(value) => updateFilter('dateTo', value)}
-            />
-          </div>
         </div>
+        {logView.filterBar}
 
         {releaseNotesError && (
           <div
@@ -596,17 +571,40 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
         {/* Content */}
         <div className="flex-1 overflow-hidden flex">
           {/* Log entries list */}
-          <div ref={listRef} className="w-80 flex-shrink-0 border-r border-border overflow-auto">
+          <div
+            ref={listRef}
+            className="w-80 flex-shrink-0 border-r border-border overflow-auto"
+            onKeyDown={handleListKeyDown}
+          >
             {isLoading && !log && (
-              <div className="flex items-center justify-center h-full">
-                <Loader className="w-6 h-6 text-accent animate-spin" />
-              </div>
+              // Full-surface loading: a skeleton shaped like the revision
+              // column, not a bare spinner (#92).
+              <SkeletonList
+                rows={7}
+                label="Loading revision history"
+                className="h-full overflow-hidden"
+                row={(index) => (
+                  <div className="flex items-start gap-2 p-3">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <SkeletonBlock className="h-3.5 w-16" />
+                        <SkeletonBlock className="h-5 w-5 rounded-5" />
+                      </div>
+                      <SkeletonLine className={`h-2.5 ${index % 3 === 0 ? 'w-full' : 'w-4/5'}`} />
+                      <SkeletonLine className="h-2 w-24" />
+                    </div>
+                  </div>
+                )}
+              />
             )}
 
             {error && !log && (
-              <div className="flex items-center justify-center h-full p-4 text-center">
-                <div className="text-error">{error}</div>
-              </div>
+              <ErrorPanel
+                title="Failed to load log"
+                message={error}
+                onRetry={loadLog}
+                isRetrying={isLoading}
+              />
             )}
             {error && log && (
               <div className="border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
@@ -627,48 +625,73 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
             )}
 
             {log && filteredEntries.length > 0 && (
-              <div className="divide-y divide-border">
-                <div className="sticky top-0 z-10 grid grid-cols-[1fr_6rem] gap-2 bg-bg-secondary px-3 py-1.5 text-[10px] font-medium uppercase text-text-faint">
-                  <span>Revision</span>
-                  <span>Issues</span>
+              <div>
+                <div className="sticky top-0 z-10">
+                  {logView.sortHeader}
                 </div>
-                {pagedEntries.map((entry) => {
-                  const issueLinks = extractIssueLinks(entry.message, issueTrackerConfig);
+                <div className="divide-y divide-border">
+                  {pagedEntries.map((entry, index) => {
+                    const issueLinks = extractIssueLinks(entry.message, issueTrackerConfig);
+                    const selected = selectedEntry?.revision === entry.revision;
 
-                  return (
-                    <div
-                      key={entry.revision}
-                      onClick={() => setSelectedEntry(entry)}
-                      className={`p-3 cursor-pointer transition-colors ${
-                        selectedEntry?.revision === entry.revision
-                          ? 'bg-accent/10 border-l-2 border-l-accent'
-                          : 'hover:bg-bg-elevated border-l-2 border-l-transparent'
-                      }`}
-                    >
-                      <div className="grid grid-cols-[1fr_6rem] gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono text-sm text-accent font-medium">
-                              r{entry.revision}
-                            </span>
-                            <span className="text-xs text-text-muted flex-1 truncate">
-                              {entry.author}
-                            </span>
+                    return (
+                      <div
+                        key={entry.revision}
+                        data-revision={entry.revision}
+                        tabIndex={selected || (!selectedEntry && index === 0) ? 0 : -1}
+                        aria-current={selected ? 'true' : undefined}
+                        onClick={() => setSelectedEntry(entry)}
+                        onDoubleClick={() => requestShowChanges(entry.revision, path)}
+                        onKeyDown={(event) => {
+                          if (event.key === ' ') {
+                            event.preventDefault();
+                            setSelectedEntry(entry);
+                          }
+                        }}
+                        className={`p-3 cursor-pointer transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent ${
+                          selected
+                            ? 'bg-accent/10 border-l-2 border-l-accent'
+                            : 'hover:bg-bg-elevated border-l-2 border-l-transparent'
+                        }`}
+                      >
+                        <div className="grid grid-cols-[1fr_6rem] gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-sm text-accent font-medium">
+                                r{entry.revision}
+                              </span>
+                              <span className="text-xs text-text-muted flex-1 truncate">
+                                {entry.author}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn-icon-sm flex-none"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  requestShowChanges(entry.revision, path);
+                                }}
+                                onKeyDown={(event) => event.stopPropagation()}
+                                aria-label={`Show changes for r${entry.revision}`}
+                                title={`Show changes for r${entry.revision} (vs r${entry.revision - 1})`}
+                              >
+                                <GitCompare className="h-3.5 w-3.5" aria-hidden="true" />
+                              </button>
+                            </div>
+                            <div className="text-xs text-text-secondary line-clamp-2">
+                              {entry.message || (
+                                <span className="italic text-text-faint">No message</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-text-faint mt-1">
+                              {formatDate(entry.date)}
+                            </div>
                           </div>
-                          <div className="text-xs text-text-secondary line-clamp-2">
-                            {entry.message || (
-                              <span className="italic text-text-faint">No message</span>
-                            )}
-                          </div>
-                          <div className="text-xs text-text-faint mt-1">
-                            {formatDate(entry.date)}
-                          </div>
+                          <IssueSummary issues={issueLinks} />
                         </div>
-                        <IssueSummary issues={issueLinks} />
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -740,7 +763,18 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                     </div>
                   )}
                   {revisionImpactError && (
-                    <p className="px-3 py-3 text-xs text-error">{revisionImpactError}</p>
+                    <div className="flex items-start gap-2 px-3 py-3 text-xs text-error">
+                      <span className="min-w-0 flex-1">{revisionImpactError}</span>
+                      <button
+                        type="button"
+                        onClick={() => setRevisionImpactNonce((nonce) => nonce + 1)}
+                        className="btn btn-secondary btn-sm flex-none text-xs"
+                        aria-label="Retry impact classification"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                        Retry
+                      </button>
+                    </div>
                   )}
                   {revisionImpact && (
                     <div className="grid grid-cols-2 gap-px bg-border">
@@ -849,16 +883,24 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                 )}
 
                 {/* Actions */}
-                {onSelectRevision && (
-                  <div className="mt-4 pt-4 border-t border-border">
+                <div className="mt-4 pt-4 border-t border-border flex items-center gap-2">
+                  <button
+                    onClick={() => requestShowChanges(selectedEntry.revision, path)}
+                    className="btn btn-primary"
+                    title={`Diff r${selectedEntry.revision} against r${selectedEntry.revision - 1}`}
+                  >
+                    <GitCompare className="h-4 w-4" aria-hidden="true" />
+                    Show changes
+                  </button>
+                  {onSelectRevision && (
                     <button
                       onClick={() => onSelectRevision(selectedEntry.revision, path)}
                       className="btn btn-secondary"
                     >
                       View Diff for this Revision
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-text-muted">
@@ -920,6 +962,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
           onConfirm={() => void generateReleaseNotes()}
         />
       )}
+      {/* "Show changes" target (#72): revision against its predecessor */}
+      {logView.diffDialog}
     </div>
   );
 }
@@ -962,42 +1006,6 @@ function formatReleaseNotesSection(title: string, items: string[]): string {
 
 function formatReleaseNotes(notes: AiReleaseNotesResult): string {
   return `# ${notes.title}\n${formatReleaseNotesSection('User-facing changes', notes.userFacing)}${formatReleaseNotesSection('Technical changes', notes.technical)}${formatReleaseNotesSection('Breaking changes', notes.breakingChanges)}${formatReleaseNotesSection('Upgrade notes', notes.upgradeNotes)}${formatReleaseNotesSection('References', notes.references)}`;
-}
-
-function FilterInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: 'date' | 'number' | 'text';
-}) {
-  return (
-    <label className="block">
-      <span className="sr-only">{label}</span>
-      <div className="relative">
-        {type === 'text' && (
-          <Search
-            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-faint"
-            aria-hidden="true"
-          />
-        )}
-        <input
-          type={type}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`input h-8 text-xs ${type === 'text' ? 'pl-7' : ''}`}
-          placeholder={placeholder || label}
-          aria-label={label}
-        />
-      </div>
-    </label>
-  );
 }
 
 function IssueSummary({ issues }: { issues: IssueLink[] }) {
