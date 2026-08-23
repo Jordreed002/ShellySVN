@@ -2,6 +2,10 @@ import type { AiPromptPreviewResult } from '@shared/types';
 import { AlertTriangle, Check, Copy, Loader2, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
+import { useDialogRegistration } from '@renderer/lib/dialogStack';
+
+/** Dialog-stack identity: keeps dialogs below this preview from reacting to Escape. */
+const AI_PROMPT_PREVIEW_DIALOG_ID = 'ai-prompt-preview-dialog';
 
 interface AiPromptPreviewDialogProps {
   preview: AiPromptPreviewResult;
@@ -20,6 +24,7 @@ export function AiPromptPreviewDialog({
 }: AiPromptPreviewDialogProps) {
   const [copied, setCopied] = useState(false);
   const returnFocusRef = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+  useDialogRegistration(AI_PROMPT_PREVIEW_DIALOG_ID, true);
   const dialogRef = useFocusTrap<HTMLDivElement>({
     onEscape: isSending ? undefined : onCancel,
     returnFocus: false,

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
   AlertTriangle,
   Archive,
   Check,
+  CheckCheck,
   ChevronRight,
   Clipboard,
   Clock3,
@@ -16,13 +17,17 @@ import {
   SlidersHorizontal,
   ShieldCheck,
   Trash2,
+  Undo2,
   X,
 } from 'lucide-react';
 import { exportReviewCenterMarkdown } from './reviewCenterStore';
 import { useAiReviewCenter } from './useAiReviewCenter';
 import { CommitStackPanel } from './CommitStackPanel';
+import { ConsentToggle } from './ConsentToggle';
 import { RepositoryProfilePanel } from './RepositoryProfilePanel';
+import { AiRichText } from '@renderer/components/ai/AiRichText';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
+import type { ReviewCenterWorkspace } from './types';
 
 interface AiReviewCenterProps {
   workingCopyPath?: string;
@@ -31,9 +36,25 @@ interface AiReviewCenterProps {
 
 type ReviewTab = 'open' | 'dismissed' | 'files' | 'groups' | 'questions' | 'runs' | 'profile';
 
+/** Chip filter keys (#112); "critical" renders the shared `danger` severity. */
+type SeverityFilter = 'critical' | 'warning' | 'info';
+
+const SEVERITY_FILTERS: Array<{
+  id: SeverityFilter;
+  label: string;
+  severity: 'danger' | 'warning' | 'info';
+}> = [
+  { id: 'critical', label: 'Critical', severity: 'danger' },
+  { id: 'warning', label: 'Warning', severity: 'warning' },
+  { id: 'info', label: 'Info', severity: 'info' },
+];
+
+const ALL_SEVERITY_FILTERS = new Set<SeverityFilter>(['critical', 'warning', 'info']);
+const UNDO_WINDOW_MS = 12_000;
+
 const tabs: Array<{ id: ReviewTab; label: string; icon: typeof Inbox }> = [
   { id: 'open', label: 'Open', icon: Inbox },
-  { id: 'dismissed', label: 'Dismissed', icon: Archive },
+  { id: 'dismissed', label: 'Triaged', icon: Archive },
   { id: 'files', label: 'Files', icon: FileCode2 },
   { id: 'groups', label: 'Groups', icon: GitBranch },
   { id: 'questions', label: 'Questions', icon: HelpCircle },
@@ -54,11 +75,22 @@ function formatAge(timestamp: string): string {
   return `${Math.floor(elapsed / 86_400_000)}d`;
 }
 
+interface UndoEntry {
+  snapshot: ReviewCenterWorkspace;
+  label: string;
+}
+
 export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps) {
-  const { workspace, isLoading, triageFinding, clear } = useAiReviewCenter(workingCopyPath);
+  const { workspace, isLoading, triageFinding, triageFindings, restoreWorkspace, clear } =
+    useAiReviewCenter(workingCopyPath);
   const [tab, setTab] = useState<ReviewTab>('open');
   const [activeIndex, setActiveIndex] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [severityFilters, setSeverityFilters] = useState<ReadonlySet<SeverityFilter>>(
+    ALL_SEVERITY_FILTERS
+  );
+  const [undo, setUndo] = useState<UndoEntry | null>(null);
+  const undoTimerRef = useRef<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
   const dialogRef = useFocusTrap<HTMLElement>({
@@ -71,15 +103,33 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
     () => workspace?.findings.filter((finding) => finding.state === 'open') ?? [],
     [workspace?.findings]
   );
-  const dismissedFindings = useMemo(
-    () => workspace?.findings.filter((finding) => finding.state === 'dismissed') ?? [],
+  const triagedFindings = useMemo(
+    () => workspace?.findings.filter((finding) => finding.state !== 'open') ?? [],
     [workspace?.findings]
   );
-  const visibleFindings = tab === 'dismissed' ? dismissedFindings : openFindings;
+  const baseFindings = tab === 'open' ? openFindings : triagedFindings;
+  const severityCounts = useMemo(() => {
+    const counts = new Map<SeverityFilter, number>([
+      ['critical', 0],
+      ['warning', 0],
+      ['info', 0],
+    ]);
+    for (const finding of baseFindings) {
+      const key: SeverityFilter =
+        finding.severity === 'danger' ? 'critical' : (finding.severity as 'warning' | 'info');
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [baseFindings]);
+  const visibleFindings = useMemo(
+    () => baseFindings.filter((finding) => severityFilters.has(finding.severity === 'danger' ? 'critical' : (finding.severity as 'warning' | 'info'))),
+    [baseFindings, severityFilters]
+  );
 
   useEffect(
     () => () => {
       returnFocusRef.current?.focus({ preventScroll: true });
+      if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
     },
     []
   );
@@ -89,31 +139,133 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
   }, [tab]);
 
   useEffect(() => {
+    setActiveIndex((index) => Math.min(index, Math.max(0, visibleFindings.length - 1)));
+  }, [visibleFindings.length]);
+
+  const snapshotForUndo = useCallback(
+    (label: string) => {
+      if (!workspace) return;
+      setUndo({ snapshot: workspace, label });
+      if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = window.setTimeout(() => setUndo(null), UNDO_WINDOW_MS);
+    },
+    [workspace]
+  );
+
+  const runUndo = useCallback(() => {
+    if (!undo) return;
+    restoreWorkspace(undo.snapshot);
+    setUndo(null);
+    if (undoTimerRef.current !== null) {
+      window.clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+  }, [restoreWorkspace, undo]);
+
+  const toggleSeverityFilter = (filter: SeverityFilter) => {
+    setSeverityFilters((current) => {
+      const next = new Set(current);
+      if (next.has(filter)) {
+        // Never allow an empty filter set — that hides everything.
+        if (next.size > 1) next.delete(filter);
+      } else {
+        next.add(filter);
+      }
+      return next;
+    });
+  };
+
+  const triageOne = useCallback(
+    (id: string, state: 'accepted' | 'dismissed' | 'open') => {
+      snapshotForUndo(
+        state === 'accepted'
+          ? 'Accepted 1 finding'
+          : state === 'dismissed'
+            ? 'Dismissed 1 finding'
+            : 'Restored 1 finding'
+      );
+      triageFinding(id, state);
+    },
+    [snapshotForUndo, triageFinding]
+  );
+
+  const bulkTriage = useCallback(
+    (state: 'accepted' | 'dismissed' | 'open') => {
+      const ids = visibleFindings.map((finding) => finding.id);
+      if (ids.length === 0) return;
+      snapshotForUndo(
+        state === 'accepted'
+          ? `Accepted ${ids.length} findings`
+          : state === 'dismissed'
+            ? `Dismissed ${ids.length} findings`
+            : `Restored ${ids.length} findings`
+      );
+      triageFindings(ids, state);
+    },
+    [snapshotForUndo, triageFindings, visibleFindings]
+  );
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA';
+      const typing =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable === true;
       if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
-      } else if (!typing && (event.key === 'j' || event.key === 'ArrowDown')) {
+        return;
+      }
+      if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+      const key = event.key;
+      if (key === 'j' || key === 'ArrowDown') {
         event.preventDefault();
         if (visibleFindings.length > 0) {
           setActiveIndex((index) => Math.min(visibleFindings.length - 1, index + 1));
         }
-      } else if (!typing && (event.key === 'k' || event.key === 'ArrowUp')) {
+      } else if (key === 'k' || key === 'ArrowUp') {
         event.preventDefault();
         setActiveIndex((index) => Math.max(0, index - 1));
-      } else if (!typing && event.key.toLowerCase() === 'd' && visibleFindings[activeIndex]) {
+      } else if (key === 'u' || key === 'U') {
+        if (undo) {
+          event.preventDefault();
+          runUndo();
+        }
+      } else if (key === 'a' && tab === 'open' && visibleFindings[activeIndex]) {
         event.preventDefault();
-        triageFinding(visibleFindings[activeIndex].id, tab === 'dismissed' ? 'open' : 'dismissed');
-      } else if (!typing && /^[1-7]$/.test(event.key)) {
+        triageOne(visibleFindings[activeIndex]!.id, 'accepted');
+      } else if (key === 'A' && tab === 'open') {
         event.preventDefault();
-        setTab(tabs[Number(event.key) - 1].id);
+        bulkTriage('accepted');
+      } else if (key === 'd' && visibleFindings[activeIndex]) {
+        event.preventDefault();
+        triageOne(visibleFindings[activeIndex]!.id, tab === 'open' ? 'dismissed' : 'open');
+      } else if (key === 'D') {
+        event.preventDefault();
+        bulkTriage(tab === 'open' ? 'dismissed' : 'open');
+      } else if (/^[1-7]$/.test(key)) {
+        event.preventDefault();
+        setTab(tabs[Number(key) - 1]!.id);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeIndex, onClose, tab, triageFinding, visibleFindings]);
+  }, [
+    activeIndex,
+    onClose,
+    tab,
+    triageFinding,
+    triageFindings,
+    restoreWorkspace,
+    visibleFindings,
+    undo,
+    workspace,
+    triageOne,
+    bulkTriage,
+    runUndo,
+  ]);
 
   const copyReport = async () => {
     if (!workspace) return;
@@ -194,6 +346,11 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
               </strong>
             </div>
           </div>
+          {workingCopyPath && (
+            <div className="relative mt-2">
+              <ConsentToggle workingCopyPath={workingCopyPath} />
+            </div>
+          )}
         </header>
 
         <nav
@@ -245,72 +402,189 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
               detail="Open a working copy to inspect its AI review activity."
             />
           ) : tab === 'open' || tab === 'dismissed' ? (
-            visibleFindings.length ? (
-              <ol className="space-y-2">
-                {visibleFindings.map((finding, index) => (
-                  <li
-                    key={finding.id}
-                    className={`border bg-bg-secondary transition-fast ${index === activeIndex ? 'border-accent shadow-[inset_3px_0_0_var(--color-accent)]' : 'border-border'}`}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Finding filters and bulk triage">
+                {SEVERITY_FILTERS.map((filter) => {
+                  const enabled = severityFilters.has(filter.id);
+                  const count = severityCounts.get(filter.id) ?? 0;
+                  return (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => toggleSeverityFilter(filter.id)}
+                      aria-pressed={enabled}
+                      className={`border px-2 py-1 font-mono text-9 uppercase tracking-wider transition-fast ${
+                        enabled
+                          ? filter.id === 'critical'
+                            ? 'border-svn-conflict/50 bg-svn-conflict/10 text-svn-conflict'
+                            : filter.id === 'warning'
+                              ? 'border-svn-modified/50 bg-svn-modified/10 text-svn-modified'
+                              : 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border bg-bg text-text-faint hover:text-text'
+                      }`}
+                    >
+                      {filter.label} · {count}
+                    </button>
+                  );
+                })}
+                <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+                {tab === 'open' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm gap-1"
+                      disabled={visibleFindings.length === 0}
+                      onClick={() => bulkTriage('accepted')}
+                      title="Accept every visible finding (Shift+A)"
+                    >
+                      <CheckCheck className="h-3 w-3" aria-hidden="true" />
+                      Accept all ({visibleFindings.length})
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm gap-1"
+                      disabled={visibleFindings.length === 0}
+                      onClick={() => bulkTriage('dismissed')}
+                      title="Dismiss every visible finding (Shift+D)"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                      Dismiss all
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm gap-1"
+                    disabled={visibleFindings.length === 0}
+                    onClick={() => bulkTriage('open')}
+                    title="Restore every visible finding to the open queue (Shift+D)"
                   >
-                    <div className="flex items-start gap-3 p-3">
-                      <span
-                        className={`mt-0.5 h-2.5 w-2.5 flex-shrink-0 ${finding.severity === 'danger' ? 'bg-svn-conflict' : finding.severity === 'warning' ? 'bg-svn-modified' : 'bg-accent'}`}
-                        aria-hidden="true"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-12.5 font-semibold text-text">{finding.title}</h3>
-                          <span className="font-mono text-9 uppercase tracking-wider text-text-faint">
-                            {finding.category}
-                          </span>
-                          <span className="font-mono text-9 uppercase tracking-wider text-text-muted">
-                            {finding.severity} severity
-                          </span>
+                    <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                    Restore all ({visibleFindings.length})
+                  </button>
+                )}
+              </div>
+              {undo && (
+                <div
+                  className="flex items-center gap-2 border border-accent/40 bg-accent/5 px-2.5 py-1.5"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span className="min-w-0 flex-1 truncate text-10.5 text-text-secondary">
+                    {undo.label}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm gap-1"
+                    onClick={runUndo}
+                    title="Undo the last triage action (U)"
+                  >
+                    <Undo2 className="h-3 w-3" aria-hidden="true" />
+                    Undo
+                  </button>
+                </div>
+              )}
+              {visibleFindings.length ? (
+                <ol className="space-y-2">
+                  {visibleFindings.map((finding, index) => (
+                    <li
+                      key={finding.id}
+                      className={`border bg-bg-secondary transition-fast ${index === activeIndex ? 'border-accent shadow-[inset_3px_0_0_var(--color-accent)]' : 'border-border'}`}
+                    >
+                      <div className="flex items-start gap-3 p-3">
+                        <span
+                          className={`mt-0.5 h-2.5 w-2.5 flex-shrink-0 ${finding.severity === 'danger' ? 'bg-svn-conflict' : finding.severity === 'warning' ? 'bg-svn-modified' : 'bg-accent'}`}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-12.5 font-semibold text-text">{finding.title}</h3>
+                            <span className="font-mono text-9 uppercase tracking-wider text-text-faint">
+                              {finding.category}
+                            </span>
+                            <span className="font-mono text-9 uppercase tracking-wider text-text-muted">
+                              {finding.severity === 'danger' ? 'critical' : finding.severity} severity
+                            </span>
+                            {finding.state === 'accepted' && (
+                              <span className="border border-svn-normal/40 px-1 py-0.5 font-mono text-8 uppercase tracking-wider text-svn-normal">
+                                accepted
+                              </span>
+                            )}
+                            {finding.state === 'dismissed' && (
+                              <span className="border border-border-strong px-1 py-0.5 font-mono text-8 uppercase tracking-wider text-text-faint">
+                                dismissed
+                              </span>
+                            )}
+                          </div>
+                          <AiRichText
+                            className="mt-1"
+                            markdown={finding.detail}
+                            aria-label="Finding detail (AI output)"
+                          />
+                          <Link
+                            to="/files"
+                            search={{ path: finding.filePath }}
+                            className="mt-2 inline-flex max-w-full items-center gap-1 font-mono text-10 text-accent hover:underline"
+                            title={finding.filePath}
+                          >
+                            <span className="truncate">
+                              {shortPath(finding.filePath)}
+                              {finding.line > 0 ? `:${finding.line}` : ''}
+                            </span>
+                            <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                          </Link>
                         </div>
-                        <p className="mt-1 text-11.5 leading-relaxed text-text-secondary">
-                          {finding.detail}
-                        </p>
-                        <Link
-                          to="/files"
-                          search={{ path: finding.filePath }}
-                          className="mt-2 inline-flex max-w-full items-center gap-1 font-mono text-10 text-accent hover:underline"
-                          title={finding.filePath}
-                        >
-                          <span className="truncate">
-                            {shortPath(finding.filePath)}
-                            {finding.line > 0 ? `:${finding.line}` : ''}
-                          </span>
-                          <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-                        </Link>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm gap-1"
-                        onClick={() =>
-                          triageFinding(finding.id, tab === 'dismissed' ? 'open' : 'dismissed')
-                        }
-                      >
-                        {tab === 'dismissed' ? (
-                          <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                        {tab === 'open' ? (
+                          <div className="flex flex-shrink-0 flex-col gap-1.5">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm gap-1"
+                              onClick={() => triageOne(finding.id, 'accepted')}
+                              title="Accept this finding (A)"
+                            >
+                              <Check className="h-3 w-3" aria-hidden="true" />
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm gap-1"
+                              onClick={() => triageOne(finding.id, 'dismissed')}
+                              title="Dismiss this finding (D)"
+                            >
+                              <X className="h-3 w-3" aria-hidden="true" />
+                              Dismiss
+                            </button>
+                          </div>
                         ) : (
-                          <Check className="h-3 w-3" aria-hidden="true" />
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm gap-1"
+                            onClick={() => triageOne(finding.id, 'open')}
+                          >
+                            <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                            Restore
+                          </button>
                         )}
-                        {tab === 'dismissed' ? 'Restore' : 'Dismiss'}
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <EmptyState
-                title={tab === 'open' ? 'Review queue clear' : 'No dismissed findings'}
-                detail={
-                  tab === 'open'
-                    ? 'Run Review selected changes from the commit window to populate this queue.'
-                    : 'Dismissed review observations remain available here.'
-                }
-              />
-            )
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : baseFindings.length ? (
+                <EmptyState
+                  title="No findings match the severity filter"
+                  detail="Enable more severity levels above to see the remaining findings."
+                />
+              ) : (
+                <EmptyState
+                  title={tab === 'open' ? 'Review queue clear' : 'No triaged findings'}
+                  detail={
+                    tab === 'open'
+                      ? 'Run Review selected changes from the commit window to populate this queue.'
+                      : 'Accepted and dismissed findings remain available here.'
+                  }
+                />
+              )}
+            </div>
           ) : tab === 'files' ? (
             workspace?.explanations.length ? (
               <div className="space-y-2">
@@ -332,7 +606,11 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
                         }
                       />
                     </div>
-                    <p className="mt-2 text-12 text-text-secondary">{item.summary}</p>
+                    <AiRichText
+                      className="mt-2"
+                      markdown={item.summary}
+                      aria-label="File explanation (AI output)"
+                    />
                     {item.risks.length > 0 && (
                       <p className="mt-2 text-10.5 text-svn-modified">
                         {item.risks.length} risk signal{item.risks.length === 1 ? '' : 's'}
@@ -365,7 +643,11 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
                     className="flex gap-3 border border-border bg-bg-secondary p-3"
                   >
                     <span className="font-mono text-9 text-accent">Q{index + 1}</span>
-                    <p className="text-12 text-text-secondary">{question}</p>
+                    <AiRichText
+                      className="min-w-0 flex-1"
+                      markdown={question}
+                      aria-label={`Review question ${index + 1} (AI output)`}
+                    />
                   </li>
                 ))}
               </ol>
@@ -399,7 +681,9 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
                       </span>
                       <Freshness current={currentRunChecksums.get(run.kind) === run.checksum} />
                     </div>
-                    <p className="mt-0.5 truncate text-11.5 text-text-secondary">{run.summary}</p>
+                    <p className="mt-0.5 truncate text-11.5 text-text-secondary" title={run.summary}>
+                      {run.summary}
+                    </p>
                   </div>
                   <div className="text-right font-mono text-9.5 text-text-faint">
                     <span>{formatAge(run.createdAt)}</span>
@@ -420,8 +704,8 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
         </div>
 
         <footer className="flex min-h-12 flex-wrap items-center gap-2 border-t border-border bg-bg-secondary px-4 py-2">
-          <span className="hidden font-mono text-9.5 text-text-faint sm:inline">
-            J/K navigate · D triage · Esc close
+          <span className="hidden font-mono text-9.5 text-text-faint lg:inline">
+            J/K navigate · A/D triage · Shift+A/D bulk · U undo · Esc close
           </span>
           <button
             type="button"

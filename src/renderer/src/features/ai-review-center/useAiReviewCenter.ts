@@ -5,9 +5,10 @@ import {
   parseReviewCenterWorkspace,
   reviewCenterStorageKey,
   setFindingState,
+  setFindingsState,
   setGroupState,
 } from './reviewCenterStore';
-import type { ReviewCenterWorkspace } from './types';
+import type { ReviewCenterWorkspace, ReviewFindingState } from './types';
 
 export function useAiReviewCenter(workingCopyPath: string | undefined) {
   const [workspace, setWorkspace] = useState<ReviewCenterWorkspace | null>(null);
@@ -47,10 +48,31 @@ export function useAiReviewCenter(workingCopyPath: string | undefined) {
   }, []);
 
   const triageFinding = useCallback(
-    (id: string, state: 'open' | 'dismissed') => {
+    (id: string, state: ReviewFindingState) => {
       if (workspace) void persist(setFindingState(workspace, id, state));
     },
     [persist, workspace]
+  );
+
+  /** Bulk accept/dismiss (#112). Returns false when nothing matched. */
+  const triageFindings = useCallback(
+    (ids: ReadonlySet<string> | readonly string[], state: ReviewFindingState) => {
+      if (!workspace) return false;
+      const idSet = ids instanceof Set ? ids : new Set(ids);
+      if (idSet.size === 0) return false;
+      const next = setFindingsState(workspace, idSet, state);
+      if (next === workspace) return false;
+      void persist(next);
+      return true;
+    },
+    [persist, workspace]
+  );  /** Undo support (#112): persist a previous snapshot back over the current one. */
+  const restoreWorkspace = useCallback(
+    (snapshot: ReviewCenterWorkspace) => {
+      if (snapshot.workingCopyPath !== workingCopyPath) return;
+      void persist({ ...snapshot, updatedAt: new Date().toISOString() });
+    },
+    [persist, workingCopyPath]
   );
 
   const triageGroup = useCallback(
@@ -66,5 +88,5 @@ export function useAiReviewCenter(workingCopyPath: string | undefined) {
     setWorkspace(emptyReviewCenterWorkspace(workingCopyPath));
   }, [workingCopyPath]);
 
-  return { workspace, isLoading, triageFinding, triageGroup, clear };
+  return { workspace, isLoading, triageFinding, triageFindings, restoreWorkspace, triageGroup, clear };
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyRepositoryProfile } from '../repositoryProfileAdapter';
 import { RepositoryProfilePanel } from '../RepositoryProfilePanel';
@@ -11,6 +11,8 @@ const actions = {
   previewImport: vi.fn(),
   applyImportPreview: vi.fn(),
   setImportPreview: vi.fn(),
+  learnStyle: vi.fn().mockResolvedValue(3),
+  clearStyleHints: vi.fn(),
 };
 let preview: ReturnType<typeof emptyRepositoryProfile> | undefined;
 
@@ -20,6 +22,7 @@ vi.mock('../useRepositoryProfile', () => ({
     exists: true,
     isLoading: false,
     isSaving: false,
+    isLearningStyle: false,
     error: null,
     importPreview: preview
       ? { valid: true, profile: preview, warnings: ['Ignored unsafe repository-relative pattern'] }
@@ -65,5 +68,15 @@ describe('RepositoryProfilePanel', () => {
     expect(
       screen.getByText(/never searches for or reads repository instruction files automatically/i)
     ).toBeTruthy();
+  });
+
+  it('learns commit style locally without sending anything to a provider', async () => {
+    render(<RepositoryProfilePanel workingCopyPath="/wc" />);
+    fireEvent.click(screen.getByRole('button', { name: /Learn style from history/ }));
+    await waitFor(() => expect(actions.learnStyle).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(screen.getByText(/Learned style from 3 recent commits/)).toBeTruthy()
+    );
+    expect(screen.getByText(/Nothing is sent to any provider/)).toBeTruthy();
   });
 });

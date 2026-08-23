@@ -1,4 +1,4 @@
-import type { ReviewCenterCapture, ReviewCenterWorkspace } from './types';
+import type { ReviewCenterCapture, ReviewCenterWorkspace, ReviewFindingState } from './types';
 
 const REVIEW_CENTER_STORE_PREFIX = 'shellysvn:ai-review-center:v1:';
 const MAX_RUNS = 30;
@@ -8,9 +8,12 @@ const MAX_GROUPS = 50;
 const MAX_QUESTIONS = 100;
 const MAX_GROUP_PATHS = 1_000;
 
+const FINDING_STATES = new Set<ReviewFindingState>(['open', 'accepted', 'dismissed']);
+
 function persistedFinding(finding: ReviewCenterWorkspace['findings'][number]) {
   return {
     ...finding,
+    state: FINDING_STATES.has(finding.state) ? finding.state : 'open',
     // Evidence excerpts are intentionally session-only repository content.
     evidence: Array.isArray(finding.evidence)
       ? finding.evidence.slice(0, 20).map(({ filePath, startLine, endLine }) => ({
@@ -145,12 +148,28 @@ export function captureResult(
 export function setFindingState(
   workspace: ReviewCenterWorkspace,
   findingId: string,
-  state: 'open' | 'dismissed'
+  state: ReviewFindingState
 ): ReviewCenterWorkspace {
   return {
     ...workspace,
     findings: workspace.findings.map((finding) =>
       finding.id === findingId ? { ...finding, state } : finding
+    ),
+  };
+}
+
+/** Bulk triage (#112): set many findings at once; used by accept-all / dismiss-all. */
+export function setFindingsState(
+  workspace: ReviewCenterWorkspace,
+  findingIds: ReadonlySet<string> | readonly string[],
+  state: ReviewFindingState
+): ReviewCenterWorkspace {
+  const ids = findingIds instanceof Set ? findingIds : new Set(findingIds);
+  if (ids.size === 0) return workspace;
+  return {
+    ...workspace,
+    findings: workspace.findings.map((finding) =>
+      ids.has(finding.id) ? { ...finding, state } : finding
     ),
   };
 }

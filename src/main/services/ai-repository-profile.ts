@@ -7,6 +7,7 @@ import type {
   AiDraftTransformation,
   RepositoryAiProfileImportPreview,
   RepositoryAiPromptProfile,
+  RepositoryAiStyleHints,
 } from '@shared/types';
 
 const TRANSFORMATION_INSTRUCTIONS: Record<AiDraftTransformation, string> = {
@@ -19,6 +20,69 @@ const TRANSFORMATION_INSTRUCTIONS: Record<AiDraftTransformation, string> = {
   'explain-motivation': 'Explain the motivation only where it is supported by the supplied change.',
   regenerate: 'Regenerate the commit message from the supplied bounded change context.',
 };
+
+const BULLET_STYLES = new Set(['dash', 'asterisk', 'none']);
+const MAX_PREFIX_COUNTS = 12;
+const MAX_SAMPLED_COMMITS = 100_000;
+
+function ratio(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(1, Math.max(0, numeric)) : 0;
+}
+
+function count(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(MAX_SAMPLED_COMMITS, Math.max(0, Math.floor(numeric))) : 0;
+}
+
+/** Averages keep one decimal; everything else stays an integer. */
+function boundedAverage(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(1_000, Math.max(0, Math.round(numeric * 10) / 10)) : 0;
+}
+
+/**
+ * Style hints are statistics computed locally by ShellySVN from commit
+ * history. They survive save/import only in bounded numeric form — never as
+ * free-form instructions a crafted profile could smuggle in.
+ */
+function safeStyleHints(value: unknown): RepositoryAiStyleHints | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const prefixCounts: Record<string, number> = {};
+  if (raw.prefixCounts && typeof raw.prefixCounts === 'object') {
+    for (const [prefix, prefixCount] of Object.entries(
+      raw.prefixCounts as Record<string, unknown>
+    ).slice(0, MAX_PREFIX_COUNTS)) {
+      if (/^[a-z0-9_().-]{1,40}$/i.test(prefix) && Number.isFinite(Number(prefixCount))) {
+        prefixCounts[prefix] = Math.max(0, Math.floor(Number(prefixCount)));
+      }
+    }
+  }
+  const dominant =
+    typeof raw.dominantPrefix === 'string' && /^[a-z0-9_().-]{1,40}$/i.test(raw.dominantPrefix)
+      ? raw.dominantPrefix
+      : undefined;
+  const bulletStyle =
+    typeof raw.bodyBulletStyle === 'string' && BULLET_STYLES.has(raw.bodyBulletStyle)
+      ? (raw.bodyBulletStyle as RepositoryAiStyleHints['bodyBulletStyle'])
+      : 'none';
+  return {
+    sampledCommits: count(raw.sampledCommits),
+    averageSubjectLength: boundedAverage(raw.averageSubjectLength),
+    maxSubjectLength: count(raw.maxSubjectLength),
+    imperativeMoodRatio: ratio(raw.imperativeMoodRatio),
+    prefixCounts,
+    dominantPrefix: dominant !== undefined && prefixCounts[dominant] !== undefined ? dominant : undefined,
+    includesBodyRatio: ratio(raw.includesBodyRatio),
+    bodyBulletStyle: bulletStyle,
+    issueIdRatio: ratio(raw.issueIdRatio),
+    learnedAt:
+      typeof raw.learnedAt === 'string' && Number.isFinite(Date.parse(raw.learnedAt))
+        ? raw.learnedAt
+        : undefined,
+  };
+}
 
 export function draftTransformationInstruction(transformation: AiDraftTransformation): string {
   const instruction = TRANSFORMATION_INSTRUCTIONS[transformation];
@@ -125,6 +189,7 @@ export function previewRepositoryAiProfileImport(input: string): RepositoryAiPro
         : strings(raw.enabledDraftTransformations, 8, 40).filter(
             (value): value is AiDraftTransformation => value in TRANSFORMATION_INSTRUCTIONS
           ),
+    styleHints: safeStyleHints(raw.styleHints),
     updatedAt: new Date().toISOString(),
   };
   return { valid: true, profile, warnings };

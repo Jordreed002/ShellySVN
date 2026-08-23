@@ -5,6 +5,7 @@ import {
   exportReviewCenterMarkdown,
   parseReviewCenterWorkspace,
   setFindingState,
+  setFindingsState,
 } from '../reviewCenterStore';
 import { checksumReviewInput } from '../reviewCenterEvents';
 
@@ -140,4 +141,70 @@ describe('AI review center store', () => {
     expect(checksumReviewInput('M:/wc/a.ts')).toBe(checksumReviewInput('M:/wc/a.ts'));
     expect(checksumReviewInput('M:/wc/a.ts')).not.toBe(checksumReviewInput('M:/wc/b.ts'));
   });
+
+  it('bulk-triages findings by id set and supports undo snapshots', () => {
+    const workspace: ReturnType<typeof captureResult> = {
+      ...emptyReviewCenterWorkspace('/wc'),
+      findings: [
+        { ...finding('one'), state: 'open' },
+        { ...finding('two'), state: 'open' },
+        { ...finding('three'), state: 'open' },
+      ],
+    };
+    const accepted = setFindingsState(workspace, new Set(['one', 'two']), 'accepted');
+    expect(accepted.findings.map((item) => item.state)).toEqual([
+      'accepted',
+      'accepted',
+      'open',
+    ]);
+    // An undo snapshot is just the prior workspace — restoring it round-trips.
+    expect(setFindingsState(accepted, ['one', 'two'], 'open').findings.every(
+      (item) => item.state === 'open'
+    )).toBe(true);
+    // Empty id sets are no-ops (same reference).
+    expect(setFindingsState(workspace, [], 'dismissed')).toBe(workspace);
+    expect(setFindingsState(workspace, new Set(), 'dismissed')).toBe(workspace);
+  });
+
+  it('sanitizes unknown finding states and preserves accepted through persistence', () => {
+    const workspace = parseReviewCenterWorkspace(
+      {
+        version: 1,
+        workingCopyPath: '/wc',
+        findings: [
+          { ...finding('good'), state: 'accepted' },
+          { ...finding('bad'), state: 'super-open' },
+        ],
+      },
+      '/wc'
+    );
+    expect(workspace.findings.map((item) => item.state)).toEqual(['accepted', 'open']);
+  });
+
+  it('excludes accepted findings from the open section of the exported report', () => {
+    const workspace: ReturnType<typeof captureResult> = {
+      ...emptyReviewCenterWorkspace('/wc'),
+      findings: [
+        { ...finding('accepted-one'), state: 'accepted' },
+        { ...finding('open-one'), state: 'open' },
+      ],
+    };
+    const markdown = exportReviewCenterMarkdown(workspace);
+    expect(markdown).toContain('## Open findings (1)');
+    expect(markdown).not.toContain('accepted-one');
+  });
 });
+
+function finding(id: string) {
+  return {
+    id,
+    severity: 'warning' as const,
+    category: 'debug',
+    title: `Finding ${id}`,
+    detail: 'Detail text.',
+    filePath: '/wc/src/app.ts',
+    line: 3,
+    confidence: 0.7,
+    evidence: [],
+  };
+}

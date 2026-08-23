@@ -20,7 +20,11 @@ const TASKS = new Set<AiTaskKind>([
   'conflict-resolution',
 ]);
 
-function boundedSettings(retentionDays: number, maxEntries: number): [number, number] {
+/** Clamp caller-provided settings (e.g. `aiCommit.usageRetentionDays`) to sane bounds. */
+export function boundedSettings(
+  retentionDays: number,
+  maxEntries: number
+): [retentionDays: number, maxEntries: number] {
   const retention = Number.isFinite(retentionDays)
     ? Math.min(MAX_RETENTION_DAYS, Math.max(1, Math.floor(retentionDays)))
     : DEFAULT_RETENTION_DAYS;
@@ -56,22 +60,37 @@ function isSafeEntry(value: unknown): value is AiUsageEntry {
   );
 }
 
+/**
+ * Pure retention pass (#113): validate entries, drop anything older than the
+ * retention window, and cap the list length. Pure so tests can drive it
+ * without touching the real userData file; `readAiUsageHistory` and
+ * `appendAiUsageEntry` both funnel through here (prune on load and on write).
+ */
+export function pruneAiUsageHistory(
+  values: unknown,
+  nowMs: number,
+  retentionDays = DEFAULT_RETENTION_DAYS,
+  maxEntries = DEFAULT_MAX_ENTRIES
+): AiUsageEntry[] {
+  const [safeRetentionDays, safeMaxEntries] = boundedSettings(retentionDays, maxEntries);
+  const cutoff = nowMs - safeRetentionDays * 86_400_000;
+  return (Array.isArray(values) ? values : [])
+    .filter(isSafeEntry)
+    .filter((entry) => Date.parse(entry.startedAt) >= cutoff)
+    .slice(0, safeMaxEntries);
+}
+
 export async function readAiUsageHistory(
   retentionDays = DEFAULT_RETENTION_DAYS,
   maxEntries = DEFAULT_MAX_ENTRIES
 ): Promise<AiUsageEntry[]> {
-  const [safeRetentionDays, safeMaxEntries] = boundedSettings(retentionDays, maxEntries);
   let values: unknown = [];
   try {
     values = JSON.parse(await readFile(filePath(), 'utf8'));
   } catch {
     return [];
   }
-  const cutoff = Date.now() - safeRetentionDays * 86_400_000;
-  return (Array.isArray(values) ? values : [])
-    .filter(isSafeEntry)
-    .filter((entry) => Date.parse(entry.startedAt) >= cutoff)
-    .slice(0, safeMaxEntries);
+  return pruneAiUsageHistory(values, Date.now(), retentionDays, maxEntries);
 }
 
 export async function appendAiUsageEntry(
@@ -79,8 +98,7 @@ export async function appendAiUsageEntry(
   retentionDays = DEFAULT_RETENTION_DAYS,
   maxEntries = DEFAULT_MAX_ENTRIES
 ): Promise<void> {
-  const [, safeMaxEntries] = boundedSettings(retentionDays, maxEntries);
-  const existing = await readAiUsageHistory(retentionDays, safeMaxEntries);
+  const existing = await readAiUsageHistory(retentionDays, maxEntries);
   // This object is intentionally allow-listed. It cannot contain paths, prompts,
   // diffs, provider output, or generated text.
   const safe: AiUsageEntry = {
@@ -96,7 +114,13 @@ export async function appendAiUsageEntry(
     truncated: entry.truncated,
     redacted: entry.redacted,
   };
-  await writeSecureJson(filePath(), [safe, ...existing].slice(0, safeMaxEntries));
+  const [safeRetentionDays, safeMaxEntries] = boundedSettings(retentionDays, maxEntries);
+  // Prune on write as well: the freshly appended entry starts a new retention
+  // clock check so an old backlog cannot silently regrow past the cap.
+  await writeSecureJson(
+    filePath(),
+    pruneAiUsageHistory([safe, ...existing], Date.now(), safeRetentionDays, safeMaxEntries)
+  );
 }
 
 export async function clearAiUsageHistory(): Promise<void> {

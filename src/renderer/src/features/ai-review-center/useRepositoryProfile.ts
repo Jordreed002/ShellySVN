@@ -5,12 +5,17 @@ import {
   type RepositoryProfile,
   type RepositoryProfileImportPreview,
 } from './repositoryProfileAdapter';
+import { analyzeCommitStyle, splitCommitMessage } from './lib/styleLearner';
+
+/** How much history the style learner samples (bounded for large repositories). */
+const STYLE_SAMPLE_LIMIT = 200;
 
 export function useRepositoryProfile(workingCopyPath: string) {
   const [profile, setProfile] = useState<RepositoryProfile>(emptyRepositoryProfile);
   const [exists, setExists] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLearningStyle, setIsLearningStyle] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<RepositoryProfileImportPreview | null>(null);
 
@@ -78,12 +83,47 @@ export function useRepositoryProfile(workingCopyPath: string) {
     setImportPreview(null);
   };
 
+  /**
+   * #110: sample the repository's own commit log, compute style hints locally
+   * (pure analyzer — no AI call, nothing leaves the machine), and stage them
+   * on the profile. The user still presses Save to persist.
+   */
+  const learnStyle = useCallback(async (): Promise<number> => {
+    setIsLearningStyle(true);
+    setError(null);
+    try {
+      const log = await window.api.svn.log(workingCopyPath, STYLE_SAMPLE_LIMIT);
+      if (log.cancelled) throw new Error('Reading commit history was cancelled.');
+      if (log.error || log.parseError) {
+        throw new Error(log.error || `Failed to parse SVN log: ${log.parseError}`);
+      }
+      const hints = analyzeCommitStyle(
+        log.entries.map((entry) => splitCommitMessage(entry.message ?? '')),
+        { issueIdPattern: profile.issueIdPattern }
+      );
+      setProfile((current) => ({ ...current, styleHints: hints }));
+      return hints.sampledCommits;
+    } catch (learnError) {
+      setError(
+        learnError instanceof Error ? learnError.message : 'Could not learn the commit style.'
+      );
+      return 0;
+    } finally {
+      setIsLearningStyle(false);
+    }
+  }, [profile.issueIdPattern, workingCopyPath]);
+
+  const clearStyleHints = useCallback(() => {
+    setProfile((current) => ({ ...current, styleHints: undefined }));
+  }, []);
+
   return {
     profile,
     setProfile,
     exists,
     isLoading,
     isSaving,
+    isLearningStyle,
     error,
     importPreview,
     setImportPreview,
@@ -91,5 +131,7 @@ export function useRepositoryProfile(workingCopyPath: string) {
     remove,
     previewImport,
     applyImportPreview,
+    learnStyle,
+    clearStyleHints,
   };
 }

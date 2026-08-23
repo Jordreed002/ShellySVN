@@ -1,3 +1,5 @@
+import type { RepositoryAiStyleHints } from '@shared/types';
+
 export type DraftTransformation =
   | 'shorter'
   | 'add-body'
@@ -21,6 +23,8 @@ export interface RepositoryProfile {
   excludedPaths: string[];
   requiredReviewQuestions: string[];
   enabledDraftTransformations: DraftTransformation[];
+  /** Learned locally from commit history — never imported from arbitrary JSON as instructions. */
+  styleHints?: RepositoryAiStyleHints;
   updatedAt: string;
 }
 

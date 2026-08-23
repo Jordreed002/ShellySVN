@@ -1,5 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { AlertTriangle, FileJson2, Loader2, Save, Shield, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Eraser,
+  FileJson2,
+  GraduationCap,
+  Loader2,
+  Save,
+  Shield,
+  Trash2,
+} from 'lucide-react';
 import {
   ALL_DRAFT_TRANSFORMATIONS,
   parseListInput,
@@ -7,6 +16,7 @@ import {
   type DraftTransformation,
   type RepositoryProfile,
 } from './repositoryProfileAdapter';
+import { describeStyleHints } from './lib/styleLearner';
 import { useRepositoryProfile } from './useRepositoryProfile';
 
 const transformationLabels: Record<DraftTransformation, string> = {
@@ -27,6 +37,7 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
     exists,
     isLoading,
     isSaving,
+    isLearningStyle,
     error,
     importPreview,
     setImportPreview,
@@ -34,9 +45,12 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
     remove,
     previewImport,
     applyImportPreview,
+    learnStyle,
+    clearStyleHints,
   } = useRepositoryProfile(workingCopyPath);
   const [showImport, setShowImport] = useState(false);
   const [importJson, setImportJson] = useState('');
+  const [styleNotice, setStyleNotice] = useState<string | null>(null);
   const patch = <Key extends keyof RepositoryProfile>(key: Key, value: RepositoryProfile[Key]) =>
     setProfile((current) => ({ ...current, [key]: value }));
 
@@ -125,6 +139,67 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
           onChange={(value) => patch('terminology', value)}
         />
       </Field>
+
+      <div className="border border-border bg-bg-secondary p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <GraduationCap className="h-4 w-4 text-accent" aria-hidden="true" />
+          <h3 className="text-12 font-semibold">Commit style</h3>
+          <span className="font-mono text-9 text-text-faint">computed locally</span>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm ml-auto gap-1"
+            disabled={isLearningStyle || isSaving}
+            onClick={() => {
+              setStyleNotice(null);
+              void learnStyle().then((sampled) => {
+                setStyleNotice(
+                  sampled > 0
+                    ? `Learned style from ${sampled} recent commit${sampled === 1 ? '' : 's'}. Save the profile to persist it.`
+                    : 'No commit history was available to learn from.'
+                );
+              });
+            }}
+          >
+            {isLearningStyle ? (
+              <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            ) : (
+              <GraduationCap className="h-3 w-3" aria-hidden="true" />
+            )}
+            Learn style from history
+          </button>
+          {profile.styleHints && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm gap-1"
+              disabled={isLearningStyle || isSaving}
+              onClick={() => {
+                clearStyleHints();
+                setStyleNotice(null);
+              }}
+            >
+              <Eraser className="h-3 w-3" aria-hidden="true" />
+              Clear learned style
+            </button>
+          )}
+        </div>
+        <p className="mt-1.5 text-10.5 leading-relaxed text-text-muted">
+          Samples up to 200 recent commit messages and derives statistics (subject length,
+          imperative mood, prefixes, body habits). Nothing is sent to any provider.
+        </p>
+        {profile.styleHints && (
+          <p className="mt-2 border-l-2 border-accent/40 bg-accent/[0.04] px-2.5 py-2 font-mono text-9.5 text-text-secondary">
+            {describeStyleHints(profile.styleHints)}
+            {profile.styleHints.learnedAt
+              ? ` · learned ${new Date(profile.styleHints.learnedAt).toLocaleDateString()}`
+              : ''}
+          </p>
+        )}
+        {styleNotice && (
+          <p className="mt-2 text-10.5 text-text-muted" role="status">
+            {styleNotice}
+          </p>
+        )}
+      </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         <ListField

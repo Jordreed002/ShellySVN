@@ -5,8 +5,16 @@ import type {
   AiDiffExplanationResult,
 } from '@shared/types';
 
+/**
+ * Finding triage state (#112):
+ *  - open: awaiting review
+ *  - accepted: acknowledged as valid/actioned (bulk `A` or per-item Accept)
+ *  - dismissed: marked not applicable (bulk `D` or per-item Dismiss)
+ */
+export type ReviewFindingState = 'open' | 'accepted' | 'dismissed';
+
 type ReviewCenterFinding = AiCommitReviewResult['findings'][number] & {
-  state: 'open' | 'dismissed';
+  state: ReviewFindingState;
 };
 
 interface ReviewCenterExplanation extends AiDiffExplanationResult {

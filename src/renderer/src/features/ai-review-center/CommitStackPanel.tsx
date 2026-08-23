@@ -9,6 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useCommitStack } from './useCommitStack';
+import { AiRichText } from '@renderer/components/ai/AiRichText';
 
 export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string }) {
   const {
@@ -110,6 +111,13 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
                 </button>
               </header>
               <div className="p-3">
+                {group.description && (
+                  <AiRichText
+                    className="mb-2"
+                    markdown={group.description}
+                    aria-label={`Description for ${group.title} (AI output)`}
+                  />
+                )}
                 <textarea
                   className="input min-h-16 w-full resize-y font-mono text-11"
                   value={group.draftMessage}
