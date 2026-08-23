@@ -32,6 +32,9 @@ import type {
 import { PathAddressBar } from './ui/Breadcrumb';
 import { MillerColumns } from './files/MillerColumns';
 import { BranchSwitcher } from '../features/branches/BranchSwitcher';
+import { MixedRevisionBanner } from './ui/MixedRevisionBanner';
+import { buildMixedRevisionItems } from '../lib/workingCopyFreshness';
+import { useMixedRevisions } from '../hooks/useWorkingCopyFreshness';
 import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
@@ -109,6 +112,7 @@ import {
   UpdateToRevisionDialog,
   loadCommitDialog,
 } from './files/FileExplorerLazyDialogs';
+import { ChangelistSuggestionsEntry } from './ui/ChangelistSuggestionsPanel';
 import {
   TREE_PANE_MAX_WIDTH,
   TREE_PANE_MIN_WIDTH,
@@ -746,6 +750,23 @@ export function FileExplorer() {
     invalidateCurrentPath,
     selectedPaths
   );
+
+  /*
+   * Mixed-revision detection, for the banner below the toolbar. Both inputs
+   * are reads this surface already made (`fs:getDeepStatus` for every changed
+   * item in the tree, `svn:childCommits` for the immediate children), so the
+   * derivation costs no SVN call; `svnInfo.revision` anchors it as the
+   * folder's own BASE revision.
+   */
+  const mixedRevisionItems = useMemo(
+    () => buildMixedRevisionItems({ deepStatusData, childCommits, directoryPath: path }),
+    [deepStatusData, childCommits, path]
+  );
+  const mixedRevisions = useMixedRevisions({
+    baseRevision: svnInfo?.revision,
+    items: mixedRevisionItems,
+  });
+
   const operationContextRef = useRef({ actions, path, queryClient, selectedEntry });
 
   useEffect(() => {
@@ -1664,6 +1685,17 @@ export function FileExplorer() {
           </div>
         )}
 
+        {/*
+         * Mixed-revision state: proven by the derivation above, resolved by
+         * the same update action the toolbar's Update runs, dismissed per
+         * revision range (see MixedRevisionBanner).
+         */}
+        <MixedRevisionBanner
+          summary={mixedRevisions}
+          onUpdateToHead={() => void actions.handleUpdate()}
+          isUpdating={actions.isUpdating}
+        />
+
         {explorerViewMode === 'miller' && (
           <div className="relative flex-1 min-h-0 min-w-0">
             <MillerColumns
@@ -2125,6 +2157,9 @@ export function FileExplorer() {
           />
         </Suspense>
       )}
+
+      {/* Changelist grouping suggestions — self-contained entry (#65) */}
+      <ChangelistSuggestionsEntry workingCopyPath={path} />
 
       {/* Create Patch Dialog */}
       {createPatchPath && (
