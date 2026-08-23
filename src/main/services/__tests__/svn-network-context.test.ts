@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 const { authCache, sslCache } = vi.hoisted(() => ({
   authCache: { ready: vi.fn(), findForUrl: vi.fn() },
-  sslCache: { ready: vi.fn(), findForUrl: vi.fn() },
+  sslCache: { ready: vi.fn(), findForUrl: vi.fn(), findDecisionForUrl: vi.fn() },
 }));
 
 vi.mock('../../auth-cache', () => ({ getAuthCache: () => authCache }));
@@ -26,6 +26,7 @@ import {
   getCachedTrustedSslFailuresForUrl,
   getNetworkOptionsForUrl,
   getNetworkOptionsForWorkingCopyPath,
+  getSslTrustDecisionForUrl,
 } from '../svn-network-context';
 
 const mockGetWorkingCopyContext = vi.mocked(getWorkingCopyContext);
@@ -36,6 +37,7 @@ beforeEach(() => {
   sslCache.ready.mockResolvedValue(undefined);
   authCache.findForUrl.mockReturnValue(null);
   sslCache.findForUrl.mockReturnValue(null);
+  sslCache.findDecisionForUrl.mockReturnValue(null);
   mockGetWorkingCopyContext.mockResolvedValue(undefined);
 });
 
@@ -129,5 +131,33 @@ describe('getNetworkOptionsForWorkingCopyPath', () => {
     await expect(getNetworkOptionsForWorkingCopyPath('/wc')).resolves.toEqual({
       trustSslFailures: false,
     });
+  });
+});
+
+describe('getSslTrustDecisionForUrl (backlog item #38)', () => {
+  it('exposes cached decisions — including rejections — for https URLs', async () => {
+    sslCache.findDecisionForUrl.mockReturnValue({
+      realm: 'https://svn.example.com',
+      decision: 'rejected',
+      failures: 'unknown-ca',
+      failureKind: 'unknown-ca',
+    });
+
+    await expect(getSslTrustDecisionForUrl('https://svn.example.com/repo')).resolves.toEqual({
+      realm: 'https://svn.example.com',
+      decision: 'rejected',
+      failures: 'unknown-ca',
+      failureKind: 'unknown-ca',
+    });
+  });
+
+  it('returns null for non-https URLs without consulting the cache', async () => {
+    await expect(getSslTrustDecisionForUrl('svn://svn.example.com/repo')).resolves.toBeNull();
+    expect(sslCache.findDecisionForUrl).not.toHaveBeenCalled();
+  });
+
+  it('degrades to null when the cache lookup fails', async () => {
+    sslCache.ready.mockRejectedValue(new Error('cache locked'));
+    await expect(getSslTrustDecisionForUrl('https://svn.example.com/repo')).resolves.toBeNull();
   });
 });

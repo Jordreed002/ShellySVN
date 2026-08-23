@@ -14,6 +14,7 @@ vi.mock('../../auth-cache', () => ({ getAuthCache: () => cache }));
 import {
   beginAuthSession,
   clearAuthSessions,
+  getAuthSessionStats,
   resolveAuthSession,
   resumeAuthSession,
 } from '../auth-session-manager';
@@ -72,5 +73,30 @@ describe('main-process authentication sessions', () => {
 
     expect(session).toMatchObject({ username: 'alice', persistent: true, expiresAt: null });
     expect(JSON.stringify(session)).not.toContain('stored-secret');
+  });
+
+  it('reports non-secret session stats for diagnostics and drops expired sessions', async () => {
+    expect(getAuthSessionStats()).toEqual({ active: 0, persistent: 0 });
+
+    await beginAuthSession(7, {
+      realm: 'https://svn.example.com/repo',
+      username: 'alice',
+      password: 'very-secret',
+      persistence: 'stored',
+    });
+    await beginAuthSession(7, {
+      realm: 'https://other.example.com/repo',
+      username: 'bob',
+      password: 'also-secret',
+      persistence: 'session',
+    });
+
+    // Counts only — usernames, realms and passwords never enter diagnostics.
+    expect(getAuthSessionStats()).toEqual({ active: 2, persistent: 1 });
+    expect(JSON.stringify(getAuthSessionStats())).not.toContain('alice');
+    expect(JSON.stringify(getAuthSessionStats())).not.toContain('very-secret');
+
+    vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+    expect(getAuthSessionStats()).toEqual({ active: 1, persistent: 1 });
   });
 });

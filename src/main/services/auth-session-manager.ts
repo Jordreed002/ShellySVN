@@ -139,3 +139,21 @@ export function clearAuthSessions(ownerId?: number): void {
   }
   for (const [id, record] of sessions) if (record.ownerId === ownerId) sessions.delete(id);
 }
+
+/**
+ * Non-secret session summary for settings diagnostics (backlog item #37):
+ * counts only — usernames, realms, and passwords never enter diagnostics.
+ */
+export function getAuthSessionStats(): { active: number; persistent: number } {
+  const now = Date.now();
+  let active = 0;
+  let persistent = 0;
+  for (const record of sessions.values()) {
+    if (record.expiresAt !== null && record.expiresAt <= now) {
+      continue; // Expired; pending lazy eviction, not reported as active.
+    }
+    active += 1;
+    if (record.persistent) persistent += 1;
+  }
+  return { active, persistent };
+}

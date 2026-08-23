@@ -1,13 +1,18 @@
 import { spawn } from 'child_process';
 import { terminateProcessTree } from '../utils/process-tree';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 import type { SvnExecutionContext } from '@shared/types';
 import { debug } from '../utils/debug';
+import { toExtendedLengthPath } from '../utils/path-guard';
 import { redactArgs, redactValue } from '../utils/redaction';
 import { SvnCommandError } from '../utils/svn-errors';
+import {
+  buildSvnSpawnNetworkConfig,
+  type SvnSpawnNetworkConfig,
+} from '../utils/svn-spawn-network-config';
 
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
@@ -126,34 +131,52 @@ function appendCappedOutput(
   return { output, truncated: true };
 }
 
+async function readOptionalTextFile(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch {
+    // Absent or unreadable files fall back to defaults.
+    return null;
+  }
+}
+
+/**
+ * Write a temp config dir carrying the generated `[global]` servers settings
+ * (proxy and, when configured, the client-certificate keys). It is written
+ * only for an active proxy — a lone client certificate travels as
+ * `--config-option` arguments instead — and the user's own config dir is
+ * MERGED into it rather than discarded: their `servers` content is kept first
+ * so the generated keys win svn's last-value-wins config parsing, and their
+ * `config` file is copied verbatim.
+ */
 async function createTempSvnConfig(
-  proxySettings: SvnExecutionContext['proxySettings']
+  networkConfig: SvnSpawnNetworkConfig,
+  userConfigPath: string | undefined
 ): Promise<string | null> {
-  if (!proxySettings?.enabled || !proxySettings.host || !proxySettings.port) {
+  if (!networkConfig.proxyActive) {
     return null;
   }
 
   const configDir = await mkdtemp(join(tmpdir(), 'svn-config-'));
   const serversPath = join(configDir, 'servers');
-  const configLines = [
-    '[global]',
-    `http-proxy-host = ${proxySettings.host}`,
-    `http-proxy-port = ${proxySettings.port}`,
-  ];
+  const generatedServers = networkConfig.serverConfigLines.join('\n');
+  const userServers = userConfigPath
+    ? await readOptionalTextFile(join(userConfigPath, 'servers'))
+    : null;
 
-  if (proxySettings.username) {
-    configLines.push(`http-proxy-username = ${proxySettings.username}`);
+  await writeFile(
+    serversPath,
+    userServers?.trim() ? `${userServers.trim()}\n${generatedServers}` : generatedServers,
+    { mode: 0o600 }
+  );
+
+  if (userConfigPath) {
+    const userConfig = await readOptionalTextFile(join(userConfigPath, 'config'));
+    if (userConfig !== null) {
+      await writeFile(join(configDir, 'config'), userConfig, { mode: 0o600 });
+    }
   }
 
-  if (proxySettings.password) {
-    configLines.push(`http-proxy-password = ${proxySettings.password}`);
-  }
-
-  if (proxySettings.bypassForLocal) {
-    configLines.push('http-proxy-exceptions = localhost, 127.0.0.1');
-  }
-
-  await writeFile(serversPath, configLines.join('\n'), { mode: 0o600 });
   return configDir;
 }
 
@@ -236,11 +259,48 @@ export function buildSvnSshCommand(
   return command.map(quoteSvnSshArgument).join(' ');
 }
 
+/** Absolute Windows filesystem arguments (drive letters and UNC shares). */
+const WINDOWS_ABSOLUTE_ARG = /^(?:[a-zA-Z]:[\\/]|\\\\)/;
+
+/**
+ * Long-path support for spawned svn processes on Windows: working directories
+ * and absolute path arguments at or beyond MAX_PATH are handed to svn in the
+ * `\\?\` extended-length namespace. Options, URLs, relative targets, and
+ * non-win32 platforms pass through unchanged. The `platform` parameter only
+ * exists so tests on any host can exercise the win32 mapping.
+ */
+export function toSvnSpawnCwd(cwd: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? toExtendedLengthPath(cwd, { platform }) : cwd;
+}
+
+export function toSvnSpawnArgs(
+  args: string[],
+  platform: NodeJS.Platform = process.platform
+): string[] {
+  if (platform !== 'win32') return args;
+  return args.map((argument) =>
+    WINDOWS_ABSOLUTE_ARG.test(argument) ? toExtendedLengthPath(argument, { platform }) : argument
+  );
+}
+
 export async function runResolvedSvn(
   args: string[],
   options: RunResolvedSvnOptions
 ): Promise<RunSvnResult> {
-  const tempConfigDir = await createTempSvnConfig(options.context.proxySettings);
+  const networkConfig = buildSvnSpawnNetworkConfig({
+    proxySettings: options.context.proxySettings,
+    clientCertificatePath: options.context.clientCertificatePath,
+  });
+  // Client-certificate config-option route. Built from the certificate alone
+  // so proxy secrets stay out of argv (`ps`/`/proc` visibility): when a proxy
+  // writes a temp servers file, the certificate keys ride that file too.
+  const clientCertificateConfig = buildSvnSpawnNetworkConfig({
+    clientCertificatePath: options.context.clientCertificatePath,
+  });
+  const tempConfigDir = await createTempSvnConfig(
+    networkConfig,
+    options.context.svnConfigPath?.trim() || undefined
+  );
 
   return new Promise((resolve, reject) => {
     const commandContext = {
@@ -311,8 +371,11 @@ export async function runResolvedSvn(
       addGeneratedArgs('--password-from-stdin');
     }
 
-    if (options.context.clientCertificatePath?.trim()) {
-      addGeneratedArgs('--certificate', options.context.clientCertificatePath.trim());
+    // svn 1.14 has no `--certificate` CLI option — passing one failed every
+    // command. The configured client certificate must reach svn as
+    // servers-config overrides instead (backlog item #37).
+    for (const configOption of clientCertificateConfig.configOptionArgs) {
+      addGeneratedArgs('--config-option', configOption);
     }
 
     debug.log(
@@ -327,12 +390,15 @@ export async function runResolvedSvn(
     const isBatchLauncher =
       process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(options.svnCommand);
     const launchCommand = isBatchLauncher ? process.env.ComSpec || 'cmd.exe' : options.svnCommand;
+    // Absolute Windows path arguments are canonicalized to the extended-length
+    // namespace only for the spawn itself; logging and redaction above show the
+    // human-readable forms.
     const launchArgs = isBatchLauncher
-      ? ['/d', '/s', '/c', options.svnCommand, ...finalArgs]
-      : finalArgs;
+      ? ['/d', '/s', '/c', options.svnCommand, ...toSvnSpawnArgs(finalArgs)]
+      : toSvnSpawnArgs(finalArgs);
 
     const proc = spawn(launchCommand, launchArgs, {
-      cwd: options.cwd || process.cwd(),
+      cwd: toSvnSpawnCwd(options.cwd || process.cwd()),
       env,
       shell: false,
       detached: process.platform !== 'win32',

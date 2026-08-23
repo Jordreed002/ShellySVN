@@ -1,7 +1,21 @@
 import { getAuthCache } from '../auth-cache';
-import { getSslTrustCache } from '../ssl-trust-cache';
+import {
+  getSslTrustCache,
+  type SslTrustDecisionEntry,
+  type SslFailureKind,
+} from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
 import { getWorkingCopyContext } from './svn-working-copy';
+
+// Pure spawn-config builder (proxy + client certificate). Lives in
+// `utils/svn-spawn-network-config` because `svn-runner` — which is bundled
+// into worker threads — imports it without Electron; re-exported here so
+// main-process callers keep a single service-facing entry point.
+export {
+  buildSvnSpawnNetworkConfig,
+  type SvnSpawnNetworkConfig,
+  type SvnSpawnNetworkConfigInput,
+} from '../utils/svn-spawn-network-config';
 
 export interface SvnCachedCredentials {
   username: string;
@@ -39,6 +53,27 @@ export async function getCachedTrustedSslFailuresForUrl(url: string): Promise<st
     return undefined;
   }
 }
+
+/**
+ * Full trust-decision state for a URL (backlog item #38): a cached rejection
+ * must fail fast with the typed failure instead of re-prompting, while a
+ * cached acceptance short-circuits the prompt entirely.
+ */
+export async function getSslTrustDecisionForUrl(
+  url: string
+): Promise<SslTrustDecisionEntry | null> {
+  if (!/^https:\/\//i.test(url)) return null;
+  try {
+    const cache = getSslTrustCache();
+    await cache.ready();
+    return cache.findDecisionForUrl(url);
+  } catch (error) {
+    debug.warn('[SSL] Failed to look up SSL trust decision for URL:', error);
+    return null;
+  }
+}
+
+export type { SslFailureKind, SslTrustDecisionEntry };
 
 export async function getNetworkOptionsForUrl(url: string): Promise<SvnNetworkOptions> {
   const [credentials, trustedSslFailures] = await Promise.all([

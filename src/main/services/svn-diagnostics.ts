@@ -1,18 +1,34 @@
 import { existsSync, statSync } from 'fs';
 import { isAbsolute, join } from 'path';
 import { app } from 'electron';
-import type { RepoDiagnostics } from '@shared/types';
+import type {
+  NetworkSecurityDiagnostics,
+  RepoDiagnostics,
+  SvnExecutionContext,
+} from '@shared/types';
 import { getAuthCache } from '../auth-cache';
-import { getSslTrustCache } from '../ssl-trust-cache';
+import {
+  getSslTrustCache,
+  parseSslCertFailure,
+  trustableFailureKinds,
+  type SslCertFailureInfo,
+  type SslFailureKind,
+  type SslTrustCache as SslTrustCacheInstance,
+} from '../ssl-trust-cache';
 import { getSettingsManager } from '../settings-manager';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
+import { redactValue } from '../utils/redaction';
 import { withSvnTargets } from '../utils/svn-targets';
 import { runSvnMuccText, runSvnText } from './svn-executor';
-import { getNetworkOptionsForUrl } from './svn-network-context';
+import {
+  buildSvnSpawnNetworkConfig,
+  getNetworkOptionsForUrl,
+  type SvnSpawnNetworkConfig,
+} from './svn-network-context';
+import { getAuthSessionStats } from './auth-session-manager';
 
 const MINIMUM_SVN_VERSION = '1.14';
-const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 
 function getCurrentBinaryTarget(): string {
   return `${process.platform}-${process.arch}`;
@@ -66,7 +82,7 @@ function getDiagnosticResourceStatus(svnClientPath: string): RepoDiagnostics['re
   const resourceSource = app.isPackaged ? 'packaged-resource' : 'workspace-resource';
   const statuses: RepoDiagnostics['resourceStatus'] = [
     getFileStatus('logic engine', join(resourceBasePath, names.engine), resourceSource),
-    getFileStatus('bundled SVN client', join(resourceBasePath, 'svn', names.svn), resourceSource),
+    getFileStatus('bundled SVN client', join(resourceBasePath, names.svn), resourceSource),
   ];
 
   if (isAbsolute(svnClientPath)) {
@@ -86,24 +102,6 @@ function isSvnVersionSupported(version: string | null): boolean | null {
   return major > 1 || (major === 1 && minor >= 14);
 }
 
-function parseTrustedSslFailures(errorText: string): string {
-  const failures = new Set<(typeof ALLOWED_SSL_FAILURES)[number]>();
-  if (errorText.match(/not issued by a trusted authority|issuer is not trusted/i)) {
-    failures.add('unknown-ca');
-  }
-  if (errorText.match(/hostname does not match|certificate issued for a different hostname/i)) {
-    failures.add('cn-mismatch');
-  }
-  if (errorText.match(/has expired|certificate.*expired/i)) {
-    failures.add('expired');
-  }
-  if (errorText.match(/not yet valid/i)) {
-    failures.add('not-yet-valid');
-  }
-
-  return failures.size > 0 ? Array.from(failures).join(',') : 'unknown-ca';
-}
-
 function isAuthenticationError(errorText: string): boolean {
   return (
     errorText.includes('authentication') ||
@@ -114,10 +112,117 @@ function isAuthenticationError(errorText: string): boolean {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Network security diagnostics (backlog items #37 / #38)
+// ---------------------------------------------------------------------------
+//
+// The NetworkSecuritySslFailure / NetworkSecurityDiagnostics shapes live in
+// @shared/types (they cross IPC on RepoDiagnostics); re-exported here for
+// compatibility with existing main-process imports.
+
+export type { NetworkSecurityDiagnostics, NetworkSecuritySslFailure } from '@shared/types';
+
+export type RepoDiagnosticsWithNetworkSecurity = RepoDiagnostics & {
+  networkSecurity: NetworkSecurityDiagnostics;
+};
+
+async function buildNetworkSecurityDiagnostics(input: {
+  context: SvnExecutionContext | null;
+  repositoryRoot: string | null;
+  sslFailureRaw: string | undefined;
+}): Promise<NetworkSecurityDiagnostics> {
+  const { context, repositoryRoot, sslFailureRaw } = input;
+  const proxy = context?.proxySettings ?? null;
+  const clientCertificatePath = context?.clientCertificatePath?.trim() || null;
+
+  // Reuse the canonical spawn-config builder so "active" means "these
+  // settings would actually reach spawned svn processes". Malformed values
+  // (e.g. control characters) report as inactive instead of throwing.
+  let spawnConfig: SvnSpawnNetworkConfig | null = null;
+  try {
+    spawnConfig = buildSvnSpawnNetworkConfig({
+      proxySettings: proxy,
+      clientCertificatePath,
+    });
+  } catch (error) {
+    debug.warn('[diagnostics] Invalid proxy/client-certificate settings:', error);
+  }
+
+  let cache: SslTrustCacheInstance | null = null;
+  try {
+    cache = getSslTrustCache();
+    await cache.ready();
+  } catch (error) {
+    debug.warn('[diagnostics] SSL trust cache unavailable:', error);
+  }
+
+  const ssl: NetworkSecurityDiagnostics['ssl'] = {
+    verificationEnabled: context?.sslVerify !== false,
+    trustedOrigins: cache ? cache.listTrustedOrigins() : [],
+  };
+
+  if (sslFailureRaw && repositoryRoot) {
+    const failure = parseSslCertFailure(sslFailureRaw, repositoryRoot);
+    if (failure) {
+      const decision = cache?.findDecisionForUrl(repositoryRoot) ?? null;
+      ssl.failure = {
+        failureKind: failure.failureKind,
+        failureKinds: failure.failureKinds,
+        host: failure.host,
+        ...(failure.fingerprint ? { fingerprint: failure.fingerprint } : {}),
+        ...(failure.validUntil ? { validUntil: failure.validUntil } : {}),
+        rawMessage: redactValue(failure.rawMessage) as string,
+        trustState: decision ? decision.decision : 'untrusted',
+        promptEligible:
+          decision?.decision !== 'rejected' && !(cache?.hasPrompted(failure) ?? false),
+      };
+    }
+  }
+
+  return {
+    proxy: {
+      active: spawnConfig?.proxyActive ?? false,
+      host: proxy?.host ? proxy.host : null,
+      port:
+        typeof proxy?.port === 'number' && proxy.port > 0 && proxy.port <= 65535
+          ? proxy.port
+          : null,
+      authenticated: Boolean(proxy?.enabled && proxy?.username && proxy?.password),
+      bypassesLocalAddresses: Boolean(proxy?.bypassForLocal),
+    },
+    clientCertificate: {
+      configured: spawnConfig?.clientCertificateActive ?? false,
+      path: clientCertificatePath,
+    },
+    ssl,
+    authSessions: getAuthSessionStats(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Certificate trust flow (backlog item #38)
+// ---------------------------------------------------------------------------
+
+export interface SslTrustOutcome {
+  success: boolean;
+  error?: string;
+  failureKind?: SslFailureKind;
+}
+
+/**
+ * Explicit, user-initiated trust of a server certificate. Prompts are
+ * user-driven (renderer button); this records the outcome so:
+ * - a cached acceptance short-circuits future prompts,
+ * - a cached rejection fails fast here (no svn re-run, no retry loop),
+ * - a verification that still fails on certificate grounds records a
+ *   rejection, stopping click-retry loops,
+ * - authentication failures after a successful trust still cache the trust
+ *   (the certificate itself was accepted).
+ */
 export async function trustServerCertificate(
   url: string,
   errorText: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<SslTrustOutcome> {
   const trimmedUrl = url.trim();
   if (!trimmedUrl) {
     return { success: false, error: 'Repository URL is required.' };
@@ -129,7 +234,43 @@ export async function trustServerCertificate(
     };
   }
 
-  const trustedSslFailures = parseTrustedSslFailures(errorText);
+  // Classification first: an unclassifiable failure is never trusted (the
+  // previous behavior defaulted to 'unknown-ca', over-trusting e.g. revoked
+  // or handshake failures).
+  const failure = parseSslCertFailure(errorText, trimmedUrl);
+  if (!failure) {
+    return {
+      success: false,
+      error: 'Unable to classify the certificate failure; refusing to trust it.',
+    };
+  }
+
+  const cache = getSslTrustCache();
+  await cache.ready();
+  cache.markPrompted(failure);
+
+  const existingDecision = cache.findDecisionForUrl(trimmedUrl);
+  if (existingDecision?.decision === 'rejected') {
+    return {
+      success: false,
+      error: `Server certificate for ${failure.host} was previously rejected (${
+        existingDecision.failureKind ?? failure.failureKind
+      }); trust was not re-attempted.`,
+      failureKind: existingDecision.failureKind ?? failure.failureKind,
+    };
+  }
+
+  const trustable = trustableFailureKinds(failure.failureKinds);
+  if (trustable.length === 0) {
+    // e.g. a revoked certificate: svn classifies it outside the four
+    // trustable kinds, and it must never receive a blanket trust.
+    return {
+      success: false,
+      error: `Certificate failure (${failure.failureKind}) cannot be trusted safely.`,
+      failureKind: failure.failureKind,
+    };
+  }
+
   const authCache = getAuthCache();
   const credentialsMatch = authCache.findForUrl(trimmedUrl);
   const credentials = credentialsMatch
@@ -139,31 +280,84 @@ export async function trustServerCertificate(
   try {
     await runSvnText(withSvnTargets(['info', '--xml', '--non-interactive'], [trimmedUrl]), {
       trustSslFailures: true,
-      trustedSslFailures,
+      trustedSslFailures: trustable.join(','),
       credentials,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('SSL') || message.includes('certificate') || message.includes('E230001')) {
-      return { success: false, error: message };
+    if (parseSslCertFailure(message)) {
+      // Verification still fails on certificate grounds — the classified
+      // failures did not cover everything. Record a rejection so neither the
+      // renderer nor a future call silently retries the same broken trust.
+      cache.recordDecision(trimmedUrl, failure, 'rejected');
+      return { success: false, error: message, failureKind: failure.failureKind };
     }
     if (!isAuthenticationError(message)) {
-      return { success: false, error: message };
+      return { success: false, error: message, failureKind: failure.failureKind };
     }
+    // Authentication failed, but the certificate was accepted: fall through
+    // and persist the trust.
+  }
+
+  cache.recordDecision(trimmedUrl, failure, 'accepted');
+  return { success: true, failureKind: failure.failureKind };
+}
+
+/**
+ * Explicit user rejection of a server certificate (renderer "don't trust"
+ * action): records the decision so subsequent commands fail fast with the
+ * typed failure and the prompt is not offered again for the same
+ * (host, fingerprint, failureKind).
+ */
+export async function rejectServerCertificate(
+  url: string,
+  errorText: string
+): Promise<SslTrustOutcome> {
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) {
+    return { success: false, error: 'Repository URL is required.' };
+  }
+  if (!/^https:\/\//i.test(trimmedUrl)) {
+    return {
+      success: false,
+      error: 'Server-certificate trust is only available for HTTPS repository URLs.',
+    };
+  }
+
+  const failure = parseSslCertFailure(errorText, trimmedUrl);
+  if (!failure) {
+    return {
+      success: false,
+      error: 'Unable to classify the certificate failure; refusing to record a decision.',
+    };
   }
 
   const cache = getSslTrustCache();
   await cache.ready();
-  cache.set(trimmedUrl, trustedSslFailures);
-  return { success: true };
+  cache.markPrompted(failure);
+  cache.recordDecision(trimmedUrl, failure, 'rejected');
+  return { success: true, failureKind: failure.failureKind };
 }
 
-export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagnostics> {
+// ---------------------------------------------------------------------------
+// Diagnostics
+// ---------------------------------------------------------------------------
+
+export async function getDiagnostics(
+  workingCopyPath: string
+): Promise<RepoDiagnosticsWithNetworkSecurity> {
   const authCache = getAuthCache();
   const settingsManager = getSettingsManager();
   const svnClientPath = settingsManager.getSvnClientPath();
 
-  const result: RepoDiagnostics = {
+  let svnContext: SvnExecutionContext | null = null;
+  try {
+    svnContext = settingsManager.getSvnExecutionContext();
+  } catch (error) {
+    debug.warn('[diagnostics] Failed to read SVN execution context:', error);
+  }
+
+  const result: RepoDiagnosticsWithNetworkSecurity = {
     svnClientPath,
     svnVersion: null,
     svnVersionError: undefined,
@@ -184,6 +378,18 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
     credentialUsername: null,
     connectionStatus: 'unknown',
     connectionError: undefined,
+    networkSecurity: {
+      proxy: {
+        active: false,
+        host: null,
+        port: null,
+        authenticated: false,
+        bypassesLocalAddresses: false,
+      },
+      clientCertificate: { configured: false, path: null },
+      ssl: { verificationEnabled: true, trustedOrigins: [] },
+      authSessions: { active: 0, persistent: 0 },
+    },
   };
 
   try {
@@ -197,6 +403,7 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
     debug.error('[diagnostics] Failed to get SVN version:', result.svnVersionError);
   }
 
+  let sslFailureRaw: string | undefined;
   try {
     const infoOutput = await runSvnText(['info', '--xml'], { cwd: workingCopyPath });
     const info = parseSvnInfoXml(infoOutput);
@@ -233,6 +440,7 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
         } else if (errorMsg.includes('SSL') || errorMsg.includes('certificate')) {
           result.connectionStatus = 'ssl-error';
           result.connectionError = errorMsg;
+          sslFailureRaw = errorMsg;
         } else if (
           errorMsg.includes('ECONNREFUSED') ||
           errorMsg.includes('ENOTFOUND') ||
@@ -258,6 +466,12 @@ export async function getDiagnostics(workingCopyPath: string): Promise<RepoDiagn
         : errorMsg;
   }
 
+  result.networkSecurity = await buildNetworkSecurityDiagnostics({
+    context: svnContext,
+    repositoryRoot: result.repositoryRoot,
+    sslFailureRaw,
+  });
+
   return result;
 }
 
@@ -276,3 +490,5 @@ export async function getSvnCapabilities(): Promise<{
     remoteProperties: remoteProperties.status === 'fulfilled',
   };
 }
+
+export type { SslCertFailureInfo, SslFailureKind };
