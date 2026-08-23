@@ -1,4 +1,11 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { test, expect } from '../helpers/electron-fixture';
+import {
+  createWorkingCopy,
+  openWorkingCopyInApp,
+  svnToolchainAvailable,
+} from '../helpers/svn-fixture';
 import { AppPage } from '../page-objects/AppPage';
 
 /**
@@ -10,6 +17,12 @@ import { AppPage } from '../page-objects/AppPage';
  * - Lock/Unlock files
  * - Rename/Move files
  * - File status display
+ *
+ * The dialog tests build a real working copy with `svnadmin` (file:// only, no
+ * network) so the buttons and menus they exercise actually exist. Each carries
+ * a declarative toolchain guard — the same pattern as the macOS platform gates
+ * — instead of the old mid-test runtime skip that fired whenever the app
+ * started without a working copy open.
  */
 test.describe('File Operations - File Explorer', () => {
   let appPage: AppPage;
@@ -146,34 +159,59 @@ test.describe('File Operations - Delete Files', () => {
     expect(deleteCount).toBeGreaterThanOrEqual(0);
   });
 
-  test('delete confirmation dialog appears', async ({ page }) => {
-    await page
-      .getByTestId('sidebar-ready')
-      .getByRole('link', { name: 'Files', exact: true })
-      .click();
-    await page.waitForTimeout(500);
+  test('delete confirmation dialog appears', async ({ electronApp, page }) => {
+    test.skip(!svnToolchainAvailable, 'requires the local svn/svnadmin toolchain (file:// fixture)');
 
-    const deleteButton = page.locator('button:has-text("Delete")').first();
-    if ((await deleteButton.count()) > 0 && (await deleteButton.isEnabled())) {
-      await deleteButton.click();
-      await page.waitForTimeout(300);
+    // The delete confirmation is a native dialog (`dialog:confirm` IPC), not a
+    // DOM modal. Mock the handler so it records the prompt and cancels, then
+    // verify the cancellation left the file untouched on disk.
+    await electronApp.evaluate(({ ipcMain }) => {
+      const confirmations: Array<{ message?: string; detail?: string }> = [];
+      (globalThis as typeof globalThis & { __deleteConfirmations: typeof confirmations })
+        .__deleteConfirmations = confirmations;
+      ipcMain.removeHandler('dialog:confirm');
+      ipcMain.handle('dialog:confirm', (_event, options: { message?: string }) => {
+        confirmations.push(options);
+        return Promise.resolve(false);
+      });
+    });
 
-      // Check for confirmation dialog
-      const modalVisible = await page.locator('.modal-overlay').isVisible();
-      if (modalVisible) {
-        const modalText = await page.locator('.modal').textContent();
-        expect(modalText?.toLowerCase()).toMatch(/delete|remove|confirm/);
+    const fixture = createWorkingCopy();
+    try {
+      await openWorkingCopyInApp(electronApp, page, fixture.wc, 'Delete fixture WC');
+      const notesRow = page.locator('main').getByText('notes.txt', { exact: true }).first();
+      await expect(notesRow).toBeVisible({ timeout: 10000 });
 
-        // Cancel to avoid actual deletion
-        const cancelButton = page.locator('.modal button:has-text("Cancel")').first();
-        if ((await cancelButton.count()) > 0) {
-          await cancelButton.click();
-        } else {
-          await page.getByTestId('modal-close-button').click();
-        }
-      }
-    } else {
-      test.skip();
+      await notesRow.click({ button: 'right' });
+      await page.locator('.context-menu button[title="File actions"]').hover();
+      await page.locator('.context-submenu button[title^="Delete"]').click();
+
+      await expect
+        .poll(() =>
+          electronApp.evaluate(
+            () =>
+              (
+                globalThis as typeof globalThis & {
+                  __deleteConfirmations: Array<{ message?: string }>;
+                }
+              ).__deleteConfirmations.length
+          )
+        )
+        .toBe(1);
+
+      const confirmation = await electronApp.evaluate(
+        () =>
+          (
+            globalThis as typeof globalThis & {
+              __deleteConfirmations: Array<{ message?: string }>;
+            }
+          ).__deleteConfirmations[0]
+      );
+      expect(confirmation.message).toContain('notes.txt');
+      // The mocked confirm answered "cancel", so nothing may be deleted.
+      expect(existsSync(join(fixture.wc, 'notes.txt'))).toBe(true);
+    } finally {
+      fixture.dispose();
     }
   });
 });
@@ -200,27 +238,27 @@ test.describe('File Operations - Lock/Unlock', () => {
     expect(lockCount).toBeGreaterThanOrEqual(0);
   });
 
-  test('lock management dialog can be opened', async ({ page }) => {
-    await page
-      .getByTestId('sidebar-ready')
-      .getByRole('link', { name: 'Files', exact: true })
-      .click();
-    await page.waitForTimeout(500);
+  test('lock management dialog can be opened', async ({ electronApp, page }) => {
+    test.skip(!svnToolchainAvailable, 'requires the local svn/svnadmin toolchain (file:// fixture)');
 
-    // Look for lock management option
-    const lockManageButton = page.locator('button:has-text("Lock")').first();
-    if ((await lockManageButton.count()) > 0) {
-      await lockManageButton.click();
-      await page.waitForTimeout(300);
+    const fixture = createWorkingCopy();
+    try {
+      await openWorkingCopyInApp(electronApp, page, fixture.wc, 'Lock fixture WC');
+      const notesRow = page.locator('main').getByText('notes.txt', { exact: true }).first();
+      await expect(notesRow).toBeVisible({ timeout: 10000 });
 
-      const modalVisible = await page.locator('.modal-overlay').isVisible();
-      if (modalVisible) {
-        await page.screenshot({ path: 'tests/results/file-operations-lock.png' });
+      // Lock management lives in the context menu's "Locks" submenu.
+      await notesRow.click({ button: 'right' });
+      await page.locator('.context-menu button[title="Locks"]').hover();
+      await page.locator('.context-submenu button[title^="Manage locks"]').click();
 
-        await page.getByTestId('modal-close-button').click();
-      }
-    } else {
-      test.skip();
+      await expect(page.locator('.modal-overlay')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.modal-title').first()).toContainText('Lock Management');
+
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.modal-overlay')).toBeHidden({ timeout: 5000 });
+    } finally {
+      fixture.dispose();
     }
   });
 
@@ -372,27 +410,28 @@ test.describe('File Operations - Properties', () => {
     await appPage.waitForReady();
   });
 
-  test('properties dialog can be accessed', async ({ page }) => {
-    await page
-      .getByTestId('sidebar-ready')
-      .getByRole('link', { name: 'Files', exact: true })
-      .click();
-    await page.waitForTimeout(500);
+  test('properties dialog can be accessed', async ({ electronApp, page }) => {
+    test.skip(!svnToolchainAvailable, 'requires the local svn/svnadmin toolchain (file:// fixture)');
 
-    // Look for Properties button or menu option
-    const propertiesButton = page.locator('button:has-text("Properties")').first();
-    if ((await propertiesButton.count()) > 0) {
-      await propertiesButton.click();
-      await page.waitForTimeout(300);
+    const fixture = createWorkingCopy();
+    try {
+      await openWorkingCopyInApp(electronApp, page, fixture.wc, 'Properties fixture WC');
+      const notesRow = page.locator('main').getByText('notes.txt', { exact: true }).first();
+      await expect(notesRow).toBeVisible({ timeout: 10000 });
 
-      const modalVisible = await page.locator('.modal-overlay').isVisible();
-      if (modalVisible) {
-        await page.screenshot({ path: 'tests/results/file-operations-properties.png' });
+      // Properties lives in the context menu's "Advanced" submenu.
+      await notesRow.click({ button: 'right' });
+      await page.locator('.context-menu button[title="Advanced"]').hover();
+      await page.locator('.context-submenu button[title^="Properties"]').click();
 
-        await page.getByTestId('modal-close-button').click();
-      }
-    } else {
-      test.skip();
+      await expect(page.locator('.modal-overlay')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.modal-title').first()).toContainText('Properties');
+
+      // Raw modal: clicking the overlay closes it.
+      await page.locator('.modal-overlay').click({ position: { x: 10, y: 10 } });
+      await expect(page.locator('.modal-overlay')).toBeHidden({ timeout: 5000 });
+    } finally {
+      fixture.dispose();
     }
   });
 

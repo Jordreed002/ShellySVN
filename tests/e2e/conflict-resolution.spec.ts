@@ -1,38 +1,9 @@
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { test, expect } from '../helpers/electron-fixture';
+import { fileUrl, run, svn, svnToolchainAvailable } from '../helpers/svn-fixture';
 import { mockFileDialog } from '../helpers/mock-ipc';
-
-function fileUrl(path: string): string {
-  const normalized = resolve(path).replaceAll('\\', '/');
-  return normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`;
-}
-
-function run(
-  command: string,
-  args: string[],
-  options: { cwd?: string; allowFailure?: boolean } = {}
-) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd,
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 30000,
-  });
-  const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-
-  if (!options.allowFailure && result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} failed:\n${output}`);
-  }
-
-  return { status: result.status ?? 1, output };
-}
-
-function svn(args: string[], options: { cwd?: string; allowFailure?: boolean } = {}) {
-  return run('svn', ['--non-interactive', ...args], options);
-}
 
 function append(path: string, content: string): void {
   writeFileSync(path, `${readFileSync(path, 'utf8')}${content}`, 'utf8');
@@ -74,20 +45,20 @@ function createConflictedWorkingCopy(): {
 }
 
 test.describe('Conflict resolution E2E', () => {
+  /*
+   * Declarative environment guard, in the macOS platform gates' pattern: the
+   * fixture needs the local `svn`/`svnadmin` CLI, but never a network —
+   * everything runs against file:// repositories. When the toolchain is
+   * missing the skip reason is visible before the test body runs; any other
+   * fixture failure now surfaces as a real failure instead of a silent skip.
+   */
+  test.skip(!svnToolchainAvailable, 'requires the local svn/svnadmin toolchain (file:// fixture)');
+
   test('resolves a real conflicted file from the file explorer resolve dialog', async ({
     electronApp,
     page,
   }) => {
-    let fixture: { root: string; wc: string; conflictFile: string } | null = null;
-    try {
-      fixture = createConflictedWorkingCopy();
-    } catch (error) {
-      test.skip(
-        true,
-        `SVN conflict fixture unavailable: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return;
-    }
+    const fixture = createConflictedWorkingCopy();
 
     try {
       await mockFileDialog(electronApp, fixture.wc);
@@ -151,7 +122,7 @@ test.describe('Conflict resolution E2E', () => {
         .getByRole('link', { name: 'Home' })
         .click()
         .catch(() => undefined);
-      if (fixture) rmSync(fixture.root, { recursive: true, force: true });
+      rmSync(fixture.root, { recursive: true, force: true });
     }
   });
 });

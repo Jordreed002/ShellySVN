@@ -17,10 +17,10 @@ the guard.
 | ---------------------------------------------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/main/services/__tests__/svn-release-workflows.real.test.ts` |     1 | `describeIfSvn` selects `describe.skip` when the SVN toolchain is absent. Keep until every supported test environment provides `svn` and `svnadmin`.                  |
 | `src/main/services/__tests__/svn-working-copy.real.test.ts`      |     1 | `describeIfSvn` selects `describe.skip` when the SVN toolchain is absent. Keep for the same toolchain portability requirement.                                        |
-| `tests/e2e/conflict-resolution.spec.ts`                          |     1 | Runtime skip when `svn` or `svnadmin` is unavailable. Keep while local E2E remains runnable without that optional toolchain.                                          |
-| `tests/e2e/file-operations.spec.ts`                              |     3 | Runtime skips when environment setup does not produce the required SVN working-copy state. Replace with explicit fixture capabilities as the E2E harness is hardened. |
+| `tests/e2e/conflict-resolution.spec.ts`                          |     1 | Declarative toolchain guard (`test.skip(!svnToolchainAvailable, …)` at describe level, macOS-gate pattern): the test builds a real `file://` conflicted working copy via `tests/helpers/svn-fixture.ts`. Keep while local E2E remains runnable without that optional toolchain. |
+| `tests/e2e/file-operations.spec.ts`                              |     3 | Declarative toolchain guards on the delete-confirm, lock-management and properties dialog tests, which now build a real `file://` working copy (`svn-fixture.ts`) instead of skipping when the app starts without one. |
 | `tests/e2e/macos-integrations.spec.ts`                           |     1 | Platform guard; the test runs only on macOS.                                                                                                                          |
-| `tests/e2e/svn-operations.spec.ts`                               |     2 | Runtime skips when the disposable SVN repository setup is unavailable. Keep until the fixture is mandatory for this suite.                                            |
+| `tests/e2e/svn-operations.spec.ts`                               |     2 | Declarative toolchain guards on the two commit-dialog tests, which now build a real modified working copy (`svn-fixture.ts`) instead of skipping when the app starts without one. |
 | **Total**                                                        | **9** |                                                                                                                                                                       |
 
 ## Conditional Modifier Inventory
@@ -52,8 +52,11 @@ the guard.
 
 ## Follow-up Order
 
-1. Make the disposable SVN repository fixture mandatory for SVN-focused Playwright projects, then
-   remove their runtime `test.skip` calls.
+1. Done in principle: the SVN-focused Playwright suites now build their working copies through
+   `tests/helpers/svn-fixture.ts` and gate declaratively on `svnToolchainAvailable` (the macOS
+   platform-gate pattern) instead of runtime catch-and-skips. Remaining step: guarantee the
+   `svn`/`svnadmin` toolchain on the E2E CI runner (the `e2e-tests` job installs none today) and
+   then delete the guards and their inventory rows.
 2. Decide whether real-SVN Vitest suites belong in the default test command or a required dedicated
    job; remove the `describe.skip` aliases once their chosen environment guarantees the toolchain.
 3. Keep platform-only `skipIf` guards, but ensure CI includes the matching Windows and macOS jobs so

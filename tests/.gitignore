@@ -11,3 +11,7 @@ trace.zip
 
 # Screenshots
 *.png
+
+# Visual regression baselines are the committed expectations, not artifacts
+# (see tests/e2e/visual-regression.spec.ts).
+!e2e/*.spec.ts-snapshots/*.png

@@ -1,4 +1,9 @@
 import { test, expect } from '../helpers/electron-fixture';
+import {
+  createWorkingCopy,
+  openWorkingCopyInApp,
+  svnToolchainAvailable,
+} from '../helpers/svn-fixture';
 import { AppPage } from '../page-objects/AppPage';
 
 /**
@@ -6,6 +11,12 @@ import { AppPage } from '../page-objects/AppPage';
  *
  * Tests for core SVN operations including checkout, commit, update, and revert.
  * These tests verify the UI flows and dialog interactions.
+ *
+ * The commit dialog tests build a real working copy with a local modification
+ * (file:// only, no network) so the toolbar's Commit button is present and
+ * enabled. Each carries a declarative toolchain guard — the same pattern as the
+ * macOS platform gates — instead of the old mid-test runtime skip that fired
+ * whenever the app started without a working copy open.
  */
 test.describe('SVN Operations - Checkout', () => {
   let appPage: AppPage;
@@ -114,16 +125,21 @@ test.describe('SVN Operations - Commit Dialog', () => {
     await appPage.waitForReady();
   });
 
-  test('commit dialog UI structure', async ({ page }) => {
-    // Navigate to File Explorer to see if we can access commit functionality
-    await page.getByRole('link', { name: 'Files', exact: true }).click();
-    await page.waitForTimeout(500);
+  test('commit dialog UI structure', async ({ electronApp, page }) => {
+    test.skip(!svnToolchainAvailable, 'requires the local svn/svnadmin toolchain (file:// fixture)');
 
-    // Look for commit button in toolbar or context menu
-    const commitButton = page.locator('button:has-text("Commit")').first();
+    const fixture = createWorkingCopy({
+      files: { 'notes.txt': 'line 1\nline 2\n' },
+      // A local modification puts the working copy in a committable state, so
+      // the toolbar's Commit button is rendered enabled.
+      modifyAfterCheckout: { 'notes.txt': 'line 1\nline 2\nlocal edit\n' },
+    });
+    try {
+      await openWorkingCopyInApp(electronApp, page, fixture.wc, 'Commit fixture WC');
 
-    // If we can find a commit button, click it
-    if ((await commitButton.count()) > 0) {
+      const commitButton = page.locator('button[title="Commit changes — svn commit"]');
+      await expect(commitButton).toBeVisible({ timeout: 10000 });
+      await expect(commitButton).toBeEnabled();
       await commitButton.click();
 
       // Wait for commit dialog
@@ -146,37 +162,51 @@ test.describe('SVN Operations - Commit Dialog', () => {
 
       await page.screenshot({ path: 'tests/results/svn-commit-dialog.png' });
 
-      await page.getByTestId('modal-close-button').click();
-    } else {
-      // Mark as skipped if no commit button is available (no working copy open)
-      test.skip();
+      await page.getByLabel('Close dialog').click();
+      await page.waitForSelector('.modal-overlay', {
+        state: 'hidden',
+        timeout: 5000,
+      });
+    } finally {
+      fixture.dispose();
     }
   });
 
-  test('commit dialog has message input', async ({ page }) => {
-    await page.getByRole('link', { name: 'Files', exact: true }).click();
-    await page.waitForTimeout(500);
+  test('commit dialog has message input', async ({ electronApp, page }) => {
+    test.skip(!svnToolchainAvailable, 'requires the local svn/svnadmin toolchain (file:// fixture)');
 
-    const commitButton = page.locator('button:has-text("Commit")').first();
-    if ((await commitButton.count()) > 0) {
+    const fixture = createWorkingCopy({
+      files: { 'notes.txt': 'line 1\nline 2\n' },
+      modifyAfterCheckout: { 'notes.txt': 'line 1\nline 2\nlocal edit\n' },
+    });
+    try {
+      await openWorkingCopyInApp(electronApp, page, fixture.wc, 'Commit fixture WC');
+
+      const commitButton = page.locator('button[title="Commit changes — svn commit"]');
+      await expect(commitButton).toBeVisible({ timeout: 10000 });
+      await expect(commitButton).toBeEnabled();
       await commitButton.click();
+
       await page.waitForSelector('.modal-overlay', {
         state: 'visible',
         timeout: 5000,
       });
 
-      // Find message textarea
+      // The dialog fetches the change set before the form settles.
       const messageInput = page.locator('.modal textarea').first();
-      if ((await messageInput.count()) > 0) {
-        await messageInput.fill('Test commit message');
+      await expect(messageInput).toBeVisible({ timeout: 10000 });
+      await messageInput.fill('Test commit message');
 
-        const value = await messageInput.inputValue();
-        expect(value).toBe('Test commit message');
-      }
+      const value = await messageInput.inputValue();
+      expect(value).toBe('Test commit message');
 
-      await page.getByTestId('modal-close-button').click();
-    } else {
-      test.skip();
+      await page.getByLabel('Close dialog').click();
+      await page.waitForSelector('.modal-overlay', {
+        state: 'hidden',
+        timeout: 5000,
+      });
+    } finally {
+      fixture.dispose();
     }
   });
 });
