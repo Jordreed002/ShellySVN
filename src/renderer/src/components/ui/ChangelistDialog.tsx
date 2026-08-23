@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, List, Plus, AlertCircle, Loader2, FileText, Trash2, Unlink } from 'lucide-react';
+import { X, List, Plus, AlertCircle, Loader2, FileText, Trash2, Unlink, Lightbulb } from 'lucide-react';
+import { ChangelistSuggestionsList } from './ChangelistSuggestionsPanel';
 
 interface ChangelistDialogProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export function ChangelistDialog({
   const [newChangelistName, setNewChangelistName] = useState('');
   const [selectedChangelist, setSelectedChangelist] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch existing changelists
@@ -67,6 +69,7 @@ export function ChangelistDialog({
       setSelectedChangelist(null);
       setNewChangelistName('');
       setIsCreating(false);
+      setShowSuggestions(false);
     }
   }, [isOpen]);
 
@@ -206,6 +209,32 @@ export function ChangelistDialog({
                   </div>
                 </div>
               )}
+
+              {/* Auto-grouping suggestions (#65) */}
+              <div>
+                <button
+                  onClick={() => setShowSuggestions(!showSuggestions)}
+                  className="text-sm text-accent hover:underline flex items-center gap-1"
+                  aria-expanded={showSuggestions}
+                >
+                  <Lightbulb className="w-4 h-4" />
+                  {showSuggestions ? 'Hide suggestions' : 'Suggest changelists'}
+                </button>
+                {showSuggestions && (
+                  <div className="mt-2">
+                    <ChangelistSuggestionsList
+                      paths={changelistData?.defaultFiles?.length
+                        ? changelistData.defaultFiles
+                        : selectedFiles}
+                      rootPath={path}
+                      invalidateKeys={[
+                        ['svn:changelist:list', path],
+                        ['svn:status', path],
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Create new changelist */}
               <div>

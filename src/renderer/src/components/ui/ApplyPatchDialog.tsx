@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, FileInput, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { X, FileInput, FolderOpen, AlertCircle, CheckCircle, Loader2, Layers } from 'lucide-react';
+import { PatchHubDialog } from './PatchHubDialog';
 
 interface ApplyPatchDialogProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export function ApplyPatchDialog({
   const [reverse, setReverse] = useState(false);
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
   const [stripCount, setStripCount] = useState(0);
+  const [hubOpen, setHubOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -152,9 +154,20 @@ export function ApplyPatchDialog({
             <FileInput className="w-5 h-5 text-accent" />
             Apply Patch
           </h2>
-          <button onClick={onClose} className="btn-icon-sm">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setHubOpen(true)}
+              title="Open the Patch Hub (created patches, conflict preview, reject recovery)"
+            >
+              <Layers className="w-4 h-4" />
+              Patch Hub…
+            </button>
+            <button onClick={onClose} className="btn-icon-sm" aria-label="Close dialog">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -329,6 +342,14 @@ export function ApplyPatchDialog({
           </div>
         )}
       </div>
+      {hubOpen && (
+        <PatchHubDialog
+          isOpen={hubOpen}
+          onClose={() => setHubOpen(false)}
+          workingCopyPath={targetPath}
+          onComplete={onComplete}
+        />
+      )}
     </div>
   );
 }

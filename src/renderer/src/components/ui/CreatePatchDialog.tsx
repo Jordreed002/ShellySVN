@@ -6,6 +6,11 @@ interface CreatePatchDialogProps {
   onClose: () => void;
   path: string;
   selectedPaths?: string[];
+  /**
+   * Called with the absolute path the patch was saved to. Used by the Patch
+   * Hub (#63) to record the patch in its index; optional for other callers.
+   */
+  onSaved?: (patchPath: string) => void;
 }
 
 export function CreatePatchDialog({
@@ -13,6 +18,7 @@ export function CreatePatchDialog({
   onClose,
   path,
   selectedPaths = [],
+  onSaved,
 }: CreatePatchDialogProps) {
   const [patchContent, setPatchContent] = useState('');
   const [filename, setFilename] = useState('changes.patch');
@@ -76,6 +82,7 @@ export function CreatePatchDialog({
 
         if (saveResult.success) {
           setSuccess(true);
+          onSaved?.(savePath);
         } else {
           setError(saveResult.output || 'Failed to save patch');
         }
