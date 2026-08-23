@@ -20,6 +20,33 @@ export function createUpdaterApi(
   };
 }
 
+export function createLifecycleApi(
+  ipcRenderer: IpcRenderer,
+  invokeIpc: InvokeIpc
+): ElectronAPI['lifecycle'] {
+  return {
+    getStaleWorkingCopyLocks: () => invokeIpc('lifecycle:getStaleWorkingCopyLocks'),
+    removeStaleWorkingCopyLock: (workingCopyPath) =>
+      invokeIpc('lifecycle:removeStaleWorkingCopyLock', workingCopyPath),
+    getInterruptedWorkingCopyMutations: () =>
+      invokeIpc('lifecycle:getInterruptedWorkingCopyMutations'),
+    clearInterruptedWorkingCopyMutations: () =>
+      invokeIpc('lifecycle:clearInterruptedWorkingCopyMutations'),
+    onStaleWorkingCopyLock: (callback) => {
+      const handler = (_: unknown, info: unknown) =>
+        callback(info as Parameters<typeof callback>[0]);
+      ipcRenderer.on('lifecycle:staleWorkingCopyLock', handler);
+      return () => ipcRenderer.removeListener('lifecycle:staleWorkingCopyLock', handler);
+    },
+    onInterruptedWorkingCopyMutations: (callback) => {
+      const handler = (_: unknown, records: unknown) =>
+        callback(records as Parameters<typeof callback>[0]);
+      ipcRenderer.on('lifecycle:interruptedWorkingCopyMutations', handler);
+      return () => ipcRenderer.removeListener('lifecycle:interruptedWorkingCopyMutations', handler);
+    },
+  };
+}
+
 export function createExternalApi(invokeIpc: InvokeIpc): ElectronAPI['external'] {
   return {
     openDiffTool: (tool, left, right) => invokeIpc('external:openDiffTool', tool, left, right),

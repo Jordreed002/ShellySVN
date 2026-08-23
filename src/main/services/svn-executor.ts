@@ -4,7 +4,11 @@ import { getSettingsManager } from '../settings-manager';
 import { getAuthCache } from '../auth-cache';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
-import { runResolvedSvn, type RunSvnResult } from './svn-runner';
+import {
+  createSvnNetworkSuspendedError,
+  runResolvedSvn,
+  type RunSvnResult,
+} from './svn-runner';
 import {
   beginSvnTimelineEntry,
   completeSvnTimelineEntry,
@@ -38,6 +42,95 @@ function getRepositoryUrlArgs(args: string[]): string[] {
 
 function getHttpsUrlArgs(args: string[]): string[] {
   return args.filter((arg) => /^https:\/\//i.test(arg));
+}
+
+/*
+ * Sleep/resume connectivity gate (backlog item #25).
+ *
+ * While the system is suspended, repository-bound SVN commands are either
+ * aborted (in flight) or queued at the gate; they only proceed once the
+ * lifecycle service re-verified connectivity after a resume. Commands
+ * without repository URLs (local status, diff, etc.) never touch the gate.
+ */
+const networkSuspendedError = createSvnNetworkSuspendedError;
+
+let svnNetworkSuspended = false;
+const networkGateWaiters = new Set<() => void>();
+const trackedNetworkOperations = new Map<AbortController, string[]>();
+const suspendedRepositoryUrls = new Set<string>();
+
+export function isSvnNetworkSuspended(): boolean {
+  return svnNetworkSuspended;
+}
+
+/** Repository URLs seen by operations that were aborted or queued mid-suspension. */
+export function getSuspendedSvnNetworkUrls(): string[] {
+  return Array.from(suspendedRepositoryUrls);
+}
+
+/**
+ * Close the gate and abort every in-flight repository-bound operation.
+ * Returns the number of operations that were aborted.
+ */
+export function beginSvnNetworkSuspend(): number {
+  svnNetworkSuspended = true;
+  const controllers = Array.from(trackedNetworkOperations.keys());
+  for (const controller of controllers) {
+    controller.abort(networkSuspendedError());
+  }
+  return controllers.length;
+}
+
+/** Open the gate and release every queued repository-bound operation. */
+export function endSvnNetworkSuspend(): void {
+  svnNetworkSuspended = false;
+  suspendedRepositoryUrls.clear();
+  const waiters = Array.from(networkGateWaiters);
+  networkGateWaiters.clear();
+  for (const release of waiters) release();
+}
+
+export function waitForSvnNetworkGate(): Promise<void> {
+  if (!svnNetworkSuspended) return Promise.resolve();
+  return new Promise<void>((resolve) => networkGateWaiters.add(resolve));
+}
+
+/**
+ * Route repository-bound executions through the connectivity gate and track
+ * their composite abort signal so a suspension can abort them. Local-only
+ * commands pass straight through with their original signal.
+ */
+async function runWithNetworkGate<T>(
+  args: string[],
+  options: Pick<RunSvnOptions, 'signal'>,
+  execute: (signal: AbortSignal | undefined) => Promise<T>
+): Promise<T> {
+  if (getRepositoryUrlArgs(args).length === 0) {
+    return execute(options.signal);
+  }
+
+  await waitForSvnNetworkGate();
+
+  const externalSignal = options.signal;
+  if (externalSignal?.aborted) {
+    return execute(externalSignal);
+  }
+
+  // Every repository-bound operation gets a composite signal the gate can
+  // abort — including callers that provided no signal of their own.
+  const controller = new AbortController();
+  const repositoryUrls = getRepositoryUrlArgs(args);
+  trackedNetworkOperations.set(controller, repositoryUrls);
+  for (const url of repositoryUrls) suspendedRepositoryUrls.add(url);
+
+  const forwardAbort = () => controller.abort(externalSignal?.reason);
+  externalSignal?.addEventListener('abort', forwardAbort, { once: true });
+  try {
+    return await execute(controller.signal);
+  } finally {
+    externalSignal?.removeEventListener('abort', forwardAbort);
+    trackedNetworkOperations.delete(controller);
+  }
 }
 
 async function getCachedCredentialsForArgs(
@@ -116,7 +209,9 @@ export async function runSvn(args: string[], options: RunSvnOptions = {}): Promi
   const timelineId = beginSvnTimelineEntry(args);
   try {
     const { svnCommand, context } = await resolveSvnExecution(options);
-    const result = await runResolvedCommand(args, svnCommand, context, options);
+    const result = await runWithNetworkGate(args, options, (signal) =>
+      runResolvedCommand(args, svnCommand, context, { ...options, signal })
+    );
     completeSvnTimelineEntry(timelineId, startedAt, result, options.signal?.aborted === true);
     return result;
   } catch (error) {
@@ -176,6 +271,8 @@ export async function runSvnText(args: string[], options: RunSvnOptions = {}): P
  */
 export async function runSvnMuccText(args: string[], options: RunSvnOptions = {}): Promise<string> {
   const { svnCommand, context } = await resolveSvnExecution(options);
-  const result = await runResolvedCommand(args, getSvnMuccCommand(svnCommand), context, options);
+  const result = await runWithNetworkGate(args, options, (signal) =>
+    runResolvedCommand(args, getSvnMuccCommand(svnCommand), context, { ...options, signal })
+  );
   return result.stdout;
 }

@@ -64,6 +64,13 @@ vi.mock('../services/update-service', () => ({
 }));
 vi.mock('../services/auth-session-manager', () => ({ clearAuthSessions: vi.fn() }));
 vi.mock('../utils/secure-ipc', () => ({ installSecureIpcBoundary: vi.fn() }));
+vi.mock('../services/app-lifecycle', () => ({
+  ensureSingleInstanceLock: vi.fn(() => true),
+  initializeAppLifecycle: vi.fn(() => Promise.resolve()),
+  persistInterruptedWorkingCopyMutations: vi.fn(),
+  registerAppLifecycleIpcHandlers: vi.fn(),
+  registerPowerMonitorHandlers: vi.fn(),
+}));
 
 import { getPackagedBinaryPaths } from '../index';
 

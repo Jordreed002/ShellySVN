@@ -12,7 +12,60 @@ import { SvnCommandError } from '../utils/svn-errors';
 const ALLOWED_SSL_FAILURES = ['unknown-ca', 'cn-mismatch', 'expired', 'not-yet-valid'] as const;
 const DEFAULT_SSL_FAILURES = ALLOWED_SSL_FAILURES.join(',');
 
+/**
+ * Marker distinguishing sleep/resume gate aborts from ordinary cancellations.
+ * Defined here (not the executor) so the runner can recognise it without an
+ * import cycle: the executor already imports the runner.
+ */
+export const SVN_NETWORK_SUSPENDED_ABORT_CODE = 'SVN_NETWORK_SUSPENDED';
+
+export function createSvnNetworkSuspendedError(): Error & { code: string } {
+  return Object.assign(new Error('SVN network operations suspended while the system sleeps'), {
+    code: SVN_NETWORK_SUSPENDED_ABORT_CODE,
+  });
+}
+
 export const DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES = 1024 * 1024;
+
+/** Bounded grace period when killing every child during app shutdown. */
+export const SHUTDOWN_TERMINATION_GRACE_MS = 1_500;
+
+/**
+ * Every spawned SVN child, so app shutdown can reap processes that no
+ * individual cancel path owns (backlog item #24). Children are spawned
+ * detached (POSIX process-group leaders); without this registry they would
+ * outlive a crashing or quitting app and could keep mutating a working copy.
+ */
+const liveSvnProcesses = new Set<ReturnType<typeof spawn>>();
+
+export function getLiveSvnProcessCount(): number {
+  return liveSvnProcesses.size;
+}
+
+/**
+ * Terminate every tracked SVN child: SIGTERM to the process tree, then a
+ * bounded SIGKILL escalation (via terminateProcessTree) for whatever is still
+ * alive. Returns the number of children that were still running.
+ */
+export async function terminateAllSvnProcesses(
+  graceMs = SHUTDOWN_TERMINATION_GRACE_MS
+): Promise<number> {
+  const pending = Array.from(liveSvnProcesses);
+  liveSvnProcesses.clear();
+  await Promise.all(
+    pending.map((proc) => terminateProcessTree(proc, graceMs).catch(() => undefined))
+  );
+  return pending.length;
+}
+
+function trackSvnProcess(proc: ReturnType<typeof spawn>): void {
+  liveSvnProcesses.add(proc);
+  const untrack = () => {
+    liveSvnProcesses.delete(proc);
+  };
+  proc.once('close', untrack);
+  proc.once('error', untrack);
+}
 
 export interface RunResolvedSvnOptions {
   svnCommand: string;
@@ -286,6 +339,7 @@ export async function runResolvedSvn(
       windowsHide: true,
       windowsVerbatimArguments: isBatchLauncher,
     });
+    trackSvnProcess(proc);
 
     if (proc.stdin) {
       // Swallow EPIPE if svn closes stdin early (e.g. cached credentials mean
@@ -338,7 +392,19 @@ export async function runResolvedSvn(
       });
     };
 
-    const abort = () => cancel(new SvnCommandError('SVN operation cancelled', commandContext));
+    const abort = () => {
+      // Plain cancellations keep the historical "SVN operation cancelled"
+      // message; only the sleep/resume gate surfaces its own reason.
+      const reason = (options.signal as { reason?: unknown } | undefined)?.reason;
+      const message =
+        typeof reason === 'object' &&
+        reason !== null &&
+        (reason as { code?: unknown }).code === SVN_NETWORK_SUSPENDED_ABORT_CODE &&
+        typeof (reason as { message?: unknown }).message === 'string'
+          ? (reason as { message: string }).message
+          : 'SVN operation cancelled';
+      cancel(new SvnCommandError(message, commandContext));
+    };
 
     if (options.signal?.aborted) {
       abort();

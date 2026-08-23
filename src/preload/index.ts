@@ -16,6 +16,7 @@ import {
   createExternalApi,
   createExternalToolsApi,
   createFsApi,
+  createLifecycleApi,
   createMonitorApi,
   createUpdaterApi,
 } from './api/native';
@@ -43,6 +44,7 @@ const api: ElectronAPI = {
   webhook: createWebhookApi(invokeIpc),
   shell: createShellApi(invokeIpc),
   deepLink: createDeepLinkApi(ipcRenderer),
+  lifecycle: createLifecycleApi(ipcRenderer, invokeIpc),
   notification: createNotificationApi(invokeIpc),
 };
 

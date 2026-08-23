@@ -33,6 +33,14 @@ import {
   waitForWorkingCopyMutations,
 } from './services/svn-mutation-queue';
 import {
+  ensureSingleInstanceLock,
+  initializeAppLifecycle,
+  persistInterruptedWorkingCopyMutations,
+  registerAppLifecycleIpcHandlers,
+  registerPowerMonitorHandlers,
+} from './services/app-lifecycle';
+import { terminateAllSvnProcesses } from './services/svn-runner';
+import {
   cancelAllSvnProgressOperations,
   hasActiveSvnProgressOperations,
 } from './services/svn-progress';
@@ -45,6 +53,18 @@ let quitApproved = false;
 let quitPromptOpen = false;
 const isSmokeTest = process.argv.includes('--smoke-test');
 const MIN_PACKAGED_BINARY_SIZE_BYTES = 1024;
+
+// Acquire the OS-level single-instance lock before anything else so a second
+// launch hands off to this instance (focus + deep-link relay) instead of
+// racing it for working-copy mutations. Electron treats a repeated request
+// from the same process as granted, so the protocol handler's own lock use
+// on Windows/Linux stays compatible.
+const gotSingleInstanceLock = ensureSingleInstanceLock({
+  getMainWindow: () => mainWindow,
+});
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
 
 function getTrustedRendererUrl(): string {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -164,6 +184,9 @@ function shutdownApplicationServices(): Promise<void> {
     stopLocalStatusServer(),
     shutdownSharedWorkerPool(),
     cancelAllAiCommitMessages(),
+    // Safety net for any spawned SVN child no cancel path owned: SIGTERM,
+    // then a bounded SIGKILL escalation.
+    terminateAllSvnProcesses(),
   ]).then(() => undefined);
   getUpdateService().dispose();
   return shutdownPromise;
@@ -171,6 +194,9 @@ function shutdownApplicationServices(): Promise<void> {
 
 // Quit when all windows are closed, except on macOS
 app.whenReady().then(async () => {
+  // A second instance holds the lock: this process is quitting quietly and
+  // must not register handlers or create windows.
+  if (!gotSingleInstanceLock) return;
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.shellysvn');
 
@@ -197,6 +223,7 @@ app.whenReady().then(async () => {
   registerWebhookHandlers();
   registerUpdaterHandlers();
   registerAiHandlers(ipcMain);
+  registerAppLifecycleIpcHandlers();
   startLocalStatusServer(app.getPath('userData')).catch((error) => {
     console.error('[StatusService] Failed to start local status server:', error);
   });
@@ -245,6 +272,8 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+  registerPowerMonitorHandlers();
+  void initializeAppLifecycle();
   void getUpdateService().initialize(shutdownApplicationServices);
 
   app.on('activate', () => {
@@ -288,6 +317,9 @@ app.on('before-quit', (event) => {
   void prompt
     .then(async ({ response }) => {
       if (response !== 1) return;
+      // Journal the in-flight mutations before cancelling them so the next
+      // launch can offer recovery for exactly those working copies.
+      persistInterruptedWorkingCopyMutations('quit-cancelled-operations');
       beginWorkingCopyMutationShutdown();
       cancelAllUpdates();
       cancelAllSvnProgressOperations();

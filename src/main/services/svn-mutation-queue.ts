@@ -1,10 +1,27 @@
-import { existsSync, realpathSync, statSync } from 'node:fs';
+import type { InterruptedMutationRecord } from '@shared/types';
+import { existsSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, normalize, parse, win32 } from 'node:path';
+import { writeSecureJsonSync } from '../utils/secure-json';
 
 interface MutationQueueEntry {
   paths: string[];
   tail: Promise<void>;
 }
+
+interface MutationInterruptionJournal {
+  version: 1;
+  entries: InterruptedMutationRecord[];
+}
+
+/**
+ * Journal file (inside the Electron userData directory) that survives the
+ * shutdown that interrupted the mutations, so the next launch can surface and
+ * recover them. The mutation queue itself is intentionally in-memory only;
+ * this journal is the single persisted artifact and its shape is
+ * forward-compatible: unknown versions or malformed files read as "nothing
+ * interrupted" instead of failing startup.
+ */
+export const MUTATION_INTERRUPTION_JOURNAL_FILE_NAME = 'svn-mutation-journal.json';
 
 const mutationQueues = new Map<string, MutationQueueEntry>();
 const listeners = new Set<(paths: string[]) => void>();
@@ -122,4 +139,71 @@ export async function runSerializedWorkingCopyMutation<T>(
 
 export function getMutationQueueStateForTests(): { keys: string[] } {
   return { keys: Array.from(mutationQueues.keys()) };
+}
+
+export function getMutationInterruptionJournalPath(userDataPath: string): string {
+  return join(userDataPath, MUTATION_INTERRUPTION_JOURNAL_FILE_NAME);
+}
+
+/**
+ * Record the currently in-flight mutations as interrupted (backlog item #24).
+ * Called right before shutdown cancels them, so the next launch can offer
+ * recovery (e.g. `svn cleanup`) for those working copies. Prior unresolved
+ * entries are preserved; when nothing is in flight the journal is left
+ * untouched — a clean shutdown must not erase an earlier session's record.
+ */
+export function markActiveWorkingCopyMutationsInterrupted(
+  journalPath: string,
+  reason = 'shutdown'
+): number {
+  const active = getActiveWorkingCopyMutations();
+  if (active.length === 0) return 0;
+
+  const entries = new Map(
+    readInterruptedWorkingCopyMutations(journalPath).map((entry) => [entry.workingCopyPath, entry])
+  );
+  const interruptedAt = new Date().toISOString();
+  for (const workingCopyPath of active) {
+    entries.set(workingCopyPath, { workingCopyPath, interruptedAt, reason });
+  }
+
+  const journal: MutationInterruptionJournal = {
+    version: 1,
+    entries: Array.from(entries.values()),
+  };
+  writeSecureJsonSync(journalPath, journal);
+  return active.length;
+}
+
+export function readInterruptedWorkingCopyMutations(journalPath: string): InterruptedMutationRecord[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(journalPath, 'utf-8')) as unknown;
+  } catch {
+    return [];
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    (parsed as MutationInterruptionJournal).version !== 1 ||
+    !Array.isArray((parsed as MutationInterruptionJournal).entries)
+  ) {
+    return [];
+  }
+  return (parsed as MutationInterruptionJournal).entries.filter(
+    (entry): entry is InterruptedMutationRecord =>
+      typeof entry?.workingCopyPath === 'string' &&
+      entry.workingCopyPath.length > 0 &&
+      typeof entry.interruptedAt === 'string' &&
+      typeof entry.reason === 'string'
+  );
+}
+
+/** Drop the journal after the renderer acknowledges recovery. */
+export function clearInterruptedWorkingCopyMutations(journalPath: string): void {
+  try {
+    rmSync(journalPath, { force: true });
+  } catch {
+    // A missing or already-cleared journal is the desired end state.
+  }
 }

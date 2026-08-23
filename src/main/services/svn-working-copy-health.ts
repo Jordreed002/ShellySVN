@@ -1,11 +1,12 @@
 import type {
+  StaleWorkingCopyLockInfo,
   SvnStatusEntry,
   WorkingCopyHealthIssue,
   WorkingCopyHealthReport,
   WorkingCopyHealthSeverity,
 } from '@shared/types';
 import { XMLParser } from 'fast-xml-parser';
-import { lstat, readdir } from 'node:fs/promises';
+import { lstat, readdir, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { parseSvnStatusXml } from '@shared/svn-parsers';
@@ -280,4 +281,60 @@ export async function scanWorkingCopyHealth(path: string): Promise<WorkingCopyHe
     largeLocalFiles,
     nestedWorkingCopies
   );
+}
+
+/**
+ * Detect a stale SVN working-copy administrative lock (backlog item #23).
+ *
+ * A healthy WC-NG working copy only has `<root>/.svn/lock` while an SVN
+ * command holds the admin area; a leftover file after a crash or force-quit
+ * makes every subsequent SVN command fail with "working copy locked" until
+ * it is removed (`svn cleanup` also removes it). Only the file form is
+ * reported: the legacy directory-shaped lock belongs to pre-1.7 layouts and
+ * is intentionally out of scope.
+ */
+export async function detectStaleWorkingCopyLock(
+  workingCopyPath: string
+): Promise<StaleWorkingCopyLockInfo | null> {
+  const lockPath = join(workingCopyPath, '.svn', 'lock');
+  try {
+    const stats = await lstat(lockPath);
+    if (!stats.isFile()) return null;
+  } catch {
+    return null;
+  }
+  return {
+    workingCopyPath,
+    lockPath,
+    detectedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Remove a stale `.svn/lock` file after the renderer explicitly confirmed.
+ *
+ * The working-copy path must already be IPC-approved; the only path ever
+ * deleted is the exact `<approved-root>/.svn/lock` file constructed here, and
+ * only when it still exists as a regular file. Nothing is removed
+ * automatically at detection time.
+ */
+export async function removeStaleWorkingCopyLock(path: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const approvedPath = assertPathApprovedForIpc(path, 'Stale working-copy lock removal');
+  const lockPath = join(approvedPath, '.svn', 'lock');
+  try {
+    const stats = await lstat(lockPath);
+    if (!stats.isFile()) {
+      return { success: false, error: 'No stale .svn/lock file found for this working copy.' };
+    }
+    await rm(lockPath, { force: false });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { success: false, error: 'No stale .svn/lock file found for this working copy.' };
+    }
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+  return { success: true };
 }
