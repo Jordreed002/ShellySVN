@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -42,7 +42,15 @@ import type {
 import { formatBytes } from '@shared/utils/formatBytes';
 
 import { promptAppInput } from '../../utils/dialogs';
+import { FONT_SCALE_STEPS, normalizeHexColor } from '../../lib/appearance';
+import {
+  exportSettingsToFile,
+  parseSettingsImport,
+  readSettingsImportFile,
+} from '../../lib/settingsTransfer';
+import { ExternalToolsSettings } from './ExternalToolsSettings';
 import { OpenWithSettings } from './OpenWithSettings';
+import { SettingsGroup } from './SettingsGroup';
 import { useAppUpdater } from '../../hooks/useAppUpdater';
 
 function clampedInteger(value: string, minimum: number, maximum: number, fallback: number): number {
@@ -78,7 +86,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
   return (
     <div className="space-y-6">
       {/* Theme Selection */}
-      <SettingsGroup title="Theme" description="Choose your preferred color scheme">
+      <SettingsGroup title="Theme" description="Choose your preferred color scheme" resetKeys={['theme']}>
         <div className="flex gap-3">
           {[
             { value: 'light', label: 'Light', icon: <Sun className="w-4 h-4" /> },
@@ -106,7 +114,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       </SettingsGroup>
 
       {/* Language */}
-      <SettingsGroup title="Language" description="Application display language">
+      <SettingsGroup title="Language" description="Application display language" resetKeys={['language']}>
         <div className="relative">
           <select
             value={settings.language}
@@ -125,7 +133,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       </SettingsGroup>
 
       {/* Startup Action */}
-      <SettingsGroup title="Startup" description="What to do when the application starts">
+      <SettingsGroup title="Startup" description="What to do when the application starts" resetKeys={['startupAction']}>
         <div className="relative">
           <select
             value={settings.startupAction}
@@ -144,6 +152,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       <SettingsGroup
         title="Default Checkout Directory"
         description="Where new checkouts are saved by default"
+        resetKeys={['defaultCheckoutDirectory']}
       >
         <div className="flex gap-2">
           <input
@@ -163,7 +172,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       <UpdatesSettings settings={settings} onChange={onChange} />
 
       {/* Single Instance Mode */}
-      <SettingsGroup title="Instance Management" description="Application behavior">
+      <SettingsGroup title="Instance Management" description="Application behavior" resetKeys={['singleInstanceMode']}>
         <label className="flex items-center gap-3 cursor-pointer group">
           <input
             type="checkbox"
@@ -178,7 +187,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       </SettingsGroup>
 
       {/* Confirm destructive operations */}
-      <SettingsGroup title="Safety" description="Operation confirmations">
+      <SettingsGroup title="Safety" description="Operation confirmations" resetKeys={['confirmDestructiveOps']}>
         <label className="flex items-center gap-3 cursor-pointer group">
           <input
             type="checkbox"
@@ -245,6 +254,7 @@ function UpdatesSettings({ settings, onChange }: SettingsSectionProps) {
     <SettingsGroup
       title="Updates"
       description="Keep ShellySVN current without interrupting SVN work"
+      resetKeys={['checkUpdatesOnStartup', 'updateChannel']}
     >
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-bg-tertiary/55 p-3">
@@ -403,7 +413,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
   return (
     <div className="space-y-6">
       {/* SVN Client */}
-      <SettingsGroup title="SVN Client" description="SVN executable configuration">
+      <SettingsGroup title="SVN Client" description="SVN executable configuration" resetKeys={['svnClientPath']}>
         <div className="space-y-3">
           <div className="flex gap-2">
             <input
@@ -425,7 +435,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* Working Copy Format */}
-      <SettingsGroup title="Working Copy Format" description="Format for new working copies">
+      <SettingsGroup title="Working Copy Format" description="Format for new working copies" resetKeys={['workingCopyFormat']}>
         <div className="relative">
           <select
             value={settings.workingCopyFormat}
@@ -445,7 +455,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* Default Commit Message */}
-      <SettingsGroup title="Default Commit Message" description="Pre-filled text for new commits">
+      <SettingsGroup title="Default Commit Message" description="Pre-filled text for new commits" resetKeys={['defaultCommitMessage']}>
         <textarea
           value={settings.defaultCommitMessage}
           onChange={(e) => onChange('defaultCommitMessage', e.target.value)}
@@ -457,6 +467,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       <SettingsGroup
         title="AI Commit Messages"
         description="Draft an editable message from the files selected for commit"
+        resetKeys={['aiCommit']}
       >
         <div className="space-y-4">
           <label
@@ -817,7 +828,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* File Visibility */}
-      <SettingsGroup title="File Visibility" description="Control which files are shown">
+      <SettingsGroup title="File Visibility" description="Control which files are shown" resetKeys={['showIgnoredFiles', 'showUnversionedFiles']}>
         <div className="space-y-3">
           <label
             className="flex items-center gap-3 cursor-pointer group"
@@ -851,7 +862,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* Auto Refresh */}
-      <SettingsGroup title="Auto Refresh" description="Automatically refresh file status">
+      <SettingsGroup title="Auto Refresh" description="Automatically refresh file status" resetKeys={['autoRefreshInterval']}>
         <div className="flex items-center gap-3">
           <input
             type="number"
@@ -869,7 +880,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* Global Ignore Patterns */}
-      <SettingsGroup title="Global Ignore Patterns" description="Files/folders to ignore globally">
+      <SettingsGroup title="Global Ignore Patterns" description="Files/folders to ignore globally" resetKeys={['globalIgnorePatterns']}>
         <div className="space-y-2">
           {settings.globalIgnorePatterns.length === 0 ? (
             <p className="text-sm text-text-muted py-2">No custom ignore patterns</p>
@@ -902,7 +913,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* Proxy Settings */}
-      <SettingsGroup title="Proxy Settings" description="HTTP proxy for SVN connections">
+      <SettingsGroup title="Proxy Settings" description="HTTP proxy for SVN connections" resetKeys={['proxySettings']}>
         <div className="space-y-3">
           <label className="flex items-center gap-3 cursor-pointer group">
             <input
@@ -992,7 +1003,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* Connection Settings */}
-      <SettingsGroup title="Connection" description="Network timeout settings">
+      <SettingsGroup title="Connection" description="Network timeout settings" resetKeys={['connectionTimeout']}>
         <div className="flex items-center gap-3">
           <Clock className="w-4 h-4 text-text-muted" />
           <span className="text-sm text-text-secondary">Timeout:</span>
@@ -1011,7 +1022,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
       </SettingsGroup>
 
       {/* SSL Settings */}
-      <SettingsGroup title="SSL/TLS" description="Certificate verification">
+      <SettingsGroup title="SSL/TLS" description="Certificate verification" resetKeys={['sslVerify', 'clientCertificatePath']}>
         <div className="space-y-3">
           <label className="flex items-center gap-3 cursor-pointer group">
             <input
@@ -1056,7 +1067,16 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
 // Diff & Merge Settings Tab
 // ============================================
 
-export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSettingsProps) {
+interface DiffMergeSettingsTabProps extends NestedSettingsProps {
+  /** `externalToolTemplates` is a top-level setting, not a nested one (#87). */
+  onChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+}
+
+export function DiffMergeSettingsTab({
+  settings,
+  onChange,
+  onChangeNested,
+}: DiffMergeSettingsTabProps) {
   const toolOverrides = settings.diffMerge.externalToolOverrides ?? [];
   const toolOverrideIds = useRef<string[]>([]);
   while (toolOverrideIds.current.length < toolOverrides.length) {
@@ -1201,6 +1221,12 @@ export function DiffMergeSettingsTab({ settings, onChangeNested }: NestedSetting
           </button>
         </div>
       </SettingsGroup>
+
+      {/* Custom tools with argument templates (#87) */}
+      <ExternalToolsSettings
+        tools={settings.externalToolTemplates ?? []}
+        onChange={(tools) => onChange('externalToolTemplates', tools)}
+      />
 
       {/* Diff Behavior */}
       <SettingsGroup title="Diff Behavior" description="Default diff viewing options">
@@ -1564,6 +1590,7 @@ export function IntegrationSettingsTab({
       <SettingsGroup
         title="Open in"
         description="Applications offered when you right-click a file or folder"
+        resetKeys={['customOpenWithTools']}
       >
         <OpenWithSettings tools={settings.customOpenWithTools ?? []} />
       </SettingsGroup>
@@ -1723,17 +1750,29 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
     { value: '#ec4899', label: 'Pink' },
     { value: '#ef4444', label: 'Red' },
     { value: '#f97316', label: 'Orange' },
-    { value: '#eab308', label: 'Yellow' },
     { value: '#22c55e', label: 'Green' },
     { value: '#14b8a6', label: 'Teal' },
     { value: '#0ea5e9', label: 'Sky' },
-    { value: '#64748b', label: 'Slate' },
   ];
+
+  const highContrastOptions: { value: 'system' | boolean; label: string }[] = [
+    { value: 'system', label: 'System' },
+    { value: true, label: 'On' },
+    { value: false, label: 'Off' },
+  ];
+
+  const densityOptions: { value: 'compact' | 'comfortable'; label: string; hint: string }[] = [
+    { value: 'comfortable', label: 'Comfortable', hint: 'Roomier rows with standard padding' },
+    { value: 'compact', label: 'Compact', hint: 'Tighter rows — more items per screen' },
+  ];
+
+  const isPresetAccent = accentColors.some((c) => c.value === settings.accentColor);
+  const customAccent = normalizeHexColor(settings.accentColor) ?? '#6366f1';
 
   return (
     <div className="space-y-6">
       {/* Sidebar Width */}
-      <SettingsGroup title="Sidebar Width" description="Width of the navigation sidebar">
+      <SettingsGroup title="Sidebar Width" description="Width of the navigation sidebar" resetKeys={['sidebarWidth']}>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-text-secondary">{settings.sidebarWidth}px</span>
@@ -1756,7 +1795,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       </SettingsGroup>
 
       {/* Accent Color */}
-      <SettingsGroup title="Accent Color" description="Primary color for highlights and actions">
+      <SettingsGroup title="Accent Color" description="Primary color for highlights and actions" resetKeys={['accentColor']}>
         <div className="flex flex-wrap gap-2">
           {accentColors.map((color) => (
             <button
@@ -1772,13 +1811,95 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
               `}
               style={{ backgroundColor: color.value }}
               title={color.label}
+              aria-label={`Accent color ${color.label}`}
+              aria-pressed={settings.accentColor === color.value}
             />
           ))}
         </div>
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            type="color"
+            value={customAccent}
+            onChange={(e) => onChange('accentColor', e.target.value)}
+            className="w-8 h-8 rounded-lg border border-border bg-bg-tertiary cursor-pointer p-0.5"
+            title="Custom accent color"
+            data-testid="accent-custom-color"
+          />
+          <input
+            type="text"
+            value={settings.accentColor}
+            onChange={(e) => {
+              const normalized = normalizeHexColor(e.target.value);
+              if (normalized) onChange('accentColor', normalized);
+            }}
+            placeholder="#6366f1"
+            spellCheck={false}
+            className="input w-28 font-mono text-xs"
+            aria-label="Custom accent color hex value"
+            data-testid="accent-custom-hex"
+          />
+          <span className="text-xs text-text-muted">
+            {isPresetAccent ? 'Pick a preset or enter a custom color' : 'Custom color'}
+          </span>
+        </div>
+      </SettingsGroup>
+
+      {/* High Contrast */}
+      <SettingsGroup
+        title="High Contrast"
+        description="Stronger borders, brighter text and distinct status colors"
+        resetKeys={['highContrast']}
+      >
+        <div className="flex gap-2">
+          {highContrastOptions.map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => onChange('highContrast', opt.value)}
+              className={`
+                flex-1 px-3 py-2 text-sm rounded-md border transition-fast
+                ${
+                  (settings.highContrast ?? 'system') === opt.value
+                    ? 'bg-accent/10 border-accent text-accent'
+                    : 'bg-bg-tertiary border-border text-text-secondary hover:border-border-focus'
+                }
+              `}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-text-muted mt-2">
+          System follows your operating system's increased-contrast preference
+        </p>
+      </SettingsGroup>
+
+      {/* Density */}
+      <SettingsGroup title="Density" description="Row height and padding across the app" resetKeys={['density']}>
+        <div className="flex gap-2">
+          {densityOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onChange('density', opt.value)}
+              className={`
+                flex-1 px-3 py-2 text-sm rounded-md border transition-fast
+                ${
+                  (settings.density ?? 'comfortable') === opt.value
+                    ? 'bg-accent/10 border-accent text-accent'
+                    : 'bg-bg-tertiary border-border text-text-secondary hover:border-border-focus'
+                }
+              `}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-text-muted mt-2">
+          {densityOptions.find((d) => d.value === (settings.density ?? 'comfortable'))?.hint}
+        </p>
       </SettingsGroup>
 
       {/* Font Size */}
-      <SettingsGroup title="Font Size" description="Base font size for the interface">
+      <SettingsGroup title="Font Size" description="Base font size for the interface" resetKeys={['fontSize']}>
         <div className="relative">
           <select
             value={settings.fontSize}
@@ -1795,8 +1916,34 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
         </div>
       </SettingsGroup>
 
+      {/* Font Scale */}
+      <SettingsGroup
+        title="Zoom"
+        description="Scale the whole interface — text, spacing and controls"
+        resetKeys={['fontScale']}
+      >
+        <div className="flex gap-2">
+          {FONT_SCALE_STEPS.map((step) => (
+            <button
+              key={step}
+              onClick={() => onChange('fontScale', step)}
+              className={`
+                flex-1 px-3 py-2 text-sm rounded-md border transition-fast
+                ${
+                  (settings.fontScale ?? 1) === step
+                    ? 'bg-accent/10 border-accent text-accent'
+                    : 'bg-bg-tertiary border-border text-text-secondary hover:border-border-focus'
+                }
+              `}
+            >
+              {Math.round(step * 100)}%
+            </button>
+          ))}
+        </div>
+      </SettingsGroup>
+
       {/* Animation Speed */}
-      <SettingsGroup title="Animation Speed" description="UI transition animations">
+      <SettingsGroup title="Animation Speed" description="UI transition animations" resetKeys={['animationSpeed']}>
         <div className="flex gap-2">
           {[
             { value: 'none', label: 'Minimal' },
@@ -1822,7 +1969,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       </SettingsGroup>
 
       {/* Status Bar */}
-      <SettingsGroup title="Status Bar" description="Bottom status bar visibility">
+      <SettingsGroup title="Status Bar" description="Bottom status bar visibility" resetKeys={['showStatusBar']}>
         <label className="flex items-center gap-3 cursor-pointer group">
           <input
             type="checkbox"
@@ -1840,6 +1987,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       <SettingsGroup
         title="Default Explorer View"
         description="How the file explorer is laid out by default"
+        resetKeys={['explorerViewMode']}
       >
         <div className="flex gap-2">
           <button
@@ -1871,7 +2019,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       </SettingsGroup>
 
       {/* File List Height */}
-      <SettingsGroup title="File List Height" description="How file list fills available space">
+      <SettingsGroup title="File List Height" description="How file list fills available space" resetKeys={['fileListHeight']}>
         <div className="flex gap-2">
           <button
             onClick={() => onChange('fileListHeight', 'fill')}
@@ -1902,7 +2050,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       </SettingsGroup>
 
       {/* Compact Mode */}
-      <SettingsGroup title="Compact Mode" description="Reduce file row height">
+      <SettingsGroup title="Compact Mode" description="Reduce file row height" resetKeys={['compactFileRows']}>
         <label className="flex items-center gap-3 cursor-pointer group">
           <input
             type="checkbox"
@@ -1917,7 +2065,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       </SettingsGroup>
 
       {/* File Thumbnails */}
-      <SettingsGroup title="File Thumbnails" description="Show image previews in file list">
+      <SettingsGroup title="File Thumbnails" description="Show image previews in file list" resetKeys={['showThumbnails']}>
         <label className="flex items-center gap-3 cursor-pointer group">
           <input
             type="checkbox"
@@ -1935,7 +2083,7 @@ export function AppearanceSettings({ settings, onChange }: SettingsSectionProps)
       </SettingsGroup>
 
       {/* Folder Sizes */}
-      <SettingsGroup title="Folder Sizes" description="Calculate folder sizes in file list">
+      <SettingsGroup title="Folder Sizes" description="Calculate folder sizes in file list" resetKeys={['showFolderSizes']}>
         <label className="flex items-center gap-3 cursor-pointer group">
           <input
             type="checkbox"
@@ -2418,6 +2566,8 @@ interface AdvancedSettingsProps {
   onReset: () => void;
   showResetConfirm: boolean;
   setShowResetConfirm: (show: boolean) => void;
+  /** Applied when a settings import succeeds (#89). */
+  onImportSettings?: (settings: AppSettings) => void;
 }
 
 export function AdvancedSettings({
@@ -2426,6 +2576,7 @@ export function AdvancedSettings({
   onReset,
   showResetConfirm,
   setShowResetConfirm,
+  onImportSettings,
 }: AdvancedSettingsProps) {
   const [cacheSize, setCacheSize] = useState<{ size: number; files: number }>({
     size: 0,
@@ -2434,6 +2585,62 @@ export function AdvancedSettings({
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [cacheCleared, setCacheCleared] = useState(false);
   const [cacheError, setCacheError] = useState<string | null>(null);
+  const [isExchanging, setIsExchanging] = useState(false);
+  const [transferMessage, setTransferMessage] = useState<
+    { tone: 'ok' | 'warn' | 'error'; text: string } | null
+  >(null);
+
+  const handleExport = async () => {
+    setIsExchanging(true);
+    setTransferMessage(null);
+    try {
+      const version = await window.api.app.getVersion();
+      const result = await exportSettingsToFile(settings, { appVersion: version });
+      setTransferMessage(
+        result.status === 'failed'
+          ? { tone: 'error', text: result.message }
+          : { tone: result.status === 'saved' ? 'ok' : 'warn', text: result.message }
+      );
+    } catch {
+      setTransferMessage({ tone: 'error', text: 'Export failed.' });
+    } finally {
+      setIsExchanging(false);
+    }
+  };
+
+  const handleImport = async () => {
+    setIsExchanging(true);
+    setTransferMessage(null);
+    try {
+      const file = await readSettingsImportFile();
+      if (file.status === 'cancelled') {
+        setTransferMessage(null);
+        return;
+      }
+      if (file.status === 'failed') {
+        setTransferMessage({ tone: 'error', text: file.message });
+        return;
+      }
+      const result = parseSettingsImport(file.content);
+      if (!result.ok || !result.settings) {
+        setTransferMessage({ tone: 'error', text: result.error ?? 'The file is not a settings export.' });
+        return;
+      }
+      onImportSettings?.(result.settings);
+      const notes = [
+        result.unknownKeys.length > 0
+          ? `skipped ${result.unknownKeys.length} unknown key${result.unknownKeys.length === 1 ? '' : 's'} (${result.unknownKeys.slice(0, 5).join(', ')}${result.unknownKeys.length > 5 ? '…' : ''})`
+          : '',
+        ...result.warnings,
+      ].filter(Boolean);
+      setTransferMessage({
+        tone: notes.length > 0 ? 'warn' : 'ok',
+        text: `Imported ${result.importedKeyCount} settings${notes.length > 0 ? ` — ${notes.join('; ')}` : ''}. Review and Save Changes to apply.`,
+      });
+    } finally {
+      setIsExchanging(false);
+    }
+  };
 
   const logLevels: { value: LogLevel; label: string; description: string }[] = [
     { value: 'error', label: 'Error', description: 'Only errors' },
@@ -2495,7 +2702,7 @@ export function AdvancedSettings({
   return (
     <div className="space-y-6">
       {/* Log Level */}
-      <SettingsGroup title="Log Level" description="Diagnostic output verbosity">
+      <SettingsGroup title="Log Level" description="Diagnostic output verbosity" resetKeys={['logLevel']}>
         <div className="relative">
           <select
             value={settings.logLevel}
@@ -2513,7 +2720,7 @@ export function AdvancedSettings({
       </SettingsGroup>
 
       {/* Paths */}
-      <SettingsGroup title="Custom Paths" description="Override default locations">
+      <SettingsGroup title="Custom Paths" description="Override default locations" resetKeys={['svnConfigPath', 'logCachePath']}>
         <div className="space-y-3">
           <div>
             <label htmlFor="settings-svn-config-path" className="text-xs text-text-muted">
@@ -2622,6 +2829,56 @@ export function AdvancedSettings({
         </div>
       </SettingsGroup>
 
+      {/* Import & Export (#89) */}
+      <SettingsGroup
+        title="Import & Export"
+        description="Back up settings as JSON or restore them on another machine"
+      >
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={isExchanging}
+              className="btn btn-secondary"
+              data-testid="settings-export-button"
+            >
+              <Download className="w-4 h-4" />
+              Export…
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleImport()}
+              disabled={isExchanging || !onImportSettings}
+              className="btn btn-secondary"
+              data-testid="settings-import-button"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Import…
+            </button>
+          </div>
+          <p className="text-xs text-text-muted">
+            Exports never include saved credentials; proxy passwords are blanked. Imports report
+            unknown keys instead of applying them.
+          </p>
+          {transferMessage && (
+            <p
+              className={`text-xs ${
+                transferMessage.tone === 'ok'
+                  ? 'text-success'
+                  : transferMessage.tone === 'warn'
+                    ? 'text-warning'
+                    : 'text-error'
+              }`}
+              role="status"
+              data-testid="settings-transfer-message"
+            >
+              {transferMessage.text}
+            </p>
+          )}
+        </div>
+      </SettingsGroup>
+
       {/* Reset to Defaults */}
       <SettingsGroup title="Reset" description="Restore default settings">
         {showResetConfirm ? (
@@ -2657,24 +2914,6 @@ export function AdvancedSettings({
 // ============================================
 // Helper Components
 // ============================================
-
-interface SettingsGroupProps {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}
-
-export function SettingsGroup({ title, description, children }: SettingsGroupProps) {
-  return (
-    <div>
-      <div className="mb-3">
-        <h4 className="text-sm font-medium text-text">{title}</h4>
-        {description && <p className="text-xs text-text-muted mt-0.5">{description}</p>}
-      </div>
-      {children}
-    </div>
-  );
-}
 
 // ============================================
 // Convenience Components
