@@ -1,11 +1,22 @@
 import { useEffect } from 'react';
 import type { AppSettings } from '@shared/types';
+import {
+  applyAccentColor,
+  applyDensity,
+  applyFontScale,
+  applyHighContrast,
+  resolveHighContrast,
+} from '../lib/appearance';
 
 /**
  * Hook to apply visual settings (theme, accent color, animations, etc.) to the app
  *
  * This hook connects the settings UI to actual CSS variables and classes,
  * ensuring that when users change settings, the app visually updates.
+ *
+ * The DOM writes live in `lib/appearance.ts` and are shared with
+ * SettingsPreviewContext so the saved state and the live preview can never
+ * drift apart.
  *
  * Note: When the Settings Dialog is open with unsaved changes, the preview
  * system in SettingsPreviewContext handles live preview. This hook only
@@ -37,59 +48,9 @@ export function useVisualSettings(settings: AppSettings | undefined) {
     }
   }, [settings?.theme]);
 
-  // Apply accent color as CSS variable
+  // Apply accent color as CSS variables
   useEffect(() => {
-    if (settings?.accentColor) {
-      const accentColor = settings.accentColor;
-
-      // Parse the hex color to RGB values
-      const rgb = hexToRgb(accentColor);
-      if (rgb) {
-        // Set RGB values for Tailwind opacity support
-        document.documentElement.style.setProperty(
-          '--color-accent-rgb',
-          `${rgb.r} ${rgb.g} ${rgb.b}`
-        );
-
-        // Set direct color for CSS var usage
-        document.documentElement.style.setProperty(
-          '--color-accent',
-          `rgb(${rgb.r} ${rgb.g} ${rgb.b})`
-        );
-
-        // Calculate hover variant (slightly lighter) and set as RGB
-        const hoverColor = adjustColorBrightness(accentColor, 20);
-        const hoverRgb = hexToRgb(hoverColor);
-        if (hoverRgb) {
-          document.documentElement.style.setProperty(
-            '--color-accent-hover-rgb',
-            `${hoverRgb.r} ${hoverRgb.g} ${hoverRgb.b}`
-          );
-          document.documentElement.style.setProperty(
-            '--color-accent-hover',
-            `rgb(${hoverRgb.r} ${hoverRgb.g} ${hoverRgb.b})`
-          );
-        }
-
-        // Calculate muted variant (slightly darker) and set as RGB
-        const mutedColor = adjustColorBrightness(accentColor, -15);
-        const mutedRgb = hexToRgb(mutedColor);
-        if (mutedRgb) {
-          document.documentElement.style.setProperty(
-            '--color-accent-muted-rgb',
-            `${mutedRgb.r} ${mutedRgb.g} ${mutedRgb.b}`
-          );
-          document.documentElement.style.setProperty(
-            '--color-accent-muted',
-            `rgb(${mutedRgb.r} ${mutedRgb.g} ${mutedRgb.b})`
-          );
-        }
-
-        // Calculate glow color (accent with transparency)
-        const glowColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`;
-        document.documentElement.style.setProperty('--color-accent-glow', glowColor);
-      }
-    }
+    applyAccentColor(settings?.accentColor, document.documentElement);
   }, [settings?.accentColor]);
 
   // Apply animation speed
@@ -118,59 +79,37 @@ export function useVisualSettings(settings: AppSettings | undefined) {
     }
   }, [settings?.fontSize]);
 
+  // Apply high-contrast mode ('system' follows the OS prefers-contrast hint)
+  useEffect(() => {
+    const root = document.documentElement;
+    const setting = settings?.highContrast ?? 'system';
+
+    if (setting === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-contrast: more)');
+      const apply = () => applyHighContrast(resolveHighContrast('system', mediaQuery.matches), root);
+      apply();
+      mediaQuery.addEventListener('change', apply);
+      return () => mediaQuery.removeEventListener('change', apply);
+    }
+
+    applyHighContrast(setting, root);
+    return undefined;
+  }, [settings?.highContrast]);
+
+  // Apply density (row heights/paddings) app-wide
+  useEffect(() => {
+    applyDensity(settings?.density, document.documentElement);
+  }, [settings?.density]);
+
+  // Apply root font scale
+  useEffect(() => {
+    applyFontScale(settings?.fontScale, document.documentElement);
+  }, [settings?.fontScale]);
+
   // Apply sidebar width
   useEffect(() => {
     if (settings?.sidebarWidth) {
       document.documentElement.style.setProperty('--sidebar-width', `${settings.sidebarWidth}px`);
     }
   }, [settings?.sidebarWidth]);
-}
-
-/**
- * Adjust color brightness by a percentage
- */
-function adjustColorBrightness(hex: string, percent: number): string {
-  // Remove # if present
-  const cleanHex = hex.replace('#', '');
-
-  // Parse RGB values
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-
-  // Adjust brightness
-  const adjust = (value: number) => {
-    const adjusted = value + (255 * percent) / 100;
-    return Math.min(255, Math.max(0, Math.round(adjusted)));
-  };
-
-  const newR = adjust(r);
-  const newG = adjust(g);
-  const newB = adjust(b);
-
-  // Convert back to hex
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-}
-
-/**
- * Convert hex color to RGB object
- */
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  // Remove # if present
-  const cleanHex = hex.replace('#', '');
-
-  if (cleanHex.length !== 6) {
-    return null;
-  }
-
-  // Parse RGB values
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-
-  if (isNaN(r) || isNaN(g) || isNaN(b)) {
-    return null;
-  }
-
-  return { r, g, b };
 }

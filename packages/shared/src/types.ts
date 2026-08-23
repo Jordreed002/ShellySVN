@@ -1151,6 +1151,14 @@ export interface AppSettings {
   // Tutorial
   hasCompletedTutorial: boolean;
   tutorialStep: number; // Current step for resume capability
+
+  /**
+   * User-added external diff/merge tools with argument templates (#87).
+   * Additive optional field — older stored settings merge to an empty list
+   * (see `ExternalToolTemplateConfig` and DEFAULT_SETTINGS). Never modified
+   * existing declarations when this was introduced.
+   */
+  externalToolTemplates?: ExternalToolTemplateConfig[];
 }
 
 export type UpdateChannel = 'stable' | 'preview';
@@ -3000,7 +3008,7 @@ export interface SparseCheckoutResult {
 export interface LazyTreeLoaderState {
   /** Whether the tree is currently loading */
   isLoading: boolean;
-  /** Loading error if any */
+  /** Loading error if there was one */
   error?: string;
   /** Map of all nodes by their path */
   nodes: Map<string, LazyTreeNode>;
@@ -3008,6 +3016,89 @@ export interface LazyTreeLoaderState {
   roots: LazyTreeNode[];
   /** Currently selected paths */
   selection: TreeSelectionState;
+}
+
+// ============================================
+// Settings import/export, connection profiles, per-working-copy
+// overrides, and custom external diff/merge tools (additive:
+// #87 / #89 / #90 / #91)
+// ============================================
+
+/**
+ * A user-registered external diff or merge tool with an argument template (#87).
+ *
+ * The executable path and template are persisted in AppSettings
+ * (`externalToolTemplates`); the main-process launcher consumes them when
+ * launching — profiles here never contain secrets.
+ */
+export interface ExternalToolTemplateConfig {
+  /** Stable id, generated when the tool is added. */
+  id: string;
+  name: string;
+  /** Absolute path to the executable (chosen via the native file picker). */
+  executablePath: string;
+  kind: 'diff' | 'merge';
+  /**
+   * How to build the tool's arguments. Placeholders: `{mine}` `{theirs}`
+   * `{base}` `{merged}` (with `{left}` / `{right}` accepted as aliases of
+   * `{mine}` / `{theirs}` for diff tools).
+   */
+  argumentTemplate: string;
+  createdAt: number;
+}
+
+/** Envelope written by settings export and accepted by settings import (#89). */
+export interface AppSettingsExport {
+  format: 'shellysvn-settings-export';
+  version: 1;
+  exportedAt: string;
+  appVersion?: string;
+  /** Partial settings record; unknown keys are reported and skipped on import. */
+  settings: Partial<AppSettings>;
+}
+
+/**
+ * Named connection profile (#91): a reusable bundle of repository URL pattern,
+ * proxy settings, and a reference to a saved credential.
+ *
+ * Profiles REFERENCE credentials (`credentialsProfileId` is a realm string
+ * into the existing auth store) — they never store usernames, passwords, or
+ * API keys of their own.
+ */
+export interface ConnectionProfile {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  /** Glob pattern (`*`, `?`) matched against repository URLs; absent matches nothing. */
+  repoUrlPattern?: string;
+  /** Proxy bundle; may carry a proxy password exactly like the global proxy settings do. */
+  proxy?: ProxySettings;
+  /** Realm of a credential saved in the existing auth store. Never secret material. */
+  credentialsProfileId?: string;
+}
+
+/**
+ * Per-working-copy settings override (#90), keyed by working-copy root.
+ * Every field is optional — an override only pins what it defines; everything
+ * else falls through to the linked profile and then global settings.
+ */
+export interface WorkingCopyOverride {
+  version: 1;
+  workingCopyPath: string;
+  updatedAt: string;
+  /** Connection profile linked by id (see `ConnectionProfile`). */
+  profileId?: string;
+  /** Proxy override; wins over the linked profile and global proxy settings. */
+  proxy?: ProxySettings;
+  /** Credential realm used for this working copy. A reference, never a secret. */
+  credentialsProfileId?: string;
+  /**
+   * Advisory mirror of the AI consent store (`shellysvn:ai-consent:v1`).
+   * The settings UI renders this read-only; the write path stays with the
+   * per-working-copy AI consent toggle and is never duplicated here.
+   */
+  aiOptIn?: boolean;
 }
 
 declare global {

@@ -1,5 +1,12 @@
 import { useCallback, useRef, useState, createContext, useContext, type ReactNode } from 'react';
 import type { AppSettings } from '@shared/types';
+import {
+  applyAccentColor,
+  applyDensity,
+  applyFontScale,
+  applyHighContrast,
+  resolveHighContrast,
+} from '../lib/appearance';
 
 /**
  * Settings Preview Context
@@ -62,32 +69,22 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
     root.classList.add(isDark ? 'dark' : 'light');
 
     // Apply accent color
-    if (settings.accentColor) {
-      const rgb = hexToRgb(settings.accentColor);
-      if (rgb) {
-        root.style.setProperty('--color-accent-rgb', `${rgb.r} ${rgb.g} ${rgb.b}`);
+    applyAccentColor(settings.accentColor, root);
 
-        const hoverColor = adjustColorBrightness(settings.accentColor, 20);
-        const hoverRgb = hexToRgb(hoverColor);
-        if (hoverRgb) {
-          root.style.setProperty(
-            '--color-accent-hover-rgb',
-            `${hoverRgb.r} ${hoverRgb.g} ${hoverRgb.b}`
-          );
-        }
+    // Apply high contrast ('system' resolved against the current OS hint)
+    applyHighContrast(
+      resolveHighContrast(
+        settings.highContrast,
+        window.matchMedia('(prefers-contrast: more)').matches
+      ),
+      root
+    );
 
-        const mutedColor = adjustColorBrightness(settings.accentColor, -15);
-        const mutedRgb = hexToRgb(mutedColor);
-        if (mutedRgb) {
-          root.style.setProperty(
-            '--color-accent-muted-rgb',
-            `${mutedRgb.r} ${mutedRgb.g} ${mutedRgb.b}`
-          );
-        }
+    // Apply density
+    applyDensity(settings.density, root);
 
-        root.style.setProperty('--color-accent-glow', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`);
-      }
-    }
+    // Apply root font scale
+    applyFontScale(settings.fontScale, root);
 
     // Apply sidebar width
     if (settings.sidebarWidth) {
@@ -217,35 +214,5 @@ export function SettingsPreviewProvider({ children }: { children: ReactNode }) {
     </SettingsPreviewContext.Provider>
   );
 }
-
-// Helper functions (same as in useVisualSettings)
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const cleanHex = hex.replace('#', '');
-  if (cleanHex.length !== 6) return null;
-
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
-  return { r, g, b };
-}
-
-function adjustColorBrightness(hex: string, percent: number): string {
-  const cleanHex = hex.replace('#', '');
-
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-
-  const adjust = (value: number) => {
-    const adjusted = value + (255 * percent) / 100;
-    return Math.min(255, Math.max(0, Math.round(adjusted)));
-  };
-
-  const newR = adjust(r);
-  const newG = adjust(g);
-  const newB = adjust(b);
-
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-}
+// Helper functions live in lib/appearance.ts, shared with useVisualSettings so
+// previewed and saved appearance can never drift.

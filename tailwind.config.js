@@ -29,11 +29,20 @@ module.exports = {
           muted: 'rgb(var(--color-text-muted-rgb, 114 125 138) / <alpha-value>)',
           faint: 'rgb(var(--color-text-faint-rgb, 77 88 102) / <alpha-value>)',
         },
+        /*
+         * Accent shades hang off a single --color-accent-rgb triplet so a
+         * custom accent (settings → Appearance) restyles everything, and
+         * alpha utilities (bg-accent/10, border-accent/40, …) compose on top.
+         * `soft` is identical to DEFAULT in both themes, so it reads the base
+         * variable directly. `hover`/`muted` need per-theme lightening /
+         * darkening that one alpha can't express — useVisualSettings computes
+         * those triplets whenever the accent changes.
+         */
         accent: {
           DEFAULT: 'rgb(var(--color-accent-rgb, 88 166 255) / <alpha-value>)',
           hover: 'rgb(var(--color-accent-hover-rgb, 132 192 255) / <alpha-value>)',
           muted: 'rgb(var(--color-accent-muted-rgb, 56 139 253) / <alpha-value>)',
-          soft: 'rgb(var(--color-accent-soft-rgb, 88 166 255) / <alpha-value>)',
+          soft: 'rgb(var(--color-accent-rgb, 88 166 255) / <alpha-value>)',
         },
         // SVN Status Colors
         svn: {
@@ -130,7 +139,9 @@ module.exports = {
       },
       /*
        * Control heights from the prototype. Prefixed keys so Tailwind's numeric
-       * spacing scale (`h-8`, `p-6`, …) is untouched.
+       * spacing scale (`h-8`, `p-6`, …) is untouched. The row keys read the
+       * density variables (settings → Appearance → Density), so `h-row` /
+       * `h-row-tree` follow compact/comfortable automatically.
        */
       spacing: {
         'control-xs': '24px', // inline crumbs, revision button, tree "show more"
@@ -138,8 +149,8 @@ module.exports = {
         'control-md': '30px', // icon-only buttons, pane headers, list footer
         control: '32px', // default button / input / rail item
         'control-lg': '34px', // omnibar, modal inputs
-        row: '38px', // directory listing row
-        'row-tree': '27px', // tree node row
+        row: 'var(--row-height, 38px)', // directory listing row
+        'row-tree': 'var(--row-height-tree, 27px)', // tree node row
       },
       boxShadow: {
         'glow-accent': '0 0 18px var(--color-accent-glow, rgba(88, 166, 255, 0.4))',

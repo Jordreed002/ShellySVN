@@ -73,6 +73,12 @@
     Consolas, Monaco, monospace;
   --font-size-base: 13.5px;
   --line-height-base: 1.5;
+  /*
+   * Root font scale (settings.appearance fontScale — 0.85 / 1 / 1.1 / 1.25).
+   * Applied by useVisualSettings as both this variable and a percentage
+   * font-size on the root element, so rem-based utilities scale app-wide.
+   */
+  --font-scale: 1;
   --font-size-9-5: 9.5px;
   --font-size-10: 10px;
   --font-size-10-5: 10.5px;
@@ -102,8 +108,14 @@
   --control-height-md: 30px;
   --control-height: 32px;
   --control-height-lg: 34px;
+  /*
+   * Row metrics — density (settings density: compact/comfortable) overrides
+   * these via the `.density-*` classes below. `--row-pad-y` is the vertical
+   * padding for central row classes (`.file-row`, `.tree-item`).
+   */
   --row-height: 38px;
   --row-height-tree: 27px;
+  --row-pad-y: 8px;
 
   /* Surfaces — recessed (sunk) < canvas (bg) < panel < fill < raised */
   --color-bg-rgb: 13 17 23;
@@ -310,6 +322,155 @@
   --color-accent-glow: rgba(88, 166, 255, 0.4);
 }
 
+/*
+ * Density — toggled on the document root by useVisualSettings /
+ * SettingsPreviewContext from `settings.density`. The comfortable values are
+ * the historical defaults (identical to :root above), so nothing changes
+ * visually until compact is chosen. Anything sized with `h-row` /
+ * `h-row-tree` (Tailwind spacing tokens read these variables) or padded with
+ * `--row-pad-y` (`.file-row`, `.tree-item`) follows automatically.
+ */
+.density-comfortable {
+  --row-height: 38px;
+  --row-height-tree: 27px;
+  --row-pad-y: 8px;
+}
+
+.density-compact {
+  --row-height: 32px;
+  --row-height-tree: 23px;
+  --row-pad-y: 4px;
+}
+
+/*
+ * High-contrast mode — `.high-contrast` on the document root, toggled by
+ * useVisualSettings from `settings.highContrast` ('system' follows the OS
+ * `prefers-contrast: more` hint via matchMedia, exactly like the theme).
+ *
+ * Only tokens that carry meaning are overridden: opaque surfaces (translucent
+ * glass muddies contrast), a brighter border ramp, a text ramp pulled toward
+ * full white, and a status palette whose amber/orange/red cluster is pushed
+ * apart so SVN states stay distinguishable.
+ *
+ * Cascade note: these blocks sit AFTER :root/:root.light/:root.dark on
+ * purpose — :root.high-contrast ties :root.light on specificity, so source
+ * order decides, and :root.light.high-contrast outranks both for the
+ * light-theme combination.
+ */
+:root.high-contrast {
+  --surface-glass: rgb(13 17 23);
+  --surface-glass-strong: rgb(13 17 23);
+
+  --color-border-muted-rgb: 74 86 102;
+  --color-border-rgb: 100 115 133;
+  --color-border-strong-rgb: 148 165 188;
+  --color-border-muted: rgb(74 86 102);
+  --color-border: rgb(100 115 133);
+  --color-border-strong: rgb(148 165 188);
+
+  --color-text-secondary-rgb: 199 208 219;
+  --color-text-muted-rgb: 172 183 196;
+  --color-text-faint-rgb: 146 158 172;
+  --color-text-secondary: rgb(199 208 219);
+  --color-text-muted: rgb(172 183 196);
+  --color-text-faint: rgb(146 158 172);
+
+  --color-svn-normal-rgb: 87 227 104;
+  --color-svn-added-rgb: 87 227 104;
+  --color-svn-modified-rgb: 255 187 0;
+  --color-svn-deleted-rgb: 255 99 92;
+  --color-svn-conflict-rgb: 255 86 84;
+  --color-svn-unversioned-rgb: 170 182 196;
+  --color-svn-missing-rgb: 255 120 110;
+  --color-svn-replaced-rgb: 185 136 255;
+  --color-svn-external-rgb: 84 224 236;
+  --color-svn-ignored-rgb: 146 158 172;
+  --color-svn-obstructed-rgb: 255 140 66;
+  --color-svn-normal: rgb(87 227 104);
+  --color-svn-added: rgb(87 227 104);
+  --color-svn-modified: rgb(255 187 0);
+  --color-svn-deleted: rgb(255 99 92);
+  --color-svn-conflict: rgb(255 86 84);
+  --color-svn-unversioned: rgb(170 182 196);
+  --color-svn-missing: rgb(255 120 110);
+  --color-svn-replaced: rgb(185 136 255);
+  --color-svn-external: rgb(84 224 236);
+  --color-svn-ignored: rgb(146 158 172);
+  --color-svn-obstructed: rgb(255 140 66);
+
+  --color-success-rgb: 87 227 104;
+  --color-success-glow: rgba(87, 227, 104, 0.5);
+  --color-warning-rgb: 255 187 0;
+  --color-warning-glow: rgba(255, 187, 0, 0.5);
+  --color-error-rgb: 255 99 92;
+  --color-error-glow: rgba(255, 99, 92, 0.5);
+  --color-info-rgb: 120 180 255;
+  --color-success: rgb(87 227 104);
+  --color-warning: rgb(255 187 0);
+  --color-error: rgb(255 99 92);
+  --color-info: rgb(120 180 255);
+}
+
+:root.light.high-contrast {
+  --surface-glass: rgb(255 255 255);
+  --surface-glass-strong: rgb(255 255 255);
+
+  --color-border-muted-rgb: 167 174 186;
+  --color-border-rgb: 122 131 146;
+  --color-border-strong-rgb: 68 78 94;
+  --color-border-muted: rgb(167 174 186);
+  --color-border: rgb(122 131 146);
+  --color-border-strong: rgb(68 78 94);
+
+  --color-text-secondary-rgb: 43 50 62;
+  --color-text-muted-rgb: 62 71 85;
+  --color-text-faint-rgb: 88 98 114;
+  --color-text-secondary: rgb(43 50 62);
+  --color-text-muted: rgb(62 71 85);
+  --color-text-faint: rgb(88 98 114);
+
+  --color-svn-normal-rgb: 15 122 45;
+  --color-svn-added-rgb: 15 122 45;
+  --color-svn-modified-rgb: 174 92 0;
+  --color-svn-deleted-rgb: 178 34 26;
+  --color-svn-conflict-rgb: 178 20 18;
+  --color-svn-unversioned-rgb: 73 82 97;
+  --color-svn-missing-rgb: 178 34 26;
+  --color-svn-replaced-rgb: 94 63 152;
+  --color-svn-external-rgb: 8 105 120;
+  --color-svn-ignored-rgb: 88 98 114;
+  --color-svn-obstructed-rgb: 180 83 9;
+  --color-svn-normal: rgb(15 122 45);
+  --color-svn-added: rgb(15 122 45);
+  --color-svn-modified: rgb(174 92 0);
+  --color-svn-deleted: rgb(178 34 26);
+  --color-svn-conflict: rgb(178 20 18);
+  --color-svn-unversioned: rgb(73 82 97);
+  --color-svn-missing: rgb(178 34 26);
+  --color-svn-replaced: rgb(94 63 152);
+  --color-svn-external: rgb(8 105 120);
+  --color-svn-ignored: rgb(88 98 114);
+  --color-svn-obstructed: rgb(180 83 9);
+
+  --color-success-rgb: 15 122 45;
+  --color-success-glow: rgba(15, 122, 45, 0.4);
+  --color-warning-rgb: 174 92 0;
+  --color-warning-glow: rgba(174, 92, 0, 0.4);
+  --color-error-rgb: 178 34 26;
+  --color-error-glow: rgba(178, 34, 26, 0.4);
+  --color-info-rgb: 22 90 190;
+  --color-success: rgb(15 122 45);
+  --color-warning: rgb(174 92 0);
+  --color-error: rgb(178 34 26);
+  --color-info: rgb(22 90 190);
+}
+
+/* Keyboard focus is a primary affordance in high-contrast mode. */
+:root.high-contrast :focus-visible {
+  outline-width: 3px;
+  outline-offset: 1px;
+}
+
 /* Reset */
 *,
 *::before,
@@ -336,8 +497,8 @@ body {
     Helvetica,
     Arial,
     sans-serif;
-  /* Prototype base: 13.5px / 1.5. */
-  font-size: var(--font-size-base);
+  /* Prototype base: 13.5px / 1.5, scaled by the fontScale setting. */
+  font-size: calc(var(--font-size-base) * var(--font-scale, 1));
   line-height: var(--line-height-base);
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -646,9 +807,10 @@ body {
     @apply bg-accent text-white font-medium hover:bg-accent-hover;
   }
 
-  /* File Row */
+  /* File Row — vertical padding follows the density variables */
   .file-row {
-    @apply flex items-center gap-3 px-4 py-2 rounded-lg mx-1.5 cursor-pointer;
+    @apply flex items-center gap-3 px-4 rounded-lg mx-1.5 cursor-pointer;
+    padding-block: var(--row-pad-y, 8px);
     transition: background-color 0.06s linear;
   }
 
@@ -699,9 +861,10 @@ body {
     @apply text-text font-medium px-1.5;
   }
 
-  /* Tree / nav item */
+  /* Tree / nav item — vertical padding tracks density at 3/4 of the row pad */
   .tree-item {
-    @apply relative flex items-center gap-2.5 px-2.5 py-1.5 text-sm text-text-secondary cursor-pointer rounded-lg mx-1.5;
+    @apply relative flex items-center gap-2.5 px-2.5 text-sm text-text-secondary cursor-pointer rounded-lg mx-1.5;
+    padding-block: calc(var(--row-pad-y, 8px) * 0.75);
     transition:
       background-color 0.1s cubic-bezier(0.25, 1, 0.5, 1),
       color 0.1s cubic-bezier(0.25, 1, 0.5, 1),
@@ -1069,4 +1232,69 @@ body {
 /* Accent glow effect */
 .shadow-glow-accent {
   box-shadow: 0 0 24px var(--color-accent-glow);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Appended: skeleton shimmer + reduced-motion hardening (#92, #95).
+ * Everything above this rule is untouched; new rules live only below.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * Skeleton placeholders (components/ui/Skeleton.tsx): a two-tone gradient whose
+ * background position drifts, reading as "content is arriving". The animation
+ * is killed wholesale by both the existing reduced-motion block above and the
+ * one below, leaving the static two-tone placeholder.
+ */
+.skeleton-shimmer {
+  background: linear-gradient(
+    100deg,
+    rgb(var(--color-bg-tertiary-rgb, 33 38 45) / 1) 40%,
+    rgb(var(--color-bg-elevated-rgb, 48 54 61) / 1) 50%,
+    rgb(var(--color-bg-tertiary-rgb, 33 38 45) / 1) 60%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/*
+ * Reduced motion, hardened (#95). The block above (added with the animation
+ * speed settings) already disables transitions and animations app-wide when the
+ * OS asks for reduced motion, unless the user forced `.animations-normal`.
+ * This companion block adds what that one does not cover:
+ *
+ * - smooth scrolling off, so programmatic scrolls are instant;
+ * - iteration-bearing spinners (.spinner, Tailwind animate-* utilities) settle
+ *   on a single frame rather than snapping at animation-end;
+ * - the skeleton shimmer freezes mid-gradient, which reads as a static
+ *   placeholder rather than a half-drawn element.
+ *
+ * It intentionally does NOT override the `.animations-normal` opt-out for
+ * transitions/animations; it only pins durations and iteration counts.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  /*
+   * Same opt-out as the block above: a user who forced `.animations-normal`
+   * keeps their explicit choice, so these pin only when the OS hint is in
+   * charge. Durations collapse rather than animations being re-declared, so a
+   * spinner or shimmer settles on one visible frame instead of vanishing.
+   */
+  :root:not(.animations-normal) .spinner,
+  :root:not(.animations-normal) [class*='animate-'],
+  :root:not(.animations-normal) .skeleton-shimmer {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

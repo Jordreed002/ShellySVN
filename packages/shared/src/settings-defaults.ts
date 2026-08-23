@@ -43,6 +43,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
     ignoreEol: false,
     contextLines: 3,
   },
+  // #87: user-added external diff/merge tools with argument templates.
+  // Optional on AppSettings; concrete here so the Diff & Merge panel always
+  // renders against an array.
+  externalToolTemplates: [],
   dialogs: {
     rememberPositions: true,
     rememberSizes: true,
@@ -84,6 +88,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   animationSpeed: 'none',
   showThumbnails: false,
   showFolderSizes: false,
+  // Contrast/density/font-scale are optional on AppSettings; explicit defaults
+  // here so the settings UI always renders against a concrete value.
+  highContrast: 'system',
+  density: 'comfortable',
+  fontScale: 1,
   bookmarks: [],
   recentPaths: [],
   savedCredentials: [],
