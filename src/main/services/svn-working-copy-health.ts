@@ -5,17 +5,17 @@ import type {
   WorkingCopyHealthReport,
   WorkingCopyHealthSeverity,
 } from '@shared/types';
-import { XMLParser } from 'fast-xml-parser';
 import { lstat, readdir, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { parseSvnStatusXml } from '@shared/svn-parsers';
+import { createSvnXmlParser } from '../utils/svn-xml';
 import { withSvnTargets } from '../utils/svn-targets';
 import { runSvnText } from './svn-executor';
 
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
+// Hardened factory (input size/depth guards, entity expansion disabled);
+// options preserve the previous raw XMLParser configuration.
+const xmlParser = createSvnXmlParser({
   parseAttributeValue: true,
 });
 const LARGE_LOCAL_FILE_BYTES = 50 * 1024 * 1024;

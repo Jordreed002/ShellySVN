@@ -1,24 +1,20 @@
-import { XMLParser } from 'fast-xml-parser';
-
 import type { SvnLockInfo, SvnLockInfoResult, SvnLockListResult } from '@shared/types';
 import { executeHooksForType, HookScript } from '../hooks/HookExecutor';
 import { getStore } from '../ipc/store';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { getSvnReadError } from '../utils/svn-errors';
+import { createSvnXmlParser } from '../utils/svn-xml';
 import { runSvnText } from './svn-executor';
 import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 import { getWorkingCopyContext } from './svn-working-copy';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-  textNodeName: '#text',
+// Hardened factory (input size/depth guards, entity expansion disabled);
+// options preserve the previous raw XMLParser configuration.
+const xmlParser = createSvnXmlParser({
   parseAttributeValue: true,
   trimValues: true,
-  parseTagValue: false,
-  allowBooleanAttributes: true,
 });
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {

@@ -131,6 +131,20 @@ import {
   subscribeToWorkingCopyMutations,
 } from '../services/svn-mutation-queue';
 import { sendToRenderer } from '../utils/safe-renderer-send';
+import { closeFileWatchersForPath } from './fs';
+
+/**
+ * Retire file watchers rooted at paths whose working-copy content or layout
+ * just changed (relocate/delete), so no watcher keeps running against stale
+ * paths. Failures are swallowed: teardown must never fail the operation.
+ */
+async function closeWatchersAfterRemoval(paths: string[]): Promise<void> {
+  try {
+    await Promise.all(paths.filter(Boolean).map((path) => closeFileWatchersForPath(path)));
+  } catch (error) {
+    console.warn('[SVN] Failed to close file watchers after working-copy change:', error);
+  }
+}
 
 let mutationStateSubscriptionInstalled = false;
 
@@ -433,7 +447,12 @@ export function registerSvnHandlers(): void {
 
   // SVN Delete
   ipcMain.handle('svn:delete', async (event, paths: string[]) => {
-    return invalidateStatusAfter(paths, removeWorkingCopyItems(paths), event);
+    const result = await invalidateStatusAfter(paths, removeWorkingCopyItems(paths), event);
+    // Deleted local working-copy files must not leave dangling watchers.
+    if (operationSucceeded(result)) {
+      await closeWatchersAfterRemoval(paths);
+    }
+    return result;
   });
 
   // SVN Cleanup
@@ -700,7 +719,13 @@ export function registerSvnHandlers(): void {
 
   // SVN Relocate
   ipcMain.handle('svn:relocate', async (event, from: string, to: string, path: string) => {
-    return invalidateStatusAfter([path], relocateWorkingCopy(from, to, path), event);
+    const result = await invalidateStatusAfter([path], relocateWorkingCopy(from, to, path), event);
+    // Retire watchers rooted at the relocated copy; fresh ones are opened on
+    // next use against the post-relocate state.
+    if (operationSucceeded(result)) {
+      await closeWatchersAfterRemoval([path]);
+    }
+    return result;
   });
 
   // SVN Changelist - Add to changelist

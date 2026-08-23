@@ -15,6 +15,7 @@ const { handlers, mocks } = vi.hoisted(() => ({
     assertPathApprovedForIpc: vi.fn(),
     parseSvnInfoSummaryXml: vi.fn(),
     parseSvnStatusEntriesXml: vi.fn(),
+    closeFileWatchersForPath: vi.fn(),
   },
 }));
 
@@ -33,6 +34,7 @@ vi.mock('../../utils/svn-xml', () => ({
   parseSvnInfoSummaryXml: mocks.parseSvnInfoSummaryXml,
   parseSvnStatusEntriesXml: mocks.parseSvnStatusEntriesXml,
 }));
+vi.mock('../fs', () => ({ closeFileWatchersForPath: mocks.closeFileWatchersForPath }));
 
 let registerMonitorHandlers: () => void;
 let stopMonitoring: () => void;
@@ -44,6 +46,7 @@ beforeEach(async () => {
   mocks.runSvnText.mockResolvedValue('xml');
   mocks.parseSvnInfoSummaryXml.mockReturnValue(null);
   mocks.parseSvnStatusEntriesXml.mockReturnValue([]);
+  mocks.closeFileWatchersForPath.mockResolvedValue(undefined);
 
   // Fresh module => fresh in-memory monitor map + monitoring flag each test.
   vi.resetModules();
@@ -103,6 +106,30 @@ describe('monitor IPC handlers', () => {
     await expect(call('monitor:removeWorkingCopy', '/wc')).resolves.toEqual({
       success: true,
       removed: false,
+    });
+  });
+
+  it('closes file watchers rooted at the copy being removed', async () => {
+    mocks.parseSvnInfoSummaryXml.mockReturnValue({ url: 'u', revision: 1 });
+    await call('monitor:addWorkingCopy', '/wc');
+
+    await expect(call('monitor:removeWorkingCopy', '/wc')).resolves.toEqual({
+      success: true,
+      removed: true,
+    });
+
+    expect(mocks.closeFileWatchersForPath).toHaveBeenCalledWith('/wc');
+    await expect(call('monitor:getWorkingCopies')).resolves.toEqual([]);
+  });
+
+  it('still removes a monitored copy when watcher teardown fails', async () => {
+    mocks.parseSvnInfoSummaryXml.mockReturnValue({ url: 'u', revision: 1 });
+    await call('monitor:addWorkingCopy', '/wc');
+    mocks.closeFileWatchersForPath.mockRejectedValue(new Error('watcher teardown failed'));
+
+    await expect(call('monitor:removeWorkingCopy', '/wc')).resolves.toEqual({
+      success: true,
+      removed: true,
     });
   });
 

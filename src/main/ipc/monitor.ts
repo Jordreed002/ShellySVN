@@ -5,6 +5,7 @@ import { parseSvnInfoSummaryXml, parseSvnStatusEntriesXml } from '../utils/svn-x
 import { runSvnText } from '../services/svn-executor';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { withSvnTargets } from '../utils/svn-targets';
+import { closeFileWatchersForPath } from './fs';
 
 // In-memory storage for monitored working copies
 let monitoredWorkingCopies: Map<string, WorkingCopyInfo> = new Map();
@@ -74,6 +75,13 @@ export function registerMonitorHandlers(): void {
     'monitor:removeWorkingCopy',
     async (_, path: string): Promise<{ success: boolean; removed: boolean }> => {
       const approvedPath = assertPathApprovedForIpc(path, 'Working-copy monitoring');
+      try {
+        // Retire file watchers rooted at the removed copy so they cannot keep
+        // firing against a working copy the user just removed.
+        await closeFileWatchersForPath(approvedPath);
+      } catch {
+        // Watcher teardown must never block monitor removal.
+      }
       return { success: true, removed: monitoredWorkingCopies.delete(approvedPath) };
     }
   );

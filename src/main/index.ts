@@ -168,6 +168,12 @@ function createWindow(): void {
 
   installRendererSecurityGuards(mainWindow.webContents, getTrustedRendererUrl());
 
+  // The devtools fuse is the primary control in packaged builds; this is the
+  // runtime backstop if devtools still open outside development.
+  mainWindow.webContents.on('devtools-opened', () => {
+    if (!is.dev) mainWindow?.webContents.closeDevTools();
+  });
+
   // HMR for renderer base on electron-vite cli
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);

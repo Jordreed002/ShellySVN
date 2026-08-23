@@ -11,6 +11,7 @@ import {
   parseSvnInfoXml,
   parseSvnPropertiesXml,
 } from '../parser';
+import { SvnXmlInputError } from '../parser-enhanced';
 
 describe('parseSvnStatusXml', () => {
   describe('empty and invalid inputs', () => {
@@ -561,5 +562,27 @@ build &amp; dist</property>
 
   it('should handle empty property XML', () => {
     expect(parseSvnPropertiesXml('<?xml version="1.0"?><properties></properties>')).toEqual([]);
+  });
+});
+
+describe('hardened input guards (mirror of parser-enhanced)', () => {
+  it('rejects null bytes with a controlled error', () => {
+    const xml = '<?xml version="1.0"?><status>\u0000</status>';
+    expect(() => parseSvnStatusXml(xml, '/test')).toThrow(SvnXmlInputError);
+  });
+
+  it('rejects pathological nesting depth with a controlled error', () => {
+    const xml = `<status>${'<entry>'.repeat(100)}${'</entry>'.repeat(100)}</status>`;
+    expect(() => parseSvnStatusXml(xml, '/test')).toThrow(SvnXmlInputError);
+  });
+
+  it('keeps DOCTYPE entity declarations inert (no expansion)', () => {
+    const xml =
+      '<?xml version="1.0"?>' +
+      '<!DOCTYPE status [<!ENTITY boom "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA">]>' +
+      '<status><target><entry path="&boom;"></entry></target></status>';
+    const result = parseSvnStatusXml(xml, '/test');
+    // The custom entity is never expanded; it survives as literal text.
+    expect(result.entries[0]?.path).toBe('&boom;');
   });
 });

@@ -128,6 +128,9 @@ vi.mock('../../workers/WorkerPool', () => ({
 vi.mock('../../utils/svn-errors', () => ({
   getSvnReadError: vi.fn(() => ({ svnErrorCode: 'E1', message: 'err' })),
 }));
+vi.mock('../fs', () => ({
+  closeFileWatchersForPath: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { registerSvnHandlers } from '../svn';
 import * as checkoutMod from '../../services/svn-checkout';
@@ -139,6 +142,7 @@ import * as meta from '../../services/svn-metadata';
 import * as auth from '../../services/auth-session-manager';
 import { getStatusService } from '../../services/status-service';
 import { getSvnReadError } from '../../utils/svn-errors';
+import { closeFileWatchersForPath } from '../fs';
 import * as patchMod from '../../services/svn-patch';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -322,6 +326,15 @@ describe('svn IPC handlers — wiring', () => {
       'immediates',
       { sessionId: 'resolved' }
     );
+  });
+
+  it('svn:relocate and svn:delete retire file watchers after success', async () => {
+    await handlers.get('svn:relocate')!(event(), 'from', 'to', '/wc');
+    expect(vi.mocked(closeFileWatchersForPath)).toHaveBeenCalledWith('/wc');
+
+    await handlers.get('svn:delete')!(event(), ['/wc/a', '/wc/b']);
+    expect(vi.mocked(closeFileWatchersForPath)).toHaveBeenCalledWith('/wc/a');
+    expect(vi.mocked(closeFileWatchersForPath)).toHaveBeenCalledWith('/wc/b');
   });
 });
 

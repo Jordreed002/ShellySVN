@@ -26,6 +26,9 @@ export type DeepLinkAction =
   | 'blame'
   | 'info';
 
+/** Query params a deep link may carry. */
+type DeepLinkParam = 'path' | 'url' | 'revision';
+
 const SUPPORTED_ACTIONS = new Set<DeepLinkAction>([
   'checkout',
   'export',
@@ -38,10 +41,35 @@ const SUPPORTED_ACTIONS = new Set<DeepLinkAction>([
   'info',
 ]);
 
+/**
+ * Exhaustive per-action parameter allowlist: an action only ever accepts the
+ * params listed here, and no param may repeat. Anything else is rejected.
+ */
+const ACTION_PARAMS: Record<DeepLinkAction, readonly DeepLinkParam[]> = {
+  checkout: ['url', 'path'],
+  export: ['url', 'path'],
+  open: ['path'],
+  log: ['path', 'revision'],
+  diff: ['path', 'revision'],
+  commit: ['path'],
+  update: ['path'],
+  blame: ['path'],
+  info: ['path'],
+};
+
 const MUTATING_ACTIONS = new Set<DeepLinkAction>(['checkout', 'export', 'commit', 'update']);
 const MAX_DEEP_LINK_LENGTH = 4096;
 const MAX_PARAM_LENGTH = 2048;
+const MAX_PARAM_NAME_LENGTH = 64;
+const MAX_LOGGED_DEEP_LINK_LENGTH = 128;
 const ALLOWED_REPOSITORY_PROTOCOLS = new Set(['http:', 'https:', 'svn:', 'svn+ssh:']);
+
+/** C0 controls and DEL never occur in legitimate paths, URLs, or revisions. */
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
+/** Local paths must be absolute: POSIX `/…`, Windows drive `C:\…`/`C:/…`, or UNC `\\…`. */
+const ABSOLUTE_PATH_PREFIX = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/;
+/** SVN revisions are numeric, plus the single `HEAD` keyword. */
+const REVISION_PATTERN = /^(?:[0-9]{1,10}|HEAD)$/;
 
 /**
  * Deep link handler callback
@@ -57,12 +85,26 @@ const handlers: Map<string, DeepLinkHandler[]> = new Map();
  * Supported formats:
  * - shellysvn://checkout?url=https://svn.example.com/repo&path=/local/path
  * - shellysvn://open?path=/path/to/working/copy
- * - shellysvn://log?path=/path/to/file
+ * - shellysvn://log?path=/path/to/file&revision=123
  * - shellysvn://diff?path=/path/to/file&revision=123
  * - shellysvn://commit?path=/path
  * - shellysvn://update?path=/path
  * - shellysvn://blame?path=/path/to/file
  * - shellysvn://info?path=/path
+ *
+ * Hardening contract (backlog item: deep-link/protocol-handler hardening):
+ * - Only the allowlisted actions above are accepted, and each action only
+ *   accepts its allowlisted params (`ACTION_PARAMS`); duplicates are rejected.
+ * - The outer URL must be a bare `shellysvn://<action>?<params>` link: any
+ *   userinfo, port, path component, or fragment is unexpected and rejected.
+ * - Per-arg caps: total URL ≤ 4096 chars, any param value ≤ 2048 chars,
+ *   param names ≤ 64 chars, revisions are ≤ 10 digits or the literal `HEAD`.
+ * - Per-arg formats: paths are absolute (POSIX / Windows drive / UNC) with no
+ *   control characters; repository URLs use an allowlisted protocol
+ *   (http/https/svn/svn+ssh) with no control characters.
+ *
+ * Anything unexpected returns null (a controlled rejection) — no partial
+ * result is ever returned, and no raw URL fragment is logged.
  */
 export function parseDeepLink(url: string): DeepLink | null {
   if (!url.startsWith('shellysvn://') || url.length > MAX_DEEP_LINK_LENGTH) {
@@ -71,15 +113,38 @@ export function parseDeepLink(url: string): DeepLink | null {
 
   try {
     const parsed = new URL(url);
+
+    if (
+      parsed.protocol !== 'shellysvn:' ||
+      parsed.username ||
+      parsed.password ||
+      parsed.port ||
+      parsed.pathname !== '' ||
+      parsed.hash
+    ) {
+      return null;
+    }
+
     const action = parsed.hostname.toLowerCase() as DeepLinkAction;
 
     if (!SUPPORTED_ACTIONS.has(action)) {
       return null;
     }
 
+    const allowedParams = ACTION_PARAMS[action];
     const params: Record<string, string> = {};
     for (const [key, value] of parsed.searchParams) {
-      if (key.length > 64 || value.length > MAX_PARAM_LENGTH || value.includes('\0')) {
+      if (
+        !allowedParams.includes(key as DeepLinkParam) ||
+        key.length > MAX_PARAM_NAME_LENGTH ||
+        Object.prototype.hasOwnProperty.call(params, key)
+      ) {
+        return null;
+      }
+      // Control characters never occur in legitimate paths, repository URLs,
+      // or revisions, and would otherwise flow into logs and downstream
+      // services verbatim.
+      if (value.length > MAX_PARAM_LENGTH || CONTROL_CHARACTERS.test(value)) {
         return null;
       }
       params[key] = value;
@@ -90,6 +155,14 @@ export function parseDeepLink(url: string): DeepLink | null {
     }
 
     if (requiresPath(action) && !isValidDeepLinkPath(params.path)) {
+      return null;
+    }
+
+    // Optional params must still match their format when present.
+    if (params.path !== undefined && !isValidDeepLinkPath(params.path)) {
+      return null;
+    }
+    if (params.revision !== undefined && !REVISION_PATTERN.test(params.revision)) {
       return null;
     }
 
@@ -115,12 +188,15 @@ function isValidDeepLinkPath(path?: string): boolean {
     typeof path === 'string' &&
     path.length > 0 &&
     path.length <= MAX_PARAM_LENGTH &&
-    !path.includes('\0')
+    ABSOLUTE_PATH_PREFIX.test(path) &&
+    !CONTROL_CHARACTERS.test(path)
   );
 }
 
 function isAllowedRepositoryUrl(url?: string): boolean {
-  if (!url || url.length > MAX_PARAM_LENGTH) return false;
+  if (!url || url.length > MAX_PARAM_LENGTH || CONTROL_CHARACTERS.test(url)) {
+    return false;
+  }
 
   try {
     const parsed = new URL(url);
@@ -152,13 +228,35 @@ export function unregisterDeepLinkHandler(action: DeepLinkAction, handler: DeepL
 }
 
 /**
- * Process a deep link and call registered handlers
+ * Sanitize an untrusted deep link for logging: strip control characters (so a
+ * hostile URL cannot forge log content) and truncate to a bounded snippet.
+ */
+function sanitizeDeepLinkForLog(url: string): string {
+  const withoutControls = url.replace(CONTROL_CHARACTERS, '\uFFFD');
+  return withoutControls.length > MAX_LOGGED_DEEP_LINK_LENGTH
+    ? `${withoutControls.slice(0, MAX_LOGGED_DEEP_LINK_LENGTH)}…`
+    : withoutControls;
+}
+
+/**
+ * Validate and dispatch a shellysvn:// URL to registered handlers.
+ *
+ * Security invariants:
+ * - Validation happens here, before any handler runs; handlers only ever
+ *   receive the validated {@link DeepLink} structure.
+ * - Dispatch is strictly in-process (registered callbacks, which forward to
+ *   the renderer over IPC). No URL-derived string is ever passed to
+ *   child_process, exec, or a shell from this module, and downstream services
+ *   re-validate any path they act on (see utils/svn-targets and
+ *   utils/approved-paths).
+ * - Rejections are controlled: a sanitized, truncated warning is logged and
+ *   false is returned; the raw URL is never echoed into logs.
  */
 export function processDeepLink(url: string): boolean {
   const link = parseDeepLink(url);
 
   if (!link) {
-    console.warn('Invalid deep link:', url);
+    console.warn('[deep-link] Rejected malformed link:', sanitizeDeepLinkForLog(url));
     return false;
   }
 
