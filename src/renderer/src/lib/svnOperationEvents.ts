@@ -33,3 +33,17 @@ export const SVN_EVENTS = {
 } as const;
 
 export type SvnEventName = (typeof SVN_EVENTS)[keyof typeof SVN_EVENTS];
+
+/**
+ * Shell-level events (#81/#64/#49 wiring) — how surfaces that cannot import
+ * the Layout ask the shell to open something it owns: the globally mounted
+ * DiffWizard, the ShelfManagerDialog, the notification center panel. Additive
+ * to the SVN event names above; dispatched through `lib/shellActions.ts`.
+ */
+export const SHELL_EVENTS = {
+  OPEN_DIFF_WIZARD: 'shellysvn:open-diff-wizard',
+  OPEN_SHELF_MANAGER: 'shellysvn:open-shelf-manager',
+  OPEN_NOTIFICATION_CENTER: 'shellysvn:open-notification-center',
+} as const;
+
+export type ShellEventName = (typeof SHELL_EVENTS)[keyof typeof SHELL_EVENTS];

@@ -12,6 +12,8 @@ export interface RepositoryPillControlProps {
   browsedUrl?: string;
   recentRepositories: string[];
   onActivate: () => void;
+  /** Right-click hook (#86): opens the per-WC quick actions in the Layout. */
+  onContextMenu?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export function RepositoryPillControl({
@@ -19,6 +21,7 @@ export function RepositoryPillControl({
   browsedUrl,
   recentRepositories,
   onActivate,
+  onContextMenu,
 }: RepositoryPillControlProps) {
   const { data: workingCopyInfo } = useWorkingCopyInfo(workingCopyPath);
   const overview = useWorkingCopyOverview(recentRepositories);
@@ -33,5 +36,5 @@ export function RepositoryPillControl({
     knownRoots,
   });
 
-  return <RepositoryPillButton pill={pill} onActivate={onActivate} />;
+  return <RepositoryPillButton pill={pill} onActivate={onActivate} onContextMenu={onContextMenu} />;
 }

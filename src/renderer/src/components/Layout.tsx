@@ -1,7 +1,7 @@
-import { lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { BrainCircuit, PanelLeft, Search, StickyNote } from 'lucide-react';
+import { Archive, BrainCircuit, PanelLeft, Search, StickyNote } from 'lucide-react';
 import { REVIEW_CENTER_OPEN_EVENT } from '@renderer/features/ai-review-center/reviewCenterEvents';
 
 import { useSettings } from '@renderer/hooks/useSettings';
@@ -11,6 +11,39 @@ import { RepositoryPillButton } from './layout/RepositoryPillButton';
 import { describeRepositoryPill } from './layout/repositoryPill';
 import { ShellMark } from './ShellMark';
 import { GlobalBatchProgress } from '@renderer/features/working-copy-command-center/GlobalBatchProgress';
+
+import { TabBar } from './layout/TabBar';
+import {
+  NotificationCenterBell,
+  NotificationCenterPanel,
+  ToastStack,
+} from './layout/NotificationCenter';
+import {
+  QuickActionsContextMenu,
+  QuickActionsMenuButton,
+} from './layout/QuickActionsMenu';
+import { FolderDropZone } from './layout/DropOverlay';
+import { OperationNotifications } from './layout/OperationNotifications';
+import {
+  activateTab,
+  closeOtherTabs,
+  closeTab,
+  ensureTabSessionHydrated,
+  getTabSession,
+  openTab,
+  recordActiveTabRoute,
+  useTabSession,
+  type ShellTab,
+} from '@renderer/lib/tabsStore';
+import {
+  planSessionRestore,
+  type SessionRestorePlan,
+} from '@renderer/lib/sessionRestore';
+import {
+  useDiffWizardRequest,
+  useNotificationCenterOpenEvent,
+  useShelfManagerOpenState,
+} from '@renderer/lib/shellActions';
 
 const Sidebar = lazy(() => import('./Sidebar').then((mod) => ({ default: mod.Sidebar })));
 const StatusBar = lazy(() => import('./ui/StatusBar').then((mod) => ({ default: mod.StatusBar })));
@@ -22,6 +55,12 @@ const RepositoryPillControl = lazy(() =>
 );
 const TitlebarControls = lazy(() =>
   import('./layout/TitlebarControls').then((mod) => ({ default: mod.TitlebarControls }))
+);
+const ShelfManagerDialog = lazy(() =>
+  import('./ui/ShelfManagerDialog').then((mod) => ({ default: mod.ShelfManagerDialog }))
+);
+const DiffWizard = lazy(() =>
+  import('./ui/DiffWizard').then((mod) => ({ default: mod.DiffWizard }))
 );
 
 const OnboardingController = lazy(() =>
@@ -108,9 +147,20 @@ export function Layout({ children }: LayoutProps) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(true);
-  const { settings, updateSettings } = useSettings();
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [quickMenuPosition, setQuickMenuPosition] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [restorePlan, setRestorePlan] = useState<SessionRestorePlan | null>(null);
+  const [restoreCtaDismissed, setRestoreCtaDismissed] = useState(false);
+  const { settings, isLoading: settingsLoading, updateSettings, addRecentRepo } = useSettings();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const tabSession = useTabSession();
+  const diffWizard = useDiffWizardRequest();
+  const shelfManager = useShelfManagerOpenState();
+  useNotificationCenterOpenEvent(() => setNotificationPanelOpen(true));
 
   const isMac = navigator.platform.toLowerCase().includes('mac');
   const isWindows = navigator.platform.toLowerCase().includes('win');
@@ -280,6 +330,104 @@ export function Layout({ children }: LayoutProps) {
     navigate({ to: '/files', search: { path: targetPath } });
   };
 
+  /* ── tabs (#83) + session restore (#84) ─────────────────────────────────── */
+
+  const navigateToTab = useCallback(
+    (tab: ShellTab) => {
+      navigate({
+        to: tab.route.pathname,
+        search: tab.route.search as Record<string, never>,
+      });
+    },
+    [navigate]
+  );
+
+  /** The one open-a-working-copy flow: recents → tab → file explorer. */
+  const handleOpenWorkingCopy = useCallback(
+    async (path: string) => {
+      await addRecentRepo(path);
+      openTab(path);
+      navigate({ to: '/files', search: { path } });
+    },
+    [addRecentRepo, navigate]
+  );
+
+  const handleActivateTab = useCallback(
+    (tab: ShellTab) => {
+      activateTab(tab.id);
+      navigateToTab(tab);
+    },
+    [navigateToTab]
+  );
+
+  const handleCloseTab = useCallback(
+    (tabId: string) => {
+      closeTab(tabId);
+      const session = getTabSession();
+      const active = session.tabs.find((tab) => tab.id === session.activeTabId);
+      if (active) navigateToTab(active);
+      else navigate({ to: '/' });
+    },
+    [navigate, navigateToTab]
+  );
+
+  const handleCloseOtherTabs = useCallback(
+    (tabId: string) => {
+      closeOtherTabs(tabId);
+      const session = getTabSession();
+      const active = session.tabs.find((tab) => tab.id === session.activeTabId);
+      if (active) navigateToTab(active);
+    },
+    [navigateToTab]
+  );
+
+  // Record the active tab's last-visited route as the router moves (#83).
+  const locationPathname = routerState.location.pathname;
+  const locationSearch = JSON.stringify(routerState.location.search ?? {});
+  useEffect(() => {
+    recordActiveTabRoute({
+      pathname: locationPathname,
+      search: JSON.parse(locationSearch) as Record<string, unknown>,
+    });
+  }, [locationPathname, locationSearch]);
+
+  // Session restore (#84): once, after settings and the persisted tab session
+  // are in. 'lastRepo' restores the saved session (or falls back to the most
+  // recent repository); 'welcome' stays home with the session restorable via
+  // the CTA; 'empty' does nothing.
+  const restoreAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (restoreAttemptedRef.current || settingsLoading) return;
+    restoreAttemptedRef.current = true;
+    void ensureTabSessionHydrated().then(() => {
+      const plan = planSessionRestore({
+        startupAction: settings.startupAction,
+        session: getTabSession(),
+        recentRepositories,
+      });
+      if (plan.action === 'restore' && plan.activeTab) {
+        handleActivateTab(plan.activeTab);
+      } else if (plan.action === 'open-recent') {
+        void handleOpenWorkingCopy(plan.path);
+      }
+      setRestorePlan(plan);
+    });
+  }, [settingsLoading, settings.startupAction, recentRepositories, handleActivateTab, handleOpenWorkingCopy]);
+
+  const showRestoreCta =
+    restorePlan?.action === 'home-restorable' &&
+    restoreCtaDismissed === false &&
+    locationPathname === '/';
+
+  const handleRestoreSession = useCallback(() => {
+    if (restorePlan?.action !== 'home-restorable') return;
+    const session = getTabSession();
+    const active =
+      session.tabs.find((tab) => tab.id === session.activeTabId) ?? session.tabs[0] ?? null;
+    if (active) handleActivateTab(active);
+    setRestoreCtaDismissed(true);
+  }, [restorePlan, handleActivateTab]);
+
   const handleMinimize = () => {
     window.api.app.window.minimize();
   };
@@ -298,7 +446,16 @@ export function Layout({ children }: LayoutProps) {
     void updateSettings({ theme: isDarkTheme ? 'light' : 'dark' });
   };
 
+  const handlePillContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      setQuickMenuPosition({ x: event.clientX, y: event.clientY });
+    },
+    []
+  );
+
   const accountName = settings.savedCredentials?.[0]?.username ?? '';
+  const shelfWorkingCopyPath = workingCopyPath ?? recentRepositories[0] ?? '';
   return (
     <div className="flex flex-col h-screen shell-backdrop text-text overflow-hidden">
       {/* Top bar — prototype `.top`: brand · repository pill · search · controls */}
@@ -330,6 +487,7 @@ export function Layout({ children }: LayoutProps) {
             browsedUrl={browsedUrl}
             recentRepositories={recentRepositories}
             onActivate={() => setShowCommandPalette(true)}
+            onContextMenu={handlePillContextMenu}
           />
         </Suspense>
 
@@ -388,6 +546,30 @@ export function Layout({ children }: LayoutProps) {
             <BrainCircuit className="w-4 h-4" aria-hidden="true" />
           </button>
 
+          <button
+            type="button"
+            onClick={shelfManager.open}
+            disabled={!shelfWorkingCopyPath}
+            className={iconButtonClass(shelfManager.isOpen)}
+            aria-pressed={shelfManager.isOpen}
+            aria-label="Shelf manager"
+            title={shelfWorkingCopyPath ? 'Shelf manager' : 'Shelf manager — open a working copy first'}
+          >
+            <Archive className="w-4 h-4" aria-hidden="true" />
+          </button>
+
+          <QuickActionsMenuButton workingCopyPath={workingCopyPath} />
+
+          <div className="relative">
+            <NotificationCenterBell
+              isOpen={notificationPanelOpen}
+              onToggle={() => setNotificationPanelOpen((previous) => !previous)}
+            />
+            {notificationPanelOpen && (
+              <NotificationCenterPanel onClose={() => setNotificationPanelOpen(false)} />
+            )}
+          </div>
+
           <Suspense
             fallback={
               <div className={isWindows ? 'h-8 w-[238px]' : 'h-8 w-[102px]'} aria-hidden="true" />
@@ -407,6 +589,40 @@ export function Layout({ children }: LayoutProps) {
           </Suspense>
         </div>
       </header>
+
+      {/* Working-copy tabs (#83) */}
+      <TabBar
+        tabs={tabSession.tabs}
+        activeTabId={tabSession.activeTabId}
+        recentRepositories={recentRepositories}
+        onActivate={handleActivateTab}
+        onClose={handleCloseTab}
+        onCloseOthers={handleCloseOtherTabs}
+        onOpenWorkingCopy={(path) => void handleOpenWorkingCopy(path)}
+      />
+
+      {showRestoreCta && (
+        <div className="flex h-8 flex-shrink-0 items-center gap-2 border-b border-border bg-accent/10 px-3 text-12">
+          <span className="text-text">
+            Reopen your last session ({restorePlan.session.tabs.length} tab
+            {restorePlan.session.tabs.length === 1 ? '' : 's'})?
+          </span>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleRestoreSession}
+          >
+            Restore session
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setRestoreCtaDismissed(true)}
+          >
+            Not now
+          </button>
+        </div>
+      )}
 
       <Suspense fallback={null}>
         <UpdateBanner />
@@ -488,6 +704,39 @@ export function Layout({ children }: LayoutProps) {
           <AiReviewCenter
             workingCopyPath={workingCopyPath}
             onClose={() => setShowAiReviewCenter(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Shell-level surfaces: long-op notifications, toasts, folder drag &
+          drop, quick actions at the pointer, the shelf manager (HANDOFF 1) and
+          the globally mounted DiffWizard (HANDOFF 2). */}
+      <OperationNotifications />
+      <ToastStack />
+      <FolderDropZone onOpenWorkingCopy={handleOpenWorkingCopy} />
+      {quickMenuPosition && (
+        <QuickActionsContextMenu
+          position={quickMenuPosition}
+          workingCopyPath={workingCopyPath}
+          onClose={() => setQuickMenuPosition(null)}
+        />
+      )}
+      {shelfManager.isOpen && shelfWorkingCopyPath && (
+        <Suspense fallback={null}>
+          <ShelfManagerDialog
+            isOpen={shelfManager.isOpen}
+            onClose={shelfManager.close}
+            workingCopyPath={shelfWorkingCopyPath}
+          />
+        </Suspense>
+      )}
+      {diffWizard.isOpen && (
+        <Suspense fallback={null}>
+          <DiffWizard
+            isOpen={diffWizard.isOpen}
+            onClose={diffWizard.close}
+            defaultLeft={diffWizard.request?.left ?? null}
+            defaultRight={diffWizard.request?.right ?? null}
           />
         </Suspense>
       )}
