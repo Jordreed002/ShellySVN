@@ -1,10 +1,27 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
-import { FolderGit2, GitBranch, HardDrive, Tag, WifiOff } from 'lucide-react';
+import {
+  AlertCircle,
+  FolderGit2,
+  GitBranch,
+  HardDrive,
+  HelpCircle,
+  Layers,
+  RotateCw,
+  Tag,
+  WifiOff,
+} from 'lucide-react';
 import type { RepoDiagnostics } from '@shared/types';
 
 import { useSettings } from '@renderer/hooks/useSettings';
+import { useWorkingCopyMixedRevisions } from '@renderer/hooks/useWorkingCopyFreshness';
+import { describeMixedRevisions } from '@renderer/lib/workingCopyFreshness';
+import {
+  isFailedWorkingCopyQuery,
+  isPathKeyedScope,
+  keyTouchesPrefix,
+} from '@renderer/lib/queryKeys';
 import {
   buildDiskUsage,
   formatDiskSize,
@@ -14,6 +31,8 @@ import {
   type RepoStatusCounts,
   type SidebarPresence,
 } from '../sidebar/sidebarData';
+// The legend explains every status this strip (and the file lists) can show.
+import { STATUS_LEGEND_OPEN_EVENT, StatusLegendDialogMount } from './StatusLegendDialog';
 
 /**
  * Bottom status bar — the always-visible strip of facts about the working copy
@@ -138,9 +157,41 @@ function useIsOffline(): boolean {
   return offline;
 }
 
+/**
+ * The first failed read about the active working copy, or null when none.
+ *
+ * Like `useKnownSvnVersion`, this only *observes* the cache — it never issues a
+ * call. A read can now fail where it once spun forever (every queryFn runs
+ * under the app-wide IPC deadline), and when one does, the strip says so and
+ * offers the retry, instead of quietly showing nothing.
+ */
+function useWorkingCopyReadError(scopePath: string | null): string | null {
+  const queryClient = useQueryClient();
+  const queryCache = queryClient.getQueryCache();
+
+  return useSyncExternalStore(
+    (onStoreChange) =>
+      queryCache.subscribe((event) => {
+        if (event.type === 'updated' || event.type === 'removed') onStoreChange();
+      }),
+    () => {
+      if (!scopePath) return null;
+      for (const query of queryCache.getAll()) {
+        if (!isFailedWorkingCopyQuery(query.queryKey, scopePath, query.state.status)) continue;
+        return query.state.error instanceof Error
+          ? query.state.error.message
+          : 'A repository read failed';
+      }
+      return null;
+    },
+    () => null
+  );
+}
+
 export function StatusBar() {
   const { settings } = useSettings();
   const routerState = useRouterState();
+  const queryClient = useQueryClient();
 
   const search = routerState.location.search as {
     path?: string;
@@ -186,6 +237,32 @@ export function StatusBar() {
 
   const svnVersion = useKnownSvnVersion();
   const isOffline = useIsOffline();
+  const readError = useWorkingCopyReadError(activeRepo ?? null);
+  /*
+   * Mixed-revision state, in the same spirit as every other cell: derived from
+   * cache entries the Files surface has already filled for this working copy
+   * (its recursive deep status and child commits), anchored by the BASE
+   * revision above. No entry yet — no cell. The derivation's limits are
+   * documented in `lib/workingCopyFreshness`.
+   */
+  const mixedRevisions = useWorkingCopyMixedRevisions(activeRepo, info?.revision);
+
+  /** Retry the working copy's failed reads by making their cache entries stale. */
+  const retryWorkingCopyReads = () => {
+    if (!activeRepo) return;
+    void queryClient.invalidateQueries({
+      predicate: ({ queryKey }) =>
+        isPathKeyedScope(queryKey[0]) && keyTouchesPrefix(queryKey, activeRepo),
+    });
+  };
+
+  /*
+   * The legend dialog owns its open state (it also opens from the command
+   * palette through the same event), so the button is just another source.
+   */
+  const openLegend = () => {
+    window.dispatchEvent(new CustomEvent(STATUS_LEGEND_OPEN_EVENT));
+  };
 
   if (!settings?.showStatusBar) {
     return null;
@@ -256,6 +333,17 @@ export function StatusBar() {
         <span className={`${CELL_LEADING} ${changesTone(status)}`}>{describeChanges(status)}</span>
       )}
 
+      {/* Mixed-revision state of the active working copy, when already read */}
+      {mixedRevisions && (
+        <span
+          className={`${CELL_LEADING} text-accent`}
+          title={`Parts of this working copy are at newer revisions than r${mixedRevisions.baseRevision}:\n${mixedRevisions.items.join('\n')}`}
+        >
+          <Layers className={ICON} aria-hidden="true" />
+          mixed {describeMixedRevisions(mixedRevisions)}
+        </span>
+      )}
+
       {/* Spacer — the prototype's `.sp` */}
       <span className="flex-1" />
 
@@ -271,6 +359,24 @@ export function StatusBar() {
         </span>
       )}
 
+      {/* A working-copy read failed (or timed out) — say which, and offer the retry */}
+      {readError && (
+        <span className={`${CELL_TRAILING} text-error`} title={readError}>
+          <AlertCircle className={ICON} aria-hidden="true" />
+          <span className="truncate">read failed</span>
+          <button
+            type="button"
+            onClick={retryWorkingCopyReads}
+            className="ml-1 inline-flex items-center gap-1 rounded px-1 hover:bg-bg-elevated focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+            aria-label="Retry working copy reads"
+            title={`Retry: ${readError}`}
+          >
+            <RotateCw className={ICON} aria-hidden="true" />
+            retry
+          </button>
+        </span>
+      )}
+
       {isOffline && (
         <span className={`${CELL_TRAILING} text-svn-modified`}>
           <WifiOff className={ICON} aria-hidden="true" />
@@ -278,7 +384,25 @@ export function StatusBar() {
         </span>
       )}
 
+      {/* What the colors mean — the one help affordance on the strip (#94). */}
+      <span className={CELL_TRAILING}>
+        <button
+          type="button"
+          onClick={openLegend}
+          className="inline-flex items-center gap-1 rounded px-1 hover:bg-bg-elevated focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+          aria-label="What the status colors mean"
+          title="What every Subversion status letter and color means"
+        >
+          <HelpCircle className={ICON} aria-hidden="true" />
+          legend
+        </button>
+      </span>
+
       {svnVersion && <span className={CELL_TRAILING}>svn {svnVersion}</span>}
+
+      {/* Status legend dialog (#94): opens from the button above or the
+          command palette via STATUS_LEGEND_OPEN_EVENT. */}
+      <StatusLegendDialogMount />
     </footer>
   );
 }

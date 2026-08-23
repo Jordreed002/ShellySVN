@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 
 import { ShellMark } from '@renderer/components/ShellMark';
+import { EmptyState } from '@renderer/components/ui/EmptyState';
+import { reopenOnboardingChecklist } from '@renderer/lib/onboardingStore';
 import { shortenPath } from '@renderer/components/sidebar/sidebarData';
 import type {
   RailProblems,
@@ -364,7 +366,9 @@ interface EmptyBriefingProps {
  *
  * There is no briefing to give, so this offers the two ways in — `svn checkout`
  * for a repository, or opening a folder that is already a working copy — and
- * says how else the app can be driven.
+ * says how else the app can be driven. Built on the shared `EmptyState` (#93)
+ * with the shell mark as its illustration, and it is where a dismissed
+ * getting-started checklist is re-opened from.
  */
 export function EmptyBriefing({ onOpen, onCheckout }: EmptyBriefingProps) {
   return (
@@ -372,40 +376,41 @@ export function EmptyBriefing({ onOpen, onCheckout }: EmptyBriefingProps) {
       aria-labelledby="home-first-run"
       className="rounded-10 border border-border bg-bg-secondary p-4 shadow-card"
     >
-      <div className="flex items-start gap-3">
-        <ShellMark className="mt-0.5 h-8 w-8 flex-shrink-0 text-accent" />
-        <div className="min-w-0">
-          <h2 id="home-first-run" className="text-18 font-bold tracking-tight text-text">
-            No working copies yet
-          </h2>
-          <p className="mt-1 max-w-prose text-12.5 text-text-secondary">
-            Check a repository out with <span className="code">svn checkout</span>, or open a folder
-            that is already a working copy. Everything else on this screen describes checkouts, so
-            it stays empty until there is one.
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+      <EmptyState
+        illustration={<ShellMark className="h-8 w-8 text-accent" />}
+        title="No working copies yet"
+        titleId="home-first-run"
+        variant="section"
+        description={
+          <>
+            Check a repository out with <span className="code">svn checkout</span>, or open a
+            folder that is already a working copy. Everything else on this screen describes
+            checkouts, so it stays empty until there is one.
+          </>
+        }
+        primaryAction={{
+          label: 'Checkout…',
+          onClick: onCheckout,
+          icon: GitBranch,
+        }}
+        secondaryAction={{
+          label: 'Open working copy…',
+          onClick: onOpen,
+          icon: FolderOpen,
+        }}
+        hint={
+          <>
+            Drop a working-copy folder anywhere on this screen · press ⌘K for commands ·{' '}
             <button
               type="button"
-              onClick={onCheckout}
-              className="btn btn-primary gap-2 px-3 py-1.5 text-11.5"
+              onClick={reopenOnboardingChecklist}
+              className="underline decoration-border-strong underline-offset-2 hover:text-text-secondary"
             >
-              <GitBranch aria-hidden="true" className="h-3.5 w-3.5" />
-              Checkout…
+              show the getting-started checklist
             </button>
-            <button
-              type="button"
-              onClick={onOpen}
-              className="btn btn-secondary gap-2 px-3 py-1.5 text-11.5"
-            >
-              <FolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
-              Open working copy…
-            </button>
-          </div>
-          <p className="mt-3 font-mono text-9.5 leading-relaxed text-text-faint">
-            Drop a working-copy folder anywhere on this screen · press ⌘K for commands
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
     </section>
   );
 }

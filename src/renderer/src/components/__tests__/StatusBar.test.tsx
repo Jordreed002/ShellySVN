@@ -9,7 +9,7 @@
 
 import React, { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings, SvnStatusChar } from '@shared/types';
@@ -181,5 +181,21 @@ describe('StatusBar', () => {
 
     await waitFor(() => expect(stripText()).toContain('atlas'));
     expect(stripText()).not.toContain('No working copy open');
+  });
+
+  it('opens the status legend from the help affordance (#94)', async () => {
+    renderStatusBar();
+
+    await waitFor(() => expect(stripText()).toContain('atlas'));
+
+    // The one help affordance on the strip: the legend button mounts the dialog.
+    fireEvent.click(screen.getByRole('button', { name: 'What the status colors mean' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('What the status colors mean');
+    // A spot-check of the documented statuses, not the whole legend (the
+    // dialog's own suite covers completeness against the shared union).
+    expect(dialog).toHaveTextContent('Modified');
+    expect(dialog).toHaveTextContent('Conflicted');
   });
 });

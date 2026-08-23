@@ -49,6 +49,7 @@ import {
   RecentLocationsSection,
 } from './HomeSections';
 import { CommandCenterSection } from '@renderer/features/working-copy-command-center/CommandCenterSection';
+import { OnboardingChecklist } from '@renderer/components/onboarding/OnboardingChecklist';
 
 const AddRepoModal = lazy(() =>
   import('@renderer/components/ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
@@ -230,6 +231,11 @@ export function HomeScreen() {
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-overlay">
         <div className="mx-auto grid max-w-[1180px] gap-3 p-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:items-start">
+          {/* Getting-started checklist (#88): auto-checked from app state,
+              dismissible, hidden once every completable step is done. */}
+          <div className="xl:col-span-2">
+            <OnboardingChecklist onOpenWorkingCopy={() => setModal('open')} />
+          </div>
           {isFirstRun ? (
             <>
               <div className="xl:col-span-2">
