@@ -21,6 +21,7 @@ import {
   generateAiCommitMessage,
   generateAiReleaseNotes,
   getAiCommitProviders,
+  invalidateAiProviderStatusCache,
   listAiProviderModels,
   planAiCommit,
   proposeAiConflictResolution,
@@ -129,21 +130,32 @@ export function registerAiHandlers(ipcMain: AiIpcMain): void {
     }))
   );
   ipcMain.handle('ai:credentials:summary', () => currentAiCredentialsStore().summary());
+  // Credential/config mutations drop the cached provider statuses so the next
+  // `ai:providers` call reflects the new configuration immediately.
   ipcMain.handle('ai:credentials:save', (_event, ...args) =>
     currentAiCredentialsStore()
       .saveProviderCredential(args[0] as AiProviderCredentialInput)
-      .then(() => ({ success: true }))
+      .then(() => {
+        invalidateAiProviderStatusCache();
+        return { success: true };
+      })
       .catch((error: unknown) => toOperationResult(error))
   );
   ipcMain.handle('ai:credentials:remove', (_event, ...args) =>
     currentAiCredentialsStore()
       .removeProviderCredential(args[0] as AiProviderId)
-      .then(() => ({ success: true }))
+      .then(() => {
+        invalidateAiProviderStatusCache();
+        return { success: true };
+      })
   );
   ipcMain.handle('ai:custom-providers:upsert', (_event, ...args) =>
     currentAiCredentialsStore()
       .upsertCustomProvider(args[0] as AiCustomProviderUpsertInput)
-      .then(({ id }) => ({ success: true, id }))
+      .then(({ id }) => {
+        invalidateAiProviderStatusCache();
+        return { success: true, id };
+      })
       .catch((error: unknown) => toOperationResult(error))
   );
   ipcMain.handle('ai:estimateCost', (_event, ...args) =>

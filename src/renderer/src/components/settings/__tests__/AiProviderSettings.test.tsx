@@ -239,10 +239,50 @@ describe('AiProviderSettings configured-card model', () => {
     expect(text.textContent).toContain('pricing unknown');
   });
 
-  it('reports load failures without crashing', async () => {
-    providers.mockRejectedValue(new Error('ipc down'));
+  it('paints from the summary while the status probe is pending, then fills statuses in', async () => {
+    let resolveProviders!: (value: AiCommitProviderStatus[]) => void;
+    providers.mockReturnValue(
+      new Promise<AiCommitProviderStatus[]>((resolve) => {
+        resolveProviders = resolve;
+      })
+    );
+    summary.mockResolvedValue(defaultSummary({ providers: [credential('anthropic')] }));
     render(<AiProviderSettings />);
-    expect(await screen.findByText(/could not be loaded/i)).toBeInTheDocument();
+    // The card paints from the summary alone; the status line and CLI group
+    // show pending placeholders.
+    expect(await screen.findByTestId('ai-provider-anthropic')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-add-provider-open')).toBeInTheDocument();
+    expect(screen.queryByTestId('ai-providers-empty')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('ai-status-pending')).toHaveLength(1);
+    expect(screen.getByTestId('ai-cli-pending')).toBeInTheDocument();
+    // Resolving the probe swaps placeholders for real statuses.
+    resolveProviders([
+      httpStatus('anthropic', { available: true, version: 'cli-2.0' }),
+      { provider: 'codex', available: true, kind: 'cli', version: '0.9.1' },
+    ]);
+    expect(await screen.findByText('Available (cli-2.0)')).toBeInTheDocument();
+    expect(screen.queryByTestId('ai-status-pending')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ai-provider-codex')).toBeInTheDocument();
+    expect(screen.queryByTestId('ai-cli-pending')).not.toBeInTheDocument();
+  });
+
+  it('keeps cards functional when the status probe rejects', async () => {
+    providers.mockRejectedValue(new Error('ipc down'));
+    summary.mockResolvedValue(defaultSummary({ providers: [credential('anthropic')] }));
+    render(<AiProviderSettings />);
+    expect(await screen.findByTestId('ai-provider-anthropic')).toBeInTheDocument();
+    // statusLine(undefined) semantics per card, plus a muted note — the page
+    // itself does not error out.
+    expect(screen.getByTestId('ai-provider-anthropic').textContent).toContain('Status unknown.');
+    expect(await screen.findByText('Provider status could not be loaded.')).toBeInTheDocument();
+    expect(screen.queryByText(/AI provider status could not be loaded/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the load error only when the credentials summary itself fails', async () => {
+    summary.mockRejectedValue(new Error('ipc down'));
+    render(<AiProviderSettings />);
+    expect(await screen.findByText('AI provider status could not be loaded.')).toBeInTheDocument();
+    expect(screen.queryByTestId('ai-add-provider-open')).not.toBeInTheDocument();
   });
 });
 

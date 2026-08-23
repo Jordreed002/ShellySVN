@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockHandle = vi.hoisted(() => vi.fn());
 const mockProviders = vi.hoisted(() => vi.fn());
+const mockInvalidateProviders = vi.hoisted(() => vi.fn());
 const mockGenerate = vi.hoisted(() => vi.fn());
 const mockCancel = vi.hoisted(() => vi.fn());
 const mockReview = vi.hoisted(() => vi.fn());
@@ -26,6 +27,7 @@ const mockConsentSet = vi.hoisted(() => vi.fn());
 
 vi.mock('../../services/ai-commit-message', () => ({
   getAiCommitProviders: mockProviders,
+  invalidateAiProviderStatusCache: mockInvalidateProviders,
   generateAiCommitMessage: mockGenerate,
   cancelAiCommitMessage: mockCancel,
   reviewAiCommit: mockReview,
@@ -184,6 +186,8 @@ describe('AI IPC handlers', () => {
     expect(mockListModels).toHaveBeenCalledWith('ollama');
     expect(mockConsentGet).toHaveBeenCalledWith('/wc');
     expect(mockConsentSet).toHaveBeenCalledWith('/wc', false);
+    // Successful credential mutations drop the cached provider statuses.
+    expect(mockInvalidateProviders).toHaveBeenCalledTimes(2);
   });
 
   it('upserts custom providers and forwards provider ids unchanged', async () => {
@@ -211,6 +215,7 @@ describe('AI IPC handlers', () => {
     });
     expect(mockCredentialsStore.removeProviderCredential).toHaveBeenCalledWith('custom:acme');
     expect(mockListModels).toHaveBeenCalledWith('custom:acme');
+    expect(mockInvalidateProviders).toHaveBeenCalledTimes(2);
   });
 
   it('wraps custom provider upsert failures into a failed operation result', async () => {
@@ -227,5 +232,6 @@ describe('AI IPC handlers', () => {
       success: false,
       error: 'Custom provider names must be 1 to 80 characters.',
     });
+    expect(mockInvalidateProviders).not.toHaveBeenCalled();
   });
 });

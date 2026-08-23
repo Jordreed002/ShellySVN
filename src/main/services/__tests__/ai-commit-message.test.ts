@@ -25,6 +25,7 @@ import {
   estimateAiCostForRequest,
   generateAiCommitMessage,
   getAiCommitProviders,
+  invalidateAiProviderStatusCache,
   listAiProviderModels,
 } from '../ai-commit-message';
 import { AiCredentialsStore, setAiCredentialsStoreForTests } from '../ai-credentials';
@@ -77,11 +78,36 @@ vi.mock('../svn-executor', () => ({ runSvnText: vi.fn(async () => DIFF) }));
 
 // Deterministic CLI probing: machine-installed codex/claude binaries and
 // ambient credential environment variables must never influence selection.
+// Probes run through the async `spawn` path, so the fake emits stdout plus a
+// failing 'close' (status 1) on a microtask — exactly how a real child that
+// exits non-zero behaves, without touching the real event loop.
+const cliProbeState = vi.hoisted(() => ({ spawnCalls: 0 }));
+
 vi.mock('node:child_process', async () => {
   const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+  const { EventEmitter } = await vi.importActual<typeof import('node:events')>('node:events');
+  type FakeChild = EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    stdin: { end: () => void };
+    kill: () => void;
+  };
   return {
     ...actual,
     spawnSync: vi.fn(() => ({ status: 1 })),
+    spawn: vi.fn((() => {
+      cliProbeState.spawnCalls += 1;
+      const child = new EventEmitter() as FakeChild;
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = { end: () => undefined };
+      child.kill = () => undefined;
+      queueMicrotask(() => {
+        child.stdout.emit('data', Buffer.from('probe-exit-1\n'));
+        child.emit('close', 1, null);
+      });
+      return child;
+    }) as unknown as typeof actual.spawn),
   };
 });
 
@@ -287,6 +313,9 @@ describe('AI custom provider selection and status', () => {
 
   beforeEach(async () => {
     directory = await mkdtemp(join(tmpdir(), 'shelly-ai-custom-'));
+    // The status cache is module state: every test starts with a clean probe.
+    invalidateAiProviderStatusCache();
+    cliProbeState.spawnCalls = 0;
     customState.userData = directory;
     customState.aiSettings = { ...baseSettings, provider: 'auto' };
     for (const key of CLAUDE_AUTH_ENV_KEYS) vi.stubEnv(key, '');
@@ -449,6 +478,45 @@ describe('AI custom provider selection and status', () => {
     expect(custom?.reason).toBe(
       'No local Ollama or LM Studio server is reachable. Start the server or set its base URL in AI provider settings.'
     );
+  });
+
+  it('serves concurrent status calls from one in-flight probe and caches within the TTL', async () => {
+    const [, second] = await Promise.all([getAiCommitProviders(), getAiCommitProviders()]);
+    const probes = cliProbeState.spawnCalls;
+    expect(second.length).toBeGreaterThan(0);
+    expect(probes).toBeGreaterThan(0);
+    // Same-Flight sharing: two simultaneous calls must not double the probes.
+    expect(cliProbeState.spawnCalls).toBe(probes);
+    await getAiCommitProviders();
+    // Cached within the TTL: no further spawns.
+    expect(cliProbeState.spawnCalls).toBe(probes);
+  });
+
+  it('re-probes provider statuses after the cache TTL expires', async () => {
+    // Fake timers must not gate the ollama reachability fetch: fail it fast.
+    setProviderFetchForTests((async () => {
+      throw new TypeError('connection refused');
+    }) as unknown as ProviderFetch);
+    vi.useFakeTimers();
+    try {
+      await getAiCommitProviders();
+      const probes = cliProbeState.spawnCalls;
+      expect(probes).toBeGreaterThan(0);
+      vi.advanceTimersByTime(10_001);
+      await getAiCommitProviders();
+      expect(cliProbeState.spawnCalls).toBeGreaterThan(probes);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('forces a re-probe when the status cache is invalidated', async () => {
+    await getAiCommitProviders();
+    const probes = cliProbeState.spawnCalls;
+    expect(probes).toBeGreaterThan(0);
+    invalidateAiProviderStatusCache();
+    await getAiCommitProviders();
+    expect(cliProbeState.spawnCalls).toBeGreaterThan(probes);
   });
 
   it('lists protocol catalog models re-tagged for a custom provider and none for unknown ids', async () => {

@@ -31,7 +31,8 @@ import type {
 } from '@shared/types';
 import { MAX_COMMIT_MESSAGE_LENGTH } from '@shared/constants';
 import { parseSvnLogXml } from '@shared/svn-parsers';
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessByStdio, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
@@ -69,7 +70,11 @@ import {
   isPathExcludedByRepositoryProfile,
   RepositoryAiProfileStore,
 } from './ai-repository-profile';
-import { currentAiCredentialsStore, type AiCustomProviderInfo } from './ai-credentials';
+import {
+  currentAiCredentialsStore,
+  type AiCredentialsStore,
+  type AiCustomProviderInfo,
+} from './ai-credentials';
 import { assertAiConsentForPath, scanOutboundPrompt } from './ai-privacy-scanner';
 import { emitAiStreamEvent } from './ai-providers/stream-emitter';
 import { resolveOllamaChatUrl } from './ai-providers/openai-chat';
@@ -99,6 +104,9 @@ const MAX_SELECTED_PATHS = 1_000;
 const DEFAULT_CODEX_MODEL: AiCodexModel = 'gpt-5.6-luna';
 const CODEX_MODELS = new Set<AiCodexModel>(['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol']);
 const MAX_CONFLICT_BYTES = 512 * 1024;
+/** Broken-shell respawn TTL and missed-executable rescan TTL (see caches below). */
+const LOGIN_SHELL_MISS_TTL_MS = 30_000;
+const RESOLVED_EXECUTABLE_MISS_TTL_MS = 60_000;
 const explanationCache = new Map<string, AiDiffExplanationResult>();
 let sessionInvocationCount = 0;
 
@@ -116,6 +124,12 @@ interface ResolvedProviderExecutable {
 
 const activeOperations = new Map<string, ActiveOperation>();
 const resolvedExecutables = new Map<AiCommitProvider, ResolvedProviderExecutable>();
+/**
+ * Negative results are NOT kept forever: a missing CLI gets a short TTL so a
+ * freshly installed binary is picked up within a minute without paying a full
+ * PATH rescan (which includes the login-shell probe) on every status call.
+ */
+const unresolvedExecutables = new Map<AiCommitProvider, { miss: true; expiresAt: number }>();
 
 function candidateNames(command: string): string[] {
   if (process.platform !== 'win32') return [command];
@@ -126,20 +140,88 @@ function candidateNames(command: string): string[] {
   return [command, ...extensions.map((extension) => `${command}${extension.toLowerCase()}`)];
 }
 
-function loginShellDirectories(): string[] {
+/**
+ * Async, timeout-bounded CLI probe: never blocks the main-process event loop
+ * (the old `spawnSync` probes froze the AI settings tab for up to 3s each).
+ * Collects at most MAX_PROBE_OUTPUT_BYTES of stdout; a spawn error or timeout
+ * resolves with `status: null` so callers treat it exactly like a failed exit.
+ */
+const PROBE_TIMEOUT_MS = 3_000;
+const MAX_PROBE_OUTPUT_BYTES = 10 * 1024;
+
+async function runCliProbe(
+  command: string,
+  prefixArgs: string[],
+  probeArgs: string[],
+  env: NodeJS.ProcessEnv,
+  timeoutMs = PROBE_TIMEOUT_MS
+): Promise<{ status: number | null; stdout: string }> {
+  return new Promise((resolveProbe) => {
+    // stdin is 'ignore' for probes; stdout/stderr stay piped and non-null.
+    let child: ChildProcessByStdio<null, Readable, Readable>;
+    try {
+      child = spawn(command, [...prefixArgs, ...probeArgs], {
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env,
+      });
+    } catch {
+      resolveProbe({ status: null, stdout: '' });
+      return;
+    }
+    let stdout = '';
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const finish = (status: number | null) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolveProbe({ status, stdout });
+    };
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (Buffer.byteLength(stdout) < MAX_PROBE_OUTPUT_BYTES) stdout += chunk.toString('utf8');
+    });
+    // A broken shell must not re-spawn on every probe: failures get a short
+    // negative TTL while a completed probe caches its directories for the
+    // session (login shell PATH does not change while the app runs).
+    child.once('error', () => finish(null));
+    child.once('close', (code) => finish(code));
+    timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(null);
+    }, Math.max(timeoutMs, 1));
+    // Some test fake-timer implementations do not provide unref.
+    if (typeof timer.unref === 'function') timer.unref();
+  });
+}
+
+let loginShellDirectoriesCache: string[] | null = null;
+let loginShellMissUntil = 0;
+let loginShellDirectoriesPending: Promise<string[]> | undefined;
+
+async function loginShellDirectories(): Promise<string[]> {
   if (process.platform === 'win32') return [];
   const shell = process.env.SHELL;
   if (!shell || !isAbsolute(shell)) return [];
-  try {
-    const result = spawnSync(shell, ['-ilc', 'printf %s "$PATH"'], {
-      encoding: 'utf8',
-      timeout: 3_000,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    return (result.stdout ?? '').trim().split(delimiter).filter(isAbsolute);
-  } catch {
-    return [];
-  }
+  if (loginShellDirectoriesCache) return loginShellDirectoriesCache;
+  if (Date.now() < loginShellMissUntil) return [];
+  loginShellDirectoriesPending ??= runCliProbe(
+    shell,
+    [],
+    ['-ilc', 'printf %s "$PATH"'],
+    process.env
+  ).then((probe) => {
+    if (probe.status === null) {
+      // Spawn failure (broken $SHELL or timeout): retry only after the TTL.
+      loginShellMissUntil = Date.now() + LOGIN_SHELL_MISS_TTL_MS;
+      return [];
+    }
+    loginShellDirectoriesCache = probe.stdout.trim().split(delimiter).filter(isAbsolute);
+    return loginShellDirectoriesCache;
+  }).finally(() => {
+    loginShellDirectoriesPending = undefined;
+  });
+  return loginShellDirectoriesPending;
 }
 
 async function resolveWindowsNodeShim(
@@ -171,10 +253,12 @@ async function resolveExecutable(
 ): Promise<ResolvedProviderExecutable | null> {
   const cached = resolvedExecutables.get(provider);
   if (cached) return cached;
+  const missed = unresolvedExecutables.get(provider);
+  if (missed && Date.now() < missed.expiresAt) return null;
   const command = provider === 'codex' ? 'codex' : 'claude';
   const directories = [
     ...(process.env.PATH ?? '').split(delimiter),
-    ...loginShellDirectories(),
+    ...(await loginShellDirectories()),
     '/usr/local/bin',
     '/opt/homebrew/bin',
     join(homedir(), '.local', 'bin'),
@@ -191,12 +275,17 @@ async function resolveExecutable(
           : { command: candidate, prefixArgs: [] };
         if (!executable) continue;
         resolvedExecutables.set(provider, executable);
+        unresolvedExecutables.delete(provider);
         return executable;
       } catch {
         // Keep searching the fixed executable name on trusted PATH entries.
       }
     }
   }
+  unresolvedExecutables.set(provider, {
+    miss: true,
+    expiresAt: Date.now() + RESOLVED_EXECUTABLE_MISS_TTL_MS,
+  });
   return null;
 }
 
@@ -256,33 +345,31 @@ function providerEnvironment(provider: AiCommitProvider): NodeJS.ProcessEnv {
   return env;
 }
 
-function isProviderAuthenticated(
+async function isProviderAuthenticated(
   provider: AiCommitProvider,
   executable: ResolvedProviderExecutable
-): boolean {
+): Promise<boolean> {
   if (provider === 'claude') return hasClaudeApiAuthentication();
-  const probe = spawnSync(executable.command, [...executable.prefixArgs, 'login', 'status'], {
-    encoding: 'utf8',
-    timeout: 3_000,
-    windowsHide: true,
-    env: { ...providerEnvironment(provider), ...executable.extraEnv },
-  });
+  const probe = await runCliProbe(
+    executable.command,
+    executable.prefixArgs,
+    ['login', 'status'],
+    { ...providerEnvironment(provider), ...executable.extraEnv }
+  );
   return probe.status === 0;
 }
 
-function getClaudeCliLogin(executable: ResolvedProviderExecutable): {
+async function getClaudeCliLogin(
+  executable: ResolvedProviderExecutable
+): Promise<{
   loggedIn: boolean;
   authMethod?: string;
-} {
-  const probe = spawnSync(
+}> {
+  const probe = await runCliProbe(
     executable.command,
-    [...executable.prefixArgs, 'auth', 'status', '--json'],
-    {
-      encoding: 'utf8',
-      timeout: 3_000,
-      windowsHide: true,
-      env: { ...providerEnvironment('claude'), ...executable.extraEnv },
-    }
+    executable.prefixArgs,
+    ['auth', 'status', '--json'],
+    { ...providerEnvironment('claude'), ...executable.extraEnv }
   );
   if (probe.status !== 0) return { loggedIn: false };
   return parseClaudeAuthStatus(probe.stdout ?? '');
@@ -496,15 +583,29 @@ function customProviderId(info: AiCustomProviderInfo): AiProviderId {
   return info.id as `custom:${string}`;
 }
 
-async function httpRuntimeConfig(provider: AiProviderId): Promise<HttpProviderRuntimeConfig> {
+/**
+ * One-load view of the credentials store so status paths resolve every
+ * provider's runtime config from a single file read instead of one
+ * `getProviderCredential` call per provider.
+ */
+type AiCredentialsSnapshot = Awaited<ReturnType<AiCredentialsStore['getDecodedSnapshot']>>;
+
+async function httpRuntimeConfig(
+  provider: AiProviderId,
+  snapshot?: AiCredentialsSnapshot
+): Promise<HttpProviderRuntimeConfig> {
   if (isCustomProviderId(provider)) {
-    const info = await findCustomProvider(provider);
+    const info = snapshot
+      ? snapshot.customProviders.find((candidate) => candidate.id === provider)
+      : await findCustomProvider(provider);
     if (!info) {
       // Unknown or deleted custom provider: report a config that fails
       // validation like any unconfigured provider so statuses degrade gracefully.
       return { provider, protocol: 'openai-compatible' };
     }
-    const credential = await currentAiCredentialsStore().getProviderCredential(provider);
+    const credential =
+      snapshot?.customCredentials[provider] ??
+      (await currentAiCredentialsStore().getProviderCredential(provider));
     return {
       provider,
       protocol: info.protocol,
@@ -517,7 +618,9 @@ async function httpRuntimeConfig(provider: AiProviderId): Promise<HttpProviderRu
     // CLI providers have no HTTP runtime configuration.
     return { provider, protocol: 'openai-compatible' };
   }
-  const credential = await currentAiCredentialsStore().getProviderCredential(provider);
+  const credential = snapshot
+    ? (snapshot.builtIns[provider] ?? {})
+    : await currentAiCredentialsStore().getProviderCredential(provider);
   return {
     provider,
     protocol: provider,
@@ -563,7 +666,7 @@ async function selectProvider(
     }
     const executable = await resolveExecutable(provider);
     executableFound ||= Boolean(executable);
-    if (executable && isProviderAuthenticated(provider, executable)) {
+    if (executable && (await isProviderAuthenticated(provider, executable))) {
       return { provider, executable };
     }
   }
@@ -1132,7 +1235,41 @@ export async function prepareAiPrompt(
   }
 }
 
+/**
+ * Provider statuses are probed on every AI-tab mount, SVN-tab mount, and
+ * commit-dialog open. The 10s TTL cache keeps those renders instant while
+ * `invalidateAiProviderStatusCache()` (called by the credential IPC handlers)
+ * makes configuration changes visible immediately. A pending promise is shared
+ * so simultaneous callers never launch duplicate probe storms.
+ */
+const AI_PROVIDER_STATUS_TTL_MS = 10_000;
+let aiProviderStatusCache: { value: AiCommitProviderStatus[]; expiresAt: number } | null = null;
+let aiProviderStatusPending: Promise<AiCommitProviderStatus[]> | null = null;
+
+/** Drop the cached provider statuses; the next call re-probes. */
+export function invalidateAiProviderStatusCache(): void {
+  aiProviderStatusCache = null;
+  aiProviderStatusPending = null;
+}
+
 export async function getAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
+  if (aiProviderStatusCache && Date.now() < aiProviderStatusCache.expiresAt) {
+    return aiProviderStatusCache.value;
+  }
+  aiProviderStatusPending ??= computeAiCommitProviders()
+    .then((value) => {
+      aiProviderStatusCache = { value, expiresAt: Date.now() + AI_PROVIDER_STATUS_TTL_MS };
+      return value;
+    })
+    .finally(() => {
+      aiProviderStatusPending = null;
+    });
+  return aiProviderStatusPending;
+}
+
+async function computeAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
+  // One credentials-file read backs every runtime config below.
+  const snapshot = await currentAiCredentialsStore().getDecodedSnapshot();
   const cliStatuses = await Promise.all(
     (['codex', 'claude'] as const).map(async (provider) => {
       const executable = await resolveExecutable(provider);
@@ -1141,16 +1278,16 @@ export async function getAiCommitProviders(): Promise<AiCommitProviderStatus[]> 
       let authMethod: string | undefined;
       let version: string | undefined;
       if (executable) {
-        const probe = spawnSync(executable.command, [...executable.prefixArgs, '--version'], {
-          encoding: 'utf8',
-          timeout: 3_000,
-          windowsHide: true,
-          env: { ...providerEnvironment(provider), ...executable.extraEnv },
-        });
-        version = probe.status === 0 ? (probe.stdout ?? '').trim().slice(0, 200) : undefined;
-        authenticated = isProviderAuthenticated(provider, executable);
+        const probe = await runCliProbe(
+          executable.command,
+          executable.prefixArgs,
+          ['--version'],
+          { ...providerEnvironment(provider), ...executable.extraEnv }
+        );
+        version = probe.status === 0 ? probe.stdout.trim().slice(0, 200) : undefined;
+        authenticated = await isProviderAuthenticated(provider, executable);
         if (provider === 'claude') {
-          const login = getClaudeCliLogin(executable);
+          const login = await getClaudeCliLogin(executable);
           cliLoggedIn = login.loggedIn;
           authMethod = login.authMethod;
         }
@@ -1179,7 +1316,7 @@ export async function getAiCommitProviders(): Promise<AiCommitProviderStatus[]> 
 
   const httpStatuses = await Promise.all(
     HTTP_PROVIDER_ORDER.map(async (provider): Promise<AiCommitProviderStatus> => {
-      const config = await httpRuntimeConfig(provider);
+      const config = await httpRuntimeConfig(provider, snapshot);
       const configError = httpProviderConfigError(provider, config);
       if (provider === 'ollama') {
         const reachable = configError ? false : await isOllamaReachable(config.baseUrl);
@@ -1220,9 +1357,9 @@ export async function getAiCommitProviders(): Promise<AiCommitProviderStatus[]> 
   // One status per user-defined custom provider, mirroring the built-in HTTP
   // wording (including the ollama reachability probe for ollama protocols).
   const customStatuses = await Promise.all(
-    (await listCustomProviders()).map(async (info): Promise<AiCommitProviderStatus> => {
+    snapshot.customProviders.map(async (info): Promise<AiCommitProviderStatus> => {
       const id = customProviderId(info);
-      const config = await httpRuntimeConfig(id);
+      const config = await httpRuntimeConfig(id, snapshot);
       const configError = httpProviderConfigError(id, config);
       if (info.protocol === 'ollama') {
         const reachable = configError ? false : await isOllamaReachable(config.baseUrl);

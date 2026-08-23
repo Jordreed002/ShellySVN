@@ -132,6 +132,41 @@ describe('AiCredentialsStore (#20)', () => {
     expect(redacted).toContain('[REDACTED]');
   });
 
+  it('decodes every built-in credential and lists customs from one snapshot load', async () => {
+    const store = new AiCredentialsStore(directory, asBackend);
+    await store.saveProviderCredential({
+      provider: 'anthropic',
+      apiKey: 'sk-ant-snapshot',
+      baseUrl: 'https://api.anthropic.com',
+    });
+    await store.upsertCustomProvider({
+      displayName: 'Acme',
+      protocol: 'openai-compatible',
+      apiKey: 'acme-key',
+      baseUrl: 'https://acme.test/v1',
+      modelOverride: 'acme-model',
+    });
+
+    const snapshot = await store.getDecodedSnapshot();
+
+    expect(snapshot.builtIns).toEqual({
+      anthropic: { apiKey: 'sk-ant-snapshot', baseUrl: 'https://api.anthropic.com' },
+    });
+    expect(snapshot.customProviders).toEqual([
+      expect.objectContaining({
+        id: 'custom:acme',
+        displayName: 'Acme',
+        protocol: 'openai-compatible',
+        hasApiKey: true,
+      }),
+    ]);
+    expect(snapshot.customCredentials['custom:acme']).toEqual({
+      apiKey: 'acme-key',
+      baseUrl: 'https://acme.test/v1',
+      modelOverride: 'acme-model',
+    });
+  });
+
   describe('custom providers', () => {
     it('creates a custom provider with an encrypted key, reflected across all read paths', async () => {
       const store = new AiCredentialsStore(directory, asBackend);

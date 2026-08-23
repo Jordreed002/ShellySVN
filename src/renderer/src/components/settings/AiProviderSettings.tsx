@@ -14,7 +14,9 @@
  * (`credentials.remove` on the custom id deletes the definition). When secure
  * storage is unavailable the summary's `storageUnavailableReason` is shown
  * verbatim and key saving is disabled. CLI providers only report their
- * availability.
+ * availability. The page paints from the fast `credentials.summary` read;
+ * provider statuses (slow CLI probes) fill in progressively, and a failed
+ * status probe degrades to "Status unknown." lines instead of failing the page.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -80,7 +82,9 @@ function emptyDraft(): ProviderDraft {
 }
 
 export function AiProviderSettings() {
-  const [statuses, setStatuses] = useState<AiCommitProviderStatus[]>([]);
+  // null = the providers() probe hasn't answered yet (progressive status fill).
+  const [statuses, setStatuses] = useState<AiCommitProviderStatus[] | null>(null);
+  const [statusLoadFailed, setStatusLoadFailed] = useState(false);
   const [summary, setSummary] = useState<AiCredentialsSummary | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,39 +100,24 @@ export function AiProviderSettings() {
   const refreshAll = useCallback(async () => {
     setIsLoading(true);
     setLoadError(false);
+    setStatuses(null);
+    setStatusLoadFailed(false);
+    // The summary is a fast local read and gates the render; provider
+    // statuses spawn CLI probes main-side and fill in progressively. A
+    // rejected status probe must not fail the page.
+    const providerStatusesPromise = window.api.ai.providers().catch(() => null);
     try {
-      const [providerStatuses, credentialsSummary] = await Promise.all([
-        window.api.ai.providers(),
-        window.api.ai.credentials.summary(),
-      ]);
-      setStatuses(providerStatuses);
+      const credentialsSummary = await window.api.ai.credentials.summary();
       setSummary(credentialsSummary);
       setDrafts((current) => {
-        // Seed drafts for every card that can render: the union of reported
-        // statuses and summary entries (customs live in both).
-        const seen = new Set<string>();
-        const ids: string[] = [];
-        for (const status of providerStatuses) {
-          if (!seen.has(status.provider)) {
-            seen.add(status.provider);
-            ids.push(status.provider);
-          }
-        }
-        for (const entry of credentialsSummary.providers) {
-          if (!seen.has(entry.provider)) {
-            seen.add(entry.provider);
-            ids.push(entry.provider);
-          }
-        }
+        // Seed drafts for every card that can render: summary entries cover
+        // configured built-ins and all customs (customs live in the summary).
         const next: Record<string, ProviderDraft> = {};
-        for (const provider of ids) {
-          const existing = credentialsSummary.providers.find(
-            (candidate) => candidate.provider === provider
-          );
-          next[provider] = {
-            ...(current[provider] ?? emptyDraft()),
-            baseUrl: existing?.baseUrl ?? '',
-            modelOverride: existing?.modelOverride ?? '',
+        for (const entry of credentialsSummary.providers) {
+          next[entry.provider] = {
+            ...(current[entry.provider] ?? emptyDraft()),
+            baseUrl: entry.baseUrl ?? '',
+            modelOverride: entry.modelOverride ?? '',
           };
         }
         return next;
@@ -137,6 +126,13 @@ export function AiProviderSettings() {
       setLoadError(true);
     } finally {
       setIsLoading(false);
+    }
+    const providerStatuses = await providerStatusesPromise;
+    if (providerStatuses === null) {
+      setStatuses([]);
+      setStatusLoadFailed(true);
+    } else {
+      setStatuses(providerStatuses);
     }
   }, []);
 
@@ -150,7 +146,7 @@ export function AiProviderSettings() {
     summary?.providers.find((candidate) => candidate.provider === provider);
 
   const statusFor = (provider: AiProviderId) =>
-    statuses.find((candidate) => candidate.provider === provider);
+    (statuses ?? []).find((candidate) => candidate.provider === provider);
 
   const loadModels = useCallback(async (provider: AiProviderId) => {
     setModelsLoading((current) => ({ ...current, [provider]: true }));
@@ -274,7 +270,8 @@ export function AiProviderSettings() {
     );
   }
 
-  const cliProviders = statuses.filter((status) => status.kind !== 'http');
+  const statusesLoaded = statuses !== null;
+  const cliProviders = (statuses ?? []).filter((status) => status.kind !== 'http');
 
   // Stable card order: configured built-ins first (canonical order), then
   // customs alphabetically by display name.
@@ -285,7 +282,7 @@ export function AiProviderSettings() {
   );
   const customIds = [
     ...new Set(
-      [...statuses.map((status) => status.provider), ...summary.providers.map((entry) => entry.provider)]
+      [...(statuses ?? []).map((status) => status.provider), ...summary.providers.map((entry) => entry.provider)]
         .filter((provider) => isCustomProvider(provider))
     ),
   ].toSorted((a, b) =>
@@ -411,12 +408,25 @@ export function AiProviderSettings() {
                     )}
                   </span>
                   <span className="flex items-center gap-1.5 text-10.5 text-text-muted">
-                    {status?.available ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+                    {!statusesLoaded ? (
+                      <span
+                        className="flex items-center gap-1.5"
+                        aria-label={`Checking status for ${label}`}
+                        data-testid="ai-status-pending"
+                      >
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-text-faint" aria-hidden="true" />
+                        Checking…
+                      </span>
                     ) : (
-                      <CircleSlash className="h-3.5 w-3.5 text-text-faint" aria-hidden="true" />
+                      <>
+                        {status?.available ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+                        ) : (
+                          <CircleSlash className="h-3.5 w-3.5 text-text-faint" aria-hidden="true" />
+                        )}
+                        {statusLine(status)}
+                      </>
                     )}
-                    {statusLine(status)}
                   </span>
                 </div>
 
@@ -616,7 +626,20 @@ export function AiProviderSettings() {
         description="Local CLIs authenticate through their own login — status only"
       >
         <div className="space-y-2">
-          {cliProviders.length === 0 && (
+          {!statusesLoaded && (
+            <div
+              className="flex items-center gap-2 rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2 text-sm text-text-muted"
+              aria-label="Checking CLI providers"
+              data-testid="ai-cli-pending"
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-text-faint" aria-hidden="true" />
+              Checking CLI providers…
+            </div>
+          )}
+          {statusesLoaded && statusLoadFailed && (
+            <p className="text-xs text-text-faint">Provider status could not be loaded.</p>
+          )}
+          {statusesLoaded && !statusLoadFailed && cliProviders.length === 0 && (
             <p className="text-sm text-text-muted">No CLI providers are registered.</p>
           )}
           {cliProviders.map((status) => (

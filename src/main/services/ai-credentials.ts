@@ -506,6 +506,48 @@ export class AiCredentialsStore {
     return decryptSecret(this.backend, apiKeyEnc) ?? undefined;
   }
 
+  /**
+   * Single-load snapshot for status paths that need every provider at once:
+   * one file read decrypts all built-in credentials and lists the custom
+   * definitions (plus their decrypted keys, keyed by full `custom:<slug>` id)
+   * so callers avoid one `getProviderCredential` read per provider. The result
+   * is a decrypted in-memory view only: never persisted and never logged.
+   */
+  async getDecodedSnapshot(): Promise<{
+    builtIns: Partial<Record<AiHttpProvider, DecodedProviderCredential>>;
+    customProviders: AiCustomProviderInfo[];
+    customCredentials: Record<string, DecodedProviderCredential>;
+  }> {
+    const file = await this.load();
+    const builtIns: Partial<Record<AiHttpProvider, DecodedProviderCredential>> = {};
+    for (const provider of Object.keys(file.providers) as AiHttpProvider[]) {
+      const entry = file.providers[provider];
+      if (!entry) continue;
+      builtIns[provider] = {
+        apiKey: this.decodeApiKey(entry.apiKeyEnc),
+        baseUrl: entry.baseUrl,
+        modelOverride: entry.modelOverride,
+      };
+    }
+    const entries = Object.entries(file.customProviders ?? {});
+    entries.sort(([slugA, a], [slugB, b]) => {
+      const timeA = Date.parse(a.createdAt) || 0;
+      const timeB = Date.parse(b.createdAt) || 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return slugA.localeCompare(slugB);
+    });
+    const customCredentials: Record<string, DecodedProviderCredential> = {};
+    const customProviders = entries.map(([slug, record]) => {
+      customCredentials[`${CUSTOM_ID_PREFIX}${slug}`] = {
+        apiKey: this.decodeApiKey(record.apiKeyEnc),
+        baseUrl: record.baseUrl,
+        modelOverride: record.modelOverride,
+      };
+      return toCustomProviderInfo(slug, record);
+    });
+    return { builtIns, customProviders, customCredentials };
+  }
+
   /** Custom provider definitions, ordered by createdAt then slug for stability. */
   async listCustomProviders(): Promise<AiCustomProviderInfo[]> {
     const file = await this.load();
