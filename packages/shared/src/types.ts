@@ -132,6 +132,12 @@ export interface SvnStatusResult {
   cancelled?: boolean;
   partial?: boolean;
   commandError?: SvnCommandErrorDetails;
+  /**
+   * Unicode path problems (NFC/NFD mismatches, case collisions) detected during
+   * the scan. Detection and reporting only — nothing is renamed. Absent when
+   * there is nothing to report.
+   */
+  unicodeWarnings?: UnicodePathWarnings;
 }
 
 export interface WorkingCopyUpgradeStatus {
@@ -166,6 +172,12 @@ export interface SvnLogResult {
   entries: SvnLogEntry[];
   startRevision: number;
   endRevision: number;
+  /**
+   * Youngest revision known without an extra round-trip: 0 for repositories
+   * with no commits (r0), otherwise the highest returned entry revision.
+   * Undefined when nothing can be derived (e.g. filtered empty ranges).
+   */
+  youngestRevision?: number;
   /** Set when XML parsing failed - entries may be incomplete or empty */
   parseError?: string;
   error?: string;
@@ -554,6 +566,14 @@ export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 export type FontSize = 'small' | 'medium' | 'large';
 export type StartupAction = 'welcome' | 'lastRepo' | 'empty';
 export type WorkingCopyFormat = '1.8' | '1.9' | '1.10' | '1.11' | '1.12' | '1.13' | '1.14';
+/** Row density: 'compact' shrinks row heights/paddings app-wide. */
+export type AppDensity = 'compact' | 'comfortable';
+/**
+ * High-contrast mode. `true`/`false` force the contrast-boosted token set on
+ * or off; `'system'` (the default) follows the OS `prefers-contrast: more`
+ * preference.
+ */
+export type HighContrastSetting = boolean | 'system';
 
 export interface SavedCredential {
   realm: string;
@@ -664,7 +684,13 @@ export interface IntegrationSettings {
 // AI commit message types
 // ============================================
 
-export type AiCommitProvider = 'codex' | 'claude';
+export type AiCommitProvider =
+  | 'codex'
+  | 'claude'
+  | 'anthropic'
+  | 'azure-openai'
+  | 'openai-compatible'
+  | 'ollama';
 export type AiCodexModel = 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol';
 export type AiTaskKind =
   | 'commit-message'
@@ -684,6 +710,9 @@ export type AiErrorCode =
   | 'invalid_output'
   | 'input_too_large'
   | 'provider_unavailable'
+  | 'consent_required'
+  | 'secret_detected'
+  | 'storage_unavailable'
   | 'unknown';
 type AiCommitProviderPreference = 'auto' | AiCommitProvider;
 type AiCommitMessageStyle = 'concise' | 'conventional';
@@ -738,6 +767,10 @@ export interface AiPromptPreviewResult {
   redacted: boolean;
   omittedBinaryFiles: string[];
   includedHistoryMessages: number;
+  /** Heuristic pre-send cost estimate for the resolved provider/model. */
+  estimate?: AiCostEstimate;
+  /** Outbound privacy scan applied to the previewed prompt. */
+  privacy?: AiPromptPrivacyReport;
 }
 
 export type AiDraftTransformation =
@@ -777,6 +810,25 @@ export interface RepositoryAiPromptProfile {
   excludedPaths: string[];
   requiredReviewQuestions: string[];
   enabledDraftTransformations: AiDraftTransformation[];
+  styleHints?: RepositoryAiStyleHints;
+  updatedAt: string;
+}
+
+export interface RepositoryAiStyleHints {
+  sampledCommits: number;
+  averageSubjectLength: number;
+  maxSubjectLength: number;
+  imperativeMoodRatio: number;
+  prefixCounts: Record<string, number>;
+  dominantPrefix?: string;
+  includesBodyRatio: number;
+  bodyBulletStyle?: 'dash' | 'asterisk' | 'none';
+  issueIdRatio: number;
+  learnedAt?: string;
+}
+
+export interface AiWorkingCopyConsent {
+  aiEnabled: boolean;
   updatedAt: string;
 }
 
@@ -794,6 +846,8 @@ export interface AiCommitProviderStatus {
   cliLoggedIn?: boolean;
   authMethod?: string;
   reason?: string;
+  /** 'cli' providers execute a local CLI; 'http' providers call a remote or local HTTP endpoint. */
+  kind?: 'cli' | 'http';
 }
 
 export interface AiCommitMessageRequest {
@@ -916,6 +970,102 @@ export interface AiConflictProposalRequest {
   theirsContent: string;
 }
 
+// ============================================
+// HTTP AI providers, credentials, streaming,
+// cost estimates, and privacy gating (additive)
+// ============================================
+
+/** Providers executed over HTTP instead of a local CLI. */
+export type AiHttpProvider = Extract<
+  AiCommitProvider,
+  'anthropic' | 'azure-openai' | 'openai-compatible' | 'ollama'
+>;
+
+export interface AiModelInfo {
+  id: string;
+  label: string;
+  provider: AiCommitProvider;
+  local: boolean;
+  contextTokens?: number;
+  defaultForProvider?: boolean;
+  /** True when the entry was discovered live from the endpoint (e.g. Ollama /api/tags). */
+  dynamic?: boolean;
+}
+
+export interface AiCostEstimate {
+  provider: AiCommitProvider;
+  model: string;
+  inputChars: number;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  /** USD per one million input tokens; 0 when pricing is unknown. */
+  inputUsdPerMillion: number;
+  /** USD per one million output tokens; 0 when pricing is unknown. */
+  outputUsdPerMillion: number;
+  estimatedCostUsd: number;
+  /** False when the model has no known pricing entry (estimate is then 0). */
+  pricingKnown: boolean;
+}
+
+export interface AiCostEstimateRequest {
+  provider: AiCommitProvider;
+  model?: string;
+  inputChars: number;
+}
+
+export interface AiProviderCredentialStatus {
+  provider: AiCommitProvider;
+  hasApiKey: boolean;
+  hasBaseUrl: boolean;
+  baseUrl?: string;
+  modelOverride?: string;
+  updatedAt?: string;
+}
+
+export interface AiCredentialsSummary {
+  encryptionAvailable: boolean;
+  storageUnavailableReason?: string;
+  providers: AiProviderCredentialStatus[];
+}
+
+export interface AiProviderCredentialInput {
+  provider: AiCommitProvider;
+  apiKey?: string;
+  baseUrl?: string;
+  modelOverride?: string;
+}
+
+/** Push stream event for a running AI operation, sent on the `ai:stream` channel. */
+export interface AiStreamEvent {
+  operationId: string;
+  /** Incremental assistant text produced by a streaming provider. */
+  delta?: string;
+  /** Terminal event: exactly one per finished operation attempt. */
+  done?: boolean;
+  /** Safe (redacted) error message for failed operations. */
+  error?: string;
+  errorCode?: AiErrorCode;
+}
+
+export type AiPrivacyFindingKind =
+  | 'aws-access-key'
+  | 'github-token'
+  | 'private-key'
+  | 'jwt'
+  | 'secret-assignment'
+  | 'high-entropy-assignment';
+
+export interface AiPromptPrivacyReport {
+  /** True when the outbound prompt was refused instead of sent. */
+  blocked: boolean;
+  /** True when at least one finding was redacted instead of blocked. */
+  redacted: boolean;
+  findingKinds: AiPrivacyFindingKind[];
+}
+
+/** Per-working-copy consent map persisted under `shellysvn:ai-consent:v1`. */
+export type AiConsentMap = Record<string, AiWorkingCopyConsent>;
+
 export interface AppSettings {
   // General
   theme: 'light' | 'dark' | 'system';
@@ -970,6 +1120,17 @@ export interface AppSettings {
   animationSpeed: 'none' | 'fast' | 'normal';
   showThumbnails: boolean;
   showFolderSizes: boolean;
+  /**
+   * Contrast-boosted token overrides (stronger borders, brighter text,
+   * distinct status colors) applied as a `.high-contrast` class on the app
+   * root. Optional so existing stored settings merge cleanly; defaults to
+   * 'system'. See `HighContrastSetting`.
+   */
+  highContrast?: HighContrastSetting;
+  /** Row density driving `--row-height` / `--row-pad-y` app-wide. Optional; defaults to 'comfortable'. */
+  density?: AppDensity;
+  /** Root font scale multiplier (0.85 / 1 / 1.1 / 1.25) applied as font-size on the app root. Optional; defaults to 1. */
+  fontScale?: number;
 
   // Navigation
   bookmarks: Array<{ path: string; name: string; addedAt: number }>;
@@ -1393,6 +1554,12 @@ export interface FsStatusResult {
     [filename: string]: { status: SvnStatusChar; revision?: number; author?: string };
   };
   allEntries: { status: SvnStatusChar; fullPath: string; revision?: number; author?: string }[];
+  /**
+   * Unicode path problems (NFC/NFD mismatches, case collisions) detected during
+   * the scan. Detection and reporting only — nothing is renamed. Absent when
+   * there is nothing to report.
+   */
+  unicodeWarnings?: UnicodePathWarnings;
 }
 
 export interface DeepStatusProgress {
@@ -1509,6 +1676,19 @@ export interface ElectronAPI {
       options?: CancellableRequestOptions
     ) => Promise<AiConflictProposalResult>;
     cancel: (operationId: string) => Promise<{ success: boolean; error?: string }>;
+    /** Subscribe to streaming deltas for AI operations. Returns an unsubscribe function. */
+    onAiStream: (callback: (event: AiStreamEvent) => void) => () => void;
+    credentials: {
+      summary: () => Promise<AiCredentialsSummary>;
+      save: (input: AiProviderCredentialInput) => Promise<{ success: boolean; error?: string }>;
+      remove: (provider: AiCommitProvider) => Promise<{ success: boolean }>;
+    };
+    estimateCost: (request: AiCostEstimateRequest) => Promise<AiCostEstimate>;
+    listModels: (provider: AiCommitProvider) => Promise<AiModelInfo[]>;
+    consent: {
+      get: (workingCopyPath: string) => Promise<AiWorkingCopyConsent | null>;
+      set: (workingCopyPath: string, aiEnabled: boolean) => Promise<{ success: boolean }>;
+    };
   };
   svn: {
     capabilities: () => Promise<{
@@ -1625,6 +1805,22 @@ export interface ElectronAPI {
     lockForce: (path: string, message?: string) => Promise<SvnLockResult>;
     unlockForce: (path: string) => Promise<SvnUnlockResult>;
     lockList: (path: string) => Promise<SvnLockListResult>;
+    /** Full lock record (owner, comment, created, expiry) for steal/break warning dialogs. */
+    lockRecord: (path: string) => Promise<SvnLockRecordResult>;
+    /** Steal a foreign lock after the user confirmed the shown owner. */
+    stealLock: (
+      path: string,
+      comment?: string,
+      confirmation?: LockForceConfirmation
+    ) => Promise<SvnLockForceResult>;
+    /** Break a foreign lock after the user confirmed the shown owner. */
+    breakLock: (path: string, confirmation?: LockForceConfirmation) => Promise<SvnLockForceResult>;
+    /** Set or replace the comment on an existing lock. */
+    setLockComment: (
+      path: string,
+      comment: string,
+      confirmation?: LockForceConfirmation
+    ) => Promise<SvnLockForceResult>;
     checkout: (
       url: string,
       path: string,
@@ -1688,6 +1884,10 @@ export interface ElectronAPI {
       url: string,
       revision?: string
     ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
+    /** Pre-flight validation (dry run) for `svn switch` / `svn relocate`. */
+    validateSwitchOrRelocate: (
+      input: SwitchRelocateInput
+    ) => Promise<SwitchRelocateValidationResult>;
     copy: (
       src: string,
       dst: string,
@@ -1788,6 +1988,16 @@ export interface ElectronAPI {
       revision: string
     ) => Promise<SvnMutationResult>;
     revpropdel: (target: string, name: string, revision: string) => Promise<SvnMutationResult>;
+    /** Read one revision property by absolute repository URL. */
+    getRevprop: (url: string, revision: string, propName: string) => Promise<RevpropValueResult>;
+    /** Edit one revision property; requires the explicit confirmation payload. */
+    editRevprop: (
+      url: string,
+      revision: string,
+      propName: string,
+      newValue: string,
+      confirmation?: RevpropConfirmation
+    ) => Promise<RevpropEditResult>;
     blame: (
       path: string,
       startRevision?: number,
@@ -1828,12 +2038,36 @@ export interface ElectronAPI {
     };
     diagnostics: (workingCopyPath: string) => Promise<RepoDiagnostics>;
     workingCopyHealth: (workingCopyPath: string) => Promise<WorkingCopyHealthReport>;
+    /** Detect the trunk/branches/tags layout of a repository root URL. */
+    getRepositoryLayout: (
+      url: string,
+      authSessionId?: string
+    ) => Promise<SvnRepoLayout>;
+    /** Analyze a working copy's pristine store (sizes, orphans, vacuum advice). */
+    analyzePristine: (
+      workingCopyPath: string,
+      options?: Omit<PristineAnalysisOptions, 'signal'>
+    ) => Promise<PristineAnalysisResult>;
+    /** Scan the contents of changed files for likely secrets (redacted results). */
+    scanSecrets: (
+      paths: string[],
+      options?: Omit<SecretScanOptions, 'signal'>
+    ) => Promise<SecretScanResult>;
+    /** Detect registered working copies whose folder moved/renamed on disk. */
+    detectWcRelinks: () => Promise<WcRelinkDetectionResult>;
+    /** Explicitly apply a relink proposal (registry + settings rewrite). */
+    applyWcRelink: (proposal: RelinkProposal) => Promise<ApplyRelinkResult>;
     commandTimeline: () => Promise<SvnCommandTimelineEntry[]>;
     clearCommandTimeline: () => Promise<OperationResult>;
     trustServerCertificate: (
       url: string,
       errorText: string
     ) => Promise<{ success: boolean; error?: string }>;
+    /** Record an explicit user rejection of a server certificate. */
+    rejectServerCertificate: (
+      url: string,
+      errorText: string
+    ) => Promise<{ success: boolean; error?: string; failureKind?: SslFailureKind }>;
   };
   external: {
     openDiffTool: (
@@ -2030,6 +2264,20 @@ export interface ElectronAPI {
     getInterruptedWorkingCopyMutations: () => Promise<InterruptedMutationRecord[]>;
     /** Acknowledge recovery; clears the persisted interruption journal. */
     clearInterruptedWorkingCopyMutations: () => Promise<{ success: boolean; error?: string }>;
+    /** Corroborated recovery proposals, one event per plan at startup. */
+    onInterruptedMutationRecoveryPlan: (
+      callback: (plan: InterruptedMutationRecoveryPlan) => void
+    ) => () => void;
+    getInterruptedMutationRecoveryPlans: () => Promise<InterruptedMutationRecoveryPlan[]>;
+    /** Explicitly invoked recovery execution for one working copy's plan. */
+    executeInterruptedMutationRecoveryPlan: (
+      workingCopyPath: string
+    ) => Promise<{
+      success: boolean;
+      error?: string;
+      workingCopyPath?: string;
+      steps?: InterruptedMutationRecoveryStepResult[];
+    }>;
   };
   notification: {
     show: (options: NotificationOptions) => Promise<boolean>;
@@ -2080,6 +2328,12 @@ export interface RepoDiagnostics {
   // Connection test
   connectionStatus: 'ok' | 'auth-required' | 'ssl-error' | 'network-error' | 'unknown';
   connectionError?: string;
+
+  /**
+   * Redacted view of the active proxy / client-certificate / SSL trust state.
+   * Optional for compatibility with older callers; produced by `svn:diagnostics`.
+   */
+  networkSecurity?: NetworkSecurityDiagnostics;
 }
 
 export type WorkingCopyHealthSeverity = 'info' | 'warning' | 'danger';
@@ -2103,6 +2357,556 @@ export interface InterruptedMutationRecord {
   workingCopyPath: string;
   interruptedAt: string;
   reason: string;
+}
+
+// ============================================
+// Unicode Path Warning Types (Phase 2)
+// ============================================
+
+/** Normalization form of a string, as classified by unicode-path detection. */
+export type UnicodeForm = 'NFC' | 'NFD' | 'mixed';
+
+/** Two canonically equivalent names that are not byte-identical. */
+export interface NormalizationMismatch {
+  /** Path/name exactly as the caller recorded it (e.g. as SVN reported it). */
+  expected: string;
+  /** Path/name exactly as it exists on disk. */
+  onDisk: string;
+  expectedForm: UnicodeForm;
+  onDiskForm: UnicodeForm;
+}
+
+/** Two scanned paths that differ exactly but collide under case-insensitive comparison. */
+export interface CaseCollisionPair {
+  pathA: string;
+  pathB: string;
+}
+
+/**
+ * Unicode path problems attached (additively, only when non-empty) to status
+ * results. Detection and reporting only — nothing is renamed.
+ */
+export interface UnicodePathWarnings {
+  /** SVN-recorded path vs the path as it exists on disk — same text, different normalization form. */
+  normalizationMismatches: NormalizationMismatch[];
+  caseCollisions: CaseCollisionPair[];
+}
+
+// ============================================
+// Disk-Full (ENOSPC) Types (Phase 2, item #30)
+// ============================================
+
+/** The long-running, disk-hungry operations disk-full recovery messaging targets. */
+export type SvnDiskFullOperationKind = 'checkout' | 'export' | 'update';
+
+/** Typed, actionable disk-full details attached to failed operation results. */
+export interface SvnDiskFullErrorDetails {
+  operationKind: SvnDiskFullOperationKind | null;
+  targetPath: string | null;
+  recoveryHint: string;
+}
+
+// ============================================
+// Interrupted-Mutation Recovery Types (Phase 2, item #31)
+// ============================================
+
+/** Filesystem/CLI signals that a working-copy mutation was cut short. */
+export type PartialMutationEvidenceKind =
+  | 'stale-admin-lock'
+  | 'missing-versioned-paths'
+  | 'incomplete-tree';
+
+export interface PartialMutationEvidence {
+  kind: PartialMutationEvidenceKind;
+  detail: string;
+  paths: string[];
+}
+
+export interface PartialMutationDetection {
+  workingCopyPath: string;
+  detectedAt: string;
+  hasEvidence: boolean;
+  evidence: PartialMutationEvidence[];
+  /** Non-fatal probe failures (e.g. the path is no longer a working copy). */
+  notes: string[];
+}
+
+/** Remediation steps proposed for an interrupted mutation. Data only — nothing runs automatically. */
+export type InterruptedMutationRecoveryStepKind =
+  | 'svn-cleanup'
+  | 'retry-update'
+  | 'retry-commit'
+  | 'verify-status';
+
+export interface InterruptedMutationRecoveryStep {
+  kind: InterruptedMutationRecoveryStepKind;
+  /** SVN argv *without* the working-copy target; the executor appends it after `--`. */
+  command: string[];
+  description: string;
+}
+
+export interface InterruptedMutationRecoveryPlan {
+  workingCopyPath: string;
+  createdAt: string;
+  /** Which signals contributed: the interruption journal, current-state detection, or both. */
+  source: 'journal' | 'detection' | 'journal+detection';
+  rationale: string;
+  evidence: PartialMutationEvidence[];
+  steps: InterruptedMutationRecoveryStep[];
+}
+
+export interface InterruptedMutationRecoveryStepResult {
+  kind: InterruptedMutationRecoveryStepKind;
+  /** The full argv that was executed. */
+  command: string[];
+  success: boolean;
+  skipped: boolean;
+  output: string;
+  error?: string;
+}
+
+export interface BuildInterruptedMutationRecoveryPlanOptions {
+  /**
+   * When the caller knows which mutation was interrupted (e.g. an enriched
+   * journal entry), the retry step matches it; otherwise it is inferred from
+   * the evidence (missing/incomplete trees suggest an interrupted update).
+   */
+  interruptedOperation?: 'update' | 'commit';
+}
+
+// ============================================
+// Repository Layout Detection Types (Phase 2)
+// ============================================
+
+export type SvnRepoLayoutKind = 'standard' | 'trunk-only' | 'custom' | 'empty';
+
+export interface SvnRepoLayoutDir {
+  /** Decoded entry name from `svn list`. */
+  name: string;
+  /** Canonical encoded repository URL. */
+  url: string;
+  kind: 'file' | 'dir';
+}
+
+export interface SvnRepoLayout {
+  /** Layout classification summary; individual members below carry the details. */
+  kind: SvnRepoLayoutKind;
+  /** Canonical root URL the layout was detected from. */
+  rootUrl: string;
+  /** Canonical URLs when the conventional directories exist (case-insensitive detection). */
+  trunk?: string;
+  branches?: string;
+  tags?: string;
+  /** Root entries that are not part of the conventional trunk/branches/tags layout. */
+  customDirs: SvnRepoLayoutDir[];
+  /** True only for repositories with no commits (r0): nothing exists at the root. */
+  empty: boolean;
+  /** Youngest repository revision reported by `svn info` on the root (0 for r0). */
+  youngestRevision: number;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  partial?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+// ============================================
+// Network Security Diagnostics Types (Phase 2, items #37/#38)
+// ============================================
+
+/** Classified kind of an SVN server-certificate verification failure. */
+export type SslFailureKind = 'unknown-ca' | 'cn-mismatch' | 'expired' | 'not-yet-valid' | 'other';
+
+/**
+ * Structured certificate failure behind an `ssl-error` connection status.
+ * Everything here is safe to show in the renderer: kinds, host, fingerprint,
+ * validity and trust state — never credentials.
+ */
+export interface NetworkSecuritySslFailure {
+  failureKind: SslFailureKind;
+  failureKinds: SslFailureKind[];
+  fingerprint?: string;
+  host: string;
+  validUntil?: string;
+  rawMessage: string;
+  trustState: 'accepted' | 'rejected' | 'untrusted';
+  /**
+   * False once this (host, fingerprint, failureKind) has been prompted this
+   * session or the certificate was rejected — the renderer must not offer the
+   * trust prompt again, only the typed failure.
+   */
+  promptEligible: boolean;
+}
+
+/**
+ * Redacted view of which proxy / auth / client-certificate settings are
+ * ACTIVE: booleans, hostnames, ports and file paths only. Proxy and
+ * client-certificate passwords must never appear here.
+ */
+export interface NetworkSecurityDiagnostics {
+  proxy: {
+    active: boolean;
+    host: string | null;
+    port: number | null;
+    /** Username AND password configured — the values themselves are secret. */
+    authenticated: boolean;
+    bypassesLocalAddresses: boolean;
+  };
+  clientCertificate: {
+    configured: boolean;
+    path: string | null;
+  };
+  ssl: {
+    verificationEnabled: boolean;
+    /** Origins with an accepted cached trust — scheme://host only. */
+    trustedOrigins: string[];
+    failure?: NetworkSecuritySslFailure;
+  };
+  authSessions: {
+    active: number;
+    persistent: number;
+  };
+}
+
+// ============================================
+// Switch / Relocate Validation Types (Phase 2, item #50)
+// ============================================
+
+export type SwitchRelocateKind = 'switch' | 'relocate';
+
+export type SwitchRelocateIssueCode =
+  | 'INVALID_TARGET_URL'
+  | 'MISSING_WORKING_COPY'
+  | 'WORKING_COPY_INFO_UNAVAILABLE'
+  | 'ALREADY_ON_TARGET'
+  | 'RELOCATE_TARGET_UNCHANGED'
+  | 'NO_COMMON_ROOT'
+  | 'SHALLOW_COMMON_ROOT'
+  | 'RELOCATE_WITHIN_REPOSITORY'
+  | 'REPOSITORY_UUID_MISMATCH'
+  | 'TARGET_NOT_FOUND'
+  | 'TARGET_INFO_UNAVAILABLE';
+
+export interface SwitchRelocateIssue {
+  code: SwitchRelocateIssueCode;
+  message: string;
+  severity: 'error' | 'warning';
+}
+
+export interface SwitchRelocateSummary {
+  kind: SwitchRelocateKind;
+  workingCopyPath: string;
+  targetUrl: string;
+  /** Current (possibly switched) URL of the working copy, when svn info answered. */
+  currentUrl?: string;
+  repositoryRoot?: string;
+  repositoryUuid?: string;
+  /** Repository root/uuid reported by the target URL (switch dry-run only). */
+  targetRepositoryRoot?: string;
+  targetRepositoryUuid?: string;
+  /** Longest shared URL path-segment prefix between current and target (relocate). */
+  commonRootPath?: string;
+  /** HEAD revision of the target URL (switch dry-run), when reachable. */
+  targetHeadRevision?: number;
+  /** True when the target HEAD lookup failed but validation otherwise passed. */
+  targetHeadUnavailable?: boolean;
+}
+
+export interface SwitchRelocateValidationResult {
+  ok: boolean;
+  issues: SwitchRelocateIssue[];
+  summary?: SwitchRelocateSummary;
+}
+
+export interface SwitchRelocateInput {
+  workingCopyPath: string;
+  targetUrl: string;
+  kind: SwitchRelocateKind;
+  /**
+   * Switch only: probe the target URL with `svn info` so the dialog can show
+   * the head revision it would switch to. Defaults to true.
+   */
+  includeTargetRevision?: boolean;
+}
+
+// ============================================
+// Lock Record / Steal / Break Types (Phase 2, item #57)
+// ============================================
+
+/**
+ * Lock record including repository-reported expiry. Structurally compatible
+ * with SvnLockInfo, which has no expiry fields.
+ */
+export interface SvnLockRecord extends SvnLockInfo {
+  /** ISO 8601 timestamp when the repository auto-releases the lock, when reported. */
+  expires?: string;
+  /** True when `expires` lies in the past. */
+  expired?: boolean;
+}
+
+export interface SvnLockRecordResult {
+  lock?: SvnLockRecord;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+/**
+ * Explicit user-confirmation token required by stealLock/breakLock (and by
+ * setLockComment when it would affect someone else's lock). The IPC layer
+ * obtains this after showing the current owner via getLockRecord.
+ */
+export interface LockForceConfirmation {
+  /** Literal true — only set after the user confirmed the owner warning. */
+  confirmed: true;
+  /** Lock owner that was displayed to the user when they confirmed. */
+  confirmedOwner: string;
+}
+
+export type SvnLockForceFailureReason =
+  | 'CONFIRMATION_REQUIRED'
+  | 'OWNER_CHANGED'
+  | 'NOT_LOCKED'
+  | 'FOREIGN_LOCK'
+  | 'HOOK_BLOCKED'
+  | 'SVN_ERROR';
+
+export interface SvnLockForceResult {
+  success: boolean;
+  reason?: SvnLockForceFailureReason;
+  /** Fresh pre-op record (on refusal) or the resulting lock (on success). */
+  lock?: SvnLockRecord;
+  /** Owner of the lock that was stolen or broken. */
+  previousOwner?: string;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+export interface SvnLockListRecordResult extends SvnLockListResult {
+  locks: SvnLockRecord[];
+}
+
+// ============================================
+// Revision-Property Editing Types (Phase 2, item #70)
+// ============================================
+
+export interface RevpropConfirmation {
+  /** Literal true — the user explicitly confirmed the revision-property edit. */
+  confirmed: true;
+  /** Literal true — the user acknowledged the server logs every revprop change. */
+  acknowledgedServerLogging: true;
+}
+
+export type RevpropRejectionReason =
+  | 'CONFIRMATION_REQUIRED'
+  | 'SERVER_LOGGING_NOT_ACKNOWLEDGED'
+  | 'INVALID_URL'
+  | 'INVALID_REVISION'
+  | 'INVALID_PROPERTY_NAME'
+  | 'INVALID_VALUE'
+  | 'SVN_ERROR';
+
+export interface RevpropEditResult {
+  success: boolean;
+  reason?: RevpropRejectionReason;
+  url?: string;
+  revision?: string;
+  propName?: string;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+export interface RevpropValueResult {
+  value?: string;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+// ============================================
+// Pristine Store Analysis Types (Phase 2, item #61)
+// ============================================
+
+export interface PristineSizeBucket {
+  /** Human label, e.g. "64 KiB – 512 KiB". */
+  label: string;
+  /** Inclusive lower bound. */
+  minBytes: number;
+  /** Exclusive upper bound; null = unbounded. */
+  maxBytes: number | null;
+  fileCount: number;
+  totalBytes: number;
+}
+
+export interface PristineLargestFile {
+  /** Path relative to the pristine root, e.g. `ab/abcd1234….svn-base`. */
+  name: string;
+  bytes: number;
+}
+
+export interface PristineOrphanEstimate {
+  /**
+   * True when the wc.db that references the pristine store is missing — every
+   * byte in the store is then unreferenced and safe to reclaim.
+   */
+  storeOrphaned: boolean;
+  /** Files violating the `<sha1>.svn-base` shard layout; definitely orphaned. */
+  malformedFileCount: number;
+  malformedBytes: number;
+  /** Full unreferenced-checksum detection requires wc.db SQLite access. */
+  limitationNote: string;
+}
+
+export type PristineVacuumReason =
+  | 'PRISTINE_ABSOLUTE_SIZE'
+  | 'PRISTINE_TO_WC_RATIO'
+  | 'ORPHANED_STORE';
+
+export interface PristineVacuumRecommendation {
+  recommended: boolean;
+  reasons: PristineVacuumReason[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface PristineAnalysisResult {
+  /** False when the path is not a working copy or has no pristine store. */
+  available: boolean;
+  unavailableReason?: 'not_a_working_copy' | 'pristine_store_missing';
+  workingCopyPath: string;
+  pristineRoot: string;
+  totalBytes: number;
+  fileCount: number;
+  largestFileBytes: number;
+  largestFiles: PristineLargestFile[];
+  histogram: PristineSizeBucket[];
+  orphanEstimate: PristineOrphanEstimate;
+  /** Working-copy payload size (excluding .svn); null when not computed. */
+  workingCopySize: { bytes: number; truncated: boolean } | null;
+  vacuumRecommendation: PristineVacuumRecommendation;
+  /** True when the walk stopped mid-scan (aggregates are partial). */
+  cancelled: boolean;
+  /** Walk errors (permission denials etc.), capped. */
+  errors: string[];
+  durationMs: number;
+  scannedAt: string;
+}
+
+export interface PristineAnalysisOptions {
+  signal?: AbortSignal;
+  /**
+   * Force or skip the working-copy size walk backing the ratio heuristic.
+   * Default "auto": only walked when the pristine store is large enough for
+   * the ratio heuristic to trigger.
+   */
+  computeWorkingCopySize?: boolean;
+}
+
+// ============================================
+// Pre-Commit Secret Scan Types (Phase 2, item #76)
+// ============================================
+
+export type SecretSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+export type SecretPatternId =
+  | 'aws-access-key'
+  | 'github-token'
+  | 'gitlab-token'
+  | 'private-key-header'
+  | 'slack-token'
+  | 'google-api-key'
+  | 'jwt'
+  | 'secret-assignment'
+  | 'high-entropy-string';
+
+export interface SecretFinding {
+  /** Path exactly as passed to the scan. */
+  path: string;
+  /** 1-based line number. */
+  line: number;
+  /** 1-based column of the match. */
+  column: number;
+  patternId: SecretPatternId;
+  severity: SecretSeverity;
+  /** Redacted preview; at most the first 4 characters of the secret. */
+  redactedPreview: string;
+}
+
+export interface SecretScanOptions {
+  signal?: AbortSignal;
+  /** Files above this size are skipped (counted as oversize). Default 2 MiB. */
+  maxFileBytes?: number;
+  /** Per-file finding cap to bound result size. Default 50. */
+  maxFindingsPerFile?: number;
+}
+
+export interface SecretFileError {
+  path: string;
+  error: string;
+}
+
+export interface SecretScanResult {
+  findings: SecretFinding[];
+  scannedFileCount: number;
+  skippedBinaryCount: number;
+  skippedOversizeCount: number;
+  /** Lines longer than the scanned-line cap were truncated for scanning. */
+  truncatedLineCount: number;
+  errorFiles: SecretFileError[];
+  /** True when the scan stopped mid-set (findings are partial). */
+  cancelled: boolean;
+  durationMs: number;
+}
+
+// ============================================
+// Working-Copy Relink Types (Phase 2, item #60)
+// ============================================
+
+/** A working copy as recorded by the app's registry (monitor map and/or settings). */
+export interface KnownWorkingCopyEntry {
+  /** Registered on-disk path; may no longer exist. */
+  path: string;
+  /** Recorded repository URL, when the registry captured one. */
+  url?: string;
+  /** Recorded repository UUID, when the registry captured one. */
+  repositoryUuid?: string;
+}
+
+export type RelinkMatchBasis = 'uuid' | 'url' | 'basename';
+export type RelinkConfidence = 'high' | 'medium' | 'low';
+
+export interface RelinkProposal {
+  oldPath: string;
+  newPath: string;
+  matchedOn: RelinkMatchBasis;
+  confidence: RelinkConfidence;
+  /** Identity observed at newPath via `svn info` (never a secret). */
+  url?: string;
+  repositoryUuid?: string;
+}
+
+export interface WcRelinkDetectionResult {
+  /** At most one proposal per registered working copy. */
+  proposals: RelinkProposal[];
+  /** Missing registered paths with no candidate match (user action needed). */
+  unmatchedMissingPaths: string[];
+  /** Registered paths still present on disk — nothing to do. */
+  presentPaths: string[];
+  /** How many candidate directories were verified with `svn info`. */
+  checkedCandidateCount: number;
+  /** True when detection stopped mid-set. */
+  cancelled: boolean;
+  errors: string[];
+}
+
+export interface ApplyRelinkResult {
+  success: boolean;
+  error?: string;
 }
 
 

@@ -1,6 +1,11 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
 import type {
+  LockForceConfirmation,
+  PristineAnalysisOptions,
+  RelinkProposal,
+  RevpropConfirmation,
+  SecretScanOptions,
   CheckoutOptions,
   BranchComparisonResult,
   MergeReadinessReport,
@@ -18,10 +23,12 @@ import type {
   SvnLogResult,
   SvnMergeInfoKind,
   SvnMergeInfoResult,
+  SvnRepoLayout,
   SvnShelveListResult,
   SvnStatusResult,
   SvnMutationNotification,
   SvnMutationResult,
+  SwitchRelocateInput,
 } from '@shared/types';
 
 import { cancelCheckout, checkout, checkoutWithProgress } from '../services/svn-checkout';
@@ -37,11 +44,15 @@ import {
   getUrlDiff,
 } from '../services/svn-history';
 import {
+  breakLock,
   forceLock,
   forceUnlock,
   getLockInfo,
+  getLockRecord,
   listLocks,
   lock as lockWorkingCopyItem,
+  setLockComment,
+  stealLock,
   unlock as unlockWorkingCopyItem,
 } from '../services/svn-locks';
 import {
@@ -54,6 +65,7 @@ import {
   externalsList,
   externalsRemove,
   externalsUpdate,
+  getRepositoryLayout,
   listRepository,
   propdel,
   propdelRemote,
@@ -73,6 +85,7 @@ import { resolveAuthSession } from '../services/auth-session-manager';
 import {
   getDiagnostics,
   getSvnCapabilities,
+  rejectServerCertificate,
   trustServerCertificate,
 } from '../services/svn-diagnostics';
 import { scanWorkingCopyHealth } from '../services/svn-working-copy-health';
@@ -97,6 +110,18 @@ import {
   switchWorkingCopy,
 } from '../services/svn-repository-ops';
 import { cancelSvnOperation } from '../services/svn-progress';
+import { validateSwitchOrRelocate } from '../services/svn-switch-relocate';
+import { editRevprop, getRevprop } from '../services/svn-revprop';
+import { analyzePristineStore } from '../services/pristine-analyzer';
+import { scanFilesForSecrets } from '../services/secret-scanner';
+import {
+  applyRelinkProposal,
+  detectWorkingCopyRelinks,
+  type KnownWorkingCopyEntry,
+} from '../services/wc-relink-detector';
+import { getSettingsManager } from '../settings-manager';
+import { approvePathForIpc, assertPathApprovedForIpc } from '../utils/approved-paths';
+import { getMonitoredWorkingCopies, renameMonitoredWorkingCopy } from './monitor';
 import { getStatusService } from '../services/status-service';
 import { getSvnCacheService } from '../services/svn-cache-service';
 import {
@@ -127,6 +152,14 @@ import {
 import { getSharedWorkerPool } from '../workers/WorkerPool';
 import { getSvnReadError } from '../utils/svn-errors';
 import {
+  normalizeSvnChangeItem,
+  normalizeSvnChangeList,
+  normalizeSvnRevision,
+  normalizeSvnRevisionNumber,
+  requireSvnRevision,
+  requireSvnRevisionNumber,
+} from '../utils/svn-revision';
+import {
   getActiveWorkingCopyMutations,
   subscribeToWorkingCopyMutations,
 } from '../services/svn-mutation-queue';
@@ -144,6 +177,31 @@ async function closeWatchersAfterRemoval(paths: string[]): Promise<void> {
   } catch (error) {
     console.warn('[SVN] Failed to close file watchers after working-copy change:', error);
   }
+}
+
+/**
+ * Locale-independent revision validation for user-supplied revisions: every
+ * `-r`/`-c` value reaching an svn argument goes through utils/svn-revision
+ * (here or in the service layer) so coercible-but-invalid input (`1e3`,
+ * `1.5`, non-ASCII digits, …) is rejected before spawning svn.
+ */
+function sanitizeUpdateOptions(
+  options?: Parameters<typeof updateWorkingCopy>[2]
+): Parameters<typeof updateWorkingCopy>[2] {
+  return options
+    ? { ...options, revision: normalizeSvnRevision(options.revision, 'update revision') }
+    : undefined;
+}
+
+function normalizeMergeRanges(
+  ranges?: Array<{ start: number; end: number }>
+): Array<{ start: number; end: number }> | undefined {
+  // Missing bounds throw instead of leaking `undefined` into the typed
+  // service contract.
+  return ranges?.map((range) => ({
+    start: requireSvnRevisionNumber(range?.start, 'merge range start'),
+    end: requireSvnRevisionNumber(range?.end, 'merge range end'),
+  }));
 }
 
 let mutationStateSubscriptionInstalled = false;
@@ -205,6 +263,57 @@ async function invalidateRepositoryAfter<T>(
   return invalidateStatusAfter([], operation, event, repositoryUrls);
 }
 
+/**
+ * Registry entries for working-copy relink detection (item 60): the monitor's
+ * in-memory working copies (which carry their repository URL) plus
+ * settings.recentRepositories entries that are local paths, deduplicated by
+ * path with the monitor's URL identity winning.
+ */
+async function collectKnownWorkingCopyEntries(): Promise<KnownWorkingCopyEntry[]> {
+  const entriesByPath = new Map<string, KnownWorkingCopyEntry>();
+  for (const info of getMonitoredWorkingCopies()) {
+    if (!info?.path) continue;
+    entriesByPath.set(info.path, {
+      path: info.path,
+      ...(info.url ? { url: info.url } : {}),
+    });
+  }
+
+  const settingsManager = getSettingsManager();
+  await settingsManager.ready();
+  const recentRepositories = settingsManager.getSettings().recentRepositories ?? [];
+  for (const candidate of recentRepositories) {
+    if (typeof candidate !== 'string' || !candidate.trim()) continue;
+    // recentRepositories mixes local paths and repository URLs; relink detection is path-only.
+    if (/^(?:https?|svn(?:\+ssh)?|file):\/\//i.test(candidate)) continue;
+    if (!entriesByPath.has(candidate)) entriesByPath.set(candidate, { path: candidate });
+  }
+
+  return Array.from(entriesByPath.values());
+}
+
+/**
+ * Registry update performed when a relink proposal is applied (item 60): rekey
+ * the monitor map, mirror the move into settings.recentRepositories (same
+ * settings-manager update path the store uses), and approve the new folder so
+ * subsequent IPC against it passes the approved-paths guard. Watchers rooted at
+ * the old path are retired by the caller; fresh ones open on the next fs:watch.
+ */
+async function applyRelinkRegistryUpdate(oldPath: string, newPath: string): Promise<void> {
+  renameMonitoredWorkingCopy(oldPath, newPath);
+
+  const settingsManager = getSettingsManager();
+  await settingsManager.ready();
+  const recentRepositories = settingsManager.getSettings().recentRepositories ?? [];
+  const updated = recentRepositories.map((entry) => (entry === oldPath ? newPath : entry));
+  if (!updated.includes(newPath)) updated.push(newPath);
+  await settingsManager.updateSettings({ recentRepositories: updated });
+
+  // The moved folder was never picked through a native dialog; the user
+  // confirmed the proposal, which is equivalent consent for the new root.
+  approvePathForIpc(newPath, 'directory');
+}
+
 export function registerSvnHandlers(): void {
   ipcMain.handle('svn:capabilities', async () => getSvnCapabilities());
   ipcMain.handle('svn:getActiveWorkingCopyMutations', () => getActiveWorkingCopyMutations());
@@ -223,7 +332,7 @@ export function registerSvnHandlers(): void {
   ipcMain.handle(
     'svn:cat',
     async (_, target: string, revision?: string, workerJobId?: string): Promise<SvnCatResult> =>
-      catRepositoryFile(target, revision, workerJobId)
+      catRepositoryFile(target, normalizeSvnRevision(revision, 'cat revision'), workerJobId)
   );
 
   ipcMain.handle(
@@ -277,7 +386,15 @@ export function registerSvnHandlers(): void {
       workerJobId?: string,
       options = {}
     ): Promise<SvnLogResult> => {
-      return getLog(path, limit, startRev, endRev, useMergeHistory, workerJobId, options);
+      return getLog(
+        path,
+        limit,
+        normalizeSvnRevisionNumber(startRev, 'log start revision'),
+        normalizeSvnRevisionNumber(endRev, 'log end revision'),
+        useMergeHistory,
+        workerJobId,
+        options
+      );
     }
   );
 
@@ -300,7 +417,7 @@ export function registerSvnHandlers(): void {
   ipcMain.handle(
     'svn:revisionImpact',
     async (_, target: string, limit?: number, revision?: number): Promise<RevisionImpactReport> =>
-      getRevisionImpact(target, limit, revision)
+      getRevisionImpact(target, limit, normalizeSvnRevisionNumber(revision, 'impact revision'))
   );
 
   ipcMain.handle(
@@ -326,7 +443,13 @@ export function registerSvnHandlers(): void {
   ipcMain.handle(
     'svn:diff',
     async (_, path: string, revision?: string, workerJobId?: string): Promise<SvnDiffResult> => {
-      return getDiff(path, revision, workerJobId);
+      // The diff revision is passed to `svn diff -c`, so change syntax
+      // (single, reversed, `START:END`) is accepted.
+      return getDiff(
+        path,
+        revision === undefined ? undefined : normalizeSvnChangeItem(revision, 'diff revision'),
+        workerJobId
+      );
     }
   );
 
@@ -341,7 +464,11 @@ export function registerSvnHandlers(): void {
   ipcMain.handle(
     'svn:diffStreaming',
     async (_, path: string, revision?: string, workerJobId?: string): Promise<SvnDiffResult> => {
-      return getDiffStreaming(path, revision, workerJobId);
+      return getDiffStreaming(
+        path,
+        revision === undefined ? undefined : normalizeSvnChangeItem(revision, 'diff revision'),
+        workerJobId
+      );
     }
   );
 
@@ -353,7 +480,12 @@ export function registerSvnHandlers(): void {
       path: string,
       depth?: 'empty' | 'files' | 'immediates' | 'infinity',
       options?: Parameters<typeof updateWorkingCopy>[2]
-    ) => invalidateStatusAfter([path], updateWorkingCopy(path, depth, options), event)
+    ) =>
+      invalidateStatusAfter(
+        [path],
+        updateWorkingCopy(path, depth, sanitizeUpdateOptions(options)),
+        event
+      )
   );
 
   ipcMain.handle(
@@ -367,7 +499,7 @@ export function registerSvnHandlers(): void {
     ) =>
       invalidateStatusAfter(
         [path],
-        updateWithProgress(event, updateId, path, depth, options),
+        updateWithProgress(event, updateId, path, depth, sanitizeUpdateOptions(options)),
         event
       )
   );
@@ -480,7 +612,13 @@ export function registerSvnHandlers(): void {
         : undefined;
       return invalidateStatusAfter(
         [path],
-        checkout(url, path, revision, depth, internalOptions),
+        checkout(
+          url,
+          path,
+          normalizeSvnRevision(revision, 'checkout revision'),
+          depth,
+          internalOptions
+        ),
         event
       );
     }
@@ -506,7 +644,15 @@ export function registerSvnHandlers(): void {
         : undefined;
       return invalidateStatusAfter(
         [path],
-        checkoutWithProgress(event, checkoutId, url, path, revision, depth, internalOptions),
+        checkoutWithProgress(
+          event,
+          checkoutId,
+          url,
+          path,
+          normalizeSvnRevision(revision, 'checkout revision'),
+          depth,
+          internalOptions
+        ),
         event
       );
     }
@@ -519,7 +665,11 @@ export function registerSvnHandlers(): void {
 
   // SVN Export
   ipcMain.handle('svn:export', async (event, url: string, path: string, revision?: string) => {
-    return invalidateStatusAfter([path], exportRepository(url, path, revision), event);
+    return invalidateStatusAfter(
+      [path],
+      exportRepository(url, path, normalizeSvnRevision(revision, 'export revision')),
+      event
+    );
   });
 
   ipcMain.handle(
@@ -527,7 +677,13 @@ export function registerSvnHandlers(): void {
     async (event, operationId: string, url: string, path: string, revision?: string) => {
       return invalidateStatusAfter(
         [path],
-        exportRepositoryWithProgress(event, operationId, url, path, revision),
+        exportRepositoryWithProgress(
+          event,
+          operationId,
+          url,
+          path,
+          normalizeSvnRevision(revision, 'export revision')
+        ),
         event
       );
     }
@@ -579,6 +735,36 @@ export function registerSvnHandlers(): void {
     return listLocks(path);
   });
 
+  // SVN Lock Record - Full lock record (owner, comment, expiry) for steal/break dialogs
+  ipcMain.handle('svn:lockRecord', async (_, path: string) => {
+    return getLockRecord(path);
+  });
+
+  // SVN Steal Lock - Force-unlock a foreign lock and re-lock as the current user.
+  // The owner-bound confirmation payload comes straight from the renderer dialog.
+  ipcMain.handle(
+    'svn:stealLock',
+    async (event, path: string, comment?: string, confirmation?: LockForceConfirmation) => {
+      return invalidateStatusAfter([path], stealLock(path, comment, confirmation), event);
+    }
+  );
+
+  // SVN Break Lock - Force-unlock a foreign lock without re-locking (confirmed)
+  ipcMain.handle(
+    'svn:breakLock',
+    async (event, path: string, confirmation?: LockForceConfirmation) => {
+      return invalidateStatusAfter([path], breakLock(path, confirmation), event);
+    }
+  );
+
+  // SVN Set Lock Comment - Replace a lock comment (re-lock under the hood)
+  ipcMain.handle(
+    'svn:setLockComment',
+    async (event, path: string, comment: string, confirmation?: LockForceConfirmation) => {
+      return invalidateStatusAfter([path], setLockComment(path, comment, confirmation), event);
+    }
+  );
+
   // SVN Resolve
   ipcMain.handle(
     'svn:resolve',
@@ -599,7 +785,19 @@ export function registerSvnHandlers(): void {
 
   // SVN Switch
   ipcMain.handle('svn:switch', async (event, path: string, url: string, revision?: string) => {
-    return invalidateStatusAfter([path], switchWorkingCopy(path, url, revision), event);
+    return invalidateStatusAfter(
+      [path],
+      switchWorkingCopy(path, url, normalizeSvnRevision(revision, 'switch revision')),
+      event
+    );
+  });
+
+  // Pre-flight validation (dry run) for switch/relocate — data only, never touches the working copy.
+  ipcMain.handle('svn:validateSwitchOrRelocate', async (_, input: SwitchRelocateInput) => {
+    if (!input || typeof input !== 'object') {
+      throw new Error('A switch/relocate validation input is required.');
+    }
+    return validateSwitchOrRelocate(input);
   });
 
   // SVN Copy (Branch/Tag)
@@ -684,7 +882,13 @@ export function registerSvnHandlers(): void {
     ) => {
       return invalidateStatusAfter(
         [target],
-        mergeRepositoryRange(source, target, revisions, ranges, options),
+        mergeRepositoryRange(
+          source,
+          target,
+          normalizeSvnChangeList(revisions, 'merge revisions'),
+          normalizeMergeRanges(ranges),
+          options
+        ),
         event
       );
     }
@@ -708,8 +912,8 @@ export function registerSvnHandlers(): void {
           operationId,
           source,
           target,
-          revisions,
-          ranges,
+          normalizeSvnChangeList(revisions, 'merge revisions'),
+          normalizeMergeRanges(ranges),
           options
         ),
         event
@@ -802,15 +1006,54 @@ export function registerSvnHandlers(): void {
     invalidateRepositoryAfter(event, [url], propdelRemote(url, name, message))
   );
   ipcMain.handle('svn:revpropget', async (_, target: string, name: string, revision: string) =>
-    revpropget(target, name, revision)
+    revpropget(target, name, requireSvnRevision(revision, 'revprop revision'))
   );
   ipcMain.handle(
     'svn:revpropset',
     async (event, target: string, name: string, value: string, revision: string) =>
-      invalidateRepositoryAfter(event, [target], revpropset(target, name, value, revision))
+      invalidateRepositoryAfter(
+        event,
+        [target],
+        revpropset(target, name, value, requireSvnRevision(revision, 'revprop revision'))
+      )
   );
   ipcMain.handle('svn:revpropdel', async (event, target: string, name: string, revision: string) =>
-    invalidateRepositoryAfter(event, [target], revpropdel(target, name, revision))
+    invalidateRepositoryAfter(
+      event,
+      [target],
+      revpropdel(target, name, requireSvnRevision(revision, 'revprop revision'))
+    )
+  );
+
+  // Revprop editing by absolute repository URL with an explicit confirmation
+  // gate (plain confirm + audit-trail acknowledgement), passed straight through.
+  ipcMain.handle(
+    'svn:getRevprop',
+    async (_, url: string, revision: string, propName: string) =>
+      getRevprop(url, requireSvnRevision(revision, 'revprop revision'), propName)
+  );
+
+  ipcMain.handle(
+    'svn:editRevprop',
+    async (
+      event,
+      url: string,
+      revision: string,
+      propName: string,
+      newValue: string,
+      confirmation?: RevpropConfirmation
+    ) =>
+      invalidateRepositoryAfter(
+        event,
+        [url],
+        editRevprop(
+          url,
+          requireSvnRevision(revision, 'revprop revision'),
+          propName,
+          newValue,
+          confirmation
+        )
+      )
   );
 
   // ============================================
@@ -826,7 +1069,12 @@ export function registerSvnHandlers(): void {
       endRevision?: number,
       workerJobId?: string
     ): Promise<SvnBlameResult> => {
-      return getBlame(path, startRevision, endRevision, workerJobId);
+      return getBlame(
+        path,
+        normalizeSvnRevisionNumber(startRevision, 'blame start revision'),
+        normalizeSvnRevisionNumber(endRevision, 'blame end revision'),
+        workerJobId
+      );
     }
   );
 
@@ -845,7 +1093,7 @@ export function registerSvnHandlers(): void {
     ): Promise<SvnListResult> => {
       return listRepository(
         url,
-        revision,
+        normalizeSvnRevision(revision, 'list revision'),
         depth,
         resolveAuthSession(event.sender.id, authSessionId, url)
       );
@@ -952,6 +1200,50 @@ export function registerSvnHandlers(): void {
     }
   );
 
+  // Repository layout detection (trunk/branches/tags classification, data-only)
+  ipcMain.handle(
+    'svn:getRepositoryLayout',
+    async (event, url: string, authSessionId?: string): Promise<SvnRepoLayout> => {
+      return getRepositoryLayout(url, resolveAuthSession(event.sender.id, authSessionId, url));
+    }
+  );
+
+  // Pristine-store analysis: sizes, orphans, vacuum recommendation. Data-only —
+  // running `svn cleanup --vacuum` stays a separate, explicit operation.
+  ipcMain.handle(
+    'svn:analyzePristine',
+    async (_, workingCopyPath: string, options?: Omit<PristineAnalysisOptions, 'signal'>) => {
+      const approvedPath = assertPathApprovedForIpc(workingCopyPath, 'Pristine analysis');
+      return analyzePristineStore(approvedPath, options);
+    }
+  );
+
+  // Pre-commit secret scan of renderer-selected files. Every path must live
+  // inside an approved root (same guard as the other file-taking channels).
+  ipcMain.handle(
+    'svn:scanSecrets',
+    async (_, paths: string[], options?: Omit<SecretScanOptions, 'signal'>) => {
+      const targets = Array.isArray(paths) ? paths : [paths];
+      const approvedPaths = targets.map((path) => assertPathApprovedForIpc(path, 'Secret scan'));
+      return scanFilesForSecrets(approvedPaths, options);
+    }
+  );
+
+  // Working-copy relink detection over the monitor + recent-paths registry
+  ipcMain.handle('svn:detectWcRelinks', async () => {
+    return detectWorkingCopyRelinks(await collectKnownWorkingCopyEntries());
+  });
+
+  // Explicitly apply a relink proposal: registry + settings rewrite, then retire
+  // watchers rooted at the old path (mirrors monitor:removeWorkingCopy teardown).
+  ipcMain.handle('svn:applyWcRelink', async (_, proposal: RelinkProposal) => {
+    const result = await applyRelinkProposal(proposal, applyRelinkRegistryUpdate);
+    if (result.success && proposal?.oldPath) {
+      await closeWatchersAfterRemoval([proposal.oldPath]);
+    }
+    return result;
+  });
+
   ipcMain.handle('svn:workingCopyHealth', async (_, workingCopyPath: string) =>
     scanWorkingCopyHealth(workingCopyPath)
   );
@@ -965,6 +1257,15 @@ export function registerSvnHandlers(): void {
     'svn:trustServerCertificate',
     async (_, url: string, errorText: string): Promise<{ success: boolean; error?: string }> => {
       return trustServerCertificate(url, errorText);
+    }
+  );
+
+  // Renderer "don't trust" action: records the rejection so the prompt is not
+  // offered again for the same (host, fingerprint, failureKind).
+  ipcMain.handle(
+    'svn:rejectServerCertificate',
+    async (_, url: string, errorText: string): Promise<{ success: boolean; error?: string }> => {
+      return rejectServerCertificate(url, errorText);
     }
   );
 }

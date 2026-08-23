@@ -26,7 +26,7 @@ import { createAiApi } from './api/ai';
 const invokeIpc = createInvokeIpc(ipcRenderer);
 
 const api: ElectronAPI = {
-  ai: createAiApi(invokeIpc),
+  ai: createAiApi(invokeIpc, ipcRenderer),
   svn: createSvnApi(ipcRenderer, invokeIpc),
   external: createExternalApi(invokeIpc),
   externalTools: createExternalToolsApi(invokeIpc),

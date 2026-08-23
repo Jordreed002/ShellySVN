@@ -34,12 +34,58 @@ vi.mock('../../services/svn-merge-readiness', () => ({ getMergeReadiness: vi.fn(
 vi.mock('../../services/svn-revision-impact', () => ({ getRevisionImpact: vi.fn() }));
 vi.mock('../../services/svn-branch-comparison', () => ({ compareBranches: vi.fn() }));
 vi.mock('../../services/svn-locks', () => ({
+  breakLock: vi.fn(),
   forceLock: vi.fn(),
   forceUnlock: vi.fn(),
   getLockInfo: vi.fn(),
+  getLockRecord: vi.fn(),
   listLocks: vi.fn(),
   lock: vi.fn(),
+  setLockComment: vi.fn(),
+  stealLock: vi.fn(),
   unlock: vi.fn(),
+}));
+vi.mock('../../services/svn-switch-relocate', () => ({
+  validateSwitchOrRelocate: vi.fn(),
+}));
+vi.mock('../../services/svn-revprop', () => ({
+  editRevprop: vi.fn(),
+  getRevprop: vi.fn(),
+}));
+vi.mock('../../services/pristine-analyzer', () => ({
+  analyzePristineStore: vi.fn(),
+}));
+vi.mock('../../services/secret-scanner', () => ({
+  scanFilesForSecrets: vi.fn(),
+}));
+vi.mock('../../services/wc-relink-detector', () => ({
+  applyRelinkProposal: vi.fn().mockResolvedValue({ success: true }),
+  detectWorkingCopyRelinks: vi.fn().mockResolvedValue({
+    proposals: [],
+    unmatchedMissingPaths: [],
+    presentPaths: [],
+    checkedCandidateCount: 0,
+    cancelled: false,
+    errors: [],
+  }),
+}));
+const settingsManagerMock = vi.hoisted(() => ({
+  ready: vi.fn().mockResolvedValue(undefined),
+  getSettings: vi.fn(() => ({ recentRepositories: ['/recent/wc'] })),
+  updateSettings: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../../settings-manager', () => ({
+  getSettingsManager: vi.fn(() => settingsManagerMock),
+}));
+vi.mock('../../utils/approved-paths', () => ({
+  approvePathForIpc: vi.fn((path: string) => path),
+  assertPathApprovedForIpc: vi.fn((path: string) => path),
+}));
+vi.mock('../monitor', () => ({
+  getMonitoredWorkingCopies: vi.fn(() => [
+    { path: '/monitored/wc', url: 'https://svn/r', revision: 1, hasChanges: false, lastChecked: 0, isMonitored: true },
+  ]),
+  renameMonitoredWorkingCopy: vi.fn(() => true),
 }));
 vi.mock('../../services/svn-metadata', () => ({
   changelistAdd: vi.fn(),
@@ -52,6 +98,7 @@ vi.mock('../../services/svn-metadata', () => ({
   externalsRemove: vi.fn(),
   externalsUpdate: vi.fn(),
   listRepository: vi.fn(),
+  getRepositoryLayout: vi.fn(),
   propdel: vi.fn(),
   propdelRemote: vi.fn(),
   propget: vi.fn(),
@@ -72,6 +119,7 @@ vi.mock('../../services/auth-session-manager', () => ({
 vi.mock('../../services/svn-diagnostics', () => ({
   getDiagnostics: vi.fn(),
   getSvnCapabilities: vi.fn(() => ({ supportsShelve: true })),
+  rejectServerCertificate: vi.fn(),
   trustServerCertificate: vi.fn(),
 }));
 vi.mock('../../services/svn-patch', () => ({ applyPatch: vi.fn(), createPatch: vi.fn() }));
@@ -140,10 +188,19 @@ import * as diag from '../../services/svn-diagnostics';
 import * as wc from '../../services/svn-working-copy';
 import * as meta from '../../services/svn-metadata';
 import * as auth from '../../services/auth-session-manager';
+import * as locks from '../../services/svn-locks';
+import * as switchRelocate from '../../services/svn-switch-relocate';
+import * as revprop from '../../services/svn-revprop';
+import * as pristine from '../../services/pristine-analyzer';
+import * as secrets from '../../services/secret-scanner';
+import * as relink from '../../services/wc-relink-detector';
 import { getStatusService } from '../../services/status-service';
 import { getSvnReadError } from '../../utils/svn-errors';
+import { assertPathApprovedForIpc } from '../../utils/approved-paths';
+import { getMonitoredWorkingCopies, renameMonitoredWorkingCopy } from '../monitor';
 import { closeFileWatchersForPath } from '../fs';
 import * as patchMod from '../../services/svn-patch';
+import * as repoOps from '../../services/svn-repository-ops';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -219,8 +276,15 @@ const ARGS: Record<string, unknown[]> = {
   'svn:lockForce': ['/wc/f', 'msg'],
   'svn:unlockForce': ['/wc/f'],
   'svn:lockList': ['/wc'],
+  'svn:lockRecord': ['/wc/f'],
+  'svn:stealLock': ['/wc/f', 'msg', { confirmed: true, confirmedOwner: 'bob' }],
+  'svn:breakLock': ['/wc/f', { confirmed: true, confirmedOwner: 'bob' }],
+  'svn:setLockComment': ['/wc/f', 'note', { confirmed: true, confirmedOwner: 'bob' }],
   'svn:resolve': ['/wc/f', 'theirs-full'],
   'svn:switch': ['/wc', 'https://svn/r', '3'],
+  'svn:validateSwitchOrRelocate': [
+    { workingCopyPath: '/wc', targetUrl: 'https://svn/r', kind: 'switch' },
+  ],
   'svn:copy': ['src', 'dst', 'msg', 's1'],
   'svn:remoteCreateFolder': ['https://svn/parent', 'folder', 'msg', 's1'],
   'svn:remoteDelete': ['https://svn/r', 'msg', 's1'],
@@ -247,6 +311,14 @@ const ARGS: Record<string, unknown[]> = {
   'svn:revpropget': ['/wc', 'svn:date', '5'],
   'svn:revpropset': ['/wc', 'svn:date', '2024', '5'],
   'svn:revpropdel': ['/wc', 'svn:date', '5'],
+  'svn:getRevprop': ['https://svn/r', '5', 'svn:log'],
+  'svn:editRevprop': [
+    'https://svn/r',
+    '5',
+    'svn:log',
+    'new',
+    { confirmed: true, acknowledgedServerLogging: true },
+  ],
   'svn:blame': ['/wc/f', 1, 5, 'job1'],
   'svn:list': ['https://svn/r', '3', 'immediates', 's1'],
   'svn:patch:create': [['/wc/a'], '/out.patch'],
@@ -257,7 +329,15 @@ const ARGS: Record<string, unknown[]> = {
   'svn:externals:edit': ['/wc', 'ext', { url: 'https://svn/r', path: 'ext', name: 'ext' }],
   'svn:externals:update': ['/wc', 'ext'],
   'svn:diagnostics': ['/wc'],
+  'svn:getRepositoryLayout': ['https://svn/r', 's1'],
+  'svn:analyzePristine': ['/wc', { computeWorkingCopySize: true }],
+  'svn:scanSecrets': [['/wc/a', '/wc/b'], { maxFindingsPerFile: 10 }],
+  'svn:detectWcRelinks': [],
+  'svn:applyWcRelink': [
+    { oldPath: '/old/wc', newPath: '/new/wc', matchedOn: 'uuid', confidence: 'high' },
+  ],
   'svn:trustServerCertificate': ['https://svn/r', 'cert text'],
+  'svn:rejectServerCertificate': ['https://svn/r', 'cert text'],
 };
 
 describe('svn IPC handlers — registration and invocation', () => {
@@ -338,6 +418,139 @@ describe('svn IPC handlers — wiring', () => {
   });
 });
 
+describe('svn IPC handlers — Phase 2 channel wiring', () => {
+  it('svn:validateSwitchOrRelocate passes the input through', async () => {
+    const input = { workingCopyPath: '/wc', targetUrl: 'https://svn/r', kind: 'switch' as const };
+    await handlers.get('svn:validateSwitchOrRelocate')!(event(), input);
+    expect(vi.mocked(switchRelocate.validateSwitchOrRelocate)).toHaveBeenCalledWith(input);
+  });
+
+  it('svn:lockRecord delegates to getLockRecord', async () => {
+    await handlers.get('svn:lockRecord')!(event(), '/wc/f');
+    expect(vi.mocked(locks.getLockRecord)).toHaveBeenCalledWith('/wc/f');
+  });
+
+  it('svn:stealLock passes path, comment and confirmation through', async () => {
+    const e = event();
+    const confirmation = { confirmed: true, confirmedOwner: 'bob' };
+    await handlers.get('svn:stealLock')!(e, '/wc/f', 'note', confirmation);
+    expect(vi.mocked(locks.stealLock)).toHaveBeenCalledWith('/wc/f', 'note', confirmation);
+    expect(e.sender.send).toHaveBeenCalledWith('svn:mutation', expect.any(Object));
+  });
+
+  it('svn:breakLock and svn:setLockComment pass confirmation payloads through', async () => {
+    const confirmation = { confirmed: true, confirmedOwner: 'bob' };
+    await handlers.get('svn:breakLock')!(event(), '/wc/f', confirmation);
+    expect(vi.mocked(locks.breakLock)).toHaveBeenCalledWith('/wc/f', confirmation);
+
+    await handlers.get('svn:setLockComment')!(event(), '/wc/f', 'note', confirmation);
+    expect(vi.mocked(locks.setLockComment)).toHaveBeenCalledWith('/wc/f', 'note', confirmation);
+  });
+
+  it('svn:getRevprop validates the revision before delegating', async () => {
+    await handlers.get('svn:getRevprop')!(event(), 'https://svn/r', '5', 'svn:log');
+    expect(vi.mocked(revprop.getRevprop)).toHaveBeenCalledWith('https://svn/r', '5', 'svn:log');
+
+    await expect(
+      handlers.get('svn:getRevprop')!(event(), 'https://svn/r', '12.5', 'svn:log')
+    ).rejects.toThrow(/revprop revision/);
+    expect(vi.mocked(revprop.getRevprop)).toHaveBeenCalledTimes(1);
+  });
+
+  it('svn:editRevprop forwards the confirmation payload', async () => {
+    const confirmation = { confirmed: true, acknowledgedServerLogging: true };
+    await handlers.get('svn:editRevprop')!(
+      event(),
+      'https://svn/r',
+      '5',
+      'svn:log',
+      'new',
+      confirmation
+    );
+    expect(vi.mocked(revprop.editRevprop)).toHaveBeenCalledWith(
+      'https://svn/r',
+      '5',
+      'svn:log',
+      'new',
+      confirmation
+    );
+  });
+
+  it('svn:getRepositoryLayout resolves the auth session before delegating', async () => {
+    await handlers.get('svn:getRepositoryLayout')!(event(), 'https://svn/r', 's1');
+    expect(vi.mocked(auth.resolveAuthSession)).toHaveBeenCalledWith('win-1', 's1', 'https://svn/r');
+    expect(vi.mocked(meta.getRepositoryLayout)).toHaveBeenCalledWith('https://svn/r', {
+      sessionId: 'resolved',
+    });
+  });
+
+  it('svn:analyzePristine asserts path approval and forwards options', async () => {
+    await handlers.get('svn:analyzePristine')!(event(), '/wc', {
+      computeWorkingCopySize: true,
+    });
+    expect(vi.mocked(assertPathApprovedForIpc)).toHaveBeenCalledWith(
+      '/wc',
+      'Pristine analysis'
+    );
+    expect(vi.mocked(pristine.analyzePristineStore)).toHaveBeenCalledWith('/wc', {
+      computeWorkingCopySize: true,
+    });
+  });
+
+  it('svn:scanSecrets approves every renderer-supplied path', async () => {
+    await handlers.get('svn:scanSecrets')!(event(), ['/wc/a', '/wc/b'], {
+      maxFindingsPerFile: 10,
+    });
+    expect(vi.mocked(assertPathApprovedForIpc)).toHaveBeenCalledWith('/wc/a', 'Secret scan');
+    expect(vi.mocked(assertPathApprovedForIpc)).toHaveBeenCalledWith('/wc/b', 'Secret scan');
+    expect(vi.mocked(secrets.scanFilesForSecrets)).toHaveBeenCalledWith(['/wc/a', '/wc/b'], {
+      maxFindingsPerFile: 10,
+    });
+  });
+
+  it('svn:detectWcRelinks merges monitor entries with recent path settings', async () => {
+    await handlers.get('svn:detectWcRelinks')!();
+    expect(vi.mocked(getMonitoredWorkingCopies)).toHaveBeenCalled();
+    expect(settingsManagerMock.getSettings).toHaveBeenCalled();
+    const entries = vi.mocked(relink.detectWorkingCopyRelinks).mock.calls[0][0];
+    expect(entries).toEqual([
+      { path: '/monitored/wc', url: 'https://svn/r' },
+      { path: '/recent/wc' },
+    ]);
+  });
+
+  it('svn:applyWcRelink rewrites the registries and retires old watchers', async () => {
+    vi.mocked(relink.applyRelinkProposal).mockImplementationOnce(
+      async (_proposal, updateRegistry) => {
+        await updateRegistry('/old/wc', '/new/wc');
+        return { success: true };
+      }
+    );
+
+    const result = await handlers.get('svn:applyWcRelink')!(event(), {
+      oldPath: '/old/wc',
+      newPath: '/new/wc',
+      matchedOn: 'uuid',
+      confidence: 'high',
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(vi.mocked(renameMonitoredWorkingCopy)).toHaveBeenCalledWith('/old/wc', '/new/wc');
+    expect(settingsManagerMock.updateSettings).toHaveBeenCalledWith({
+      recentRepositories: ['/recent/wc', '/new/wc'],
+    });
+    expect(vi.mocked(closeFileWatchersForPath)).toHaveBeenCalledWith('/old/wc');
+  });
+
+  it('svn:rejectServerCertificate delegates to the diagnostics service', async () => {
+    await handlers.get('svn:rejectServerCertificate')!(event(), 'https://svn/r', 'cert text');
+    expect(vi.mocked(diag.rejectServerCertificate)).toHaveBeenCalledWith(
+      'https://svn/r',
+      'cert text'
+    );
+  });
+});
+
 describe('svn IPC handlers — branches', () => {
   it('svn:patch:apply calls applyPatch directly on a dry run', async () => {
     await handlers.get('svn:patch:apply')!(event(), '/in.patch', '/wc', true, {});
@@ -357,5 +570,70 @@ describe('svn IPC handlers — branches', () => {
     };
     expect(result.success).toBe(false);
     expect(getSvnReadError).toHaveBeenCalled();
+  });
+});
+
+describe('svn IPC handlers — locale-independent revision validation', () => {
+  it('svn:switch canonicalizes keyword revisions before delegating', async () => {
+    await handlers.get('svn:switch')!(event(), '/wc', 'https://svn/r', ' head ');
+    expect(vi.mocked(repoOps.switchWorkingCopy)).toHaveBeenCalledWith(
+      '/wc',
+      'https://svn/r',
+      'HEAD'
+    );
+  });
+
+  it('svn:switch rejects coercible-but-invalid revisions before spawning svn', async () => {
+    await expect(
+      handlers.get('svn:switch')!(event(), '/wc', 'https://svn/r', '1e3')
+    ).rejects.toThrow(/not a valid SVN revision/);
+    expect(vi.mocked(repoOps.switchWorkingCopy)).not.toHaveBeenCalled();
+  });
+
+  it('svn:checkout rejects non-ASCII digit revisions Number() would coerce', async () => {
+    await expect(
+      handlers.get('svn:checkout')!(event(), 'https://svn/r', '/wc', '１２３')
+    ).rejects.toThrow(/not a valid SVN revision/);
+    expect(vi.mocked(checkoutMod.checkout)).not.toHaveBeenCalled();
+  });
+
+  it('svn:log rejects fractional revision bounds', async () => {
+    await expect(
+      handlers.get('svn:log')!(event(), '/wc', 50, 1.5, 20)
+    ).rejects.toThrow(/log start revision/);
+    expect(vi.mocked(history.getLog)).not.toHaveBeenCalled();
+  });
+
+  it('svn:diff accepts change syntax (reversed revisions) for the -c slot', async () => {
+    await handlers.get('svn:diff')!(event(), '/wc/f', '-7', 'job1');
+    expect(vi.mocked(history.getDiff)).toHaveBeenCalledWith('/wc/f', '-7', 'job1');
+  });
+
+  it('svn:diff rejects malformed change revisions', async () => {
+    await expect(
+      handlers.get('svn:diff')!(event(), '/wc/f', '1:2:3')
+    ).rejects.toThrow(/not a valid change/);
+  });
+
+  it('svn:merge reports the offending change-list index', async () => {
+    await expect(
+      handlers.get('svn:merge')!(event(), 'src', 'tgt', ['5', 'oops'], undefined, {})
+    ).rejects.toThrow(/merge revisions\[1\]/);
+    expect(vi.mocked(repoOps.mergeRepositoryRange)).not.toHaveBeenCalled();
+  });
+
+  it('svn:update sanitizes the revision inside update options', async () => {
+    await handlers.get('svn:update')!(event(), '/wc', 'infinity', { revision: ' 42 ' });
+    expect(vi.mocked(wc.update)).toHaveBeenCalledWith('/wc', 'infinity', { revision: '42' });
+    await expect(
+      handlers.get('svn:update')!(event(), '/wc', 'infinity', { revision: '0x10' })
+    ).rejects.toThrow(/update revision/);
+  });
+
+  it('svn:revpropget validates the revision before the service call', async () => {
+    await expect(
+      handlers.get('svn:revpropget')!(event(), '/wc', 'svn:date', '12.5')
+    ).rejects.toThrow(/revprop revision/);
+    expect(vi.mocked(meta.revpropget)).not.toHaveBeenCalled();
   });
 });

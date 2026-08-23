@@ -145,6 +145,22 @@ describe('SVN preload IPC contract', () => {
     ['force lock', () => api.lockForce('/wc/a', 'mine'), ['svn:lockForce', '/wc/a', 'mine']],
     ['force unlock', () => api.unlockForce('/wc/a'), ['svn:unlockForce', '/wc/a']],
     ['lock list', () => api.lockList('/wc'), ['svn:lockList', '/wc']],
+    ['lock record', () => api.lockRecord('/wc/a'), ['svn:lockRecord', '/wc/a']],
+    [
+      'steal lock',
+      () => api.stealLock('/wc/a', 'mine', { confirmed: true, confirmedOwner: 'bob' }),
+      ['svn:stealLock', '/wc/a', 'mine', { confirmed: true, confirmedOwner: 'bob' }],
+    ],
+    [
+      'break lock',
+      () => api.breakLock('/wc/a', { confirmed: true, confirmedOwner: 'bob' }),
+      ['svn:breakLock', '/wc/a', { confirmed: true, confirmedOwner: 'bob' }],
+    ],
+    [
+      'set lock comment',
+      () => api.setLockComment('/wc/a', 'note', { confirmed: true, confirmedOwner: 'bob' }),
+      ['svn:setLockComment', '/wc/a', 'note', { confirmed: true, confirmedOwner: 'bob' }],
+    ],
     [
       'checkout',
       () => api.checkout('https://repo/trunk', '/wc', '7', 'empty', { credentials }),
@@ -170,6 +186,19 @@ describe('SVN preload IPC contract', () => {
       'switch',
       () => api.switch('/wc', 'https://repo/branch', '8'),
       ['svn:switch', '/wc', 'https://repo/branch', '8'],
+    ],
+    [
+      'validate switch or relocate',
+      () =>
+        api.validateSwitchOrRelocate({
+          workingCopyPath: '/wc',
+          targetUrl: 'https://repo/branch',
+          kind: 'switch',
+        }),
+      [
+        'svn:validateSwitchOrRelocate',
+        { workingCopyPath: '/wc', targetUrl: 'https://repo/branch', kind: 'switch' },
+      ],
     ],
     [
       'remote copy',
@@ -264,6 +293,27 @@ describe('SVN preload IPC contract', () => {
       () => api.revpropdel('url', 'name', '7'),
       ['svn:revpropdel', 'url', 'name', '7'],
     ],
+    [
+      'get revprop by URL',
+      () => api.getRevprop('https://repo', '7', 'svn:log'),
+      ['svn:getRevprop', 'https://repo', '7', 'svn:log'],
+    ],
+    [
+      'edit revprop by URL',
+      () =>
+        api.editRevprop('https://repo', '7', 'svn:log', 'new text', {
+          confirmed: true,
+          acknowledgedServerLogging: true,
+        }),
+      [
+        'svn:editRevprop',
+        'https://repo',
+        '7',
+        'svn:log',
+        'new text',
+        { confirmed: true, acknowledgedServerLogging: true },
+      ],
+    ],
     ['blame', () => api.blame('/wc/a', 2, 7), ['svn:blame', '/wc/a', 2, 7, undefined]],
     [
       'list',
@@ -303,9 +353,44 @@ describe('SVN preload IPC contract', () => {
     ],
     ['diagnostics', () => api.diagnostics('/wc'), ['svn:diagnostics', '/wc']],
     [
+      'repository layout',
+      () => api.getRepositoryLayout('https://repo', credentials),
+      ['svn:getRepositoryLayout', 'https://repo', credentials],
+    ],
+    [
+      'analyze pristine',
+      () => api.analyzePristine('/wc', { computeWorkingCopySize: true }),
+      ['svn:analyzePristine', '/wc', { computeWorkingCopySize: true }],
+    ],
+    [
+      'scan secrets',
+      () => api.scanSecrets(['/wc/a', '/wc/b'], { maxFindingsPerFile: 10 }),
+      ['svn:scanSecrets', ['/wc/a', '/wc/b'], { maxFindingsPerFile: 10 }],
+    ],
+    ['detect wc relinks', () => api.detectWcRelinks(), ['svn:detectWcRelinks']],
+    [
+      'apply wc relink',
+      () =>
+        api.applyWcRelink({
+          oldPath: '/old/wc',
+          newPath: '/new/wc',
+          matchedOn: 'uuid',
+          confidence: 'high',
+        }),
+      [
+        'svn:applyWcRelink',
+        { oldPath: '/old/wc', newPath: '/new/wc', matchedOn: 'uuid', confidence: 'high' },
+      ],
+    ],
+    [
       'trust certificate',
       () => api.trustServerCertificate('https://repo', 'unknown CA'),
       ['svn:trustServerCertificate', 'https://repo', 'unknown CA'],
+    ],
+    [
+      'reject certificate',
+      () => api.rejectServerCertificate('https://repo', 'unknown CA'),
+      ['svn:rejectServerCertificate', 'https://repo', 'unknown CA'],
     ],
   ] as const)('passes exact IPC arguments for %s', async (_name, call, expected) => {
     await call();

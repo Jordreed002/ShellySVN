@@ -77,7 +77,27 @@ import type {
   WorkingCopyInfo,
   WorkingCopyHealthReport,
   InterruptedMutationRecord,
+  InterruptedMutationRecoveryPlan,
+  InterruptedMutationRecoveryStepResult,
   StaleWorkingCopyLockInfo,
+  ApplyRelinkResult,
+  LockForceConfirmation,
+  PristineAnalysisOptions,
+  PristineAnalysisResult,
+  RelinkProposal,
+  RevpropConfirmation,
+  RevpropEditResult,
+  RevpropValueResult,
+  SecretScanOptions,
+  SecretScanResult,
+  SslFailureKind,
+  SvnDiskFullErrorDetails,
+  SvnLockForceResult,
+  SvnLockRecordResult,
+  SvnRepoLayout,
+  SwitchRelocateInput,
+  SwitchRelocateValidationResult,
+  WcRelinkDetectionResult,
 } from './types';
 
 type IpcCall<Args extends unknown[], Result> = {
@@ -91,6 +111,8 @@ type RevisionResult = {
   revision: SvnOperationRevision;
   error?: string;
   output?: string;
+  /** Typed ENOSPC details present when the operation failed for lack of disk space. */
+  diskFull?: SvnDiskFullErrorDetails;
 };
 
 export interface IpcInvokeContract {
@@ -128,6 +150,28 @@ export interface IpcInvokeContract {
     AiConflictProposalResult
   >;
   'ai:cancel': IpcCall<[operationId: string], OperationResult>;
+  'ai:credentials:summary': IpcCall<[], import('./types').AiCredentialsSummary>;
+  'ai:credentials:save': IpcCall<
+    [input: import('./types').AiProviderCredentialInput],
+    OperationResult
+  >;
+  'ai:credentials:remove': IpcCall<
+    [provider: import('./types').AiCommitProvider],
+    { success: boolean }
+  >;
+  'ai:estimateCost': IpcCall<
+    [request: import('./types').AiCostEstimateRequest],
+    import('./types').AiCostEstimate
+  >;
+  'ai:listModels': IpcCall<
+    [provider: import('./types').AiCommitProvider],
+    import('./types').AiModelInfo[]
+  >;
+  'ai:consent:get': IpcCall<
+    [workingCopyPath: string],
+    import('./types').AiWorkingCopyConsent | null
+  >;
+  'ai:consent:set': IpcCall<[workingCopyPath: string, aiEnabled: boolean], { success: boolean }>;
   'svn:capabilities': IpcCall<
     [],
     { shelving: boolean; nativeShelving: boolean; remoteProperties: boolean }
@@ -227,6 +271,19 @@ export interface IpcInvokeContract {
   'svn:lockForce': IpcCall<[path: string, message?: string], SvnLockResult>;
   'svn:unlockForce': IpcCall<[path: string], SvnUnlockResult>;
   'svn:lockList': IpcCall<[path: string], SvnLockListResult>;
+  'svn:lockRecord': IpcCall<[path: string], SvnLockRecordResult>;
+  'svn:stealLock': IpcCall<
+    [path: string, comment?: string, confirmation?: LockForceConfirmation],
+    SvnLockForceResult
+  >;
+  'svn:breakLock': IpcCall<
+    [path: string, confirmation?: LockForceConfirmation],
+    SvnLockForceResult
+  >;
+  'svn:setLockComment': IpcCall<
+    [path: string, comment: string, confirmation?: LockForceConfirmation],
+    SvnLockForceResult
+  >;
   'svn:checkout': IpcCall<
     [
       url: string,
@@ -261,6 +318,10 @@ export interface IpcInvokeContract {
   >;
   'svn:resolve': IpcCall<[path: string, resolution: string], OperationResult>;
   'svn:switch': IpcCall<[path: string, url: string, revision?: string], RevisionResult>;
+  'svn:validateSwitchOrRelocate': IpcCall<
+    [input: SwitchRelocateInput],
+    SwitchRelocateValidationResult
+  >;
   'svn:copy': IpcCall<
     [src: string, dst: string, message: string, authSessionId?: string],
     RevisionResult
@@ -330,6 +391,20 @@ export interface IpcInvokeContract {
     OperationResult
   >;
   'svn:revpropdel': IpcCall<[target: string, name: string, revision: string], OperationResult>;
+  'svn:getRevprop': IpcCall<
+    [url: string, revision: string, propName: string],
+    RevpropValueResult
+  >;
+  'svn:editRevprop': IpcCall<
+    [
+      url: string,
+      revision: string,
+      propName: string,
+      newValue: string,
+      confirmation?: RevpropConfirmation,
+    ],
+    RevpropEditResult
+  >;
   'svn:blame': IpcCall<
     [path: string, startRevision?: number, endRevision?: number, workerJobId?: string],
     SvnBlameResult
@@ -370,12 +445,27 @@ export interface IpcInvokeContract {
     OperationResult
   >;
   'svn:diagnostics': IpcCall<[workingCopyPath: string], RepoDiagnostics>;
+  'svn:getRepositoryLayout': IpcCall<[url: string, authSessionId?: string], SvnRepoLayout>;
+  'svn:analyzePristine': IpcCall<
+    [workingCopyPath: string, options?: Omit<PristineAnalysisOptions, 'signal'>],
+    PristineAnalysisResult
+  >;
+  'svn:scanSecrets': IpcCall<
+    [paths: string[], options?: Omit<SecretScanOptions, 'signal'>],
+    SecretScanResult
+  >;
+  'svn:detectWcRelinks': IpcCall<[], WcRelinkDetectionResult>;
+  'svn:applyWcRelink': IpcCall<[proposal: RelinkProposal], ApplyRelinkResult>;
   'svn:workingCopyHealth': IpcCall<[workingCopyPath: string], WorkingCopyHealthReport>;
   'svn:commandTimeline': IpcCall<[], SvnCommandTimelineEntry[]>;
   'svn:commandTimeline:clear': IpcCall<[], OperationResult>;
   'svn:trustServerCertificate': IpcCall<
     [url: string, errorText: string],
     { success: boolean; error?: string }
+  >;
+  'svn:rejectServerCertificate': IpcCall<
+    [url: string, errorText: string],
+    { success: boolean; error?: string; failureKind?: SslFailureKind }
   >;
 
   'fs:listDirectory': IpcCall<[path: string], FileInfo[]>;
@@ -519,6 +609,16 @@ export interface IpcInvokeContract {
   >;
   'lifecycle:getInterruptedWorkingCopyMutations': IpcCall<[], InterruptedMutationRecord[]>;
   'lifecycle:clearInterruptedWorkingCopyMutations': IpcCall<[], OperationResult>;
+  'lifecycle:getInterruptedMutationRecoveryPlans': IpcCall<[], InterruptedMutationRecoveryPlan[]>;
+  'lifecycle:executeInterruptedMutationRecoveryPlan': IpcCall<
+    [workingCopyPath: string],
+    {
+      success: boolean;
+      error?: string;
+      workingCopyPath?: string;
+      steps?: InterruptedMutationRecoveryStepResult[];
+    }
+  >;
 
   'status:local-server-info': IpcCall<[], LocalStatusServerInfo | null>;
 }
@@ -545,6 +645,8 @@ export type IpcEventContract = {
   'updater:state': AppUpdateState;
   'lifecycle:staleWorkingCopyLock': StaleWorkingCopyLockInfo;
   'lifecycle:interruptedWorkingCopyMutations': InterruptedMutationRecord[];
+  'lifecycle:interruptedMutationRecoveryPlan': InterruptedMutationRecoveryPlan;
+  'ai:stream': import('./types').AiStreamEvent;
 };
 
 export type IpcEventChannel = keyof IpcEventContract;

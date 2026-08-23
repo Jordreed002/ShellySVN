@@ -225,6 +225,12 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       invokeIpc('svn:lockForce', path, message) as Promise<SvnLockResult>,
     unlockForce: (path) => invokeIpc('svn:unlockForce', path) as Promise<SvnUnlockResult>,
     lockList: (path) => invokeIpc('svn:lockList', path) as Promise<SvnLockListResult>,
+    lockRecord: (path) => invokeIpc('svn:lockRecord', path),
+    stealLock: (path, comment?, confirmation?) =>
+      invokeIpc('svn:stealLock', path, comment, confirmation),
+    breakLock: (path, confirmation?) => invokeIpc('svn:breakLock', path, confirmation),
+    setLockComment: (path, comment, confirmation?) =>
+      invokeIpc('svn:setLockComment', path, comment, confirmation),
     checkout: (url, path, revision?, depth?, options?) =>
       invokeIpc('svn:checkout', url, path, revision, depth, options),
     checkoutWithProgress: (
@@ -289,6 +295,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       ),
     resolve: (path, resolution) => invokeIpc('svn:resolve', path, resolution),
     switch: (path, url, revision?) => invokeIpc('svn:switch', path, url, revision),
+    validateSwitchOrRelocate: (input) => invokeIpc('svn:validateSwitchOrRelocate', input),
     copy: (src, dst, message, authSessionId?) =>
       authSessionId
         ? invokeIpc('svn:copy', src, dst, message, authSessionId)
@@ -331,6 +338,9 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     revpropset: (target, name, value, revision) =>
       invokeIpc('svn:revpropset', target, name, value, revision),
     revpropdel: (target, name, revision) => invokeIpc('svn:revpropdel', target, name, revision),
+    getRevprop: (url, revision, propName) => invokeIpc('svn:getRevprop', url, revision, propName),
+    editRevprop: (url, revision, propName, newValue, confirmation?) =>
+      invokeIpc('svn:editRevprop', url, revision, propName, newValue, confirmation),
     blame: (path, startRevision?, endRevision?, options?) =>
       invokeCancellableWorkerJob(invokeIpc, 'svn-blame', options?.signal, (workerJobId) =>
         invokeIpc('svn:blame', path, startRevision, endRevision, workerJobId)
@@ -377,10 +387,19 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
         ) as Promise<SvnMutationResult>,
     },
     diagnostics: (workingCopyPath) => invokeIpc('svn:diagnostics', workingCopyPath),
+    getRepositoryLayout: (url, authSessionId?) =>
+      invokeIpc('svn:getRepositoryLayout', url, authSessionId),
+    analyzePristine: (workingCopyPath, options?) =>
+      invokeIpc('svn:analyzePristine', workingCopyPath, options),
+    scanSecrets: (paths, options?) => invokeIpc('svn:scanSecrets', paths, options),
+    detectWcRelinks: () => invokeIpc('svn:detectWcRelinks'),
+    applyWcRelink: (proposal) => invokeIpc('svn:applyWcRelink', proposal),
     workingCopyHealth: (workingCopyPath) => invokeIpc('svn:workingCopyHealth', workingCopyPath),
     commandTimeline: () => invokeIpc('svn:commandTimeline'),
     clearCommandTimeline: () => invokeIpc('svn:commandTimeline:clear'),
     trustServerCertificate: (url, errorText) =>
       invokeIpc('svn:trustServerCertificate', url, errorText),
+    rejectServerCertificate: (url, errorText) =>
+      invokeIpc('svn:rejectServerCertificate', url, errorText),
   };
 }

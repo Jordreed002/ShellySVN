@@ -32,6 +32,10 @@ export function createLifecycleApi(
       invokeIpc('lifecycle:getInterruptedWorkingCopyMutations'),
     clearInterruptedWorkingCopyMutations: () =>
       invokeIpc('lifecycle:clearInterruptedWorkingCopyMutations'),
+    getInterruptedMutationRecoveryPlans: () =>
+      invokeIpc('lifecycle:getInterruptedMutationRecoveryPlans'),
+    executeInterruptedMutationRecoveryPlan: (workingCopyPath) =>
+      invokeIpc('lifecycle:executeInterruptedMutationRecoveryPlan', workingCopyPath),
     onStaleWorkingCopyLock: (callback) => {
       const handler = (_: unknown, info: unknown) =>
         callback(info as Parameters<typeof callback>[0]);
@@ -43,6 +47,12 @@ export function createLifecycleApi(
         callback(records as Parameters<typeof callback>[0]);
       ipcRenderer.on('lifecycle:interruptedWorkingCopyMutations', handler);
       return () => ipcRenderer.removeListener('lifecycle:interruptedWorkingCopyMutations', handler);
+    },
+    onInterruptedMutationRecoveryPlan: (callback) => {
+      const handler = (_: unknown, plan: unknown) =>
+        callback(plan as Parameters<typeof callback>[0]);
+      ipcRenderer.on('lifecycle:interruptedMutationRecoveryPlan', handler);
+      return () => ipcRenderer.removeListener('lifecycle:interruptedMutationRecoveryPlan', handler);
     },
   };
 }
