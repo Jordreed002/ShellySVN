@@ -21,6 +21,7 @@ import {
   generateAiCommitMessage,
   generateAiReleaseNotes,
   getAiCommitProviders,
+  warmAiProviderResolution,
   invalidateAiProviderStatusCache,
   listAiProviderModels,
   planAiCommit,
@@ -78,6 +79,9 @@ function toOperationResult(error: unknown): { success: boolean; error?: string }
 
 export function registerAiHandlers(ipcMain: AiIpcMain): void {
   setAiStreamListener(forwardStreamEvent);
+  // The login-shell PATH spawn can take seconds with heavy shell init (nvm);
+  // resolve it once in the background so the first provider probe doesn't pay.
+  warmAiProviderResolution();
   ipcMain.handle('ai:providers', () => getAiCommitProviders());
   ipcMain.handle('ai:preparePrompt', (_event, ...args) =>
     prepareAiPrompt(args[0] as AiPromptPreviewRequest)

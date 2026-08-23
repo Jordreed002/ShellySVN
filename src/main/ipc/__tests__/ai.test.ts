@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockHandle = vi.hoisted(() => vi.fn());
 const mockProviders = vi.hoisted(() => vi.fn());
 const mockInvalidateProviders = vi.hoisted(() => vi.fn());
+const mockWarmAiProviderResolution = vi.hoisted(() => vi.fn());
 const mockGenerate = vi.hoisted(() => vi.fn());
 const mockCancel = vi.hoisted(() => vi.fn());
 const mockReview = vi.hoisted(() => vi.fn());
@@ -28,6 +29,7 @@ const mockConsentSet = vi.hoisted(() => vi.fn());
 vi.mock('../../services/ai-commit-message', () => ({
   getAiCommitProviders: mockProviders,
   invalidateAiProviderStatusCache: mockInvalidateProviders,
+  warmAiProviderResolution: mockWarmAiProviderResolution,
   generateAiCommitMessage: mockGenerate,
   cancelAiCommitMessage: mockCancel,
   reviewAiCommit: mockReview,

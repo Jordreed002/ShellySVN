@@ -1237,34 +1237,66 @@ export async function prepareAiPrompt(
 
 /**
  * Provider statuses are probed on every AI-tab mount, SVN-tab mount, and
- * commit-dialog open. The 10s TTL cache keeps those renders instant while
- * `invalidateAiProviderStatusCache()` (called by the credential IPC handlers)
- * makes configuration changes visible immediately. A pending promise is shared
- * so simultaneous callers never launch duplicate probe storms.
+ * commit-dialog open. The cache is stale-while-revalidate: a cached result is
+ * returned immediately (configuration changes invalidate explicitly via
+ * `invalidateAiProviderStatusCache()`, called by the credential IPC handlers)
+ * and an entry older than the refresh threshold re-probes in the background so
+ * the next caller sees fresh values. A pending promise is shared so
+ * simultaneous callers never launch duplicate probe storms.
  */
-const AI_PROVIDER_STATUS_TTL_MS = 10_000;
-let aiProviderStatusCache: { value: AiCommitProviderStatus[]; expiresAt: number } | null = null;
+const AI_PROVIDER_STATUS_REFRESH_MS = 60_000;
+let aiProviderStatusRefreshMs = AI_PROVIDER_STATUS_REFRESH_MS;
+let aiProviderStatusCache: { value: AiCommitProviderStatus[]; computedAt: number } | null = null;
 let aiProviderStatusPending: Promise<AiCommitProviderStatus[]> | null = null;
+/** Bumped on invalidation so an in-flight probe can't resurrect stale results. */
+let aiProviderStatusGeneration = 0;
+
+/** Test seam: shrink the stale-while-revalidate threshold. */
+export function setAiProviderStatusRefreshMsForTests(ms: number): void {
+  aiProviderStatusRefreshMs = ms;
+}
 
 /** Drop the cached provider statuses; the next call re-probes. */
 export function invalidateAiProviderStatusCache(): void {
+  aiProviderStatusGeneration += 1;
   aiProviderStatusCache = null;
   aiProviderStatusPending = null;
 }
 
-export async function getAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
-  if (aiProviderStatusCache && Date.now() < aiProviderStatusCache.expiresAt) {
-    return aiProviderStatusCache.value;
-  }
+function refreshAiProviderStatuses(): Promise<AiCommitProviderStatus[]> {
   aiProviderStatusPending ??= computeAiCommitProviders()
-    .then((value) => {
-      aiProviderStatusCache = { value, expiresAt: Date.now() + AI_PROVIDER_STATUS_TTL_MS };
+    .then((value) => ({ value, generation: aiProviderStatusGeneration }))
+    .then(({ value, generation }) => {
+      // An invalidated generation must not write its (pre-change) results back.
+      if (generation === aiProviderStatusGeneration) {
+        aiProviderStatusCache = { value, computedAt: Date.now() };
+      }
       return value;
     })
     .finally(() => {
       aiProviderStatusPending = null;
     });
   return aiProviderStatusPending;
+}
+
+export async function getAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
+  if (aiProviderStatusCache) {
+    if (Date.now() - aiProviderStatusCache.computedAt > aiProviderStatusRefreshMs) {
+      void refreshAiProviderStatuses().catch(() => undefined);
+    }
+    return aiProviderStatusCache.value;
+  }
+  return refreshAiProviderStatuses();
+}
+
+/**
+ * Resolve the login-shell PATH once in the background at startup. The
+ * login-shell spawn can take seconds on machines with heavy shell init (nvm
+ * and friends) and is the dominant cost of the first provider probe; warming
+ * it early means the first AI-tab visit doesn't pay for it. Fire-and-forget.
+ */
+export function warmAiProviderResolution(): void {
+  void loginShellDirectories().catch(() => undefined);
 }
 
 async function computeAiCommitProviders(): Promise<AiCommitProviderStatus[]> {

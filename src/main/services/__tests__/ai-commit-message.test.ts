@@ -26,6 +26,7 @@ import {
   generateAiCommitMessage,
   getAiCommitProviders,
   invalidateAiProviderStatusCache,
+  setAiProviderStatusRefreshMsForTests,
   listAiProviderModels,
 } from '../ai-commit-message';
 import { AiCredentialsStore, setAiCredentialsStoreForTests } from '../ai-credentials';
@@ -492,21 +493,27 @@ describe('AI custom provider selection and status', () => {
     expect(cliProbeState.spawnCalls).toBe(probes);
   });
 
-  it('re-probes provider statuses after the cache TTL expires', async () => {
-    // Fake timers must not gate the ollama reachability fetch: fail it fast.
+  it('serves stale statuses instantly and refreshes in the background', async () => {
+    // Fail the ollama reachability fetch fast so it can't gate the probe.
     setProviderFetchForTests((async () => {
       throw new TypeError('connection refused');
     }) as unknown as ProviderFetch);
-    vi.useFakeTimers();
+    setAiProviderStatusRefreshMsForTests(0);
     try {
-      await getAiCommitProviders();
+      const first = await getAiCommitProviders();
       const probes = cliProbeState.spawnCalls;
       expect(probes).toBeGreaterThan(0);
-      vi.advanceTimersByTime(10_001);
-      await getAiCommitProviders();
-      expect(cliProbeState.spawnCalls).toBeGreaterThan(probes);
+      // Let Date.now() advance past the (zeroed) refresh threshold.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      // Stale-while-revalidate: the caller gets the cached value immediately…
+      const stale = await getAiCommitProviders();
+      expect(stale).toBe(first);
+      // …while a background re-probe runs on the real event loop.
+      await vi.waitFor(() => expect(cliProbeState.spawnCalls).toBeGreaterThan(probes), {
+        timeout: 3_000,
+      });
     } finally {
-      vi.useRealTimers();
+      setAiProviderStatusRefreshMsForTests(60_000);
     }
   });
 
