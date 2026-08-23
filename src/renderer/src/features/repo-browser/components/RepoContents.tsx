@@ -19,8 +19,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CSSProperties,
+  DragEvent as ReactDragEvent,
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
   ReactElement,
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -30,13 +32,30 @@ import {
   Copy,
   Download,
   ExternalLink,
+  FolderInput,
   FolderOpen,
+  GitBranch,
   HardDrive,
   Package,
   Search,
+  Trash2,
 } from 'lucide-react';
 
+import { ErrorPanel } from '@renderer/components/ui/ErrorPanel';
+
 import type { RepoEntry, RepoScope, RepoSort, SearchScope } from '../types';
+import {
+  canDropRepoPaths,
+} from '../lib/remoteOps';
+import {
+  endRepoDrag,
+  getDraggingRepoPaths,
+  isRepoDrag,
+  operationForDragEvent,
+  readRepoDragData,
+  writeRepoDragData,
+  type RepoDragEventLike,
+} from '../lib/repoDragDrop';
 import {
   REPO_CONTENTS_ROW_HEIGHT,
   RepoContentsRow,
@@ -146,11 +165,36 @@ export interface RepoContentsProps {
   onCheckoutSelection?: (entries: RepoEntry[]) => void;
   onExportSelection?: (entries: RepoEntry[]) => void;
   onCopyUrls?: (entries: RepoEntry[]) => void;
+  /**
+   * Batch repository writes from the selection bar (#68). Each receives the
+   * whole selection and opens the shared confirmation dialog in the view.
+   */
+  onBatchDelete?: (entries: RepoEntry[]) => void;
+  onBatchMove?: (entries: RepoEntry[]) => void;
+  onBatchCopy?: (entries: RepoEntry[]) => void;
   onDiff?: (entry: RepoEntry) => void;
   onBlame?: (entry: RepoEntry) => void;
   onLog?: (entry: RepoEntry) => void;
   onCheckout?: (entry: RepoEntry) => void;
   onContextMenu?: (entry: RepoEntry, event: ReactMouseEvent<HTMLDivElement>) => void;
+  /**
+   * Repository drag-and-drop (#68). Called with the dragged repo-relative
+   * paths, the target directory entry (or null for the directory on screen),
+   * and the operation the modifier keys chose. Absent disables dragging.
+   */
+  onDropEntries?: (
+    sources: string[],
+    target: RepoEntry | null,
+    operation: 'move' | 'copy'
+  ) => void;
+  /** Repository root URL, carried in the drag payload for cross-surface drops. */
+  repoRootUrl?: string;
+  /** The listing read failed. Rendered as a banner, or as the pane body when nothing was cached. */
+  error?: string | null;
+  /** Re-run the failed listing. */
+  onRetry?: () => void;
+  /** True while the retry is in flight — spins the Retry button. */
+  isRetrying?: boolean;
   className?: string;
 }
 
@@ -177,11 +221,19 @@ export function RepoContents({
   onCheckoutSelection,
   onExportSelection,
   onCopyUrls,
+  onBatchDelete,
+  onBatchMove,
+  onBatchCopy,
   onDiff,
   onBlame,
   onLog,
   onCheckout,
   onContextMenu,
+  onDropEntries,
+  repoRootUrl = '',
+  error = null,
+  onRetry,
+  isRetrying = false,
   className,
 }: RepoContentsProps): ReactElement {
   /*
@@ -299,6 +351,238 @@ export function RepoContents({
     [onSelectionChange, selectedSet]
   );
 
+  /*
+   * ── multi-select (#68): shift-click ranges, cmd/ctrl-click toggles ──
+   *
+   * The anchor is the last row clicked in any mode, so shift always extends
+   * from where the user last pointed, and the range is taken in *sorted*
+   * order — the order on screen — not listing order.
+   */
+  const [anchorPath, setAnchorPath] = useState<string | null>(null);
+
+  const handleRowClick = useCallback(
+    (entry: RepoEntry, modifiers: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
+      if (onSelectionChange) {
+        const index = sorted.findIndex((candidate) => candidate.path === entry.path);
+        const rangeModifier = modifiers.shiftKey && anchorPath !== null;
+        const toggleModifier = modifiers.metaKey || modifiers.ctrlKey;
+
+        if (rangeModifier || toggleModifier) {
+          if (rangeModifier) {
+            const anchorIndex = sorted.findIndex((candidate) => candidate.path === anchorPath);
+            if (anchorIndex >= 0 && index >= 0) {
+              const [from, to] = anchorIndex < index ? [anchorIndex, index] : [index, anchorIndex];
+              onSelectionChange(sorted.slice(from, to + 1).map((candidate) => candidate.path));
+              handleActivate(entry);
+              return;
+            }
+            // Anchor no longer on screen: fall through to a plain toggle.
+          }
+          const paths = new Set(selectedSet);
+          if (paths.has(entry.path)) paths.delete(entry.path);
+          else paths.add(entry.path);
+          onSelectionChange([...paths]);
+        }
+      }
+      // A plain click — and the fallback when selection is uncontrolled — is
+      // activation only; the checkbox row stays the explicit single select.
+      setAnchorPath(entry.path);
+      handleActivate(entry);
+    },
+    [sorted, anchorPath, onSelectionChange, selectedSet, handleActivate]
+  );
+
+  /*
+   * ── marquee selection (#68, the cheap kind) ──
+   *
+   * Dragging on empty list space rubber-bands a rectangle; rows it intersects
+   * become the selection. Virtualized rows that are not mounted cannot be
+   * hit-tested, so the rectangle selects what is rendered — the same
+   * compromise every virtualized file list makes.
+   */
+  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [marquee, setMarquee] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const applyMarqueeSelection = useCallback(
+    (clientRect: { left: number; top: number; right: number; bottom: number }) => {
+      if (!onSelectionChange) return;
+      const hits: string[] = [];
+      for (const [rowPath, node] of rowNodes.current) {
+        const bounds = node.getBoundingClientRect();
+        const intersects =
+          bounds.left < clientRect.right &&
+          bounds.right > clientRect.left &&
+          bounds.top < clientRect.bottom &&
+          bounds.bottom > clientRect.top;
+        if (intersects) hits.push(rowPath);
+      }
+      onSelectionChange(hits);
+    },
+    [onSelectionChange]
+  );
+
+  useEffect(() => {
+    if (marquee === null) return;
+    // Window-level so the rectangle keeps following the pointer outside the pane.
+    const onMove = (event: PointerEvent): void => {
+      const start = marqueeStartRef.current;
+      if (!start) return;
+      const next = {
+        left: Math.min(start.x, event.clientX),
+        top: Math.min(start.y, event.clientY),
+        width: Math.abs(event.clientX - start.x),
+        height: Math.abs(event.clientY - start.y),
+      };
+      setMarquee(next);
+      applyMarqueeSelection({
+        left: next.left,
+        top: next.top,
+        right: next.left + next.width,
+        bottom: next.top + next.height,
+      });
+    };
+    const onUp = (): void => {
+      marqueeStartRef.current = null;
+      setMarquee(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [marquee, applyMarqueeSelection]);
+
+  const handleListPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    // Rows, and anything interactive, keep their own pointer behaviour.
+    if (target.closest('[data-path], button, input, a, select, label')) return;
+    marqueeStartRef.current = { x: event.clientX, y: event.clientY };
+    // Armed but inactive: the rectangle (and its selection effects) only
+    // appear once the pointer moves, so a click on empty space stays a click.
+    setMarquee({ left: event.clientX, top: event.clientY, width: 0, height: 0 });
+  }, []);
+
+  /*
+   * ── repository drag-and-drop (#68) ──
+   *
+   * Rows are drag sources (a dragged selected row carries the whole
+   * selection); directory rows — and the pane's empty space, meaning "the
+   * directory on screen" — are drop targets. Validity is `canDropRepoPaths`
+   * and the modifier keys pick move vs copy, matching the working-copy
+   * drags' idioms (ctrl/cmd = copy).
+   */
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
+
+  const handleRowDragStart = useCallback(
+    (entry: RepoEntry, event: RepoDragEventLike) => {
+      const dragged = selectedSet.has(entry.path)
+        ? sorted.filter((candidate) => selectedSet.has(candidate.path))
+        : [entry];
+      writeRepoDragData(event.dataTransfer, {
+        paths: dragged.map((candidate) => candidate.path),
+        rootUrl: repoRootUrl,
+      });
+    },
+    [selectedSet, sorted, repoRootUrl]
+  );
+
+  const handleRowDragOver = useCallback((entry: RepoEntry, event: RepoDragEventLike) => {
+    if (entry.kind !== 'dir' || !isRepoDrag(event.dataTransfer)) return;
+    const sources = getDraggingRepoPaths() ?? [];
+    if (!canDropRepoPaths(sources, entry.path)) {
+      setDropTargetPath((current) => (current === entry.path ? null : current));
+      return;
+    }
+    event.preventDefault?.();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = operationForDragEvent(event) === 'copy' ? 'copy' : 'move';
+    }
+    setDropTargetPath(entry.path);
+  }, []);
+
+  const handleRowDragLeave = useCallback((entry: RepoEntry) => {
+    setDropTargetPath((current) => (current === entry.path ? null : current));
+  }, []);
+
+  const finishDrop = useCallback(
+    (event: RepoDragEventLike, target: RepoEntry, targetPath: string) => {
+      event.preventDefault?.();
+      setDropTargetPath(null);
+      const payload = readRepoDragData(event.dataTransfer);
+      const sources = payload?.paths ?? getDraggingRepoPaths() ?? [];
+      endRepoDrag();
+      if (!onDropEntries || !canDropRepoPaths(sources, targetPath)) return;
+      onDropEntries(sources, target, operationForDragEvent(event));
+    },
+    [onDropEntries]
+  );
+
+  const handleRowDrop = useCallback(
+    (entry: RepoEntry, event: RepoDragEventLike) => {
+      if (entry.kind !== 'dir') return;
+      finishDrop(event, entry, entry.path);
+    },
+    [finishDrop]
+  );
+
+  /** Dropping on empty list space means "into the directory on screen". */
+  const handleBackgroundDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!onDropEntries || !isRepoDrag(event.dataTransfer)) return;
+      const target = event.target as HTMLElement;
+      if (target.closest('[data-path]')) return; // a row owns this drag
+      const sources = getDraggingRepoPaths() ?? [];
+      if (path === undefined || !canDropRepoPaths(sources, path)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = operationForDragEvent(event) === 'copy' ? 'copy' : 'move';
+      setDropTargetPath(path);
+    },
+    [onDropEntries, path]
+  );
+
+  const handleBackgroundDrop = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('[data-path]')) return;
+      if (path === undefined) return;
+      event.preventDefault();
+      setDropTargetPath(null);
+      const payload = readRepoDragData(event.dataTransfer);
+      const sources = payload?.paths ?? getDraggingRepoPaths() ?? [];
+      endRepoDrag();
+      if (!onDropEntries || !canDropRepoPaths(sources, path)) return;
+      onDropEntries(sources, null, operationForDragEvent(event));
+    },
+    [onDropEntries, path]
+  );
+
+  const rowDnd = useMemo(
+    () =>
+      onDropEntries
+        ? {
+            onDragStart: handleRowDragStart,
+            onDragOver: handleRowDragOver,
+            onDragLeave: handleRowDragLeave,
+            onDrop: handleRowDrop,
+            onDragEnd: () => endRepoDrag(),
+          }
+        : undefined,
+    [
+      onDropEntries,
+      handleRowDragStart,
+      handleRowDragOver,
+      handleRowDragLeave,
+      handleRowDrop,
+    ]
+  );
+
   const moveTo = useCallback(
     (index: number) => {
       if (sorted.length === 0) return;
@@ -410,12 +694,21 @@ export function RepoContents({
       style={style}
       onSelectedChange={handleSelectedChange}
       onActivate={handleActivate}
+      onRowClick={handleRowClick}
       onOpen={(target) => onOpen?.(target)}
       onContextMenu={onContextMenu}
       onDiff={onDiff}
       onBlame={onBlame}
       onLog={onLog}
       onCheckout={onCheckout}
+      dnd={
+        rowDnd
+          ? {
+              ...rowDnd,
+              dropActive: dropTargetPath === entry.path && entry.kind === 'dir',
+            }
+          : undefined
+      }
     />
   );
 
@@ -433,6 +726,19 @@ export function RepoContents({
           className="pointer-events-none absolute inset-y-0 left-0 z-[3] w-[3px] bg-accent/40"
         />
       )}
+
+      {/* A failed listing read is named at the top of the pane — never a bare
+          spinner or an empty list that reads as "empty directory". */}
+      {error ? (
+        <ErrorPanel
+          variant={isEmpty ? 'panel' : 'banner'}
+          className={isEmpty ? 'flex-1' : 'flex-none'}
+          title="svn list failed"
+          message={error}
+          onRetry={onRetry}
+          isRetrying={isRetrying}
+        />
+      ) : null}
 
       {selectedEntries.length > 0 && (
         <div
@@ -463,6 +769,29 @@ export function RepoContents({
               icon={<Copy className="h-3 w-3" aria-hidden="true" />}
               label="Copy URLs"
               onClick={() => onCopyUrls([...selectedEntries])}
+            />
+          )}
+          {/* Repository writes on the selection — each opens the shared
+              confirmation dialog in the view; none runs from here. */}
+          {onBatchMove && (
+            <SelectionButton
+              icon={<FolderInput className="h-3 w-3" aria-hidden="true" />}
+              label="Move to…"
+              onClick={() => onBatchMove([...selectedEntries])}
+            />
+          )}
+          {onBatchCopy && (
+            <SelectionButton
+              icon={<GitBranch className="h-3 w-3" aria-hidden="true" />}
+              label="Copy to…"
+              onClick={() => onBatchCopy([...selectedEntries])}
+            />
+          )}
+          {onBatchDelete && (
+            <SelectionButton
+              icon={<Trash2 className="h-3 w-3" aria-hidden="true" />}
+              label="Delete…"
+              onClick={() => onBatchDelete([...selectedEntries])}
             />
           )}
           <SelectionButton label="Clear" onClick={() => onSelectionChange?.([])} />
@@ -520,7 +849,16 @@ export function RepoContents({
         </div>
 
         {!isEmpty && (
-          <div role="rowgroup" ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+          <div
+            role="rowgroup"
+            ref={scrollRef}
+            onPointerDown={handleListPointerDown}
+            onDragOver={handleBackgroundDragOver}
+            onDrop={handleBackgroundDrop}
+            className={`relative min-h-0 flex-1 overflow-auto ${
+              dropTargetPath === path ? 'bg-accent/10 ring-2 ring-inset ring-accent' : ''
+            }`.trim()}
+          >
             {virtualized ? (
               <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -542,11 +880,26 @@ export function RepoContents({
                 )}
               </div>
             )}
+
+            {marquee ? (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute z-[4] rounded-md border border-accent bg-accent/10"
+                style={{
+                  left: marquee.left - (scrollRef.current?.getBoundingClientRect().left ?? 0),
+                  top: marquee.top - (scrollRef.current?.getBoundingClientRect().top ?? 0),
+                  width: marquee.width,
+                  height: marquee.height,
+                }}
+              />
+            ) : null}
           </div>
         )}
       </div>
 
-      {isEmpty && (
+      {/* A failed read already owns the pane (ErrorPanel above); "Empty
+          directory" beneath it would contradict the error, not explain it. */}
+      {isEmpty && !error && (
         <div className="flex-1 overflow-auto px-4 py-8 text-center text-xs leading-relaxed text-text-secondary">
           {filterText ? (
             <>

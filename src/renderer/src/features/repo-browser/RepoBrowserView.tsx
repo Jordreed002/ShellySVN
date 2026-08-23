@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderDown, FolderMinus, PanelRightClose } from 'lucide-react';
 
 import {
@@ -28,6 +28,9 @@ import { RevisionPickerDialog, type RevisionPickerMode } from './components/Revi
 import { SwitchDialog, type SwitchSelection } from './components/SwitchDialog';
 import { CompareDialog, type CompareMode } from './components/CompareDialog';
 import { ShelfDialog, type ShelfAction } from './components/ShelfDialog';
+import { RemoteOpDialog, type RemoteOpRequest } from './components/RemoteOpDialog';
+import { RevpropEditDialog } from './components/RevpropEditDialog';
+import { RevisionDiffDialog } from '../../components/history/RevisionDiffDialog';
 
 import {
   useRepoBlame,
@@ -37,16 +40,18 @@ import {
   useRepoLog,
   useRepoProperties,
   useRepositoryCheckouts,
+  useRepoSort,
   useRepoTreeChildren,
   useWorkingCopyForPath,
   joinRepoUrl,
+  REPO_BROWSER_QUERY_ROOT,
 } from './hooks';
 import { presenceFromCheckouts } from './adapters';
 import { buildRepoBrowserMenu, matchMenuShortcut } from './repoBrowserMenu';
 import { useRepoBrowserState } from './useRepoBrowserState';
 import type { SvnUpdateDepth } from '@shared/types';
 
-import type { RepoCopyToRequest, RepoEntry } from './types';
+import type { LogEntry, RepoCopyToRequest, RepoEntry } from './types';
 
 /**
  * The repository browser, composed.
@@ -154,6 +159,17 @@ export function RepoBrowserView({
   const [shelfAction, setShelfAction] = useState<ShelfAction>('unshelve');
 
   /**
+   * A pending repository-side write (#68, #69): mkdir / delete / move / copy
+   * on URLs, each an immediate commit, each confirmed by `RemoteOpDialog`
+   * with the affected-path count before anything runs.
+   */
+  const [remoteOp, setRemoteOp] = useState<RemoteOpRequest | null>(null);
+  /** The revision whose revprops the log view's pencil opened (#70). */
+  const [revpropTarget, setRevpropTarget] = useState<LogEntry | null>(null);
+  /** The revision whose diff the log view's compare button opened (#72). */
+  const [diffRevision, setDiffRevision] = useState<number | null>(null);
+
+  /**
    * A directory the user asked to pull into the existing checkout, with the local
    * path it will occupy. Held as state so the confirmation can name both.
    */
@@ -179,6 +195,14 @@ export function RepoBrowserView({
   const [isRemovingFromWc, setIsRemovingFromWc] = useState(false);
 
   const currentUrl = useMemo(() => joinRepoUrl(rootUrl, state.path), [rootUrl, state.path]);
+
+  /*
+   * Column sort, persisted per repository (#68). Navigation state does not
+   * own it: it is a preference about *this repository*, and the store key is
+   * the root URL.
+   */
+  const { sort: repoSort, setSortKey: setRepoSortKey } = useRepoSort(rootUrl);
+  const queryClient = useQueryClient();
 
   /** Set below, once `listing` exists; avoids ordering the hooks around it. */
   const listingRefetchRef = useRef<(() => void) | null>(null);
@@ -334,6 +358,53 @@ export function RepoBrowserView({
   });
   const latestShelf = shelves.data?.shelves?.[0] ?? null;
 
+  /*
+   * Every entry the browser knows about, by repository-relative path — the
+   * listing plus whatever the tree pane has expanded. Drag sources are paths;
+   * the confirmation dialog needs the entries behind them.
+   */
+  const entryByPath = useMemo(() => {
+    const map = new Map<string, RepoEntry>();
+    const addAll = (entries: readonly RepoEntry[] | undefined): void => {
+      entries?.forEach((entry) => map.set(entry.path, entry));
+    };
+    addAll(listing.entries);
+    for (const children of Object.values(tree.childrenByPath)) addAll(children);
+    return map;
+  }, [listing.entries, tree.childrenByPath]);
+
+  /**
+   * A drop landed (#68): resolve the dragged paths, open the shared
+   * confirmation with the destination the pointer chose. The modifier keys
+   * already decided move vs copy before this runs.
+   */
+  const handleDropEntries = useCallback(
+    (sources: readonly string[], target: RepoEntry | null, operation: 'move' | 'copy') => {
+      const entries = sources
+        .map((path) => entryByPath.get(path))
+        .filter((entry): entry is RepoEntry => entry !== undefined);
+      if (entries.length === 0) return;
+      setRemoteOp({
+        kind: operation,
+        entries,
+        destinationPath: target ? target.path : state.path,
+        destinationLocked: true,
+      });
+    },
+    [entryByPath, state.path]
+  );
+
+  /** A repository write committed — every listing on screen is now stale. */
+  const handleRemoteOpApplied = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: [REPO_BROWSER_QUERY_ROOT] });
+    workingCopy.refetch();
+  }, [queryClient, workingCopy]);
+
+  /** Revprop saved (#70): the log on screen still shows the old value. */
+  const handleRevpropSaved = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: [REPO_BROWSER_QUERY_ROOT, 'log'] });
+  }, [queryClient]);
+
   /* ── the selected entry drives the detail pane ── */
   const selectedEntry = useMemo(
     () => listing.entries.find((entry) => entry.path === state.selectedPath) ?? null,
@@ -476,12 +547,25 @@ export function RepoBrowserView({
         filterRef.current?.focus();
       },
       onCopyTo: (target, request) => onCopyTo?.(target, request),
-      onCreateFolder: (target) => onCreateFolder?.(target),
+      /*
+       * Repository writes (#68, #69). A route-provided handler keeps priority
+       * — it may implement its own flow — and the in-feature confirmation
+       * dialog is the default, so the menu items work wherever the route
+       * supplies nothing (today it supplies nothing for all three).
+       */
+      onMoveTo: (target) => setRemoteOp({ kind: 'move', entries: [target] }),
+      onCreateFolder: (target) => {
+        if (onCreateFolder) onCreateFolder(target);
+        else setRemoteOp({ kind: 'mkdir', entries: [target] });
+      },
       onManageLocks: (_target, path) => {
         setLocksPath(path);
         setLocksOpen(true);
       },
-      onDelete: (target) => onDelete?.(target),
+      onDelete: (target) => {
+        if (onDelete) onDelete(target);
+        else setRemoteOp({ kind: 'delete', entries: [target] });
+      },
       onBookmark: (target, path) => void addBookmark(path, target.name),
       onCopyUrl: (target: RepoEntry) => void navigator.clipboard?.writeText(target.url),
     }),
@@ -550,6 +634,9 @@ export function RepoBrowserView({
           <BlameView
             lines={blame.lines}
             path={state.selectedPath ?? undefined}
+            /* The range comparison (#71) re-runs `svn blame` against this target;
+               a repo-relative `path` is not something svn accepts. */
+            blameUrl={selectedUrl}
             loading={blame.loading}
             error={blame.error}
             onRevisionClick={(revision) => {
@@ -569,6 +656,9 @@ export function RepoBrowserView({
             loadingMore={log.isFetchingNextPage}
             onLoadMore={log.fetchNextPage}
             onSelectRevision={(revision) => actions.setPeg({ kind: 'revision', revision })}
+            onRetry={log.refetch}
+            onEditRevprops={setRevpropTarget}
+            onShowChanges={setDiffRevision}
           />
         );
       case 'properties':
@@ -631,8 +721,10 @@ export function RepoBrowserView({
             onSearchScopeChange={actions.setScope}
             filterInputRef={filterRef}
             onCheckout={() => onCheckout?.(selectedEntry, selectedUrl)}
-            onNewFolder={() => undefined}
-            canCreateFolder={false}
+            /* #69: the toolbar's folder button is the same remote mkdir the
+               context menu offers, pointed at the directory on screen. */
+            onNewFolder={() => setRemoteOp({ kind: 'mkdir', entries: [currentDirEntry] })}
+            canCreateFolder
             onToggleDetail={actions.toggleDetail}
             detailVisible={state.detailVisible}
             addressBar={
@@ -664,6 +756,8 @@ export function RepoBrowserView({
             onSelect={(entry) => actions.navigate(entry.path)}
             onSearchRequest={() => filterRef.current?.focus()}
             onContextMenu={(entry, event) => showContextMenu(event, entry)}
+            onDropEntries={handleDropEntries}
+            repoRootUrl={rootUrl}
           />
         }
         contents={
@@ -703,8 +797,8 @@ export function RepoBrowserView({
               fromCache={listing.fromCache}
               cacheAgeMs={listing.cacheAgeMs}
               totalCount={listing.totalCount}
-              sort={state.sort}
-              onSortChange={(sort) => actions.setSort(sort.key)}
+              sort={repoSort}
+              onSortChange={(sort) => setRepoSortKey(sort.key)}
               selectedPaths={Array.from(state.checked)}
               onSelectionChange={(paths) => {
                 actions.clearChecked();
@@ -738,6 +832,14 @@ export function RepoBrowserView({
               onCopyUrls={(selected) =>
                 void navigator.clipboard?.writeText(selected.map((entry) => entry.url).join('\n'))
               }
+              onBatchDelete={(selected) => setRemoteOp({ kind: 'delete', entries: selected })}
+              onBatchMove={(selected) => setRemoteOp({ kind: 'move', entries: selected })}
+              onBatchCopy={(selected) => setRemoteOp({ kind: 'copy', entries: selected })}
+              onDropEntries={handleDropEntries}
+              repoRootUrl={rootUrl}
+              error={listing.error}
+              onRetry={listing.refetch}
+              isRetrying={listing.isFetching}
             />
           </div>
         }
@@ -1061,6 +1163,49 @@ export function RepoBrowserView({
         isOpen={problemsOpen}
         onClose={() => setProblemsOpen(false)}
         problems={workingCopy.problems}
+      />
+
+      {/* Repository-side writes (#68, #69): one shared confirmation, counting
+          affected paths from the tree data the browser already holds. */}
+      {remoteOp ? (
+        <RemoteOpDialog
+          request={remoteOp}
+          rootUrl={rootUrl}
+          peg={state.peg}
+          childrenByPath={tree.childrenByPath}
+          childCountByPath={tree.childCountByPath}
+          onClose={() => setRemoteOp(null)}
+          onApplied={handleRemoteOpApplied}
+        />
+      ) : null}
+
+      {/* Revprop editing (#70): pre-filled from the log row, confirmed against
+          a stated-permanent-and-logged notice, persisted via svn:revpropset. */}
+      {revpropTarget ? (
+        <RevpropEditDialog
+          revision={revpropTarget.revision}
+          path={state.selectedPath ?? state.path}
+          targetUrl={selectedUrl}
+          current={{
+            log: revpropTarget.message,
+            author: revpropTarget.author,
+            date: revpropTarget.date,
+          }}
+          onClose={() => setRevpropTarget(null)}
+          onSave={(name, value) =>
+            window.api.svn.revpropset(selectedUrl, name, value, String(revpropTarget.revision))
+          }
+          onSaved={handleRevpropSaved}
+        />
+      ) : null}
+
+      {/* Show-changes (#72): the selected revision diffed against its
+          predecessor, shared with the working-copy history surface. */}
+      <RevisionDiffDialog
+        isOpen={diffRevision !== null}
+        onClose={() => setDiffRevision(null)}
+        path={state.selectedPath ?? state.path}
+        revision={diffRevision}
       />
 
       {workingCopy.workingCopy ? (

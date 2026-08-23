@@ -19,6 +19,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactElement, Ref } 
 import { File, FileImage, Folder } from 'lucide-react';
 
 import type { RepoEntry, RepoScope } from '../types';
+import type { RepoDragEventLike } from '../lib/repoDragDrop';
 import { RepoLockFlag, RepoPresenceFlag, RepoRollupFlags, RepoStatusFlag } from './RepoStatusFlag';
 
 /** Row height in pixels. Exported so the virtualizer can estimate without measuring. */
@@ -86,7 +87,7 @@ export function formatEntryDate(iso: string): string {
 export interface RepoContentsRowProps {
   entry: RepoEntry;
   /**
-   * Which truth is on screen. `repository` suppresses every `svn status`
+   * Which truth on screen. `repository` suppresses every `svn status`
    * derived cell — there is no working copy to have a status.
    */
   scope: RepoScope;
@@ -115,6 +116,12 @@ export interface RepoContentsRowProps {
   onSelectedChange: (entry: RepoEntry, selected: boolean) => void;
   /** Single click — make this the current row. */
   onActivate: (entry: RepoEntry) => void;
+  /**
+   * Row click with modifiers intact (#68 multi-select): the list, not the
+   * row, decides what shift/cmd-clicking means. Falls back to `onActivate`
+   * when absent so the row stays usable in isolation.
+   */
+  onRowClick?: (entry: RepoEntry, modifiers: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => void;
   /** Double click or Enter — navigate into a directory, open a file. */
   onOpen: (entry: RepoEntry) => void;
   onContextMenu?: (entry: RepoEntry, event: ReactMouseEvent<HTMLDivElement>) => void;
@@ -122,6 +129,22 @@ export interface RepoContentsRowProps {
   onBlame?: (entry: RepoEntry) => void;
   onLog?: (entry: RepoEntry) => void;
   onCheckout?: (entry: RepoEntry) => void;
+  /**
+   * Repository drag-and-drop (#68). When present the row is a drag source and
+   * — for directories — a drop target; the list owns the validity rules, the
+   * row only reports the DOM events and paints the state it is told to.
+   * Handlers receive the React drag event so modifier keys survive.
+   */
+  dnd?: {
+    /** This row is the directory a valid drag is hovering over. */
+    dropActive?: boolean;
+    /** Fires once at drag start; the list bundles the whole selection. */
+    onDragStart?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDragOver?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDragLeave?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDrop?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDragEnd?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+  };
 }
 
 export function RepoContentsRow({
@@ -137,12 +160,14 @@ export function RepoContentsRow({
   rowRef,
   onSelectedChange,
   onActivate,
+  onRowClick,
   onOpen,
   onContextMenu,
   onDiff,
   onBlame,
   onLog,
   onCheckout,
+  dnd,
 }: RepoContentsRowProps): ReactElement {
   const isDir = entry.kind === 'dir';
   const directoryPart = showPath ? entry.path.split('/').slice(0, -1).join('/') : '';
@@ -201,16 +226,40 @@ export function RepoContentsRow({
         'outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent',
         active ? 'bg-accent/10' : 'hover:bg-bg-secondary',
         notOnDisk ? 'opacity-60' : '',
+        // A valid drop target announces itself the way the working-copy file
+        // rows do (hooks/useDragDrop idioms): inset accent ring + tint.
+        dnd?.dropActive ? 'bg-accent/20 ring-2 ring-inset ring-accent' : '',
+        dnd ? 'cursor-grab active:cursor-grabbing' : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      onClick={() => onActivate(entry)}
+      onClick={(event) => {
+        if (onRowClick) {
+          onRowClick(entry, {
+            shiftKey: event.shiftKey,
+            metaKey: event.metaKey,
+            ctrlKey: event.ctrlKey,
+          });
+          return;
+        }
+        onActivate(entry);
+      }}
       onDoubleClick={() => onOpen(entry)}
       onContextMenu={(event) => {
         if (!onContextMenu) return;
         event.preventDefault();
         onContextMenu(entry, event);
       }}
+      {...(dnd
+        ? {
+            draggable: true,
+            onDragStart: (event: RepoDragEventLike) => dnd.onDragStart?.(entry, event),
+            onDragEnd: (event: RepoDragEventLike) => dnd.onDragEnd?.(entry, event),
+            onDragOver: (event: RepoDragEventLike) => dnd.onDragOver?.(entry, event),
+            onDragLeave: (event: RepoDragEventLike) => dnd.onDragLeave?.(entry, event),
+            onDrop: (event: RepoDragEventLike) => dnd.onDrop?.(entry, event),
+          }
+        : {})}
     >
       <span role="gridcell" className="flex items-center">
         <input

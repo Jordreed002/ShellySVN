@@ -25,6 +25,7 @@ import {
   FileDiff,
   FileText,
   Folder,
+  FolderInput,
   FolderPlus,
   GitBranch,
   GitCompare,
@@ -102,6 +103,11 @@ export interface RepoBrowserMenuHandlers {
   /** Narrows the filter to this folder and focuses it. */
   onSearchHere: (entry: RepoEntry) => void;
   onCopyTo: (entry: RepoEntry, request: RepoCopyToRequest) => void;
+  /**
+   * Move this path elsewhere in the repository (#68). `svn move` on URLs is an
+   * immediate commit, so the handler opens a confirmation rather than acting.
+   */
+  onMoveTo: (entry: RepoEntry) => void;
   onCreateFolder: (entry: RepoEntry) => void;
   /** Locks are read from a checkout, so the resolved local path comes with it. */
   onManageLocks: (entry: RepoEntry, localPath: string) => void;
@@ -335,6 +341,18 @@ export function buildRepoBrowserMenu({
             handlers.onCopyTo(entry, { destination: 'prompt', fromRevision: 'prompt' }),
         },
       ],
+    },
+    {
+      /*
+       * Companion to "Copy to…" (#68): same destination prompt, but the source
+       * path stops existing where it was — one commit, straight to the
+       * repository. The handler confirms affected paths before running.
+       */
+      id: 'move',
+      label: 'Move to…',
+      icon: FolderInput,
+      command: 'svn move',
+      onClick: () => handlers.onMoveTo(entry),
     },
     {
       id: 'mkdir',

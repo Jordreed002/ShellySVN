@@ -10,3 +10,5 @@ export * from './useRepoLog';
 export * from './useRepoBlame';
 export * from './useRepoDiff';
 export * from './useRepoProperties';
+export * from './useRepoSort';
+export * from './useAffectedCounts';

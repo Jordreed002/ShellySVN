@@ -11,7 +11,7 @@
  */
 
 import { AlertTriangle, FileCode, Loader2, ShieldAlert } from 'lucide-react';
-import { DetailMessage } from './RepoDetailPane';
+import { DetailMessage, useRepoBrowserRetry } from './RepoDetailPane';
 
 /** One property as returned by `svn proplist -v` / `svn propget`. */
 export interface SvnPropertyEntry {
@@ -83,6 +83,11 @@ export interface PropertiesViewProps {
   path?: string;
   loading?: boolean;
   error?: string | null;
+  /**
+   * Retry the failed read. Defaults to invalidating the feature's query family;
+   * callers with a narrower refetcher should pass it.
+   */
+  onRetry?: () => void;
   className?: string;
 }
 
@@ -91,15 +96,24 @@ export function PropertiesView({
   path,
   loading = false,
   error = null,
+  onRetry,
   className = '',
 }: PropertiesViewProps): React.JSX.Element {
+  const retryDefault = useRepoBrowserRetry();
+
   if (loading) {
     return <DetailMessage icon={Loader2} title="Running svn proplist -v…" busy />;
   }
 
   if (error) {
     return (
-      <DetailMessage icon={AlertTriangle} tone="error" title="svn proplist failed" detail={error} />
+      <DetailMessage
+        icon={AlertTriangle}
+        tone="error"
+        title="svn proplist failed"
+        detail={error}
+        onRetry={onRetry ?? retryDefault}
+      />
     );
   }
 

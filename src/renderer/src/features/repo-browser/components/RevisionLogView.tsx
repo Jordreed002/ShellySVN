@@ -13,14 +13,16 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  GitCompare,
   Loader2,
+  PencilLine,
   ScrollText,
   Tag,
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
 import type { LogEntry } from '../types';
-import { DetailMessage } from './RepoDetailPane';
+import { DetailMessage, useRepoBrowserRetry } from './RepoDetailPane';
 import { formatEntryDate } from './RepoContentsRow';
 
 type BuildStatus = NonNullable<LogEntry['build']>;
@@ -60,6 +62,23 @@ export interface RevisionLogViewProps {
   loadingMore?: boolean;
   loading?: boolean;
   error?: string | null;
+  /**
+   * Retry the failed read. Defaults to invalidating the feature's query family,
+   * which refetches every view mounted in the pane — callers with a narrower
+   * refetcher (e.g. `refetch`) should pass it.
+   */
+  onRetry?: () => void;
+  /**
+   * Open the revprop editor (#70) for one revision — `svn:log`, `svn:author`,
+   * `svn:date`. The chip is inert without it: revprop writes are permanent and
+   * server-logged, so the affordance only exists where the editor is wired.
+   */
+  onEditRevprops?: (entry: LogEntry) => void;
+  /**
+   * Show that revision's diff against its predecessor (#72). The button is
+   * inert without it — the dialog only exists where the pane wired it.
+   */
+  onShowChanges?: (revision: number) => void;
   className?: string;
 }
 
@@ -74,15 +93,26 @@ export function RevisionLogView({
   loadingMore = false,
   loading = false,
   error = null,
+  onRetry,
+  onEditRevprops,
+  onShowChanges,
   className = '',
 }: RevisionLogViewProps): React.JSX.Element {
+  const retryDefault = useRepoBrowserRetry();
+
   if (loading) {
     return <DetailMessage icon={Loader2} title="Running svn log…" busy />;
   }
 
   if (error) {
     return (
-      <DetailMessage icon={AlertTriangle} tone="error" title="svn log failed" detail={error} />
+      <DetailMessage
+        icon={AlertTriangle}
+        tone="error"
+        title="svn log failed"
+        detail={error}
+        onRetry={onRetry ?? retryDefault}
+      />
     );
   }
 
@@ -192,6 +222,40 @@ export function RevisionLogView({
                     </span>
                   ) : null}
                 </span>
+
+                {/* #72: show this revision's diff against its predecessor. */}
+                {onShowChanges ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onShowChanges(entry.revision);
+                    }}
+                    className="flex-none self-start rounded-md p-1 text-text-faint transition-colors hover:bg-bg-tertiary hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                    title={`Diff r${entry.revision} against r${entry.revision - 1}`}
+                    aria-label={`Show changes for r${entry.revision}`}
+                  >
+                    <GitCompare className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                ) : null}
+
+                {/* #70: edit svn:log / svn:author / svn:date on this revision.
+                    Visible-but-faint by design — keyboard users must reach it
+                    without hovering, but it must not compete with the message. */}
+                {onEditRevprops ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEditRevprops(entry);
+                    }}
+                    className="flex-none self-start rounded-md p-1 text-text-faint transition-colors hover:bg-bg-tertiary hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                    title="Edit revision properties — svn:log, svn:author, svn:date"
+                    aria-label={`Edit revision properties for r${entry.revision}`}
+                  >
+                    <PencilLine className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                ) : null}
               </div>
             </li>
           );

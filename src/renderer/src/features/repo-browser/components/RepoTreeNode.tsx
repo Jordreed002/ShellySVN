@@ -24,6 +24,7 @@ import type {
 } from 'react';
 
 import type { RepoEntry } from '../types';
+import type { RepoDragEventLike } from '../lib/repoDragDrop';
 
 /** Height of an entry row, in px. Matches `.tnode` in the prototype. */
 export const TREE_ROW_HEIGHT = 27;
@@ -94,6 +95,22 @@ export interface RepoTreeNodeProps {
   onFocus?: () => void;
   /** Positioning supplied by the virtualizer. */
   style?: CSSProperties;
+  /**
+   * Repository drag-and-drop (#68). When present the node is a drag source
+   * and — for directories — a drop target. The tree owns the validity rules
+   * (`lib/remoteOps.canDropRepoPaths`); the node reports DOM events and paints
+   * the state it is handed. Handlers receive the React drag event so modifier
+   * keys survive.
+   */
+  dnd?: {
+    /** This directory is the valid target a drag is hovering over. */
+    dropActive?: boolean;
+    onDragStart?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDragOver?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDragLeave?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDrop?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+    onDragEnd?: (entry: RepoEntry, event: RepoDragEventLike) => void;
+  };
 }
 
 export function RepoTreeNode({
@@ -115,6 +132,7 @@ export function RepoTreeNode({
   onKeyDown,
   onFocus,
   style,
+  dnd,
 }: RepoTreeNodeProps): JSX.Element {
   // Roll-up counts exist only inside a working copy: `svn status` describes your
   // disk, `svn ls` describes the server. No rollup => no badges, ever.
@@ -147,6 +165,16 @@ export function RepoTreeNode({
       }}
       onKeyDown={onKeyDown}
       onFocus={onFocus}
+      {...(dnd
+        ? {
+            draggable: true,
+            onDragStart: (event: RepoDragEventLike) => dnd.onDragStart?.(entry, event),
+            onDragEnd: (event: RepoDragEventLike) => dnd.onDragEnd?.(entry, event),
+            onDragOver: (event: RepoDragEventLike) => dnd.onDragOver?.(entry, event),
+            onDragLeave: (event: RepoDragEventLike) => dnd.onDragLeave?.(entry, event),
+            onDrop: (event: RepoDragEventLike) => dnd.onDrop?.(entry, event),
+          }
+        : {})}
       style={{ height: TREE_ROW_HEIGHT, paddingLeft: treeRowIndent(depth), ...style }}
       className={cx(
         ROW_BASE,
@@ -154,7 +182,9 @@ export function RepoTreeNode({
         selected
           ? 'bg-accent/10 font-semibold text-accent'
           : 'text-text-secondary hover:bg-bg-tertiary hover:text-text',
-        ghosted && 'opacity-50'
+        ghosted && 'opacity-50',
+        // Same drop-target visual language as the contents rows.
+        dnd?.dropActive && 'bg-accent/20 ring-2 ring-inset ring-accent'
       )}
     >
       <span

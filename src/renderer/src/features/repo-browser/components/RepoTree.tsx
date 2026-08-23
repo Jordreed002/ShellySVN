@@ -26,13 +26,24 @@ import { ChevronsDownUp } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type {
   CSSProperties,
+  DragEvent as ReactDragEvent,
   FocusEvent as ReactFocusEvent,
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
 } from 'react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { RepoEntry } from '../types';
+import { canDropRepoPaths } from '../lib/remoteOps';
+import {
+  endRepoDrag,
+  getDraggingRepoPaths,
+  isRepoDrag,
+  operationForDragEvent,
+  readRepoDragData,
+  writeRepoDragData,
+  type RepoDragEventLike,
+} from '../lib/repoDragDrop';
 import {
   RepoTreeMoreRow,
   RepoTreeNode,
@@ -133,6 +144,15 @@ export interface RepoTreeProps {
   onContextMenu?: (entry: RepoEntry, event: ReactMouseEvent<HTMLElement>) => void;
   /** Fired by "… N more — search instead" with the capped directory's path. */
   onSearchRequest?: (containerPath: string, hiddenCount: number) => void;
+  /**
+   * Repository drag-and-drop (#68): drag nodes onto folders to move (or, with
+   * ctrl/cmd held, copy). Called with the dragged repo-relative paths, the
+   * target directory entry and the modifier-chosen operation. Absent disables
+   * dragging in the tree.
+   */
+  onDropEntries?: (sources: string[], target: RepoEntry, operation: 'move' | 'copy') => void;
+  /** Repository root URL, carried in the drag payload for cross-surface drops. */
+  repoRootUrl?: string;
 }
 
 /**
@@ -301,11 +321,86 @@ export function RepoTree({
   onSelect,
   onContextMenu,
   onSearchRequest,
+  onDropEntries,
+  repoRootUrl = '',
 }: RepoTreeProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pendingFocusRef = useRef<string | null>(null);
   const typeaheadRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
   const [focusedId, setFocusedId] = useState<string | null>(null);
+
+  /*
+   * ── repository drag-and-drop (#68) ──
+   *
+   * Every node is a drag source; directories are drop targets, validated with
+   * the same `canDropRepoPaths` rule the contents pane uses, so a drop means
+   * the same thing in both panes.
+   */
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
+
+  const handleNodeDragStart = useCallback(
+    (entry: RepoEntry, event: RepoDragEventLike) => {
+      writeRepoDragData(event.dataTransfer, { paths: [entry.path], rootUrl: repoRootUrl });
+    },
+    [repoRootUrl]
+  );
+
+  const handleNodeDragOver = useCallback((entry: RepoEntry, event: RepoDragEventLike) => {
+    if (entry.kind !== 'dir') return;
+    if (!isRepoDrag(event.dataTransfer)) return;
+    const sources = getDraggingRepoPaths() ?? [];
+    if (!canDropRepoPaths(sources, entry.path)) {
+      setDropTargetPath((current) => (current === entry.path ? null : current));
+      return;
+    }
+    event.preventDefault?.();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = operationForDragEvent(event) === 'copy' ? 'copy' : 'move';
+    }
+    setDropTargetPath(entry.path);
+  }, []);
+
+  const handleNodeDragLeave = useCallback((entry: RepoEntry) => {
+    setDropTargetPath((current) => (current === entry.path ? null : current));
+  }, []);
+
+  const handleNodeDrop = useCallback(
+    (entry: RepoEntry, event: RepoDragEventLike) => {
+      if (entry.kind !== 'dir') return;
+      event.preventDefault?.();
+      setDropTargetPath(null);
+      const payload = readRepoDragData(event.dataTransfer);
+      const sources = payload?.paths ?? getDraggingRepoPaths() ?? [];
+      endRepoDrag();
+      if (!onDropEntries || !canDropRepoPaths(sources, entry.path)) return;
+      onDropEntries(sources, entry, operationForDragEvent(event));
+    },
+    [onDropEntries]
+  );
+
+  const nodeDnd = useMemo(
+    () =>
+      onDropEntries
+        ? {
+            onDragStart: handleNodeDragStart,
+            onDragOver: handleNodeDragOver,
+            onDragLeave: handleNodeDragLeave,
+            onDrop: handleNodeDrop,
+            onDragEnd: () => endRepoDrag(),
+          }
+        : undefined,
+    [onDropEntries, handleNodeDragStart, handleNodeDragOver, handleNodeDragLeave, handleNodeDrop]
+  );
+
+  const handleScrollerDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      // Only so the browser allows the drop; the node underneath reports it.
+      if (!onDropEntries || dropTargetPath === null) return;
+      if (!isRepoDrag({ types: event.dataTransfer?.types })) return;
+      event.preventDefault();
+    },
+    [onDropEntries, dropTargetPath]
+  );
 
   const emptyChildren = useMemo<Record<string, RepoEntry[] | undefined>>(() => ({}), []);
   const emptyCounts = useMemo<Record<string, number | undefined>>(() => ({}), []);
@@ -521,6 +616,14 @@ export function RepoTree({
           onToggleExpand={onToggleExpand}
           onSelect={onSelect}
           onContextMenu={onContextMenu}
+          dnd={
+            nodeDnd
+              ? {
+                  ...nodeDnd,
+                  dropActive: dropTargetPath === row.entry.path && row.entry.kind === 'dir',
+                }
+              : undefined
+          }
         />
       );
     }
@@ -548,6 +651,7 @@ export function RepoTree({
       ref={scrollRef}
       tabIndex={activeRowRendered ? -1 : 0}
       onFocus={handleContainerFocus}
+      onDragOver={handleScrollerDragOver}
       className={cx(
         'min-h-0 flex-1 overflow-auto px-[7px] pb-3.5 pt-[5px] outline-none',
         // Without a header this element *is* the pane, so it carries the surface

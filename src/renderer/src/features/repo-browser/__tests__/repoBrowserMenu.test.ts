@@ -157,6 +157,9 @@ describe('buildRepoBrowserMenu — the command under each item', () => {
       'copy-from-head': undefined,
       'copy-from-revision': undefined,
 
+      // #68: URL-side move — one commit, straight to the repository.
+      move: 'svn move',
+
       mkdir: 'svn mkdir',
       properties: 'svn proplist -v',
       locks: 'svn lock / unlock',

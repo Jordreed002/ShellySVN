@@ -12,8 +12,18 @@
  */
 
 import { useCallback, useId, type KeyboardEvent, type ReactNode } from 'react';
-import { AlertTriangle, ChevronDown, FileText, Info, Loader2, type LucideIcon } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  AlertTriangle,
+  ChevronDown,
+  FileText,
+  Info,
+  Loader2,
+  RotateCw,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Comparand, ComparandOption, DetailTab } from '../types';
+import { REPO_BROWSER_QUERY_ROOT } from '../hooks/queryKeys';
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The canonical comparand list
@@ -126,6 +136,9 @@ export interface DetailMessageProps {
   tone?: 'neutral' | 'warning' | 'error';
   /** Spins the icon — for in-flight states. */
   busy?: boolean;
+  /** Re-run the failed command. The button renders only when supplied. */
+  onRetry?: () => void;
+  retryLabel?: string;
 }
 
 const TONE_ICON_CLASS: Record<NonNullable<DetailMessageProps['tone']>, string> = {
@@ -145,6 +158,8 @@ export function DetailMessage({
   command,
   tone = 'neutral',
   busy = false,
+  onRetry,
+  retryLabel = 'Retry',
 }: DetailMessageProps): React.JSX.Element {
   return (
     <div className="flex h-full min-h-[120px] flex-col items-center justify-center gap-2 px-4 py-8 text-center font-sans">
@@ -161,8 +176,36 @@ export function DetailMessage({
           {command}
         </code>
       ) : null}
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="btn btn-secondary btn-sm mt-2 text-xs"
+          aria-label={retryLabel}
+        >
+          <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+          {retryLabel}
+        </button>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * Retry the repository browser's mounted reads.
+ *
+ * Every query this feature issues is keyed under {@link REPO_BROWSER_QUERY_ROOT}
+ * (the route's listing key reuses the same root), so one invalidation refetches
+ * exactly the views on screen — log, properties, listing — and nothing else.
+ * Views whose data arrives via props use this when no narrower retry handler
+ * was passed down.
+ */
+export function useRepoBrowserRetry(): () => void {
+  const queryClient = useQueryClient();
+
+  return useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: [REPO_BROWSER_QUERY_ROOT] });
+  }, [queryClient]);
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -229,6 +272,7 @@ export function RepoDetailPane({
 }: RepoDetailPaneProps): React.JSX.Element {
   const tabsId = useId();
   const selectId = `${tabsId}-comparand`;
+  const retryDetailReads = useRepoBrowserRetry();
 
   const activeOption = findComparandOption(comparand, comparandOptions);
   const hasBlockedOptions = comparandOptions.some((option) =>
@@ -384,6 +428,7 @@ export function RepoDetailPane({
             tone="error"
             title="That command failed"
             detail={error}
+            onRetry={retryDetailReads}
           />
         ) : path === null ? (
           <DetailMessage
