@@ -21,7 +21,10 @@ interface UpdateAllButtonProps {
   label?: string;
   title?: string;
   ariaLabel?: string;
+  /** Classes for the button itself; defaults suit the variant (`rail-item` vs `btn`). */
   className?: string;
+  /** Leading icon sizing, e.g. `h-3 w-3` when the button uses `btn-icon-sm`. */
+  iconClassName?: string;
   iconOnly?: boolean;
 }
 
@@ -30,7 +33,8 @@ export function UpdateAllButton({
   label = 'Update all',
   title,
   ariaLabel,
-  className = 'btn btn-secondary btn-sm gap-1',
+  className,
+  iconClassName = 'h-5 w-5',
   iconOnly = false,
 }: UpdateAllButtonProps) {
   const { updatePaths, updateAll, summary, isChecking } = useBatchUpdate();
@@ -44,11 +48,23 @@ export function UpdateAllButton({
       ? `Update every working copy in this group through the batch pipeline`
       : `Update every working copy through the batch pipeline`);
 
+  // The failure/blocked dot scales with its host button so the same classes
+  // fit both the 40px `rail-item` and the 24px `btn-icon-sm` variants.
+  const failureDot =
+    (summary.failed > 0 || summary.blocked > 0) && (
+      <span
+        className={`absolute top-[12%] right-[12%] h-[22%] w-[22%] rounded-full ring-2 ring-bg-secondary ${
+          summary.failed > 0 ? 'bg-svn-conflict' : 'bg-svn-modified'
+        }`}
+        aria-hidden="true"
+      />
+    );
+
   if (iconOnly) {
     return (
       <button
         type="button"
-        className="rail-item relative"
+        className={`${className ?? 'rail-item'} relative`}
         onClick={() => void run()}
         disabled={busy}
         aria-label={ariaLabel ?? label}
@@ -56,18 +72,11 @@ export function UpdateAllButton({
         data-testid="update-all-button"
       >
         {busy ? (
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+          <Loader2 className={`${iconClassName} animate-spin`} aria-hidden="true" />
         ) : (
-          <RefreshCw className="h-5 w-5" aria-hidden="true" />
+          <RefreshCw className={iconClassName} aria-hidden="true" />
         )}
-        {(summary.failed > 0 || summary.blocked > 0) && (
-          <span
-            className={`absolute top-1 right-1 h-2 w-2 rounded-full ring-2 ring-bg-secondary ${
-              summary.failed > 0 ? 'bg-svn-conflict' : 'bg-svn-modified'
-            }`}
-            aria-hidden="true"
-          />
-        )}
+        {failureDot}
       </button>
     );
   }
@@ -75,7 +84,9 @@ export function UpdateAllButton({
   return (
     <button
       type="button"
-      className={className}
+      className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${
+        className ?? 'btn btn-secondary btn-sm gap-1'
+      }`}
       onClick={() => void run()}
       disabled={busy}
       aria-label={ariaLabel ?? label}
@@ -87,12 +98,10 @@ export function UpdateAllButton({
       ) : (
         <RefreshCw className="h-3 w-3" aria-hidden="true" />
       )}
-      {!iconOnly && (
-        <span>
-          {label}
-          {active > 0 ? ` (${active})` : ''}
-        </span>
-      )}
+      <span>
+        {label}
+        {active > 0 ? ` (${active})` : ''}
+      </span>
     </button>
   );
 }

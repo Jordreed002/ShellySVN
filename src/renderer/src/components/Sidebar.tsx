@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
+  ArrowUpDown,
   Clock,
   Database,
   ExternalLink,
@@ -491,7 +492,9 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               action={
                 <span className="flex items-center gap-1">
                   <UpdateAllButton
-                    className="btn-icon-sm"
+                    iconOnly
+                    className="text-text-muted hover:text-text transition-fast"
+                    iconClassName="h-3 w-3"
                     label="Update all"
                     title="Update every working copy through the batch pipeline"
                   />
@@ -507,7 +510,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                   </button>
                   <label className="flex items-center text-text-muted hover:text-text transition-fast">
                     <span className="sr-only">Sort working copies</span>
-                    <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                    <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
                     <select
                       value={sidebarUi.state.sortMode}
                       onChange={handleSortModeChange}

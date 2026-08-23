@@ -404,7 +404,9 @@ export function WorkingCopyList({
                     </button>
                     <UpdateAllButton
                       paths={section.paths}
+                      iconOnly
                       className="btn-icon-sm"
+                      iconClassName="h-3 w-3"
                       label={`Update ${label}`}
                       ariaLabel={`Update every working copy in ${label}`}
                       title={`Update all working copies in ${label}`}

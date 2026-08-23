@@ -31,7 +31,7 @@ interface RailSectionProps {
 export function RailSection({ title, action }: RailSectionProps) {
   return (
     <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-1">
-      <span className="flex-1 text-2xs font-bold uppercase tracking-[0.13em] text-text-muted">
+      <span className="min-w-0 flex-1 truncate text-2xs font-bold uppercase tracking-[0.13em] text-text-muted">
         {title}
       </span>
       {action}
