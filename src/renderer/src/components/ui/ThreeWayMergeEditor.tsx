@@ -20,6 +20,10 @@ import {
 import { confirmAppAction } from '../../utils/dialogs';
 import type { AiConflictProposalResult, AiPromptPreviewResult } from '@shared/types';
 import { AiPromptPreviewDialog } from '../ai/AiPromptPreviewDialog';
+import { isTopDialog, useDialogRegistration } from '@renderer/lib/dialogStack';
+
+/** Dialog-stack identity so dialogs below the editor ignore Escape while it is open. */
+const MERGE_EDITOR_DIALOG_ID = 'three-way-merge-editor';
 
 interface ThreeWayMergeEditorProps {
   isOpen: boolean;
@@ -149,6 +153,10 @@ export function ThreeWayMergeEditor({
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Register on the shared dialog stack so the wizard below this editor does
+  // not also react to Escape while the editor is the top-most dialog.
+  useDialogRegistration(MERGE_EDITOR_DIALOG_ID, isOpen);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const aiAbortRef = useRef<AbortController | null>(null);
   const sourceContent = initialMergedContent ?? mineContent;
@@ -510,6 +518,9 @@ export function ThreeWayMergeEditor({
       if (!isOpen) return;
 
       if (e.key === 'Escape') {
+        // Only the top-most dialog reacts to Escape; a nested dialog (e.g. the
+        // AI prompt preview) owns the key while it is open.
+        if (!isTopDialog(MERGE_EDITOR_DIALOG_ID)) return;
         if (editingConflictId) {
           setEditingConflictId(null);
         } else {

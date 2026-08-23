@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { Key, Lock, Shield, User } from 'lucide-react';
+import { DialogBase } from '@renderer/components/ui/DialogBase';
 
 export interface SslCertificate {
   fingerprint: string;
@@ -27,16 +28,21 @@ export function CheckoutSslPrompt({
   onTrust,
 }: CheckoutSslPromptProps) {
   return (
-    <div className="modal-overlay" style={{ zIndex: 100 }}>
-      <div className="modal w-[480px]" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">
-            <Shield className="w-5 h-5 text-warning" />
-            Certificate Verification Failed
-          </h2>
-        </div>
-
-        <div className="modal-body space-y-4">
+    <DialogBase
+      isOpen
+      onClose={onReject}
+      dialogId="checkout-ssl-prompt"
+      className="w-[480px]"
+      showCloseButton={false}
+      closeOnOverlayClick={false}
+      title={
+        <>
+          <Shield className="w-5 h-5 text-warning" />
+          Certificate Verification Failed
+        </>
+      }
+    >
+      <div className="modal-body space-y-4">
           <p className="text-text-secondary text-sm">
             The server's SSL certificate could not be verified. Review the certificate details
             below:
@@ -113,8 +119,7 @@ export function CheckoutSslPrompt({
             Trust Certificate
           </button>
         </div>
-      </div>
-    </div>
+    </DialogBase>
   );
 }
 
@@ -138,18 +143,24 @@ export function CheckoutAuthPrompt({
   onSubmit,
 }: CheckoutAuthPromptProps) {
   return (
-    <div className="modal-overlay" style={{ zIndex: 100 }}>
-      <div className="modal w-[400px]" onClick={(event) => event.stopPropagation()}>
-        <form onSubmit={onSubmit}>
-          <div className="modal-header">
-            <h2 className="modal-title">
-              <Lock className="w-5 h-5 text-accent" />
-              Authentication Required
-            </h2>
-          </div>
-
-          <div className="modal-body space-y-4">
-            <p className="text-text-secondary text-sm">Please enter your credentials for:</p>
+    <DialogBase
+      isOpen
+      onClose={onCancel}
+      dialogId="checkout-auth-prompt"
+      className="w-[400px]"
+      showCloseButton={false}
+      closeOnOverlayClick={false}
+      initialFocus="first-control"
+      title={
+        <>
+          <Lock className="w-5 h-5 text-accent" />
+          Authentication Required
+        </>
+      }
+    >
+      <form onSubmit={onSubmit}>
+        <div className="modal-body space-y-4">
+          <p className="text-text-secondary text-sm">Please enter your credentials for:</p>
 
             {realm && (
               <div className="bg-surface-elevated rounded px-3 py-2 text-sm text-text-secondary font-mono">
@@ -204,7 +215,6 @@ export function CheckoutAuthPrompt({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </DialogBase>
   );
 }

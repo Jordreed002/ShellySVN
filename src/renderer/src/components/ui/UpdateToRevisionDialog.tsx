@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Download, Loader2, CheckCircle, AlertCircle, FolderOpen } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, FolderOpen } from 'lucide-react';
 import { ChooseItemsDialog } from './ChooseItemsDialog';
+import { DialogBase } from './DialogBase';
 import type { AuthSession, SvnOperationRevision } from '@shared/types';
 
 type UpdateDepth = 'empty' | 'files' | 'immediates' | 'infinity';
@@ -138,24 +139,19 @@ export function UpdateToRevisionDialog({
 
   return (
     <>
-      <div className="modal-overlay" onClick={handleClose}>
-        <div className="modal w-[450px]" onClick={(e) => e.stopPropagation()}>
-          <div className="modal-header">
-            <h2 className="modal-title">
-              <Download className="w-5 h-5 text-accent" />
-              Update to Working Copy
-            </h2>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="btn-icon-sm"
-              disabled={isUpdating}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {success ? (
+      <DialogBase
+        isOpen={isOpen}
+        onClose={handleClose}
+        dialogId="update-to-revision-dialog"
+        className="w-[450px]"
+        title={
+          <>
+            <Download className="w-5 h-5 text-accent" />
+            Update to Working Copy
+          </>
+        }
+      >
+        {success ? (
             <div className="modal-body">
               <div className="flex flex-col items-center py-6 text-center">
                 <div className="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center mb-4">
@@ -322,8 +318,7 @@ export function UpdateToRevisionDialog({
               </div>
             </form>
           )}
-        </div>
-      </div>
+      </DialogBase>
 
       {showChooseItemsDialog && repoUrl && workingCopyRoot && (
         <ChooseItemsDialog

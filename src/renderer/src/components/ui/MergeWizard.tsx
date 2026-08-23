@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  X,
   GitMerge,
   AlertCircle,
   CheckCircle,
@@ -11,6 +10,7 @@ import {
   Download,
 } from 'lucide-react';
 import { getTextConflictPathsFromSvnOutput } from '@renderer/utils/conflictDetection';
+import { DialogBase } from './DialogBase';
 import type {
   MergeReadinessReport,
   SvnMergeInfoResult,
@@ -377,20 +377,19 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal w-[600px]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <h2 className="modal-title">
-            <GitMerge className="w-5 h-5 text-accent" />
-            Merge
-          </h2>
-          <button onClick={handleClose} className="btn-icon-sm" disabled={isMerging}>
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Progress indicator */}
+    <DialogBase
+      isOpen={isOpen}
+      onClose={handleClose}
+      dialogId="merge-wizard"
+      className="w-[600px]"
+      title={
+        <>
+          <GitMerge className="w-5 h-5 text-accent" />
+          Merge
+        </>
+      }
+    >
+      {/* Progress indicator */}
         <div className="flex items-center justify-center gap-2 py-3 bg-bg-tertiary border-b border-border">
           {[1, 2, 3].map((p) => (
             <div key={p} className="flex items-center gap-2">
@@ -841,7 +840,6 @@ export function MergeWizard({ isOpen, onClose, targetPath, onComplete }: MergeWi
             </div>
           </>
         )}
-      </div>
-    </div>
+    </DialogBase>
   );
 }

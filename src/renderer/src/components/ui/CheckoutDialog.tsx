@@ -1,6 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import {
-  X,
   Download,
   FolderOpen,
   AlertCircle,
@@ -12,6 +11,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useSettings } from '@renderer/hooks/useSettings';
+import { DialogBase } from './DialogBase';
 import {
   CheckoutAuthPrompt,
   CheckoutSslPrompt,
@@ -366,21 +366,20 @@ export function CheckoutDialog({
   return (
     <>
       {/* Main Checkout Dialog */}
-      <div className="modal-overlay" onClick={handleClose}>
-        <div className="modal w-[560px]" onClick={(e) => e.stopPropagation()}>
-          {/* Header */}
-          <div className="modal-header">
-            <h2 className="modal-title">
-              <Download className="w-5 h-5 text-accent" />
-              Checkout from Repository
-            </h2>
-            <button onClick={handleClose} className="btn-icon-sm" disabled={isCheckingOut}>
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Content */}
-          {success ? (
+      <DialogBase
+        isOpen={isOpen}
+        onClose={handleClose}
+        dialogId="checkout-dialog"
+        className="w-[560px]"
+        title={
+          <>
+            <Download className="w-5 h-5 text-accent" />
+            Checkout from Repository
+          </>
+        }
+      >
+        {/* Content */}
+        {success ? (
             <div className="modal-body">
               <div className="flex flex-col items-center py-8 text-center">
                 <div className="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center mb-4">
@@ -645,8 +644,7 @@ export function CheckoutDialog({
               </div>
             </form>
           )}
-        </div>
-      </div>
+      </DialogBase>
 
       {/* SSL Certificate Trust Prompt */}
       {showSslPrompt && sslCertificate && (

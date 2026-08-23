@@ -15,8 +15,8 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-react';
-import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { DialogBase } from './DialogBase';
 import type { SvnLockInfo } from '@shared/types';
 
 interface LockManagementDialogProps {
@@ -75,18 +75,8 @@ export function LockManagementDialog({
 
   const queryClient = useQueryClient();
 
-  // Focus trap for accessibility
-  const modalRef = useFocusTrap({
-    active: isOpen,
-    onEscape: () => {
-      if (!actionInProgress) onClose();
-    },
-    returnFocus: true,
-  });
-
-  // Generate unique IDs for accessibility
-  const dialogId = useMemo(() => `lock-dialog-${Math.random().toString(36).substring(2, 11)}`, []);
-  const titleId = `${dialogId}-title`;
+  // Generate unique ID for the dialog (stack identity + geometry key)
+  const dialogId = 'lock-management-dialog';
 
   // Fetch all locks in the working copy
   const {
@@ -198,34 +188,20 @@ export function LockManagementDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose} role="presentation">
-      <div
-        ref={modalRef}
-        className="modal w-[700px] max-h-[85vh]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        id={dialogId}
-      >
-        {/* Header */}
-        <div className="modal-header">
-          <h2 id={titleId} className="modal-title">
-            <Lock className="w-5 h-5 text-warning" aria-hidden="true" />
-            Lock Management
-          </h2>
-          <button
-            onClick={handleClose}
-            className="btn-icon-sm"
-            disabled={!!actionInProgress}
-            aria-label="Close dialog"
-          >
-            <X className="w-4 h-4" aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex" style={{ height: '450px' }}>
+    <DialogBase
+      isOpen={isOpen}
+      onClose={handleClose}
+      dialogId={dialogId}
+      className="w-[700px] max-h-[85vh]"
+      title={
+        <>
+          <Lock className="w-5 h-5 text-warning" aria-hidden="true" />
+          Lock Management
+        </>
+      }
+    >
+      {/* Content */}
+      <div className="flex" style={{ height: '450px' }}>
           {/* Left panel - Lock list */}
           <div
             className="w-[280px] border-r border-border flex flex-col"
@@ -497,20 +473,21 @@ export function LockManagementDialog({
 
         {/* Confirmation dialogs */}
         {showConfirmSteal && selectedLock && (
-          <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="steal-confirm-title"
-          >
-            <div className="bg-bg-elevated rounded-lg shadow-xl w-[400px] p-4">
-              <h3
-                id="steal-confirm-title"
-                className="text-lg font-medium text-text mb-2 flex items-center gap-2"
-              >
+          <DialogBase
+            isOpen
+            onClose={() => setShowConfirmSteal(false)}
+            dialogId="lock-steal-confirm"
+            className="w-[400px]"
+            showCloseButton={false}
+            closeOnOverlayClick={false}
+            title={
+              <>
                 <ShieldAlert className="w-5 h-5 text-warning" aria-hidden="true" />
                 Confirm Steal Lock
-              </h3>
+              </>
+            }
+          >
+            <div className="modal-body">
               <p className="text-sm text-text-secondary mb-4">
                 You are about to steal the lock from{' '}
                 <strong className="text-text">{selectedLock.owner}</strong>. They will lose their
@@ -536,24 +513,25 @@ export function LockManagementDialog({
                 </button>
               </div>
             </div>
-          </div>
+          </DialogBase>
         )}
 
         {showConfirmBreak && selectedLock && (
-          <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="break-confirm-title"
-          >
-            <div className="bg-bg-elevated rounded-lg shadow-xl w-[400px] p-4">
-              <h3
-                id="break-confirm-title"
-                className="text-lg font-medium text-text mb-2 flex items-center gap-2"
-              >
+          <DialogBase
+            isOpen
+            onClose={() => setShowConfirmBreak(false)}
+            dialogId="lock-break-confirm"
+            className="w-[400px]"
+            showCloseButton={false}
+            closeOnOverlayClick={false}
+            title={
+              <>
                 <ShieldCheck className="w-5 h-5 text-error" aria-hidden="true" />
                 Confirm Break Lock
-              </h3>
+              </>
+            }
+          >
+            <div className="modal-body">
               <p className="text-sm text-text-secondary mb-4">
                 You are about to break the lock held by{' '}
                 <strong className="text-text">{selectedLock.owner}</strong>. This will remove the
@@ -578,9 +556,8 @@ export function LockManagementDialog({
                 </button>
               </div>
             </div>
-          </div>
+          </DialogBase>
         )}
-      </div>
-    </div>
+    </DialogBase>
   );
 }
