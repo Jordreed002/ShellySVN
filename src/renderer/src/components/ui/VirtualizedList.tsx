@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react';
+import { useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
@@ -6,6 +6,119 @@ import { getStatusDisplay } from '../../hooks/useIncrementalStatus';
 
 // Module-level constant for default Set props to avoid new instances on every render
 const EMPTY_SET = new Set<string>();
+
+/** Item key type used by @tanstack/react-virtual (Key = string | number | bigint). */
+type AnchorKey = string | number | bigint;
+
+/** Minimal shape of a virtualizer needed for scroll anchoring (structural, version-tolerant). */
+interface AnchorableVirtualizer {
+  measurementsCache: ReadonlyArray<{ key: AnchorKey; start: number; size: number }>;
+}
+
+interface AnchorableVirtualItem {
+  key: AnchorKey;
+  start: number;
+  size: number;
+  end: number;
+}
+
+interface ScrollAnchor {
+  /** Key of the row the viewport is pinned to. */
+  key: AnchorKey;
+  /** Distance from the top of the anchored row to the top of the viewport (>= 0). */
+  offset: number;
+  /** The anchored row's start offset at capture time (used when the row disappears). */
+  start: number;
+}
+
+/**
+ * Preserves the user's scroll position when the underlying data is refreshed
+ * (e.g. SVN statuses arrive mid-scroll and replace the row array with new
+ * object identities, or rows are inserted/removed above the viewport).
+ *
+ * TanStack Virtual keeps the scroll offset only while the scroll element and
+ * item keys survive; it does not compensate for rows shifting positions, nor
+ * for the browser clamping scrollTop when the total content height shrinks.
+ * Both manifest as the list "jumping". This hook implements scroll anchoring:
+ * on data-only updates the first in-viewport row is re-pinned to its original
+ * position, and if that row was removed, whichever row now occupies the
+ * anchored position is pinned instead.
+ */
+function useScrollPositionAnchor(
+  parentRef: React.RefObject<HTMLDivElement | null>,
+  virtualizer: AnchorableVirtualizer,
+  virtualItems: ReadonlyArray<AnchorableVirtualItem>,
+  dataVersion: unknown
+): void {
+  const anchorRef = useRef<ScrollAnchor | null>(null);
+  const prevDataVersionRef = useRef<unknown>(dataVersion);
+
+  useLayoutEffect(() => {
+    const scrollElement = parentRef.current;
+    if (!scrollElement || virtualItems.length === 0) {
+      return;
+    }
+
+    const scrollTop = scrollElement.scrollTop;
+    const firstVisible = virtualItems.find((item) => item.end > scrollTop) ?? virtualItems[0];
+
+    const dataChanged = prevDataVersionRef.current !== dataVersion;
+    prevDataVersionRef.current = dataVersion;
+
+    if (!dataChanged) {
+      // Regular commit (e.g. scroll event): keep the anchor in sync with the
+      // row currently at the top of the viewport.
+      anchorRef.current = {
+        key: firstVisible.key,
+        offset: scrollTop - firstVisible.start,
+        start: firstVisible.start,
+      };
+      return;
+    }
+
+    const anchor = anchorRef.current;
+    if (!anchor) {
+      return;
+    }
+
+    const measurements = virtualizer.measurementsCache;
+    if (!measurements) {
+      // No measurement info available (e.g. a mocked virtualizer); nothing to
+      // pin against, so leave the scroll offset untouched.
+      return;
+    }
+
+    const pinTo = (item: { key: AnchorKey; start: number; size: number }, offset: number) => {
+      const desired = Math.max(0, item.start + offset);
+      if (Math.abs(scrollElement.scrollTop - desired) > 1) {
+        // Browsers fire a (async) scroll event for programmatic scrollTop
+        // assignments, which lets the virtualizer resync its visible range.
+        scrollElement.scrollTop = desired;
+      }
+      anchorRef.current = { key: item.key, offset, start: item.start };
+    };
+
+    const anchored = measurements.find((item) => item.key === anchor.key);
+    if (anchored) {
+      pinTo(anchored, anchor.offset);
+      return;
+    }
+
+    // The anchored row is gone (refresh removed it). Pin the last row that
+    // still starts at or before the anchored position so the viewport stays
+    // put instead of being clamped around by the shrunken content.
+    let replacement: { key: AnchorKey; start: number; size: number } | undefined;
+    for (const item of measurements) {
+      if (item.start > anchor.start) {
+        break;
+      }
+      replacement = item;
+    }
+    if (replacement) {
+      pinTo(replacement, Math.min(Math.max(0, anchor.offset), replacement.size));
+    }
+  });
+}
 
 interface VirtualizedFileListProps {
   files: SvnStatusEntry[];
@@ -51,6 +164,10 @@ export function VirtualizedFileList({
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  // Keep the viewport anchored when `files` is replaced by a status refresh.
+  useScrollPositionAnchor(parentRef, rowVirtualizer, virtualItems, files);
+
   const lastItem = virtualItems.at(-1);
 
   // Trigger load more when approaching end
@@ -337,6 +454,11 @@ export function VirtualizedTree({
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  // `flattenedNodes` gets a new identity whenever `nodes` is replaced (status
+  // refresh delivering new objects) or the expansion state changes; keep the
+  // viewport anchored to the same row across those updates.
+  useScrollPositionAnchor(parentRef, rowVirtualizer, virtualItems, flattenedNodes);
 
   const toggleNodeSelection = useCallback(
     (node: TreeNode) => {

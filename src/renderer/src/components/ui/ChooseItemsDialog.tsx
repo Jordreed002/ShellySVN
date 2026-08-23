@@ -14,7 +14,7 @@ import {
   RefreshCw,
   Wifi,
 } from 'lucide-react';
-import { VirtualizedTree, type TreeNode } from './VirtualizedList';
+import { VirtualizedTree, type TreeNode, type CheckboxSelectionProps } from './VirtualizedList';
 import { useLazyTreeLoader } from '@renderer/hooks/useLazyTreeLoader';
 import type { AuthSession, LazyTreeNode } from '@shared/types';
 import {
@@ -343,6 +343,16 @@ export function ChooseItemsDialog({
     return paths;
   }, [nodes, isNodeLoading]);
 
+  // Stable checkbox-selection prop so the tree's derived selection state is not
+  // recomputed on every dialog render.
+  const checkboxSelection = useMemo<CheckboxSelectionProps>(
+    () => ({
+      selectedKeys: selectedPaths,
+      onSelectionChange: setSelectedPaths,
+    }),
+    [selectedPaths]
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -388,7 +398,7 @@ export function ChooseItemsDialog({
             </div>
 
             {/* Tree Container */}
-            <div className="flex-1 min-h-0 border border-border rounded overflow-hidden">
+            <div className="relative flex-1 min-h-0 border border-border rounded overflow-hidden">
               {isLoading && roots.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-text-muted">
                   <Loader2 className="w-6 h-6 animate-spin mr-2" />
@@ -421,23 +431,34 @@ export function ChooseItemsDialog({
                     </button>
                   )}
                 </div>
-              ) : filteredNodes.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-text-muted">
-                  {searchQuery ? 'No matching files or folders' : 'Repository is empty'}
-                </div>
               ) : (
-                <VirtualizedTree
-                  nodes={filteredNodes}
-                  expandedPaths={expandedPaths}
-                  loadingPaths={loadingPaths}
-                  onToggleExpand={handleToggleExpand}
-                  checkboxSelection={{
-                    selectedKeys: selectedPaths,
-                    onSelectionChange: setSelectedPaths,
-                  }}
-                  estimatedRowHeight={28}
-                  className="h-full"
-                />
+                <>
+                  {/*
+                    Keep the tree mounted (only visually hidden) while a refresh or
+                    filter transiently matches zero rows. Unmounting it would throw
+                    away the scroll element and the virtualizer state, resetting the
+                    scroll position to the top once rows come back.
+                  */}
+                  <div
+                    className="h-full"
+                    style={{ visibility: filteredNodes.length === 0 ? 'hidden' : undefined }}
+                  >
+                    <VirtualizedTree
+                      nodes={filteredNodes}
+                      expandedPaths={expandedPaths}
+                      loadingPaths={loadingPaths}
+                      onToggleExpand={handleToggleExpand}
+                      checkboxSelection={checkboxSelection}
+                      estimatedRowHeight={28}
+                      className="h-full"
+                    />
+                  </div>
+                  {filteredNodes.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-text-muted">
+                      {searchQuery ? 'No matching files or folders' : 'Repository is empty'}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
