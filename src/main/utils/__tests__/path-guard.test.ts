@@ -11,6 +11,7 @@ import {
   assertWithinRoot,
   PathGuardError,
   realpathOfLongestExistingPrefix,
+  toExtendedLengthPath,
 } from '../path-guard';
 
 let root: string;
@@ -249,4 +250,74 @@ describe('assertRealpathSatisfies', () => {
       ).toThrow(/resolves through symlinks/);
     }
   );
+});
+
+describe('toExtendedLengthPath', () => {
+  // Pure string canonicalization: every case pins the win32 platform
+  // explicitly so the suite behaves identically on macOS, Linux and Windows.
+  const win32 = { platform: 'win32' as const, cwd: 'C:\\app' };
+  const longSegment = 'x'.repeat(300);
+
+  it('is a pass-through on other platforms regardless of length', () => {
+    expect(toExtendedLengthPath(`/repo/${longSegment}`, { platform: 'darwin' })).toBe(
+      `/repo/${longSegment}`
+    );
+    expect(toExtendedLengthPath(`/repo/${longSegment}`, { platform: 'linux' })).toBe(
+      `/repo/${longSegment}`
+    );
+  });
+
+  it('normalizes short paths without adding the prefix', () => {
+    expect(toExtendedLengthPath('C:\\repo\\file.txt', win32)).toBe('C:\\repo\\file.txt');
+    expect(toExtendedLengthPath('C:/repo/sub/file.txt', win32)).toBe(
+      'C:\\repo\\sub\\file.txt'
+    );
+    expect(toExtendedLengthPath('C:\\repo\\sub\\..\\file.txt', win32)).toBe(
+      'C:\\repo\\file.txt'
+    );
+    expect(toExtendedLengthPath('file.txt', win32)).toBe('C:\\app\\file.txt');
+  });
+
+  it('prefixes drive paths once they reach MAX_PATH', () => {
+    expect(toExtendedLengthPath(`C:\\repo\\${longSegment}`, win32)).toBe(
+      `\\\\?\\C:\\repo\\${longSegment}`
+    );
+  });
+
+  it('maps long UNC shares to the \\\\?\\UNC namespace', () => {
+    expect(toExtendedLengthPath(`\\\\server\\share\\${longSegment}`, win32)).toBe(
+      `\\\\?\\UNC\\server\\share\\${longSegment}`
+    );
+  });
+
+  it('leaves short UNC shares in normal form', () => {
+    expect(toExtendedLengthPath('\\\\server\\share\\file.txt', win32)).toBe(
+      '\\\\server\\share\\file.txt'
+    );
+  });
+
+  it('treats the boundary exactly at MAX_PATH (260 characters)', () => {
+    const exactlyMax = `C:\\${'a'.repeat(260 - 3)}`;
+    expect(exactlyMax).toHaveLength(260);
+    expect(toExtendedLengthPath(exactlyMax, win32)).toBe(`\\\\?\\${exactlyMax}`);
+    const justUnder = `C:\\${'a'.repeat(259 - 3)}`;
+    expect(justUnder).toHaveLength(259);
+    expect(toExtendedLengthPath(justUnder, win32)).toBe(justUnder);
+  });
+
+  it('is idempotent and never rewrites the device namespace', () => {
+    const extended = `\\\\?\\C:\\repo\\${longSegment}`;
+    expect(toExtendedLengthPath(extended, win32)).toBe(extended);
+    expect(toExtendedLengthPath('\\\\.\\pipe\\shellysvn', win32)).toBe(
+      '\\\\.\\pipe\\shellysvn'
+    );
+  });
+
+  it('drops trailing separators but keeps bare roots', () => {
+    expect(toExtendedLengthPath('C:\\repo\\sub\\', win32)).toBe('C:\\repo\\sub');
+    expect(toExtendedLengthPath('C:\\', win32)).toBe('C:\\');
+    expect(toExtendedLengthPath(`C:\\repo\\${longSegment}\\`, win32)).toBe(
+      `\\\\?\\C:\\repo\\${longSegment}`
+    );
+  });
 });

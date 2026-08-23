@@ -267,3 +267,68 @@ export function assertRealpathSatisfies(
   }
   return resolved;
 }
+
+/**
+ * Windows MAX_PATH: 260 characters including the NUL terminator. Past this
+ * length the classic Win32 APIs reject normal-form paths unless every element
+ * in the chain (manifest, policy, filesystem) opted into long paths. The
+ * extended-length namespace (`\\?\...`) lifts the limit unconditionally.
+ */
+export const WINDOWS_MAX_PATH = 260;
+
+export interface ExtendedLengthPathOptions {
+  /**
+   * Host platform to canonicalize for; defaults to `process.platform`. Pure
+   * string logic only, so tests on any OS can pass `'win32'`.
+   */
+  platform?: NodeJS.Platform;
+  /** Directory used to resolve relative inputs; defaults to `process.cwd()`. */
+  cwd?: string;
+}
+
+/**
+ * OUTPUT-side canonicalization for Windows long paths — the counterpart to
+ * `assertSanitizedPath` above (which REJECTS `\\?\`-prefixed input; that
+ * stays true). Use when handing absolute local paths to spawned processes
+ * (`svn` args, `cwd`) or to direct fs calls on win32:
+ *
+ * - Non-win32 platforms and paths under MAX_PATH are returned unchanged
+ *   (after win32 separator/`.`/`..` normalization), so callers on macOS and
+ *   Linux can apply it unconditionally.
+ * - Absolute drive paths at or beyond MAX_PATH become `\\?\C:\...`.
+ * - UNC shares (`\\server\share\...`) at or beyond MAX_PATH become
+ *   `\\?\UNC\server\share\...`.
+ * - Already-extended (`\\?\...`) and device-namespace (`\\.\...`) paths are
+ *   returned untouched (idempotent; device paths must never be rewritten).
+ * - Extended-length paths bypass Win32 normalization entirely, so `.`/`..`
+ *   and duplicate/trailing separators are resolved here first; a trailing
+ *   separator is dropped (kept for bare drive/UNC roots).
+ *
+ * Reserved device names (CON, PRN, …) are NOT re-checked here: input
+ * sanitization upstream (`assertSanitizedPath`) already rejects them, and
+ * `\\?\` would otherwise make them addressable as real files. Sanitize
+ * before canonicalizing; do not duplicate the check.
+ */
+export function toExtendedLengthPath(
+  path: string,
+  options: ExtendedLengthPathOptions = {}
+): string {
+  if ((options.platform ?? process.platform) !== 'win32') return path;
+  // Device namespace and already-canonical extended-length paths: leave as-is.
+  if (/^(?:\\\\\.\\|\\\\\?\\(?:UNC\\)?)/i.test(path)) return path;
+
+  const absolute = win32.resolve(options.cwd ?? process.cwd(), path);
+  const normalized = stripTrailingSeparator(win32.normalize(absolute));
+  if (normalized.length < WINDOWS_MAX_PATH) return normalized;
+
+  if (normalized.startsWith('\\\\')) return `\\\\?\\UNC\\${normalized.slice(2)}`;
+  return `\\\\?\\${normalized}`;
+}
+
+function stripTrailingSeparator(path: string): string {
+  // Keep the separator on bare roots (`C:\`, `\\server\share\`); otherwise
+  // `\\?\C:\dir\` is invalid in the extended-length namespace.
+  const rootLength = win32.parse(path).root.length;
+  if (rootLength > 0 && path.length === rootLength) return path;
+  return path.replace(/[\\/]+$/, '');
+}
