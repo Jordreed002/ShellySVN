@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, GitBranch, Tag, FolderOpen, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { X, GitBranch, Tag, FolderOpen, AlertCircle, CheckCircle, Loader2, Wand2 } from 'lucide-react';
 import { RepoBrowser } from './RepoBrowser';
+import { TagWizard } from './TagWizard';
 
 interface BranchTagDialogProps {
   isOpen: boolean;
@@ -9,6 +11,12 @@ interface BranchTagDialogProps {
   sourceUrl?: string;
   onComplete?: (url: string) => void;
   mode?: 'branch' | 'tag';
+  /**
+   * Overrides the default navigation to the repository browser after a tag is
+   * created (#51). By default this dialog navigates to `/repo-browser` with
+   * the new tag's URL.
+   */
+  onOpenInRepoBrowser?: (url: string) => void;
 }
 
 export function BranchTagDialog({
@@ -18,7 +26,9 @@ export function BranchTagDialog({
   sourceUrl,
   onComplete,
   mode = 'branch',
+  onOpenInRepoBrowser,
 }: BranchTagDialogProps) {
+  const navigate = useNavigate();
   const [destUrl, setDestUrl] = useState('');
   const [message, setMessage] = useState('');
   const [sourceRevision, setSourceRevision] = useState<'HEAD' | 'WORKING' | 'number'>('HEAD');
@@ -29,6 +39,9 @@ export function BranchTagDialog({
   const [success, setSuccess] = useState<{ revision: number; url: string } | null>(null);
   const [showRepoBrowser, setShowRepoBrowser] = useState(false);
   const [repoBaseUrl, setRepoBaseUrl] = useState('');
+  // #51: opt-in richer flow — the guided tag wizard with templates, dry run,
+  // and repository browsing. Off by default; existing behavior is untouched.
+  const [useTagWizard, setUseTagWizard] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -48,6 +61,7 @@ export function BranchTagDialog({
       setSuccess(null);
       setIsCreating(false);
       setShowRepoBrowser(false);
+      setUseTagWizard(false);
     }
   }, [isOpen, sourcePath, sourceUrl, mode]);
 
@@ -105,6 +119,25 @@ export function BranchTagDialog({
   };
 
   if (!isOpen) return null;
+
+  // #51: the guided tag wizard replaces the simple form when the user opts in.
+  if (useTagWizard && mode === 'tag') {
+    return (
+      <TagWizard
+        isOpen
+        onClose={handleClose}
+        sourcePath={sourcePath}
+        sourceUrl={sourceUrl}
+        onComplete={onComplete}
+        onOpenInRepoBrowser={
+          onOpenInRepoBrowser ??
+          ((url) => {
+            void navigate({ to: '/repo-browser', search: { url, localPath: undefined } });
+          })
+        }
+      />
+    );
+  }
 
   const Icon = mode === 'branch' ? GitBranch : Tag;
   const title = mode === 'branch' ? 'Create Branch' : 'Create Tag';
@@ -268,6 +301,23 @@ export function BranchTagDialog({
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <span>{error}</span>
                 </div>
+              )}
+
+              {/* #51: opt-in richer flow for tags */}
+              {mode === 'tag' && (
+                <button
+                  type="button"
+                  onClick={() => setUseTagWizard(true)}
+                  className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border p-2.5 text-left text-xs text-text-secondary transition-fast hover:border-accent/50 hover:text-text"
+                >
+                  <Wand2 className="h-4 w-4 flex-shrink-0 text-accent" />
+                  <span>
+                    Need release names and templates? Use the{' '}
+                    <span className="font-medium text-text">Tag Wizard</span> — name presets
+                    (release/x.y.z, tags/#rev), version bumping, a dry-run preview, and a
+                    repository directory browser.
+                  </span>
+                </button>
               )}
             </div>
 

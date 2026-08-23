@@ -1,12 +1,53 @@
-import { useState } from 'react';
-import { X, AlertTriangle, FileText, Folder, ArrowRight, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, FileText, Folder, ArrowRight, Loader2 } from 'lucide-react';
+import { DialogBase } from './DialogBase';
+import { applicableAcceptModes, POSTPONE_MODE_INFO } from '@renderer/lib/conflictAcceptModes';
+
+/**
+ * Tree-conflict resolution (#55).
+ *
+ * Offers every `svn resolve --accept` mode applicable to tree conflicts with a
+ * plain-language consequence per choice. `postpone` closes the dialog without
+ * touching SVN (leaving the conflict in place is not a resolve action).
+ */
 
 type TreeConflictResolution =
   | 'mine-conflict'
   | 'theirs-conflict'
   | 'mine-full'
   | 'theirs-full'
+  | 'working'
   | 'postpone';
+
+interface ResolutionOption {
+  value: TreeConflictResolution;
+  label: string;
+  description: string;
+}
+
+/** Tree-conflict-applicable modes in offer order, with consequence text. */
+function treeConflictOptions(): ResolutionOption[] {
+  const options: ResolutionOption[] = applicableAcceptModes('tree').map((mode) => ({
+    value: mode.value as TreeConflictResolution,
+    label:
+      mode.value === 'mine-conflict'
+        ? 'Resolve conflict using mine'
+        : mode.value === 'theirs-conflict'
+          ? 'Resolve conflict using theirs'
+          : mode.value === 'mine-full'
+            ? 'Resolve using mine (full)'
+            : mode.value === 'theirs-full'
+              ? 'Resolve using theirs (full)'
+              : 'Mark resolved, keep working copy',
+    description: mode.consequence,
+  }));
+  options.push({
+    value: 'postpone',
+    label: POSTPONE_MODE_INFO.label,
+    description: POSTPONE_MODE_INFO.consequence,
+  });
+  return options;
+}
 
 interface TreeConflictDialogProps {
   isOpen: boolean;
@@ -25,79 +66,65 @@ export function TreeConflictDialog({
 }: TreeConflictDialogProps) {
   const [selectedResolution, setSelectedResolution] = useState<TreeConflictResolution | null>(null);
   const [isResolving, setIsResolving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedResolution(null);
+      setIsResolving(false);
+      setError(null);
+    }
+  }, [isOpen, conflictPath]);
 
   if (!isOpen) return null;
 
   const filename = conflictPath.split(/[/\\]/).pop() || conflictPath;
   const isDirectory = !filename.includes('.');
-
-  const resolutions = [
-    {
-      value: 'mine-conflict',
-      label: 'Resolve conflict using mine',
-      description: 'Keep your local changes, discard incoming changes',
-    },
-    {
-      value: 'theirs-conflict',
-      label: 'Resolve conflict using theirs',
-      description: 'Use incoming changes, discard your local changes',
-    },
-    {
-      value: 'mine-full',
-      label: 'Resolve using mine (full)',
-      description: 'Prefer your version for all conflicts in this file',
-    },
-    {
-      value: 'theirs-full',
-      label: 'Resolve using theirs (full)',
-      description: 'Prefer their version for all conflicts in this file',
-    },
-    {
-      value: 'postpone',
-      label: 'Postpone resolution',
-      description: 'Leave the conflict unresolved for now',
-    },
-  ];
+  const resolutions = treeConflictOptions();
 
   const handleResolve = async () => {
     if (!selectedResolution) return;
 
+    // Leaving the conflict unresolved is not an `svn resolve` action — just close.
+    if (selectedResolution === 'postpone') {
+      onResolve?.(selectedResolution);
+      onClose();
+      return;
+    }
+
     setIsResolving(true);
+    setError(null);
 
     try {
       if (onResolve) {
         onResolve(selectedResolution);
       } else {
         // Default behavior: resolve via SVN
-        await window.api.svn.resolve(
-          conflictPath,
-          selectedResolution as 'mine-conflict' | 'theirs-conflict' | 'mine-full' | 'theirs-full'
-        );
+        await window.api.svn.resolve(conflictPath, selectedResolution);
       }
       onClose();
     } catch (err) {
-      console.error('Failed to resolve conflict:', err);
+      setError((err as Error).message || 'Failed to resolve the tree conflict');
     } finally {
       setIsResolving(false);
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[550px]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <h2 className="modal-title">
-            <AlertTriangle className="w-5 h-5 text-warning" />
-            Tree Conflict
-          </h2>
-          <button onClick={onClose} className="btn-icon-sm">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="modal-body space-y-4">
+    <DialogBase
+      isOpen={isOpen}
+      onClose={onClose}
+      dialogId="tree-conflict-dialog"
+      className="w-[550px]"
+      title={
+        <>
+          <AlertTriangle className="w-5 h-5 text-warning" />
+          Tree Conflict
+        </>
+      }
+    >
+      {/* Content */}
+      <div className="modal-body space-y-4">
           {/* Conflict info */}
           <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
             <div className="flex items-center gap-3 mb-2">
@@ -159,6 +186,13 @@ export function TreeConflictDialog({
             </div>
           </div>
 
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-error/30 bg-error/10 p-2.5 text-xs text-error">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {/* Warning */}
           <div className="text-xs text-text-faint flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
@@ -168,7 +202,7 @@ export function TreeConflictDialog({
 
         {/* Footer */}
         <div className="modal-footer">
-          <button onClick={onClose} className="btn btn-secondary">
+          <button onClick={onClose} className="btn btn-secondary" disabled={isResolving}>
             Cancel
           </button>
           <button
@@ -184,7 +218,6 @@ export function TreeConflictDialog({
             Resolve
           </button>
         </div>
-      </div>
-    </div>
+    </DialogBase>
   );
 }
