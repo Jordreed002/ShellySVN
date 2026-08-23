@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased — Track B, Product & Experience]
+
+### Added
+
+- AI vertical: Anthropic, Azure OpenAI, OpenAI-compatible, and Ollama providers with streaming responses, cancellation, token/cost estimates, and safeStorage-only key storage; AI privacy gate blocks secrets from ever reaching providers with per-working-copy consent, sanitized AI markdown rendering, and prompt-injection-safe prompt wrapping
+- AI Review Center bulk triage with severity filters, accept/dismiss-all with undo, and a keyboard-driven flow; commit-message style learning from the repository's own history; AI conflict explainer embedded in the resolution wizard
+- Diff and blame: blame gutter in the diff viewer, side-by-side/unified toggle with word-level highlights and ignore-whitespace options, image diff overlay/slider compare, a revision-to-revision and URL-to-URL diff wizard with saved comparisons, and blame range comparison
+- Log tools: regex and field-scoped log search with CSV/JSON export, saved log views per working copy, and a "Show changes" action on every log entry (list, keyboard, and repository browser)
+- Visual revision graph with branch lanes, copy-point markers, and merge edges, toggleable beside the history list
+- Working-copy freshness: mixed-revision banner with one-click update to HEAD and an out-of-date pre-commit check with update-and-retry
+- Conflict resolution: full accept-mode coverage for tree conflicts with mine/theirs/base/merged previews and batch resolve, plus property-conflict and binary-conflict flows; tag/release wizard with name templates and dry-run command preview
+- Property editors: linting svn:ignore editor with live match preview and apply-to-siblings, svn:keywords editor with live expansion preview, and an externals manager with peg/operative revision editing
+- Repo browser: drag-and-drop move/copy, multi-select with marquee, persistent per-repo sorting, affected-count confirmations for remote mkdir/delete/move, and a revprop editor with permanent-change notice
+- Commit dialog: per-working-copy recent messages, template variables with issue-key autolink, Jira/GitHub/custom issue-tracker linkification, and a pre-commit checklist (debug leftovers, TODO markers, oversized files, forbidden patterns, server-side secret scan)
+- Sidebar: working-copy groups, favorites, aggregate dirty badges, and Update All across groups through the existing batch pipeline; relink flow with repository-UUID verification and a pristine-store disk-usage panel with cleanup
+- App shell: notification center with toasts and long-operation desktop notifications, working-copy tabs, session restore honoring the startup action, drop-folder-to-open, quick actions for registered external tools, and a shelf-manager entry point
+- Patch hub with dry-run conflict preview and reject-file recovery; changelist auto-grouping suggestions; import/export wizards with progress, cancellation, and dry-run estimates
+- Command palette grew to 40+ actions with tiered fuzzy matching and recent-usage boosting; keybindings are now remappable with conflict detection
+- Theming: accent color picker, high-contrast mode (honoring the OS contrast preference), compact/comfortable density, and font scaling
+- Settings: searchable settings with jump-to-section, versioned import/export with hostile-input-safe validation, per-section reset, per-working-copy overrides, named connection profiles, external diff/merge tool templates, and an AI provider configuration tab
+- Onboarding checklist, shared empty states and skeleton loaders, status-overlay legend, prefers-reduced-motion support, i18n scaffolding with pseudo-localization, property-based parser test harness, e2e accessibility smoke, and visual-regression baselines for core screens
+- Docs: troubleshooting error map, architecture diagram, CONTRIBUTING guide, verified keyboard-shortcuts reference, and refreshed Review Center/shelving/sparse-checkout tutorials
+
+### Changed
+
+- React Query caches are centrally keyed and invalidated on relocate/switch; every query now runs under an IPC timeout with shared error-and-retry panels instead of unbounded spinners
+- Dialogs gained a shared base with focus traps, top-most-only Escape, focus restoration, and persisted geometry
+- The virtualized file tree keeps its scroll position anchored across status refreshes
+
+### Fixed
+
+- VirtualizedTree scroll jumps when statuses refresh mid-scroll
+- Nested dialogs no longer close their parents on Escape
+- Changelist suggestion ids are stable across input reordering and reject-file hunks no longer drop added lines starting with `++`
+
 ## [1.1.0-beta.3] - 2026-08-22
 
 ### Added
