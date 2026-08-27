@@ -8,8 +8,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const ipcHandle = vi.hoisted(() => vi.fn());
+const rendererSend = vi.hoisted(() => vi.fn());
+const getAllWindows = vi.hoisted(() =>
+  vi.fn(() => [{ webContents: { isDestroyed: () => false, send: rendererSend } }])
+);
 
-vi.mock('electron', () => ({ ipcMain: { handle: ipcHandle } }));
+vi.mock('electron', () => ({
+  ipcMain: { handle: ipcHandle },
+  BrowserWindow: { getAllWindows },
+}));
 
 vi.mock('../../services/svn-checkout', () => ({
   cancelCheckout: vi.fn(),
@@ -170,11 +177,18 @@ vi.mock('../../services/svn-working-copy', () => ({
   updateItem: vi.fn(),
   updateToRevision: vi.fn(),
 }));
+vi.mock('../../services/svn-working-copy-repair', () => ({
+  repairWorkingCopy: vi.fn(),
+}));
 vi.mock('../../workers/WorkerPool', () => ({
   getSharedWorkerPool: vi.fn(() => ({ cancel: vi.fn(() => true) })),
 }));
 vi.mock('../../utils/svn-errors', () => ({
-  getSvnReadError: vi.fn(() => ({ svnErrorCode: 'E1', message: 'err' })),
+  getSvnReadError: vi.fn(() => ({
+    error: 'err',
+    errorCode: 'E1',
+    commandError: { category: 'command' },
+  })),
 }));
 vi.mock('../fs', () => ({
   closeFileWatchersForPath: vi.fn().mockResolvedValue(undefined),
@@ -255,6 +269,7 @@ const ARGS: Record<string, unknown[]> = {
   'svn:add': [['/wc/a']],
   'svn:delete': [['/wc/a']],
   'svn:cleanup': ['/wc', {}],
+  'svn:repairWorkingCopy': [{ workingCopyPath: '/wc', restoreFiles: [], completeDirs: [], excludeDirs: [] }],
   'svn:cleanupPreview': ['/wc'],
   'svn:checkout': ['https://svn/r', '/wc', '3', 'immediates', { authSessionId: 's1' }],
   'svn:checkoutWithProgress': [
@@ -382,6 +397,40 @@ describe('svn IPC handlers — wiring', () => {
     expect(vi.mocked(commitMod.commit)).toHaveBeenCalledWith(['/wc/a'], 'msg');
     expect(getStatusService).toHaveBeenCalled();
     expect(e.sender.send).toHaveBeenCalledWith('svn:mutation', expect.any(Object));
+  });
+
+  it('broadcasts svn:mutationFailed with the failure detail on a thrown error', async () => {
+    vi.mocked(commitMod.commit).mockRejectedValueOnce(
+      new Error('svn: E215004: Unable to connect to repository')
+    );
+    const e = event();
+    await handlers.get('svn:commit')!(e, ['/wc/a'], 'msg');
+    expect(rendererSend).toHaveBeenCalledWith(
+      'svn:mutationFailed',
+      expect.objectContaining({
+        localPaths: ['/wc/a'],
+        message: 'err',
+        errorCode: 'E1',
+        category: 'command',
+      })
+    );
+    expect(e.sender.send).not.toHaveBeenCalledWith('svn:mutation', expect.anything());
+  });
+
+  it('broadcasts svn:mutationFailed for result-style failures', async () => {
+    vi.mocked(commitMod.commit).mockResolvedValueOnce({
+      success: false,
+      error: 'svn: E155015: Aborting commit: remains in conflict',
+    } as Awaited<ReturnType<typeof commitMod.commit>>);
+    const e = event();
+    await handlers.get('svn:commit')!(e, ['/wc/a'], 'msg');
+    expect(rendererSend).toHaveBeenCalledWith(
+      'svn:mutationFailed',
+      expect.objectContaining({
+        localPaths: ['/wc/a'],
+        message: 'svn: E155015: Aborting commit: remains in conflict',
+      })
+    );
   });
 
   it('svn:checkout resolves the auth session before delegating', async () => {

@@ -67,6 +67,39 @@ describe('main-process authentication sessions', () => {
     expect(() => resolveAuthSession(7, session.id)).toThrow('expired');
   });
 
+  it('refuses to persist an empty password but allows session-only anonymous credentials', async () => {
+    // Regression: an auth prompt that only required a username persisted an
+    // empty password over a good saved credential.
+    await expect(
+      beginAuthSession(7, {
+        realm: 'https://svn.example.com/repo',
+        username: 'alice',
+        password: '',
+        persistence: 'stored',
+      })
+    ).rejects.toThrow('password is required');
+    expect(cache.set).not.toHaveBeenCalled();
+
+    await expect(
+      beginAuthSession(7, {
+        realm: 'https://svn.example.com/repo',
+        username: 'alice',
+        password: '   ',
+        persistence: 'stored',
+      })
+    ).rejects.toThrow('password is required');
+
+    // Anonymous-access flows may still hold an empty password in memory only.
+    const session = await beginAuthSession(7, {
+      realm: 'https://svn.example.com/repo',
+      username: 'alice',
+      password: '',
+      persistence: 'session',
+    });
+    expect(session.persistent).toBe(false);
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
   it('resumes encrypted credentials without returning their password', async () => {
     cache.get.mockReturnValue({ username: 'alice', password: 'stored-secret' });
     const session = await resumeAuthSession(7, 'https://svn.example.com/repo');

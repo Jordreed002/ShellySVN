@@ -17,15 +17,18 @@ import {
   classifyAiProviderError,
   getWindowsNpmShimScriptCandidate,
   parseClaudeAuthStatus,
+  parseCodexAuthIdentity,
   parseAiCommitMessageOutput,
   parseAiStructuredOutput,
   prepareDiffForAi,
 } from '../ai-commit-message-utils';
 import {
+  candidateNames,
   estimateAiCostForRequest,
   generateAiCommitMessage,
   getAiCommitProviders,
   invalidateAiProviderStatusCache,
+  invalidateProviderExecutableCacheForTests,
   setAiProviderStatusRefreshMsForTests,
   listAiProviderModels,
 } from '../ai-commit-message';
@@ -82,7 +85,7 @@ vi.mock('../svn-executor', () => ({ runSvnText: vi.fn(async () => DIFF) }));
 // Probes run through the async `spawn` path, so the fake emits stdout plus a
 // failing 'close' (status 1) on a microtask — exactly how a real child that
 // exits non-zero behaves, without touching the real event loop.
-const cliProbeState = vi.hoisted(() => ({ spawnCalls: 0 }));
+const cliProbeState = vi.hoisted(() => ({ spawnCalls: 0, claudeLoggedIn: false }));
 
 vi.mock('node:child_process', async () => {
   const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
@@ -96,14 +99,32 @@ vi.mock('node:child_process', async () => {
   return {
     ...actual,
     spawnSync: vi.fn(() => ({ status: 1 })),
-    spawn: vi.fn((() => {
+    spawn: vi.fn(((command: unknown, args?: readonly string[]) => {
       cliProbeState.spawnCalls += 1;
       const child = new EventEmitter() as FakeChild;
       child.stdout = new EventEmitter();
       child.stderr = new EventEmitter();
       child.stdin = { end: () => undefined };
       child.kill = () => undefined;
+      const argv = args ?? [];
+      const claudeAuthProbe =
+        cliProbeState.claudeLoggedIn && argv.includes('auth') && argv.includes('--json');
       queueMicrotask(() => {
+        if (claudeAuthProbe) {
+          child.stdout.emit(
+            'data',
+            Buffer.from(
+              JSON.stringify({
+                loggedIn: true,
+                authMethod: 'claude.ai',
+                email: 'dev@example.com',
+                subscriptionType: 'team',
+              })
+            )
+          );
+          child.emit('close', 0, null);
+          return;
+        }
         child.stdout.emit('data', Buffer.from('probe-exit-1\n'));
         child.emit('close', 1, null);
       });
@@ -125,6 +146,10 @@ function anthropicSse(text: string): string {
   return `data: ${JSON.stringify({ type: 'content_block_delta', delta: { text } })}\n\n`;
 }
 
+/** Encodes one base64url JWT segment for hand-built Codex id tokens. */
+const encodeJwtSegment = (value: object) =>
+  Buffer.from(JSON.stringify(value)).toString('base64url');
+
 describe('AI commit-message diff preparation', () => {
   it('reads only safe Claude CLI authentication status fields', () => {
     expect(
@@ -136,8 +161,49 @@ describe('AI commit-message diff preparation', () => {
           organizationName: 'Private org',
         })
       )
-    ).toEqual({ loggedIn: true, authMethod: 'claude.ai' });
+    ).toEqual({
+      loggedIn: true,
+      authMethod: 'claude.ai',
+      accountEmail: 'private@example.com',
+      planLabel: undefined,
+    });
     expect(parseClaudeAuthStatus('not json')).toEqual({ loggedIn: false });
+  });
+
+  it('labels known Claude subscription tiers and drops malformed emails', () => {
+    expect(
+      parseClaudeAuthStatus(
+        JSON.stringify({ loggedIn: true, subscriptionType: 'team', email: 'jordan@line.dev' })
+      )
+    ).toMatchObject({ planLabel: 'Claude Team Subscription', accountEmail: 'jordan@line.dev' });
+    expect(
+      parseClaudeAuthStatus(JSON.stringify({ loggedIn: true, subscriptionType: 'enterprise' }))
+    ).toMatchObject({ planLabel: 'Claude Enterprise Subscription' });
+    expect(
+      parseClaudeAuthStatus(JSON.stringify({ loggedIn: true, email: 'not an email' }))
+    ).toMatchObject({ accountEmail: undefined, planLabel: undefined });
+  });
+
+  it('decodes Codex identity from the auth file without exposing tokens', () => {
+    const idToken = [
+      encodeJwtSegment({ alg: 'RS256' }),
+      encodeJwtSegment({
+        email: 'dev@example.com',
+        'https://api.openai.com/auth': { chatgpt_plan_type: 'prolite' },
+      }),
+      'signature',
+    ].join('.');
+    expect(
+      parseCodexAuthIdentity(JSON.stringify({ auth_mode: 'chatgpt', tokens: { id_token: idToken } }))
+    ).toEqual({
+      authMethod: 'ChatGPT',
+      accountEmail: 'dev@example.com',
+      planLabel: 'ChatGPT Pro Lite Subscription',
+    });
+    expect(parseCodexAuthIdentity(JSON.stringify({ auth_mode: 'apikey' }))).toEqual({
+      authMethod: 'API key',
+    });
+    expect(parseCodexAuthIdentity('not json')).toEqual({ authMethod: undefined });
   });
 
   it('requires every structured-output property while allowing an empty body', () => {
@@ -269,6 +335,30 @@ describe('AI commit-message diff preparation', () => {
     ]);
   });
 
+  it('forwards the chosen model to the Claude CLI and omits it when unset', () => {
+    const withModel = buildAiProviderArguments(
+      'claude',
+      '/isolated',
+      '/schema.json',
+      '/output.json',
+      'opus'
+    );
+    expect(withModel.slice(withModel.indexOf('--model'), withModel.indexOf('--model') + 2)).toEqual(
+      ['--model', 'opus']
+    );
+
+    const withoutModel = buildAiProviderArguments(
+      'claude',
+      '/isolated',
+      '/schema.json',
+      '/output.json'
+    );
+    expect(withoutModel).not.toContain('--model');
+    // The model flag must not displace the isolated-invocation contract.
+    expect(withoutModel).toContain('--strict-mcp-config');
+    expect(withoutModel[withoutModel.indexOf('--json-schema') + 1]).toContain('subject');
+  });
+
   it('parses both direct Codex and wrapped Claude structured output', () => {
     expect(
       parseAiCommitMessageOutput('{"subject":"Fix status cache","body":"Add expiry."}')
@@ -298,6 +388,24 @@ describe('AI commit-message diff preparation', () => {
   });
 });
 
+// Windows-only: the extensionless candidate is excluded there because it is a
+// POSIX shell script that CreateProcess cannot spawn.
+describe.skipIf(process.platform !== 'win32')('Windows CLI executable candidates', () => {
+  it('prefers PATHEXT-suffixed launchers over the extensionless shim', () => {
+    const previousPathExt = process.env.PATHEXT;
+    process.env.PATHEXT = '.COM;.EXE;.BAT;.CMD';
+    try {
+      const names = candidateNames('codex');
+      expect(names).toContain('codex.cmd');
+      // A spawned-but-unrunnable shell script must never win resolution.
+      expect(names).not.toContain('codex');
+    } finally {
+      if (previousPathExt === undefined) delete process.env.PATHEXT;
+      else process.env.PATHEXT = previousPathExt;
+    }
+  });
+});
+
 describe('AI custom provider selection and status', () => {
   const CLAUDE_AUTH_ENV_KEYS = [
     'ANTHROPIC_API_KEY',
@@ -317,6 +425,7 @@ describe('AI custom provider selection and status', () => {
     // The status cache is module state: every test starts with a clean probe.
     invalidateAiProviderStatusCache();
     cliProbeState.spawnCalls = 0;
+    cliProbeState.claudeLoggedIn = false;
     customState.userData = directory;
     customState.aiSettings = { ...baseSettings, provider: 'auto' };
     for (const key of CLAUDE_AUTH_ENV_KEYS) vi.stubEnv(key, '');
@@ -524,6 +633,80 @@ describe('AI custom provider selection and status', () => {
     invalidateAiProviderStatusCache();
     await getAiCommitProviders();
     expect(cliProbeState.spawnCalls).toBeGreaterThan(probes);
+  });
+
+  it('reports a subscription Claude login as authenticated with account details', async () => {
+    // Hermetic executable resolution: fake CLIs on a temp PATH so the test
+    // passes on machines with neither CLI installed.
+    const binDir = await mkdtemp(join(tmpdir(), 'shelly-cli-bin-'));
+    const { writeFile, chmod } = await import('node:fs/promises');
+    for (const name of ['codex', 'claude']) {
+      const stub = join(binDir, name);
+      await writeFile(stub, '');
+      await writeFile(`${stub}.exe`, '');
+      if (process.platform !== 'win32') await chmod(stub, 0o755);
+    }
+    const previousPath = process.env.PATH;
+    process.env.PATH = binDir;
+    invalidateProviderExecutableCacheForTests();
+    invalidateAiProviderStatusCache();
+    cliProbeState.claudeLoggedIn = true;
+    try {
+      const statuses = await getAiCommitProviders();
+      const claude = statuses.find((status) => status.provider === 'claude');
+      expect(claude).toMatchObject({
+        kind: 'cli',
+        available: true,
+        authenticated: true,
+        cliLoggedIn: true,
+        authMethod: 'claude.ai',
+        accountEmail: 'dev@example.com',
+        planLabel: 'Claude Team Subscription',
+      });
+      expect(claude?.reason).toBeUndefined();
+    } finally {
+      cliProbeState.claudeLoggedIn = false;
+      if (previousPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousPath;
+      invalidateProviderExecutableCacheForTests();
+      invalidateAiProviderStatusCache();
+      await rm(binDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a CLI provider that is disabled in settings', async () => {
+    const binDir = await mkdtemp(join(tmpdir(), 'shelly-cli-bin-'));
+    const { writeFile, chmod } = await import('node:fs/promises');
+    for (const name of ['codex', 'claude']) {
+      const stub = join(binDir, name);
+      await writeFile(stub, '');
+      await writeFile(`${stub}.exe`, '');
+      if (process.platform !== 'win32') await chmod(stub, 0o755);
+    }
+    const previousPath = process.env.PATH;
+    process.env.PATH = binDir;
+    const previousSettings = customState.aiSettings;
+    customState.aiSettings = { ...previousSettings, provider: 'claude', disabledCliProviders: ['claude'] };
+    invalidateProviderExecutableCacheForTests();
+    invalidateAiProviderStatusCache();
+    cliProbeState.claudeLoggedIn = true;
+    try {
+      await expect(
+        generateAiCommitMessage({
+          operationId: 'cli-disabled-1',
+          workingCopyPath: directory,
+          paths: [join(directory, 'src/app.ts')],
+        })
+      ).rejects.toThrow(/\[provider_unavailable\] This CLI provider is disabled/);
+    } finally {
+      cliProbeState.claudeLoggedIn = false;
+      customState.aiSettings = previousSettings;
+      if (previousPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousPath;
+      invalidateProviderExecutableCacheForTests();
+      invalidateAiProviderStatusCache();
+      await rm(binDir, { recursive: true, force: true });
+    }
   });
 
   it('lists protocol catalog models re-tagged for a custom provider and none for unknown ids', async () => {

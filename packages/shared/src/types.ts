@@ -325,11 +325,36 @@ export interface SvnMutationNotification {
   repositoryUrls: string[];
 }
 
+/**
+ * Broadcast when a working-copy mutation finishes unsuccessfully. Carries the
+ * failure detail the operation result held, so surfaces that only observe the
+ * mutation lifecycle (the notification center) can explain what went wrong
+ * instead of a generic "did not report success".
+ */
+export interface SvnMutationFailureNotification {
+  localPaths: string[];
+  message: string;
+  errorCode?: string;
+  category?: SvnCommandErrorCategory;
+  cancelled?: boolean;
+}
+
 export interface SvnNativeAuthEntry {
   kind: string;
   realm: string;
   username?: string;
   certificate?: string;
+}
+
+/**
+ * Outcome of probing a repository URL with explicitly supplied credentials.
+ * `message` carries a sanitized stderr excerpt for settings diagnostics and
+ * must never contain the probed password.
+ */
+export interface SvnCredentialVerifyResult {
+  ok: boolean;
+  reason?: 'auth' | 'network' | 'ssl' | 'unknown';
+  message?: string;
 }
 
 // ============================================
@@ -696,6 +721,8 @@ export type AiCustomProviderProtocol = 'anthropic' | 'azure-openai' | 'openai-co
 /** Built-in provider id, or a user-defined custom provider id (`custom:<slug>`). */
 export type AiProviderId = AiCommitProvider | `custom:${string}`;
 export type AiCodexModel = 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol';
+/** Stable Claude Code model aliases accepted by `claude --model`. */
+export type AiClaudeModel = 'sonnet' | 'opus' | 'haiku';
 export type AiTaskKind =
   | 'commit-message'
   | 'draft-transformation'
@@ -725,6 +752,7 @@ interface AiCommitSettings {
   enabled: boolean;
   provider: AiCommitProviderPreference;
   codexModel: AiCodexModel;
+  claudeModel: AiClaudeModel;
   style: AiCommitMessageStyle;
   includeRecentHistory: boolean;
   historyLimit: number;
@@ -734,6 +762,8 @@ interface AiCommitSettings {
   maxSessionInvocations: number;
   usageRetentionDays: number;
   usageMaxEntries: number;
+  /** CLI providers turned off in settings: skipped by auto selection and rejected explicitly. */
+  disabledCliProviders: AiCommitProvider[];
 }
 
 export interface AiUsageEntry {
@@ -847,8 +877,14 @@ export interface AiCommitProviderStatus {
   available: boolean;
   version?: string;
   authenticated?: boolean;
+  /** The CLI reports its own stored login, whatever method it uses. */
   cliLoggedIn?: boolean;
+  /** Login method reported by the CLI, e.g. 'claude.ai' or 'ChatGPT'. */
   authMethod?: string;
+  /** Account email the CLI reports, when it exposes one. */
+  accountEmail?: string;
+  /** Human-readable plan line, e.g. 'ChatGPT Pro Lite Subscription'. */
+  planLabel?: string;
   reason?: string;
   /** 'cli' providers execute a local CLI; 'http' providers call a remote or local HTTP endpoint. */
   kind?: 'cli' | 'http';
@@ -1365,6 +1401,20 @@ export interface AuthListEntry {
   createdAt: number;
 }
 
+/**
+ * A saved credential with its decrypted password, returned only by the
+ * explicit `auth:reveal` request from the credentials page. Never emitted
+ * by list/diagnostics/notification paths.
+ */
+export interface AuthRevealResult {
+  realm: string;
+  username: string;
+  password: string;
+  createdAt: number | null;
+  /** False when the entry is stored unencrypted (encryption unavailable). */
+  encrypted: boolean;
+}
+
 // ============================================
 // Client Certificate Types
 // ============================================
@@ -1735,12 +1785,18 @@ export interface ElectronAPI {
       remoteProperties: boolean;
     }>;
     onMutation: (callback: (notification: SvnMutationNotification) => void) => () => void;
+    onMutationFailed: (callback: (notification: SvnMutationFailureNotification) => void) => () => void;
     getActiveWorkingCopyMutations: () => Promise<string[]>;
     onWorkingCopyMutationStateChanged: (callback: (paths: string[]) => void) => () => void;
     nativeAuth: {
       list: (patterns?: string[]) => Promise<SvnNativeAuthEntry[]>;
       remove: (patterns: string[]) => Promise<{ success: boolean; output?: string }>;
     };
+    verifyCredentials: (
+      url: string,
+      username: string,
+      password: string
+    ) => Promise<SvnCredentialVerifyResult>;
     status: (path: string, options?: CancellableRequestOptions) => Promise<SvnStatusResult>;
     statusRemote: (path: string, options?: CancellableRequestOptions) => Promise<SvnStatusResult>;
     workingCopyUpgradeStatus: (path: string) => Promise<WorkingCopyUpgradeStatus>;
@@ -2076,6 +2132,15 @@ export interface ElectronAPI {
     };
     diagnostics: (workingCopyPath: string) => Promise<RepoDiagnostics>;
     workingCopyHealth: (workingCopyPath: string) => Promise<WorkingCopyHealthReport>;
+    /**
+     * Run a fix-wizard repair plan (restore missing files, complete
+     * missing/incomplete directories, drop directories from the checkout).
+     * Progress is delivered via `svn:repairProgress` until the promise settles.
+     */
+    repairWorkingCopy: (
+      plan: SvnWorkingCopyRepairPlan,
+      onProgress?: (progress: SvnWorkingCopyRepairProgress) => void
+    ) => Promise<SvnWorkingCopyRepairResult>;
     /** Detect the trunk/branches/tags layout of a repository root URL. */
     getRepositoryLayout: (
       url: string,
@@ -2258,6 +2323,12 @@ export interface ElectronAPI {
     list: () => Promise<AuthListEntry[]>;
     clear: () => Promise<{ success: boolean }>;
     isEncryptionAvailable: () => Promise<boolean>;
+    /**
+     * Reveal the stored password for one realm, on explicit user request
+     * from the credentials page. Returns the decrypted password over IPC —
+     * never call this from logging or diagnostics paths.
+     */
+    reveal: (realm: string) => Promise<AuthRevealResult>;
   };
   webhook: {
     deliver: (request: WebhookDeliverRequest) => Promise<WebhookDeliverResult>;
@@ -2510,6 +2581,62 @@ export interface BuildInterruptedMutationRecoveryPlanOptions {
    * the evidence (missing/incomplete trees suggest an interrupted update).
    */
   interruptedOperation?: 'update' | 'commit';
+}
+
+// ============================================
+// Working-Copy Repair (fix wizard)
+// ============================================
+
+/** What the fix wizard should do, as chosen per group in the dialog. Data only. */
+export interface SvnWorkingCopyRepairPlan {
+  workingCopyPath: string;
+  /**
+   * Missing versioned files to bring back from the local pristine store
+   * (chunked `svn revert`). No network access, and only these exact paths
+   * are touched — local edits elsewhere are never reverted.
+   */
+  restoreFiles: string[];
+  /**
+   * Missing or incomplete directories to complete from the repository
+   * (`svn cleanup` on the working copy first, then `svn update --depth
+   * infinity` per directory).
+   */
+  completeDirs: string[];
+  /**
+   * Directories to drop from this checkout without touching the repository
+   * (sticky `--set-depth exclude`, so `svn status` goes quiet and a later
+   * update does not bring them back; reversible with
+   * `svn update --depth infinity` on the directory). Leftover local-only
+   * content inside them is moved to the trash first, matching the
+   * remove-from-working-copy tool's behavior.
+   */
+  excludeDirs: string[];
+}
+
+/** Repair steps, reported in execution order. */
+export type SvnWorkingCopyRepairStep = 'cleanup' | 'restore' | 'complete' | 'exclude';
+
+export interface SvnWorkingCopyRepairProgress {
+  step: SvnWorkingCopyRepairStep;
+  /** Items processed so far in the current step. */
+  completed: number;
+  /** Total items in the current step (0 for the lock-freeing cleanup pass). */
+  total: number;
+  /** Path currently being processed, when meaningful. */
+  currentPath?: string;
+}
+
+export interface SvnWorkingCopyRepairResult {
+  success: boolean;
+  error?: string;
+  /** Files restored from the pristine store. */
+  restored: number;
+  /** Directories completed with an update. */
+  completedDirs: number;
+  /** Directories removed from the working copy. */
+  excludedDirs: number;
+  /** Per-item failures that did not stop the remaining work. */
+  stepErrors: string[];
 }
 
 // ============================================

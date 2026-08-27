@@ -28,22 +28,51 @@ export function registerAuthHandlers(): void {
   );
 
   // Delete credential for a realm
-  ipcMain.handle('auth:delete', (_, realm: string) => {
-    getAuthCache().delete(realm);
+  ipcMain.handle('auth:delete', async (_, realm: string) => {
+    const cache = getAuthCache();
+    await cache.ready();
+    await cache.delete(realm);
     return { success: true };
   });
 
   // List all cached realms (without passwords)
-  ipcMain.handle('auth:list', (): AuthListEntry[] => {
-    return getAuthCache()
+  ipcMain.handle('auth:list', async (): Promise<AuthListEntry[]> => {
+    const cache = getAuthCache();
+    await cache.ready();
+    return cache
       .list()
       .filter((entry) => !entry.realm.startsWith('webhook:'));
   });
 
   // Clear all credentials
-  ipcMain.handle('auth:clear', () => {
-    getAuthCache().clear();
+  ipcMain.handle('auth:clear', async () => {
+    const cache = getAuthCache();
+    await cache.ready();
+    await cache.clear();
     return { success: true };
+  });
+
+  // Reveal one stored credential, on explicit request from the credentials
+  // page so the user can confirm what was actually saved. This is the only
+  // channel that returns a decrypted password; list, diagnostics, logs and
+  // notifications must never include it.
+  ipcMain.handle('auth:reveal', async (_, realm: string) => {
+    if (typeof realm !== 'string' || !realm.trim()) {
+      throw new Error('Credential realm is required');
+    }
+    const cache = getAuthCache();
+    await cache.ready();
+    const credential = cache.get(realm);
+    if (!credential) {
+      throw new Error('No saved credential for this realm');
+    }
+    return {
+      realm,
+      username: credential.username,
+      password: credential.password,
+      createdAt: cache.list().find((entry) => entry.realm === realm)?.createdAt ?? null,
+      encrypted: cache.isEncryptionAvailable(),
+    };
   });
 
   // Check if encryption is available

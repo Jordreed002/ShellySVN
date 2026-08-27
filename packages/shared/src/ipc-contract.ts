@@ -57,6 +57,7 @@ import type {
   SvnMergeInfoKind,
   SvnMergeInfoResult,
   SvnMutationNotification,
+  SvnMutationFailureNotification,
   SvnNativeAuthEntry,
   SvnOperationRevision,
   SvnOperationProgress,
@@ -77,6 +78,7 @@ import type {
   WorkingCopyInfo,
   WorkingCopyHealthReport,
   InterruptedMutationRecord,
+  AuthRevealResult,
   InterruptedMutationRecoveryPlan,
   InterruptedMutationRecoveryStepResult,
   StaleWorkingCopyLockInfo,
@@ -95,6 +97,8 @@ import type {
   SvnLockForceResult,
   SvnLockRecordResult,
   SvnRepoLayout,
+  SvnWorkingCopyRepairPlan,
+  SvnWorkingCopyRepairResult,
   SwitchRelocateInput,
   SwitchRelocateValidationResult,
   WcRelinkDetectionResult,
@@ -183,6 +187,10 @@ export interface IpcInvokeContract {
   'svn:getActiveWorkingCopyMutations': IpcCall<[], string[]>;
   'svn:nativeAuth:list': IpcCall<[patterns?: string[]], SvnNativeAuthEntry[]>;
   'svn:nativeAuth:remove': IpcCall<[patterns: string[]], { success: boolean; output?: string }>;
+  'svn:verifyCredentials': IpcCall<
+    [url: string, username: string, password: string],
+    import('./types').SvnCredentialVerifyResult
+  >;
   'svn:cat': IpcCall<[target: string, revision?: string, workerJobId?: string], SvnCatResult>;
   'svn:status': IpcCall<[path: string, workerJobId?: string], import('./types').SvnStatusResult>;
   'svn:statusRemote': IpcCall<
@@ -269,6 +277,7 @@ export interface IpcInvokeContract {
   'svn:delete': IpcCall<[paths: string[]], OperationResult>;
   'svn:cleanup': IpcCall<[path: string, options?: SvnCleanupOptions], OperationResult>;
   'svn:cleanupPreview': IpcCall<[path: string], SvnCleanupPreview>;
+  'svn:repairWorkingCopy': IpcCall<[plan: SvnWorkingCopyRepairPlan], SvnWorkingCopyRepairResult>;
   'svn:lock': IpcCall<[path: string, message?: string], OperationResult>;
   'svn:unlock': IpcCall<[path: string, force?: boolean], OperationResult>;
   'svn:lockInfo': IpcCall<[path: string], SvnLockInfoResult>;
@@ -559,6 +568,7 @@ export interface IpcInvokeContract {
   'auth:list': IpcCall<[], AuthListEntry[]>;
   'auth:clear': IpcCall<[], OperationResult>;
   'auth:isEncryptionAvailable': IpcCall<[], boolean>;
+  'auth:reveal': IpcCall<[realm: string], AuthRevealResult>;
 
   'monitor:getWorkingCopies': IpcCall<[], WorkingCopyInfo[]>;
   'monitor:addWorkingCopy': IpcCall<[path: string], OperationResult>;
@@ -633,6 +643,7 @@ export type IpcInvokeResult<C extends IpcInvokeChannel> = IpcInvokeContract[C]['
 
 export type IpcEventContract = {
   'svn:mutation': SvnMutationNotification;
+  'svn:mutationFailed': SvnMutationFailureNotification;
   'svn:workingCopyMutationStateChanged': string[];
   'svn:checkout:progress': CheckoutProgress & { checkoutId?: string };
   'svn:update:progress': CheckoutProgress & { updateId?: string };

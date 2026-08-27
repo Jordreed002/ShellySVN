@@ -432,7 +432,11 @@ describe('svn-executor', () => {
       expect.arrayContaining(['--username', 'alice', '--password-from-stdin'])
     );
     expect(spawnedArgs).not.toContain('--password');
-    expect(proc.stdin.write).toHaveBeenCalledWith('secret\n');
+    // Windows svn keeps a bare-LF terminator inside the password; CRLF is
+    // stripped (see svn-runner). POSIX expects the bare LF.
+    expect(proc.stdin.write).toHaveBeenCalledWith(
+      `secret${process.platform === 'win32' ? '\r\n' : '\n'}`
+    );
   });
 
   it('applies cached SSL trust to URL-based SVN commands', async () => {
@@ -567,7 +571,9 @@ describe('svn-executor', () => {
       expect.arrayContaining(['--username', 'explicit', '--password-from-stdin'])
     );
     expect(spawnedArgs).not.toContain('--password');
-    expect(proc.stdin.write).toHaveBeenCalledWith('explicit-pass\n');
+    expect(proc.stdin.write).toHaveBeenCalledWith(
+      `explicit-pass${process.platform === 'win32' ? '\r\n' : '\n'}`
+    );
   });
 
   it('inserts generated auth and trust options before the target separator', async () => {

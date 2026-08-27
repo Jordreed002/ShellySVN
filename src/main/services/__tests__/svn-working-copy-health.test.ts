@@ -32,6 +32,7 @@ import {
   buildInterruptedMutationRecoveryPlan,
   detectPartialWorkingCopyMutation,
   executeInterruptedMutationRecoveryPlan,
+  scanWorkingCopyHealth,
   type PartialMutationDetection,
 } from '../svn-working-copy-health';
 import { clearApprovedPathsForTests, approvePathForIpc } from '../../utils/approved-paths';
@@ -438,5 +439,63 @@ describe('executeInterruptedMutationRecoveryPlan (item #31)', () => {
         workingCopyPath: '/definitely/not/approved',
       })
     ).rejects.toThrow(/only allowed inside a folder selected/i);
+  });
+});
+
+describe('scanWorkingCopyHealth (huge working-copy tolerance)', () => {
+  let root: string | null = null;
+
+  beforeEach(async () => {
+    mockState.runSvnText.mockReset();
+    mockState.runSvnText.mockImplementation(async () => '');
+    clearApprovedPathsForTests();
+    root = await createWorkingCopyFixture('none');
+    approvePathForIpc(root, 'directory');
+  });
+
+  afterEach(async () => {
+    clearApprovedPathsForTests();
+    if (root) await rm(root, { recursive: true, force: true });
+    root = null;
+  });
+
+  it('derives revisions from truncated info XML instead of crashing', async () => {
+    const wcRoot = root as string;
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'status') {
+        return statusXml(wcRoot, [{ path: join(wcRoot, 'src'), item: 'modified' }]);
+      }
+      // `svn info --xml --depth infinity` output that hit the size cap: cut
+      // off mid-tag, which no XML parser accepts.
+      return (
+        `<?xml version="1.0" encoding="UTF-8"?><info>` +
+        `<entry path="${join(wcRoot, 'a')}" revision="10">` +
+        `<entry path="${join(wcRoot, 'b')}" revision="12">` +
+        `<entry path="${join(wcRoot, 'c')}`
+      );
+    });
+
+    const report = await scanWorkingCopyHealth(wcRoot);
+
+    // min/max recovered by scanning revision attributes out of the prefix.
+    expect(report.minimumRevision).toBe(10);
+    expect(report.maximumRevision).toBe(12);
+    expect(report.issues.some((issue) => issue.kind === 'mixed-revisions')).toBe(true);
+  });
+
+  it('produces a clean report when no revisions can be recovered', async () => {
+    const wcRoot = root as string;
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'status') {
+        return statusXml(wcRoot, [{ path: join(wcRoot, 'src'), item: 'modified' }]);
+      }
+      return '<?xml version="1.0" encoding="UTF-8"?><info><ent';
+    });
+
+    const report = await scanWorkingCopyHealth(wcRoot);
+
+    expect(report.minimumRevision).toBeNull();
+    expect(report.maximumRevision).toBeNull();
+    expect(report.issues.some((issue) => issue.kind === 'missing')).toBe(false);
   });
 });

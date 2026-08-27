@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
+  runSvn: vi.fn(),
   runSvnMuccText: vi.fn(),
   getNetworkOptionsForWorkingCopyPath: vi.fn(),
   portableShelfList: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('fs', () => ({
 
 vi.mock('../svn-executor', () => ({
   runSvnText: mockState.runSvnText,
+  runSvn: mockState.runSvn,
   runSvnMuccText: mockState.runSvnMuccText,
 }));
 
@@ -67,6 +69,8 @@ import { normalizeRepoUrl } from '../../utils/svn-url';
 
 beforeEach(() => {
   mockState.runSvnText.mockReset();
+  mockState.runSvn.mockReset();
+  mockState.runSvn.mockResolvedValue({ code: 0, stdout: 'shelve help', stderr: '' });
   mockState.runSvnMuccText.mockReset();
   mockState.getNetworkOptionsForWorkingCopyPath.mockReset();
   mockState.getNetworkOptionsForWorkingCopyPath.mockResolvedValue({ trustSslFailures: false });
@@ -710,6 +714,7 @@ describe('svn-metadata shelving', () => {
   });
 
   it('uses portable shelving when the active SVN binary lacks shelving commands', async () => {
+    mockState.runSvn.mockRejectedValue(new Error('"shelve": unknown command.'));
     mockState.runSvnText.mockRejectedValue(new Error('"shelve": unknown command.'));
 
     await expect(shelveList('C:\\wc')).resolves.toEqual({ shelves: [] });
@@ -720,6 +725,31 @@ describe('svn-metadata shelving', () => {
     expect(mockState.portableShelfSave).toHaveBeenCalledWith('work', 'C:\\wc', 'WIP changes');
     expect(mockState.portableShelfApply).toHaveBeenCalledWith('work', 'C:\\wc');
     expect(mockState.portableShelfDelete).toHaveBeenCalledWith('work', 'C:\\wc');
+  });
+
+  it('probes shelving support once and skips the doomed native command', async () => {
+    // TortoiseSVN-style: `svn help shelve` exits 0 with the explanation on
+    // stderr, which the probe must read to detect the missing command.
+    mockState.runSvn.mockResolvedValue({ code: 0, stdout: '', stderr: '"shelve": unknown command.' });
+
+    await expect(shelveList('C:\\wc')).resolves.toEqual({ shelves: [] });
+
+    // Only the support probe ran; `shelve --list` was never attempted.
+    expect(mockState.runSvn).toHaveBeenCalledTimes(1);
+    expect(mockState.runSvn).toHaveBeenCalledWith(['help', 'shelve']);
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+    expect(mockState.portableShelfList).toHaveBeenCalledWith('C:\\wc');
+  });
+
+  it('routes TortoiseSVN-style "invalid option" failures to portable shelving', async () => {
+    // TortoiseSVN's CLI has no shelving commands and validates options before
+    // the subcommand, so `shelve --list` fails with an option error instead of
+    // an unknown-command error.
+    mockState.runSvn.mockResolvedValue({ code: 0, stdout: '', stderr: '' }); // support probe passes
+    mockState.runSvnText.mockRejectedValue(new Error('svn.exe: invalid option: --list'));
+
+    await expect(shelveList('C:\\wc')).resolves.toEqual({ shelves: [] });
+    expect(mockState.portableShelfList).toHaveBeenCalledWith('C:\\wc');
   });
 
   it('distinguishes shelf read failures from an empty shelf list', async () => {

@@ -26,6 +26,7 @@ import { requireSvnRevision, SvnRevisionError } from '../utils/svn-revision';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { joinRepoUrl, normalizeRepoUrl } from '../utils/svn-url';
 import { runSvnMuccText, runSvnText } from './svn-executor';
+import { isNativeShelvingSupported } from './svn-capabilities';
 import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 
 const SHELVING_UNSUPPORTED_MESSAGE =
@@ -67,11 +68,25 @@ function assertRelativeExternalPath(path: string): void {
   }
 }
 
-function getShelvingUnsupportedReason(error: unknown): string | null {
+/**
+ * Recognizes the different ways an SVN client reports missing shelving
+ * support. Some clients answer `svn help shelve` with an unknown-command
+ * error, and TortoiseSVN's CLI additionally validates options before it
+ * resolves the subcommand, so `shelve --list` there fails with
+ * `invalid option: --list` instead of anything naming the command — the
+ * caller's args disambiguate that case.
+ */
+function getShelvingUnsupportedReason(
+  error: unknown,
+  args: string[] = []
+): string | null {
   const message = error instanceof Error ? error.message : String(error || '');
-  return /unknown command/i.test(message) && /\b(?:shelve|unshelve)\b/i.test(message)
-    ? SHELVING_UNSUPPORTED_MESSAGE
-    : null;
+  const shelvingCommand = args[0] === 'shelve' || args[0] === 'unshelve';
+  const unknownCommand =
+    /unknown (?:command|subcommand)/i.test(message) &&
+    /\b(?:shelve|unshelve)\b/i.test(message);
+  const rejectedOption = shelvingCommand && /invalid option/i.test(message);
+  return unknownCommand || rejectedOption ? SHELVING_UNSUPPORTED_MESSAGE : null;
 }
 
 function isMissingPropertyError(error: unknown): boolean {
@@ -303,16 +318,18 @@ export async function changelistDelete(name: string, path: string): Promise<SvnM
 }
 
 export async function shelveList(path: string): Promise<SvnShelveListResult> {
+  const runPortable = async (): Promise<SvnShelveListResult> => {
+    const { portableShelfList } = await import('./svn-portable-shelves');
+    return portableShelfList(path);
+  };
+  const args = ['shelve', '--list', '--xml'];
+  // TortoiseSVN's CLI ships no shelving commands at all; probe before
+  // spawning so it goes straight to the portable-shelf store.
+  if (!(await isNativeShelvingSupported())) return runPortable();
   try {
-    const output = await runSvnText(withSvnTargets(['shelve', '--list', '--xml'], [path]));
-    return { shelves: parseSvnShelvesXml(output) };
+    return { shelves: parseSvnShelvesXml(await runSvnText(withSvnTargets(args, [path]))) };
   } catch (error) {
-    const unsupportedReason = getShelvingUnsupportedReason(error);
-    if (unsupportedReason) {
-      const { portableShelfList } = await import('./svn-portable-shelves');
-      return portableShelfList(path);
-    }
-
+    if (getShelvingUnsupportedReason(error, args)) return runPortable();
     return { shelves: [], ...getSvnReadError(error) };
   }
 }
@@ -324,17 +341,18 @@ export async function shelveSave(
 ): Promise<SvnMutationResult> {
   assertSafeName(name, 'Shelf name');
   validateSvnTargets([path], 'Shelf target');
+  const runPortable = async (): Promise<SvnMutationResult> => {
+    const { portableShelfSave } = await import('./svn-portable-shelves');
+    return portableShelfSave(name, path, message);
+  };
   const args = ['shelve', name];
   if (message) args.push('-m', message);
+  if (!(await isNativeShelvingSupported())) return runPortable();
   try {
     await runSvnText(withSvnTargets(args, [path]));
     return { success: true };
   } catch (error) {
-    const unsupported = getShelvingUnsupportedReason(error);
-    if (unsupported) {
-      const { portableShelfSave } = await import('./svn-portable-shelves');
-      return portableShelfSave(name, path, message);
-    }
+    if (getShelvingUnsupportedReason(error, args)) return runPortable();
     return metadataFailure(error);
   }
 }
@@ -342,15 +360,17 @@ export async function shelveSave(
 export async function shelveApply(name: string, path: string): Promise<SvnMutationResult> {
   assertSafeName(name, 'Shelf name');
   validateSvnTargets([path], 'Shelf target');
+  const runPortable = async (): Promise<SvnMutationResult> => {
+    const { portableShelfApply } = await import('./svn-portable-shelves');
+    return portableShelfApply(name, path);
+  };
+  const args = ['unshelve', name];
+  if (!(await isNativeShelvingSupported())) return runPortable();
   try {
-    await runSvnText(withSvnTargets(['unshelve', name], [path]));
+    await runSvnText(withSvnTargets(args, [path]));
     return { success: true };
   } catch (error) {
-    const unsupported = getShelvingUnsupportedReason(error);
-    if (unsupported) {
-      const { portableShelfApply } = await import('./svn-portable-shelves');
-      return portableShelfApply(name, path);
-    }
+    if (getShelvingUnsupportedReason(error, args)) return runPortable();
     return metadataFailure(error);
   }
 }
@@ -358,15 +378,17 @@ export async function shelveApply(name: string, path: string): Promise<SvnMutati
 export async function shelveDelete(name: string, path: string): Promise<SvnMutationResult> {
   assertSafeName(name, 'Shelf name');
   validateSvnTargets([path], 'Shelf target');
+  const runPortable = async (): Promise<SvnMutationResult> => {
+    const { portableShelfDelete } = await import('./svn-portable-shelves');
+    return portableShelfDelete(name, path);
+  };
+  const args = ['shelve', '--delete', name];
+  if (!(await isNativeShelvingSupported())) return runPortable();
   try {
-    await runSvnText(withSvnTargets(['shelve', '--delete', name], [path]));
+    await runSvnText(withSvnTargets(args, [path]));
     return { success: true };
   } catch (error) {
-    const unsupported = getShelvingUnsupportedReason(error);
-    if (unsupported) {
-      const { portableShelfDelete } = await import('./svn-portable-shelves');
-      return portableShelfDelete(name, path);
-    }
+    if (getShelvingUnsupportedReason(error, args)) return runPortable();
     return metadataFailure(error);
   }
 }

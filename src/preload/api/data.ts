@@ -1,5 +1,5 @@
 import type { IpcRenderer } from 'electron';
-import type { ElectronAPI } from '@shared/types';
+import type { AuthRevealResult, ElectronAPI } from '@shared/types';
 import type { InvokeIpc } from './ipc';
 
 export function createStoreApi(invokeIpc: InvokeIpc): ElectronAPI['store'] {
@@ -40,6 +40,7 @@ export function createAuthApi(invokeIpc: InvokeIpc): ElectronAPI['auth'] {
     list: () => invokeIpc('auth:list'),
     clear: () => invokeIpc('auth:clear'),
     isEncryptionAvailable: () => invokeIpc('auth:isEncryptionAvailable'),
+    reveal: (realm) => invokeIpc('auth:reveal', realm) as Promise<AuthRevealResult>,
   };
 }
 

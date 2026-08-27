@@ -11,6 +11,7 @@ import type {
   AiCommitMessageRequest,
   AiCommitMessageResult,
   AiCodexModel,
+  AiClaudeModel,
   AiCommitProvider,
   AiCommitProviderStatus,
   AiModelInfo,
@@ -56,6 +57,7 @@ import {
   classifyAiProviderError,
   getWindowsNpmShimScriptCandidate,
   parseClaudeAuthStatus,
+  parseCodexAuthIdentity,
   parseAiCommitMessageOutput,
   parseAiStructuredOutput,
   prepareDiffForAi,
@@ -103,6 +105,8 @@ const DEFAULT_PROVIDER_TIMEOUT_MS = 60_000;
 const MAX_SELECTED_PATHS = 1_000;
 const DEFAULT_CODEX_MODEL: AiCodexModel = 'gpt-5.6-luna';
 const CODEX_MODELS = new Set<AiCodexModel>(['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol']);
+const DEFAULT_CLAUDE_MODEL: AiClaudeModel = 'sonnet';
+const CLAUDE_MODELS = new Set<AiClaudeModel>(['sonnet', 'opus', 'haiku']);
 const MAX_CONFLICT_BYTES = 512 * 1024;
 /** Broken-shell respawn TTL and missed-executable rescan TTL (see caches below). */
 const LOGIN_SHELL_MISS_TTL_MS = 30_000;
@@ -131,13 +135,16 @@ const resolvedExecutables = new Map<AiCommitProvider, ResolvedProviderExecutable
  */
 const unresolvedExecutables = new Map<AiCommitProvider, { miss: true; expiresAt: number }>();
 
-function candidateNames(command: string): string[] {
+export function candidateNames(command: string): string[] {
   if (process.platform !== 'win32') return [command];
   const extensions = (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
     .split(';')
     .map((extension) => extension.trim())
     .filter(Boolean);
-  return [command, ...extensions.map((extension) => `${command}${extension.toLowerCase()}`)];
+  // npm also writes an extensionless POSIX shell script next to the .cmd shim;
+  // CreateProcess cannot execute it, so probing that candidate would fail every
+  // provider check. Only PATHEXT-suffixed names are spawnable here.
+  return extensions.map((extension) => `${command}${extension.toLowerCase()}`);
 }
 
 /**
@@ -326,30 +333,35 @@ function providerEnvironment(provider: AiCommitProvider): NodeJS.ProcessEnv {
     env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     env.CODEX_API_KEY = process.env.CODEX_API_KEY;
   } else {
-    // API and cloud credentials are supported; consumer OAuth/session credentials
-    // are deliberately excluded for third-party product compliance.
+    // The CLI runs exactly as the user configured it: its own stored login
+    // (subscription OAuth or API key) authenticates the request, and ambient
+    // API/cloud credentials are passed through untouched.
     for (const [key, value] of Object.entries(process.env)) {
       if (
         key.startsWith('ANTHROPIC_') ||
         key.startsWith('AWS_') ||
         key.startsWith('GOOGLE_') ||
-        key === 'CLAUDE_CODE_USE_BEDROCK' ||
-        key === 'CLAUDE_CODE_USE_VERTEX'
+        key.startsWith('CLAUDE_CODE_')
       ) {
         env[key] = value;
       }
     }
-    delete env.CLAUDE_CODE_OAUTH_TOKEN;
-    delete env.CLAUDE_CODE_SESSION_ACCESS_TOKEN;
   }
   return env;
+}
+
+/** A stored CLI login counts on its own; env credentials only back older CLIs. */
+function claudeIsAuthenticated(login: { loggedIn: boolean }): boolean {
+  return login.loggedIn || hasClaudeApiAuthentication();
 }
 
 async function isProviderAuthenticated(
   provider: AiCommitProvider,
   executable: ResolvedProviderExecutable
 ): Promise<boolean> {
-  if (provider === 'claude') return hasClaudeApiAuthentication();
+  if (provider === 'claude') {
+    return claudeIsAuthenticated(await getClaudeCliLogin(executable));
+  }
   const probe = await runCliProbe(
     executable.command,
     executable.prefixArgs,
@@ -364,6 +376,8 @@ async function getClaudeCliLogin(
 ): Promise<{
   loggedIn: boolean;
   authMethod?: string;
+  accountEmail?: string;
+  planLabel?: string;
 }> {
   const probe = await runCliProbe(
     executable.command,
@@ -373,6 +387,17 @@ async function getClaudeCliLogin(
   );
   if (probe.status !== 0) return { loggedIn: false };
   return parseClaudeAuthStatus(probe.stdout ?? '');
+}
+
+/** Codex has no JSON login flag; identity lives in its auth file. */
+async function getCodexIdentity(): Promise<{
+  authMethod?: string;
+  accountEmail?: string;
+  planLabel?: string;
+}> {
+  const codexHome = process.env.CODEX_HOME || join(homedir(), '.codex');
+  const content = await readFile(join(codexHome, 'auth.json'), 'utf8').catch(() => '');
+  return parseCodexAuthIdentity(content);
 }
 
 function validateOperationId(operationId: string): void {
@@ -458,7 +483,7 @@ async function executeProvider(
   executable: ResolvedProviderExecutable,
   operationId: string,
   prompt: string,
-  codexModel: AiCodexModel,
+  cliModel: string | undefined,
   outputSchema: Record<string, unknown>,
   timeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS
 ): Promise<string> {
@@ -477,7 +502,7 @@ async function executeProvider(
           temporaryDirectory,
           schemaPath,
           outputPath,
-          codexModel,
+          cliModel,
           outputSchema
         ),
       ],
@@ -657,6 +682,7 @@ async function selectProvider(
     : [];
   const order: AiProviderId[] =
     preference === 'auto' ? ['codex', 'claude', ...HTTP_PROVIDER_ORDER, ...customIds] : [preference];
+  const disabled = disabledCliSet(await getEnabledAiSettings());
   let executableFound = false;
   for (const provider of order) {
     if (isCustomProviderId(provider) || isHttpAiProvider(provider)) {
@@ -664,18 +690,18 @@ async function selectProvider(
       if (selected) return selected;
       continue;
     }
+    if (disabled.has(provider)) continue;
     const executable = await resolveExecutable(provider);
     executableFound ||= Boolean(executable);
     if (executable && (await isProviderAuthenticated(provider, executable))) {
       return { provider, executable };
     }
   }
+  if (disabled.has(preference as AiCommitProvider)) {
+    throw new Error('[provider_unavailable] This CLI provider is disabled in AI provider settings.');
+  }
   if (!executableFound) throw new Error('[cli_not_found] The configured AI CLI was not found.');
-  throw new Error(
-    preference === 'claude'
-      ? '[authentication_required] Claude CLI requires an API key or supported cloud-provider authentication.'
-      : '[authentication_required] Sign in to a configured AI CLI provider.'
-  );
+  throw new Error('[authentication_required] Sign in to a configured AI CLI provider.');
 }
 
 /**
@@ -692,12 +718,17 @@ async function resolveProviderHint(
     }
     return {
       provider: settings.provider,
-      model: settings.provider === 'codex' ? selectedCodexModel(settings) : undefined,
+      model: selectedCliModel(settings.provider, settings),
     };
   }
+  // Hints are best-effort: if settings cannot be read, no provider is disabled.
+  const disabled = await getEnabledAiSettings()
+    .then(disabledCliSet)
+    .catch(() => new Set<AiCommitProvider>());
   for (const provider of ['codex', 'claude'] as const) {
+    if (disabled.has(provider)) continue;
     if (await resolveExecutable(provider)) {
-      return { provider, model: provider === 'codex' ? selectedCodexModel(settings) : undefined };
+      return { provider, model: selectedCliModel(provider, settings) };
     }
   }
   // Same order as selectProvider('auto'): built-ins first, then customs.
@@ -722,8 +753,32 @@ async function getEnabledAiSettings(): Promise<AppSettings['aiCommit']> {
   return settings;
 }
 
+/** Stored settings may predate the field or hold junk; only CLIs can be disabled. */
+function disabledCliSet(settings: AppSettings['aiCommit']): Set<AiCommitProvider> {
+  const known: AiCommitProvider[] = ['codex', 'claude'];
+  return new Set(
+    (Array.isArray(settings.disabledCliProviders) ? settings.disabledCliProviders : []).filter(
+      (provider): provider is AiCommitProvider => known.includes(provider)
+    )
+  );
+}
+
 function selectedCodexModel(settings: AppSettings['aiCommit']): AiCodexModel {
   return CODEX_MODELS.has(settings.codexModel) ? settings.codexModel : DEFAULT_CODEX_MODEL;
+}
+
+function selectedClaudeModel(settings: AppSettings['aiCommit']): AiClaudeModel {
+  return CLAUDE_MODELS.has(settings.claudeModel) ? settings.claudeModel : DEFAULT_CLAUDE_MODEL;
+}
+
+/** Model reported/invoked for a provider; HTTP providers resolve their own. */
+function selectedCliModel(
+  provider: AiProviderId,
+  settings: AppSettings['aiCommit']
+): string | undefined {
+  if (provider === 'codex') return selectedCodexModel(settings);
+  if (provider === 'claude') return selectedClaudeModel(settings);
+  return undefined;
 }
 
 function beginOperation(operationId: string, ownerId?: number): AbortController {
@@ -902,17 +957,13 @@ async function runStructuredProvider(
   const redacted = metadata.redacted || privacy.redacted;
 
   const selected = await selectProvider(settings.provider);
-  const codexModel = selectedCodexModel(settings);
+  const cliModel = selectedCliModel(selected.provider, settings);
   if (sessionInvocationCount >= Math.max(1, settings.maxSessionInvocations || 100)) {
     throw new Error('AI provider session invocation budget has been reached.');
   }
   sessionInvocationCount += 1;
   const startedAt = new Date();
-  const model = selected.httpConfig
-    ? httpProviderModel(selected.httpConfig)
-    : selected.provider === 'codex'
-      ? codexModel
-      : undefined;
+  const model = selected.httpConfig ? httpProviderModel(selected.httpConfig) : cliModel;
   try {
     let rawOutput: string;
     if (selected.httpConfig) {
@@ -934,7 +985,7 @@ async function runStructuredProvider(
         selected.executable,
         operationId,
         outboundPrompt,
-        codexModel,
+        cliModel,
         schema,
         settings.providerTimeoutMs
       );
@@ -1263,6 +1314,12 @@ export function invalidateAiProviderStatusCache(): void {
   aiProviderStatusPending = null;
 }
 
+/** Test seam: forget resolved CLI executables so PATH overrides take effect. */
+export function invalidateProviderExecutableCacheForTests(): void {
+  resolvedExecutables.clear();
+  unresolvedExecutables.clear();
+}
+
 function refreshAiProviderStatuses(): Promise<AiCommitProviderStatus[]> {
   aiProviderStatusPending ??= computeAiCommitProviders()
     .then((value) => ({ value, generation: aiProviderStatusGeneration }))
@@ -1308,6 +1365,8 @@ async function computeAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
       let authenticated = false;
       let cliLoggedIn: boolean | undefined;
       let authMethod: string | undefined;
+      let accountEmail: string | undefined;
+      let planLabel: string | undefined;
       let version: string | undefined;
       if (executable) {
         const probe = await runCliProbe(
@@ -1317,11 +1376,22 @@ async function computeAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
           { ...providerEnvironment(provider), ...executable.extraEnv }
         );
         version = probe.status === 0 ? probe.stdout.trim().slice(0, 200) : undefined;
-        authenticated = await isProviderAuthenticated(provider, executable);
         if (provider === 'claude') {
+          // One login probe backs the auth verdict and every reported field.
           const login = await getClaudeCliLogin(executable);
           cliLoggedIn = login.loggedIn;
           authMethod = login.authMethod;
+          accountEmail = login.accountEmail;
+          planLabel = login.planLabel;
+          authenticated = claudeIsAuthenticated(login);
+        } else {
+          authenticated = await isProviderAuthenticated(provider, executable);
+          if (authenticated) {
+            const identity = await getCodexIdentity();
+            authMethod = identity.authMethod;
+            accountEmail = identity.accountEmail;
+            planLabel = identity.planLabel;
+          }
         }
       }
       const available = Boolean(executable) && authenticated;
@@ -1333,15 +1403,13 @@ async function computeAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
         authenticated,
         cliLoggedIn,
         authMethod,
+        accountEmail,
+        planLabel,
         reason: !executable
           ? `${basename(provider)} CLI was not found.`
-          : provider === 'codex' && !authenticated
-            ? 'Codex CLI is not signed in.'
-            : provider === 'claude' && !authenticated && cliLoggedIn
-              ? `Claude is signed in${authMethod ? ` with ${authMethod}` : ''}, but ShellySVN requires API or cloud authentication.`
-              : provider === 'claude' && !authenticated
-                ? 'Claude requires API key or cloud-provider authentication.'
-                : undefined,
+          : !authenticated
+            ? `${basename(provider)} CLI is not signed in.`
+            : undefined,
       };
     })
   );
@@ -1447,7 +1515,7 @@ export async function listAiProviderModels(provider: AiProviderId): Promise<AiMo
     const config = await httpRuntimeConfig(provider);
     return listHttpProviderModels(provider, config);
   }
-  // Codex models are fixed by the CLI contract; Claude models are resolved by the CLI.
+  // Codex models are fixed by the CLI contract; Claude exposes its alias set.
   if (provider === 'codex') {
     return [...CODEX_MODELS].map((id) => ({
       id,
@@ -1455,6 +1523,15 @@ export async function listAiProviderModels(provider: AiProviderId): Promise<AiMo
       provider,
       local: false,
       defaultForProvider: id === DEFAULT_CODEX_MODEL,
+    }));
+  }
+  if (provider === 'claude') {
+    return [...CLAUDE_MODELS].map((id) => ({
+      id,
+      label: id,
+      provider,
+      local: false,
+      defaultForProvider: id === DEFAULT_CLAUDE_MODEL,
     }));
   }
   return [];

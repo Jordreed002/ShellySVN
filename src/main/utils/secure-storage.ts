@@ -71,12 +71,19 @@ export function decryptSecret(storage: SafeStorage, base64Ciphertext: string): s
  * whenever safeStorage was unavailable — base64 is an encoding, not
  * encryption, so those entries are plaintext for practical purposes and get
  * re-encrypted on first load. A stored value only qualifies as legacy when it
- * round-trips through canonical base64, which filters out corrupted
- * safeStorage ciphertext so it is never mistaken for a recoverable secret.
- * Returns null when the value is not a canonical base64 string.
+ * round-trips through canonical base64 AND decodes to printable text, which
+ * filters out corrupted safeStorage ciphertext (and other base64-shaped
+ * strings that are not passwords — e.g. an old raw entry surviving a format
+ * migration) so they are never mistaken for a recoverable secret.
+ * Returns null when the value does not qualify.
  */
 export function decodeLegacyBase64Secret(stored: string): string | null {
   if (!stored) return null;
   const decoded = Buffer.from(stored, 'base64').toString('utf-8');
-  return Buffer.from(decoded, 'utf-8').toString('base64') === stored ? decoded : null;
+  if (Buffer.from(decoded, 'utf-8').toString('base64') !== stored) return null;
+  // Passwords arrive from a text input; anything carrying control characters
+  // or replacement glyphs is binary noise, not a forgotten plaintext secret.
+  return /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\ufffd]/.test(decoded)
+    ? null
+    : decoded;
 }

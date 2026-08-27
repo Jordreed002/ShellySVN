@@ -148,6 +148,13 @@ describe('decodeLegacyBase64Secret', () => {
     const garbage = Buffer.from([0x00, 0x9f, 0x92, 0x96, 0xff, 0xfe]).toString('base64');
     expect(decodeLegacyBase64Secret(garbage)).toBeNull();
   });
+
+  it('rejects canonical base64 that decodes to non-printable text', () => {
+    // Valid base64 of valid (but control-character) UTF-8: round-trips cleanly
+    // yet can never have been a password typed into a text field.
+    const controlBytes = Buffer.from([0x41, 0x00, 0x42, 0x1f, 0x43]).toString('base64');
+    expect(decodeLegacyBase64Secret(controlBytes)).toBeNull();
+  });
 });
 
 describe('ENCRYPTED_VALUE_PREFIX', () => {

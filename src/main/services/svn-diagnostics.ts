@@ -21,6 +21,7 @@ import { debug } from '../utils/debug';
 import { redactValue } from '../utils/redaction';
 import { withSvnTargets } from '../utils/svn-targets';
 import { runSvnMuccText, runSvnText } from './svn-executor';
+import { isNativeShelvingSupported } from './svn-capabilities';
 import {
   buildSvnSpawnNetworkConfig,
   getNetworkOptionsForUrl,
@@ -430,13 +431,39 @@ export async function getDiagnostics(
       } catch (connError) {
         const errorMsg = (connError as Error)?.message || '';
 
+        // Case-insensitive: svn reports "Authentication failed" with a
+        // capital A, which a lowercase `includes('authentication')` missed
+        // and mislabeled as an unknown failure.
         if (
-          errorMsg.includes('authentication') ||
+          /auth/i.test(errorMsg) ||
           errorMsg.includes('Authorization') ||
           errorMsg.includes('403')
         ) {
           result.connectionStatus = 'auth-required';
-          result.connectionError = 'Authentication required';
+          // Keep the secret in the main process. Length and edge-whitespace
+          // metadata are sufficient to diagnose common storage mistakes.
+          const edgeWhitespace = /^\s|\s$/.test(credentialMatch?.password ?? '');
+          const attemptedDetails = credentialMatch
+            ? [
+                'Attempted with the saved credential:',
+                `  username: ${credentialMatch.username}`,
+                `  password: [hidden] (${credentialMatch.password.length} characters${edgeWhitespace ? ' — has leading/trailing whitespace' : ''})`,
+              ].join('\n')
+            : 'Attempted without saved credentials (Subversion falls back to its own client cache).';
+
+          if (credentialMatch) {
+            // The probe (and every repository operation) injects the stored
+            // credential explicitly, which suppresses Subversion's own client
+            // cache — a rejected stored password is therefore actionable.
+            result.connectionError =
+              `The stored credential for ${credentialMatch.username} was rejected by the server. ` +
+              'Remove or update it in Settings → Security → Saved credentials — with no saved ' +
+              'credential, Subversion falls back to its own client cache (the login TortoiseSVN uses). ' +
+              `Server response: ${errorMsg}`;
+          } else {
+            result.connectionError = `Authentication required. Server response: ${errorMsg}`;
+          }
+          result.connectionError = `${result.connectionError}\n\n${attemptedDetails}`;
         } else if (errorMsg.includes('SSL') || errorMsg.includes('certificate')) {
           result.connectionStatus = 'ssl-error';
           result.connectionError = errorMsg;
@@ -480,13 +507,16 @@ export async function getSvnCapabilities(): Promise<{
   nativeShelving: boolean;
   remoteProperties: boolean;
 }> {
+  // `isNativeShelvingSupported` recognizes every client-specific way of
+  // missing shelving (including TortoiseSVN's option-before-subcommand
+  // "invalid option" failure), while svnmucc is probed directly.
   const [shelving, remoteProperties] = await Promise.allSettled([
-    runSvnText(['help', 'shelve']),
+    isNativeShelvingSupported(),
     runSvnMuccText(['--version', '--quiet']),
   ]);
   return {
     shelving: true,
-    nativeShelving: shelving.status === 'fulfilled',
+    nativeShelving: shelving.status === 'fulfilled' && shelving.value,
     remoteProperties: remoteProperties.status === 'fulfilled',
   };
 }

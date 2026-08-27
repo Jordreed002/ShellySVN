@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
+  runSvn: vi.fn(),
   runSvnMuccText: vi.fn(),
   findForUrl: vi.fn(),
   isEncryptionAvailable: vi.fn().mockReturnValue(true),
@@ -58,6 +59,7 @@ vi.mock('../../ssl-trust-cache', async (importOriginal) => {
 
 vi.mock('../svn-executor', () => ({
   runSvnText: mockState.runSvnText,
+  runSvn: mockState.runSvn,
   runSvnMuccText: mockState.runSvnMuccText,
 }));
 
@@ -83,6 +85,10 @@ const SELF_SIGNED_STDERR =
 const EXPIRED_STDERR =
   "svn: E170013: Unable to connect to a repository at URL 'https://svn.example.com/repo'\n" +
   'svn: E230001: Server SSL certificate verification failed: certificate has expired, issuer is not trusted';
+const AUTH_FAILED_STDERR =
+  "svn: E170013: Unable to connect to a repository at URL 'https://svn.example.com/repo'\n" +
+  'svn: E215004: No more credentials or we tried too many times.\n' +
+  'Authentication failed';
 
 describe('svn-diagnostics', () => {
   beforeEach(() => {
@@ -106,11 +112,12 @@ describe('svn-diagnostics', () => {
       if (args[0] === '--version') return '1.14.2\n';
       throw new Error('not a working copy');
     });
+    mockState.runSvn.mockRejectedValue(new Error('"shelve": unknown command.'));
     mockState.runSvnMuccText.mockResolvedValue('1.14.2');
   });
 
   it('capability-gates companion-client and experimental workflows', async () => {
-    mockState.runSvnText.mockResolvedValue('shelve help');
+    mockState.runSvn.mockResolvedValue({ code: 0, stdout: 'shelve help', stderr: '' });
     await expect(getSvnCapabilities()).resolves.toEqual({
       shelving: true,
       nativeShelving: true,
@@ -361,6 +368,54 @@ describe('svn-diagnostics', () => {
       });
     });
 
+    it('labels a rejected stored credential as an actionable auth failure', async () => {
+      mockState.findForUrl.mockReturnValue({
+        username: 'jordan',
+        password: 'whatever',
+        realm: 'https://svn.example.com/repo',
+      });
+      mockWorkingCopyWithConnectionFailure(AUTH_FAILED_STDERR);
+
+      const diagnostics = await getDiagnostics('/wc');
+
+      expect(diagnostics.connectionStatus).toBe('auth-required');
+      expect(diagnostics.connectionError).toContain('stored credential');
+      expect(diagnostics.connectionError).toContain('jordan');
+      expect(diagnostics.connectionError).toContain(AUTH_FAILED_STDERR);
+      // Debug details: the exact credential the probe used.
+      expect(diagnostics.connectionError).toContain('Attempted with the saved credential:');
+      expect(diagnostics.connectionError).toContain('username: jordan');
+      expect(diagnostics.connectionError).toContain('password: [hidden] (8 characters)');
+      expect(diagnostics.connectionError).not.toContain('whatever');
+      expect(diagnostics.hasCredentials).toBe(true);
+    });
+
+    it('reports plain authentication required when no credential is stored', async () => {
+      mockState.findForUrl.mockReturnValue(null);
+      mockWorkingCopyWithConnectionFailure(AUTH_FAILED_STDERR);
+
+      const diagnostics = await getDiagnostics('/wc');
+
+      expect(diagnostics.connectionStatus).toBe('auth-required');
+      expect(diagnostics.connectionError).toContain('Attempted without saved credentials');
+      expect(diagnostics.connectionError).toContain(AUTH_FAILED_STDERR);
+    });
+
+    it('never prints the attempted password and still flags edge whitespace', async () => {
+      mockState.findForUrl.mockReturnValue({
+        username: 'jordan',
+        password: ' ab"cd ',
+        realm: 'https://svn.example.com/repo',
+      });
+      mockWorkingCopyWithConnectionFailure(AUTH_FAILED_STDERR);
+
+      const diagnostics = await getDiagnostics('/wc');
+
+      expect(diagnostics.connectionError).toContain(
+        'password: [hidden] (7 characters — has leading/trailing whitespace)'
+      );
+      expect(diagnostics.connectionError).not.toContain('ab"cd');
+    });
     it('keeps expired certificates distinguishable from plain unknown-ca', async () => {
       mockWorkingCopyWithConnectionFailure(EXPIRED_STDERR);
 

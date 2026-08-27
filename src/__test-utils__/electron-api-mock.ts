@@ -15,6 +15,13 @@ export function createMockElectronAPI(): ElectronAPI {
     svn: {
       getActiveWorkingCopyMutations: vi.fn().mockResolvedValue([]),
       onWorkingCopyMutationStateChanged: vi.fn().mockReturnValue(() => undefined),
+      onMutation: vi.fn().mockReturnValue(() => undefined),
+      onMutationFailed: vi.fn().mockReturnValue(() => undefined),
+      nativeAuth: {
+        list: vi.fn().mockResolvedValue([]),
+        remove: vi.fn().mockResolvedValue({ success: true }),
+      },
+      verifyCredentials: vi.fn().mockResolvedValue({ ok: true }),
       status: vi.fn().mockResolvedValue({ path: '/test/repo', entries: [], revision: 1 }),
       statusRemote: vi
         .fn()
@@ -57,6 +64,14 @@ export function createMockElectronAPI(): ElectronAPI {
       add: vi.fn().mockResolvedValue({ success: true }),
       delete: vi.fn().mockResolvedValue({ success: true }),
       cleanup: vi.fn().mockResolvedValue({ success: true }),
+      repairWorkingCopy: vi
+        .fn()
+        .mockImplementation((plan, onProgress) =>
+          Promise.resolve().then(() => {
+            onProgress?.({ step: 'exclude', completed: 0, total: 0 });
+            return { success: true, restored: 0, completedDirs: 0, excludedDirs: 0, stepErrors: [] };
+          })
+        ),
       lock: vi.fn().mockResolvedValue({ success: true }),
       unlock: vi.fn().mockResolvedValue({ success: true }),
       lockInfo: vi.fn().mockResolvedValue(null),
@@ -257,6 +272,13 @@ export function createMockElectronAPI(): ElectronAPI {
       list: vi.fn().mockResolvedValue([]),
       clear: vi.fn().mockResolvedValue({ success: true }),
       isEncryptionAvailable: vi.fn().mockResolvedValue(true),
+      reveal: vi.fn().mockResolvedValue({
+        realm: 'https://test/repo',
+        username: 'testuser',
+        password: 'stored-secret',
+        createdAt: null,
+        encrypted: true,
+      }),
     },
     shell: {
       register: vi.fn().mockResolvedValue({ success: true }),

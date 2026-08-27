@@ -25,15 +25,22 @@ import type {
   SvnMergeInfoResult,
   SvnRepoLayout,
   SvnShelveListResult,
+  SvnWorkingCopyRepairPlan,
   SvnStatusResult,
   SvnMutationNotification,
+  SvnMutationFailureNotification,
   SvnMutationResult,
+  SvnCommandErrorDetails,
   SwitchRelocateInput,
 } from '@shared/types';
 
 import { cancelCheckout, checkout, checkoutWithProgress } from '../services/svn-checkout';
 import { commit, commitWithProgress } from '../services/svn-commit';
-import { listNativeAuth, removeNativeAuth } from '../services/svn-native-auth';
+import {
+  listNativeAuth,
+  removeNativeAuth,
+  verifyRepositoryCredentials,
+} from '../services/svn-native-auth';
 import { catRepositoryFile } from '../services/svn-content';
 import {
   getBlame,
@@ -149,6 +156,7 @@ import {
   updateItem as updateWorkingCopyItem,
   updateToRevision,
 } from '../services/svn-working-copy';
+import { repairWorkingCopy } from '../services/svn-working-copy-repair';
 import { getSharedWorkerPool } from '../workers/WorkerPool';
 import { getSvnReadError } from '../utils/svn-errors';
 import {
@@ -219,6 +227,44 @@ function operationSucceeded(result: unknown): boolean {
   );
 }
 
+/**
+ * Failure detail for `svn:mutationFailed`: surfaces that only observe the
+ * mutation lifecycle (the notification center) never see the operation result,
+ * so broadcast what failed while the handler still holds it.
+ */
+function failureNotificationFromResult(
+  paths: string[],
+  result: unknown
+): SvnMutationFailureNotification {
+  const failure = (result ?? {}) as {
+    error?: unknown;
+    errorCode?: unknown;
+    cancelled?: unknown;
+    commandError?: SvnCommandErrorDetails;
+  };
+  const message =
+    typeof failure.error === 'string' && failure.error.trim()
+      ? failure.error
+      : typeof failure.commandError?.message === 'string' && failure.commandError.message.trim()
+        ? failure.commandError.message
+        : 'The operation reported failure.';
+  return {
+    localPaths: Array.from(new Set(paths.filter(Boolean))),
+    message,
+    ...(typeof failure.errorCode === 'string' && failure.errorCode
+      ? { errorCode: failure.errorCode }
+      : {}),
+    ...(failure.commandError?.category ? { category: failure.commandError.category } : {}),
+    ...(failure.cancelled === true ? { cancelled: true } : {}),
+  };
+}
+
+function broadcastMutationFailure(notification: SvnMutationFailureNotification): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    sendToRenderer(window.webContents, 'svn:mutationFailed', notification);
+  }
+}
+
 async function invalidateStatusAfter<T>(
   paths: string[],
   operation: Promise<T>,
@@ -245,12 +291,22 @@ async function invalidateStatusAfter<T>(
         localPaths: Array.from(new Set(paths.filter(Boolean))),
         repositoryUrls: Array.from(new Set(repositoryUrls.filter(Boolean))),
       });
+    } else {
+      broadcastMutationFailure(failureNotificationFromResult(paths, result));
     }
     return result;
   } catch (error) {
+    const failure = getSvnReadError(error);
+    broadcastMutationFailure({
+      localPaths: Array.from(new Set(paths.filter(Boolean))),
+      message: failure.error,
+      ...(failure.errorCode ? { errorCode: failure.errorCode } : {}),
+      category: failure.commandError.category,
+      ...(failure.cancelled ? { cancelled: true } : {}),
+    });
     return {
       success: false,
-      ...getSvnReadError(error),
+      ...failure,
     } as T;
   }
 }
@@ -328,6 +384,9 @@ export function registerSvnHandlers(): void {
   ipcMain.handle('svn:nativeAuth:list', async (_, patterns?: string[]) => listNativeAuth(patterns));
   ipcMain.handle('svn:nativeAuth:remove', async (_, patterns: string[]) =>
     removeNativeAuth(patterns)
+  );
+  ipcMain.handle('svn:verifyCredentials', async (_, url: string, username: string, password: string) =>
+    verifyRepositoryCredentials(url, username, password)
   );
   ipcMain.handle(
     'svn:cat',
@@ -592,6 +651,18 @@ export function registerSvnHandlers(): void {
     return invalidateStatusAfter([path], cleanupWorkingCopy(path, options), event);
   });
   ipcMain.handle('svn:cleanupPreview', async (_, path: string) => previewCleanup(path));
+
+  // Working-copy repair (fix wizard): progress streams on its own channel
+  // until the result promise settles.
+  ipcMain.handle('svn:repairWorkingCopy', async (event, plan: SvnWorkingCopyRepairPlan) => {
+    return invalidateStatusAfter(
+      [plan.workingCopyPath],
+      repairWorkingCopy(plan, (progress) =>
+        sendToRenderer(event.sender, 'svn:repairProgress', progress)
+      ),
+      event
+    );
+  });
 
   // SVN Checkout
   ipcMain.handle(

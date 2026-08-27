@@ -1,5 +1,5 @@
 import { MAX_COMMIT_MESSAGE_LENGTH } from '@shared/constants';
-import type { AiCodexModel, AiCommitProvider, AiErrorCode } from '@shared/types';
+import type { AiCommitProvider, AiErrorCode } from '@shared/types';
 import { win32 } from 'node:path';
 
 export interface PreparedAiDiff {
@@ -14,18 +14,89 @@ export interface StructuredCommitMessage {
   body?: string;
 }
 
+/** Single-line human plan names; unknown values render without a plan label. */
+const CLAUDE_SUBSCRIPTION_LABELS: Record<string, string> = {
+  free: 'Claude Free',
+  pro: 'Claude Pro',
+  max: 'Claude Max',
+  team: 'Claude Team',
+  enterprise: 'Claude Enterprise',
+};
+
 export function parseClaudeAuthStatus(output: string): {
   loggedIn: boolean;
   authMethod?: string;
+  accountEmail?: string;
+  planLabel?: string;
 } {
   try {
     const value = JSON.parse(output) as Record<string, unknown>;
+    const subscriptionType =
+      typeof value.subscriptionType === 'string' ? value.subscriptionType.toLowerCase() : '';
+    const plan = CLAUDE_SUBSCRIPTION_LABELS[subscriptionType];
     return {
       loggedIn: value.loggedIn === true,
       authMethod: typeof value.authMethod === 'string' ? value.authMethod.slice(0, 80) : undefined,
+      accountEmail: parseAccountEmail(value.email),
+      // Only real subscriptions get the suffix; API-key logins stay unlabeled.
+      planLabel: plan ? `${plan} Subscription` : undefined,
     };
   } catch {
     return { loggedIn: false };
+  }
+}
+
+function parseAccountEmail(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  // Bounded, whitespace-free, and shape-checked: the field is display-only,
+  // so malformed JSON never reaches the settings surface as garbage.
+  const email = value.trim().slice(0, 254);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : undefined;
+}
+
+const CODEX_PLAN_LABELS: Record<string, string> = {
+  free: 'Free',
+  plus: 'Plus',
+  prolite: 'Pro Lite',
+  pro: 'Pro',
+  business: 'Business',
+  enterprise: 'Enterprise',
+  edu: 'Edu',
+};
+
+/**
+ * Identity from `~/.codex/auth.json` — the CLI itself has no JSON login-status
+ * flag. Decodes only the id_token's payload claim needed for display; access,
+ * refresh, and API-key material is never parsed or returned.
+ */
+export function parseCodexAuthIdentity(authJson: string): {
+  authMethod?: string;
+  accountEmail?: string;
+  planLabel?: string;
+} {
+  let authMethod: string | undefined;
+  try {
+    const value = JSON.parse(authJson) as {
+      auth_mode?: unknown;
+      tokens?: { id_token?: unknown } | null;
+    };
+    authMethod = value.auth_mode === 'apikey' ? 'API key' : 'ChatGPT';
+    const idToken = typeof value.tokens?.id_token === 'string' ? value.tokens.id_token : '';
+    if (!idToken.includes('.')) return { authMethod };
+    const payload = JSON.parse(
+      Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString('utf8')
+    ) as Record<string, unknown>;
+    const claim = payload['https://api.openai.com/auth'] as Record<string, unknown> | undefined;
+    const planType =
+      typeof claim?.chatgpt_plan_type === 'string' ? claim.chatgpt_plan_type.toLowerCase() : '';
+    const plan = CODEX_PLAN_LABELS[planType];
+    return {
+      authMethod,
+      accountEmail: parseAccountEmail(payload.email ?? claim?.email),
+      planLabel: plan ? `ChatGPT ${plan} Subscription` : undefined,
+    };
+  } catch {
+    return { authMethod };
   }
 }
 
@@ -390,7 +461,7 @@ export function buildAiProviderArguments(
   workingDirectory: string,
   schemaPath: string,
   outputPath: string,
-  codexModel: AiCodexModel = 'gpt-5.6-luna',
+  model?: string,
   outputSchema: Record<string, unknown> = aiCommitOutputSchema()
 ): string[] {
   if (provider === 'codex') {
@@ -405,7 +476,7 @@ export function buildAiProviderArguments(
       '--ignore-user-config',
       '--ignore-rules',
       '--model',
-      codexModel,
+      model ?? 'gpt-5.6-luna',
       '-c',
       'approval_policy="never"',
       '-c',
@@ -417,9 +488,12 @@ export function buildAiProviderArguments(
       '-',
     ];
   }
+  // Not `--bare`: bare mode refuses OAuth/keychain auth (API key only), which
+  // would reject the CLI's own stored subscription login. Plain -p honors it.
   return [
-    '--bare',
     '-p',
+    // Claude Code accepts stable aliases: 'sonnet' | 'opus' | 'haiku'.
+    ...(model ? ['--model', model] : []),
     '--tools',
     '',
     '--strict-mcp-config',

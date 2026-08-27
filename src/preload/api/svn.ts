@@ -11,11 +11,14 @@ import type {
   SvnLockListResult,
   SvnLockResult,
   SvnMutationNotification,
+  SvnMutationFailureNotification,
   SvnMutationResult,
   SvnOperationProgress,
   SvnPatchResult,
   SvnShelveListResult,
   SvnUnlockResult,
+  SvnWorkingCopyRepairProgress,
+  SvnWorkingCopyRepairResult,
 } from '@shared/types';
 import { createOperationId, type InvokeIpc } from './ipc';
 
@@ -98,6 +101,12 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       ipcRenderer.on('svn:mutation', handler);
       return () => ipcRenderer.removeListener('svn:mutation', handler);
     },
+    onMutationFailed: (callback) => {
+      const handler = (_: unknown, notification: unknown) =>
+        callback(notification as SvnMutationFailureNotification);
+      ipcRenderer.on('svn:mutationFailed', handler);
+      return () => ipcRenderer.removeListener('svn:mutationFailed', handler);
+    },
     getActiveWorkingCopyMutations: () => invokeIpc('svn:getActiveWorkingCopyMutations'),
     onWorkingCopyMutationStateChanged: (callback) => {
       const handler = (_: unknown, paths: unknown) => callback(paths as string[]);
@@ -108,6 +117,8 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       list: (patterns?) => invokeIpc('svn:nativeAuth:list', patterns),
       remove: (patterns) => invokeIpc('svn:nativeAuth:remove', patterns),
     },
+    verifyCredentials: (url, username, password) =>
+      invokeIpc('svn:verifyCredentials', url, username, password),
     cat: (target, revision?, options?) =>
       invokeCancellableWorkerJob(invokeIpc, 'svn-cat', options?.signal, (workerJobId) =>
         invokeIpc('svn:cat', target, revision, workerJobId)
@@ -218,6 +229,17 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     delete: (paths) => invokeIpc('svn:delete', paths),
     cleanup: (path, options?) => invokeIpc('svn:cleanup', path, options),
     cleanupPreview: (path) => invokeIpc('svn:cleanupPreview', path),
+    repairWorkingCopy: (plan, onProgress?) => {
+      if (!onProgress) {
+        return invokeIpc('svn:repairWorkingCopy', plan) as Promise<SvnWorkingCopyRepairResult>;
+      }
+      const handler = (_: unknown, progress: unknown) =>
+        onProgress(progress as SvnWorkingCopyRepairProgress);
+      ipcRenderer.on('svn:repairProgress', handler);
+      return (
+        invokeIpc('svn:repairWorkingCopy', plan) as Promise<SvnWorkingCopyRepairResult>
+      ).finally(() => ipcRenderer.removeListener('svn:repairProgress', handler));
+    },
     lock: (path, message?) => invokeIpc('svn:lock', path, message),
     unlock: (path, force?) => invokeIpc('svn:unlock', path, force),
     lockInfo: (path) => invokeIpc('svn:lockInfo', path) as Promise<SvnLockInfoResult>,

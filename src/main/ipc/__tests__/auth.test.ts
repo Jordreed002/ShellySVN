@@ -74,15 +74,16 @@ describe('Auth IPC handlers', () => {
       { realm: 'webhook:webhook-1', username: 'webhook', createdAt: 1 },
       { realm: 'https://svn.example.com', username: 'alice', createdAt: 2 },
     ]);
-    expect(handlers.get('auth:list')!({})).toEqual([
+    await expect(handlers.get('auth:list')!({})).resolves.toEqual([
       { realm: 'https://svn.example.com', username: 'alice', createdAt: 2 },
     ]);
   });
 
   it('deletes and clears stored credentials', async () => {
-    expect(handlers.get('auth:delete')!({}, 'realm')).toEqual({ success: true });
-    expect(handlers.get('auth:clear')!({})).toEqual({ success: true });
+    await expect(handlers.get('auth:delete')!({}, 'realm')).resolves.toEqual({ success: true });
+    await expect(handlers.get('auth:clear')!({})).resolves.toEqual({ success: true });
     expect(cache.delete).toHaveBeenCalledWith('realm');
     expect(cache.clear).toHaveBeenCalled();
+    expect(cache.ready).toHaveBeenCalledTimes(2);
   });
 });

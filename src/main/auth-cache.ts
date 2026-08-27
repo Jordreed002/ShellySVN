@@ -125,14 +125,14 @@ class AuthCache {
     };
   }
 
-  delete(realm: string): void {
+  delete(realm: string): Promise<void> {
     this.credentials.delete(realm);
-    this.save();
+    return this.save();
   }
 
-  clear(): void {
+  clear(): Promise<void> {
     this.credentials.clear();
-    this.save();
+    return this.save();
   }
 
   list(): Array<{ realm: string; username: string; createdAt: number }> {
@@ -258,15 +258,15 @@ class AuthCache {
     }
   }
 
-  private async save(): Promise<void> {
+  private save(): Promise<void> {
     if (!this.encryptionAvailable) {
       debug.warn('[AUTH] Skipping credential persistence because encryption is unavailable');
-      return;
+      return Promise.resolve();
     }
 
-    await this.savePromise;
-
-    this.savePromise = (async () => {
+    // Queue the write synchronously so callers can await the mutation they
+    // initiated instead of observing success before it reaches the queue.
+    this.savePromise = this.savePromise.then(async () => {
       try {
         const data: StoredCache = {
           version: 1,
@@ -278,7 +278,9 @@ class AuthCache {
       } catch (error) {
         debug.error('[AUTH] Failed to save credentials:', error);
       }
-    })();
+    });
+
+    return this.savePromise;
   }
 }
 

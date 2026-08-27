@@ -19,7 +19,13 @@ import { accessSync, constants, existsSync, statSync } from 'fs';
 import { spawnSync } from 'child_process';
 import { join } from 'path';
 import type { AppSettings, SvnExecutionContext, ProxySettings } from '@shared/types';
-import { mergeDeep, mergeSettings } from '@shared/settings-defaults';
+import { mergeDeep, mergeSettings, DEFAULT_SETTINGS } from '@shared/settings-defaults';
+
+/**
+ * The connectionTimeout default before it was raised to 300s in the same
+ * release; a stored value of exactly this is migrated up on load.
+ */
+const LEGACY_CONNECTION_TIMEOUT = 30;
 import {
   KNOWN_DIFF_TOOL_ALIASES,
   KNOWN_MERGE_TOOL_ALIASES,
@@ -103,10 +109,25 @@ class SettingsManager {
 
       // SECURITY: Migrate or decrypt the proxy password (see method docs).
       await this.migrateProxyPassword();
+      this.migrateLegacyConnectionTimeout();
     } catch {
       // File doesn't exist or parse error, use defaults
       this.settings = mergeSettings();
     }
+  }
+
+  /**
+   * The connection timeout used to default to 30s, which is shorter than a
+   * legitimate `svn status` scan on large working copies — those operations
+   * were killed mid-flight on every refresh. Stored configs still pin the old
+   * default (deep merge keeps stored values over new defaults), so an exact
+   * legacy value is treated as "never customized" and bumped once. Values the
+   * user actually typed (anything ≠ 30) are left untouched. Idempotent: after
+   * the bump the stored value is 300 and never matches again.
+   */
+  private migrateLegacyConnectionTimeout(): void {
+    if (this.settings.connectionTimeout !== LEGACY_CONNECTION_TIMEOUT) return;
+    this.settings.connectionTimeout = DEFAULT_SETTINGS.connectionTimeout;
   }
 
   /**

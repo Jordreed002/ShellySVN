@@ -252,6 +252,15 @@ function createMockElectronAPI() {
   return {
     svn: {
       capabilities: vi.fn().mockResolvedValue({ shelving: false, remoteProperties: false }),
+      onMutation: vi.fn().mockReturnValue(() => undefined),
+      onMutationFailed: vi.fn().mockReturnValue(() => undefined),
+      onWorkingCopyMutationStateChanged: vi.fn().mockReturnValue(() => undefined),
+      getActiveWorkingCopyMutations: vi.fn().mockResolvedValue([]),
+      nativeAuth: {
+        list: vi.fn().mockResolvedValue([]),
+        remove: vi.fn().mockResolvedValue({ success: true }),
+      },
+      verifyCredentials: vi.fn().mockResolvedValue({ ok: true }),
       status: vi.fn().mockResolvedValue({ path: '/test/repo', entries: [], revision: 1 }),
       statusRemote: vi
         .fn()

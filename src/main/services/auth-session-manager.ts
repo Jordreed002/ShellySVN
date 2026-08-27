@@ -94,6 +94,13 @@ export async function beginAuthSession(ownerId: number, request: AuthSessionRequ
   if (request.persistence !== 'session' && request.persistence !== 'stored') {
     throw new Error('Invalid credential persistence');
   }
+  // A stored credential with an empty password is never intentional — it
+  // overwrites a good saved password with one that can never authenticate
+  // (observed: an auth prompt that only required a username). Session-only
+  // empty credentials stay allowed for anonymous-access flows.
+  if (request.persistence === 'stored' && request.password.trim().length === 0) {
+    throw new Error('A password is required to save credentials');
+  }
   const cache = getAuthCache();
   await cache.ready();
   const persistent = request.persistence === 'stored' && cache.isEncryptionAvailable();

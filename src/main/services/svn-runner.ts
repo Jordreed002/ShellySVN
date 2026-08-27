@@ -412,10 +412,14 @@ export async function runResolvedSvn(
       // it never reads the password prompt).
       proc.stdin.on('error', () => {});
       if (passwordViaStdin !== null) {
-        // Always terminate with \n, not the host EOL: on Windows EOL is \r\n
-        // and svn's --password-from-stdin reads until newline, so a trailing
-        // \r would become part of the password and break authentication.
-        proc.stdin.write(`${passwordViaStdin}\n`);
+        // Windows svn builds (verified: TortoiseSVN 1.14.2 and Apache
+        // 1.14.5) keep a bare-LF terminator as part of the password — the
+        // credential arrives as "<password>\n" and the server rejects it —
+        // while CRLF is stripped. POSIX builds expect the bare \n. Writing
+        // from Node's pipe made this visible byte-for-byte; Python's
+        // text-mode stdin masked it by translating \n to \r\n.
+        const terminator = process.platform === 'win32' ? '\r\n' : '\n';
+        proc.stdin.write(`${passwordViaStdin}${terminator}`);
       }
       // Always close stdin. --non-interactive is set on every command, so svn
       // never needs interactive input; leaving the pipe open lets svn block on

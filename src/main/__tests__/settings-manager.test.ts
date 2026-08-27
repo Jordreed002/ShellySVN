@@ -134,6 +134,28 @@ describe('SettingsManager migration and persistence', () => {
     expect(settings.integration.contextMenuItems).toContain('checkout');
   });
 
+  it('migrates a stored legacy 30s connection timeout up to the new default', async () => {
+    mockReadFile.mockResolvedValueOnce(
+      JSON.stringify({ settings: { connectionTimeout: 30 } })
+    );
+
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+
+    expect(manager.getSettings().connectionTimeout).toBe(300);
+  });
+
+  it('leaves a deliberately customized connection timeout alone during migration', async () => {
+    mockReadFile.mockResolvedValueOnce(
+      JSON.stringify({ settings: { connectionTimeout: 45 } })
+    );
+
+    const manager = SettingsManager.getInstance();
+    await manager.ready();
+
+    expect(manager.getSettings().connectionTimeout).toBe(45);
+  });
+
   it('preserves sibling fields when nested settings are partially updated', async () => {
     const manager = SettingsManager.getInstance();
     await manager.ready();

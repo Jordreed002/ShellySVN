@@ -30,18 +30,41 @@ const xmlParser = createSvnXmlParser({
 const LARGE_LOCAL_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_LOCAL_FILES_TO_STAT = 500;
 const MAX_DIRECTORIES_TO_SCAN = 5_000;
+/**
+ * `svn status --xml` on an enterprise-scale working copy (hundreds of
+ * thousands of nodes, ignores included) reaches ~16 MB of XML; cap the scan
+ * comfortably above that. Truncation is tolerated downstream: the status
+ * parse reports `parseError` as a structured failure, and revision
+ * extraction falls back to scanning attributes out of the truncated text.
+ */
+const HEALTH_SCAN_MAX_STDOUT_BYTES = 32 * 1024 * 1024;
 
 function infoRevisions(xml: string): number[] {
-  const parsed = xmlParser.parse(xml) as {
-    info?: {
-      entry?: Array<{ '@_revision'?: number | string }> | { '@_revision'?: number | string };
+  try {
+    const parsed = xmlParser.parse(xml) as {
+      info?: {
+        entry?: Array<{ '@_revision'?: number | string }> | { '@_revision'?: number | string };
+      };
     };
-  };
-  const raw = parsed.info?.entry;
-  const entries = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
-  return entries
-    .map((entry) => Number(entry['@_revision']))
-    .filter((revision) => Number.isInteger(revision) && revision >= 0);
+    const raw = parsed.info?.entry;
+    const entries = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+    return entries
+      .map((entry) => Number(entry['@_revision']))
+      .filter((revision) => Number.isInteger(revision) && revision >= 0);
+  } catch {
+    // `svn info --depth infinity` output is capped and working copies large
+    // enough to hit that cap produce truncated XML that no parser accepts.
+    // The revision attributes are svn-generated and uniform, so scanning them
+    // out of the truncated text still yields a usable min/max sample — and,
+    // importantly, a failed health scan must not take the handler down.
+    const revisions: number[] = [];
+    const pattern = /\brevision="(\d+)"/g;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(xml)) !== null) {
+      revisions.push(Number(match[1]));
+    }
+    return revisions;
+  }
 }
 
 function issue(
@@ -265,13 +288,13 @@ export async function scanWorkingCopyHealth(path: string): Promise<WorkingCopyHe
       withSvnTargets(['status', '--xml', '--no-ignore', '--depth', 'infinity'], [approvedPath]),
       {
         cwd: approvedPath,
-        maxStdoutBytes: 16 * 1024 * 1024,
+        maxStdoutBytes: HEALTH_SCAN_MAX_STDOUT_BYTES,
         maxStderrBytes: 64 * 1024,
       }
     ),
     runSvnText(withSvnTargets(['info', '--xml', '--depth', 'infinity'], [approvedPath]), {
       cwd: approvedPath,
-      maxStdoutBytes: 16 * 1024 * 1024,
+      maxStdoutBytes: HEALTH_SCAN_MAX_STDOUT_BYTES,
       maxStderrBytes: 64 * 1024,
     }),
     findNestedWorkingCopies(approvedPath),
