@@ -1,7 +1,7 @@
 import { lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Archive, BrainCircuit, PanelLeft, Search, StickyNote } from 'lucide-react';
+import { Archive, BrainCircuit, Search, StickyNote } from 'lucide-react';
 import { REVIEW_CENTER_OPEN_EVENT } from '@renderer/features/ai-review-center/reviewCenterEvents';
 
 import { useSettings } from '@renderer/hooks/useSettings';
@@ -106,11 +106,6 @@ function iconButtonClass(active = false): string {
   return `${ICON_BUTTON_BASE} ${active ? ICON_BUTTON_ON : ICON_BUTTON_IDLE}`;
 }
 
-/** Open the settings dialog (owned by the sidebar, reached by event). */
-function openSettings(): void {
-  window.dispatchEvent(new CustomEvent('shellysvn:open-settings'));
-}
-
 export function SidebarFallback() {
   return (
     <aside
@@ -148,6 +143,8 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(true);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  /* The panel portals out of the bell's box, so it anchors to it by ref. */
+  const notificationBellRef = useRef<HTMLButtonElement | null>(null);
   const [quickMenuPosition, setQuickMenuPosition] = useState<{ x: number; y: number } | null>(
     null
   );
@@ -454,7 +451,6 @@ export function Layout({ children }: LayoutProps) {
     []
   );
 
-  const accountName = settings.savedCredentials?.[0]?.username ?? '';
   const shelfWorkingCopyPath = workingCopyPath ?? recentRepositories[0] ?? '';
   return (
     <div className="flex flex-col h-screen shell-backdrop text-text overflow-hidden">
@@ -514,17 +510,6 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex items-center gap-1.5 ml-auto flex-shrink-0 titlebar-no-drag">
           <button
             type="button"
-            onClick={toggleSidebar}
-            className={iconButtonClass(!sidebarCollapsed)}
-            aria-pressed={!sidebarCollapsed}
-            aria-label="Toggle the sidebar"
-            title="Sidebar (⌘B)"
-          >
-            <PanelLeft className="w-4 h-4" aria-hidden="true" />
-          </button>
-
-          <button
-            type="button"
             onClick={() => setShowNotes(!showNotes)}
             className={iconButtonClass(showNotes)}
             aria-pressed={showNotes}
@@ -564,24 +549,26 @@ export function Layout({ children }: LayoutProps) {
             <NotificationCenterBell
               isOpen={notificationPanelOpen}
               onToggle={() => setNotificationPanelOpen((previous) => !previous)}
+              buttonRef={notificationBellRef}
             />
             {notificationPanelOpen && (
-              <NotificationCenterPanel onClose={() => setNotificationPanelOpen(false)} />
+              <NotificationCenterPanel
+                anchorRef={notificationBellRef}
+                onClose={() => setNotificationPanelOpen(false)}
+              />
             )}
           </div>
 
           <Suspense
             fallback={
-              <div className={isWindows ? 'h-8 w-[238px]' : 'h-8 w-[102px]'} aria-hidden="true" />
+              <div className={isWindows ? 'h-8 w-[160px]' : 'h-8 w-8'} aria-hidden="true" />
             }
           >
             <TitlebarControls
               isWindows={isWindows}
               isMaximized={isMaximized}
               isDarkTheme={isDarkTheme}
-              accountName={accountName}
               onToggleTheme={handleToggleTheme}
-              onOpenSettings={openSettings}
               onMinimize={handleMinimize}
               onMaximize={() => void handleMaximize()}
               onClose={handleClose}

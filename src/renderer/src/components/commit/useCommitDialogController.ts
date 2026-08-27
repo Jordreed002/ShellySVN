@@ -20,6 +20,7 @@ import {
   isValidIssuePattern,
 } from '@renderer/utils/issueTracker';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { DEFAULT_DIFF_DISPLAY_OPTIONS, type DiffDisplayOptions } from '@renderer/lib/diffOptions';
 import { providerLabel } from '../settings/AddProviderDialog';
 import { useRecentCommitMessages } from './useRecentCommitMessages';
 import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
@@ -133,6 +134,11 @@ export function useCommitDialogController({
     'all' | 'modified' | 'added' | 'deleted' | 'changelist' | 'external'
   >('all');
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('unified');
+  /* Diff toolbar state the dialog owns now that the viewers render bare. */
+  const [diffDisplayOptions, setDiffDisplayOptions] = useState<DiffDisplayOptions>(
+    DEFAULT_DIFF_DISPLAY_OPTIONS
+  );
+  const [diffSearchQuery, setDiffSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
@@ -451,6 +457,8 @@ export function useCommitDialogController({
       setShowRules(false);
       setFileFilter('all');
       setDiffViewMode('unified');
+      setDiffDisplayOptions(DEFAULT_DIFF_DISPLAY_OPTIONS);
+      setDiffSearchQuery('');
       setShowSuggestions(false);
       setShowAiConsent(false);
       setAiError(null);
@@ -882,7 +890,11 @@ export function useCommitDialogController({
   const prepareAiConsent = useCallback(
     async (
       action: 'draft' | 'review' | 'plan' | 'explain' | 'transform',
-      transformation?: AiDraftTransformation
+      transformation?: AiDraftTransformation,
+      /* The mode picked in this click; `aiExplanationMode` still holds the
+         previous one until the state update lands, and the preview has to
+         show the prompt that will actually be sent. */
+      explainMode: AiDiffExplanationMode = aiExplanationMode
     ) => {
       if (selectedFiles.length === 0 || !aiProviderAvailable) {
         setAiError(selectedAiProvider?.reason || 'Select files and configure an AI provider.');
@@ -937,7 +949,7 @@ export function useCommitDialogController({
                 operationId,
                 workingCopyPath,
                 path: selectedDiffFile,
-                mode: aiExplanationMode,
+                mode: explainMode,
               },
             })
           );
@@ -1009,6 +1021,7 @@ export function useCommitDialogController({
 
   useEffect(() => {
     setAiDiffExplanation(null);
+    setDiffSearchQuery('');
   }, [selectedDiffFile]);
 
   const handleToggleFile = (path: string) => {
@@ -1182,6 +1195,11 @@ export function useCommitDialogController({
     setFileFilter,
     diffViewMode,
     setDiffViewMode,
+    diffDisplayOptions,
+    setDiffDisplayOptions,
+    diffSearchQuery,
+    setDiffSearchQuery,
+    dismissAiDiffExplanation: () => setAiDiffExplanation(null),
     showSuggestions,
     setShowSuggestions,
     showRules,
@@ -1238,10 +1256,11 @@ export function useCommitDialogController({
       } else void runSelectedAiAnalysis('plan');
     },
     handleExplainDiff: (mode?: AiDiffExplanationMode) => {
+      const nextMode = mode ?? aiExplanationMode;
       if (mode) setAiExplanationMode(mode);
       if (settings.aiCommit.confirmBeforeSending) {
-        void prepareAiConsent('explain');
-      } else void handleExplainDiff(mode);
+        void prepareAiConsent('explain', undefined, nextMode);
+      } else void handleExplainDiff(nextMode);
     },
     handleApplyCommitGroup,
     handleCreateGroupChangelist,

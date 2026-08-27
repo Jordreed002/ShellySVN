@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import { Popover } from './Popover';
 import {
   Filter,
   FileCode,
@@ -34,7 +35,7 @@ const BTN_ON = 'border-accent/60 bg-accent/10 text-accent hover:border-accent';
 
 /** `.ctx` — the menus reuse the context menu's surface. */
 const MENU_SURFACE =
-  'absolute left-0 top-full z-50 mt-1.5 min-w-[190px] rounded-[11px] border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
+  'min-w-[190px] rounded-[11px] border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
 
 /** `.ci` — a menu row. */
 const MENU_ITEM =
@@ -142,6 +143,9 @@ export function FilterBar({
 }: FilterBarProps) {
   const [showFileTypeMenu, setShowFileTypeMenu] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  /* Menu anchors — the popovers portal out, so they need their trigger. */
+  const fileTypeButtonRef = useRef<HTMLButtonElement>(null);
+  const statusButtonRef = useRef<HTMLButtonElement>(null);
 
   const currentTypeOption =
     FILE_TYPE_OPTIONS.find((o) => o.value === activeFileType) || FILE_TYPE_OPTIONS[0];
@@ -164,6 +168,7 @@ export function FilterBar({
       {/* File Type Filter */}
       <div className="relative flex-none">
         <button
+          ref={fileTypeButtonRef}
           type="button"
           onClick={() => setShowFileTypeMenu(!showFileTypeMenu)}
           className={`${BTN_BASE} ${activeFileType !== 'all' ? BTN_ON : BTN_TONE}`}
@@ -176,9 +181,13 @@ export function FilterBar({
         </button>
 
         {showFileTypeMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowFileTypeMenu(false)} />
-            <div className={MENU_SURFACE} role="menu" aria-label="File type">
+          <Popover
+            anchorRef={fileTypeButtonRef}
+            onClose={() => setShowFileTypeMenu(false)}
+            role="menu"
+            ariaLabel="File type"
+            className={MENU_SURFACE}
+          >
               {FILE_TYPE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -195,14 +204,14 @@ export function FilterBar({
                   <span className="flex-1">{option.label}</span>
                 </button>
               ))}
-            </div>
-          </>
+          </Popover>
         )}
       </div>
 
       {/* Status Filter */}
       <div className="relative flex-none">
         <button
+          ref={statusButtonRef}
           type="button"
           onClick={() => setShowStatusMenu(!showStatusMenu)}
           className={`${BTN_BASE} ${activeStatus !== 'all' ? BTN_ON : BTN_TONE}`}
@@ -220,9 +229,13 @@ export function FilterBar({
         </button>
 
         {showStatusMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowStatusMenu(false)} />
-            <div className={MENU_SURFACE} role="menu" aria-label="Status">
+          <Popover
+            anchorRef={statusButtonRef}
+            onClose={() => setShowStatusMenu(false)}
+            role="menu"
+            ariaLabel="Status"
+            className={MENU_SURFACE}
+          >
               {STATUS_FILTER_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -245,8 +258,7 @@ export function FilterBar({
                   )}
                 </button>
               ))}
-            </div>
-          </>
+          </Popover>
         )}
       </div>
 

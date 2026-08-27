@@ -30,6 +30,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { Popover } from './Popover';
 
 /**
  * Toolbar — the prototype's single `.navbar` (`prototypes/12-browser.html`),
@@ -125,7 +126,7 @@ const SEGMENT_BASE =
 
 /** `.ctx` — menus share the context menu's surface. */
 const MENU_SURFACE =
-  'absolute top-full z-50 mt-1.5 min-w-[248px] rounded-11 border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
+  'min-w-[248px] rounded-11 border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
 
 /** `.ci` — a menu row. */
 const MENU_ITEM =
@@ -327,7 +328,11 @@ export function Toolbar({
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
-  const viewMenuRef = useRef<HTMLDivElement>(null);
+  const viewMenuRef = useRef<HTMLDivElement | null>(null);
+  /* Menu anchors — the popovers portal out, so they need their trigger. */
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+  const viewButtonRef = useRef<HTMLButtonElement>(null);
+  const overflowButtonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   /*
@@ -650,6 +655,7 @@ export function Toolbar({
             /* Context actions, collapsed into a single menu */
             <div className="relative flex-none">
               <button
+                ref={actionsButtonRef}
                 type="button"
                 onClick={() => setShowActionsMenu((value) => !value)}
                 className={BTN_GHOST}
@@ -663,17 +669,13 @@ export function Toolbar({
               </button>
 
               {showActionsMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowActionsMenu(false)}
-                    aria-hidden="true"
-                  />
-                  <div
-                    className={`${MENU_SURFACE} left-0`}
+                <div onKeyDown={(e) => e.key === 'Escape' && setShowActionsMenu(false)}>
+                  <Popover
+                    anchorRef={actionsButtonRef}
+                    onClose={() => setShowActionsMenu(false)}
                     role="menu"
-                    aria-label="File actions"
-                    onKeyDown={(e) => e.key === 'Escape' && setShowActionsMenu(false)}
+                    ariaLabel="File actions"
+                    className={MENU_SURFACE}
                   >
                     <p className={MENU_EYEBROW}>Working copy</p>
                     {!hasSelection && (
@@ -717,8 +719,8 @@ export function Toolbar({
                         </button>
                       );
                     })}
-                  </div>
-                </>
+                  </Popover>
+                </div>
               )}
             </div>
           )}
@@ -783,6 +785,7 @@ export function Toolbar({
       {(showExplorerLayout || showNotCheckedOutRow) && !foldViewIntoOverflow && (
         <div className="relative flex-none">
           <button
+            ref={viewButtonRef}
             onClick={() => setShowViewMenu(!showViewMenu)}
             className={`${ICON_BTN_WIDE_BASE} ${showViewMenu ? ICON_BTN_ON : ICON_BTN_QUIET}`}
             title="View options"
@@ -799,18 +802,15 @@ export function Toolbar({
           </button>
 
           {showViewMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowViewMenu(false)}
-                aria-hidden="true"
-              />
-              <div
-                ref={viewMenuRef}
-                className={`${MENU_SURFACE} right-0`}
+            <div onKeyDown={handleViewMenuKeyDown}>
+              <Popover
+                anchorRef={viewButtonRef}
+                panelRef={viewMenuRef}
+                onClose={() => setShowViewMenu(false)}
+                align="end"
                 role="menu"
-                aria-label="View options"
-                onKeyDown={handleViewMenuKeyDown}
+                ariaLabel="View options"
+                className={MENU_SURFACE}
               >
                 {showExplorerLayout && (
                   <>
@@ -858,8 +858,8 @@ export function Toolbar({
                     />
                   </>
                 )}
-              </div>
-            </>
+              </Popover>
+            </div>
           )}
         </div>
       )}
@@ -883,6 +883,7 @@ export function Toolbar({
       {hasOverflowMenu && (
         <div className="relative flex-none">
           <button
+            ref={overflowButtonRef}
             type="button"
             onClick={() => setShowOverflowMenu((value) => !value)}
             className={`${ICON_BTN_WIDE_BASE} ${showOverflowMenu ? ICON_BTN_ON : ICON_BTN_QUIET}`}
@@ -896,17 +897,14 @@ export function Toolbar({
           </button>
 
           {showOverflowMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowOverflowMenu(false)}
-                aria-hidden="true"
-              />
-              <div
-                className={`${MENU_SURFACE} right-0`}
+            <div onKeyDown={(e) => e.key === 'Escape' && setShowOverflowMenu(false)}>
+              <Popover
+                anchorRef={overflowButtonRef}
+                onClose={() => setShowOverflowMenu(false)}
+                align="end"
                 role="menu"
-                aria-label="More controls"
-                onKeyDown={(e) => e.key === 'Escape' && setShowOverflowMenu(false)}
+                ariaLabel="More controls"
+                className={MENU_SURFACE}
               >
                 {foldViewIntoOverflow && (
                   <>
@@ -1047,8 +1045,8 @@ export function Toolbar({
                     }}
                   />
                 )}
-              </div>
-            </>
+              </Popover>
+            </div>
           )}
         </div>
       )}

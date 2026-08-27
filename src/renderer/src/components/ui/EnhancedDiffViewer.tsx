@@ -35,6 +35,19 @@ interface EnhancedDiffViewerProps {
   /** Whitespace/EOL options (#47); uncontrolled when omitted. */
   displayOptions?: DiffDisplayOptions;
   onDisplayOptionsChange?: (options: DiffDisplayOptions) => void;
+  /**
+   * Show the built-in toolbar (view mode, stats, whitespace options, search).
+   * Hosts that already own those controls — the commit dialog owns a single
+   * toolbar for its whole diff pane — pass false and drive them by prop.
+   */
+  showToolbar?: boolean;
+  /** Show the per-file path header above each file's hunks. Default true. */
+  showFileHeaders?: boolean;
+  /** Search query; uncontrolled when omitted. */
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
+  /** Match tally, reported so a host toolbar can render the "2/7" counter. */
+  onSearchStateChange?: (state: { matchCount: number; currentIndex: number }) => void;
 }
 
 /**
@@ -51,8 +64,13 @@ export function EnhancedDiffViewer({
   onOpenExternal,
   displayOptions: displayOptionsProp,
   onDisplayOptionsChange,
+  showToolbar = true,
+  showFileHeaders = true,
+  searchQuery: searchQueryProp,
+  onSearchQueryChange,
+  onSearchStateChange,
 }: EnhancedDiffViewerProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [copiedLine, setCopiedLine] = useState<number | null>(null);
   const [internalDisplayOptions, setInternalDisplayOptions] =
@@ -67,6 +85,18 @@ export function EnhancedDiffViewer({
       onDisplayOptionsChange?.(options);
     },
     [displayOptionsProp, onDisplayOptionsChange]
+  );
+
+  // Controlled when supplied, self-managed otherwise — same shape as the
+  // display options above.
+  const searchQuery = searchQueryProp ?? internalSearchQuery;
+  const setSearchQuery = useCallback(
+    (query: string) => {
+      if (searchQueryProp === undefined) setInternalSearchQuery(query);
+      onSearchQueryChange?.(query);
+      setCurrentMatchIndex(0);
+    },
+    [searchQueryProp, onSearchQueryChange]
   );
 
   // Whitespace/EOL options re-compute the parsed diff client-side (#47). The
@@ -142,6 +172,10 @@ export function EnhancedDiffViewer({
   );
 
   useEffect(() => {
+    onSearchStateChange?.({ matchCount: searchMatches.length, currentIndex: currentMatchIndex });
+  }, [searchMatches.length, currentMatchIndex, onSearchStateChange]);
+
+  useEffect(() => {
     if (searchMatches.length === 0) return;
     const frame = requestAnimationFrame(() => {
       const matchElement = contentRef.current?.querySelector(
@@ -186,123 +220,127 @@ export function EnhancedDiffViewer({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border">
-        <div className="flex items-center gap-2">
-          {/* View mode toggle */}
-          <div className="flex items-center bg-bg rounded-md p-0.5">
-            <button
-              type="button"
-              onClick={() => onModeChange?.('unified')}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
-                mode === 'unified' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text'
-              }`}
-              aria-pressed={mode === 'unified'}
-              title="Unified diff view"
-            >
-              <AlignLeft className="w-3.5 h-3.5" />
-              Unified
-            </button>
-            <button
-              type="button"
-              onClick={() => onModeChange?.('side-by-side')}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
-                mode === 'side-by-side'
-                  ? 'bg-accent text-white'
-                  : 'text-text-secondary hover:text-text'
-              }`}
-              aria-pressed={mode === 'side-by-side'}
-              title="Side-by-side diff view"
-            >
-              <Columns2 className="w-3.5 h-3.5" />
-              Split
-            </button>
+      {/* Toolbar — suppressed when the host owns the diff controls. */}
+      {showToolbar && (
+        <div className="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border">
+          <div className="flex items-center gap-2">
+            {/* View mode toggle */}
+            <div className="flex items-center bg-bg rounded-md p-0.5">
+              <button
+                type="button"
+                onClick={() => onModeChange?.('unified')}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
+                  mode === 'unified'
+                    ? 'bg-accent text-white'
+                    : 'text-text-secondary hover:text-text'
+                }`}
+                aria-pressed={mode === 'unified'}
+                title="Unified diff view"
+              >
+                <AlignLeft className="w-3.5 h-3.5" />
+                Unified
+              </button>
+              <button
+                type="button"
+                onClick={() => onModeChange?.('side-by-side')}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
+                  mode === 'side-by-side'
+                    ? 'bg-accent text-white'
+                    : 'text-text-secondary hover:text-text'
+                }`}
+                aria-pressed={mode === 'side-by-side'}
+                title="Side-by-side diff view"
+              >
+                <Columns2 className="w-3.5 h-3.5" />
+                Split
+              </button>
+            </div>
+
+            {/* Stats */}
+            <div className="flex items-center gap-3 text-xs ml-3">
+              <span className="text-success">+{stats.additions}</span>
+              <span className="text-error">-{stats.deletions}</span>
+              {stats.unchanged > 0 && (
+                <span className="text-text-muted">{stats.unchanged} unchanged</span>
+              )}
+            </div>
+
+            {/* Whitespace options (#47) */}
+            <div className="flex items-center gap-3 text-xs ml-3">
+              <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-accent"
+                  checked={displayOptions.ignoreWhitespace}
+                  onChange={() =>
+                    setDisplayOptions({
+                      ...displayOptions,
+                      ignoreWhitespace: !displayOptions.ignoreWhitespace,
+                    })
+                  }
+                />
+                Ignore whitespace
+              </label>
+              <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-accent"
+                  checked={displayOptions.ignoreEol}
+                  onChange={() =>
+                    setDisplayOptions({
+                      ...displayOptions,
+                      ignoreEol: !displayOptions.ignoreEol,
+                    })
+                  }
+                />
+                Ignore EOL
+              </label>
+            </div>
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-3 text-xs ml-3">
-            <span className="text-success">+{stats.additions}</span>
-            <span className="text-error">-{stats.deletions}</span>
-            {stats.unchanged > 0 && (
-              <span className="text-text-muted">{stats.unchanged} unchanged</span>
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search diff…"
+                className="input text-xs py-1 pl-7 pr-8 w-40"
+              />
+              {searchQuery && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {searchMatches.length > 0 && (
+                    <span className="text-xs text-text-muted">
+                      {currentMatchIndex + 1}/{searchMatches.length}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="p-0.5 hover:bg-bg-tertiary rounded"
+                  >
+                    <X className="w-3 h-3 text-text-muted" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* External diff button */}
+            {onOpenExternal && (
+              <button
+                type="button"
+                onClick={onOpenExternal}
+                className="btn btn-secondary btn-sm text-xs"
+                title="Open in external diff tool"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
-
-          {/* Whitespace options (#47) */}
-          <div className="flex items-center gap-3 text-xs ml-3">
-            <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={displayOptions.ignoreWhitespace}
-                onChange={() =>
-                  setDisplayOptions({
-                    ...displayOptions,
-                    ignoreWhitespace: !displayOptions.ignoreWhitespace,
-                  })
-                }
-              />
-              Ignore whitespace
-            </label>
-            <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={displayOptions.ignoreEol}
-                onChange={() =>
-                  setDisplayOptions({ ...displayOptions, ignoreEol: !displayOptions.ignoreEol })
-                }
-              />
-              Ignore EOL
-            </label>
-          </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Search */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentMatchIndex(0);
-              }}
-              placeholder="Search diff…"
-              className="input text-xs py-1 pl-7 pr-8 w-40"
-            />
-            {searchQuery && (
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                {searchMatches.length > 0 && (
-                  <span className="text-xs text-text-muted">
-                    {currentMatchIndex + 1}/{searchMatches.length}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="p-0.5 hover:bg-bg-tertiary rounded"
-                >
-                  <X className="w-3 h-3 text-text-muted" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* External diff button */}
-          {onOpenExternal && (
-            <button
-              type="button"
-              onClick={onOpenExternal}
-              className="btn btn-secondary btn-sm text-xs"
-              title="Open in external diff tool"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Content */}
       <div ref={contentRef} className="flex-1 overflow-auto font-mono text-xs">
@@ -311,6 +349,7 @@ export function EnhancedDiffViewer({
             diff={effectiveDiff}
             language={language}
             showLineNumbers={showLineNumbers}
+            showFileHeaders={showFileHeaders}
             searchQuery={searchQuery}
             searchMatches={searchMatches}
             currentMatchIndex={currentMatchIndex}
@@ -323,6 +362,7 @@ export function EnhancedDiffViewer({
             diff={effectiveDiff}
             language={language}
             showLineNumbers={showLineNumbers}
+            showFileHeaders={showFileHeaders}
             searchQuery={searchQuery}
             searchMatches={searchMatches}
             currentMatchIndex={currentMatchIndex}
@@ -343,6 +383,7 @@ interface DiffViewProps {
   diff: SvnDiffResult;
   language: string;
   showLineNumbers: boolean;
+  showFileHeaders?: boolean;
   searchQuery: string;
   searchMatches: Array<{ fileIndex: number; hunkIndex: number; lineIndex: number }>;
   currentMatchIndex: number;
@@ -355,6 +396,7 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
   diff,
   language,
   showLineNumbers,
+  showFileHeaders = true,
   searchQuery,
   searchMatches,
   currentMatchIndex,
@@ -369,12 +411,14 @@ const UnifiedDiffView = memo(function UnifiedDiffView({
       {diff.files.map((file, fileIndex) => (
         <div key={fileIndex} className="mb-4">
           {/* File header */}
-          <div className="diff-file-header sticky top-0 bg-bg-elevated px-4 py-2 border-b border-border z-10 flex items-center justify-between">
-            <span className="text-text font-medium">{file.newPath || file.oldPath}</span>
-            {file.oldPath !== file.newPath && file.oldPath && (
-              <span className="text-text-muted text-xs ml-2">renamed from {file.oldPath}</span>
-            )}
-          </div>
+          {showFileHeaders && (
+            <div className="diff-file-header sticky top-0 bg-bg-elevated px-4 py-2 border-b border-border z-10 flex items-center justify-between">
+              <span className="text-text font-medium">{file.newPath || file.oldPath}</span>
+              {file.oldPath !== file.newPath && file.oldPath && (
+                <span className="text-text-muted text-xs ml-2">renamed from {file.oldPath}</span>
+              )}
+            </div>
+          )}
 
           {/* Hunks */}
           {file.hunks.map((hunk, hunkIndex) => (
@@ -648,6 +692,7 @@ const SideBySideDiffView = memo(function SideBySideDiffView({
   diff,
   language,
   showLineNumbers,
+  showFileHeaders = true,
   searchQuery,
   searchMatches,
   currentMatchIndex,
@@ -662,9 +707,11 @@ const SideBySideDiffView = memo(function SideBySideDiffView({
       {diff.files.map((file, fileIndex) => (
         <div key={fileIndex} className="mb-4">
           {/* File header */}
-          <div className="diff-file-header sticky top-0 bg-bg-elevated px-4 py-2 border-b border-border z-10">
-            <span className="text-text font-medium">{file.newPath || file.oldPath}</span>
-          </div>
+          {showFileHeaders && (
+            <div className="diff-file-header sticky top-0 bg-bg-elevated px-4 py-2 border-b border-border z-10">
+              <span className="text-text font-medium">{file.newPath || file.oldPath}</span>
+            </div>
+          )}
 
           {/* Side-by-side hunks */}
           {file.hunks.map((hunk, hunkIndex) => (

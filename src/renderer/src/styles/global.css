@@ -790,9 +790,13 @@ body {
     @apply my-1 h-px bg-border;
   }
 
-  /* Dropdown */
+  /*
+   * Dropdown surface only — no positioning. Panels are placed by `Popover`,
+   * which portals to `body` to escape clipping ancestors; `absolute` and
+   * `min-w-full` would both resolve against the wrong box there.
+   */
   .dropdown {
-    @apply absolute z-50 mt-1.5 min-w-full p-1.5 glass-strong border border-border rounded-xl animate-slide-down overflow-hidden;
+    @apply p-1.5 glass-strong border border-border rounded-xl animate-slide-down;
     box-shadow: var(--shadow-overlay);
   }
 

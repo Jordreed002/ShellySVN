@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { Popover } from './Popover';
 import { ChevronRight, Folder, HardDrive, Home } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -40,7 +41,7 @@ const CRUMB_CURRENT = `${CRUMB_BASE} flex-none cursor-default font-semibold text
 
 /** `.ctx` — the elision menu shares the context menu's surface. */
 const MENU_SURFACE =
-  'absolute left-0 top-full z-50 mt-1.5 min-w-[220px] max-w-[22rem] rounded-11 border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
+  'min-w-[220px] max-w-[22rem] rounded-11 border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
 
 /** `.ci` — a menu row. */
 const MENU_ITEM =
@@ -98,6 +99,8 @@ export function Breadcrumb({
   homePath,
 }: BreadcrumbProps) {
   const [showElided, setShowElided] = useState(false);
+  /* Menu anchor — the popover portals out, so it needs its trigger. */
+  const elidedButtonRef = useRef<HTMLButtonElement>(null);
 
   /*
    * How many trailing crumbs are shown. Reduced while the row overflows, so a
@@ -245,6 +248,7 @@ export function Breadcrumb({
           {renderSeparator('sep-elided')}
           <span className="relative flex-none">
             <button
+              ref={elidedButtonRef}
               type="button"
               onClick={() => setShowElided((value) => !value)}
               title={elidedTitle}
@@ -256,17 +260,13 @@ export function Breadcrumb({
               …
             </button>
             {showElided && (
-              <>
-                <span
-                  className="fixed inset-0 z-40 block"
-                  onClick={() => setShowElided(false)}
-                  aria-hidden="true"
-                />
-                <span
-                  className={MENU_SURFACE}
+              <span onKeyDown={(event) => event.key === 'Escape' && setShowElided(false)}>
+                <Popover
+                  anchorRef={elidedButtonRef}
+                  onClose={() => setShowElided(false)}
                   role="menu"
-                  aria-label="Hidden folders"
-                  onKeyDown={(event) => event.key === 'Escape' && setShowElided(false)}
+                  ariaLabel="Hidden folders"
+                  className={MENU_SURFACE}
                 >
                   {elided.map((item) => (
                     <button
@@ -286,8 +286,8 @@ export function Breadcrumb({
                       </span>
                     </button>
                   ))}
-                </span>
-              </>
+                </Popover>
+              </span>
             )}
           </span>
         </span>

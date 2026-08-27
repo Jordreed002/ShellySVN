@@ -78,6 +78,8 @@ export interface UseLogViewStateResult {
   setSort: (next: LogSortState) => void;
   toggleSort: (key: LogSortKey) => void;
   filteredEntries: SvnLogEntry[];
+  /** Unfiltered entry count, for "filtered / loaded" counters. */
+  totalCount: number;
   views: SavedLogView[];
   saveCurrentView: (name: string) => Promise<SavedLogView | null>;
   applyView: (view: SavedLogView) => void;
@@ -386,6 +388,7 @@ export function useLogViewState({
     setSort,
     toggleSort: toggleSortForKey,
     filteredEntries,
+    totalCount: entries.length,
     views,
     saveCurrentView,
     applyView,

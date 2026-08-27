@@ -57,7 +57,7 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
   if (isLoading)
     return (
       <div
-        className="h-52 animate-pulse border border-border bg-bg-secondary motion-reduce:animate-none"
+        className="h-52 animate-pulse rounded-10 border border-border bg-bg-secondary motion-reduce:animate-none"
         role="status"
         aria-label="Loading repository AI profile"
       />
@@ -65,7 +65,7 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
 
   return (
     <section aria-label="Repository AI profile" className="space-y-3">
-      <div className="border border-accent/30 bg-accent/5 p-3">
+      <div className="rounded-10 border border-accent/25 bg-accent/[0.06] p-3">
         <div className="flex items-start gap-2">
           <Shield className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
           <div>
@@ -80,7 +80,7 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
       {error && (
         <div
           role="alert"
-          className="border border-svn-conflict/40 bg-svn-conflict/5 px-3 py-2 text-10.5 text-svn-conflict"
+          className="rounded-9 border border-error/40 bg-error/[0.07] px-3 py-2 text-10.5 text-error"
         >
           {error}
         </div>
@@ -140,11 +140,11 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
         />
       </Field>
 
-      <div className="border border-border bg-bg-secondary p-3">
+      <div className="rounded-10 border border-border bg-bg-secondary/60 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <GraduationCap className="h-4 w-4 text-accent" aria-hidden="true" />
           <h3 className="text-12 font-semibold">Commit style</h3>
-          <span className="font-mono text-9 text-text-faint">computed locally</span>
+          <span className="font-mono text-9.5 text-text-faint">computed locally</span>
           <button
             type="button"
             className="btn btn-secondary btn-sm ml-auto gap-1"
@@ -161,7 +161,10 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
             }}
           >
             {isLearningStyle ? (
-              <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              <Loader2
+                className="h-3 w-3 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
             ) : (
               <GraduationCap className="h-3 w-3" aria-hidden="true" />
             )}
@@ -236,15 +239,15 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
         multiline
       />
 
-      <fieldset className="border border-border bg-bg-secondary p-3">
-        <legend className="px-1 font-mono text-9 uppercase tracking-wider text-text-faint">
+      <fieldset className="rounded-10 border border-border bg-bg-secondary/60 p-3">
+        <legend className="px-1 font-mono text-9.5 uppercase tracking-wider text-text-faint">
           Enabled draft transformations
         </legend>
         <div className="mt-1 grid gap-2 sm:grid-cols-2">
           {ALL_DRAFT_TRANSFORMATIONS.map((transformation) => (
             <label
               key={transformation}
-              className="flex min-h-8 items-center gap-2 border border-border-muted bg-bg px-2 text-10.5"
+              className="flex min-h-8 items-center gap-2 rounded-8 border border-border-muted bg-bg px-2 text-10.5"
             >
               <input
                 type="checkbox"
@@ -267,7 +270,7 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
         </div>
       </fieldset>
 
-      <div className="border border-border bg-bg-secondary">
+      <div className="overflow-hidden rounded-10 border border-border bg-bg-secondary/60">
         <button
           type="button"
           className="flex min-h-10 w-full items-center gap-2 px-3 text-left text-11 font-semibold hover:bg-bg-tertiary"
@@ -279,7 +282,7 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
         >
           <FileJson2 className="h-4 w-4 text-accent" />
           Import JSON with preview
-          <span className="ml-auto font-mono text-9 text-text-faint">explicit only</span>
+          <span className="ml-auto font-mono text-9.5 text-text-faint">explicit only</span>
         </button>
         {showImport && (
           <div className="border-t border-border p-3">
@@ -324,7 +327,7 @@ export function RepositoryProfilePanel({ workingCopyPath }: { workingCopyPath: s
                   </ul>
                 )}
                 {importPreview.valid && importPreview.profile && (
-                  <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-9 text-text-muted">
+                  <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-9.5 text-text-muted">
                     <span>{importPreview.profile.commitPrefixes.length} prefixes</span>
                     <span>{Object.keys(importPreview.profile.terminology).length} terms</span>
                     <span>{importPreview.profile.excludedPaths.length} exclusions</span>

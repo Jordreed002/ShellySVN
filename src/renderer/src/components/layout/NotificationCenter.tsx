@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type MutableRefObject,
+  type RefObject,
+} from 'react';
+import { Popover } from '@renderer/components/ui/Popover';
 import {
   AlertTriangle,
   Bell,
@@ -70,6 +77,8 @@ function NotificationRow({ item }: { item: NotificationCenterItem }) {
 interface NotificationCenterBellProps {
   isOpen: boolean;
   onToggle: () => void;
+  /** The panel anchors to this button, so the Layout holds its node. */
+  buttonRef?: MutableRefObject<HTMLButtonElement | null>;
 }
 
 /**
@@ -77,10 +86,15 @@ interface NotificationCenterBellProps {
  * notification center panel. Purely presentational — state lives in the
  * Layout so the `shellysvn:open-notification-center` event can open it too.
  */
-export function NotificationCenterBell({ isOpen, onToggle }: NotificationCenterBellProps) {
+export function NotificationCenterBell({
+  isOpen,
+  onToggle,
+  buttonRef,
+}: NotificationCenterBellProps) {
   const { unread } = useNotificationCenter();
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={onToggle}
       aria-label={unread > 0 ? `Notifications — ${unread} unread` : 'Notifications'}
@@ -112,7 +126,14 @@ export function NotificationCenterBell({ isOpen, onToggle }: NotificationCenterB
  * The notification center panel (#81): the consolidated, capped history of
  * app events with unread tracking, mark-all-read and clear.
  */
-export function NotificationCenterPanel({ onClose }: { onClose: () => void }) {
+export function NotificationCenterPanel({
+  onClose,
+  anchorRef,
+}: {
+  onClose: () => void;
+  /** The bell this panel hangs from. */
+  anchorRef: RefObject<HTMLElement | null>;
+}) {
   const { items } = useNotificationCenter();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -123,7 +144,12 @@ export function NotificationCenterPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(event.target as Node)) onClose();
+      const target = event.target as Node;
+      // The panel portals out of the bell's box, so both count as "inside":
+      // otherwise a panel click would dismiss before it landed, and a bell
+      // click would close here and immediately reopen via its own toggle.
+      if (panelRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
+      onClose();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -134,14 +160,17 @@ export function NotificationCenterPanel({ onClose }: { onClose: () => void }) {
       window.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, anchorRef]);
 
   return (
-    <div
-      ref={panelRef}
+    <Popover
+      anchorRef={anchorRef}
+      panelRef={panelRef}
+      onClose={onClose}
+      align="end"
       role="dialog"
-      aria-label="Notification center"
-      className="absolute right-0 top-full mt-2 w-[380px] max-w-[calc(100vw-24px)] rounded-xl border border-border bg-bg-elevated shadow-card z-40 overflow-hidden flex flex-col"
+      ariaLabel="Notification center"
+      className="flex w-[380px] max-w-[calc(100vw-24px)] flex-col rounded-xl border border-border bg-bg-elevated shadow-card"
     >
       <header className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <h2 className="text-12.5 font-semibold text-text">Notifications</h2>
@@ -186,7 +215,7 @@ export function NotificationCenterPanel({ onClose }: { onClose: () => void }) {
           ))}
         </ul>
       )}
-    </div>
+    </Popover>
   );
 }
 

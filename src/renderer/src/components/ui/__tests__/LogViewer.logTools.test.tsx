@@ -147,7 +147,10 @@ describe('LogViewer — log search surface', () => {
     expect(alert.textContent).toMatch(/Message:|Search:/);
     // The broken filter is inert, not a silent substring fallback.
     expect(screen.getAllByRole('button', { name: /^Show changes for r\d+$/ })).toHaveLength(3);
-    // Saving a view under a broken regex is disabled.
+    // Saving a view under a broken regex is disabled (the Views popover holds
+    // the save affordance).
+    fireEvent.click(screen.getByRole('button', { name: 'Views' }));
+    fireEvent.change(screen.getByLabelText('New view name'), { target: { value: 'Broken' } });
     expect(screen.getByRole('button', { name: /save view/i })).toBeDisabled();
   });
 
@@ -179,16 +182,17 @@ describe('LogViewer — log search surface', () => {
     );
   });
 
-  it('applies a saved view from the dropdown and ships the built-ins', async () => {
+  it('applies a saved view from the Views popover and ships the built-ins', async () => {
     open();
     await rows();
 
-    const select = await screen.findByLabelText('Saved log views');
-    const options = Array.from(select.querySelectorAll('option')).map((o) => o.textContent);
-    expect(options).toContain('Last 7 days (built-in)');
-    expect(options).toContain('Merge-free (built-in)');
+    fireEvent.click(screen.getByRole('button', { name: 'Views' }));
 
-    fireEvent.change(select, { target: { value: 'builtin:merge-free' } });
+    // The built-ins ship with the surface.
+    expect(screen.getByRole('button', { name: /^Last 7 days/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Merge-free/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Merge-free/ }));
 
     // The merge commit drops out of the list.
     await waitForIt(() =>
@@ -206,7 +210,8 @@ describe('LogViewer — log search surface', () => {
       expect(screen.getAllByRole('button', { name: /^Show changes for r\d+$/ })).toHaveLength(2)
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /^CSV$/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Export CSV' }));
 
     await waitFor(() => expect(window.api.dialog.saveFile).toHaveBeenCalled());
     const [, content] = (window.api.fs.writeFile as ReturnType<typeof vi.fn>).mock.calls[0];

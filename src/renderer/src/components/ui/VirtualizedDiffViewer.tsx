@@ -1033,21 +1033,24 @@ export function VirtualizedDiffViewer({
         />
       )}
 
-      {/* Stats bar */}
-      <div className="flex-shrink-0 px-4 py-2 bg-bg-secondary border-b border-border flex items-center gap-4 text-sm">
-        <span className="text-text-secondary">
-          {stats.files} file{stats.files !== 1 ? 's' : ''} changed
-        </span>
-        <span className="text-green-600 dark:text-green-400">
-          +{stats.additions} addition{stats.additions !== 1 ? 's' : ''}
-        </span>
-        <span className="text-red-600 dark:text-red-400">
-          -{stats.deletions} deletion{stats.deletions !== 1 ? 's' : ''}
-        </span>
-        <span className="text-text-muted ml-auto text-xs">
-          {flattenedLines.length.toLocaleString()} lines
-        </span>
-      </div>
+      {/* Stats bar — chrome, like the toolbar: a host that owns the controls
+          (the commit dialog, the conflict wizard) counts the lines itself. */}
+      {showToolbar && (
+        <div className="flex-shrink-0 px-4 py-2 bg-bg-secondary border-b border-border flex items-center gap-4 text-sm">
+          <span className="text-text-secondary">
+            {stats.files} file{stats.files !== 1 ? 's' : ''} changed
+          </span>
+          <span className="text-green-600 dark:text-green-400">
+            +{stats.additions} addition{stats.additions !== 1 ? 's' : ''}
+          </span>
+          <span className="text-red-600 dark:text-red-400">
+            -{stats.deletions} deletion{stats.deletions !== 1 ? 's' : ''}
+          </span>
+          <span className="text-text-muted ml-auto text-xs">
+            {flattenedLines.length.toLocaleString()} lines
+          </span>
+        </div>
+      )}
 
       {/* Virtualized content */}
       <div ref={parentRef} className="flex-1 overflow-auto bg-bg font-mono">

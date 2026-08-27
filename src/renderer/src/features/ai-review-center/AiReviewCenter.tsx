@@ -25,6 +25,7 @@ import { useAiReviewCenter } from './useAiReviewCenter';
 import { CommitStackPanel } from './CommitStackPanel';
 import { ConsentToggle } from './ConsentToggle';
 import { RepositoryProfilePanel } from './RepositoryProfilePanel';
+import { ReviewEmptyState } from './ReviewEmptyState';
 import { AiRichText } from '@renderer/components/ai/AiRichText';
 import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
 import type { ReviewCenterWorkspace } from './types';
@@ -48,6 +49,31 @@ const SEVERITY_FILTERS: Array<{
   { id: 'warning', label: 'Warning', severity: 'warning' },
   { id: 'info', label: 'Info', severity: 'info' },
 ];
+
+/** One palette for a severity: its filter chip, card dot, border and pill. */
+const SEVERITY_TONE: Record<
+  'danger' | 'warning' | 'info',
+  { label: string; chip: string; dot: string; border: string }
+> = {
+  danger: {
+    label: 'critical',
+    chip: 'border-error/40 bg-error/10 text-error',
+    dot: 'bg-error',
+    border: 'border-error/25',
+  },
+  warning: {
+    label: 'warning',
+    chip: 'border-warning/40 bg-warning/10 text-warning',
+    dot: 'bg-warning',
+    border: 'border-warning/25',
+  },
+  info: {
+    label: 'info',
+    chip: 'border-accent/40 bg-accent/10 text-accent',
+    dot: 'bg-accent',
+    border: 'border-border',
+  },
+};
 
 const ALL_SEVERITY_FILTERS = new Set<SeverityFilter>(['critical', 'warning', 'info']);
 const UNDO_WINDOW_MS = 12_000;
@@ -86,9 +112,8 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
   const [tab, setTab] = useState<ReviewTab>('open');
   const [activeIndex, setActiveIndex] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [severityFilters, setSeverityFilters] = useState<ReadonlySet<SeverityFilter>>(
-    ALL_SEVERITY_FILTERS
-  );
+  const [severityFilters, setSeverityFilters] =
+    useState<ReadonlySet<SeverityFilter>>(ALL_SEVERITY_FILTERS);
   const [undo, setUndo] = useState<UndoEntry | null>(null);
   const undoTimerRef = useRef<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -122,7 +147,12 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
     return counts;
   }, [baseFindings]);
   const visibleFindings = useMemo(
-    () => baseFindings.filter((finding) => severityFilters.has(finding.severity === 'danger' ? 'critical' : (finding.severity as 'warning' | 'info'))),
+    () =>
+      baseFindings.filter((finding) =>
+        severityFilters.has(
+          finding.severity === 'danger' ? 'critical' : (finding.severity as 'warning' | 'info')
+        )
+      ),
     [baseFindings, severityFilters]
   );
 
@@ -281,306 +311,355 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
   const staleRuns =
     workspace?.runs.filter((run) => currentRunChecksums.get(run.kind) !== run.checksum).length ?? 0;
 
+  /** Per-tab counts, so the header needs no separate stat band (#112 UI). */
+  const tabCounts: Partial<Record<ReviewTab, number>> = {
+    open: openFindings.length,
+    dismissed: triagedFindings.length,
+    files: workspace?.explanations.length ?? 0,
+    questions: workspace?.questions.length ?? 0,
+    runs: workspace?.runs.length ?? 0,
+  };
+
   return (
     <div
-      className="fixed inset-0 z-[90] flex justify-end overflow-y-auto overscroll-contain bg-black/35 backdrop-blur-[1px]"
+      className="fixed inset-0 z-[90] flex justify-end bg-black/45 backdrop-blur-[2px]"
       onMouseDown={onClose}
     >
       <aside
         ref={dialogRef}
-        className="flex min-h-0 w-full max-w-[760px] flex-col border-l border-border-strong bg-bg shadow-2xl sm:h-full"
+        className="flex h-full min-h-0 w-full max-w-[780px] flex-col border-l border-border-strong bg-bg shadow-overlay"
         role="dialog"
         aria-modal="true"
         aria-label="AI Review Center"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="relative overflow-hidden border-b border-border bg-bg-secondary px-5 pb-4 pt-5">
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-56 opacity-[0.07] [background-image:repeating-linear-gradient(135deg,currentColor_0,currentColor_1px,transparent_1px,transparent_10px)]" />
-          <div className="relative flex items-start gap-3">
-            <div className="grid h-10 w-10 place-items-center border border-accent/40 bg-accent/10 text-accent">
-              <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+        <header className="flex-shrink-0 border-b border-border bg-bg-secondary/60 px-5 pb-3.5 pt-4">
+          <div className="flex items-start gap-3">
+            <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-10 border border-accent/25 bg-accent/10 text-accent">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="text-15 font-bold tracking-[-0.02em]">AI Review Center</h2>
-                <span className="border border-border bg-bg px-1.5 py-0.5 font-mono text-9 uppercase tracking-[0.15em] text-text-muted">
-                  advisory
+                <h2 className="text-15 font-semibold tracking-[-0.01em] text-text">
+                  AI Review Center
+                </h2>
+                <span
+                  className="rounded-pill border border-border bg-bg-sunk px-2 py-0.5 text-9.5 font-medium text-text-muted"
+                  title="Findings here never block a commit"
+                >
+                  Advisory
                 </span>
+                {staleRuns > 0 && (
+                  <span
+                    className="rounded-pill border border-warning/40 bg-warning/10 px-2 py-0.5 text-9.5 font-medium text-warning"
+                    title="Some results were produced from a different set of changes"
+                  >
+                    {staleRuns} stale
+                  </span>
+                )}
               </div>
-              <p
-                className="mt-1 truncate font-mono text-10 text-text-muted"
-                title={workingCopyPath}
-              >
+              <p className="mt-0.5 truncate text-10.5 text-text-faint" title={workingCopyPath}>
                 {workingCopyPath ? shortPath(workingCopyPath) : 'No working copy selected'}
               </p>
             </div>
             <button
               ref={closeButtonRef}
               type="button"
-              className="ibtn"
+              className="btn-icon-sm -mr-1 -mt-1 flex-shrink-0"
               onClick={onClose}
               aria-label="Close AI Review Center"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          <div className="relative mt-4 grid grid-cols-3 gap-px overflow-hidden border border-border bg-border">
-            <div className="bg-bg px-3 py-2">
-              <span className="block font-mono text-9 uppercase tracking-wider text-text-faint">
-                Open
-              </span>
-              <strong className="text-17 text-text">{openFindings.length}</strong>
-            </div>
-            <div className="bg-bg px-3 py-2">
-              <span className="block font-mono text-9 uppercase tracking-wider text-text-faint">
-                Files analyzed
-              </span>
-              <strong className="text-17 text-text">{workspace?.explanations.length ?? 0}</strong>
-            </div>
-            <div className="bg-bg px-3 py-2">
-              <span className="block font-mono text-9 uppercase tracking-wider text-text-faint">
-                Stale runs
-              </span>
-              <strong className={staleRuns ? 'text-17 text-svn-modified' : 'text-17 text-text'}>
-                {staleRuns}
-              </strong>
-            </div>
-          </div>
           {workingCopyPath && (
-            <div className="relative mt-2">
+            <div className="mt-3">
               <ConsentToggle workingCopyPath={workingCopyPath} />
             </div>
           )}
         </header>
 
         <nav
-          className="flex min-h-11 overflow-x-auto border-b border-border bg-bg-secondary px-2"
+          className="flex flex-shrink-0 gap-0.5 overflow-x-auto border-b border-border bg-bg-secondary/60 px-3 scrollbar-overlay"
           aria-label="Review categories"
           role="tablist"
         >
-          {tabs.map(({ id, label, icon: Icon }, index) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`flex min-w-max items-center gap-1.5 border-b-2 px-3 text-11 font-semibold transition-fast ${
-                tab === id
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-text-muted hover:text-text'
-              }`}
-              aria-current={tab === id ? 'page' : undefined}
-              aria-selected={tab === id}
-              role="tab"
-              id={`ai-review-tab-${id}`}
-              aria-controls="ai-review-panel"
-              aria-keyshortcuts={`${index + 1}`}
-            >
-              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-              {label}
-            </button>
-          ))}
+          {tabs.map(({ id, label, icon: Icon }, index) => {
+            const active = tab === id;
+            const count = tabCounts[id];
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`relative flex min-w-max items-center gap-1.5 px-2.5 py-2.5 text-11.5 font-semibold transition-fast ${
+                  active ? 'text-accent' : 'text-text-muted hover:text-text'
+                }`}
+                aria-current={active ? 'page' : undefined}
+                aria-selected={active}
+                role="tab"
+                id={`ai-review-tab-${id}`}
+                aria-controls="ai-review-panel"
+                aria-keyshortcuts={`${index + 1}`}
+              >
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                {label}
+                {count ? (
+                  <span
+                    className={`rounded-pill px-1.5 font-mono text-9.5 leading-4 ${
+                      active ? 'bg-accent/15 text-accent' : 'bg-bg-sunk text-text-faint'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                ) : null}
+                {active && (
+                  <span
+                    className="absolute inset-x-1.5 bottom-0 h-[2px] rounded-full bg-accent"
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         <div
           id="ai-review-panel"
           role="tabpanel"
           aria-labelledby={`ai-review-tab-${tab}`}
-          className="min-h-0 flex-1 overflow-y-auto bg-[linear-gradient(90deg,transparent_31px,var(--color-border-muted)_32px,transparent_33px)] px-3 py-4 sm:px-5"
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5"
         >
           {isLoading ? (
             <div className="space-y-2" aria-label="Loading review results">
               {[0, 1, 2].map((item) => (
                 <div
                   key={item}
-                  className="h-24 animate-pulse border border-border bg-bg-secondary motion-reduce:animate-none"
+                  className="h-24 animate-pulse rounded-10 border border-border bg-bg-secondary motion-reduce:animate-none"
                 />
               ))}
             </div>
           ) : !workingCopyPath ? (
-            <EmptyState
+            <ReviewEmptyState
+              icon={ShieldCheck}
               title="No working copy"
               detail="Open a working copy to inspect its AI review activity."
             />
           ) : tab === 'open' || tab === 'dismissed' ? (
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Finding filters and bulk triage">
-                {SEVERITY_FILTERS.map((filter) => {
-                  const enabled = severityFilters.has(filter.id);
-                  const count = severityCounts.get(filter.id) ?? 0;
-                  return (
+            <div>
+              {/* Filters stay reachable while a long queue scrolls under them. */}
+              <div className="sticky top-0 z-10 -mx-4 -mt-3.5 mb-3 flex flex-wrap items-center gap-1.5 border-b border-border-muted bg-bg/95 px-4 py-2.5 backdrop-blur">
+                <div
+                  className="flex flex-wrap items-center gap-1.5"
+                  role="toolbar"
+                  aria-label="Finding filters and bulk triage"
+                >
+                  {SEVERITY_FILTERS.map((filter) => {
+                    const enabled = severityFilters.has(filter.id);
+                    const count = severityCounts.get(filter.id) ?? 0;
+                    return (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        onClick={() => toggleSeverityFilter(filter.id)}
+                        aria-pressed={enabled}
+                        className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-10.5 font-medium transition-fast ${
+                          enabled
+                            ? SEVERITY_TONE[filter.severity].chip
+                            : 'border-border bg-bg-secondary text-text-faint hover:text-text'
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            enabled ? SEVERITY_TONE[filter.severity].dot : 'bg-text-faint'
+                          }`}
+                          aria-hidden="true"
+                        />
+                        {filter.label} · {count}
+                      </button>
+                    );
+                  })}
+                  <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+                  {tab === 'open' ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm gap-1 text-11"
+                        disabled={visibleFindings.length === 0}
+                        onClick={() => bulkTriage('accepted')}
+                        title="Accept every visible finding (Shift+A)"
+                      >
+                        <CheckCheck className="h-3 w-3" aria-hidden="true" />
+                        Accept all ({visibleFindings.length})
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm gap-1 text-11"
+                        disabled={visibleFindings.length === 0}
+                        onClick={() => bulkTriage('dismissed')}
+                        title="Dismiss every visible finding (Shift+D)"
+                      >
+                        <X className="h-3 w-3" aria-hidden="true" />
+                        Dismiss all
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      key={filter.id}
                       type="button"
-                      onClick={() => toggleSeverityFilter(filter.id)}
-                      aria-pressed={enabled}
-                      className={`border px-2 py-1 font-mono text-9 uppercase tracking-wider transition-fast ${
-                        enabled
-                          ? filter.id === 'critical'
-                            ? 'border-svn-conflict/50 bg-svn-conflict/10 text-svn-conflict'
-                            : filter.id === 'warning'
-                              ? 'border-svn-modified/50 bg-svn-modified/10 text-svn-modified'
-                              : 'border-accent/50 bg-accent/10 text-accent'
-                          : 'border-border bg-bg text-text-faint hover:text-text'
-                      }`}
-                    >
-                      {filter.label} · {count}
-                    </button>
-                  );
-                })}
-                <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
-                {tab === 'open' ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm gap-1"
+                      className="btn btn-secondary btn-sm gap-1 text-11"
                       disabled={visibleFindings.length === 0}
-                      onClick={() => bulkTriage('accepted')}
-                      title="Accept every visible finding (Shift+A)"
+                      onClick={() => bulkTriage('open')}
+                      title="Restore every visible finding to the open queue (Shift+D)"
                     >
-                      <CheckCheck className="h-3 w-3" aria-hidden="true" />
-                      Accept all ({visibleFindings.length})
+                      <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                      Restore all ({visibleFindings.length})
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm gap-1"
-                      disabled={visibleFindings.length === 0}
-                      onClick={() => bulkTriage('dismissed')}
-                      title="Dismiss every visible finding (Shift+D)"
-                    >
-                      <X className="h-3 w-3" aria-hidden="true" />
-                      Dismiss all
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm gap-1"
-                    disabled={visibleFindings.length === 0}
-                    onClick={() => bulkTriage('open')}
-                    title="Restore every visible finding to the open queue (Shift+D)"
-                  >
-                    <RotateCcw className="h-3 w-3" aria-hidden="true" />
-                    Restore all ({visibleFindings.length})
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
               {undo && (
                 <div
-                  className="flex items-center gap-2 border border-accent/40 bg-accent/5 px-2.5 py-1.5"
+                  className="mb-2 flex items-center gap-2 rounded-9 border border-accent/30 bg-accent/[0.07] px-3 py-2"
                   role="status"
                   aria-live="polite"
                 >
-                  <span className="min-w-0 flex-1 truncate text-10.5 text-text-secondary">
+                  <Undo2 className="h-3.5 w-3.5 flex-shrink-0 text-accent" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate text-11 text-text-secondary">
                     {undo.label}
                   </span>
                   <button
                     type="button"
-                    className="btn btn-secondary btn-sm gap-1"
+                    className="btn btn-secondary btn-sm gap-1 text-11"
                     onClick={runUndo}
                     title="Undo the last triage action (U)"
                   >
-                    <Undo2 className="h-3 w-3" aria-hidden="true" />
                     Undo
+                    <kbd className="kbd">U</kbd>
                   </button>
                 </div>
               )}
               {visibleFindings.length ? (
                 <ol className="space-y-2">
-                  {visibleFindings.map((finding, index) => (
-                    <li
-                      key={finding.id}
-                      className={`border bg-bg-secondary transition-fast ${index === activeIndex ? 'border-accent shadow-[inset_3px_0_0_var(--color-accent)]' : 'border-border'}`}
-                    >
-                      <div className="flex items-start gap-3 p-3">
-                        <span
-                          className={`mt-0.5 h-2.5 w-2.5 flex-shrink-0 ${finding.severity === 'danger' ? 'bg-svn-conflict' : finding.severity === 'warning' ? 'bg-svn-modified' : 'bg-accent'}`}
-                          aria-hidden="true"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-12.5 font-semibold text-text">{finding.title}</h3>
-                            <span className="font-mono text-9 uppercase tracking-wider text-text-faint">
+                  {visibleFindings.map((finding, index) => {
+                    const tone = SEVERITY_TONE[finding.severity] ?? SEVERITY_TONE.info;
+                    return (
+                      <li
+                        key={finding.id}
+                        className={`overflow-hidden rounded-10 border bg-bg-secondary/60 transition-fast ${
+                          index === activeIndex
+                            ? 'border-accent/60 bg-bg-secondary shadow-card'
+                            : `${tone.border} hover:border-border-strong`
+                        }`}
+                      >
+                        <div className="p-3">
+                          <div className="flex items-start gap-2">
+                            {/* Severity reads from this dot and the pill; the
+                                detail block below carries the accent rail that
+                                marks model output, so the card adds no second
+                                vertical rail of its own. */}
+                            <span
+                              className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${tone.dot}`}
+                              aria-hidden="true"
+                            />
+                            <h3 className="min-w-0 flex-1 text-12.5 font-semibold leading-snug text-text">
+                              {finding.title}
+                            </h3>
+                            <span
+                              className={`flex-shrink-0 rounded-pill border px-2 py-0.5 text-9.5 font-medium ${tone.chip}`}
+                            >
+                              {tone.label}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-5">
+                            <span className="rounded-4 bg-bg-sunk px-1.5 py-0.5 font-mono text-9.5 text-text-muted">
                               {finding.category}
                             </span>
-                            <span className="font-mono text-9 uppercase tracking-wider text-text-muted">
-                              {finding.severity === 'danger' ? 'critical' : finding.severity} severity
-                            </span>
                             {finding.state === 'accepted' && (
-                              <span className="border border-svn-normal/40 px-1 py-0.5 font-mono text-8 uppercase tracking-wider text-svn-normal">
+                              <span className="rounded-4 border border-success/35 bg-success/10 px-1.5 py-0.5 text-9.5 font-medium text-success">
                                 accepted
                               </span>
                             )}
                             {finding.state === 'dismissed' && (
-                              <span className="border border-border-strong px-1 py-0.5 font-mono text-8 uppercase tracking-wider text-text-faint">
+                              <span className="rounded-4 border border-border-strong px-1.5 py-0.5 text-9.5 font-medium text-text-faint">
                                 dismissed
                               </span>
                             )}
                           </div>
                           <AiRichText
-                            className="mt-1"
+                            className="mt-2 text-11.5"
                             markdown={finding.detail}
                             aria-label="Finding detail (AI output)"
                           />
-                          <Link
-                            to="/files"
-                            search={{ path: finding.filePath }}
-                            className="mt-2 inline-flex max-w-full items-center gap-1 font-mono text-10 text-accent hover:underline"
-                            title={finding.filePath}
-                          >
-                            <span className="truncate">
-                              {shortPath(finding.filePath)}
-                              {finding.line > 0 ? `:${finding.line}` : ''}
-                            </span>
-                            <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-                          </Link>
-                        </div>
-                        {tab === 'open' ? (
-                          <div className="flex flex-shrink-0 flex-col gap-1.5">
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm gap-1"
-                              onClick={() => triageOne(finding.id, 'accepted')}
-                              title="Accept this finding (A)"
+                          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border-muted pt-2.5">
+                            <Link
+                              to="/files"
+                              search={{ path: finding.filePath }}
+                              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-6 bg-bg-sunk px-2 py-1 font-mono text-10 text-accent hover:bg-accent/10"
+                              title={finding.filePath}
                             >
-                              <Check className="h-3 w-3" aria-hidden="true" />
-                              Accept
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm gap-1"
-                              onClick={() => triageOne(finding.id, 'dismissed')}
-                              title="Dismiss this finding (D)"
-                            >
-                              <X className="h-3 w-3" aria-hidden="true" />
-                              Dismiss
-                            </button>
+                              <span className="truncate">
+                                {shortPath(finding.filePath)}
+                                {finding.line > 0 ? `:${finding.line}` : ''}
+                              </span>
+                              <ChevronRight
+                                className="h-3 w-3 flex-shrink-0 opacity-70"
+                                aria-hidden="true"
+                              />
+                            </Link>
+                            <div className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+                              {tab === 'open' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm gap-1 text-11"
+                                    onClick={() => triageOne(finding.id, 'accepted')}
+                                    title="Accept this finding (A)"
+                                  >
+                                    <Check className="h-3 w-3" aria-hidden="true" />
+                                    Accept
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm gap-1 text-11"
+                                    onClick={() => triageOne(finding.id, 'dismissed')}
+                                    title="Dismiss this finding (D)"
+                                  >
+                                    <X className="h-3 w-3" aria-hidden="true" />
+                                    Dismiss
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm gap-1 text-11"
+                                  onClick={() => triageOne(finding.id, 'open')}
+                                >
+                                  <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                                  Restore
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm gap-1"
-                            onClick={() => triageOne(finding.id, 'open')}
-                          >
-                            <RotateCcw className="h-3 w-3" aria-hidden="true" />
-                            Restore
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ol>
               ) : baseFindings.length ? (
-                <EmptyState
+                <ReviewEmptyState
+                  icon={SlidersHorizontal}
                   title="No findings match the severity filter"
                   detail="Enable more severity levels above to see the remaining findings."
                 />
               ) : (
-                <EmptyState
+                <ReviewEmptyState
+                  icon={tab === 'open' ? CheckCheck : Archive}
+                  tone={tab === 'open' ? 'positive' : 'neutral'}
                   title={tab === 'open' ? 'Review queue clear' : 'No triaged findings'}
                   detail={
                     tab === 'open'
-                      ? 'Run Review selected changes from the commit window to populate this queue.'
-                      : 'Accepted and dismissed findings remain available here.'
+                      ? 'Nothing is waiting on you. Run “Review” from the commit window to check a change set.'
+                      : 'Findings you accept or dismiss are kept here, and can be restored at any time.'
                   }
                 />
               )}
@@ -589,11 +668,17 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
             workspace?.explanations.length ? (
               <div className="space-y-2">
                 {workspace.explanations.map((item) => (
-                  <article key={item.id} className="border border-border bg-bg-secondary p-3">
+                  <article
+                    key={item.id}
+                    className="rounded-10 border border-border bg-bg-secondary/60 p-3"
+                  >
                     <div className="flex items-center gap-2">
-                      <FileCode2 className="h-4 w-4 text-accent" aria-hidden="true" />
+                      <FileCode2
+                        className="h-3.5 w-3.5 flex-shrink-0 text-accent"
+                        aria-hidden="true"
+                      />
                       <h3
-                        className="min-w-0 flex-1 truncate font-mono text-11 font-semibold"
+                        className="min-w-0 flex-1 truncate font-mono text-11 font-semibold text-text"
                         title={item.filePath}
                       >
                         {shortPath(item.filePath)}
@@ -607,12 +692,13 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
                       />
                     </div>
                     <AiRichText
-                      className="mt-2"
+                      className="mt-2 text-11.5"
                       markdown={item.summary}
                       aria-label="File explanation (AI output)"
                     />
                     {item.risks.length > 0 && (
-                      <p className="mt-2 text-10.5 text-svn-modified">
+                      <p className="mt-2 inline-flex items-center gap-1.5 rounded-pill border border-warning/30 bg-warning/[0.08] px-2 py-0.5 text-10 text-warning">
+                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                         {item.risks.length} risk signal{item.risks.length === 1 ? '' : 's'}
                       </p>
                     )}
@@ -620,16 +706,18 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
                 ))}
               </div>
             ) : (
-              <EmptyState
+              <ReviewEmptyState
+                icon={FileCode2}
                 title="No file explanations"
-                detail="Explain a file from the commit diff preview to retain its summary here."
+                detail="Use “Explain” in the commit diff toolbar and each answer is kept here."
               />
             )
           ) : tab === 'groups' ? (
             workingCopyPath ? (
               <CommitStackPanel workingCopyPath={workingCopyPath} />
             ) : (
-              <EmptyState
+              <ReviewEmptyState
+                icon={GitBranch}
                 title="No working copy"
                 detail="Open a working copy to use its commit stack."
               />
@@ -640,11 +728,13 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
                 {workspace.questions.map((question, index) => (
                   <li
                     key={question}
-                    className="flex gap-3 border border-border bg-bg-secondary p-3"
+                    className="flex gap-3 rounded-10 border border-border bg-bg-secondary/60 p-3"
                   >
-                    <span className="font-mono text-9 text-accent">Q{index + 1}</span>
+                    <span className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-6 bg-accent/12 font-mono text-9.5 font-semibold text-accent">
+                      {index + 1}
+                    </span>
                     <AiRichText
-                      className="min-w-0 flex-1"
+                      className="min-w-0 flex-1 text-11.5"
                       markdown={question}
                       aria-label={`Review question ${index + 1} (AI output)`}
                     />
@@ -652,42 +742,44 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
                 ))}
               </ol>
             ) : (
-              <EmptyState
+              <ReviewEmptyState
+                icon={HelpCircle}
                 title="No unresolved questions"
-                detail="Review questions from per-file analysis collect here."
+                detail="Questions raised by per-file analysis collect here."
               />
             )
           ) : tab === 'profile' ? (
             workingCopyPath ? (
               <RepositoryProfilePanel workingCopyPath={workingCopyPath} />
             ) : (
-              <EmptyState
+              <ReviewEmptyState
+                icon={SlidersHorizontal}
                 title="No working copy"
                 detail="Open a working copy to configure its AI profile."
               />
             )
           ) : workspace?.runs.length ? (
-            <ol className="divide-y divide-border border border-border bg-bg-secondary">
+            <ol className="divide-y divide-border-muted overflow-hidden rounded-10 border border-border bg-bg-secondary/60">
               {workspace.runs.map((run) => (
-                <li
-                  key={run.id}
-                  className="grid grid-cols-[18px_minmax(0,1fr)_auto] gap-2 px-3 py-2.5"
-                >
-                  <Clock3 className="mt-0.5 h-3.5 w-3.5 text-text-faint" aria-hidden="true" />
-                  <div className="min-w-0">
+                <li key={run.id} className="flex items-start gap-2.5 px-3 py-2.5">
+                  <Clock3
+                    className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-text-faint"
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-9 uppercase tracking-wider text-accent">
-                        {run.kind}
-                      </span>
+                      <span className="text-11 font-semibold capitalize text-text">{run.kind}</span>
                       <Freshness current={currentRunChecksums.get(run.kind) === run.checksum} />
                     </div>
-                    <p className="mt-0.5 truncate text-11.5 text-text-secondary" title={run.summary}>
+                    <p className="mt-0.5 truncate text-11 text-text-secondary" title={run.summary}>
                       {run.summary}
                     </p>
                   </div>
-                  <div className="text-right font-mono text-9.5 text-text-faint">
-                    <span>{formatAge(run.createdAt)}</span>
-                    <span className="block">
+                  <div className="flex-shrink-0 text-right">
+                    <span className="block text-10.5 text-text-muted">
+                      {formatAge(run.createdAt)}
+                    </span>
+                    <span className="block font-mono text-9.5 text-text-faint">
                       {run.provider}
                       {run.model ? `/${run.model}` : ''} · {(run.durationMs / 1000).toFixed(1)}s
                     </span>
@@ -696,20 +788,33 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
               ))}
             </ol>
           ) : (
-            <EmptyState
+            <ReviewEmptyState
+              icon={History}
               title="No previous runs"
-              detail="Review, planning, and explanation runs appear here without storing prompts or diffs."
+              detail="Review, planning, and explanation runs are logged here — never the prompts or diffs themselves."
             />
           )}
         </div>
 
-        <footer className="flex min-h-12 flex-wrap items-center gap-2 border-t border-border bg-bg-secondary px-4 py-2">
-          <span className="hidden font-mono text-9.5 text-text-faint lg:inline">
-            J/K navigate · A/D triage · Shift+A/D bulk · U undo · Esc close
-          </span>
+        <footer className="flex min-h-12 flex-shrink-0 flex-wrap items-center gap-2 border-t border-border bg-bg-secondary/60 px-4 py-2">
+          <div className="hidden items-center gap-1.5 text-10 text-text-faint xl:flex">
+            <kbd className="kbd">J</kbd>
+            <kbd className="kbd">K</kbd>
+            <span>navigate</span>
+            <span className="mx-1 h-3 w-px bg-border" aria-hidden="true" />
+            <kbd className="kbd">A</kbd>
+            <kbd className="kbd">D</kbd>
+            <span>triage</span>
+            <span className="mx-1 h-3 w-px bg-border" aria-hidden="true" />
+            <kbd className="kbd">U</kbd>
+            <span>undo</span>
+            <span className="mx-1 h-3 w-px bg-border" aria-hidden="true" />
+            <kbd className="kbd">Esc</kbd>
+            <span>close</span>
+          </div>
           <button
             type="button"
-            className="btn btn-secondary btn-sm ml-auto gap-1"
+            className="btn btn-secondary btn-sm ml-auto gap-1 text-11"
             onClick={() => void clear()}
             disabled={!workspace?.runs.length}
             title="Clear locally saved review results"
@@ -719,7 +824,7 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
           </button>
           <button
             type="button"
-            className="btn btn-primary btn-sm gap-1"
+            className="btn btn-primary btn-sm gap-1 text-11"
             onClick={() => void copyReport()}
             disabled={!workspace}
           >
@@ -738,22 +843,18 @@ export function AiReviewCenter({ workingCopyPath, onClose }: AiReviewCenterProps
 function Freshness({ current }: { current: boolean }) {
   return (
     <span
-      className={`border px-1 py-0.5 font-mono text-8 uppercase tracking-wider ${current ? 'border-svn-normal/30 text-svn-normal' : 'border-svn-modified/30 text-svn-modified'}`}
+      className={`inline-flex flex-shrink-0 items-center gap-1 rounded-pill border px-1.5 py-0.5 text-9.5 font-medium ${
+        current
+          ? 'border-success/30 bg-success/[0.08] text-success'
+          : 'border-warning/30 bg-warning/[0.08] text-warning'
+      }`}
     >
+      <span
+        className={`h-1 w-1 rounded-full ${current ? 'bg-success' : 'bg-warning'}`}
+        aria-hidden="true"
+      />
       {current ? 'current' : 'stale'}
     </span>
-  );
-}
-
-function EmptyState({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="grid min-h-52 place-items-center border border-dashed border-border-strong bg-bg-secondary/60 p-8 text-center">
-      <div>
-        <AlertTriangle className="mx-auto h-5 w-5 text-text-faint" aria-hidden="true" />
-        <h3 className="mt-3 text-13 font-semibold">{title}</h3>
-        <p className="mx-auto mt-1 max-w-sm text-11.5 leading-relaxed text-text-muted">{detail}</p>
-      </div>
-    </div>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Popover } from '@renderer/components/ui/Popover';
 import { useQuery } from '@tanstack/react-query';
 import { EllipsisVertical, ExternalLink, FolderOpen, Monitor, SquareTerminal } from 'lucide-react';
 import type { CodeEditorInfo, ExternalToolSummary } from '@shared/types';
@@ -134,10 +135,18 @@ function QuickActionList({
   );
 }
 
-function useDismiss(onClose: () => void, containerRef: React.RefObject<HTMLElement | null>) {
+/**
+ * Closes on Escape, or on a pointer press outside every passed container.
+ * A popover panel is portaled to `body`, so it is not inside the trigger's
+ * container — it has to be named here or its own rows would dismiss the menu
+ * on mousedown, before their click could land.
+ */
+function useDismiss(onClose: () => void, ...containers: React.RefObject<HTMLElement | null>[]) {
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) onClose();
+      const target = event.target as Node;
+      const inside = containers.some((ref) => ref.current?.contains(target));
+      if (!inside) onClose();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -148,7 +157,8 @@ function useDismiss(onClose: () => void, containerRef: React.RefObject<HTMLEleme
       window.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose, containerRef]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, ...containers]);
 }
 
 interface QuickActionsMenuButtonProps {
@@ -164,12 +174,16 @@ interface QuickActionsMenuButtonProps {
 export function QuickActionsMenuButton({ workingCopyPath }: QuickActionsMenuButtonProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  /* The portaled panel — counted as "inside" for dismissal. */
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const actions = useQuickActions(workingCopyPath);
-  useDismiss(() => setOpen(false), containerRef);
+  useDismiss(() => setOpen(false), containerRef, panelRef);
 
   return (
     <div ref={containerRef} className="relative titlebar-no-drag">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((previous) => !previous)}
         aria-label="Quick actions for this working copy"
@@ -185,13 +199,17 @@ export function QuickActionsMenuButton({ workingCopyPath }: QuickActionsMenuButt
         <EllipsisVertical className="w-4 h-4" aria-hidden="true" />
       </button>
       {open && (
-        <div
+        <Popover
+          anchorRef={triggerRef}
+          panelRef={panelRef}
+          onClose={() => setOpen(false)}
+          align="end"
           role="menu"
-          aria-label="Quick actions"
-          className="absolute right-0 top-full mt-2 w-64 py-1 rounded-lg border border-border bg-bg-elevated shadow-card z-40"
+          ariaLabel="Quick actions"
+          className="w-64 py-1 rounded-lg border border-border bg-bg-elevated shadow-card"
         >
           <QuickActionList actions={actions} workingCopyPath={workingCopyPath} onRun={() => setOpen(false)} />
-        </div>
+        </Popover>
       )}
     </div>
   );

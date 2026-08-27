@@ -24,6 +24,22 @@ function mockStore() {
   } as unknown as Window['api'];
 }
 
+/**
+ * The panel anchors to the bell and portals out of it, mirroring how the
+ * Layout mounts the pair — so the test has to supply a real anchor.
+ */
+function PanelHarness({ onClose }: { onClose: () => void }) {
+  const anchorRef = React.useRef<HTMLButtonElement | null>(null);
+  return (
+    <>
+      <button ref={anchorRef} type="button">
+        Notifications
+      </button>
+      <NotificationCenterPanel anchorRef={anchorRef} onClose={onClose} />
+    </>
+  );
+}
+
 describe('NotificationCenterBell', () => {
   beforeEach(() => {
     resetNotificationCenterForTests();
@@ -78,7 +94,7 @@ describe('NotificationCenterPanel', () => {
     });
     pushNotification({ severity: 'error', title: 'Commit failed — nadir', toast: false });
 
-    render(<NotificationCenterPanel onClose={vi.fn()} />);
+    render(<PanelHarness onClose={vi.fn()} />);
     const dialog = screen.getByRole('dialog', { name: 'Notification center' });
 
     // Newest first.
@@ -104,7 +120,7 @@ describe('NotificationCenterPanel', () => {
 
   it('marks a single item read on click', () => {
     pushNotification({ severity: 'info', title: 'Clickable', toast: false });
-    render(<NotificationCenterPanel onClose={vi.fn()} />);
+    render(<PanelHarness onClose={vi.fn()} />);
     // Panel mount already read everything; the per-item click path still runs.
     fireEvent.click(screen.getByText('Clickable'));
     expect(screen.queryByLabelText('Unread')).not.toBeInTheDocument();
@@ -113,7 +129,7 @@ describe('NotificationCenterPanel', () => {
   it('closes on Escape and on outside pointer', () => {
     pushNotification({ severity: 'info', title: 'Something', toast: false });
     const onClose = vi.fn();
-    render(<NotificationCenterPanel onClose={onClose} />);
+    render(<PanelHarness onClose={onClose} />);
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -123,7 +139,7 @@ describe('NotificationCenterPanel', () => {
   });
 
   it('disables mark-all-read/clear for an empty history', () => {
-    render(<NotificationCenterPanel onClose={vi.fn()} />);
+    render(<PanelHarness onClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Mark all notifications as read' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Clear all notifications' })).toBeDisabled();
   });

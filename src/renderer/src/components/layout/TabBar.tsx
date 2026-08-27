@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Popover } from '@renderer/components/ui/Popover';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, FolderOpen, Plus, X } from 'lucide-react';
 import type { SvnStatusResult } from '@shared/types';
@@ -93,6 +94,13 @@ export function TabBar({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menu, setMenu] = useState<TabMenuState | null>(null);
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * The picker panel portals to `body`, so it is not inside `pickerRef`. Both
+   * it and its trigger have to count as "inside" for dismissal, or a row
+   * would close the menu on mousedown before its click could land.
+   */
+  const pickerPanelRef = useRef<HTMLDivElement | null>(null);
+  const pickerButtonRef = useRef<HTMLButtonElement>(null);
   const dirtyMap = useWorkingCopyDirtyMap(
     useMemo(() => tabs.map((tab) => tab.workingCopyPath), [tabs])
   );
@@ -100,7 +108,11 @@ export function TabBar({
   useEffect(() => {
     if (!pickerOpen && !menu) return undefined;
     const handlePointerDown = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !pickerRef.current?.contains(target) &&
+        !pickerPanelRef.current?.contains(target)
+      ) {
         setPickerOpen(false);
       }
       setMenu(null);
@@ -197,6 +209,7 @@ export function TabBar({
 
         <div ref={pickerRef} className="relative flex items-stretch flex-shrink-0">
           <button
+            ref={pickerButtonRef}
             type="button"
             aria-label="Open a working copy in a new tab"
             aria-haspopup="menu"
@@ -208,10 +221,13 @@ export function TabBar({
             <Plus className="h-4 w-4" aria-hidden="true" />
           </button>
           {pickerOpen && (
-            <div
+            <Popover
+              anchorRef={pickerButtonRef}
+              panelRef={pickerPanelRef}
+              onClose={() => setPickerOpen(false)}
               role="menu"
-              aria-label="Open a working copy"
-              className="absolute left-0 top-full mt-1 w-72 py-1 rounded-lg border border-border bg-bg-elevated shadow-card z-30"
+              ariaLabel="Open a working copy"
+              className="w-72 py-1 rounded-lg border border-border bg-bg-elevated shadow-card"
             >
               {recentRepositories.length === 0 && (
                 <p className="px-3 py-2 text-12 text-text-muted">No recent working copies yet.</p>
@@ -245,7 +261,7 @@ export function TabBar({
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 Choose a folder…
               </button>
-            </div>
+            </Popover>
           )}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { Minus, Moon, Settings, Square, Sun, User, X } from 'lucide-react';
+import { Minus, Moon, Square, Sun, X } from 'lucide-react';
 
 const ICON_BUTTON_CLASS =
   'titlebar-no-drag w-8 h-8 grid place-items-center rounded-lg border transition-fast bg-transparent border-transparent text-text-secondary hover:bg-bg-tertiary hover:border-border hover:text-text';
@@ -7,9 +7,7 @@ interface TitlebarControlsProps {
   isWindows: boolean;
   isMaximized: boolean;
   isDarkTheme: boolean;
-  accountName: string;
   onToggleTheme: () => void;
-  onOpenSettings: () => void;
   onMinimize: () => void;
   onMaximize: () => void;
   onClose: () => void;
@@ -20,15 +18,11 @@ export function TitlebarControls({
   isWindows,
   isMaximized,
   isDarkTheme,
-  accountName,
   onToggleTheme,
-  onOpenSettings,
   onMinimize,
   onMaximize,
   onClose,
 }: TitlebarControlsProps) {
-  const accountInitial = accountName.trim().charAt(0).toUpperCase();
-
   return (
     <>
       <button
@@ -43,26 +37,6 @@ export function TitlebarControls({
         ) : (
           <Moon className="w-4 h-4" aria-hidden="true" />
         )}
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className={ICON_BUTTON_CLASS}
-        aria-label="Settings"
-        title="Settings"
-      >
-        <Settings className="w-4 h-4" aria-hidden="true" />
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="titlebar-no-drag w-[30px] h-[30px] flex-shrink-0 grid place-items-center rounded-full bg-accent text-white text-[12.5px] font-bold transition-fast hover:bg-accent-hover"
-        aria-label={accountName ? `Account: ${accountName}` : 'Account — no saved credentials yet'}
-        title={accountName || 'No saved credentials yet'}
-      >
-        {accountInitial || <User className="w-4 h-4" aria-hidden="true" />}
       </button>
 
       {isWindows && (

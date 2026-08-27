@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Check, ChevronDown, GitBranch, GitBranchPlus, Loader2, Plus, Tag } from 'lucide-react';
+import { Popover } from '@renderer/components/ui/Popover';
 
 import { mapSubPathToBranch, resolveBranchContext, type BranchKind } from './branchDetection';
 import { useBranchList, useInvalidateBranches } from './useBranches';
@@ -61,6 +62,8 @@ export function BranchSwitcher({
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
+  /* Menu anchor — the popover portals out, so it needs its trigger. */
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   if (!ctx) return null;
 
@@ -94,6 +97,7 @@ export function BranchSwitcher({
   return (
     <div className="relative titlebar-no-drag">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-bg-elevated text-xs text-text-secondary hover:text-text transition-fast"
@@ -119,13 +123,13 @@ export function BranchSwitcher({
       )}
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div
-            className="dropdown left-0 z-50 w-64 max-h-[60vh] overflow-y-auto scrollbar-overlay"
+        <div onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+          <Popover
+            anchorRef={triggerRef}
+            onClose={() => setOpen(false)}
             role="menu"
-            aria-label="Switch branch"
-            onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+            ariaLabel="Switch branch"
+            className="dropdown w-64"
           >
             <div className="px-3 py-1.5 text-2xs font-semibold uppercase tracking-wide text-text-muted">
               {isFetching && !list ? 'Loading branches…' : 'Switch branch'}
@@ -199,8 +203,8 @@ export function BranchSwitcher({
                 Create tag…
               </button>
             )}
-          </div>
-        </>
+          </Popover>
+        </div>
       )}
     </div>
   );

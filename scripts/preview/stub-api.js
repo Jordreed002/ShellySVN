@@ -253,6 +253,112 @@
 
     /* Onboarding must report "already seen" or the tutorial covers everything. */
     'store.get': async (key) => {
+      /* A populated AI Review Center: two open findings across severities, one
+         already triaged, a file explanation, questions and run history. */
+      if (String(key).startsWith('shellysvn:ai-review-center:v1:')) {
+        return {
+          version: 1,
+          workingCopyPath: WC_LOCAL,
+          currentChecksum: 'c-4838',
+          findings: [
+            {
+              id: 'f-1',
+              severity: 'danger',
+              category: 'correctness',
+              title: 'Scope resolution now matches sibling client folders',
+              detail:
+                '`containsPath` treats `clients/acme` as a prefix of `clients/acme-corp`, so a checkout under the sibling folder resolves to the wrong working copy root.',
+              filePath: `${WC_LOCAL}/src/main/svn.ts`,
+              line: 13,
+              confidence: 0.86,
+              evidence: [],
+              state: 'open',
+            },
+            {
+              id: 'f-2',
+              severity: 'warning',
+              category: 'error-handling',
+              title: 'Replaced auth path drops the cached realm',
+              detail:
+                'The realm is read before the replace and never re-read afterwards, so the next prompt asks for credentials that were already stored.',
+              filePath: `${WC_LOCAL}/src/main/auth.ts`,
+              line: 88,
+              confidence: 0.62,
+              evidence: [],
+              state: 'open',
+            },
+            {
+              id: 'f-3',
+              severity: 'info',
+              category: 'style',
+              title: 'Tailwind glob could be narrowed to *.tsx',
+              detail: 'Scanning every file lengthens rebuilds for no extra coverage.',
+              filePath: `${WC_LOCAL}/tailwind.config.js`,
+              line: 4,
+              confidence: 0.4,
+              evidence: [],
+              state: 'accepted',
+            },
+          ],
+          explanations: [
+            {
+              id: 'e-1',
+              filePath: `${WC_LOCAL}/tailwind.config.js`,
+              checksum: 'c-4838',
+              createdAt: '2026-08-24T09:12:00.000Z',
+              provider: 'codex',
+              model: 'gpt-5.6-luna',
+              durationMs: 1840,
+              truncated: false,
+              redacted: false,
+              mode: 'summary',
+              cached: false,
+              summary:
+                'Adds a `content` glob for the new renderer feature folder and widens the accent scale so the teal ramp has a 700 step.',
+              rationale: '',
+              risks: ['Longer Tailwind rebuilds', 'Existing accent-700 usage shifts'],
+              reviewQuestions: [],
+            },
+          ],
+          groups: [],
+          questions: [
+            'Should `containsPath` compare path segments instead of string prefixes?',
+            'Does the new accent step keep 4.5:1 contrast on the sunk surface?',
+          ],
+          runs: [
+            {
+              id: 'r-1',
+              kind: 'review',
+              createdAt: '2026-08-24T09:14:00.000Z',
+              checksum: 'c-4838',
+              provider: 'codex',
+              model: 'gpt-5.6-luna',
+              durationMs: 8420,
+              summary: '3 findings across 5 selected paths',
+            },
+            {
+              id: 'r-2',
+              kind: 'explanation',
+              createdAt: '2026-08-24T09:12:00.000Z',
+              checksum: 'c-4838',
+              provider: 'codex',
+              model: 'gpt-5.6-luna',
+              durationMs: 1840,
+              summary: 'tailwind.config.js — summarize file',
+            },
+            {
+              id: 'r-3',
+              kind: 'plan',
+              createdAt: '2026-08-23T17:40:00.000Z',
+              checksum: 'c-4811',
+              provider: 'codex',
+              durationMs: 6100,
+              summary: '2 logical commits proposed',
+            },
+          ],
+          updatedAt: '2026-08-24T09:14:00.000Z',
+        };
+      }
       if (key === 'onboarding') {
         return {
           hasCompletedTutorial: true,
@@ -264,6 +370,22 @@
       if (key === 'hasLaunchedBefore') return true;
       if (key === 'settings') {
         return {
+          /* AI on and pre-consented, so the commit dialog shows the live
+             assistant row rather than "configure a provider". */
+          aiCommit: {
+            enabled: true,
+            provider: 'auto',
+            codexModel: 'gpt-5.6-luna',
+            style: 'conventional',
+            includeRecentHistory: false,
+            historyLimit: 10,
+            maxDiffBytes: 262_144,
+            confirmBeforeSending: false,
+            providerTimeoutMs: 60_000,
+            maxSessionInvocations: 100,
+            usageRetentionDays: 30,
+            usageMaxEntries: 200,
+          },
           recentRepositories: [WC_LOCAL, WC_LOCAL_2],
           recentPaths: [WC_LOCAL],
           bookmarks: [{ path: `${WC_LOCAL}/src`, name: 'website src', addedAt: 0 }],
@@ -330,7 +452,11 @@
 
     /* `svn:diff` returns { files: [...] } — NOT { hunks }. Getting this wrong
        is the single easiest way to make the detail pane look broken. */
+    /* `hasChanges` gates the viewers' empty state — without it the diff pane
+       reports "No Changes" for a file that plainly has some. */
     'svn.diff': async (path) => ({
+      hasChanges: true,
+      isBinary: false,
       files: [
         {
           oldPath: path,
@@ -465,6 +591,50 @@
       },
     ],
     'external.openInEditor': async () => ({ success: true }),
+
+    /* One available CLI provider, and a canned answer for every AI task the
+       commit dialog can ask for. */
+    'ai.providers': async () => [
+      {
+        provider: 'codex',
+        available: true,
+        authenticated: true,
+        cliLoggedIn: true,
+        version: '1.4.2',
+        kind: 'cli',
+      },
+    ],
+    'ai.repositoryProfile': async () => null,
+    'ai.preparePrompt': async () => ({
+      provider: 'codex',
+      model: 'gpt-5.6-luna',
+      prompt: '# Diff\n--- a/tailwind.config.js\n+++ b/tailwind.config.js\n@@ …',
+      inputBytes: 2048,
+      truncated: false,
+      redacted: false,
+      includedHistoryMessages: 0,
+    }),
+    'ai.explainDiff': async (request) => ({
+      provider: 'codex',
+      model: 'gpt-5.6-luna',
+      durationMs: 1840,
+      truncated: false,
+      redacted: false,
+      mode: request?.mode ?? 'summary',
+      cached: false,
+      summary:
+        'Adds a `content` glob for the new renderer feature folder and widens the accent scale so the teal ramp has a 700 step.',
+      rationale:
+        'The new folder was not being scanned, so its utility classes were dropped from the production build.',
+      risks: [
+        'The wider glob lengthens every Tailwind rebuild; watch dev-server start times.',
+        'A 700 step changes any existing `accent-700` usage that relied on the fallback.',
+      ],
+      reviewQuestions: [
+        'Should the glob be scoped to `**/*.tsx` rather than every file?',
+        'Does the new accent step meet contrast on the sunk surface?',
+      ],
+    }),
   };
 
   /**

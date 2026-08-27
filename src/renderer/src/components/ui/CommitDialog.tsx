@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   X,
@@ -19,16 +19,17 @@ import {
   AlertTriangle,
   Settings2,
   ExternalLink,
-  AlignLeft,
-  Columns2,
   ShieldCheck,
   SearchCheck,
   ListTree,
-  Lightbulb,
 } from 'lucide-react';
 import { AutoCompleteInput } from './AutoCompleteInput';
-import type { SvnStatusChar } from '@shared/types';
 import { useCommitDialogController, type CommitFile } from '../commit/useCommitDialogController';
+import { CommitDiffToolbar } from '../commit/CommitDiffToolbar';
+import { DiffExplanationCard } from '../commit/DiffExplanationCard';
+import { STATUS_CONFIG } from '../commit/commitStatusConfig';
+import { Popover } from './Popover';
+import { applyDiffOptions } from '@renderer/lib/diffOptions';
 import { DraftTransformationBar } from '../commit/DraftTransformationBar';
 import { IssueTrackerPresetPicker } from '../commit/IssueTrackerPresetPicker';
 import { MessageGuide } from '../commit/MessageGuide';
@@ -56,21 +57,6 @@ interface CommitDialogProps {
     message: string
   ) => Promise<{ success: boolean; message?: string; revision?: number }>;
 }
-
-const STATUS_CONFIG: Record<SvnStatusChar, { label: string; color: string }> = {
-  ' ': { label: 'Normal', color: 'text-text-muted' },
-  A: { label: 'Added', color: 'text-success' },
-  C: { label: 'Conflicted', color: 'text-warning' },
-  D: { label: 'Deleted', color: 'text-error' },
-  I: { label: 'Ignored', color: 'text-text-faint' },
-  M: { label: 'Modified', color: 'text-accent' },
-  R: { label: 'Replaced', color: 'text-accent' },
-  X: { label: 'External', color: 'text-info' },
-  '?': { label: 'Unversioned', color: 'text-text-secondary' },
-  '!': { label: 'Missing', color: 'text-error' },
-  '~': { label: 'Obstructed', color: 'text-warning' },
-  O: { label: 'Remote only', color: 'text-info' },
-};
 
 function DiffPreviewLoader() {
   return (
@@ -226,6 +212,15 @@ function CommitFileList({
 }
 
 export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: CommitDialogProps) {
+  /*
+   * Anchors for the message-toolbar popovers. The dialog's `.modal` surface is
+   * `overflow-hidden`, so these panels must portal out to escape it (see
+   * `Popover`) and therefore need their trigger by ref.
+   */
+  const suggestButtonRef = useRef<HTMLButtonElement>(null);
+  const rulesButtonRef = useRef<HTMLButtonElement>(null);
+  const templatesButtonRef = useRef<HTMLButtonElement>(null);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
   const {
     message,
     handleMessageChange,
@@ -248,7 +243,6 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     aiCommitPlan,
     aiDiffExplanation,
     aiExplanationMode,
-    setAiExplanationMode,
     error,
     success,
     selectedDiffFile,
@@ -263,6 +257,11 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     setFileFilter,
     diffViewMode,
     setDiffViewMode,
+    diffDisplayOptions,
+    setDiffDisplayOptions,
+    diffSearchQuery,
+    setDiffSearchQuery,
+    dismissAiDiffExplanation,
     showSuggestions,
     setShowSuggestions,
     showRules,
@@ -358,6 +357,40 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
   useEffect(() => {
     if (!isOpen) resetOodGate();
   }, [isOpen, resetOodGate]);
+
+  /*
+   * Diff-pane derivations for the single toolbar. The stats are counted on the
+   * diff the viewer will actually draw, so "ignore whitespace" moves them.
+   */
+  const [diffSearchState, setDiffSearchState] = useState({ matchCount: 0, currentIndex: 0 });
+
+  const diffStats = useMemo(() => {
+    let additions = 0;
+    let deletions = 0;
+    const effective = diffData ? applyDiffOptions(diffData, diffDisplayOptions) ?? diffData : null;
+    for (const file of effective?.files ?? []) {
+      for (const hunk of file.hunks) {
+        for (const line of hunk.lines) {
+          if (line.type === 'added') additions++;
+          else if (line.type === 'removed') deletions++;
+        }
+      }
+    }
+    return { additions, deletions };
+  }, [diffData, diffDisplayOptions]);
+
+  /*
+   * Which viewer draws the diff: the virtualized one carries large diffs and
+   * unified mode, the enhanced one draws side-by-side — and it is the only one
+   * with a search index, so the toolbar's search follows it.
+   */
+  const isLargeDiff = diffData ? getDiffLineCount(diffData) > 2000 : false;
+  const isSearchableDiff = diffViewMode === 'side-by-side' && !isLargeDiff;
+
+  const selectedFileStatus = useMemo(
+    () => files.find((file) => file.path === selectedDiffFile)?.status,
+    [files, selectedDiffFile]
+  );
 
   /** Selected, committable files the pre-commit checklist scans (#75). */
   const checklistFiles = useMemo(
@@ -544,9 +577,12 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                 )}
               </div>
 
-              {/* Right panel - Message and diff */}
+              {/* Right panel - Message and diff. `min-w-0` keeps the
+                  side-by-side diff (a `min-w-max` grid) from setting this
+                  column's minimum width and scrolling the whole dialog
+                  sideways; the diff scrolls inside its own pane instead. */}
               <div
-                className="flex-1 flex flex-col"
+                className="flex min-w-0 flex-1 flex-col"
                 role="region"
                 aria-label="Commit message and diff"
               >
@@ -567,6 +603,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       {selectedCount > 0 && (
                         <div className="relative">
                           <button
+                            ref={suggestButtonRef}
                             type="button"
                             onClick={() => {
                               setShowSuggestions(!showSuggestions);
@@ -583,8 +620,13 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             <ChevronDown className="w-3 h-3" aria-hidden="true" />
                           </button>
                           {showSuggestions && (
+                            <Popover
+                              anchorRef={suggestButtonRef}
+                              onClose={() => setShowSuggestions(false)}
+                              align="end"
+                            >
                             <ul
-                              className="absolute right-0 top-full mt-1 w-64 bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
+                              className="w-64 bg-bg-elevated border border-border rounded-lg shadow-lg"
                               role="menu"
                               aria-label="Quick suggestions"
                             >
@@ -612,6 +654,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                                 </li>
                               ))}
                             </ul>
+                            </Popover>
                           )}
                         </div>
                       )}
@@ -619,6 +662,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                       {/* Commit rules */}
                       <div className="relative">
                         <button
+                          ref={rulesButtonRef}
                           type="button"
                           onClick={() => {
                             setShowRules(!showRules);
@@ -635,10 +679,13 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           Rules
                         </button>
                         {showRules && (
-                          <div
-                            className="absolute right-0 top-full mt-1 w-80 bg-bg-elevated border border-border rounded-lg shadow-lg z-10 p-3 space-y-3"
+                          <Popover
+                            anchorRef={rulesButtonRef}
+                            onClose={() => setShowRules(false)}
+                            align="end"
                             role="dialog"
-                            aria-label="Commit rules"
+                            ariaLabel="Commit rules"
+                            className="w-80 bg-bg-elevated border border-border rounded-lg shadow-lg p-3 space-y-3"
                           >
                             <label className="block">
                               <span className="text-xs font-medium text-text-secondary">
@@ -728,13 +775,14 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             <p className="text-xs text-text-faint">
                               Rules and tracker settings are saved for this working copy.
                             </p>
-                          </div>
+                          </Popover>
                         )}
                       </div>
 
                       {/* Templates dropdown */}
                       <div className="relative">
                         <button
+                          ref={templatesButtonRef}
                           type="button"
                           onClick={() => {
                             setShowTemplates(!showTemplates);
@@ -752,8 +800,13 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           <ChevronDown className="w-3 h-3" aria-hidden="true" />
                         </button>
                         {showTemplates && (
+                          <Popover
+                            anchorRef={templatesButtonRef}
+                            onClose={() => setShowTemplates(false)}
+                            align="end"
+                          >
                           <ul
-                            className="absolute right-0 top-full mt-1 w-56 bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
+                            className="w-56 bg-bg-elevated border border-border rounded-lg shadow-lg"
                             role="menu"
                             aria-label="Commit templates"
                           >
@@ -816,16 +869,22 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                               when applied.
                             </li>
                           </ul>
+                          </Popover>
                         )}
                         {showTemplateManager && (
-                          <div className="absolute right-0 top-full mt-1 w-[520px] max-h-[420px] overflow-auto bg-bg-elevated border border-border rounded-lg shadow-lg z-20">
+                          <Popover
+                            anchorRef={templatesButtonRef}
+                            onClose={() => setShowTemplateManager(false)}
+                            align="end"
+                            className="w-[520px] max-h-[420px] bg-bg-elevated border border-border rounded-lg shadow-lg"
+                          >
                             <Suspense fallback={<DiffPreviewLoader />}>
                               <CommitTemplateManager
                                 repositoryPath={workingCopyPath}
                                 onSelectTemplate={handleManagedTemplateSelect}
                               />
                             </Suspense>
-                          </div>
+                          </Popover>
                         )}
                       </div>
 
@@ -833,6 +892,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           the global history (#73a). */}
                       <div className="relative">
                         <button
+                          ref={historyButtonRef}
                           type="button"
                           onClick={() => {
                             setShowHistory(!showHistory);
@@ -851,8 +911,14 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                           <ChevronDown className="w-3 h-3" aria-hidden="true" />
                         </button>
                         {showHistory && (history.length > 0 || recentMessages.length > 0) && (
+                          <Popover
+                            anchorRef={historyButtonRef}
+                            onClose={() => setShowHistory(false)}
+                            align="end"
+                            className="max-h-64"
+                          >
                           <ul
-                            className="absolute right-0 top-full mt-1 w-72 max-h-64 overflow-auto bg-bg-elevated border border-border rounded-lg shadow-lg z-10"
+                            className="w-72 bg-bg-elevated border border-border rounded-lg shadow-lg"
                             role="menu"
                             aria-label="Recent commit messages"
                           >
@@ -903,6 +969,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                               </li>
                             ))}
                           </ul>
+                          </Popover>
                         )}
                       </div>
                     </div>
@@ -1315,133 +1382,71 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                   {selectedDiffFile ? (
                     diffData?.files && diffData.files.length > 0 ? (
                       <>
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-bg-tertiary px-3 py-2">
-                          <div
-                            className="truncate text-xs text-text-muted"
-                            title={selectedDiffFile}
-                          >
-                            {selectedDiffFile}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              value={aiExplanationMode}
-                              onChange={(event) =>
-                                setAiExplanationMode(event.target.value as typeof aiExplanationMode)
-                              }
-                              className="input h-7 py-0 text-10.5"
-                              aria-label="Diff explanation type"
-                            >
-                              <option value="summary">Summarize file</option>
-                              <option value="why">Why it changed</option>
-                              <option value="risks">Risky lines</option>
-                              <option value="questions">Review questions</option>
-                            </select>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm text-10.5"
-                              onClick={() => void handleExplainDiff()}
-                              disabled={!aiProviderAvailable || isRunningAiAssistant}
-                            >
-                              {isRunningAiAssistant ? (
-                                <Loader2
-                                  className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
-                                  aria-hidden="true"
-                                />
-                              ) : (
-                                <Lightbulb className="h-3.5 w-3.5" />
-                              )}
-                              Explain
-                            </button>
-                            <div className="flex items-center bg-bg rounded-md p-0.5">
-                              <button
-                                type="button"
-                                onClick={() => setDiffViewMode('unified')}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
-                                  diffViewMode === 'unified'
-                                    ? 'bg-accent text-white'
-                                    : 'text-text-secondary hover:text-text'
-                                }`}
-                                aria-pressed={diffViewMode === 'unified'}
-                                title="Unified diff view"
-                              >
-                                <AlignLeft className="w-3.5 h-3.5" />
-                                Unified
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDiffViewMode('side-by-side')}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-fast ${
-                                  diffViewMode === 'side-by-side'
-                                    ? 'bg-accent text-white'
-                                    : 'text-text-secondary hover:text-text'
-                                }`}
-                                aria-pressed={diffViewMode === 'side-by-side'}
-                                title="Side-by-side diff view"
-                              >
-                                <Columns2 className="w-3.5 h-3.5" />
-                                Split
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                        <CommitDiffToolbar
+                          filePath={selectedDiffFile}
+                          status={selectedFileStatus}
+                          additions={diffStats.additions}
+                          deletions={diffStats.deletions}
+                          viewMode={diffViewMode}
+                          onViewModeChange={setDiffViewMode}
+                          displayOptions={diffDisplayOptions}
+                          onDisplayOptionsChange={setDiffDisplayOptions}
+                          searchQuery={diffSearchQuery}
+                          onSearchQueryChange={setDiffSearchQuery}
+                          searchSupported={isSearchableDiff}
+                          searchMatchCount={diffSearchState.matchCount}
+                          searchMatchIndex={diffSearchState.currentIndex}
+                          searchUnavailableReason={
+                            isLargeDiff
+                              ? 'Search is unavailable for very large diffs'
+                              : 'Search is available in Split view'
+                          }
+                          explanationMode={aiExplanationMode}
+                          onExplain={(mode) => handleExplainDiff(mode)}
+                          explainDisabled={!aiProviderAvailable || isRunningAiAssistant}
+                          explainDisabledReason={
+                            aiProviderAvailable
+                              ? isRunningAiAssistant
+                                ? 'An AI request is already running'
+                                : undefined
+                              : aiProviderReason || 'Configure an AI provider in Settings'
+                          }
+                          isExplaining={isRunningAiAssistant}
+                        />
                         {aiDiffExplanation && (
-                          <section
-                            className="border-b border-border bg-bg-secondary px-3 py-2.5 text-11.5"
-                            aria-live="polite"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="font-medium text-text">{aiDiffExplanation.summary}</p>
-                                {aiDiffExplanation.rationale && (
-                                  <p className="mt-1 text-text-muted">
-                                    {aiDiffExplanation.rationale}
-                                  </p>
-                                )}
-                              </div>
-                              <span className="shrink-0 text-9.5 text-text-faint">
-                                {aiDiffExplanation.cached
-                                  ? 'Cached'
-                                  : `${(aiDiffExplanation.durationMs / 1000).toFixed(1)}s`}
-                              </span>
-                            </div>
-                            {(aiDiffExplanation.risks.length > 0 ||
-                              aiDiffExplanation.reviewQuestions.length > 0) && (
-                              <div className="mt-2 grid grid-cols-1 gap-3 text-10.5 text-text-secondary sm:grid-cols-2">
-                                {aiDiffExplanation.risks.length > 0 && (
-                                  <div>
-                                    <span className="font-medium text-warning">Risks</span>
-                                    <ul className="mt-1 list-disc pl-4">
-                                      {aiDiffExplanation.risks.map((risk) => (
-                                        <li key={risk}>{risk}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                                {aiDiffExplanation.reviewQuestions.length > 0 && (
-                                  <div>
-                                    <span className="font-medium text-accent">
-                                      Review questions
-                                    </span>
-                                    <ul className="mt-1 list-disc pl-4">
-                                      {aiDiffExplanation.reviewQuestions.map((question) => (
-                                        <li key={question}>{question}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </section>
+                          <DiffExplanationCard
+                            explanation={aiDiffExplanation}
+                            onDismiss={dismissAiDiffExplanation}
+                          />
                         )}
+                        {/* Both viewers render bare: `CommitDiffToolbar`
+                            above owns every diff control, so neither draws a
+                            second one. */}
                         <Suspense fallback={<DiffPreviewLoader />}>
-                          {diffViewMode === 'unified' || getDiffLineCount(diffData) > 2000 ? (
-                            <VirtualizedDiffViewer diff={diffData} className="flex-1 min-h-0" />
-                          ) : (
+                          {isSearchableDiff ? (
                             <EnhancedDiffViewer
                               diff={diffData}
                               filePath={selectedDiffFile}
                               mode={diffViewMode}
                               onModeChange={setDiffViewMode}
+                              showToolbar={false}
+                              showFileHeaders={false}
+                              displayOptions={diffDisplayOptions}
+                              onDisplayOptionsChange={setDiffDisplayOptions}
+                              searchQuery={diffSearchQuery}
+                              onSearchQueryChange={setDiffSearchQuery}
+                              onSearchStateChange={setDiffSearchState}
+                              className="flex-1 min-h-0"
+                            />
+                          ) : (
+                            <VirtualizedDiffViewer
+                              diff={diffData}
+                              viewMode={diffViewMode}
+                              onViewModeChange={setDiffViewMode}
+                              displayOptions={diffDisplayOptions}
+                              onDisplayOptionsChange={setDiffDisplayOptions}
+                              showToolbar={false}
+                              showFileHeaders={false}
                               className="flex-1 min-h-0"
                             />
                           )}

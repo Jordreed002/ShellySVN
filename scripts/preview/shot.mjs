@@ -12,6 +12,8 @@
  * Steps, separated by `|`:
  *   row:<text>      double-click the first listing row containing <text> (navigates)
  *   click:<sel>     click the first match for a CSS/Playwright selector
+ *   hover:<sel>     hover the first match — reveals hover-gated controls so a
+ *                   later click: can reach them (row tools, quick actions)
  *   rclick:<text>   right-click a row — opens the context menu
  *   text:<text>     click the first element containing <text>
  *   wait:<ms>       pause
@@ -54,6 +56,7 @@ for (const step of steps.split('|').filter(Boolean)) {
   try {
     if (kind === 'row')
       await page.locator('[role="row"]', { hasText: argument }).first().dblclick();
+    else if (kind === 'hover') await page.locator(argument).first().hover();
     else if (kind === 'rclick')
       await page.locator('[role="row"]', { hasText: argument }).first().click({ button: 'right' });
     else if (kind === 'click') await page.locator(argument).first().click();

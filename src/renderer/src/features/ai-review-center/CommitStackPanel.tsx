@@ -9,6 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useCommitStack } from './useCommitStack';
+import { ReviewEmptyState } from './ReviewEmptyState';
 import { AiRichText } from '@renderer/components/ai/AiRichText';
 
 export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string }) {
@@ -29,23 +30,18 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
   if (isLoading)
     return (
       <div
-        className="h-32 animate-pulse border border-border bg-bg-secondary motion-reduce:animate-none"
+        className="h-32 animate-pulse rounded-10 border border-border bg-bg-secondary motion-reduce:animate-none"
         role="status"
         aria-label="Loading commit stack"
       />
     );
   if (!stack.groups.length) {
     return (
-      <div className="grid min-h-52 place-items-center border border-dashed border-border-strong bg-bg-secondary/60 p-8 text-center">
-        <div>
-          <GitCommit className="mx-auto h-5 w-5 text-text-faint" />
-          <h3 className="mt-3 text-13 font-semibold">No commit stack</h3>
-          <p className="mt-1 max-w-sm text-11.5 text-text-muted">
-            Run Plan commits from the commit window. Its logical groups become an ordered,
-            recoverable stack here.
-          </p>
-        </div>
-      </div>
+      <ReviewEmptyState
+        icon={GitCommit}
+        title="No commit stack"
+        detail="Run “Plan” from the commit window. Its logical groups become an ordered, recoverable stack here."
+      />
     );
   }
 
@@ -53,7 +49,7 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
     <section aria-label="Commit stack" className="space-y-3">
       {(diagnostics.duplicates.size > 0 || diagnostics.unassigned.length > 0) && (
         <div
-          className="border border-svn-modified/40 bg-svn-modified/5 px-3 py-2 text-10.5 text-svn-modified"
+          className="rounded-9 border border-warning/40 bg-warning/[0.07] px-3 py-2 text-10.5 text-warning"
           role="status"
           aria-live="polite"
         >
@@ -65,7 +61,7 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
       )}
       {error && (
         <div
-          className="border border-svn-conflict/40 bg-svn-conflict/5 px-3 py-2 text-10.5 text-svn-conflict"
+          className="rounded-9 border border-error/40 bg-error/[0.07] px-3 py-2 text-10.5 text-error"
           role="alert"
         >
           {error}
@@ -81,19 +77,19 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
               className={`border bg-bg-secondary ${group.status === 'ready' ? 'border-svn-normal/40' : group.status === 'committed' ? 'border-border opacity-65' : group.status === 'stale' ? 'border-svn-modified/30 opacity-60' : 'border-border-strong'}`}
             >
               <header className="flex items-center gap-2 border-b border-border-muted px-3 py-2">
-                <span className="grid h-6 w-6 place-items-center border border-border font-mono text-9 text-text-muted">
+                <span className="grid h-6 w-6 place-items-center rounded-6 bg-bg-sunk font-mono text-9.5 text-text-muted">
                   {String(index + 1).padStart(2, '0')}
                 </span>
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-12 font-semibold">{group.title}</h3>
-                  <p className="font-mono text-8.5 uppercase tracking-wider text-text-faint">
+                  <p className="font-mono text-9.5 uppercase tracking-wider text-text-faint">
                     {group.status}
                     {group.committedRevision ? ` · r${group.committedRevision}` : ''}
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="ibtn h-7 w-7"
+                  className="btn-icon-sm h-7 w-7"
                   onClick={() => reorder(group.id, -1)}
                   disabled={index === 0 || busyGroupId !== null}
                   aria-label={`Move ${group.title} earlier`}
@@ -102,7 +98,7 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
                 </button>
                 <button
                   type="button"
-                  className="ibtn h-7 w-7"
+                  className="btn-icon-sm h-7 w-7"
                   onClick={() => reorder(group.id, 1)}
                   disabled={index === stack.groups.length - 1 || busyGroupId !== null}
                   aria-label={`Move ${group.title} later`}
@@ -125,7 +121,7 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
                   onChange={(event) => updateMessage(group.id, event.target.value)}
                   aria-label={`Commit message for ${group.title}`}
                 />
-                <ul className="mt-2 divide-y divide-border-muted border border-border-muted">
+                <ul className="mt-2 divide-y divide-border-muted overflow-hidden rounded-8 border border-border-muted">
                   {group.paths.map((path) => (
                     <li key={path} className="flex min-h-8 items-center gap-2 px-2">
                       <span
@@ -135,10 +131,10 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
                         {path.replaceAll('\\', '/').split('/').slice(-3).join('/')}
                       </span>
                       {!immutable && (
-                        <label className="flex items-center gap-1 text-9 text-text-faint">
+                        <label className="flex items-center gap-1 text-9.5 text-text-faint">
                           <MoveRight className="h-3 w-3" />
                           <select
-                            className="h-6 max-w-32 border border-border bg-bg px-1 text-9 text-text"
+                            className="h-6 max-w-32 rounded-6 border border-border bg-bg px-1 text-9.5 text-text"
                             value={group.id}
                             disabled={busyGroupId !== null}
                             onChange={(event) => movePath(path, event.target.value || null)}
@@ -163,7 +159,7 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
                 </ul>
                 <div className="mt-3 flex flex-wrap items-center gap-2" aria-live="polite">
                   {group.changelistName && (
-                    <span className="font-mono text-9 text-accent">
+                    <span className="font-mono text-9.5 text-accent">
                       changelist: {group.changelistName}
                     </span>
                   )}
@@ -208,13 +204,15 @@ export function CommitStackPanel({ workingCopyPath }: { workingCopyPath: string 
         })}
       </ol>
       {diagnostics.unassigned.length > 0 && (
-        <div className="border border-dashed border-border-strong p-3">
-          <h3 className="font-mono text-9 uppercase tracking-wider text-text-faint">Unassigned</h3>
+        <div className="rounded-10 border border-dashed border-border-strong p-3">
+          <h3 className="font-mono text-9.5 uppercase tracking-wider text-text-faint">
+            Unassigned
+          </h3>
           {diagnostics.unassigned.map((path) => (
             <div key={path} className="mt-2 flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-mono text-9.5">{path}</span>
               <select
-                className="h-7 border border-border bg-bg px-1 text-9"
+                className="h-7 rounded-6 border border-border bg-bg px-1 text-9.5"
                 defaultValue=""
                 aria-label={`Assign ${path} to a commit group`}
                 onChange={(event) => event.target.value && movePath(path, event.target.value)}

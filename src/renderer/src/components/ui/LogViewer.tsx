@@ -3,23 +3,22 @@ import {
   X,
   History,
   Loader,
-  User,
-  Calendar,
-  GitCommit,
   RefreshCw,
   ExternalLink,
   GitCompare,
   RotateCcw,
-  GitMerge,
+  SlidersHorizontal,
   Sparkles,
   Copy,
   AlertCircle,
+  Database,
 } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { useCachedLog } from '@renderer/hooks/useLogCache';
 import { withIpcTimeout } from '@renderer/lib/queryTimeout';
 import { AiPromptPreviewDialog } from '../ai/AiPromptPreviewDialog';
 import { ErrorPanel } from './ErrorPanel';
+import { Popover } from './Popover';
 import { SkeletonBlock, SkeletonLine, SkeletonList } from './Skeleton';
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
 import { useLogViewSurface } from '../history/useLogViewState';
@@ -32,6 +31,7 @@ import type {
 } from '@shared/types';
 
 const LOG_PAGE_SIZE = 25;
+const DEFAULT_LIMIT = 50;
 
 interface LogViewerProps {
   isOpen: boolean;
@@ -49,7 +49,7 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   const [revisionImpactError, setRevisionImpactError] = useState<string | null>(null);
   const [isLoadingRevisionImpact, setIsLoadingRevisionImpact] = useState(false);
   const [revisionImpactNonce, setRevisionImpactNonce] = useState(0);
-  const [limit, setLimit] = useState(50);
+  const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [configPath, setConfigPath] = useState(path);
   const [currentPage, setCurrentPage] = useState(1);
   const [showMergeHistory, setShowMergeHistory] = useState(false);
@@ -80,6 +80,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
       ),
     [revisionPropertyInput]
   );
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const optionsButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const { config: issueTrackerConfig } = useIssueTrackerConfig(configPath, path);
   const logRequestOptions = useMemo(
@@ -346,9 +348,7 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
     } catch (generationError) {
       if (!controller.signal.aborted) {
         setReleaseNotesError(
-          generationError instanceof Error
-            ? generationError.message
-            : 'Release-note generation failed.'
+          generationError instanceof Error ? generationError.message : 'Release-note generation failed.'
         );
       }
     } finally {
@@ -362,87 +362,182 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
   if (!isOpen) return null;
 
   const pathName = path.split(/[/\\]/).pop() || path;
+  const nonDefaultOptions =
+    showMergeHistory ||
+    stopOnCopy ||
+    strictNodeHistory ||
+    includeAllRevisionProperties ||
+    limit !== DEFAULT_LIMIT;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal w-[1000px] max-w-[95vw] h-[80vh] flex flex-col"
+        className="modal flex h-[80vh] w-[1000px] max-w-[95vw] flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="modal-header flex-shrink-0">
-          <h2 className="modal-title">
-            <History className="w-5 h-5 text-accent" />
-            Log: {pathName}
-          </h2>
-          <div className="flex items-center gap-2">
-            <select
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="input text-sm py-1"
+        {/* Header — identity on the left, everything that changes the *query*
+            folded into the Options popover on the right. */}
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-accent/15 text-accent">
+              <History className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <h2 className="flex-none text-sm font-semibold text-text">Revision log</h2>
+            <span
+              className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary"
+              title={path}
             >
-              <option value={25}>25 entries</option>
-              <option value={50}>50 entries</option>
-              <option value={100}>100 entries</option>
-              <option value={200}>200 entries</option>
-            </select>
+              {path}
+            </span>
             {cacheInfo && (
-              <span className="text-xs text-text-muted" title="Cached log entries">
-                Cached {cacheInfo.entryCount}
+              <span
+                className="badge flex-none border border-border bg-bg-tertiary font-mono text-text-muted"
+                title="Cached log entries (shown while the refresh runs)"
+              >
+                <Database className="mr-1 h-2.5 w-2.5" aria-hidden="true" />
+                {cacheInfo.entryCount}
               </span>
             )}
-            {hasCachedData && (
+          </div>
+
+          <div className="flex flex-none items-center gap-1.5">
+            {/* Query options. Escape is handled on the wrapper so it closes
+                the popover (not the modal) wherever focus sits. */}
+            <div
+              className="relative flex-none"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && optionsOpen) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setOptionsOpen(false);
+                  optionsButtonRef.current?.focus();
+                }
+              }}
+            >
               <button
+                ref={optionsButtonRef}
                 type="button"
-                onClick={async () => {
-                  await clearCache();
-                  setLog(null);
-                  await loadLog();
-                }}
-                className="btn btn-secondary btn-sm text-xs"
-                title="Clear cached log"
+                onClick={() => setOptionsOpen((open) => !open)}
+                aria-haspopup="true"
+                aria-expanded={optionsOpen}
+                title="svn log query options — depth, history flags, revision properties, cache"
+                className={`relative inline-flex h-8 items-center gap-[7px] rounded-lg border px-3 text-[12.5px] font-semibold transition-fast active:translate-y-px ${
+                  nonDefaultOptions
+                    ? 'border-accent/60 bg-accent/10 text-accent hover:border-accent'
+                    : 'border-border-strong bg-bg-secondary text-text shadow-card hover:border-text-faint hover:bg-bg-tertiary'
+                }`}
               >
-                Clear cache
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                Options
+                {nonDefaultOptions && (
+                  <span
+                    className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent"
+                    aria-hidden="true"
+                  />
+                )}
               </button>
-            )}
-            <label className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <input
-                type="checkbox"
-                checked={showMergeHistory}
-                onChange={(event) => {
-                  setShowMergeHistory(event.target.checked);
-                  setLog(null);
-                  setSelectedEntry(null);
-                }}
-                disabled={isLoading}
-              />
-              <GitMerge className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
-              Merged revisions
-            </label>
-            <label className="flex items-center gap-1 text-xs text-text-secondary">
-              <input
-                type="checkbox"
-                checked={stopOnCopy}
-                onChange={(event) => setStopOnCopy(event.target.checked)}
-              />
-              Stop on copy
-            </label>
-            <label className="flex items-center gap-1 text-xs text-text-secondary">
-              <input
-                type="checkbox"
-                checked={strictNodeHistory}
-                onChange={(event) => setStrictNodeHistory(event.target.checked)}
-              />
-              Strict history
-            </label>
-            <label className="flex items-center gap-1 text-xs text-text-secondary">
-              <input
-                type="checkbox"
-                checked={includeAllRevisionProperties}
-                onChange={(event) => setIncludeAllRevisionProperties(event.target.checked)}
-              />
-              All revision properties
-            </label>
+
+              {optionsOpen && (
+                <Popover
+                  anchorRef={optionsButtonRef}
+                  ariaLabel="svn log options"
+                  onClose={() => setOptionsOpen(false)}
+                  className="w-[19.5rem] rounded-[11px] border border-border-strong bg-bg-secondary p-[5px] shadow-overlay"
+                >
+                    <p className="px-2 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-[0.13em] text-text-muted">
+                      Query
+                    </p>
+                    <label className="flex items-center justify-between gap-2 px-2 pb-1.5">
+                      <span className="text-[12.5px] text-text">Depth</span>
+                      <select
+                        value={limit}
+                        onChange={(e) => setLimit(Number(e.target.value))}
+                        className="input h-7 w-28 px-2 text-xs"
+                        aria-label="Log depth"
+                      >
+                        <option value={25}>25 entries</option>
+                        <option value={50}>50 entries</option>
+                        <option value={100}>100 entries</option>
+                        <option value={200}>200 entries</option>
+                      </select>
+                    </label>
+
+                    <div className="divider my-1" />
+                    <p className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.13em] text-text-muted">
+                      History
+                    </p>
+                    <CheckRow
+                      checked={showMergeHistory}
+                      disabled={isLoading}
+                      onChange={(value) => {
+                        setShowMergeHistory(value);
+                        setLog(null);
+                        setSelectedEntry(null);
+                      }}
+                      label="Merged revisions"
+                      hint="svn log -g"
+                    />
+                    <CheckRow
+                      checked={stopOnCopy}
+                      onChange={setStopOnCopy}
+                      label="Stop on copy"
+                      hint="--stop-on-copy"
+                    />
+                    <CheckRow
+                      checked={strictNodeHistory}
+                      onChange={setStrictNodeHistory}
+                      label="Strict node history"
+                      hint="--strict-node-history"
+                    />
+                    <CheckRow
+                      checked={includeAllRevisionProperties}
+                      onChange={setIncludeAllRevisionProperties}
+                      label="All revision properties"
+                      hint="fetch every revprop"
+                    />
+
+                    <div className="divider my-1" />
+                    <label className="block px-2 pb-1.5">
+                      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-text-faint">
+                        Revision properties
+                      </span>
+                      <input
+                        type="text"
+                        value={revisionPropertyInput}
+                        onChange={(event) => setRevisionPropertyInput(event.target.value)}
+                        disabled={includeAllRevisionProperties}
+                        className="input h-8 px-2.5 text-xs"
+                        placeholder="e.g. review:status, build:id"
+                        aria-label="Revision properties"
+                      />
+                    </label>
+
+                    {hasCachedData && (
+                      <>
+                        <div className="divider my-1" />
+                        <div className="flex items-center justify-between gap-2 px-2 py-1">
+                          <span className="font-mono text-[11px] text-text-muted">
+                            {cacheInfo ? `${cacheInfo.entryCount} entries cached` : 'Cache'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await clearCache();
+                              setLog(null);
+                              await loadLog();
+                            }}
+                            className="btn btn-secondary btn-sm text-xs"
+                            title="Clear cached log"
+                          >
+                            Clear cache
+                          </button>
+                        </div>
+                      </>
+                    )}
+                </Popover>
+              )}
+            </div>
+
             <button
               onClick={loadLog}
               disabled={isLoading}
@@ -451,7 +546,7 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               aria-label="Refresh revision history"
             >
               <RefreshCw
-                className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}`}
+                className={`h-4 w-4 ${isLoading || isRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}`}
                 aria-hidden="true"
               />
             </button>
@@ -477,26 +572,12 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
               {isGeneratingReleaseNotes ? 'Cancel' : 'Release notes'}
             </button>
             <button onClick={onClose} className="btn-icon-sm" aria-label="Close revision history">
-              <X className="w-4 h-4" aria-hidden="true" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>
 
         {/* Filters, saved views, export (#66/#67) */}
-        <div className="flex-shrink-0 border-b border-border bg-bg-secondary px-4 pt-3">
-          <label className="mb-3 block text-xs text-text-secondary">
-            Revision properties
-            <input
-              type="text"
-              value={revisionPropertyInput}
-              onChange={(event) => setRevisionPropertyInput(event.target.value)}
-              disabled={includeAllRevisionProperties}
-              className="input ml-2 h-8 min-w-64 text-xs"
-              placeholder="e.g. review:status, build:id"
-              aria-label="Revision properties"
-            />
-          </label>
-        </div>
         {logView.filterBar}
 
         {releaseNotesError && (
@@ -569,11 +650,11 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden flex">
+        <div className="flex flex-1 overflow-hidden">
           {/* Log entries list */}
           <div
             ref={listRef}
-            className="w-80 flex-shrink-0 border-r border-border overflow-auto"
+            className="w-[22rem] flex-shrink-0 overflow-auto border-r border-border bg-bg"
             onKeyDown={handleListKeyDown}
           >
             {isLoading && !log && (
@@ -613,23 +694,21 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
             )}
 
             {log && log.entries.length === 0 && (
-              <div className="flex items-center justify-center h-full text-text-muted">
+              <div className="flex h-full items-center justify-center text-text-muted">
                 No history found
               </div>
             )}
 
             {log && log.entries.length > 0 && filteredEntries.length === 0 && (
-              <div className="flex items-center justify-center h-full p-4 text-center text-text-muted">
+              <div className="flex h-full items-center justify-center p-4 text-center text-text-muted">
                 No revisions match the current filters
               </div>
             )}
 
             {log && filteredEntries.length > 0 && (
               <div>
-                <div className="sticky top-0 z-10">
-                  {logView.sortHeader}
-                </div>
-                <div className="divide-y divide-border">
+                <div className="sticky top-0 z-10">{logView.sortHeader}</div>
+                <div className="divide-y divide-border-muted">
                   {pagedEntries.map((entry, index) => {
                     const issueLinks = extractIssueLinks(entry.message, issueTrackerConfig);
                     const selected = selectedEntry?.revision === entry.revision;
@@ -648,45 +727,58 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                             setSelectedEntry(entry);
                           }
                         }}
-                        className={`p-3 cursor-pointer transition-colors outline-none focus-visible:ring-1 focus-visible:ring-accent ${
+                        className={`cursor-pointer border-l-2 px-3 py-2.5 outline-none transition-colors focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent ${
                           selected
-                            ? 'bg-accent/10 border-l-2 border-l-accent'
-                            : 'hover:bg-bg-elevated border-l-2 border-l-transparent'
+                            ? 'border-l-accent bg-accent/10'
+                            : 'border-l-transparent hover:bg-bg-elevated'
                         }`}
                       >
-                        <div className="grid grid-cols-[1fr_6rem] gap-2">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-mono text-sm text-accent font-medium">
-                                r{entry.revision}
-                              </span>
-                              <span className="text-xs text-text-muted flex-1 truncate">
-                                {entry.author}
-                              </span>
-                              <button
-                                type="button"
-                                className="btn-icon-sm flex-none"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  requestShowChanges(entry.revision, path);
-                                }}
-                                onKeyDown={(event) => event.stopPropagation()}
-                                aria-label={`Show changes for r${entry.revision}`}
-                                title={`Show changes for r${entry.revision} (vs r${entry.revision - 1})`}
-                              >
-                                <GitCompare className="h-3.5 w-3.5" aria-hidden="true" />
-                              </button>
-                            </div>
-                            <div className="text-xs text-text-secondary line-clamp-2">
-                              {entry.message || (
-                                <span className="italic text-text-faint">No message</span>
-                              )}
-                            </div>
-                            <div className="text-xs text-text-faint mt-1">
-                              {formatDate(entry.date)}
-                            </div>
-                          </div>
-                          <IssueSummary issues={issueLinks} />
+                        <div className="flex items-center gap-2">
+                          <span className="flex-none font-mono text-[13px] font-semibold text-accent">
+                            r{entry.revision}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-xs text-text-secondary">
+                            {entry.author || '—'}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-icon-sm flex-none"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              requestShowChanges(entry.revision, path);
+                            }}
+                            onKeyDown={(event) => event.stopPropagation()}
+                            aria-label={`Show changes for r${entry.revision}`}
+                            title={`Show changes for r${entry.revision} (vs r${entry.revision - 1})`}
+                          >
+                            <GitCompare className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
+
+                        <div className="mt-1 line-clamp-2 text-xs leading-snug text-text">
+                          {entry.message || (
+                            <span className="italic text-text-faint">No message</span>
+                          )}
+                        </div>
+
+                        <div className="mt-1.5 flex items-center gap-1.5 text-2xs text-text-faint">
+                          <time dateTime={entry.date} title={entry.date}>
+                            {formatDate(entry.date)}
+                          </time>
+                          {issueLinks.slice(0, 2).map((issue) => (
+                            <span
+                              key={issue.id}
+                              className="max-w-[8rem] truncate rounded border border-border bg-bg-tertiary px-1 py-px font-mono text-[9.5px] text-accent"
+                              title={issue.id}
+                            >
+                              {issue.id}
+                            </span>
+                          ))}
+                          {issueLinks.length > 2 && (
+                            <span className="font-mono text-[9.5px] text-text-faint">
+                              +{issueLinks.length - 2}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -699,40 +791,67 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
           {/* Selected entry details */}
           <div className="flex-1 overflow-auto bg-bg">
             {selectedEntry ? (
-              <div className="p-4">
-                {/* Revision header */}
-                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border">
-                  <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center">
-                    <GitCommit className="w-6 h-6 text-accent" />
-                  </div>
-                  <div>
-                    <div className="text-xl font-mono font-medium text-text">
-                      Revision {selectedEntry.revision}
+              <div className="p-5">
+                {/* Revision headline */}
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2.5">
+                      <h3 className="flex-none font-mono text-2xl font-semibold tracking-tight text-accent">
+                        r{selectedEntry.revision}
+                      </h3>
+                      <span className="min-w-0 truncate text-xs text-text-faint" title={path}>
+                        {pathName}
+                      </span>
                     </div>
-                    <div className="text-sm text-text-secondary">{pathName}</div>
+                    <div className="mt-2 flex min-w-0 items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="grid h-6 w-6 flex-none place-items-center rounded-full bg-accent/15 font-mono text-[11px] font-bold uppercase text-accent"
+                      >
+                        {(selectedEntry.author || '?').trim().charAt(0)}
+                      </span>
+                      <span className="truncate text-xs font-medium text-text">
+                        {selectedEntry.author || 'Unknown author'}
+                      </span>
+                      <span aria-hidden="true" className="text-text-faint">
+                        ·
+                      </span>
+                      <time
+                        dateTime={selectedEntry.date}
+                        className="truncate text-xs text-text-secondary"
+                        title={selectedEntry.date}
+                      >
+                        {formatDateFull(selectedEntry.date)}
+                      </time>
+                    </div>
                   </div>
-                </div>
 
-                {/* Metadata */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <User className="w-4 h-4 text-text-muted" />
-                    <span className="text-text-secondary">Author:</span>
-                    <span className="text-text font-medium">{selectedEntry.author}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="w-4 h-4 text-text-muted" />
-                    <span className="text-text-secondary">Date:</span>
-                    <span className="text-text font-medium">
-                      {formatDateFull(selectedEntry.date)}
-                    </span>
+                  <div className="flex flex-none items-center gap-2">
+                    <button
+                      onClick={() => requestShowChanges(selectedEntry.revision, path)}
+                      className="btn btn-primary btn-sm text-xs"
+                      title={`Diff r${selectedEntry.revision} against r${selectedEntry.revision - 1}`}
+                    >
+                      <GitCompare className="h-3.5 w-3.5" aria-hidden="true" />
+                      Show changes
+                    </button>
+                    {onSelectRevision && (
+                      <button
+                        onClick={() => onSelectRevision(selectedEntry.revision, path)}
+                        className="btn btn-secondary btn-sm text-xs"
+                      >
+                        View diff for this revision
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 {/* Message */}
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-text-secondary mb-2">Message</h4>
-                  <div className="bg-bg-secondary rounded-lg p-3 text-sm text-text whitespace-pre-wrap">
+                <div className="mt-4">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Message
+                  </h4>
+                  <div className="rounded-lg bg-bg-secondary p-3 text-sm text-text whitespace-pre-wrap">
                     {selectedEntry.message || (
                       <span className="italic text-text-faint">No commit message</span>
                     )}
@@ -740,13 +859,15 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                 </div>
 
                 {selectedIssueLinks.length > 0 && (
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-text-secondary mb-2">Issues</h4>
+                  <div className="mt-4">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Issues
+                    </h4>
                     <IssueLinkList issues={selectedIssueLinks} onOpen={handleOpenIssue} />
                   </div>
                 )}
 
-                <section className="mb-4 overflow-hidden rounded-lg border border-border bg-bg-secondary">
+                <section className="mt-4 overflow-hidden rounded-lg border border-border bg-bg-secondary">
                   <div className="flex items-center justify-between border-b border-border px-3 py-2">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                       Revision impact evidence
@@ -825,8 +946,8 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
 
                 {selectedEntry.revisionProperties &&
                   Object.keys(selectedEntry.revisionProperties).length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="mb-2 text-sm font-medium text-text-secondary">
+                    <div className="mt-4">
+                      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
                         Revision Properties
                       </h4>
                       <dl className="overflow-hidden rounded-lg bg-bg-secondary">
@@ -847,15 +968,15 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
 
                 {/* Changed paths */}
                 {selectedEntry.paths.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-text-secondary mb-2">
+                  <div className="mt-4">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
                       Changed Paths ({selectedEntry.paths.length})
                     </h4>
-                    <div className="bg-bg-secondary rounded-lg overflow-hidden">
+                    <div className="overflow-hidden rounded-lg bg-bg-secondary">
                       {selectedEntry.paths.slice(0, 20).map((p, i) => (
                         <div
                           key={i}
-                          className="flex items-center gap-2 px-3 py-2 text-sm border-b border-border last:border-0"
+                          className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm last:border-0"
                         >
                           <span
                             className={`font-mono text-xs px-1.5 py-0.5 rounded ${
@@ -870,42 +991,22 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
                           >
                             {p.action}
                           </span>
-                          <span className="text-text-secondary truncate flex-1">{p.path}</span>
+                          <span className="truncate flex-1 text-text-secondary">{p.path}</span>
                         </div>
                       ))}
                       {selectedEntry.paths.length > 20 && (
-                        <div className="px-3 py-2 text-sm text-text-muted text-center">
+                        <div className="px-3 py-2 text-center text-sm text-text-muted">
                           ...and {selectedEntry.paths.length - 20} more
                         </div>
                       )}
                     </div>
                   </div>
                 )}
-
-                {/* Actions */}
-                <div className="mt-4 pt-4 border-t border-border flex items-center gap-2">
-                  <button
-                    onClick={() => requestShowChanges(selectedEntry.revision, path)}
-                    className="btn btn-primary"
-                    title={`Diff r${selectedEntry.revision} against r${selectedEntry.revision - 1}`}
-                  >
-                    <GitCompare className="h-4 w-4" aria-hidden="true" />
-                    Show changes
-                  </button>
-                  {onSelectRevision && (
-                    <button
-                      onClick={() => onSelectRevision(selectedEntry.revision, path)}
-                      className="btn btn-secondary"
-                    >
-                      View Diff for this Revision
-                    </button>
-                  )}
-                </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full text-text-muted">
+              <div className="flex h-full items-center justify-center text-text-muted">
                 <div className="text-center">
-                  <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <History className="mx-auto mb-3 h-12 w-12 opacity-30" />
                   <p>Select a revision to view details</p>
                 </div>
               </div>
@@ -915,38 +1016,36 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
 
         {/* Footer */}
         {log && log.entries.length > 0 && (
-          <div className="flex-shrink-0 px-4 py-2 bg-bg-secondary border-t border-border text-sm text-text-secondary">
-            <div className="flex items-center justify-between gap-3">
-              <span>
-                Showing {filteredEntries.length === 0 ? 0 : pageStartIndex + 1}-
-                {Math.min(pageStartIndex + LOG_PAGE_SIZE, filteredEntries.length)} of{' '}
-                {filteredEntries.length} matching revisions ({log.entries.length} loaded, r
-                {log.startRevision} - r{log.endRevision})
-              </span>
-              {filteredEntries.length > LOG_PAGE_SIZE && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm text-xs"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  >
-                    Previous
-                  </button>
-                  <span className="text-xs text-text-muted">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm text-xs"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </div>
+          <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-border bg-bg-secondary px-4 py-2 text-xs text-text-secondary">
+            <span className="tabular-nums">
+              Showing {filteredEntries.length === 0 ? 0 : pageStartIndex + 1}–
+              {Math.min(pageStartIndex + LOG_PAGE_SIZE, filteredEntries.length)} of{' '}
+              {filteredEntries.length} matching revisions ({log.entries.length} loaded, r
+              {log.startRevision} - r{log.endRevision})
+            </span>
+            {filteredEntries.length > LOG_PAGE_SIZE && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm text-xs"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-text-muted">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm text-xs"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -965,6 +1064,41 @@ export function LogViewer({ isOpen, path, onClose, onSelectRevision }: LogViewer
       {/* "Show changes" target (#72): revision against its predecessor */}
       {logView.diffDialog}
     </div>
+  );
+}
+
+/** One `svn log` flag row inside the Options popover. */
+function CheckRow({
+  checked,
+  onChange,
+  disabled,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <label
+      className={`flex items-center gap-2.5 rounded-[7px] px-2 py-[5px] ${
+        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-bg-tertiary'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-3.5 w-3.5 flex-none accent-accent"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[12.5px] leading-tight text-text">{label}</span>
+        <span className="block font-mono text-[10px] leading-tight text-text-faint">{hint}</span>
+      </span>
+    </label>
   );
 }
 
@@ -1006,26 +1140,6 @@ function formatReleaseNotesSection(title: string, items: string[]): string {
 
 function formatReleaseNotes(notes: AiReleaseNotesResult): string {
   return `# ${notes.title}\n${formatReleaseNotesSection('User-facing changes', notes.userFacing)}${formatReleaseNotesSection('Technical changes', notes.technical)}${formatReleaseNotesSection('Breaking changes', notes.breakingChanges)}${formatReleaseNotesSection('Upgrade notes', notes.upgradeNotes)}${formatReleaseNotesSection('References', notes.references)}`;
-}
-
-function IssueSummary({ issues }: { issues: IssueLink[] }) {
-  if (issues.length === 0) {
-    return <div className="pt-0.5 text-xs text-text-faint">-</div>;
-  }
-
-  return (
-    <div className="flex flex-col items-start gap-1 pt-0.5">
-      {issues.slice(0, 3).map((issue) => (
-        <span
-          key={issue.id}
-          className="max-w-full truncate rounded border border-border bg-bg-secondary px-1.5 py-0.5 text-[10px] text-accent"
-          title={issue.id}
-        >
-          {issue.id}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function IssueLinkList({

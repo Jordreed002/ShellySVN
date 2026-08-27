@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { Popover } from './Popover';
 import { useQuery } from '@tanstack/react-query';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 import { buildRevisionGraph } from '../../lib/revisionGraph';
@@ -59,6 +60,8 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [filterBranch, setFilterBranch] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  /* Menu anchor — the popover portals out, so it needs its trigger. */
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -283,6 +286,7 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
           {/* Branch filter */}
           <div className="relative">
             <button
+              ref={filterButtonRef}
               onClick={() => setShowFilters(!showFilters)}
               className="btn btn-secondary btn-sm"
             >
@@ -292,7 +296,13 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
             </button>
 
             {showFilters && (
-              <div className="absolute left-0 top-full mt-1 w-48 bg-bg-elevated border border-border rounded-lg shadow-lg z-10">
+              <Popover
+                anchorRef={filterButtonRef}
+                onClose={() => setShowFilters(false)}
+                role="menu"
+                ariaLabel="Filter by branch"
+                className="w-48 bg-bg-elevated border border-border rounded-lg shadow-lg"
+              >
                 <button
                   onClick={() => {
                     setFilterBranch(null);
@@ -318,7 +328,7 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
                     {branch.name}
                   </button>
                 ))}
-              </div>
+              </Popover>
             )}
           </div>
 
