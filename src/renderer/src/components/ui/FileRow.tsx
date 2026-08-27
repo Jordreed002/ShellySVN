@@ -81,7 +81,8 @@ const EMPTY_FOLDER_SIZES: Record<string, number> = {};
 const EMPTY_ACTIONS: FileRowActions = {};
 const DEFAULT_COLUMN_WIDTHS: NonNullable<FileRowProps['columnWidths']> = {
   name: 300,
-  status: 80,
+  // Room for the widest flag ("Not checked out") without spilling left.
+  status: 120,
   revision: 70,
   author: 100,
   date: 100,

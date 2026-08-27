@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   RefreshCw,
-  X,
   Check,
   AlertCircle,
   AlertTriangle,
@@ -17,11 +16,13 @@ import {
   Activity,
   GitBranch,
   Trash2,
+  Wrench,
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import type { RepoDiagnostics } from '@shared/types';
 import { redactDiagnosticText } from './ErrorBoundary/redaction';
-import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
+import { DialogBase } from './ui/DialogBase';
+import { WorkingCopyFixWizard } from './ui/WorkingCopyFixWizard';
 
 interface RepoDiagnosticsProps {
   workingCopyPath: string;
@@ -99,7 +100,12 @@ export function buildDiagnosticsReport(
         },
         connection: {
           status: diagnostics.connectionStatus,
-          error: diagnostics.connectionError,
+          // The live panel prints the attempted password for debugging; the
+          // copied report must not leak it, so scrub the detail block.
+          error: diagnostics.connectionError?.replace(
+            /password: ".*?" \(\d+ characters[^)]*\)/g,
+            'password: "••••••"'
+          ),
         },
       },
       null,
@@ -117,7 +123,7 @@ export function RepoDiagnosticsPanel({
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [isTrustingCertificate, setIsTrustingCertificate] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const dialogRef = useFocusTrap<HTMLDivElement>({ onEscape: onClose, preventScroll: true });
+  const [isFixWizardOpen, setIsFixWizardOpen] = useState(false);
 
   const {
     data: diagnostics,
@@ -202,28 +208,18 @@ export function RepoDiagnosticsPanel({
   }, [handleRefresh]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-black/50 p-4"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        ref={dialogRef}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl dark:bg-gray-800"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="repository-diagnostics-title"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <h2
-            id="repository-diagnostics-title"
-            className="text-lg font-semibold text-gray-900 dark:text-gray-100"
-          >
-            Repository Diagnostics
-          </h2>
-          <div className="flex items-center gap-2">
+    <>
+      {/* DialogBase keeps this dialog on the shared z-40 modal layer and the
+          dialog stack, so the fix wizard opens (and takes Escape/Tab) above it
+          instead of hiding behind an ad-hoc z-50 overlay. */}
+      <DialogBase
+        isOpen
+        onClose={onClose}
+        title="Repository Diagnostics"
+        className="flex w-full max-w-lg flex-col"
+        closeButtonLabel="Close repository diagnostics"
+        headerExtras={
+          <>
             <button
               onClick={handleCopyDiagnostics}
               disabled={!diagnostics}
@@ -250,17 +246,9 @@ export function RepoDiagnosticsPanel({
                 aria-hidden="true"
               />
             </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-              title="Close (Esc)"
-              aria-label="Close repository diagnostics"
-            >
-              <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-            </button>
-          </div>
-        </div>
-
+          </>
+        }
+      >
         {/* Content */}
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           {isLoading ? (
@@ -292,11 +280,26 @@ export function RepoDiagnosticsPanel({
                         Working-copy health
                       </h3>
                     </div>
-                    <span className="font-mono text-xs text-gray-500">
-                      {healthQuery.data.minimumRevision === healthQuery.data.maximumRevision
-                        ? `r${healthQuery.data.minimumRevision ?? '—'}`
-                        : `r${healthQuery.data.minimumRevision ?? '—'}–r${healthQuery.data.maximumRevision ?? '—'}`}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xs text-gray-500">
+                        {healthQuery.data.minimumRevision === healthQuery.data.maximumRevision
+                          ? `r${healthQuery.data.minimumRevision ?? '—'}`
+                          : `r${healthQuery.data.minimumRevision ?? '—'}–r${healthQuery.data.maximumRevision ?? '—'}`}
+                      </span>
+                      {healthQuery.data.issues.some(
+                        (issue) => issue.kind === 'missing' || issue.kind === 'obstructed'
+                      ) && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm gap-1.5"
+                          onClick={() => setIsFixWizardOpen(true)}
+                          data-testid="open-fix-wizard"
+                        >
+                          <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
+                          Fix working copy…
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
@@ -663,7 +666,15 @@ export function RepoDiagnosticsPanel({
             Close
           </button>
         </div>
-      </div>
-    </div>
+      </DialogBase>
+      <WorkingCopyFixWizard
+        isOpen={isFixWizardOpen}
+        onClose={() => setIsFixWizardOpen(false)}
+        workingCopyPath={workingCopyPath}
+        onRepaired={() => {
+          void refetchHealth();
+        }}
+      />
+    </>
   );
 }

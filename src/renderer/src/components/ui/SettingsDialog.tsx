@@ -152,19 +152,51 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
     []
   );
 
-  // Load settings and start preview when dialog opens
+  // Load settings and start preview when dialog opens — once per open. The
+  // init guard matters: the AI tab persists its changes immediately through
+  // useSettings, which swaps the `savedSettings` object mid-open, and re-running
+  // this effect would throw the user back to `initialTab` and discard any
+  // unsaved edits made in other tabs.
+  const initializedOpenRef = useRef(false);
+  // aiCommit values (JSON key) the dialog opened with — the baseline used to
+  // tell the open-time seed apart from a real AI-tab edit below.
+  const openedAiCommitValuesRef = useRef<string | null>(null);
   useEffect(() => {
-    if (isOpen && savedSettings) {
-      const settings = mergeSettings(savedSettings);
-      setLocalSettings(settings);
-      startPreview(settings); // Start live preview
-      setShowResetConfirm(false);
-      // Set initial tab when dialog opens
-      if (initialTab) {
-        setActiveTab(initialTab);
-      }
+    if (!isOpen) {
+      initializedOpenRef.current = false;
+      openedAiCommitValuesRef.current = null;
+      return;
+    }
+    if (initializedOpenRef.current || !savedSettings) return;
+    initializedOpenRef.current = true;
+    const settings = mergeSettings(savedSettings);
+    setLocalSettings(settings);
+    openedAiCommitValuesRef.current = JSON.stringify(settings.aiCommit);
+    startPreview(settings); // Start live preview
+    setShowResetConfirm(false);
+    // Set initial tab when dialog opens
+    if (initialTab) {
+      setActiveTab(initialTab);
     }
   }, [isOpen, savedSettings, initialTab, startPreview]);
+
+  // Immediate AI-tab writes land in the settings cache while the dialog is
+  // open and never pass through the preview context, so without this the
+  // footer would ignore them (Save stayed disabled). When a write differs
+  // from the values the dialog opened with, fold it into the draft — so a
+  // later Save cannot revert it with the open-time snapshot — and mark the
+  // preview dirty so the "Unsaved changes" chip and Save button react like
+  // they do for every other tab. Only aiCommit is touched; other keys may
+  // hold unsaved local edits that must win until Save.
+  const savedAiCommit = savedSettings?.aiCommit;
+  const savedAiCommitValues = savedAiCommit ? JSON.stringify(savedAiCommit) : null;
+  useEffect(() => {
+    if (!isOpen || !savedAiCommit || !savedAiCommitValues) return;
+    if (savedAiCommitValues === openedAiCommitValuesRef.current) return;
+    openedAiCommitValuesRef.current = savedAiCommitValues;
+    setLocalSettings((prev) => ({ ...prev, aiCommit: savedAiCommit }));
+    updatePreviewSetting('aiCommit', savedAiCommit);
+  }, [isOpen, savedAiCommit, savedAiCommitValues, updatePreviewSetting]);
 
   // Scroll to + flash a jumped-to section once its panel has rendered.
   useEffect(() => {
@@ -210,7 +242,12 @@ export function SettingsDialog({ isOpen, onClose, initialTab = 'general' }: Sett
   const handleSave = async () => {
     await updateSettings(localSettings);
     commitPreview(); // Commit the preview changes
-    onClose();
+    // The dialog stays open after saving: re-baseline the preview to the
+    // freshly saved draft so the footer shows a clean state and later edits
+    // compare against the new saved values, and sync the aiCommit fold
+    // baseline so the immediate-write effect does not re-flag the save.
+    startPreview(localSettings);
+    openedAiCommitValuesRef.current = JSON.stringify(localSettings.aiCommit);
   };
 
   const handleReset = async () => {

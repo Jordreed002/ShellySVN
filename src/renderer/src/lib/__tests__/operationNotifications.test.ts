@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   LONG_OPERATION_THRESHOLD_MS,
+  MUTATION_FAILURE_TTL_MS,
   MUTATION_GRACE_MS,
   OPERATION_DEDUPE_WINDOW_MS,
   createMutationCompletionWatcher,
+  createMutationFailureLog,
   describeOperation,
   fireDesktopNotification,
   isLongOperation,
@@ -14,6 +16,7 @@ import {
   shouldAnnounceOperation,
   shouldRecordInCenter,
   shouldSendDesktopNotification,
+  summarizeMutationFailure,
   type CompletedOperation,
 } from '../operationNotifications';
 
@@ -215,5 +218,73 @@ describe('createMutationCompletionWatcher', () => {
     watcher.onMutationNotification(['/wc/a']);
     vi.advanceTimersByTime(MUTATION_GRACE_MS + 1);
     expect(completions.length).toBe(before);
+  });
+});
+
+describe('summarizeMutationFailure', () => {
+  it('keeps the first non-empty line and collapses whitespace', () => {
+    expect(
+      summarizeMutationFailure('\n  svn: E155015: Aborting commit: remains in conflict  \nmore')
+    ).toBe('svn: E155015: Aborting commit: remains in conflict');
+  });
+
+  it('caps long messages with an ellipsis', () => {
+    const long = `svn: E170013: ${'x'.repeat(400)}`;
+    const summarized = summarizeMutationFailure(long);
+    expect(summarized.length).toBeLessThanOrEqual(180);
+    expect(summarized.endsWith('…')).toBe(true);
+  });
+});
+
+describe('createMutationFailureLog', () => {
+  it('returns the recorded failure for the exact working copy', () => {
+    let now = 1_000;
+    const log = createMutationFailureLog({ now: () => now });
+    log.record(['C:\\Repos\\Atlas'], {
+      message: 'svn: E215004: Unable to connect: No more credentials.',
+    });
+    expect(log.detailFor('c:/repos/atlas')).toBe(
+      'svn: E215004: Unable to connect: No more credentials.'
+    );
+    now += 1;
+    expect(log.detailFor('/somewhere/else')).toBeUndefined();
+  });
+
+  it('matches failures reported for a path under the working copy', () => {
+    const log = createMutationFailureLog();
+    log.record(['/wc/atlas/trunk/src'], { message: 'svn: E155015: Aborting commit.' });
+    expect(log.detailFor('/wc/atlas')).toBe('svn: E155015: Aborting commit.');
+  });
+
+  it('prefers the most recent matching failure', () => {
+    let now = 1_000;
+    const log = createMutationFailureLog({ now: () => now });
+    log.record(['/wc/atlas'], { message: 'first failure' });
+    now += 1_000;
+    log.record(['/wc/atlas/trunk'], { message: 'second failure' });
+    expect(log.detailFor('/wc/atlas')).toBe('second failure');
+  });
+
+  it('expires entries after the TTL', () => {
+    let now = 1_000;
+    const log = createMutationFailureLog({ ttlMs: MUTATION_FAILURE_TTL_MS, now: () => now });
+    log.record(['/wc/atlas'], { message: 'stale failure' });
+    now += MUTATION_FAILURE_TTL_MS + 1;
+    expect(log.detailFor('/wc/atlas')).toBeUndefined();
+  });
+
+  it('reports cancellations as cancelled, not the raw message', () => {
+    const log = createMutationFailureLog();
+    log.record(['/wc/atlas'], { message: 'svn: E200015: Operation cancelled.', cancelled: true });
+    expect(log.detailFor('/wc/atlas')).toBe('Operation cancelled.');
+  });
+
+  it('prefixes the error code when the message omits it', () => {
+    const log = createMutationFailureLog();
+    log.record(['/wc/atlas'], {
+      message: 'Unable to connect to repository',
+      errorCode: 'E170013',
+    });
+    expect(log.detailFor('/wc/atlas')).toBe('[E170013] Unable to connect to repository');
   });
 });

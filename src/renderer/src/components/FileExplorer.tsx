@@ -318,7 +318,9 @@ export function FileExplorer() {
   // Column width state
   const [columnWidths, setColumnWidths] = useState({
     name: 300,
-    status: 80,
+    /* Wide enough for the widest status flag ("Not checked out") and the
+       Diff/Log row tools — narrower and the pill spills over the size column. */
+    status: 120,
     revision: 70,
     author: 100,
     date: 100,

@@ -77,7 +77,13 @@ export function FileExplorerAuthPrompt({
           <button type="button" onClick={onCancel} className="btn btn-ghost">
             Cancel
           </button>
-          <button type="button" onClick={onSubmit} disabled={!username} className="btn btn-primary">
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!username || !password}
+            title={!password ? 'Enter a password to save credentials' : undefined}
+            className="btn btn-primary"
+          >
             Save Credentials
           </button>
         </div>

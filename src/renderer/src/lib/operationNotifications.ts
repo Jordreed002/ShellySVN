@@ -238,3 +238,96 @@ export function createMutationCompletionWatcher({
 
   return { onActivePathsChanged, onMutationNotification, dispose };
 }
+
+/* ── failure detail log ───────────────────────────────────────────────────── */
+
+/**
+ * How long a recorded mutation failure stays eligible as the detail of a
+ * completion reported by the watcher. The failure event arrives while the
+ * watcher is still inside its grace window, so this only needs to bridge
+ * slow renders and queued announcements.
+ */
+export const MUTATION_FAILURE_TTL_MS = 15_000;
+
+/** Notification bodies stay one line; cap the carried-over svn error. */
+export const MUTATION_FAILURE_DETAIL_MAX_LENGTH = 180;
+
+export interface MutationFailureRecord {
+  message: string;
+  errorCode?: string;
+  cancelled?: boolean;
+}
+
+interface StoredFailure extends MutationFailureRecord {
+  at: number;
+}
+
+export interface MutationFailureLog {
+  record: (localPaths: readonly string[], failure: MutationFailureRecord) => void;
+  /** Most recent failure covering `path` (exact or nested), summarized. */
+  detailFor: (path: string) => string | undefined;
+}
+
+/** First line, whitespace-collapsed, capped — svn stderr can be very long. */
+export function summarizeMutationFailure(
+  message: string,
+  maxLength = MUTATION_FAILURE_DETAIL_MAX_LENGTH
+): string {
+  const firstLine = message
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  const collapsed = (firstLine ?? '').replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= maxLength) return collapsed;
+  return `${collapsed.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+/**
+ * Keeps the failure detail broadcast by `svn.onMutationFailed` so a failing
+ * completion (which the watcher only infers) can name the real cause. Entries
+ * expire after the TTL; matching follows the same path-identity rules as the
+ * success notifications.
+ */
+export function createMutationFailureLog({
+  ttlMs = MUTATION_FAILURE_TTL_MS,
+  now = Date.now,
+}: { ttlMs?: number; now?: () => number } = {}): MutationFailureLog {
+  const entries = new Map<string, StoredFailure>();
+
+  function prune(current: number): void {
+    for (const [identity, entry] of entries) {
+      if (current - entry.at > ttlMs) entries.delete(identity);
+    }
+  }
+
+  function record(localPaths: readonly string[], failure: MutationFailureRecord): void {
+    prune(now());
+    for (const path of localPaths) {
+      if (!path) continue;
+      entries.set(operationPathIdentity(path), { ...failure, at: now() });
+    }
+  }
+
+  function detailFor(path: string): string | undefined {
+    prune(now());
+    const identity = operationPathIdentity(path);
+    let match: StoredFailure | undefined;
+    for (const [failureIdentity, entry] of entries) {
+      const covers =
+        failureIdentity === identity ||
+        failureIdentity.startsWith(`${identity}/`) ||
+        identity.startsWith(`${failureIdentity}/`);
+      if (covers && (match === undefined || entry.at > match.at)) match = entry;
+    }
+    if (!match) return undefined;
+    if (match.cancelled) return 'Operation cancelled.';
+    const summarized = summarizeMutationFailure(match.message);
+    if (!summarized) return undefined;
+    if (match.errorCode && !summarized.toUpperCase().includes(match.errorCode.toUpperCase())) {
+      return summarizeMutationFailure(`[${match.errorCode}] ${summarized}`);
+    }
+    return summarized;
+  }
+
+  return { record, detailFor };
+}

@@ -33,7 +33,9 @@ export function useFileExplorerAuthPrompt() {
   }, []);
 
   const submit = useCallback(async () => {
-    if (!username || !realm) return;
+    // A password is mandatory: persisting an empty one would overwrite a good
+    // saved credential with something that can never authenticate.
+    if (!username || !password || !realm) return;
 
     try {
       await window.api.auth.beginSession({

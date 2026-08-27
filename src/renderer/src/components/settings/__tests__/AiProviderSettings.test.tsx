@@ -14,6 +14,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {
   AiCommitProviderStatus,
   AiCostEstimate,
@@ -69,6 +70,13 @@ beforeEach(() => {
         customProviders: { upsert },
         listModels,
         estimateCost,
+        usageHistory: vi.fn().mockResolvedValue([]),
+        clearUsageHistory: vi.fn().mockResolvedValue(undefined),
+      },
+      // useSettings reads/writes settings through the store namespace.
+      store: {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn().mockResolvedValue(undefined),
       },
     },
   });
@@ -101,8 +109,29 @@ beforeEach(() => {
 afterEach(cleanup);
 
 async function rendered() {
-  render(<AiProviderSettings />);
+  // The page reads settings via react-query; each render gets a fresh client
+  // so cached settings never leak between tests.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AiProviderSettings />
+    </QueryClientProvider>
+  );
   await waitFor(() => expect(screen.getByTestId('ai-add-provider-open')).toBeInTheDocument());
+}
+
+/** Same harness as `rendered`, for tests that drive the first paint themselves. */
+function renderWithSettings() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AiProviderSettings />
+    </QueryClientProvider>
+  );
 }
 
 describe('AiProviderSettings configured-card model', () => {
@@ -247,7 +276,7 @@ describe('AiProviderSettings configured-card model', () => {
       })
     );
     summary.mockResolvedValue(defaultSummary({ providers: [credential('anthropic')] }));
-    render(<AiProviderSettings />);
+    renderWithSettings();
     // The card paints from the summary alone; the status line and CLI group
     // show pending placeholders.
     expect(await screen.findByTestId('ai-provider-anthropic')).toBeInTheDocument();
@@ -269,7 +298,7 @@ describe('AiProviderSettings configured-card model', () => {
   it('keeps cards functional when the status probe rejects', async () => {
     providers.mockRejectedValue(new Error('ipc down'));
     summary.mockResolvedValue(defaultSummary({ providers: [credential('anthropic')] }));
-    render(<AiProviderSettings />);
+    renderWithSettings();
     expect(await screen.findByTestId('ai-provider-anthropic')).toBeInTheDocument();
     // statusLine(undefined) semantics per card, plus a muted note — the page
     // itself does not error out.
@@ -280,9 +309,69 @@ describe('AiProviderSettings configured-card model', () => {
 
   it('shows the load error only when the credentials summary itself fails', async () => {
     summary.mockRejectedValue(new Error('ipc down'));
-    render(<AiProviderSettings />);
+    renderWithSettings();
     expect(await screen.findByText('AI provider status could not be loaded.')).toBeInTheDocument();
     expect(screen.queryByTestId('ai-add-provider-open')).not.toBeInTheDocument();
+  });
+});
+
+describe('AI Commit Messages group (hosted on this page)', () => {
+  const enableDrafts = () =>
+    fireEvent.click(screen.getByLabelText('Enable generated commit-message drafts'));
+
+  it('offers one merged provider-and-model select with grouped CLI models', async () => {
+    providers.mockResolvedValue([
+      { provider: 'codex', available: true, kind: 'cli', version: '0.9.1' },
+      { provider: 'claude', available: true, kind: 'cli', version: '2.1.0' },
+    ]);
+    await rendered();
+    enableDrafts();
+
+    const merged = screen.getByLabelText('Provider & model') as HTMLSelectElement;
+    await waitFor(() => expect(merged).not.toBeDisabled());
+    expect(merged).toHaveValue('auto');
+    const values = [...merged.options].map((option) => option.value);
+    // One control covers every choice: auto, each CLI model, HTTP providers.
+    expect(values).toEqual(
+      expect.arrayContaining([
+        'auto',
+        'codex:gpt-5.6-luna',
+        'codex:gpt-5.6-terra',
+        'claude:sonnet',
+        'claude:haiku',
+      ])
+    );
+    // No separate model dropdowns anymore.
+    expect(screen.queryByLabelText('Codex model')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Claude model')).not.toBeInTheDocument();
+
+    // Picking a Codex model switches the provider and model in one write.
+    fireEvent.change(merged, { target: { value: 'codex:gpt-5.6-terra' } });
+    await waitFor(() => expect(merged).toHaveValue('codex:gpt-5.6-terra'));
+  });
+
+  it('disables the Claude model options while the CLI is not signed in', async () => {
+    providers.mockResolvedValue([
+      { provider: 'claude', available: false, kind: 'cli', reason: 'Claude CLI is not signed in.' },
+    ]);
+    await rendered();
+    enableDrafts();
+
+    const merged = screen.getByLabelText('Provider & model') as HTMLSelectElement;
+    await waitFor(() => expect(merged).not.toBeDisabled());
+    const claudeOptions = [...merged.options].filter((option) =>
+      option.value.startsWith('claude:')
+    );
+    expect(claudeOptions).toHaveLength(3);
+    expect(claudeOptions.every((option) => option.disabled)).toBe(true);
+    // The reason surfaces as the select's tooltip.
+    expect(merged.title).toBe('Claude CLI is not signed in.');
+    // Codex and auto remain selectable.
+    expect(
+      [...merged.options]
+        .filter((option) => option.value.startsWith('codex:') || option.value === 'auto')
+        .every((option) => !option.disabled)
+    ).toBe(true);
   });
 });
 

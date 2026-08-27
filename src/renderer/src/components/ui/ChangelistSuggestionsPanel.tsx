@@ -268,7 +268,9 @@ export function ChangelistSuggestionsEntry({ workingCopyPath }: ChangelistSugges
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-30 flex items-center gap-1.5 px-3 py-1.5 text-xs glass-strong border border-border rounded-full text-text hover:border-accent hover:text-accent transition-fast shadow-lg"
+        /* Bottom clears the app-wide 26px status bar (`h-control-sm`); bottom-4
+           pins the chip on top of the current-path text. */
+        className="fixed bottom-10 right-4 z-30 flex items-center gap-1.5 px-3 py-1.5 text-xs glass-strong border border-border rounded-full text-text hover:border-accent hover:text-accent transition-fast shadow-lg"
         aria-label="Suggest changelists from current changes"
         title="Suggest changelists based on path groupings"
       >

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -9,6 +9,8 @@ import {
   Clock,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   FolderOpen,
   FolderSync,
   Key,
@@ -17,10 +19,10 @@ import {
   Moon,
   Pencil,
   Play,
+  Plus,
   RotateCcw,
   RefreshCw,
   Shield,
-  Sparkles,
   Sun,
   Terminal,
   Trash2,
@@ -31,13 +33,12 @@ import {
 
 import type {
   AppSettings,
-  AiCommitProviderStatus,
-  AiProviderCredentialStatus,
-  AiUsageEntry,
   AuthListEntry,
   FontSize,
   LogLevel,
   StartupAction,
+  SvnCredentialVerifyResult,
+  SvnNativeAuthEntry,
   WorkingCopyFormat,
 } from '@shared/types';
 import { formatBytes } from '@shared/utils/formatBytes';
@@ -52,32 +53,7 @@ import {
 import { ExternalToolsSettings } from './ExternalToolsSettings';
 import { OpenWithSettings } from './OpenWithSettings';
 import { SettingsGroup } from './SettingsGroup';
-import { HTTP_PROVIDER_ORDER, providerLabel } from './AddProviderDialog';
 import { useAppUpdater } from '../../hooks/useAppUpdater';
-
-/**
- * Configured HTTP/custom AI providers for the aiCommit.provider select
- * (fetched once from the credentials summary). Customs carry their display
- * name; built-ins get friendly labels. Returns null while loading.
- */
-function useConfiguredAiProviders(): AiProviderCredentialStatus[] | null {
-  const [configured, setConfigured] = useState<AiProviderCredentialStatus[] | null>(null);
-  useEffect(() => {
-    let active = true;
-    window.api.ai
-      .credentials.summary()
-      .then((result) => {
-        if (active) setConfigured(result.providers);
-      })
-      .catch(() => {
-        if (active) setConfigured([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-  return configured;
-}
 
 function clampedInteger(value: string, minimum: number, maximum: number, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
@@ -374,62 +350,6 @@ interface SvnSettingsProps extends SettingsSectionProps {
 }
 
 export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsProps) {
-  const [aiProviderStatuses, setAiProviderStatuses] = useState<AiCommitProviderStatus[]>([]);
-  const [isCheckingAiProviders, setIsCheckingAiProviders] = useState(false);
-  const [aiProviderStatusError, setAiProviderStatusError] = useState(false);
-  const [aiUsageHistory, setAiUsageHistory] = useState<AiUsageEntry[]>([]);
-
-  const refreshAiProviders = useCallback(async () => {
-    setIsCheckingAiProviders(true);
-    setAiProviderStatusError(false);
-    try {
-      const [providers, usage] = await Promise.all([
-        window.api.ai.providers(),
-        window.api.ai.usageHistory(),
-      ]);
-      setAiProviderStatuses(providers);
-      setAiUsageHistory(usage);
-    } catch {
-      setAiProviderStatusError(true);
-    } finally {
-      setIsCheckingAiProviders(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (settings.aiCommit.enabled) void refreshAiProviders();
-  }, [refreshAiProviders, settings.aiCommit.enabled]);
-
-  // Provider preference options: the four built-in HTTP providers and every
-  // custom provider, but only ones that are actually configured.
-  const configuredAiProviders = useConfiguredAiProviders();
-  const aiProviderOptions = useMemo(() => {
-    if (!configuredAiProviders) return [];
-    const options = HTTP_PROVIDER_ORDER.filter((id) =>
-      configuredAiProviders.some((entry) => entry.provider === id)
-    ).map((id) => ({ value: id as string, label: providerLabel(id) }));
-    const customs = configuredAiProviders
-      .filter((entry) => entry.provider.startsWith('custom:'))
-      .toSorted((a, b) =>
-        (a.displayName ?? a.provider).localeCompare(b.displayName ?? b.provider)
-      );
-    return [
-      ...options,
-      ...customs.map((entry) => ({
-        value: entry.provider,
-        label: providerLabel(entry.provider, entry.displayName),
-      })),
-    ];
-  }, [configuredAiProviders]);
-  // A stale preference (e.g. a deleted custom provider) must stay visible —
-  // selects always show their current value — so it is appended, disabled.
-  const staleProviderId = settings.aiCommit.provider === 'auto' ? undefined : settings.aiCommit.provider;
-  const staleAiProvider =
-    staleProviderId !== undefined &&
-    staleProviderId !== 'codex' &&
-    staleProviderId !== 'claude' &&
-    !aiProviderOptions.some((option) => option.value === staleProviderId);
-
   const handleBrowseSvnPath = async () => {
     const path = await window.api.dialog.openFile([
       { name: 'Executables', extensions: ['exe', 'app'] },
@@ -521,378 +441,6 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
         />
       </SettingsGroup>
 
-      <SettingsGroup
-        title="AI Commit Messages"
-        description="Draft an editable message from the files selected for commit"
-        resetKeys={['aiCommit']}
-      >
-        <div className="space-y-4">
-          <label
-            className="flex items-start gap-3 cursor-pointer group"
-            aria-label="Enable generated commit-message drafts"
-          >
-            <input
-              type="checkbox"
-              checked={settings.aiCommit.enabled}
-              onChange={(event) => onChangeNested('aiCommit', 'enabled', event.target.checked)}
-              className="checkbox mt-0.5"
-            />
-            <span>
-              <span className="flex items-center gap-2 text-sm text-text group-hover:text-accent">
-                <Sparkles className="w-4 h-4" aria-hidden="true" />
-                Enable generated commit-message drafts
-              </span>
-              <span className="mt-1 block text-xs text-text-muted">
-                Only runs when you press Generate. Selected filenames and bounded diff content are
-                sent to the configured model provider.
-              </span>
-            </span>
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-xs text-text-muted">Provider</span>
-              <select
-                value={settings.aiCommit.provider}
-                onChange={(event) =>
-                  onChangeNested(
-                    'aiCommit',
-                    'provider',
-                    event.target.value as AppSettings['aiCommit']['provider']
-                  )
-                }
-                disabled={!settings.aiCommit.enabled}
-                className="input mt-1 w-full disabled:opacity-50"
-              >
-                <option value="auto">Auto (prefer Codex)</option>
-                <option value="codex">Codex CLI</option>
-                <option value="claude">Claude CLI (API/cloud auth)</option>
-                {aiProviderOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-                {staleProviderId && staleAiProvider && (
-                  <option value={staleProviderId} disabled>
-                    {providerLabel(staleProviderId)} (no longer configured)
-                  </option>
-                )}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-xs text-text-muted">Message style</span>
-              <select
-                value={settings.aiCommit.style}
-                onChange={(event) =>
-                  onChangeNested(
-                    'aiCommit',
-                    'style',
-                    event.target.value as AppSettings['aiCommit']['style']
-                  )
-                }
-                disabled={!settings.aiCommit.enabled}
-                className="input mt-1 w-full disabled:opacity-50"
-              >
-                <option value="conventional">Conventional commit</option>
-                <option value="concise">Concise summary</option>
-              </select>
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="text-xs text-text-muted">Codex model</span>
-            <select
-              value={settings.aiCommit.codexModel}
-              onChange={(event) =>
-                onChangeNested(
-                  'aiCommit',
-                  'codexModel',
-                  event.target.value as AppSettings['aiCommit']['codexModel']
-                )
-              }
-              disabled={!settings.aiCommit.enabled || settings.aiCommit.provider === 'claude'}
-              className="input mt-1 w-full disabled:opacity-50"
-            >
-              <option value="gpt-5.6-luna">GPT-5.6 Luna — fastest / lowest cost</option>
-              <option value="gpt-5.6-terra">GPT-5.6 Terra — balanced</option>
-              <option value="gpt-5.6-sol">GPT-5.6 Sol — highest capability</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs text-text-muted">Maximum diff sent (KiB)</span>
-            <input
-              type="number"
-              min={32}
-              max={512}
-              step={32}
-              value={Math.round(settings.aiCommit.maxDiffBytes / 1024)}
-              onChange={(event) =>
-                onChangeNested(
-                  'aiCommit',
-                  'maxDiffBytes',
-                  clampedInteger(event.target.value, 32, 512, 256) * 1024
-                )
-              }
-              disabled={!settings.aiCommit.enabled}
-              className="input mt-1 w-28 disabled:opacity-50"
-            />
-          </label>
-
-          <label className="flex items-center gap-3 text-sm text-text-secondary">
-            <input
-              type="checkbox"
-              checked={settings.aiCommit.confirmBeforeSending}
-              onChange={(event) =>
-                onChangeNested('aiCommit', 'confirmBeforeSending', event.target.checked)
-              }
-              disabled={!settings.aiCommit.enabled}
-              className="checkbox"
-            />
-            Confirm before sending each selected diff
-          </label>
-
-          <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
-            <label className="flex items-start gap-3 text-sm text-text-secondary">
-              <input
-                type="checkbox"
-                checked={settings.aiCommit.includeRecentHistory}
-                onChange={(event) =>
-                  onChangeNested('aiCommit', 'includeRecentHistory', event.target.checked)
-                }
-                disabled={!settings.aiCommit.enabled}
-                className="checkbox mt-0.5"
-              />
-              <span>
-                Match recent repository message style
-                <span className="mt-1 block text-xs text-text-muted">
-                  Sends a redacted sample of recent commit messages in addition to the selected
-                  diff. This is a separate privacy choice and is disabled by default.
-                </span>
-              </span>
-            </label>
-            {settings.aiCommit.includeRecentHistory && (
-              <label className="mt-3 block">
-                <span className="text-xs text-text-muted">Recent messages sampled</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={25}
-                  value={settings.aiCommit.historyLimit}
-                  onChange={(event) =>
-                    onChangeNested(
-                      'aiCommit',
-                      'historyLimit',
-                      clampedInteger(event.target.value, 1, 25, 10)
-                    )
-                  }
-                  disabled={!settings.aiCommit.enabled}
-                  className="input mt-1 w-24 disabled:opacity-50"
-                />
-              </label>
-            )}
-          </div>
-
-          <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
-            <div className="mb-3 text-10 font-semibold uppercase tracking-caps text-text-muted">
-              Provider budgets
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <label className="block">
-                <span className="text-xs text-text-muted">Timeout (seconds)</span>
-                <input
-                  type="number"
-                  min={15}
-                  max={300}
-                  step={15}
-                  value={Math.round(settings.aiCommit.providerTimeoutMs / 1000)}
-                  onChange={(event) =>
-                    onChangeNested(
-                      'aiCommit',
-                      'providerTimeoutMs',
-                      clampedInteger(event.target.value, 15, 300, 60) * 1000
-                    )
-                  }
-                  disabled={!settings.aiCommit.enabled}
-                  className="input mt-1 w-full disabled:opacity-50"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs text-text-muted">Calls per session</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={settings.aiCommit.maxSessionInvocations}
-                  onChange={(event) =>
-                    onChangeNested(
-                      'aiCommit',
-                      'maxSessionInvocations',
-                      clampedInteger(event.target.value, 1, 500, 100)
-                    )
-                  }
-                  disabled={!settings.aiCommit.enabled}
-                  className="input mt-1 w-full disabled:opacity-50"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs text-text-muted">History retention</span>
-                <select
-                  value={settings.aiCommit.usageRetentionDays}
-                  onChange={(event) =>
-                    onChangeNested('aiCommit', 'usageRetentionDays', Number(event.target.value))
-                  }
-                  disabled={!settings.aiCommit.enabled}
-                  className="input mt-1 w-full disabled:opacity-50"
-                >
-                  <option value={7}>7 days</option>
-                  <option value={30}>30 days</option>
-                  <option value={90}>90 days</option>
-                </select>
-              </label>
-            </div>
-            <p className="mt-2 text-10.5 text-text-faint">
-              Budgets apply before a provider starts. Usage records contain task, provider, timing,
-              size, and result only—never paths, prompts, diffs, or generated text.
-            </p>
-          </div>
-
-          <p className="text-xs text-text-muted">
-            ShellySVN uses a separately installed CLI. Claude runs in bare mode and requires API-key
-            or managed cloud-provider authentication; subscription OAuth is not used.
-          </p>
-
-          {settings.aiCommit.enabled && (
-            <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
-              <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
-                  Provider status
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void refreshAiProviders()}
-                  className="btn-icon-sm"
-                  disabled={isCheckingAiProviders}
-                  aria-label="Refresh AI provider status"
-                  title="Refresh provider status"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${isCheckingAiProviders ? 'animate-spin' : ''}`}
-                    aria-hidden="true"
-                  />
-                </button>
-              </div>
-              <div className="space-y-2">
-                {aiProviderStatusError ? (
-                  <div className="flex items-center gap-2 text-11.5 text-error">
-                    <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                    Provider status could not be checked.
-                  </div>
-                ) : isCheckingAiProviders && aiProviderStatuses.length === 0 ? (
-                  <div className="flex items-center gap-2 text-11.5 text-text-muted">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                    Checking installed CLIs…
-                  </div>
-                ) : (
-                  aiProviderStatuses.map((status) => {
-                    const state = status.available
-                      ? 'Ready'
-                      : status.cliLoggedIn
-                        ? 'Signed in · API auth required'
-                        : status.version
-                          ? 'Installed · authentication required'
-                          : 'Not installed';
-                    return (
-                      <div
-                        key={status.provider}
-                        className="flex items-start gap-2.5 rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2"
-                      >
-                        <span
-                          className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                            status.available
-                              ? 'bg-success'
-                              : status.cliLoggedIn
-                                ? 'bg-warning'
-                                : 'bg-text-faint'
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-12 font-medium capitalize text-text">
-                              {status.provider}
-                            </span>
-                            {status.version && (
-                              <span className="truncate font-mono text-9.5 text-text-faint">
-                                {status.version}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-10.5 text-text-muted">{state}</p>
-                          {status.authMethod && (
-                            <p className="text-10 text-text-faint">
-                              CLI login: {status.authMethod}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-
-          {settings.aiCommit.enabled && aiUsageHistory.length > 0 && (
-            <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
-              <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
-                  Recent AI activity
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm text-10.5"
-                  onClick={async () => {
-                    await window.api.ai.clearUsageHistory();
-                    setAiUsageHistory([]);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Clear metadata
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                {aiUsageHistory.slice(0, 8).map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2 text-10.5"
-                  >
-                    <span className="truncate text-text-secondary">
-                      {entry.task.replaceAll('-', ' ')}
-                    </span>
-                    <span className="font-mono text-text-faint">
-                      {entry.provider}
-                      {entry.model ? ` · ${entry.model}` : ''} ·{' '}
-                      {(entry.durationMs / 1000).toFixed(1)}s
-                    </span>
-                    <span
-                      className={
-                        entry.status === 'success'
-                          ? 'text-success'
-                          : entry.status === 'cancelled'
-                            ? 'text-warning'
-                            : 'text-error'
-                      }
-                    >
-                      {entry.status}
-                      {entry.errorCode ? ` · ${entry.errorCode.replaceAll('_', ' ')}` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </SettingsGroup>
 
       {/* File Visibility */}
       <SettingsGroup title="File Visibility" description="Control which files are shown" resetKeys={['showIgnoredFiles', 'showUnversionedFiles']}>
@@ -1080,7 +628,7 @@ export function SvnSettings({ settings, onChange, onChangeNested }: SvnSettingsP
             max="300"
             value={settings.connectionTimeout}
             onChange={(e) =>
-              onChange('connectionTimeout', clampedInteger(e.target.value, 5, 300, 30))
+              onChange('connectionTimeout', clampedInteger(e.target.value, 5, 300, 300))
             }
             className="input w-20 text-center"
           />
@@ -2229,6 +1777,21 @@ export function getCredentialEncryptionStatusCopy(
   return `Credential encryption is unavailable on ${platformName}. SVN credentials stay memory-only and are not saved persistently.`;
 }
 
+/** Human-readable explanation for a failed credential verification probe. */
+export function getCredentialVerifyFailureCopy(result: SvnCredentialVerifyResult): string {
+  const detail = result.message ? ` (${result.message})` : '';
+  switch (result.reason) {
+    case 'auth':
+      return `The server rejected these credentials. Check the username and password.${detail}`;
+    case 'network':
+      return `The repository could not be reached, so credentials were not checked.${detail}`;
+    case 'ssl':
+      return `The server certificate could not be trusted. Configure it in the SVN tab and retry.${detail}`;
+    default:
+      return `Verification failed.${detail}`;
+  }
+}
+
 export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) {
   const [credentials, setCredentials] = useState<AuthListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -2239,6 +1802,20 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [platform, setPlatform] = useState<'win32' | 'darwin' | 'linux' | undefined>();
+  const [isAddingCredential, setIsAddingCredential] = useState(false);
+  const [addUrl, setAddUrl] = useState('');
+  const [addUsername, setAddUsername] = useState('');
+  const [addPassword, setAddPassword] = useState('');
+  const [isSavingNewCredential, setIsSavingNewCredential] = useState(false);
+  const [revealed, setRevealed] = useState<{ realm: string; password: string } | null>(null);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [verifyStatus, setVerifyStatus] = useState<{
+    realm: string;
+    state: 'verifying' | 'ok' | 'failed';
+    message?: string;
+  } | null>(null);
+  const [knownRepositoryUrls, setKnownRepositoryUrls] = useState<string[]>([]);
+  const [nativeAuthEntries, setNativeAuthEntries] = useState<SvnNativeAuthEntry[] | null>(null);
   const sshSettings = settings.sshSettings ?? {
     sshClientPath: '',
     useAgent: true,
@@ -2253,8 +1830,36 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
       .then(setPlatform)
       .catch(() => setPlatform(undefined));
 
+    // Supporting lookups are best-effort: URL suggestions from monitored
+    // working copies and the native Subversion cache listing (which includes
+    // credentials written by TortoiseSVN) both enrich the panel but must not
+    // block the core credential list when unavailable.
+    const loadSupportingData = async () => {
+      try {
+        const copies = (await window.api.monitor?.getWorkingCopies?.()) ?? [];
+        const urls = Array.from(
+          new Set(
+            copies
+              .map((copy) => copy.url?.trim())
+              .filter((url): url is string => Boolean(url))
+          )
+        );
+        setKnownRepositoryUrls(urls);
+      } catch {
+        setKnownRepositoryUrls([]);
+      }
+      try {
+        const entries = await window.api.svn?.nativeAuth?.list?.();
+        setNativeAuthEntries(Array.isArray(entries) ? entries : []);
+      } catch {
+        setNativeAuthEntries([]);
+      }
+    };
+    void loadSupportingData();
+
     const loadCredentials = async () => {
       setIsLoading(true);
+      setRevealed(null);
       try {
         const [list, encryptionAvailable] = await Promise.all([
           window.api.auth.list(),
@@ -2278,6 +1883,7 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
       await window.api.auth.delete(realm);
       const list = await window.api.auth.list();
       setCredentials(list);
+      setRevealed(null);
       if (editingRealm === realm) {
         setEditingRealm(null);
         setEditUsername('');
@@ -2302,6 +1908,24 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
     setEditingRealm(credential.realm);
     setEditUsername(credential.username);
     setEditPassword('');
+  };
+
+  const handleReveal = async (realm: string) => {
+    // Toggle back to hidden without another IPC round-trip.
+    if (revealed?.realm === realm) {
+      setRevealed(null);
+      return;
+    }
+    setIsRevealing(true);
+    setCredentialError(null);
+    try {
+      const result = await window.api.auth.reveal(realm);
+      setRevealed({ realm, password: result.password });
+    } catch {
+      setCredentialError('Could not reveal the saved password.');
+    } finally {
+      setIsRevealing(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -2329,6 +1953,81 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
       setCredentialError('Could not update the saved credential.');
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const resetAddForm = () => {
+    setIsAddingCredential(false);
+    setAddUrl('');
+    setAddUsername('');
+    setAddPassword('');
+  };
+
+  const startAddCredential = () => {
+    setCredentialError(null);
+    setVerifyStatus(null);
+    setIsAddingCredential(true);
+    if (!addUrl && knownRepositoryUrls.length > 0) {
+      setAddUrl(knownRepositoryUrls[0]);
+    }
+  };
+
+  /**
+   * Probe the just-stored credentials against their repository so the user
+   * learns immediately whether commits will succeed instead of discovering it
+   * at the next sync. Runs in the background: the credential is saved either
+   * way and the outcome is reported as an inline banner.
+   */
+  const verifySavedCredential = async (realm: string, username: string, password: string) => {
+    try {
+      const result = await window.api.svn?.verifyCredentials?.(realm, username, password);
+      if (!result) return;
+      setVerifyStatus(
+        result.ok
+          ? { realm, state: 'ok' }
+          : { realm, state: 'failed', message: getCredentialVerifyFailureCopy(result) }
+      );
+    } catch {
+      setVerifyStatus({ realm, state: 'failed', message: 'Verification could not be started.' });
+    }
+  };
+
+  const handleSaveNewCredential = async () => {
+    const realm = addUrl.trim();
+    const username = addUsername.trim();
+    const password = addPassword;
+    if (!realm || !username || !password) return;
+
+    setIsSavingNewCredential(true);
+    setCredentialError(null);
+    try {
+      await window.api.auth.beginSession({
+        realm,
+        username,
+        password,
+        persistence: 'stored',
+      });
+      const list = await window.api.auth.list();
+      setCredentials(list);
+      resetAddForm();
+      setVerifyStatus({ realm, state: 'verifying' });
+      void verifySavedCredential(realm, username, password);
+    } catch {
+      setCredentialError('Could not save the new credential.');
+    } finally {
+      setIsSavingNewCredential(false);
+    }
+  };
+
+  const handleRemoveNativeAuthEntry = async (realm: string) => {
+    setCredentialError(null);
+    try {
+      await window.api.svn?.nativeAuth?.remove?.([realm]);
+      setNativeAuthEntries((entries) =>
+        entries ? entries.filter((entry) => entry.realm !== realm) : entries
+      );
+    } catch {
+      setCredentialError('Could not remove the cached Subversion credential.');
     }
   };
 
@@ -2414,8 +2113,151 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
 
       <SettingsGroup
         title="Saved Credentials"
-        description="Authentication data stored for SVN repositories"
+        description="Offered automatically for commits, updates, and other repository operations"
       >
+        {!isAddingCredential && (
+          <div className="flex justify-end mb-3">
+            <button type="button" className="btn btn-secondary" onClick={startAddCredential}>
+              <Plus className="w-4 h-4" />
+              Add Credential
+            </button>
+          </div>
+        )}
+
+        {isAddingCredential && (
+          <form
+            className="p-3 rounded-lg bg-bg-tertiary border border-border space-y-3 mb-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleSaveNewCredential();
+            }}
+          >
+            <div className="space-y-1">
+              <label
+                htmlFor="add-credential-url"
+                className="text-xs font-medium text-text-secondary"
+              >
+                Repository URL
+              </label>
+              <input
+                id="add-credential-url"
+                type="text"
+                value={addUrl}
+                onChange={(e) => setAddUrl(e.target.value)}
+                list="add-credential-known-urls"
+                className="input text-sm"
+                placeholder="https://svn.example.com/repo"
+                autoComplete="off"
+                required
+              />
+              <datalist id="add-credential-known-urls">
+                {knownRepositoryUrls.map((url) => (
+                  <option key={url} value={url} />
+                ))}
+              </datalist>
+              <p className="text-xs text-text-faint">
+                Use the repository root URL — for a working copy created by TortoiseSVN or another
+                client, this lets ShellySVN reuse the same account.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                type="text"
+                value={addUsername}
+                onChange={(e) => setAddUsername(e.target.value)}
+                className="input text-sm"
+                placeholder="Username"
+                aria-label="New credential username"
+                autoComplete="off"
+                required
+              />
+              <input
+                type="password"
+                value={addPassword}
+                onChange={(e) => setAddPassword(e.target.value)}
+                className="input text-sm"
+                placeholder="Password"
+                aria-label="New credential password"
+                autoComplete="new-password"
+                required
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-text-faint">
+                Saved encrypted on this device. ShellySVN will verify the credentials against the
+                repository afterwards.
+              </p>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={resetAddForm}
+                  className="btn-icon-sm text-text-muted hover:bg-bg-secondary"
+                  aria-label="Cancel adding credential"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    isSavingNewCredential || !addUrl.trim() || !addUsername.trim() || !addPassword
+                  }
+                  className="btn-icon-sm text-success hover:bg-success/10 disabled:opacity-50"
+                  aria-label="Save new credential"
+                >
+                  {isSavingNewCredential ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {verifyStatus && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mb-3 rounded-lg border p-3 text-sm ${
+              verifyStatus.state === 'ok'
+                ? 'bg-success/10 border-success/20 text-success'
+                : verifyStatus.state === 'verifying'
+                  ? 'bg-bg-tertiary border-border text-text-muted'
+                  : 'bg-warning/10 border-warning/20 text-warning'
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              {verifyStatus.state === 'ok' ? (
+                <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              ) : verifyStatus.state === 'verifying' ? (
+                <Loader2 className="w-4 h-4 shrink-0 mt-0.5 animate-spin" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0">
+                {verifyStatus.state === 'ok' && (
+                  <span>Credentials verified against {verifyStatus.realm}.</span>
+                )}
+                {verifyStatus.state === 'verifying' && (
+                  <span>Verifying credentials against {verifyStatus.realm}…</span>
+                )}
+                {verifyStatus.state === 'failed' && (
+                  <>
+                    <span>
+                      Saved for {verifyStatus.realm}, but verification did not succeed:{' '}
+                      {verifyStatus.message}
+                    </span>
+                    <span className="block mt-1 text-xs opacity-80">
+                      Edit or remove the entry below and try again.
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="py-8 text-center">
             <Loader2 className="w-8 h-8 text-text-muted mx-auto mb-3 animate-spin" />
@@ -2426,7 +2268,8 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
             <Key className="w-10 h-10 text-text-faint mx-auto mb-3" />
             <p className="text-sm text-text-muted">No saved credentials</p>
             <p className="text-xs text-text-faint mt-1">
-              Credentials are saved automatically when you authenticate
+              Add one with your repository URL, or they are saved automatically when you
+              authenticate
             </p>
           </div>
         ) : (
@@ -2479,29 +2322,72 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 mr-4">
-                      <p className="text-sm font-medium text-text truncate">{cred.username}</p>
-                      <p className="text-xs text-text-muted truncate">{cred.realm}</p>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0 mr-4">
+                        <p className="text-sm font-medium text-text truncate">{cred.username}</p>
+                        <p className="text-xs text-text-muted truncate">{cred.realm}</p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all">
+                        <button
+                          type="button"
+                          onClick={() => void handleReveal(cred.realm)}
+                          disabled={isRevealing}
+                          className="btn-icon-sm text-text-muted hover:bg-bg-secondary disabled:opacity-50"
+                          aria-label={
+                            revealed?.realm === cred.realm
+                              ? `Hide password for ${cred.realm}`
+                              : `Reveal password for ${cred.realm}`
+                          }
+                          data-testid={`reveal-credential-${cred.username}`}
+                        >
+                          {revealed?.realm === cred.realm ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(cred)}
+                          className="btn-icon-sm text-text-muted hover:bg-bg-secondary"
+                          aria-label={`Edit credentials for ${cred.realm}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(cred.realm)}
+                          className="btn-icon-sm text-error hover:bg-error/10"
+                          aria-label={`Delete credentials for ${cred.realm}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(cred)}
-                        className="btn-icon-sm text-text-muted hover:bg-bg-secondary"
-                        aria-label={`Edit credentials for ${cred.realm}`}
+                    {revealed?.realm === cred.realm && (
+                      <div
+                        className="mt-2 flex items-center gap-2 rounded-md border border-border bg-bg-secondary px-2.5 py-1.5"
+                        data-testid={`revealed-password-${cred.username}`}
                       >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(cred.realm)}
-                        className="btn-icon-sm text-error hover:bg-error/10"
-                        aria-label={`Delete credentials for ${cred.realm}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                        <span className="text-xs text-text-faint shrink-0">Password</span>
+                        <code className="flex-1 min-w-0 break-all font-mono text-xs text-text select-all">
+                          {revealed.password.length > 0 ? (
+                            revealed.password
+                          ) : (
+                            <span className="text-warning">(empty — no password stored)</span>
+                          )}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => void handleReveal(cred.realm)}
+                          className="btn-icon-sm text-text-muted hover:bg-bg-secondary shrink-0"
+                          aria-label={`Hide shown password for ${cred.username}`}
+                        >
+                          <EyeOff className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2521,6 +2407,43 @@ export function AuthSettings({ isOpen, settings, onChange }: AuthSettingsProps) 
             Clear All Credentials
           </button>
         </div>
+      )}
+
+      {/* Subversion Native Cache Section (includes TortoiseSVN entries) */}
+      {nativeAuthEntries !== null && (
+        <SettingsGroup
+          title="Subversion Client Cache"
+          description="Credentials cached by the native Subversion client, including those saved by TortoiseSVN or the svn command line. Passwords written by other clients cannot be read here — add them above to use them in ShellySVN."
+        >
+          {nativeAuthEntries.length === 0 ? (
+            <p className="text-sm text-text-muted py-2">No native cached credentials found.</p>
+          ) : (
+            <div className="space-y-2">
+              {nativeAuthEntries.map((entry) => (
+                <div
+                  key={`${entry.kind}:${entry.realm}`}
+                  className="flex items-center justify-between gap-3 p-3 rounded-lg bg-bg-tertiary border border-border"
+                >
+                  <div className="flex-1 min-w-0 mr-4">
+                    <p className="text-sm font-medium text-text truncate">
+                      {entry.username || entry.realm}
+                    </p>
+                    <p className="text-xs text-text-muted truncate">{entry.realm}</p>
+                    <p className="text-xs text-text-faint">{entry.kind}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveNativeAuthEntry(entry.realm)}
+                    className="btn-icon-sm shrink-0 text-error hover:bg-error/10"
+                    aria-label={`Delete native cached credential for ${entry.realm}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </SettingsGroup>
       )}
 
       {/* SSL Certificates Section */}

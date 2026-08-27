@@ -3,6 +3,7 @@ import { useSettings } from '@renderer/hooks/useSettings';
 import { useBatchUpdate } from '@renderer/features/working-copy-command-center/BatchUpdateProvider';
 import {
   createMutationCompletionWatcher,
+  createMutationFailureLog,
   fireDesktopNotification,
   isLongOperation,
   markOperationAnnounced,
@@ -107,6 +108,9 @@ export function OperationNotifications() {
 
   // Any other working-copy mutation (commit, checkout, …).
   useEffect(() => {
+    // The watcher only infers "not successful"; the main process broadcasts the
+    // real failure alongside, so keep the recent ones as the notification body.
+    const failureLog = createMutationFailureLog();
     const watcher = createMutationCompletionWatcher({
       onCompleted: ({ path, durationMs, success }) => {
         announce(
@@ -115,7 +119,7 @@ export function OperationNotifications() {
             label: 'SVN operation',
             durationMs,
             outcome: success ? 'success' : 'failed',
-            detail: success ? undefined : 'The operation did not report success.',
+            detail: success ? undefined : (failureLog.detailFor(path) ?? 'The operation did not report success.'),
           },
           isLongOperation(durationMs)
         );
@@ -128,11 +132,19 @@ export function OperationNotifications() {
     const unsubscribeMutation = window.api.svn.onMutation((notification) => {
       watcher.onMutationNotification(notification.localPaths);
     });
+    const unsubscribeFailure = window.api.svn.onMutationFailed?.((notification) => {
+      failureLog.record(notification.localPaths, {
+        message: notification.message,
+        ...(notification.errorCode ? { errorCode: notification.errorCode } : {}),
+        ...(notification.cancelled ? { cancelled: true } : {}),
+      });
+    });
 
     return () => {
       watcher.dispose();
       unsubscribeState();
       unsubscribeMutation();
+      unsubscribeFailure?.();
     };
   }, [announce]);
 
