@@ -9,6 +9,8 @@ const mockState = vi.hoisted(() => ({
   findForUrl: vi.fn(),
   isEncryptionAvailable: vi.fn().mockReturnValue(true),
   getSvnClientPath: vi.fn().mockReturnValue('svn'),
+  resolveSvnClientPath: vi.fn().mockResolvedValue('svn'),
+  settingsReady: vi.fn().mockResolvedValue(undefined),
   getSvnExecutionContext: vi.fn(),
   sslReady: vi.fn(),
   sslSet: vi.fn(),
@@ -35,6 +37,8 @@ vi.mock('../../auth-cache', () => ({
 vi.mock('../../settings-manager', () => ({
   getSettingsManager: () => ({
     getSvnClientPath: mockState.getSvnClientPath,
+    resolveSvnClientPath: mockState.resolveSvnClientPath,
+    ready: mockState.settingsReady,
     getSvnExecutionContext: mockState.getSvnExecutionContext,
   }),
 }));

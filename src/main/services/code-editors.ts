@@ -11,7 +11,7 @@
  * an id from the UI can only ever select one of these commands, never supply one.
  */
 
-import { spawn, spawnSync } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { constants } from 'fs';
 import { access } from 'fs/promises';
 import { homedir } from 'os';
@@ -109,18 +109,18 @@ function wellKnownDirectories(): string[] {
   ];
 }
 
-function searchDirectories(): string[] {
+async function searchDirectories(): Promise<string[]> {
   const directories = (process.env.PATH ?? '').split(delimiter).filter(Boolean);
 
   if (process.platform !== 'win32') {
-    directories.push(...loginShellPath(), ...wellKnownDirectories());
+    directories.push(...(await loginShellPath()), ...wellKnownDirectories());
   }
 
   // First hit wins, so keep the original order while dropping repeats.
   return Array.from(new Set(directories));
 }
 
-let cachedLoginShellPath: string[] | null = null;
+let cachedLoginShellPath: Promise<string[]> | null = null;
 /**
  * Test seam. Detection reaches into real system directories by design, which
  * would otherwise make a test's answer depend on what is installed on the
@@ -133,32 +133,35 @@ let wellKnownOverride: string[] | null = null;
  * what sources the profile that puts editors on PATH in the first place. Best
  * effort and time-boxed: a shell that hangs must not hold up a context menu.
  */
-function loginShellPath(): string[] {
+async function loginShellPath(): Promise<string[]> {
   if (cachedLoginShellPath) return cachedLoginShellPath;
 
   const shell = process.env.SHELL;
   if (!shell) {
-    cachedLoginShellPath = [];
+    cachedLoginShellPath = Promise.resolve([]);
     return cachedLoginShellPath;
   }
 
-  try {
-    const result = spawnSync(shell, ['-ilc', 'printf %s "$PATH"'], {
-      encoding: 'utf8',
-      timeout: 3000,
-      // A profile that prompts must not block; it just gets no input.
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    cachedLoginShellPath = (result.stdout ?? '').trim().split(delimiter).filter(Boolean);
-  } catch (error) {
-    debug.warn('[Editors] Could not read the login shell PATH:', error);
-    cachedLoginShellPath = [];
-  }
+  cachedLoginShellPath = new Promise<string[]>((resolve) => {
+    execFile(
+      shell,
+      ['-ilc', 'printf %s "$PATH"'],
+      { encoding: 'utf8', timeout: 3000, windowsHide: true },
+      (error, stdout) => {
+        if (error) {
+          debug.warn('[Editors] Could not read the login shell PATH:', error);
+          resolve([]);
+          return;
+        }
+        resolve((stdout ?? '').trim().split(delimiter).filter(Boolean));
+      }
+    );
+  });
   return cachedLoginShellPath;
 }
 
 async function resolveOnPath(command: string): Promise<string | null> {
-  const directories = searchDirectories();
+  const directories = await searchDirectories();
   for (const directory of directories) {
     for (const name of candidateNames(command)) {
       const candidate = join(directory, name);
@@ -197,6 +200,7 @@ let cachedEditors: Promise<AvailableCodeEditor[]> | null = null;
 const resolvedLaunchers = new Map<string, string>();
 
 async function detectPathEditors(): Promise<AvailableCodeEditor[]> {
+  const directories = await searchDirectories();
   const found = await Promise.all(
     KNOWN_EDITORS.map(async (editor) => {
       const resolved = await resolveOnPath(editor.command);
@@ -208,7 +212,7 @@ async function detectPathEditors(): Promise<AvailableCodeEditor[]> {
   const available = found.filter((editor): editor is AvailableCodeEditor => editor !== null);
 
   debug.log(
-    `[Editors] Searched ${searchDirectories().length} directories; found: ${
+    `[Editors] Searched ${directories.length} directories; found: ${
       available.map((editor) => resolvedLaunchers.get(editor.id)).join(', ') || 'none'
     }`
   );
@@ -308,8 +312,9 @@ export async function openInCodeEditor(
   editorId: string,
   targetPath: string
 ): Promise<{ success: boolean; error?: string }> {
-  const { launcher, args, error } = await resolveLaunch(editorId, targetPath);
-  if (error) return { success: false, error };
+  const { launcher, args, error: launchError } = await resolveLaunch(editorId, targetPath);
+  if (launchError) return { success: false, error: launchError };
+  const directories = await searchDirectories();
 
   return new Promise((resolve) => {
     try {
@@ -320,7 +325,7 @@ export async function openInCodeEditor(
         shell: false,
         // Editors shell out to node, git and their own tooling; hand them a PATH
         // that has those on it rather than launchd's four directories.
-        env: { ...process.env, PATH: searchDirectories().join(delimiter) },
+        env: { ...process.env, PATH: directories.join(delimiter) },
       });
       child.once('error', (error) => {
         resolve({ success: false, error: error.message });

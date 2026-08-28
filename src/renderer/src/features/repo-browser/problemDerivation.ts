@@ -2,6 +2,11 @@ import type { SvnExternalsResult, SvnStatusResult } from '@shared/types';
 
 import type { RepoProblem } from './types';
 
+function normalizedStatusPath(path: string): string {
+  const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '');
+  return /^[A-Za-z]:\//.test(normalized) ? normalized.toLocaleLowerCase() : normalized;
+}
+
 /** Pure problem derivation shared by the repository browser and sidebar. */
 export function deriveProblems(options: {
   status: SvnStatusResult | undefined;
@@ -22,9 +27,29 @@ export function deriveProblems(options: {
     incomingCapped = false,
   } = options;
   const problems: RepoProblem[] = [];
+  const missingPaths = new Set(
+    (status?.entries ?? [])
+      .filter((entry) => entry.status === '!')
+      .map((entry) => normalizedStatusPath(entry.path))
+  );
+  const treeConflictPaths = new Set(
+    (status?.entries ?? [])
+      .filter((entry) => entry.treeConflict)
+      .map((entry) => normalizedStatusPath(entry.path))
+  );
 
   for (const entry of status?.entries ?? []) {
-    if (entry.status === 'C') {
+    if (entry.treeConflict) {
+      problems.push({
+        kind: 'tree-conflict',
+        severity: 'blocking',
+        path: entry.path,
+        title: `Tree conflict · ${entry.path}`,
+        explanation:
+          'An incoming structural change collided with a local move or delete. No merge editor can decide which directory structure should win.',
+        command: `svn resolve --accept working "${entry.path}"`,
+      });
+    } else if (entry.status === 'C') {
       problems.push({
         kind: 'text-conflict',
         severity: 'blocking',
@@ -34,16 +59,33 @@ export function deriveProblems(options: {
           'You and someone else changed the same lines. Subversion kept every version alongside the file and stopped, rather than guessing. Commit is blocked until this is resolved.',
         command: `svn resolve --accept working "${entry.path}"`,
       });
-    }
-    if (entry.status === '!') {
+    } else if (entry.status === '!') {
+      // A remote-aware status reports this exact combination when the path was
+      // removed in a newer repository revision. Updating reconciles it; it is
+      // not a local working-copy problem.
+      if (entry.remoteStatus === 'D') continue;
+      let parentPath = normalizedStatusPath(entry.path);
+      let nestedBelowMissingPath = false;
+      while (parentPath.includes('/')) {
+        parentPath = parentPath.slice(0, parentPath.lastIndexOf('/'));
+        if (treeConflictPaths.has(parentPath)) {
+          nestedBelowMissingPath = true;
+          break;
+        }
+        if (missingPaths.has(parentPath)) {
+          nestedBelowMissingPath = true;
+          break;
+        }
+      }
+      if (nestedBelowMissingPath) continue;
       problems.push({
-        kind: 'tree-conflict',
+        kind: 'missing',
         severity: 'blocking',
         path: entry.path,
-        title: `Missing or tree conflict · ${entry.path}`,
+        title: `Missing · ${entry.path}`,
         explanation:
-          'The item is versioned but absent from disk, or an incoming change collided with a local move or delete. No merge editor helps with this — it needs a decision about which structure wins.',
-        command: `svn resolve --accept working "${entry.path}"`,
+          'The working copy still expects this versioned item, but it is absent from disk. Restore it, or schedule its deletion explicitly before committing.',
+        command: `svn revert "${entry.path}"`,
       });
     }
     if (entry.lock) {

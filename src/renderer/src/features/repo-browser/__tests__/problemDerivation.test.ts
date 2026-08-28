@@ -54,7 +54,7 @@ describe('deriveProblems', () => {
     expect(problems[0].command).toContain('svn resolve');
   });
 
-  it('flags a missing / tree-conflict item ("!") as blocking', () => {
+  it('flags a plain missing item as missing rather than a tree conflict', () => {
     const problems = deriveProblems({
       status: {
         path: '/wc',
@@ -66,8 +66,82 @@ describe('deriveProblems', () => {
     });
 
     expect(problems).toHaveLength(1);
-    expect(problems[0].kind).toBe('tree-conflict');
+    expect(problems[0].kind).toBe('missing');
     expect(problems[0].severity).toBe('blocking');
+    expect(problems[0].command).toContain('svn revert');
+  });
+
+  it('reserves tree-conflict classification for SVN tree-conflict metadata', () => {
+    const problems = deriveProblems({
+      status: {
+        path: '/wc',
+        revision: 1,
+        entries: [
+          statusEntry({
+            path: 'src',
+            status: 'C',
+            treeConflict: { operation: 'update', action: 'delete', reason: 'edited' },
+          }),
+        ],
+      } as SvnStatusResult,
+      externals: { externals: [] } as SvnExternalsResult,
+      localPath: '/wc',
+    });
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0].kind).toBe('tree-conflict');
+  });
+
+  it('does not flag a missing path that remote status confirms was deleted upstream', () => {
+    const problems = deriveProblems({
+      status: {
+        path: '/wc',
+        revision: 1,
+        remoteChecked: true,
+        entries: [statusEntry({ path: 'old', status: '!', remoteStatus: 'D' })],
+      },
+      externals: undefined,
+      localPath: '/wc',
+    });
+
+    expect(problems).toEqual([]);
+  });
+
+  it('counts a missing folder once instead of counting all missing descendants', () => {
+    const problems = deriveProblems({
+      status: {
+        path: '/wc',
+        revision: 1,
+        entries: [
+          statusEntry({ path: 'old', status: '!' }),
+          statusEntry({ path: 'old/file.txt', status: '!' }),
+          statusEntry({ path: 'old/nested/file.txt', status: '!' }),
+        ],
+      },
+      externals: undefined,
+      localPath: '/wc',
+    });
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0].path).toBe('old');
+  });
+
+  it('does not list missing descendants already explained by a parent tree conflict', () => {
+    const problems = deriveProblems({
+      status: {
+        path: '/wc',
+        revision: 1,
+        entries: [
+          statusEntry({ path: '/wc/old', status: 'C', treeConflict: {} }),
+          statusEntry({ path: '/wc/old/file.txt', status: '!' }),
+        ],
+      },
+      externals: undefined,
+      localPath: '/wc',
+    });
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0].kind).toBe('tree-conflict');
   });
 
   describe('stale locks', () => {
@@ -301,9 +375,9 @@ describe('deriveProblems', () => {
       incomingRevisions: 2,
     });
 
-    const kinds = problems.map((p) => p.kind).sort();
+    const kinds = problems.map((p) => p.kind).toSorted();
     expect(kinds).toEqual(
-      ['floating-external', 'needs-cleanup', 'out-of-date', 'text-conflict', 'tree-conflict'].sort()
+      ['floating-external', 'missing', 'needs-cleanup', 'out-of-date', 'text-conflict'].toSorted()
     );
   });
 });

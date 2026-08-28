@@ -345,14 +345,7 @@ describe('svn-repository-ops createRemoteFolder', () => {
       { credentials: undefined }
     );
     expect(mockState.runSvnText).toHaveBeenLastCalledWith(
-      [
-        'mkdir',
-        '-m',
-        'msg',
-        '--non-interactive',
-        '--',
-        'svn://xn--hst-sna/repo/trunk',
-      ],
+      ['mkdir', '-m', 'msg', '--non-interactive', '--', 'svn://xn--hst-sna/repo/trunk'],
       { credentials: undefined }
     );
   });
@@ -763,6 +756,38 @@ describe('svn-repository-ops resolveConflict', () => {
       2,
       ['status', '--xml', '--', 'C:\\wc\\conflict.txt'],
       { trustSslFailures: false }
+    );
+  });
+
+  it('passes an explicit recursive depth when accepting a directory tree change', async () => {
+    await expect(
+      resolveConflict('C:\\wc\\conflicted-folder', 'theirs-full', 'infinity')
+    ).resolves.toEqual({ success: true });
+
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      1,
+      [
+        'resolve',
+        '--accept',
+        'theirs-full',
+        '--depth',
+        'infinity',
+        '--',
+        'C:\\wc\\conflicted-folder',
+      ],
+      { trustSslFailures: false }
+    );
+  });
+
+  it('uses SVN interactive choice a for an incoming deletion with no --accept equivalent', async () => {
+    await expect(
+      resolveConflict('C:\\wc\\conflicted-folder', 'incoming-deletion')
+    ).resolves.toEqual({ success: true });
+
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      1,
+      ['resolve', '--', 'C:\\wc\\conflicted-folder'],
+      { trustSslFailures: false, stdinInput: 'a' }
     );
   });
 });

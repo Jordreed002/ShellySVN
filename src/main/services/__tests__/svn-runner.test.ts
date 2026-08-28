@@ -33,12 +33,20 @@ vi.mock('../../utils/debug', () => ({
 import { runResolvedSvn, toSvnSpawnArgs, toSvnSpawnCwd } from '../svn-runner';
 
 function makeFakeProcess(): EventEmitter & {
-  stdin: { on: ReturnType<typeof vi.fn>; write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+  stdin: {
+    on: ReturnType<typeof vi.fn>;
+    write: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+  };
   stdout: EventEmitter;
   stderr: EventEmitter;
 } {
   const proc = new EventEmitter() as never as EventEmitter & {
-    stdin: { on: ReturnType<typeof vi.fn>; write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+    stdin: {
+      on: ReturnType<typeof vi.fn>;
+      write: ReturnType<typeof vi.fn>;
+      end: ReturnType<typeof vi.fn>;
+    };
     stdout: EventEmitter;
     stderr: EventEmitter;
   };

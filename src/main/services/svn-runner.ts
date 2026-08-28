@@ -85,6 +85,8 @@ export interface RunResolvedSvnOptions {
   maxStdoutBytes?: number;
   maxStderrBytes?: number;
   binaryStdout?: boolean;
+  /** Pre-approved input; stdin remains a pipe and no terminal is attached. */
+  stdinInput?: string;
 }
 
 export interface RunSvnResult {
@@ -342,7 +344,7 @@ export async function runResolvedSvn(
     // ShellySVN cannot respond to terminal prompts. Apply this consistently
     // so every command either uses configured/native credentials or fails
     // promptly with an actionable authentication error.
-    if (!finalArgs.includes('--non-interactive')) {
+    if (options.stdinInput === undefined && !finalArgs.includes('--non-interactive')) {
       addGeneratedArgs('--non-interactive');
     }
 
@@ -420,6 +422,10 @@ export async function runResolvedSvn(
         // text-mode stdin masked it by translating \n to \r\n.
         const terminator = process.platform === 'win32' ? '\r\n' : '\n';
         proc.stdin.write(`${passwordViaStdin}${terminator}`);
+      }
+      if (options.stdinInput !== undefined) {
+        const terminator = process.platform === 'win32' ? '\r\n' : '\n';
+        proc.stdin.write(`${options.stdinInput}${terminator}`);
       }
       // Always close stdin. --non-interactive is set on every command, so svn
       // never needs interactive input; leaving the pipe open lets svn block on

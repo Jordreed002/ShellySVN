@@ -104,16 +104,33 @@ export async function importRepositoryWithProgress(
 
 export async function resolveConflict(
   path: string,
-  resolution: 'base' | 'mine-full' | 'theirs-full' | 'mine-conflict' | 'theirs-conflict' | 'working'
-): Promise<{ success: boolean }> {
+  resolution:
+    | 'base'
+    | 'mine-full'
+    | 'theirs-full'
+    | 'mine-conflict'
+    | 'theirs-conflict'
+    | 'working'
+    | 'incoming-deletion',
+  depth?: 'empty' | 'files' | 'immediates' | 'infinity'
+): Promise<{ success: boolean; error?: string }> {
   validateSvnTargets([path], 'Conflict target');
   const context = await getWorkingCopyContext(path);
   const workingCopyRoot = context?.workingCopyRoot ?? path;
   return runSerializedWorkingCopyMutation(workingCopyRoot, async () => {
-    await runSvnText(
-      withSvnTargets(['resolve', '--accept', resolution], [path]),
-      await getNetworkOptionsForWorkingCopyPath(path)
-    );
+    const networkOptions = await getNetworkOptionsForWorkingCopyPath(path);
+    if (resolution === 'incoming-deletion') {
+      // SVN exposes this only as `(a) Accept incoming deletion`; its help
+      // deliberately lists no corresponding --accept argument.
+      await runSvnText(withSvnTargets(['resolve'], [path]), {
+        ...networkOptions,
+        stdinInput: 'a',
+      });
+    } else {
+      const args = ['resolve', '--accept', resolution];
+      if (depth) args.push('--depth', depth);
+      await runSvnText(withSvnTargets(args, [path]), networkOptions);
+    }
     const statusXml = await runSvnText(
       withSvnTargets(['status', '--xml'], [path]),
       await getNetworkOptionsForWorkingCopyPath(path)

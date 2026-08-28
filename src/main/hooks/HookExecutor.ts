@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { BrowserWindow } from 'electron';
-import { accessSync, constants, statSync } from 'fs';
+import { constants } from 'fs';
+import { access, stat } from 'fs/promises';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { terminateProcessTree } from '../utils/process-tree';
 import { sendToRenderer } from '../utils/safe-renderer-send';
@@ -46,23 +47,23 @@ export interface HookResult {
  * Execute a single hook script
  */
 export async function executeHook(hook: HookScript, context: HookContext): Promise<HookResult> {
-  return new Promise((resolve) => {
-    let hookPath: string;
-    try {
-      hookPath = assertPathApprovedForIpc(hook.path, `Hook "${hook.name}"`);
-      if (!statSync(hookPath).isFile()) {
-        throw new Error('Hook path must point to a file.');
-      }
-      if (process.platform !== 'win32') {
-        accessSync(hookPath, constants.X_OK);
-      }
-    } catch (error) {
-      resolve({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return;
+  let hookPath: string;
+  try {
+    hookPath = assertPathApprovedForIpc(hook.path, `Hook "${hook.name}"`);
+    if (!(await stat(hookPath)).isFile()) {
+      throw new Error('Hook path must point to a file.');
     }
+    if (process.platform !== 'win32') {
+      await access(hookPath, constants.X_OK);
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  return new Promise((resolve) => {
 
     const args = [context.workingCopyPath];
 

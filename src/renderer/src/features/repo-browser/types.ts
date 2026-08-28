@@ -111,6 +111,7 @@ export interface ComparandOption {
 export type ProblemKind =
   | 'tree-conflict'
   | 'text-conflict'
+  | 'missing'
   | 'needs-cleanup'
   | 'stale-lock'
   | 'floating-external'

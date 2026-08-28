@@ -202,6 +202,8 @@ export interface RunSvnOptions {
   maxStdoutBytes?: number;
   maxStderrBytes?: number;
   binaryStdout?: boolean;
+  /** Pre-approved input for an SVN workflow that has no flag-based equivalent. */
+  stdinInput?: string;
 }
 
 export interface ResolvedSvnExecution {
@@ -372,7 +374,7 @@ export async function resolveSvnExecution(
   };
 
   return {
-    svnCommand: settingsManager.getSvnClientPath(),
+    svnCommand: await settingsManager.resolveSvnClientPath(),
     context,
   };
 }
@@ -432,6 +434,7 @@ async function runResolvedCommand(
     maxStdoutBytes: options.maxStdoutBytes,
     maxStderrBytes: options.maxStderrBytes,
     binaryStdout: options.binaryStdout,
+    stdinInput: options.stdinInput,
   });
 }
 

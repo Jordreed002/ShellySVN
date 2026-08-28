@@ -10,11 +10,6 @@ import {
   runSerializedWorkingCopyMutation,
 } from '../svn-mutation-queue';
 
-async function flushMicrotasks() {
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 describe('svn-mutation-queue', () => {
   it('serializes mutations for the same working-copy key', async () => {
     const order: string[] = [];
@@ -35,7 +30,7 @@ describe('svn-mutation-queue', () => {
     });
     const second = runSerializedWorkingCopyMutation('c:\\wc', secondTask);
 
-    await flushMicrotasks();
+    await vi.waitFor(() => expect(releaseFirst).toBeTypeOf('function'));
     expect(secondTask).not.toHaveBeenCalled();
 
     releaseFirst();
@@ -88,7 +83,7 @@ describe('svn-mutation-queue', () => {
           })
       );
       const second = runSerializedWorkingCopyMutation(secondPath, secondTask);
-      await flushMicrotasks();
+      await vi.waitFor(() => expect(releaseFirst).toBeTypeOf('function'));
       expect(secondTask).not.toHaveBeenCalled();
       releaseFirst();
       await Promise.all([first, second]);

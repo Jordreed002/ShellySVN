@@ -55,6 +55,13 @@ const KIND_PRIMER: Record<ProblemKind, KindPrimer> = {
       'The file on disk currently contains markers rather than working code, and commit is refused for that path until it is resolved.',
     icon: <FileWarning className="h-4 w-4" aria-hidden="true" />,
   },
+  missing: {
+    cause:
+      'This versioned path is recorded in the working copy metadata but is no longer present on disk.',
+    consequence:
+      'Restore it with revert, or schedule its deletion explicitly. If it was deleted upstream, update the working copy to reconcile that repository change.',
+    icon: <FileWarning className="h-4 w-4" aria-hidden="true" />,
+  },
   'needs-cleanup': {
     cause:
       'An operation — an update, a commit, a switch — was interrupted part-way through. Subversion takes an internal lock on the working copy before it starts writing, and it never got to release it.',
@@ -88,6 +95,7 @@ const KIND_PRIMER: Record<ProblemKind, KindPrimer> = {
 const KIND_LABEL: Record<ProblemKind, string> = {
   'tree-conflict': 'Tree conflict',
   'text-conflict': 'Text conflict',
+  missing: 'Missing',
   'needs-cleanup': 'Needs cleanup',
   'stale-lock': 'Stale lock',
   'floating-external': 'Floating external',

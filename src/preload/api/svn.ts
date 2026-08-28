@@ -315,7 +315,10 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       invokeWithOperationProgress(ipcRenderer, 'import', onProgress, (operationId) =>
         invokeIpc('svn:importWithProgress', operationId, path, url, message)
       ),
-    resolve: (path, resolution) => invokeIpc('svn:resolve', path, resolution),
+    resolve: (path, resolution, depth?) =>
+      depth
+        ? invokeIpc('svn:resolve', path, resolution, depth)
+        : invokeIpc('svn:resolve', path, resolution),
     switch: (path, url, revision?) => invokeIpc('svn:switch', path, url, revision),
     validateSwitchOrRelocate: (input) => invokeIpc('svn:validateSwitchOrRelocate', input),
     copy: (src, dst, message, authSessionId?) =>

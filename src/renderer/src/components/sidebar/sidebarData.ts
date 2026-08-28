@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SvnShelveListResult, SvnStatusChar, SvnStatusResult } from '@shared/types';
 // Read-only imports: the rail derives its local facts with the same pure
@@ -65,7 +65,8 @@ const NON_CHANGE: ReadonlySet<SvnStatusChar> = new Set([' ', '?', 'I', 'X'] as S
  */
 const PROBLEM_WORD: Record<ProblemKind, { one: string; many: string }> = {
   'text-conflict': { one: 'conflicted (C)', many: 'conflicted (C)' },
-  'tree-conflict': { one: 'missing (!)', many: 'missing (!)' },
+  'tree-conflict': { one: 'tree conflict (C)', many: 'tree conflicts (C)' },
+  missing: { one: 'missing (!)', many: 'missing (!)' },
   'needs-cleanup': { one: 'needs cleanup', many: 'need cleanup' },
   'stale-lock': { one: 'stale lock', many: 'stale locks' },
   'floating-external': { one: 'floating external', many: 'floating externals' },
@@ -76,6 +77,7 @@ const PROBLEM_WORD: Record<ProblemKind, { one: string; many: string }> = {
 const PROBLEM_ORDER: ProblemKind[] = [
   'text-conflict',
   'tree-conflict',
+  'missing',
   'needs-cleanup',
   'stale-lock',
   'floating-external',
@@ -130,6 +132,8 @@ export interface RepoStatusCounts {
   problems: WorkingCopyProblems;
   source: 'network' | 'cache';
   cacheAge: number;
+  /** Local entries retained so only checkouts with missing paths need a remote probe. */
+  statusResult?: SvnStatusResult;
 }
 
 async function readRepoStatusCounts(path: string): Promise<RepoStatusCounts> {
@@ -151,6 +155,7 @@ async function readRepoStatusCounts(path: string): Promise<RepoStatusCounts> {
     problems: deriveStatusProblems(result, path),
     source: cachedRead.source,
     cacheAge: cachedRead.age,
+    statusResult: result,
   };
 }
 
@@ -215,6 +220,29 @@ export interface WorkingCopySummary {
 
 const EMPTY_OVERVIEW: ReadonlyMap<string, WorkingCopySummary> = new Map();
 
+/** Replace local-only problem counts with remote-aware counts as probes resolve. */
+export function reconcileOverviewProblems(
+  paths: string[],
+  overview: ReadonlyMap<string, WorkingCopySummary>,
+  remoteStatuses: Array<SvnStatusResult | undefined>
+): ReadonlyMap<string, WorkingCopySummary> {
+  let reconciled: Map<string, WorkingCopySummary> | undefined;
+  for (let index = 0; index < paths.length; index += 1) {
+    const remote = remoteStatuses[index];
+    const summary = overview.get(paths[index]);
+    if (!remote || remote.error || !summary?.status) continue;
+    reconciled ??= new Map(overview);
+    reconciled.set(paths[index], {
+      ...summary,
+      status: {
+        ...summary.status,
+        problems: deriveStatusProblems(remote, paths[index]),
+      },
+    });
+  }
+  return reconciled ?? overview;
+}
+
 /**
  * Status and `svn info` for every working copy in the rail, resolved in one
  * query so the rows stay presentational.
@@ -260,8 +288,29 @@ export function useWorkingCopyOverview(paths: string[]): ReadonlyMap<string, Wor
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: true,
   });
+  const overview = data ?? EMPTY_OVERVIEW;
+  const remoteStatuses = useQueries({
+    queries: paths.map((path) => ({
+      queryKey: ['sidebar:status-remote', path] as const,
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        window.api.svn.statusRemote(path, { signal }),
+      enabled: Boolean(
+        overview.get(path)?.status?.statusResult?.entries.some((entry) => entry.status === '!')
+      ),
+      retry: false,
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: true,
+    })),
+  });
 
-  return data ?? EMPTY_OVERVIEW;
+  return useMemo(() => {
+    return reconcileOverviewProblems(
+      paths,
+      overview,
+      remoteStatuses.map((result) => result.data)
+    );
+  }, [overview, paths, remoteStatuses]);
 }
 
 /** A repository root, plus the working copies checked out from it. */

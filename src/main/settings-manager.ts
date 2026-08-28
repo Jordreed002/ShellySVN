@@ -14,9 +14,9 @@
  */
 
 import { app, safeStorage } from 'electron';
-import { readFile, access, chmod } from 'fs/promises';
-import { accessSync, constants, existsSync, statSync } from 'fs';
-import { spawnSync } from 'child_process';
+import { readFile, access, chmod, stat } from 'fs/promises';
+import { constants } from 'fs';
+import { execFile } from 'child_process';
 import { join } from 'path';
 import type { AppSettings, SvnExecutionContext, ProxySettings } from '@shared/types';
 import { mergeDeep, mergeSettings, DEFAULT_SETTINGS } from '@shared/settings-defaults';
@@ -177,7 +177,7 @@ class SettingsManager {
     await this.save();
   }
 
-  private validateSvnClientPath(path: string): void {
+  private async validateSvnClientPath(path: string): Promise<void> {
     const trimmedPath = path.trim();
     this.validatedSvnClient = null;
     if (!trimmedPath) return;
@@ -190,29 +190,33 @@ class SettingsManager {
       );
     }
 
-    if (!existsSync(approvedPath)) {
+    let stats;
+    try {
+      stats = await stat(approvedPath);
+    } catch {
       throw new Error('Custom SVN client path does not exist.');
     }
-
-    const stats = statSync(approvedPath);
     if (!stats.isFile()) {
       throw new Error('Custom SVN client path must point to an executable file.');
     }
     if (process.platform !== 'win32') {
       try {
-        accessSync(approvedPath, constants.X_OK);
+        await access(approvedPath, constants.X_OK);
       } catch {
         throw new Error('Custom SVN client path is not executable.');
       }
     }
 
-    const version = spawnSync(approvedPath, ['--version', '--quiet'], {
-      timeout: 3000,
-      windowsHide: true,
-      encoding: 'utf-8',
-    });
-
-    if (version.error || version.status !== 0) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          approvedPath,
+          ['--version', '--quiet'],
+          { timeout: 3000, windowsHide: true, encoding: 'utf-8' },
+          (error) => (error ? reject(error) : resolve())
+        );
+      });
+    } catch {
       throw new Error('Custom SVN client path did not run `svn --version --quiet` successfully.');
     }
 
@@ -223,21 +227,27 @@ class SettingsManager {
     };
   }
 
-  private isSvnClientValidationCurrent(path: string): boolean {
+  private async isSvnClientValidationCurrent(path: string): Promise<boolean> {
     const cached = this.validatedSvnClient;
     if (!cached || cached.path !== path) return false;
     try {
-      const stats = statSync(path);
+      const stats = await stat(path);
       return stats.isFile() && stats.size === cached.size && stats.mtimeMs === cached.modifiedAt;
     } catch {
       return false;
     }
   }
 
-  private validateLogCacheSettings(path?: string, maxSize?: number): void {
+  private async validateLogCacheSettings(path?: string, maxSize?: number): Promise<void> {
     if (path !== undefined && path.trim()) {
       const approvedPath = assertPathApprovedForIpc(path.trim(), 'Custom SVN cache storage');
-      if (!existsSync(approvedPath) || !statSync(approvedPath).isDirectory()) {
+      let isDirectory = false;
+      try {
+        isDirectory = (await stat(approvedPath)).isDirectory();
+      } catch {
+        // Report the same user-facing validation error for missing paths.
+      }
+      if (!isDirectory) {
         throw new Error('Custom SVN cache storage must be an existing directory.');
       }
     }
@@ -349,9 +359,9 @@ class SettingsManager {
     await this.loadPromise;
 
     if (updates.svnClientPath !== undefined) {
-      this.validateSvnClientPath(updates.svnClientPath);
+      await this.validateSvnClientPath(updates.svnClientPath);
     }
-    this.validateLogCacheSettings(updates.logCachePath, updates.maxLogCacheSize);
+    await this.validateLogCacheSettings(updates.logCachePath, updates.maxLogCacheSize);
     if (updates.diffMerge?.externalDiffTool !== undefined) {
       if (updates.diffMerge.externalDiffTool.startsWith('registered:')) {
         // Registry ownership and role are checked when the tool is launched.
@@ -429,10 +439,9 @@ class SettingsManager {
           this.settings.svnClientPath.trim(),
           'Custom SVN client selection'
         );
-        if (!this.isSvnClientValidationCurrent(approvedPath)) {
-          this.validateSvnClientPath(approvedPath);
-        }
-        return approvedPath;
+        // This synchronous accessor must never launch a process on Electron's
+        // main event loop. Async callers use resolveSvnClientPath() below.
+        if (this.validatedSvnClient?.path === approvedPath) return approvedPath;
       } catch (error) {
         console.warn(
           '[SECURITY] Ignoring invalid custom SVN client path:',
@@ -442,6 +451,29 @@ class SettingsManager {
     }
     // Default to system SVN
     return process.platform === 'win32' ? 'svn.exe' : 'svn';
+  }
+
+  /** Resolve and validate the configured executable without blocking Electron. */
+  async resolveSvnClientPath(): Promise<string> {
+    const configuredPath = this.settings.svnClientPath?.trim();
+    if (!configuredPath) return this.getSvnClientPath();
+
+    try {
+      const approvedPath = assertPathApprovedForIpc(
+        configuredPath,
+        'Custom SVN client selection'
+      );
+      if (!(await this.isSvnClientValidationCurrent(approvedPath))) {
+        await this.validateSvnClientPath(approvedPath);
+      }
+      return approvedPath;
+    } catch (error) {
+      console.warn(
+        '[SECURITY] Ignoring invalid custom SVN client path:',
+        (error as Error).message
+      );
+      return process.platform === 'win32' ? 'svn.exe' : 'svn';
+    }
   }
 
   /**

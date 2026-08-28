@@ -130,14 +130,19 @@ const genStatusEntry = genRecord({
   // converted by fast-xml-parser and surfaces as number/boolean on
   // SvnStatusEntry.changelist despite the string type. The generator stays
   // in the string-typed domain with a "cl-" prefix that can never convert.
-  changelist: genOptional(genMap(genTrimmedText, (name) => `cl-${name}`), 0.3),
+  changelist: genOptional(
+    genMap(genTrimmedText, (name) => `cl-${name}`),
+    0.3
+  ),
 });
 
 function serializeStatusEntry(entry: GeneratedStatusEntry, indent: string): string {
   const attrs = [`path="${xmlEscape(entry.path)}"`];
   if (entry.props !== undefined) attrs.push(`props="${entry.props}"`);
   if (entry.switched === 'true') attrs.push('switched="true"');
-  const wcStatus: string[] = [`<wc-status item="${entry.item}"${attrs.length > 1 ? ` ${attrs.slice(1).join(' ')}` : ''}`];
+  const wcStatus: string[] = [
+    `<wc-status item="${entry.item}"${attrs.length > 1 ? ` ${attrs.slice(1).join(' ')}` : ''}`,
+  ];
   let wcBody = '';
   if (entry.commit) {
     wcBody += `<commit revision="${entry.commit.revision}"><author>${xmlEscape(entry.commit.author)}</author><date>${xmlEscape(entry.commit.date)}</date></commit>`;
@@ -146,7 +151,8 @@ function serializeStatusEntry(entry: GeneratedStatusEntry, indent: string): stri
     wcBody += `<lock><owner>${xmlEscape(entry.lock.owner)}</owner><comment>${xmlEscape(entry.lock.comment)}</comment><creationdate>${xmlEscape(entry.lock.creationdate)}</creationdate></lock>`;
   }
   if (entry.hasTreeConflict) {
-    wcBody += '<tree-conflict operation="update" action="edited" reason="edited" type="directory"/>';
+    wcBody +=
+      '<tree-conflict operation="update" action="edited" reason="edited" type="directory"/>';
   }
   let reposXml = '';
   if (entry.repos) {
@@ -183,12 +189,12 @@ function serializeStatusXml(entries: GeneratedStatusEntry[]): string {
 /** The semantic entry the parser must produce for a generated entry. */
 function expectedStatusEntry(entry: GeneratedStatusEntry): Record<string, unknown> {
   const itemChar = ITEM_TO_CHAR[entry.item] ?? ' ';
-  const propsChar = entry.props === undefined ? undefined : ITEM_TO_CHAR[entry.props] ?? ' ';
+  const propsChar = entry.props === undefined ? undefined : (ITEM_TO_CHAR[entry.props] ?? ' ');
   const propsStatus = propsChar === ' ' || propsChar === undefined ? undefined : propsChar;
-  const remoteItemChar = entry.repos ? ITEM_TO_CHAR[entry.repos.item] ?? ' ' : undefined;
+  const remoteItemChar = entry.repos ? (ITEM_TO_CHAR[entry.repos.item] ?? ' ') : undefined;
   const remotePropsChar =
     entry.repos && entry.repos.props !== undefined
-      ? ITEM_TO_CHAR[entry.repos.props] ?? ' '
+      ? (ITEM_TO_CHAR[entry.repos.props] ?? ' ')
       : undefined;
   return {
     path: entry.path,
@@ -220,6 +226,19 @@ function expectedStatusEntry(entry: GeneratedStatusEntry): Record<string, unknow
 }
 
 describe('parseSvnStatusXml properties', () => {
+  it('recognizes the tree-conflicted attribute emitted by svn status --xml', () => {
+    const result = parseSvnStatusXml(
+      '<status><target path="C:/wc"><entry path="C:/wc/added"><wc-status item="added" props="normal" copied="true" tree-conflicted="true"/></entry></target></status>',
+      'C:/wc'
+    );
+
+    expect(result.entries[0]).toMatchObject({
+      path: 'C:/wc/added',
+      status: 'C',
+      treeConflict: {},
+    });
+  });
+
   it('round-trips generated status entries (semantic field equality)', () => {
     forAll(
       genArray(genStatusEntry, { min: 1, max: 8 }),
@@ -243,7 +262,9 @@ describe('parseSvnStatusXml properties', () => {
           ...[...changelists.values()].flat(),
         ];
         const expected = orderedEntries.map((entry) => stripUndefined(expectedStatusEntry(entry)));
-        const actual = result.entries.map((entry) => stripUndefined(entry as Record<string, unknown>));
+        const actual = result.entries.map((entry) =>
+          stripUndefined(entry as Record<string, unknown>)
+        );
         expect(actual).toStrictEqual(expected);
         const anyRemote = entries.some((entry) => entry.repos !== undefined);
         expect(result.remoteChecked).toBe(anyRemote);
@@ -315,7 +336,10 @@ const genLogEntry = genRecord({
   paths: genArray(genLogPath, { min: 0, max: 5 }),
   revprops: genOptional(
     genArray(
-      genRecord({ name: genXmlText(1), value: genMap(genUnicodeString({ minLen: 0, maxLen: 10 }), (raw) => raw.trim()) }),
+      genRecord({
+        name: genXmlText(1),
+        value: genMap(genUnicodeString({ minLen: 0, maxLen: 10 }), (raw) => raw.trim()),
+      }),
       { min: 1, max: 3 }
     ),
     0.3
@@ -331,7 +355,8 @@ function serializeLogEntry(entry: GeneratedLogEntry): string {
     body += `<paths>${entry.paths
       .map((path) => {
         const attrs = [`action="${path.action}"`];
-        if (path.copyFromPath !== undefined) attrs.push(`copyfrom-path="${xmlEscape(path.copyFromPath)}"`);
+        if (path.copyFromPath !== undefined)
+          attrs.push(`copyfrom-path="${xmlEscape(path.copyFromPath)}"`);
         if (path.copyFromRev !== undefined) attrs.push(`copyfrom-rev="${path.copyFromRev}"`);
         return `<path ${attrs.join(' ')}>${xmlEscape(path.text)}</path>`;
       })

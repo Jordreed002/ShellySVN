@@ -717,7 +717,11 @@ export type AiCommitProvider =
   | 'openai-compatible'
   | 'ollama';
 /** Wire protocol a custom provider speaks; maps 1:1 onto the HTTP adapter registry. */
-export type AiCustomProviderProtocol = 'anthropic' | 'azure-openai' | 'openai-compatible' | 'ollama';
+export type AiCustomProviderProtocol =
+  | 'anthropic'
+  | 'azure-openai'
+  | 'openai-compatible'
+  | 'ollama';
 /** Built-in provider id, or a user-defined custom provider id (`custom:<slug>`). */
 export type AiProviderId = AiCommitProvider | `custom:${string}`;
 export type AiCodexModel = 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol';
@@ -1785,7 +1789,9 @@ export interface ElectronAPI {
       remoteProperties: boolean;
     }>;
     onMutation: (callback: (notification: SvnMutationNotification) => void) => () => void;
-    onMutationFailed: (callback: (notification: SvnMutationFailureNotification) => void) => () => void;
+    onMutationFailed: (
+      callback: (notification: SvnMutationFailureNotification) => void
+    ) => () => void;
     getActiveWorkingCopyMutations: () => Promise<string[]>;
     onWorkingCopyMutationStateChanged: (callback: (paths: string[]) => void) => () => void;
     nativeAuth: {
@@ -1972,7 +1978,9 @@ export interface ElectronAPI {
         | 'mine-conflict'
         | 'theirs-conflict'
         | 'working'
-    ) => Promise<{ success: boolean }>;
+        | 'incoming-deletion',
+      depth?: SvnUpdateDepth
+    ) => Promise<{ success: boolean; error?: string }>;
     switch: (
       path: string,
       url: string,
@@ -2142,10 +2150,7 @@ export interface ElectronAPI {
       onProgress?: (progress: SvnWorkingCopyRepairProgress) => void
     ) => Promise<SvnWorkingCopyRepairResult>;
     /** Detect the trunk/branches/tags layout of a repository root URL. */
-    getRepositoryLayout: (
-      url: string,
-      authSessionId?: string
-    ) => Promise<SvnRepoLayout>;
+    getRepositoryLayout: (url: string, authSessionId?: string) => Promise<SvnRepoLayout>;
     /** Analyze a working copy's pristine store (sizes, orphans, vacuum advice). */
     analyzePristine: (
       workingCopyPath: string,
@@ -2358,9 +2363,7 @@ export interface ElectronAPI {
   };
   lifecycle: {
     /** Stale `.svn/lock` leftovers detected at startup (one event per working copy). */
-    onStaleWorkingCopyLock: (
-      callback: (info: StaleWorkingCopyLockInfo) => void
-    ) => () => void;
+    onStaleWorkingCopyLock: (callback: (info: StaleWorkingCopyLockInfo) => void) => () => void;
     getStaleWorkingCopyLocks: () => Promise<StaleWorkingCopyLockInfo[]>;
     /** Explicitly confirmed removal of a stale `.svn/lock` file. */
     removeStaleWorkingCopyLock: (
@@ -2379,9 +2382,7 @@ export interface ElectronAPI {
     ) => () => void;
     getInterruptedMutationRecoveryPlans: () => Promise<InterruptedMutationRecoveryPlan[]>;
     /** Explicitly invoked recovery execution for one working copy's plan. */
-    executeInterruptedMutationRecoveryPlan: (
-      workingCopyPath: string
-    ) => Promise<{
+    executeInterruptedMutationRecoveryPlan: (workingCopyPath: string) => Promise<{
       success: boolean;
       error?: string;
       workingCopyPath?: string;
@@ -3073,7 +3074,6 @@ export interface ApplyRelinkResult {
   success: boolean;
   error?: string;
 }
-
 
 export interface WorkingCopyHealthIssue {
   id: string;

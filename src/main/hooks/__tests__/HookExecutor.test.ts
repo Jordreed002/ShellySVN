@@ -14,12 +14,12 @@ const terminateProcessTree = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('child_process', () => ({ spawn }));
 vi.mock('../../utils/process-tree', () => ({ terminateProcessTree }));
 
-vi.mock('fs', async () => {
-  const actual = await vi.importActual<typeof import('fs')>('fs');
+vi.mock('fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises');
   return {
     ...actual,
-    accessSync: vi.fn(),
-    statSync: vi.fn(() => ({ isFile: () => true })),
+    access: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({ isFile: () => true }),
   };
 });
 
@@ -32,7 +32,7 @@ vi.mock('../../utils/safe-renderer-send', () => ({ sendToRenderer: vi.fn() }));
 
 vi.mock('electron', () => ({ BrowserWindow: vi.fn() }));
 
-import { accessSync, statSync } from 'fs';
+import { access, stat } from 'fs/promises';
 import { executeHook, type HookScript, type HookContext } from '../HookExecutor';
 
 function makeChild(): EventEmitter & {
@@ -87,6 +87,7 @@ describe('executeHook — argv and exit code', () => {
     spawn.mockReturnValue(child);
 
     const promise = executeHook(baseHook, baseContext);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
     child.emit('close', 0);
     const result = await promise;
 
@@ -112,6 +113,7 @@ describe('executeHook — argv and exit code', () => {
     spawn.mockReturnValue(child);
 
     const promise = executeHook(baseHook, baseContext);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
     child.stderr?.emit('data', Buffer.from('blocked by policy'));
     child.emit('close', 1);
     const result = await promise;
@@ -126,7 +128,7 @@ describe('executeHook — Windows executable validation', () => {
   const originalPlatform = process.platform;
 
   beforeEach(() => {
-    vi.mocked(statSync).mockReturnValue({ isFile: () => true } as never);
+    vi.mocked(stat).mockResolvedValue({ isFile: () => true } as never);
   });
 
   afterEach(() => {
@@ -147,10 +149,11 @@ describe('executeHook — Windows executable validation', () => {
     spawn.mockReturnValue(child);
 
     const promise = executeHook(baseHook, baseContext);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
     child.emit('close', 0);
     await promise;
 
-    expect(accessSync).not.toHaveBeenCalled();
+    expect(access).not.toHaveBeenCalled();
   });
 
   it('checks X_OK on POSIX', async () => {
@@ -163,10 +166,11 @@ describe('executeHook — Windows executable validation', () => {
     spawn.mockReturnValue(child);
 
     const promise = executeHook(baseHook, baseContext);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
     child.emit('close', 0);
     await promise;
 
-    expect(accessSync).toHaveBeenCalled();
+    expect(access).toHaveBeenCalled();
   });
 });
 

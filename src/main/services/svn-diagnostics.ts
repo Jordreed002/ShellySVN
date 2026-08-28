@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'fs';
+import { stat } from 'fs/promises';
 import { isAbsolute, join } from 'path';
 import { app } from 'electron';
 import type {
@@ -43,17 +43,13 @@ function getBinaryNames(): { engine: string; svn: string } {
   };
 }
 
-function getFileStatus(
+async function getFileStatus(
   name: string,
   filePath: string,
   source: RepoDiagnostics['resourceStatus'][number]['source']
-): RepoDiagnostics['resourceStatus'][number] {
+): Promise<RepoDiagnostics['resourceStatus'][number]> {
   try {
-    if (!existsSync(filePath)) {
-      return { name, path: filePath, source, exists: false, isFile: false };
-    }
-
-    const stats = statSync(filePath);
+    const stats = await stat(filePath);
     return {
       name,
       path: filePath,
@@ -74,23 +70,27 @@ function getFileStatus(
   }
 }
 
-function getDiagnosticResourceStatus(svnClientPath: string): RepoDiagnostics['resourceStatus'] {
+async function getDiagnosticResourceStatus(
+  svnClientPath: string
+): Promise<RepoDiagnostics['resourceStatus']> {
   const names = getBinaryNames();
   const resourceBasePath = app.isPackaged
     ? join(process.resourcesPath, 'binaries')
     : join(process.cwd(), 'binaries', getCurrentBinaryTarget());
 
   const resourceSource = app.isPackaged ? 'packaged-resource' : 'workspace-resource';
-  const statuses: RepoDiagnostics['resourceStatus'] = [
+  const statusPromises: Array<Promise<RepoDiagnostics['resourceStatus'][number]>> = [
     getFileStatus('logic engine', join(resourceBasePath, names.engine), resourceSource),
     getFileStatus('bundled SVN client', join(resourceBasePath, names.svn), resourceSource),
   ];
 
   if (isAbsolute(svnClientPath)) {
-    statuses.unshift(getFileStatus('configured SVN client', svnClientPath, 'configured-client'));
+    statusPromises.unshift(
+      getFileStatus('configured SVN client', svnClientPath, 'configured-client')
+    );
   }
 
-  return statuses;
+  return Promise.all(statusPromises);
 }
 
 function isSvnVersionSupported(version: string | null): boolean | null {
@@ -349,7 +349,8 @@ export async function getDiagnostics(
 ): Promise<RepoDiagnosticsWithNetworkSecurity> {
   const authCache = getAuthCache();
   const settingsManager = getSettingsManager();
-  const svnClientPath = settingsManager.getSvnClientPath();
+  await settingsManager.ready();
+  const svnClientPath = await settingsManager.resolveSvnClientPath();
 
   let svnContext: SvnExecutionContext | null = null;
   try {
@@ -368,7 +369,7 @@ export async function getDiagnostics(
     encryptionAvailable: authCache.isEncryptionAvailable(),
     isPackaged: app.isPackaged,
     resourcesPath: process.resourcesPath || null,
-    resourceStatus: getDiagnosticResourceStatus(svnClientPath),
+    resourceStatus: await getDiagnosticResourceStatus(svnClientPath),
     isValidWorkingCopy: false,
     workingCopyRoot: null,
     repositoryRoot: null,

@@ -70,6 +70,7 @@ import type {
   SvnRevertPreview,
   SvnShelveListResult,
   SvnUnlockResult,
+  SvnUpdateDepth,
   SvnWorkingCopyContext,
   UpdateOptions,
   WebhookDeliverRequest,
@@ -329,7 +330,10 @@ export interface IpcInvokeContract {
     [operationId: string, path: string, url: string, message: string],
     RevisionResult
   >;
-  'svn:resolve': IpcCall<[path: string, resolution: string], OperationResult>;
+  'svn:resolve': IpcCall<
+    [path: string, resolution: string, depth?: SvnUpdateDepth],
+    OperationResult
+  >;
   'svn:switch': IpcCall<[path: string, url: string, revision?: string], RevisionResult>;
   'svn:validateSwitchOrRelocate': IpcCall<
     [input: SwitchRelocateInput],
@@ -404,10 +408,7 @@ export interface IpcInvokeContract {
     OperationResult
   >;
   'svn:revpropdel': IpcCall<[target: string, name: string, revision: string], OperationResult>;
-  'svn:getRevprop': IpcCall<
-    [url: string, revision: string, propName: string],
-    RevpropValueResult
-  >;
+  'svn:getRevprop': IpcCall<[url: string, revision: string, propName: string], RevpropValueResult>;
   'svn:editRevprop': IpcCall<
     [
       url: string,
@@ -617,10 +618,7 @@ export interface IpcInvokeContract {
   'shell:clearAllOverlays': IpcCall<[], OperationResult>;
 
   'lifecycle:getStaleWorkingCopyLocks': IpcCall<[], StaleWorkingCopyLockInfo[]>;
-  'lifecycle:removeStaleWorkingCopyLock': IpcCall<
-    [workingCopyPath: string],
-    OperationResult
-  >;
+  'lifecycle:removeStaleWorkingCopyLock': IpcCall<[workingCopyPath: string], OperationResult>;
   'lifecycle:getInterruptedWorkingCopyMutations': IpcCall<[], InterruptedMutationRecord[]>;
   'lifecycle:clearInterruptedWorkingCopyMutations': IpcCall<[], OperationResult>;
   'lifecycle:getInterruptedMutationRecoveryPlans': IpcCall<[], InterruptedMutationRecoveryPlan[]>;

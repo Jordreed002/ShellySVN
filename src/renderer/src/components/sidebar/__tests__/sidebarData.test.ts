@@ -15,6 +15,7 @@ import {
   collectProblems,
   deriveStatusProblems,
   formatShelfAge,
+  reconcileOverviewProblems,
   summarizeProblems,
   type WorkingCopySummary,
 } from '../sidebarData';
@@ -112,11 +113,42 @@ describe('summarizeProblems', () => {
       },
     ]);
 
-    expect(result.summary).toBe('1 missing (!) · 1 stale lock');
+    expect(result.summary).toBe('1 tree conflict (C) · 1 stale lock');
   });
 
   it('says nothing at all when there is nothing wrong', () => {
     expect(summarizeProblems([])).toEqual({ total: 0, blocking: 0, summary: '' });
+  });
+});
+
+describe('reconcileOverviewProblems', () => {
+  it('removes an upstream-deleted missing path from the sidebar count', () => {
+    const path = 'C:\\wc';
+    const local = status([statusEntry({ path: 'C:\\wc\\old', status: '!' })]);
+    const overview = new Map([
+      [
+        path,
+        summary({
+          status: {
+            changes: 1,
+            conflicts: 0,
+            problems: deriveStatusProblems(local, path),
+            source: 'network',
+            cacheAge: 0,
+            statusResult: local,
+          },
+        }),
+      ],
+    ]);
+    const remote = status([statusEntry({ path: 'C:\\wc\\old', status: '!', remoteStatus: 'D' })]);
+
+    const reconciled = reconcileOverviewProblems([path], overview, [remote]);
+
+    expect(reconciled.get(path)?.status?.problems).toEqual({
+      total: 0,
+      blocking: 0,
+      summary: '',
+    });
   });
 });
 

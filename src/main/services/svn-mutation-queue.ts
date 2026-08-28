@@ -1,5 +1,6 @@
 import type { InterruptedMutationRecord } from '@shared/types';
-import { existsSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
+import { access, realpath, stat } from 'node:fs/promises';
 import { dirname, join, normalize, parse, win32 } from 'node:path';
 import { writeSecureJsonSync } from '../utils/secure-json';
 
@@ -26,6 +27,7 @@ export const MUTATION_INTERRUPTION_JOURNAL_FILE_NAME = 'svn-mutation-journal.jso
 const mutationQueues = new Map<string, MutationQueueEntry>();
 const listeners = new Set<(paths: string[]) => void>();
 let mutationShutdownRequested = false;
+let mutationResolutionTail: Promise<void> = Promise.resolve();
 
 function emitMutationState(): void {
   const paths = getActiveWorkingCopyMutations();
@@ -74,21 +76,30 @@ function normalizeMutationPath(path: string): string {
 }
 
 /** Resolve a file or nested directory to the administrative root that owns it. */
-function resolveWorkingCopyMutationPath(path: string): string {
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveWorkingCopyMutationPath(path: string): Promise<string> {
   const requested = path.trim();
   const pathApi = isWindowsPath(requested) ? win32 : { dirname, join, parse };
   let current = requested;
   try {
-    if (existsSync(current) && statSync(current).isFile()) current = pathApi.dirname(current);
+    if ((await stat(current)).isFile()) current = pathApi.dirname(current);
   } catch {
     current = pathApi.dirname(current);
   }
 
   const root = pathApi.parse(current).root;
   while (current) {
-    if (existsSync(pathApi.join(current, '.svn'))) {
+    if (await pathExists(pathApi.join(current, '.svn'))) {
       try {
-        return realpathSync.native(current);
+        return await realpath(current);
       } catch {
         return current;
       }
@@ -107,7 +118,17 @@ export async function runSerializedWorkingCopyMutation<T>(
 ): Promise<T> {
   if (mutationShutdownRequested)
     throw new Error('Application is shutting down; SVN mutation cancelled');
-  const workingCopyRoot = resolveWorkingCopyMutationPath(workingCopyKey);
+  // Preserve invocation order while roots are resolved asynchronously. Without
+  // this short gate, a later filesystem lookup could finish first and invert
+  // FIFO ordering before either mutation reaches the per-working-copy queue.
+  const resolvedRoot = mutationResolutionTail.then(() =>
+    resolveWorkingCopyMutationPath(workingCopyKey)
+  );
+  mutationResolutionTail = resolvedRoot.then(
+    () => undefined,
+    () => undefined
+  );
+  const workingCopyRoot = await resolvedRoot;
   const key = normalizeMutationPath(workingCopyRoot);
   const previous = mutationQueues.get(key)?.tail ?? Promise.resolve();
 

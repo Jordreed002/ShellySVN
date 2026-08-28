@@ -6,6 +6,7 @@ const mockWriteFile = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockAccess = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockMkdir = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockChmod = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockStat = vi.hoisted(() => vi.fn());
 const mockWriteSecureJson = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockGetPath = vi.hoisted(() =>
   vi.fn().mockReturnValue('C:\\Users\\test\\AppData\\ShellySVN')
@@ -21,7 +22,9 @@ const mockDecryptString = vi.hoisted(() =>
 const mockExistsSync = vi.hoisted(() => vi.fn().mockReturnValue(false));
 const mockStatSync = vi.hoisted(() => vi.fn());
 const mockAccessSync = vi.hoisted(() => vi.fn());
-const mockSpawnSync = vi.hoisted(() => vi.fn());
+const mockExecFile = vi.hoisted(() =>
+  vi.fn((_path, _args, _options, callback: (error: Error | null) => void) => callback(null))
+);
 const mockAssertPathApproved = vi.hoisted(() => vi.fn((path: string) => path));
 
 vi.mock('electron', () => ({
@@ -42,6 +45,7 @@ vi.mock('fs/promises', () => ({
   writeFile: mockWriteFile,
   mkdir: mockMkdir,
   chmod: mockChmod,
+  stat: mockStat,
 }));
 
 vi.mock('../utils/secure-json', () => ({ writeSecureJson: mockWriteSecureJson }));
@@ -54,7 +58,7 @@ vi.mock('fs', () => ({
 }));
 
 vi.mock('child_process', () => ({
-  spawnSync: mockSpawnSync,
+  execFile: mockExecFile,
 }));
 
 vi.mock('../utils/approved-paths', () => ({
@@ -82,9 +86,9 @@ describe('SettingsManager migration and persistence', () => {
       value.toString('utf8').replace(/^encrypted:/, '')
     );
     mockExistsSync.mockReturnValue(false);
-    mockStatSync.mockReset();
+    mockStat.mockReset();
     mockAccessSync.mockReset();
-    mockSpawnSync.mockReset();
+    mockExecFile.mockClear();
     mockAssertPathApproved.mockImplementation((path: string) => path);
   });
 
@@ -384,7 +388,7 @@ describe('SettingsManager migration and persistence', () => {
 
   it('accepts an approved cache directory and bounded log-cache size', async () => {
     mockExistsSync.mockReturnValue(true);
-    mockStatSync.mockReturnValue({ isDirectory: () => true });
+    mockStat.mockResolvedValue({ isDirectory: () => true });
     const manager = SettingsManager.getInstance();
     await manager.ready();
 
@@ -420,29 +424,31 @@ describe('SettingsManager migration and persistence', () => {
 
   it('validates an approved custom SVN executable once and revalidates after replacement', async () => {
     mockExistsSync.mockReturnValue(true);
-    mockStatSync.mockReturnValue({
+    mockStat.mockResolvedValue({
       isFile: () => true,
       isDirectory: () => false,
       size: 1024,
       mtimeMs: 10,
     });
-    mockSpawnSync.mockReturnValue({ status: 0 });
     const manager = SettingsManager.getInstance();
     await manager.ready();
 
     await manager.updateSettings({ svnClientPath: '/approved/svn' });
     expect(manager.getSvnClientPath()).toBe('/approved/svn');
     expect(manager.getSvnClientPath()).toBe('/approved/svn');
-    expect(mockSpawnSync).toHaveBeenCalledTimes(1);
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
 
-    mockStatSync.mockReturnValue({
+    mockStat.mockResolvedValue({
       isFile: () => true,
       isDirectory: () => false,
       size: 2048,
       mtimeMs: 20,
     });
+    // The sync accessor returns the last validated path without touching disk;
+    // the async resolver detects replacement and revalidates it.
     expect(manager.getSvnClientPath()).toBe('/approved/svn');
-    expect(mockSpawnSync).toHaveBeenCalledTimes(2);
+    expect(await manager.resolveSvnClientPath()).toBe('/approved/svn');
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
   });
 
   /*
@@ -457,13 +463,12 @@ describe('SettingsManager migration and persistence', () => {
 
     beforeEach(async () => {
       mockExistsSync.mockReturnValue(true);
-      mockStatSync.mockReturnValue({
+      mockStat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: 1024,
         mtimeMs: 10,
       });
-      mockSpawnSync.mockReturnValue({ status: 0 });
       Object.defineProperty(process, 'platform', {
         value: 'win32',
         configurable: true,
@@ -491,7 +496,7 @@ describe('SettingsManager migration and persistence', () => {
       await manager.updateSettings({ svnClientPath: 'C:\\tools\\svn.exe' });
 
       expect(manager.getSvnClientPath()).toBe('C:\\tools\\svn.exe');
-      expect(mockAccessSync).not.toHaveBeenCalled();
+      expect(mockAccess).not.toHaveBeenCalledWith('C:\\tools\\svn.exe', 1);
     });
 
     it('rejects a .cmd wrapper at write time and keeps the svn.exe default', async () => {
@@ -505,7 +510,7 @@ describe('SettingsManager migration and persistence', () => {
 
       // The invalid path was never stored, so the default still applies.
       expect(manager.getSvnClientPath()).toBe('svn.exe');
-      expect(mockSpawnSync).not.toHaveBeenCalled();
+      expect(mockExecFile).not.toHaveBeenCalled();
     });
   });
 
@@ -514,13 +519,12 @@ describe('SettingsManager migration and persistence', () => {
 
     beforeEach(async () => {
       mockExistsSync.mockReturnValue(true);
-      mockStatSync.mockReturnValue({
+      mockStat.mockResolvedValue({
         isFile: () => true,
         isDirectory: () => false,
         size: 1024,
         mtimeMs: 10,
       });
-      mockSpawnSync.mockReturnValue({ status: 0 });
       Object.defineProperty(process, 'platform', {
         value: 'darwin',
         configurable: true,
@@ -542,7 +546,7 @@ describe('SettingsManager migration and persistence', () => {
       await manager.updateSettings({ svnClientPath: '/usr/local/bin/svn' });
 
       expect(manager.getSvnClientPath()).toBe('/usr/local/bin/svn');
-      expect(mockAccessSync).toHaveBeenCalled();
+      expect(mockAccess).toHaveBeenCalledWith('/usr/local/bin/svn', 1);
     });
   });
 });

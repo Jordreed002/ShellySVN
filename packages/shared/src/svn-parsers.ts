@@ -42,7 +42,8 @@ export class SvnXmlInputError extends Error {
  * reference stays literal. The single-pass replace means `&amp;lt;` decodes to
  * `&lt;` (matching fast-xml-parser's ampersand-last ordering) instead of `<`.
  */
-const SVN_XML_ENTITY_PATTERN = /&(amp|lt|gt|quot|apos|#38|#34|#39|#60|#62|#x26|#x22|#x27|#x3C|#x3E|#x3c|#x3e);/g;
+const SVN_XML_ENTITY_PATTERN =
+  /&(amp|lt|gt|quot|apos|#38|#34|#39|#60|#62|#x26|#x22|#x27|#x3C|#x3E|#x3c|#x3e);/g;
 const SVN_XML_ENTITY_VALUES: Record<string, string> = {
   amp: '&',
   lt: '<',
@@ -67,8 +68,9 @@ export function decodeSvnXmlEntities(value: string): string {
   if (!value.includes('&')) {
     return value;
   }
-  return value.replace(SVN_XML_ENTITY_PATTERN, (match, name: string) =>
-    SVN_XML_ENTITY_VALUES[name] ?? match
+  return value.replace(
+    SVN_XML_ENTITY_PATTERN,
+    (match, name: string) => SVN_XML_ENTITY_VALUES[name] ?? match
   );
 }
 
@@ -151,7 +153,10 @@ function sanitizeSvnXmlTree(value: unknown): unknown {
     { node: value as Record<string, unknown> | unknown[], depth: 0 },
   ];
   while (stack.length > 0) {
-    const { node, depth } = stack.pop() as { node: Record<string, unknown> | unknown[]; depth: number };
+    const { node, depth } = stack.pop() as {
+      node: Record<string, unknown> | unknown[];
+      depth: number;
+    };
     if (depth > maxDepth) {
       throw new SvnXmlInputError(
         `SVN XML nesting depth exceeds ${maxDepth} (possible hostile input)`
@@ -294,6 +299,7 @@ type StatusXmlEntry = {
     '@_props'?: string;
     '@_revision'?: string;
     '@_switched'?: boolean | string;
+    '@_tree-conflicted'?: boolean | string;
     commit?: StatusCommitXml;
     lock?: { owner?: string; comment?: string; creationdate?: string };
     'tree-conflict'?: {
@@ -353,7 +359,10 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
       if (!wcStatus) continue;
       const reposStatus = entry['repos-status'];
       const propsStatus = mapPropsStatus(wcStatus['@_props']);
-      const hasTreeConflict = Boolean(wcStatus['tree-conflict']);
+      // Current SVN clients commonly expose the marker as an attribute in
+      // `svn status --xml`; older/fixture output may include a detail element.
+      const hasTreeConflict =
+        parseBooleanAttribute(wcStatus['@_tree-conflicted']) || Boolean(wcStatus['tree-conflict']);
       const itemStatus = mapSvnStatus(wcStatus['@_item']);
 
       entries.push({
@@ -385,12 +394,12 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
               date: wcStatus.lock.creationdate || '',
             }
           : undefined,
-        treeConflict: wcStatus['tree-conflict']
+        treeConflict: hasTreeConflict
           ? {
-              operation: wcStatus['tree-conflict']['@_operation'],
-              action: wcStatus['tree-conflict']['@_action'],
-              reason: wcStatus['tree-conflict']['@_reason'],
-              type: wcStatus['tree-conflict']['@_type'],
+              operation: wcStatus['tree-conflict']?.['@_operation'],
+              action: wcStatus['tree-conflict']?.['@_action'],
+              reason: wcStatus['tree-conflict']?.['@_reason'],
+              type: wcStatus['tree-conflict']?.['@_type'],
             }
           : undefined,
       });

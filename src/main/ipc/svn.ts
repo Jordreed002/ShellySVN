@@ -385,8 +385,10 @@ export function registerSvnHandlers(): void {
   ipcMain.handle('svn:nativeAuth:remove', async (_, patterns: string[]) =>
     removeNativeAuth(patterns)
   );
-  ipcMain.handle('svn:verifyCredentials', async (_, url: string, username: string, password: string) =>
-    verifyRepositoryCredentials(url, username, password)
+  ipcMain.handle(
+    'svn:verifyCredentials',
+    async (_, url: string, username: string, password: string) =>
+      verifyRepositoryCredentials(url, username, password)
   );
   ipcMain.handle(
     'svn:cat',
@@ -849,8 +851,10 @@ export function registerSvnHandlers(): void {
         | 'mine-conflict'
         | 'theirs-conflict'
         | 'working'
+        | 'incoming-deletion',
+      depth?: 'empty' | 'files' | 'immediates' | 'infinity'
     ) => {
-      return invalidateStatusAfter([path], resolveConflict(path, resolution), event);
+      return invalidateStatusAfter([path], resolveConflict(path, resolution, depth), event);
     }
   );
 
@@ -1098,10 +1102,8 @@ export function registerSvnHandlers(): void {
 
   // Revprop editing by absolute repository URL with an explicit confirmation
   // gate (plain confirm + audit-trail acknowledgement), passed straight through.
-  ipcMain.handle(
-    'svn:getRevprop',
-    async (_, url: string, revision: string, propName: string) =>
-      getRevprop(url, requireSvnRevision(revision, 'revprop revision'), propName)
+  ipcMain.handle('svn:getRevprop', async (_, url: string, revision: string, propName: string) =>
+    getRevprop(url, requireSvnRevision(revision, 'revprop revision'), propName)
   );
 
   ipcMain.handle(
