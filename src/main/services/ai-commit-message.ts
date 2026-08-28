@@ -36,7 +36,7 @@ import { spawn, type ChildProcessByStdio, type ChildProcessWithoutNullStreams } 
 import type { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { access, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdtemp, open, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { getSettingsManager } from '../settings-manager';
@@ -232,7 +232,8 @@ async function loginShellDirectories(): Promise<string[]> {
 }
 
 async function resolveWindowsNodeShim(
-  shimPath: string
+  shimPath: string,
+  provider: AiCommitProvider
 ): Promise<ResolvedProviderExecutable | null> {
   if (!/\.(?:cmd|bat)$/i.test(shimPath)) return null;
   try {
@@ -241,6 +242,25 @@ async function resolveWindowsNodeShim(
     const candidate = getWindowsNpmShimScriptCandidate(source, shimPath);
     if (!candidate) return null;
     const scriptPath = await realpath(candidate);
+    if (provider === 'codex' && /[\\/]@openai[\\/]codex[\\/]bin[\\/]codex\.js$/i.test(scriptPath)) {
+      const platformPackage =
+        process.arch === 'arm64'
+          ? ['codex-win32-arm64', 'aarch64-pc-windows-msvc']
+          : ['codex-win32-x64', 'x86_64-pc-windows-msvc'];
+      const nativeCandidate = join(
+        dirname(dirname(scriptPath)),
+        'node_modules',
+        '@openai',
+        platformPackage[0],
+        'vendor',
+        platformPackage[1],
+        'bin',
+        'codex.exe'
+      );
+      const nativeExecutable = await realpath(nativeCandidate);
+      await access(nativeExecutable, constants.X_OK);
+      return { command: nativeExecutable, prefixArgs: [] };
+    }
     const pathFromShim = relative(shimDirectory, scriptPath);
     if (pathFromShim.startsWith('..') || isAbsolute(pathFromShim)) return null;
     if (!/\.(?:cjs|mjs|js)$/i.test(scriptPath)) return null;
@@ -278,7 +298,7 @@ async function resolveExecutable(
         const candidate = await realpath(join(directory, name));
         await access(candidate, constants.X_OK);
         const executable = /\.(?:cmd|bat)$/i.test(candidate)
-          ? await resolveWindowsNodeShim(candidate)
+          ? await resolveWindowsNodeShim(candidate, provider)
           : { command: candidate, prefixArgs: [] };
         if (!executable) continue;
         resolvedExecutables.set(provider, executable);
@@ -808,17 +828,85 @@ async function collectPreparedDiff(
     Math.max(Math.floor(configuredMax), MIN_MAX_DIFF_BYTES),
     MAX_MAX_DIFF_BYTES
   );
-  const rawDiff = await runSvnText(withSvnTargets(['diff', '--git'], paths), {
+  const diffOptions = {
     cwd: root,
     signal: controller.signal,
     maxStdoutBytes: MAX_SVN_OUTPUT_BYTES,
     maxStderrBytes: 64 * 1024,
-  });
+  };
+  let rawDiff: string;
+  try {
+    rawDiff = await runSvnText(withSvnTargets(['diff', '--git'], paths), diffOptions);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/E155010|W155010|not a versioned resource/i.test(message)) throw error;
+
+    // A single unversioned target makes `svn diff target-a target-b` fail and
+    // hides valid diffs for every other target. Isolate targets only on that
+    // exceptional path, then retain a bounded description of new files/folders.
+    // All filesystem and process work remains asynchronous so IPC cannot block.
+    const parts = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          return await runSvnText(withSvnTargets(['diff', '--git'], [path]), diffOptions);
+        } catch (targetError) {
+          const targetMessage =
+            targetError instanceof Error ? targetError.message : String(targetError);
+          if (!/E155010|W155010|not a versioned resource/i.test(targetMessage)) throw targetError;
+          return describeUnversionedTarget(root, path);
+        }
+      })
+    );
+    rawDiff = parts.filter(Boolean).join('\n');
+  }
   const prepared = prepareDiffForAi(rawDiff, maxDiffBytes);
   if (!prepared.text.trim() && prepared.omittedBinaryFiles.length === 0) {
     throw new Error('The selected paths do not contain a text diff to analyze.');
   }
   return { root, paths, prepared };
+}
+
+async function describeUnversionedTarget(root: string, path: string): Promise<string> {
+  const displayPath = relative(root, path).replaceAll('\\', '/');
+  let stats;
+  try {
+    stats = await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      // Status can briefly retain an unversioned entry after it has been
+      // removed. There is no content to send to the provider, so omit that
+      // stale target while preserving valid diffs from the other selections.
+      return '';
+    }
+    throw error;
+  }
+  if (stats.isDirectory()) {
+    return `Index: ${displayPath}\n--- /dev/null\n+++ ${displayPath}\n+Unversioned directory selected for commit.\n`;
+  }
+  if (!stats.isFile()) {
+    return `Index: ${displayPath}\n--- /dev/null\n+++ ${displayPath}\n+Unversioned filesystem entry selected for commit.\n`;
+  }
+
+  // The final preparation pass applies the configured aggregate byte cap and
+  // secret redaction. Limit each read too, avoiding an unbounded allocation.
+  const handle = await open(path, 'r');
+  const content = Buffer.allocUnsafe(Math.min(stats.size, MAX_MAX_DIFF_BYTES));
+  let bytesRead = 0;
+  try {
+    ({ bytesRead } = await handle.read(content, 0, content.length, 0));
+  } finally {
+    await handle.close();
+  }
+  const boundedContent = content.subarray(0, bytesRead);
+  if (boundedContent.includes(0)) {
+    return `Index: ${displayPath}\nBinary files /dev/null and ${displayPath} differ\n`;
+  }
+  const added = boundedContent
+    .toString('utf8')
+    .split(/\r?\n/)
+    .map((line) => `+${line}`)
+    .join('\n');
+  return `Index: ${displayPath}\n--- /dev/null\n+++ ${displayPath}\n${added}\n`;
 }
 
 async function collectProfiledPreparedDiff(

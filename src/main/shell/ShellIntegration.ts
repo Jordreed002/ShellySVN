@@ -411,6 +411,7 @@ export class ShellIntegrationManager {
       const proc = spawn(this.helperPath, [command, JSON.stringify(data)], {
         detached: true,
         stdio: 'ignore',
+        windowsHide: true,
       });
 
       proc.on('error', (err) => {

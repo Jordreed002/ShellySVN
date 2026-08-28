@@ -502,11 +502,11 @@ export function validateCommitMessage(message: string): {
     warnings.push('Commit message is very short');
   }
 
-  if (trimmed.length > 72) {
+  const firstLine = trimmed.split('\n')[0] || '';
+
+  if (firstLine.length > 72) {
     warnings.push('First line of commit message exceeds 72 characters');
   }
-
-  const firstLine = trimmed.split('\n')[0] || '';
 
   // Check for conventional commit format
   const hasPrefix = Object.values(COMMIT_PREFIXES).some((p) =>

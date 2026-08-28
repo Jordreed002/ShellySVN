@@ -103,9 +103,25 @@ describe('executeHook — argv and exit code', () => {
         '42',
         '--force',
       ],
-      expect.objectContaining({ detached: true })
+      expect.objectContaining({ detached: true, windowsHide: true })
     );
     expect(result).toMatchObject({ success: true, exitCode: 0 });
+  });
+
+  it('only permits a visible Windows console when the hook explicitly requests one', async () => {
+    const child = makeChild();
+    spawn.mockReturnValue(child);
+
+    const promise = executeHook({ ...baseHook, showConsole: true }, baseContext);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalled());
+    child.emit('close', 0);
+    await promise;
+
+    expect(spawn).toHaveBeenCalledWith(
+      baseHook.path,
+      expect.any(Array),
+      expect.objectContaining({ windowsHide: false, stdio: 'inherit' })
+    );
   });
 
   it('reports failure with stderr when the hook exits non-zero', async () => {

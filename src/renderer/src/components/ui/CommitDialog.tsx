@@ -22,6 +22,10 @@ import {
   ShieldCheck,
   SearchCheck,
   ListTree,
+  MessageSquare,
+  FileDiff,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { AutoCompleteInput } from './AutoCompleteInput';
 import { useCommitDialogController, type CommitFile } from '../commit/useCommitDialogController';
@@ -54,7 +58,8 @@ interface CommitDialogProps {
   onClose: () => void;
   onSubmit: (
     paths: string[],
-    message: string
+    message: string,
+    unversionedPaths?: string[]
   ) => Promise<{ success: boolean; message?: string; revision?: number }>;
 }
 
@@ -75,6 +80,14 @@ function getDiffLineCount(diff: { files?: Array<{ hunks: Array<{ lines: unknown[
     }
   }
   return count;
+}
+
+function tabButtonClass(active: boolean) {
+  return `flex items-center gap-1.5 rounded-lg border px-3 py-1 text-11.5 font-medium transition-fast ${
+    active
+      ? 'border-accent/40 bg-accent/10 text-accent'
+      : 'border-transparent text-text-secondary hover:bg-bg-tertiary hover:text-text'
+  }`;
 }
 
 interface CommitFileListProps {
@@ -364,10 +377,42 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
    */
   const [diffSearchState, setDiffSearchState] = useState({ matchCount: 0, currentIndex: 0 });
 
+  /*
+   * Message vs diff focus. The old stacked layout let the message pane (AI
+   * toolbar, review results, warnings) grow until the diff below it had no
+   * height left inside the fixed-size modal; tabs give each its own
+   * scrollable surface. Both panels stay mounted so scroll positions and
+   * viewer state survive switches.
+   */
+  const [activeTab, setActiveTab] = useState<'message' | 'diff'>('message');
+
+  /* Sidebar collapse is a preference, not dialog state — remember it. */
+  const [filesCollapsed, setFilesCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem('shellysvn.commitDialog.filesCollapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleFilesCollapsed = () => {
+    setFilesCollapsed((collapsed) => {
+      const next = !collapsed;
+      try {
+        window.localStorage.setItem('shellysvn.commitDialog.filesCollapsed', next ? '1' : '0');
+      } catch {
+        /* localStorage unavailable — collapse still works for this session */
+      }
+      return next;
+    });
+  };
+
   const diffStats = useMemo(() => {
     let additions = 0;
     let deletions = 0;
-    const effective = diffData ? applyDiffOptions(diffData, diffDisplayOptions) ?? diffData : null;
+    const effective = diffData
+      ? (applyDiffOptions(diffData, diffDisplayOptions) ?? diffData)
+      : null;
     for (const file of effective?.files ?? []) {
       for (const hunk of file.hunks) {
         for (const line of hunk.lines) {
@@ -401,13 +446,24 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
     [files]
   );
 
+  const visibleValidationWarnings = validationWarnings.filter(
+    (warning) => warning !== 'First line of commit message exceeds 72 characters'
+  );
+  const warningCount = visibleValidationWarnings.length + commitWarnings.length + ruleErrors.length;
+
+  /* Clicking a changed path (list row or AI review finding) reveals its diff. */
+  const handleSelectDiffFile = (path: string) => {
+    setSelectedDiffFile(path);
+    setActiveTab('diff');
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={handleClose} role="presentation">
       <div
         ref={modalRef}
-        className="modal flex h-[min(780px,calc(100vh-48px))] w-[min(1120px,calc(100vw-48px))] max-h-[calc(100vh-48px)] flex-col"
+        className="modal flex h-[min(860px,calc(100vh-48px))] w-[min(1120px,calc(100vw-48px))] max-h-[calc(100vh-48px)] flex-col"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -474,120 +530,227 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="flex min-h-0 flex-1">
-              {/* Left panel - File list */}
-              <div
-                className="w-[340px] shrink-0 border-r border-border bg-bg-secondary/35 flex flex-col"
-                role="region"
-                aria-label="Files to commit"
-              >
-                {/* File filter */}
-                <div className="border-b border-border bg-bg-tertiary/60 px-3 py-2.5">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
-                      Changed paths
-                    </span>
-                    <span className="font-mono text-10.5 text-text-faint">{committableCount}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="file-filter" className="sr-only">
-                      Filter files by status
-                    </label>
-                    <select
-                      id="file-filter"
-                      value={fileFilter}
-                      onChange={(e) => setFileFilter(e.target.value as typeof fileFilter)}
-                      className="input text-xs py-1 flex-1"
-                      aria-label="Filter files"
-                    >
-                      <option value="all">All files</option>
-                      <option value="modified">Modified</option>
-                      <option value="added">Added/Unversioned</option>
-                      <option value="deleted">Deleted</option>
-                      <option value="changelist">Changelist</option>
-                      <option value="external">Externals</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => refetch()}
-                      className="btn-icon-sm"
-                      title="Refresh"
-                      aria-label="Refresh file list"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Select all/none */}
+              {/* Left panel — changed paths. Collapses to a slim rail so the
+                  message/diff area can take the full dialog width. */}
+              {filesCollapsed ? (
                 <div
-                  className="flex items-center gap-1.5 border-b border-border px-3 py-2 text-11"
-                  role="group"
-                  aria-label="Selection controls"
+                  className="flex w-11 shrink-0 flex-col items-center gap-2 border-r border-border bg-bg-secondary/35 py-2"
+                  role="region"
+                  aria-label="Changed paths"
                 >
                   <button
                     type="button"
-                    onClick={handleSelectAll}
-                    className="rounded-5 px-2 py-1 text-accent hover:bg-accent/10"
-                    aria-label="Select all files"
+                    onClick={toggleFilesCollapsed}
+                    className="btn-icon-sm"
+                    aria-expanded="false"
+                    aria-label="Show changed paths sidebar"
+                    title="Show changed paths"
                   >
-                    Select all
+                    <PanelLeftOpen className="w-4 h-4" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
-                    onClick={handleDeselectAll}
-                    className="rounded-5 px-2 py-1 text-text-muted hover:bg-bg-tertiary hover:text-text"
-                    aria-label="Deselect all files"
+                    onClick={toggleFilesCollapsed}
+                    className="flex min-h-0 flex-1 flex-col items-center gap-2 pt-1"
+                    title="Show changed paths"
                   >
-                    Select none
+                    <span className="rounded-pill border border-border bg-bg-sunk px-1.5 py-0.5 font-mono text-9.5 text-text-muted">
+                      {committableCount}
+                    </span>
+                    <span
+                      className="text-10 font-semibold uppercase tracking-caps text-text-muted"
+                      style={{ writingMode: 'vertical-rl' }}
+                    >
+                      Changed paths
+                    </span>
                   </button>
-                  <span
-                    className="ml-auto font-mono text-10.5 text-text-faint"
-                    aria-live="polite"
-                    aria-atomic="true"
-                  >
-                    {selectedCount}/{committableCount}
-                  </span>
                 </div>
-
-                {/* File list */}
-                {isLoadingStatus ? (
-                  <div
-                    className="flex-1 flex items-center justify-center"
-                    role="status"
-                    aria-label="Loading files"
-                  >
-                    <Loader2 className="w-5 h-5 text-text-muted animate-spin" aria-hidden="true" />
-                    <span className="sr-only">Loading files...</span>
+              ) : (
+                <div
+                  className="w-[340px] shrink-0 border-r border-border bg-bg-secondary/35 flex flex-col"
+                  role="region"
+                  aria-label="Files to commit"
+                >
+                  {/* File filter */}
+                  <div className="border-b border-border bg-bg-tertiary/60 px-3 py-2.5">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
+                        Changed paths
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono text-10.5 text-text-faint">
+                          {committableCount}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={toggleFilesCollapsed}
+                          className="btn-icon-sm"
+                          aria-expanded="true"
+                          aria-label="Hide changed paths sidebar"
+                          title="Hide changed paths"
+                        >
+                          <PanelLeftClose className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="file-filter" className="sr-only">
+                        Filter files by status
+                      </label>
+                      <select
+                        id="file-filter"
+                        value={fileFilter}
+                        onChange={(e) => setFileFilter(e.target.value as typeof fileFilter)}
+                        className="input text-xs py-1 flex-1"
+                        aria-label="Filter files"
+                      >
+                        <option value="all">All files</option>
+                        <option value="modified">Modified</option>
+                        <option value="added">Added/Unversioned</option>
+                        <option value="deleted">Deleted</option>
+                        <option value="changelist">Changelist</option>
+                        <option value="external">Externals</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => refetch()}
+                        className="btn-icon-sm"
+                        title="Refresh"
+                        aria-label="Refresh file list"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
-                ) : filteredFiles.length === 0 ? (
-                  <div
-                    className="flex-1 flex items-center justify-center text-text-muted text-sm"
-                    role="status"
-                  >
-                    No files to commit
-                  </div>
-                ) : (
-                  <CommitFileList
-                    files={filteredFiles}
-                    selectedDiffFile={selectedDiffFile}
-                    onSelectDiffFile={setSelectedDiffFile}
-                    onToggleFile={handleToggleFile}
-                    onRevertFile={handleRevertFile}
-                  />
-                )}
-              </div>
 
-              {/* Right panel - Message and diff. `min-w-0` keeps the
-                  side-by-side diff (a `min-w-max` grid) from setting this
-                  column's minimum width and scrolling the whole dialog
-                  sideways; the diff scrolls inside its own pane instead. */}
+                  {/* Select all/none */}
+                  <div
+                    className="flex items-center gap-1.5 border-b border-border px-3 py-2 text-11"
+                    role="group"
+                    aria-label="Selection controls"
+                  >
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      className="rounded-5 px-2 py-1 text-accent hover:bg-accent/10"
+                      aria-label="Select all files"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAll}
+                      className="rounded-5 px-2 py-1 text-text-muted hover:bg-bg-tertiary hover:text-text"
+                      aria-label="Deselect all files"
+                    >
+                      Select none
+                    </button>
+                    <span
+                      className="ml-auto font-mono text-10.5 text-text-faint"
+                      aria-live="polite"
+                      aria-atomic="true"
+                    >
+                      {selectedCount}/{committableCount}
+                    </span>
+                  </div>
+
+                  {/* File list */}
+                  {isLoadingStatus ? (
+                    <div
+                      className="flex-1 flex items-center justify-center"
+                      role="status"
+                      aria-label="Loading files"
+                    >
+                      <Loader2
+                        className="w-5 h-5 text-text-muted animate-spin"
+                        aria-hidden="true"
+                      />
+                      <span className="sr-only">Loading files...</span>
+                    </div>
+                  ) : filteredFiles.length === 0 ? (
+                    <div
+                      className="flex-1 flex items-center justify-center text-text-muted text-sm"
+                      role="status"
+                    >
+                      No files to commit
+                    </div>
+                  ) : (
+                    <CommitFileList
+                      files={filteredFiles}
+                      selectedDiffFile={selectedDiffFile}
+                      onSelectDiffFile={handleSelectDiffFile}
+                      onToggleFile={handleToggleFile}
+                      onRevertFile={handleRevertFile}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Right panel - Message and diff, as tabs. Both panels stay
+                  mounted (`hidden` toggles visibility) so scroll positions
+                  survive switches. `min-w-0` keeps the side-by-side diff (a
+                  `min-w-max` grid) from setting this column's minimum width
+                  and scrolling the whole dialog sideways; each tab scrolls
+                  inside its own panel instead. */}
               <div
                 className="flex min-w-0 flex-1 flex-col"
                 role="region"
                 aria-label="Commit message and diff"
               >
-                {/* Commit message area */}
-                <div className="border-b border-border bg-bg-secondary/20 p-4">
+                {/* Message / Diff tab strip */}
+                <div
+                  className="flex items-center gap-1 border-b border-border bg-bg-secondary/40 px-3 py-1.5"
+                  role="tablist"
+                  aria-label="Message and diff views"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    id="commit-tab-message"
+                    aria-selected={activeTab === 'message'}
+                    aria-controls="commit-panel-message"
+                    onClick={() => setActiveTab('message')}
+                    className={tabButtonClass(activeTab === 'message')}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+                    Message
+                    {warningCount > 0 && (
+                      <span className="rounded-pill bg-warning/15 px-1.5 py-px text-9.5 font-semibold text-warning">
+                        {warningCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    id="commit-tab-diff"
+                    aria-selected={activeTab === 'diff'}
+                    aria-controls="commit-panel-diff"
+                    onClick={() => setActiveTab('diff')}
+                    className={tabButtonClass(activeTab === 'diff')}
+                  >
+                    <FileDiff className="w-3.5 h-3.5" aria-hidden="true" />
+                    Diff
+                    {selectedDiffFile && (
+                      <span className="max-w-[200px] truncate font-normal text-10 text-text-faint">
+                        {selectedDiffFile.split(/[/\\]/).pop()}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Message tab panel */}
+                <div
+                  id="commit-panel-message"
+                  role="tabpanel"
+                  aria-labelledby="commit-tab-message"
+                  tabIndex={0}
+                  className={
+                    activeTab === 'message'
+                      ? 'min-h-0 flex-1 overflow-y-auto bg-bg-secondary/20 p-4'
+                      : 'hidden'
+                  }
+                >
                   <div className="mb-2.5 flex items-center justify-between">
                     <label
                       htmlFor="commit-message"
@@ -625,35 +788,35 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                               onClose={() => setShowSuggestions(false)}
                               align="end"
                             >
-                            <ul
-                              className="w-64 bg-bg-elevated border border-border rounded-lg shadow-lg"
-                              role="menu"
-                              aria-label="Quick suggestions"
-                            >
-                              <li className="px-3 py-1.5 text-xs text-text-muted bg-bg-tertiary border-b border-border rounded-t-lg flex items-center gap-1">
-                                <Wand2 className="w-3 h-3" />
-                                Based on your changes
-                              </li>
-                              {aiSuggestions.map((suggestion, i) => (
-                                <li key={i}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApplySuggestion(suggestion)}
-                                    className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
-                                    role="menuitem"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium text-text">
-                                        {suggestion.prefix}: {suggestion.description}
-                                      </span>
-                                      <span className="text-accent text-[10px]">
-                                        {Math.round(suggestion.confidence * 100)}%
-                                      </span>
-                                    </div>
-                                  </button>
+                              <ul
+                                className="w-64 bg-bg-elevated border border-border rounded-lg shadow-lg"
+                                role="menu"
+                                aria-label="Quick suggestions"
+                              >
+                                <li className="px-3 py-1.5 text-xs text-text-muted bg-bg-tertiary border-b border-border rounded-t-lg flex items-center gap-1">
+                                  <Wand2 className="w-3 h-3" />
+                                  Based on your changes
                                 </li>
-                              ))}
-                            </ul>
+                                {aiSuggestions.map((suggestion, i) => (
+                                  <li key={i}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplySuggestion(suggestion)}
+                                      className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
+                                      role="menuitem"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium text-text">
+                                          {suggestion.prefix}: {suggestion.description}
+                                        </span>
+                                        <span className="text-accent text-[10px]">
+                                          {Math.round(suggestion.confidence * 100)}%
+                                        </span>
+                                      </div>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
                             </Popover>
                           )}
                         </div>
@@ -805,70 +968,70 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             onClose={() => setShowTemplates(false)}
                             align="end"
                           >
-                          <ul
-                            className="w-56 bg-bg-elevated border border-border rounded-lg shadow-lg"
-                            role="menu"
-                            aria-label="Commit templates"
-                          >
-                            {/* Recommended template */}
-                            {templateRecommendations.length > 0 &&
-                              templateRecommendations[0].confidence > 0 && (
-                                <li>
-                                  <div className="px-3 py-1.5 text-xs text-accent bg-accent/10 border-b border-border flex items-center gap-1">
-                                    <Sparkles className="w-3 h-3" />
-                                    Recommended for your changes
-                                  </div>
+                            <ul
+                              className="w-56 bg-bg-elevated border border-border rounded-lg shadow-lg"
+                              role="menu"
+                              aria-label="Commit templates"
+                            >
+                              {/* Recommended template */}
+                              {templateRecommendations.length > 0 &&
+                                templateRecommendations[0].confidence > 0 && (
+                                  <li>
+                                    <div className="px-3 py-1.5 text-xs text-accent bg-accent/10 border-b border-border flex items-center gap-1">
+                                      <Sparkles className="w-3 h-3" />
+                                      Recommended for your changes
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleApplyRecommendation(templateRecommendations[0])
+                                      }
+                                      className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary bg-accent/5"
+                                      role="menuitem"
+                                    >
+                                      <div className="font-medium text-text">
+                                        {templateRecommendations[0].name}
+                                      </div>
+                                      <div className="text-text-muted text-[10px]">
+                                        {templateRecommendations[0].reason}
+                                      </div>
+                                    </button>
+                                    <div className="border-b border-border" />
+                                  </li>
+                                )}
+                              {templates.map((t) => (
+                                <li key={t.id}>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      handleApplyRecommendation(templateRecommendations[0])
-                                    }
-                                    className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary bg-accent/5"
+                                    onClick={() => handleTemplateSelect(t.id)}
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary first:rounded-t-lg last:rounded-b-lg"
                                     role="menuitem"
                                   >
-                                    <div className="font-medium text-text">
-                                      {templateRecommendations[0].name}
-                                    </div>
-                                    <div className="text-text-muted text-[10px]">
-                                      {templateRecommendations[0].reason}
-                                    </div>
+                                    {t.name}
                                   </button>
-                                  <div className="border-b border-border" />
                                 </li>
-                              )}
-                            {templates.map((t) => (
-                              <li key={t.id}>
+                              ))}
+                              <li className="border-t border-border">
                                 <button
                                   type="button"
-                                  onClick={() => handleTemplateSelect(t.id)}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary first:rounded-t-lg last:rounded-b-lg"
+                                  onClick={() => {
+                                    setShowTemplates(false);
+                                    setShowTemplateManager(true);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary rounded-b-lg"
                                   role="menuitem"
                                 >
-                                  {t.name}
+                                  Manage templates
                                 </button>
                               </li>
-                            ))}
-                            <li className="border-t border-border">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShowTemplates(false);
-                                  setShowTemplateManager(true);
-                                }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary rounded-b-lg"
-                                role="menuitem"
+                              <li
+                                className="px-3 py-1.5 text-10 text-text-faint border-t border-border"
+                                aria-hidden="true"
                               >
-                                Manage templates
-                              </button>
-                            </li>
-                            <li
-                              className="px-3 py-1.5 text-10 text-text-faint border-t border-border"
-                              aria-hidden="true"
-                            >
-                              Variables: {'{{branch}} {{date}} {{issue}} {{files}}'} — substituted
-                              when applied.
-                            </li>
-                          </ul>
+                                Variables: {'{{branch}} {{date}} {{issue}} {{files}}'} — substituted
+                                when applied.
+                              </li>
+                            </ul>
                           </Popover>
                         )}
                         {showTemplateManager && (
@@ -917,58 +1080,58 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                             align="end"
                             className="max-h-64"
                           >
-                          <ul
-                            className="w-72 bg-bg-elevated border border-border rounded-lg shadow-lg"
-                            role="menu"
-                            aria-label="Recent commit messages"
-                          >
-                            {recentMessages.length > 0 && (
-                              <li
-                                className="px-3 py-1 text-9.5 font-semibold uppercase tracking-caps text-text-faint bg-bg-tertiary sticky top-0"
-                                aria-hidden="true"
-                              >
-                                This working copy
-                              </li>
-                            )}
-                            {recentMessages.slice(0, 20).map((entry) => (
-                              <li key={`recent-${entry.timestamp}`}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleHistorySelect(entry.message)}
-                                  className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
-                                  role="menuitem"
+                            <ul
+                              className="w-72 bg-bg-elevated border border-border rounded-lg shadow-lg"
+                              role="menu"
+                              aria-label="Recent commit messages"
+                            >
+                              {recentMessages.length > 0 && (
+                                <li
+                                  className="px-3 py-1 text-9.5 font-semibold uppercase tracking-caps text-text-faint bg-bg-tertiary sticky top-0"
+                                  aria-hidden="true"
                                 >
-                                  <div className="truncate text-text">{entry.message}</div>
-                                  <div className="text-text-faint text-xs mt-0.5">
-                                    {new Date(entry.timestamp).toLocaleDateString()}
-                                  </div>
-                                </button>
-                              </li>
-                            ))}
-                            {history.length > 0 && (
-                              <li
-                                className="px-3 py-1 text-9.5 font-semibold uppercase tracking-caps text-text-faint bg-bg-tertiary sticky top-0"
-                                aria-hidden="true"
-                              >
-                                All working copies
-                              </li>
-                            )}
-                            {history.slice(0, 10).map((h, i) => (
-                              <li key={`global-${h.timestamp}-${i}`}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleHistorySelect(h.message)}
-                                  className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
-                                  role="menuitem"
+                                  This working copy
+                                </li>
+                              )}
+                              {recentMessages.slice(0, 20).map((entry) => (
+                                <li key={`recent-${entry.timestamp}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleHistorySelect(entry.message)}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
+                                    role="menuitem"
+                                  >
+                                    <div className="truncate text-text">{entry.message}</div>
+                                    <div className="text-text-faint text-xs mt-0.5">
+                                      {new Date(entry.timestamp).toLocaleDateString()}
+                                    </div>
+                                  </button>
+                                </li>
+                              ))}
+                              {history.length > 0 && (
+                                <li
+                                  className="px-3 py-1 text-9.5 font-semibold uppercase tracking-caps text-text-faint bg-bg-tertiary sticky top-0"
+                                  aria-hidden="true"
                                 >
-                                  <div className="truncate text-text">{h.message}</div>
-                                  <div className="text-text-faint text-xs mt-0.5">
-                                    {new Date(h.timestamp).toLocaleDateString()}
-                                  </div>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
+                                  All working copies
+                                </li>
+                              )}
+                              {history.slice(0, 10).map((h, i) => (
+                                <li key={`global-${h.timestamp}-${i}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleHistorySelect(h.message)}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary border-b border-border last:border-b-0"
+                                    role="menuitem"
+                                  >
+                                    <div className="truncate text-text">{h.message}</div>
+                                    <div className="text-text-faint text-xs mt-0.5">
+                                      {new Date(h.timestamp).toLocaleDateString()}
+                                    </div>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
                           </Popover>
                         )}
                       </div>
@@ -1203,7 +1366,7 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                               key={finding.id}
                               type="button"
                               onClick={() =>
-                                finding.filePath && setSelectedDiffFile(finding.filePath)
+                                finding.filePath && handleSelectDiffFile(finding.filePath)
                               }
                               className="flex w-full items-start gap-2 rounded-7 border border-border-muted bg-bg-secondary/70 px-2.5 py-2 text-left hover:border-accent/40"
                             >
@@ -1292,11 +1455,11 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                   )}
 
                   {/* Validation warnings */}
-                  {validationWarnings.length > 0 && (
+                  {visibleValidationWarnings.length > 0 && (
                     <div className="mt-2 flex items-start gap-2 text-xs text-warning">
                       <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <ul className="list-disc list-inside">
-                        {validationWarnings.map((warning, i) => (
+                        {visibleValidationWarnings.map((warning, i) => (
                           <li key={i}>{warning}</li>
                         ))}
                       </ul>
@@ -1373,11 +1536,15 @@ export function CommitDialog({ isOpen, workingCopyPath, onClose, onSubmit }: Com
                   />
                 </div>
 
-                {/* Diff preview with enhanced viewer */}
+                {/* Diff tab panel */}
                 <div
-                  className="flex-1 overflow-hidden flex flex-col"
-                  role="region"
-                  aria-label="File diff preview"
+                  id="commit-panel-diff"
+                  role="tabpanel"
+                  aria-labelledby="commit-tab-diff"
+                  tabIndex={0}
+                  className={
+                    activeTab === 'diff' ? 'flex min-h-0 flex-1 flex-col bg-bg-primary' : 'hidden'
+                  }
                 >
                   {selectedDiffFile ? (
                     diffData?.files && diffData.files.length > 0 ? (

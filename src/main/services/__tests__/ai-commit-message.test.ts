@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '@shared/types';
 import type { SafeStorage } from 'electron';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -36,6 +36,7 @@ import { AiCredentialsStore, setAiCredentialsStoreForTests } from '../ai-credent
 import { setProviderFetchForTests } from '../ai-providers/http-client';
 import type { ProviderFetch } from '../ai-providers/types';
 import { approvePathForIpc, clearApprovedPathsForTests } from '../../utils/approved-paths';
+import { runSvnText } from '../svn-executor';
 
 const customState = vi.hoisted(() => ({
   userData: '/tmp/shelly-ai-custom-test',
@@ -436,6 +437,7 @@ describe('AI custom provider selection and status', () => {
   });
 
   afterEach(async () => {
+    vi.mocked(runSvnText).mockImplementation(async () => DIFF);
     setAiCredentialsStoreForTests(undefined);
     setProviderFetchForTests(undefined);
     clearApprovedPathsForTests();
@@ -477,6 +479,52 @@ describe('AI custom provider selection and status', () => {
     expect(result.model).toBe('acme-model');
     expect(result.message).toBe('Fix status cache');
     expect(seenUrls).toEqual(['http://127.0.0.1:9/v1/chat/completions']);
+  });
+
+  it('generates when the selected folder is unversioned', async () => {
+    customState.aiSettings.provider = await addAcmeCustom();
+    setProviderFetchForTests(sseFetch(openAiSse('{"subject":"Add social icons","body":""}')));
+    const unversioned = join(directory, 'assets', 'icons', 'social');
+    await mkdir(unversioned, { recursive: true });
+    vi.mocked(runSvnText).mockRejectedValue(
+      new Error(`svn: E155010: The node '${unversioned}' was not found.`)
+    );
+    vi.mocked(runSvnText).mockClear();
+
+    const result = await generateAiCommitMessage({
+      operationId: 'custom-unversioned-folder-1',
+      workingCopyPath: directory,
+      paths: [unversioned],
+    });
+
+    expect(result.message).toBe('Add social icons');
+    expect(runSvnText).toHaveBeenCalledTimes(2);
+  });
+
+  it('omits a stale missing target while retaining selected file diffs', async () => {
+    customState.aiSettings.provider = await addAcmeCustom();
+    setProviderFetchForTests(sseFetch(openAiSse('{"subject":"Update theme assets","body":""}')));
+    const changedFile = join(directory, 'assets', 'theme.css');
+    const missingPath = join(directory, 'assets', 'icons', 'social');
+    await mkdir(join(directory, 'assets'), { recursive: true });
+    vi.mocked(runSvnText).mockImplementation(async (args) => {
+      if (args.some((argument) => argument === missingPath)) {
+        throw new Error(`svn: E155010: The node '${missingPath}' was not found.`);
+      }
+      return DIFF;
+    });
+    vi.mocked(runSvnText).mockClear();
+
+    const result = await generateAiCommitMessage({
+      operationId: 'custom-stale-missing-target-1',
+      workingCopyPath: directory,
+      paths: [changedFile, missingPath],
+    });
+
+    expect(result.message).toBe('Update theme assets');
+    expect(
+      vi.mocked(runSvnText).mock.calls.filter(([args]) => args.includes('diff'))
+    ).toHaveLength(3);
   });
 
   it('rejects a stale custom preference like any unconfigured provider', async () => {

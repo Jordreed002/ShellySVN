@@ -183,6 +183,13 @@ describe('suggestionEngine — validateCommitMessage', () => {
     );
   });
 
+  it('does not treat a long body as an overlong first line', () => {
+    const message = `feat: add icons\n\n${'body text '.repeat(20)}`;
+    expect(validateCommitMessage(message).warnings).not.toContain(
+      'First line of commit message exceeds 72 characters'
+    );
+  });
+
   it('warns when the message lacks a conventional prefix', () => {
     const { warnings } = validateCommitMessage('updated the checkout flow with new logic');
     expect(warnings).toContain(

@@ -86,6 +86,63 @@ describe('svn-commit', () => {
     );
   });
 
+  it('adds selected unversioned targets before a normal commit', async () => {
+    const folder = 'C:\\wc\\assets\\icons\\social';
+    const child = `${folder}\\mastodon.svg`;
+
+    const result = await commit(
+      ['C:\\wc\\tracked.css', folder, child],
+      'add social icons',
+      [folder, child]
+    );
+
+    expect(result).toEqual({ success: true, revision: 123 });
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(1, [
+      'add',
+      '--parents',
+      '--',
+      folder,
+    ]);
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      2,
+      ['commit', '-m', 'add social icons', '--', 'C:\\wc\\tracked.css', folder, child],
+      { trustSslFailures: false }
+    );
+  });
+
+  it('adds unversioned targets before a progress commit', async () => {
+    const event = { sender: { send: vi.fn() } } as never;
+    const newFile = 'C:\\wc\\new.txt';
+
+    await commitWithProgress(event, 'commit-add-1', [newFile], 'add file', [newFile]);
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'add',
+      '--parents',
+      '--',
+      newFile,
+    ]);
+    expect(mockState.runSvnText.mock.invocationCallOrder[0]).toBeLessThan(
+      mockState.runSvnOperationWithProgress.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('does not commit when scheduling an unversioned target fails', async () => {
+    const newFile = 'C:\\wc\\new.txt';
+    mockState.runSvnText.mockRejectedValueOnce(new Error('svn add failed'));
+
+    await expect(commit([newFile], 'add file', [newFile])).rejects.toThrow('svn add failed');
+
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects unversioned targets outside the selected commit paths', async () => {
+    await expect(
+      commit(['C:\\wc\\tracked.txt'], 'invalid add', ['C:\\wc\\other.txt'])
+    ).rejects.toThrow('must also be selected');
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+  });
+
   it('runs start, pre, svn, and post commit in order', async () => {
     const hooks = [
       { id: 'start', name: 'Start', type: 'start-commit', enabled: true },

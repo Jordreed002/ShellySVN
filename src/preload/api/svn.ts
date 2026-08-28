@@ -208,10 +208,15 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     updateItem: (path) => invokeIpc('svn:updateItem', path),
     updateToRevision: (workingCopyRoot, url, localPath, depth?, setDepthSticky?) =>
       invokeIpc('svn:updateToRevision', workingCopyRoot, url, localPath, depth, setDepthSticky),
-    commit: (paths, message) => invokeIpc('svn:commit', paths, message),
-    commitWithProgress: (paths, message, onProgress) =>
+    commit: (paths, message, unversionedPaths) =>
+      unversionedPaths === undefined
+        ? invokeIpc('svn:commit', paths, message)
+        : invokeIpc('svn:commit', paths, message, unversionedPaths),
+    commitWithProgress: (paths, message, onProgress, unversionedPaths) =>
       invokeWithOperationProgress(ipcRenderer, 'commit', onProgress, (operationId) =>
-        invokeIpc('svn:commitWithProgress', operationId, paths, message)
+        unversionedPaths === undefined
+          ? invokeIpc('svn:commitWithProgress', operationId, paths, message)
+          : invokeIpc('svn:commitWithProgress', operationId, paths, message, unversionedPaths)
       ),
     cancelOperation: (operationId?) => {
       const activeOperationId = operationId ?? latestId(activeOperationIds);

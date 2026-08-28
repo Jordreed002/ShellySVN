@@ -59,7 +59,8 @@ export interface CommitFile {
 
 type CommitDialogSubmit = (
   paths: string[],
-  message: string
+  message: string,
+  unversionedPaths?: string[]
 ) => Promise<{ success: boolean; message?: string; revision?: number }>;
 
 interface UseCommitDialogControllerOptions {
@@ -1121,7 +1122,12 @@ export function useCommitDialogController({
 
     try {
       const pathsToCommit = selectedFiles.map((file) => file.path);
-      const result = await onSubmit(pathsToCommit, message.trim());
+      const unversionedPaths = selectedFiles
+        .filter((file) => file.status === '?')
+        .map((file) => file.path);
+      const result = await (unversionedPaths.length === 0
+        ? onSubmit(pathsToCommit, message.trim())
+        : onSubmit(pathsToCommit, message.trim(), unversionedPaths));
 
       if (result.success) {
         addMessage(message.trim(), workingCopyPath);

@@ -124,6 +124,43 @@ describe('useCommitDialogController commit dialog upgrades', () => {
     });
   });
 
+  it('passes selected unversioned paths separately for scheduling before commit', async () => {
+    status.mockResolvedValue({
+      entries: [{ path: '/repo/new-icons', status: '?', isDirectory: true }],
+    });
+    const onSubmit = vi.fn().mockResolvedValue({ success: true, revision: 43 });
+    const { result } = renderHook(
+      () =>
+        useCommitDialogController({
+          isOpen: true,
+          workingCopyPath: '/repo',
+          onClose: vi.fn(),
+          onSubmit,
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.files).toHaveLength(1));
+    act(() => {
+      result.current.handleToggleFile('/repo/new-icons');
+      result.current.handleMessageChange('feat: add icons');
+    });
+    let submitPromise: Promise<void> | undefined;
+    act(() => {
+      submitPromise = result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as FormEvent);
+    });
+    await waitFor(() => expect(result.current.success).toEqual({ revision: 43 }));
+    await submitPromise;
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      ['/repo/new-icons'],
+      'feat: add icons',
+      ['/repo/new-icons']
+    );
+  });
+
   it('uses the repository profile issue pattern when the tracker config is still default', async () => {
     repositoryProfileGet.mockResolvedValue({
       version: 1,

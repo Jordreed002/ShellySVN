@@ -263,9 +263,12 @@ export interface IpcInvokeContract {
     ],
     RevisionResult
   >;
-  'svn:commit': IpcCall<[paths: string[], message: string], RevisionResult>;
+  'svn:commit': IpcCall<
+    [paths: string[], message: string, unversionedPaths?: string[]],
+    RevisionResult
+  >;
   'svn:commitWithProgress': IpcCall<
-    [operationId: string, paths: string[], message: string],
+    [operationId: string, paths: string[], message: string, unversionedPaths?: string[]],
     RevisionResult
   >;
   'svn:cancelOperation': IpcCall<[operationId: string], OperationResult>;

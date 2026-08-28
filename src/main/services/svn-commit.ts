@@ -8,6 +8,7 @@ import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
 import { getNetworkOptionsForWorkingCopyPath } from './svn-network-context';
 import { runSvnOperationWithProgress } from './svn-progress';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
+import { isAbsolute, relative } from 'node:path';
 
 async function getHooksForWorkingCopy(workingCopyPath: string): Promise<HookScript[]> {
   try {
@@ -28,18 +29,21 @@ function sanitizeCommitMessage(message: string): string {
 
 export async function commit(
   paths: string[],
-  message: string
+  message: string,
+  unversionedPaths: string[] = []
 ): Promise<{ success: boolean; revision?: SvnOperationRevision; error?: string }> {
   validateSvnTargets(paths, 'Commit target');
+  validateUnversionedCommitTargets(paths, unversionedPaths);
   const workingCopyPath = paths[0];
   return runSerializedWorkingCopyMutation(workingCopyPath, async () => {
-    return commitUnserialized(paths, message);
+    return commitUnserialized(paths, message, unversionedPaths);
   });
 }
 
 async function commitUnserialized(
   paths: string[],
-  message: string
+  message: string,
+  unversionedPaths: string[]
 ): Promise<{ success: boolean; revision?: SvnOperationRevision; error?: string }> {
   const workingCopyPath = paths[0];
   const cleanMessage = sanitizeCommitMessage(message);
@@ -68,6 +72,8 @@ async function commitUnserialized(
       error: preResult.error || 'Pre-commit hook blocked the operation',
     };
   }
+
+  await addUnversionedCommitTargets(unversionedPaths);
 
   const networkOptions = await getNetworkOptionsForWorkingCopyPath(workingCopyPath);
   const output = await runSvnText(
@@ -94,7 +100,8 @@ export async function commitWithProgress(
   event: IpcMainInvokeEvent,
   operationId: string,
   paths: string[],
-  message: string
+  message: string,
+  unversionedPaths: string[] = []
 ): Promise<{
   success: boolean;
   revision: SvnOperationRevision;
@@ -102,9 +109,10 @@ export async function commitWithProgress(
   output?: string;
 }> {
   validateSvnTargets(paths, 'Commit target');
+  validateUnversionedCommitTargets(paths, unversionedPaths);
   const workingCopyPath = paths[0];
   return runSerializedWorkingCopyMutation(workingCopyPath, async () =>
-    commitWithProgressUnserialized(event, operationId, paths, message)
+    commitWithProgressUnserialized(event, operationId, paths, message, unversionedPaths)
   );
 }
 
@@ -112,7 +120,8 @@ async function commitWithProgressUnserialized(
   event: IpcMainInvokeEvent,
   operationId: string,
   paths: string[],
-  message: string
+  message: string,
+  unversionedPaths: string[]
 ): Promise<{
   success: boolean;
   revision: SvnOperationRevision;
@@ -149,6 +158,8 @@ async function commitWithProgressUnserialized(
     };
   }
 
+  await addUnversionedCommitTargets(unversionedPaths);
+
   const networkOptions = await getNetworkOptionsForWorkingCopyPath(workingCopyPath);
   const result = await runSvnOperationWithProgress(
     event,
@@ -168,4 +179,30 @@ async function commitWithProgressUnserialized(
   }
 
   return result;
+}
+
+function validateUnversionedCommitTargets(paths: string[], unversionedPaths: string[]): void {
+  if (unversionedPaths.length > 0) {
+    validateSvnTargets(unversionedPaths, 'Unversioned commit target');
+  }
+  const selected = new Set(paths);
+  if (unversionedPaths.some((path) => !selected.has(path))) {
+    throw new Error('Every unversioned commit target must also be selected for commit.');
+  }
+}
+
+function topLevelTargets(paths: string[]): string[] {
+  return paths.filter(
+    (path, index) =>
+      !paths.some((parent, parentIndex) => {
+        if (index === parentIndex) return false;
+        const child = relative(parent, path);
+        return child !== '' && !child.startsWith('..') && !isAbsolute(child);
+      })
+  );
+}
+
+async function addUnversionedCommitTargets(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  await runSvnText(withSvnTargets(['add', '--parents'], topLevelTargets(paths)));
 }

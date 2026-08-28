@@ -591,18 +591,31 @@ export function registerSvnHandlers(): void {
   );
 
   // SVN Commit
-  ipcMain.handle('svn:commit', async (event, paths: string[], message: string) => {
-    return invalidateStatusAfter(paths, commit(paths, message), event);
-  });
+  ipcMain.handle(
+    'svn:commit',
+    async (event, paths: string[], message: string, unversionedPaths?: string[]) => {
+      const operation =
+        unversionedPaths === undefined
+          ? commit(paths, message)
+          : commit(paths, message, unversionedPaths);
+      return invalidateStatusAfter(paths, operation, event);
+    }
+  );
 
   ipcMain.handle(
     'svn:commitWithProgress',
-    async (event, operationId: string, paths: string[], message: string) => {
-      return invalidateStatusAfter(
-        paths,
-        commitWithProgress(event, operationId, paths, message),
-        event
-      );
+    async (
+      event,
+      operationId: string,
+      paths: string[],
+      message: string,
+      unversionedPaths?: string[]
+    ) => {
+      const operation =
+        unversionedPaths === undefined
+          ? commitWithProgress(event, operationId, paths, message)
+          : commitWithProgress(event, operationId, paths, message, unversionedPaths);
+      return invalidateStatusAfter(paths, operation, event);
     }
   );
 

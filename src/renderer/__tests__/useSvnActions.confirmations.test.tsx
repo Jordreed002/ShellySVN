@@ -174,6 +174,25 @@ describe('useSvnActions risky action confirmations', () => {
     expect(onRefresh).toHaveBeenCalled();
   });
 
+  it('forwards unversioned paths from the commit dialog to the progress commit', async () => {
+    const { result } = renderHook(
+      () => useFileExplorerActions('C:\\wc', null, vi.fn(), new Set()),
+      { wrapper: createWrapper() }
+    );
+    const folder = 'C:\\wc\\assets\\icons\\social';
+
+    await act(async () => {
+      await result.current.handleSubmitCommit([folder], 'add icons', [folder]);
+    });
+
+    expect(svnApi.commitWithProgress).toHaveBeenCalledWith(
+      [folder],
+      'add icons',
+      expect.any(Function),
+      [folder]
+    );
+  });
+
   it('refreshes file explorer status after resolving a selected conflict', async () => {
     const onRefresh = vi.fn();
     const { result } = renderHook(

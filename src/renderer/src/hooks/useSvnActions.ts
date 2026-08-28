@@ -174,7 +174,11 @@ export function useSvnActions() {
    * SVN Commit
    */
   const commit = useCallback(
-    async (paths: string[], commitMessage: string): Promise<SvnActionResult> => {
+    async (
+      paths: string[],
+      commitMessage: string,
+      unversionedPaths: string[] = []
+    ): Promise<SvnActionResult> => {
       setIsUpdating(true);
       setLastError(null);
       setOperationProgress({
@@ -185,11 +189,14 @@ export function useSvnActions() {
       });
 
       try {
-        const result = await window.api.svn.commitWithProgress(
-          paths,
-          commitMessage,
-          setOperationProgress
-        );
+        const result = await (unversionedPaths.length === 0
+          ? window.api.svn.commitWithProgress(paths, commitMessage, setOperationProgress)
+          : window.api.svn.commitWithProgress(
+              paths,
+              commitMessage,
+              setOperationProgress,
+              unversionedPaths
+            ));
 
         if (result.success) {
           setOperationProgress((current) => ({
@@ -922,8 +929,8 @@ export function useFileExplorerActions(
 
   // Submit commit
   const handleSubmitCommit = useCallback(
-    async (paths: string[], message: string) => {
-      const result = await commit(paths, message);
+    async (paths: string[], message: string, unversionedPaths: string[] = []) => {
+      const result = await commit(paths, message, unversionedPaths);
       if (result.success) {
         setCommitDialogOpen(false);
         onRefresh();

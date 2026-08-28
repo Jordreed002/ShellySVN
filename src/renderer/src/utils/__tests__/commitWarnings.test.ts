@@ -23,20 +23,14 @@ describe('commitWarnings', () => {
     );
   });
 
-  it('warns when selected versioned files span mixed revisions', () => {
+  it('does not warn when selected versioned files span normal mixed revisions', () => {
     const warnings = getCommitWarnings([
       file({ path: 'old.txt', revision: 10 }),
       file({ path: 'new.txt', revision: 12 }),
       file({ path: 'unversioned.txt', status: '?', revision: undefined }),
     ]);
 
-    expect(warnings).toContainEqual(
-      expect.objectContaining({
-        id: 'mixed-revisions',
-        severity: 'warning',
-        paths: ['old.txt', 'new.txt'],
-      })
-    );
+    expect(warnings.map((warning) => warning.id)).toEqual(['unversioned']);
   });
 
   it('warns about switched paths, locks, and externals', () => {
@@ -62,6 +56,7 @@ describe('commitWarnings', () => {
       expect.objectContaining({
         id: 'unversioned',
         severity: 'info',
+        message: '1 unversioned path will be added before commit.',
       })
     );
   });

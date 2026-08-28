@@ -589,7 +589,9 @@ async function listDrives(): Promise<FileInfo[]> {
   if (os.platform() === 'win32') {
     // Windows: Use wmic to get drive letters
     return new Promise((resolve) => {
-      const proc = spawn('wmic', ['logicaldisk', 'get', 'caption,volumename']);
+      const proc = spawn('wmic', ['logicaldisk', 'get', 'caption,volumename'], {
+        windowsHide: true,
+      });
       let stdout = '';
 
       proc.stdout.on('data', (data) => {

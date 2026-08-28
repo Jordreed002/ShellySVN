@@ -21,10 +21,6 @@ export interface CommitWarningFile {
 
 const MAX_PATHS = 4;
 
-function unique<T>(items: T[]): T[] {
-  return Array.from(new Set(items));
-}
-
 function summarizePaths(paths: string[]): string {
   const shown = paths.slice(0, MAX_PATHS);
   const remaining = paths.length - shown.length;
@@ -54,23 +50,6 @@ export function getCommitWarnings(
       severity: 'danger',
       message: `Resolve conflicted paths before committing: ${summarizePaths(conflictedPaths)}.`,
       paths: conflictedPaths,
-    });
-  }
-
-  const mixedRevisionFiles = selectedFiles.filter(
-    (file) => file.revision !== undefined && file.status !== '?' && file.status !== 'A'
-  );
-  const revisions = unique(mixedRevisionFiles.map((file) => file.revision));
-  if (revisions.length > 1) {
-    const paths = mixedRevisionFiles.map((file) => file.path);
-    warnings.push({
-      id: 'mixed-revisions',
-      severity: 'warning',
-      message: `Selected paths span mixed working-copy revisions (${revisions
-        .toSorted((a, b) => (a ?? 0) - (b ?? 0))
-        .map((revision) => `r${revision}`)
-        .join(', ')}): ${summarizePaths(paths)}.`,
-      paths,
     });
   }
 
@@ -125,9 +104,7 @@ export function getCommitWarnings(
     warnings.push({
       id: 'unversioned',
       severity: 'info',
-      message: `Unversioned paths are selected and may need to be added before commit: ${summarizePaths(
-        unversionedPaths
-      )}.`,
+      message: `${unversionedPaths.length} unversioned path${unversionedPaths.length === 1 ? '' : 's'} will be added before commit.`,
       paths: unversionedPaths,
     });
   }

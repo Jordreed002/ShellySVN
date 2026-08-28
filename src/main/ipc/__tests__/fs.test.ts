@@ -1170,11 +1170,11 @@ describe('FS IPC Handlers', () => {
         isDirectory: boolean;
       }>;
 
-      expect(mockState.spawn).toHaveBeenCalledWith('wmic', [
-        'logicaldisk',
-        'get',
-        'caption,volumename',
-      ]);
+      expect(mockState.spawn).toHaveBeenCalledWith(
+        'wmic',
+        ['logicaldisk', 'get', 'caption,volumename'],
+        { windowsHide: true }
+      );
       expect(result).toEqual([
         expect.objectContaining({ name: 'Local Disk (C:)', path: 'C:\\', isDirectory: true }),
         expect.objectContaining({ name: 'Data (D:)', path: 'D:\\', isDirectory: true }),

@@ -85,6 +85,9 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
 
     const proc = spawn(hookPath, args, {
       detached: true,
+      // Background commit hooks must not flash a console window on Windows.
+      // `showConsole` is the explicit opt-in for hooks intended to be visible.
+      windowsHide: !hook.showConsole,
       stdio: hook.showConsole ? 'inherit' : 'pipe',
       env: {
         ...process.env,

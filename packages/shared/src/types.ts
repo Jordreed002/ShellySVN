@@ -1878,12 +1878,14 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; revision: SvnOperationRevision; error?: string }>;
     commit: (
       paths: string[],
-      message: string
+      message: string,
+      unversionedPaths?: string[]
     ) => Promise<{ success: boolean; revision: SvnOperationRevision }>;
     commitWithProgress: (
       paths: string[],
       message: string,
-      onProgress: (progress: SvnOperationProgress) => void
+      onProgress: (progress: SvnOperationProgress) => void,
+      unversionedPaths?: string[]
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
