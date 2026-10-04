@@ -9,8 +9,9 @@
  *   contains a successful `update` / `commit`;
  * - "Open the Review Center" — the review-center open event fired (the same
  *   event the command palette dispatches), or the step's own CTA was used;
- * - "Create a sample repo" — needs a repo-create IPC pair that does not exist
- *   yet (see the coordination request): shipped marked "coming soon".
+ * - "Create a sample repo" — the CTA runs `svn:createSampleRepository` and the
+ *   completion is recorded when it succeeds (nothing else in the app's state
+ *   observes a throwaway playground).
  *
  * No new telemetry: observations come from state that exists for other
  * reasons, and once a step is seen done the timestamp is persisted (via
@@ -72,7 +73,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStepDefinition[] = [
     title: 'Create a sample repo playground',
     detail: 'A throwaway local repository with sample content to try things on.',
     icon: FlaskConical,
-    comingSoon: true,
+    command: 'svnadmin create + checkout',
   },
 ];
 
@@ -117,7 +118,9 @@ export function deriveOnboardingSteps(
           done = observations.reviewCenterOpened;
           break;
         case 'sample-repo':
-          done = false; // coming soon — nothing observable yet
+          // Completion is recorded by the CTA itself (see OnboardingChecklist):
+          // creating the playground is the only observable act, so there is
+          // nothing extra to derive here.
           break;
       }
     }

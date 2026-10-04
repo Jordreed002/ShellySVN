@@ -110,18 +110,48 @@ describe('ExportDialog wizard', () => {
     expect(screen.getByRole('radio', { name: /specific revision/i })).not.toBeDisabled();
   });
 
-  it('disables depth, ignore-externals and native EOL with an honest pending-backend note', () => {
+  it('offers enabled depth, externals, EOL and force options', () => {
     render(<ExportDialog isOpen onClose={() => undefined} initialPath={SOURCE_URL} />);
     fireEvent.click(screen.getByRole('button', { name: /next/i }));
 
-    expect(screen.getByRole('radio', { name: 'Fully recursive' })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Immediate children only' })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'File only' })).toBeDisabled();
-    expect(screen.getByRole('checkbox', { name: 'Ignore externals' })).toBeDisabled();
-    expect(screen.getByRole('checkbox', { name: /convert line endings/i })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Fully recursive' })).not.toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Immediate children only' })).not.toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'File only' })).not.toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Ignore externals' })).not.toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: /overwrite existing files/i })).not.toBeDisabled();
+    expect(screen.getByRole('combobox', { name: /export line endings/i })).not.toBeDisabled();
+  });
 
-    const notes = screen.getAllByText(/pending backend/i);
-    expect(notes.length).toBeGreaterThanOrEqual(2);
+  it('plumbs depth, externals, EOL and force into exportWithProgress options', async () => {
+    await walkToReview();
+
+    window.api.svn.exportWithProgress = vi.fn().mockImplementation(
+      (_url: string, _path: string, onProgress: (p: SvnOperationProgress) => void) => {
+        onProgress(exportProgress({ filesProcessed: 1 }));
+        return Promise.resolve({ success: true, revision: 42 });
+      }
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /back/i }));
+    fireEvent.click(screen.getByRole('radio', { name: 'File only' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ignore externals' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /overwrite existing files/i }));
+    fireEvent.change(screen.getByRole('combobox', { name: /export line endings/i }), {
+      target: { value: 'CRLF' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /start export/i }));
+
+    await waitFor(() => {
+      expect(window.api.svn.exportWithProgress).toHaveBeenCalledWith(
+        SOURCE_URL,
+        DEST_PATH,
+        expect.any(Function),
+        undefined,
+        { depth: 'files', ignoreExternals: true, nativeEol: 'CRLF', force: true }
+      );
+    });
+    await waitFor(() => screen.getByText('Export complete'));
   });
 
   it('rejects a non-numeric specific revision before leaving the options step', () => {
@@ -180,7 +210,8 @@ describe('ExportDialog wizard', () => {
         SOURCE_URL,
         DEST_PATH,
         expect.any(Function),
-        '42'
+        '42',
+        {}
       );
     });
     await waitFor(() => screen.getByText('Export complete'));

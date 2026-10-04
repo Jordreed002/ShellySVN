@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockElectronAPI } from '@test-utils/electron-api-mock';
 import type { SvnShelveListResult } from '@shared/types';
 import { SHELF_MANAGER_CONFIG_KEY } from '@renderer/lib/shelfManager';
-import { PENDING_BACKEND_CHANNELS, ShelfManagerDialog } from '../ShelfManagerDialog';
+import { ShelfManagerDialog } from '../ShelfManagerDialog';
 
 function renderWithQueryClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -120,27 +120,114 @@ describe('ShelfManagerDialog', () => {
     });
   });
 
-  it('shows disabled rename/diff/export/import affordances with the exact pending channels', async () => {
+  it('renames a shelf through the rename IPC after inline editing', async () => {
+    window.api.svn.shelve.rename = vi.fn().mockResolvedValue({ success: true });
     renderWithQueryClient(
       <ShelfManagerDialog isOpen onClose={vi.fn()} workingCopyPath="/wc" />
     );
 
-    // One disabled affordance per shelf row…
-    expect(
-      (await screen.findAllByRole('button', { name: /diff \(pending backend\)/i })).length
-    ).toBe(2);
-    expect(screen.getAllByRole('button', { name: /rename \(pending backend\)/i }).length).toBe(2);
-    // …and one global export/import pair.
-    expect(screen.getByRole('button', { name: /export shelf… \(pending backend\)/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /import shelf… \(pending backend\)/i })).toBeTruthy();
-    for (const button of screen.getAllByRole('button')) {
-      if (button.textContent?.includes('pending')) expect(button).toBeDisabled();
-    }
+    const renameButtons = await screen.findAllByRole('button', { name: /^rename/i });
+    fireEvent.click(renameButtons[0]); // first row: fresh-work
 
-    const pending = screen.getByTestId('pending-backend');
-    for (const channel of PENDING_BACKEND_CHANNELS) {
-      expect(within(pending).getByText(channel)).toBeTruthy();
-    }
+    const editor = screen.getByTestId('shelf-rename-editor');
+    const input = within(editor).getByLabelText(/new name for shelf fresh-work/i);
+    fireEvent.change(input, { target: { value: 'fresh-work-renamed' } });
+    fireEvent.click(within(editor).getByRole('button', { name: /confirm rename/i }));
+
+    await waitFor(() =>
+      expect(window.api.svn.shelve.rename).toHaveBeenCalledWith(
+        'fresh-work',
+        '/wc',
+        'fresh-work-renamed'
+      )
+    );
+    expect(await screen.findByTestId('shelf-action-notice')).toBeTruthy();
+  });
+
+  it('surfaces a failed rename as a dismissible error', async () => {
+    window.api.svn.shelve.rename = vi
+      .fn()
+      .mockResolvedValue({ success: false, error: 'A shelf named "x" already exists.' });
+    renderWithQueryClient(
+      <ShelfManagerDialog isOpen onClose={vi.fn()} workingCopyPath="/wc" />
+    );
+
+    const renameButtons = await screen.findAllByRole('button', { name: /^rename/i });
+    fireEvent.click(renameButtons[0]);
+    const editor = screen.getByTestId('shelf-rename-editor');
+    fireEvent.change(within(editor).getByLabelText(/new name for shelf fresh-work/i), {
+      target: { value: 'taken' },
+    });
+    fireEvent.click(within(editor).getByRole('button', { name: /confirm rename/i }));
+
+    const alert = await screen.findByTestId('shelf-action-error');
+    expect(alert.textContent).toContain('already exists');
+    // A failed rename keeps the editor so the name can be corrected.
+    expect(screen.getByTestId('shelf-rename-editor')).toBeTruthy();
+  });
+
+  it('shows the shelf diff and re-runs it against HEAD on toggle', async () => {
+    window.api.svn.shelve.diff = vi
+      .fn()
+      .mockResolvedValue({ success: true, diff: '--- a/README\n+++ b/README\n', against: 'working-copy' });
+    renderWithQueryClient(
+      <ShelfManagerDialog isOpen onClose={vi.fn()} workingCopyPath="/wc" />
+    );
+
+    const diffButtons = await screen.findAllByRole('button', { name: /^diff/i });
+    fireEvent.click(diffButtons[0]);
+
+    const panel = await screen.findByTestId('shelf-diff-panel');
+    expect(panel.textContent).toContain('+++ b/README');
+    expect(window.api.svn.shelve.diff).toHaveBeenCalledWith('fresh-work', '/wc', 'working-copy');
+
+    fireEvent.click(within(panel).getByRole('button', { name: /vs head/i }));
+    await waitFor(() =>
+      expect(window.api.svn.shelve.diff).toHaveBeenCalledWith('fresh-work', '/wc', 'HEAD')
+    );
+  });
+
+  it('exports a shelf into a picked directory through the export IPC', async () => {
+    window.api.svn.shelve.export = vi
+      .fn()
+      .mockResolvedValue({ success: true, output: '/out/portable-shelf-fresh-work' });
+    window.api.dialog.openDirectory = vi.fn().mockResolvedValue('/out');
+    renderWithQueryClient(
+      <ShelfManagerDialog isOpen onClose={vi.fn()} workingCopyPath="/wc" />
+    );
+
+    const exportButton = await screen.findByRole('button', {
+      name: /export shelf fresh-work as a portable bundle/i,
+    });
+    fireEvent.click(exportButton);
+
+    await waitFor(() =>
+      expect(window.api.svn.shelve.export).toHaveBeenCalledWith('fresh-work', '/wc', '/out')
+    );
+    const notice = await screen.findByTestId('shelf-action-notice');
+    expect(notice.textContent).toContain('/out/portable-shelf-fresh-work');
+  });
+
+  it('imports a picked portable shelf bundle into the working copy', async () => {
+    window.api.svn.shelve.import = vi
+      .fn()
+      .mockResolvedValue({ success: true, output: 'Imported shelf "fresh-work".' });
+    window.api.dialog.openDirectory = vi
+      .fn()
+      .mockResolvedValue('/bundles/portable-shelf-fresh-work');
+    renderWithQueryClient(
+      <ShelfManagerDialog isOpen onClose={vi.fn()} workingCopyPath="/wc" />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /^import shelf…/i }));
+
+    await waitFor(() =>
+      expect(window.api.svn.shelve.import).toHaveBeenCalledWith(
+        '/bundles/portable-shelf-fresh-work',
+        '/wc'
+      )
+    );
+    expect(await screen.findByTestId('shelf-action-notice')).toBeTruthy();
   });
 
   it('surfaces the unsupported reason from the shelf backend', async () => {

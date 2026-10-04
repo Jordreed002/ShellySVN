@@ -71,10 +71,10 @@ describe('deriveOnboardingSteps', () => {
     expect(steps.find((step) => step.id === 'first-commit')?.done).toBe(true);
   });
 
-  it('ships the sample-repo playground step marked coming soon', () => {
+  it('ships the sample-repo playground step as a runnable CTA', () => {
     const sample = ONBOARDING_STEPS.find((step) => step.id === 'sample-repo');
-    expect(sample?.comingSoon).toBe(true);
-    // And no observation can complete it.
+    expect(sample?.comingSoon).toBeUndefined();
+    // Session observations cannot complete it — only the CTA's persisted record.
     const steps = stepsFor({
       recentRepoCount: 9,
       successfulOperations: new Set(['update', 'commit']),

@@ -78,7 +78,7 @@ describe('ImportDialog wizard', () => {
     expect(advisory.textContent).toContain('Unversioned junk detected');
     expect(advisory.textContent).toContain('node_modules/');
     expect(advisory.textContent).toContain('250.0 MB');
-    expect(advisory.textContent).toContain('Pending backend');
+    expect(advisory.textContent).toContain('no exclude filter');
     expect(window.api.fs.getFolderSizes).toHaveBeenCalledWith([`${SOURCE_PATH}/node_modules`, `${SOURCE_PATH}/.git`]);
   });
 
@@ -193,7 +193,8 @@ describe('ImportDialog wizard', () => {
         SOURCE_PATH,
         REPO_URL,
         'Initial import',
-        expect.any(Function)
+        expect.any(Function),
+        undefined
       );
     });
 
@@ -202,6 +203,31 @@ describe('ImportDialog wizard', () => {
     expect(summary.textContent).toContain('r9');
     expect(summary.textContent).toContain('4');
     expect(summary.textContent).toContain(REPO_URL);
+  });
+
+  it('plumbs the --no-ignore option into importWithProgress', async () => {
+    walkToReview();
+
+    // Back to the destination step and enable "include ignored files".
+    fireEvent.click(screen.getByRole('button', { name: /back/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /include ignored files/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+
+    window.api.svn.importWithProgress = vi.fn().mockResolvedValue({
+      success: true,
+      revision: 10,
+    });
+    fireEvent.click(screen.getByRole('button', { name: /start import/i }));
+
+    await waitFor(() => {
+      expect(window.api.svn.importWithProgress).toHaveBeenCalledWith(
+        SOURCE_PATH,
+        REPO_URL,
+        'Initial import',
+        expect.any(Function),
+        { noIgnore: true }
+      );
+    });
   });
 
   it('cancels a running import through cancelOperation', async () => {

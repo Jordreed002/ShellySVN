@@ -1,26 +1,25 @@
 /**
  * Shelf Manager (#64).
  *
- * A management surface on top of the existing shelve IPC (`svn:shelve:list` /
- * `save` / `apply` / `delete`):
+ * A management surface on top of the shelve IPC (`svn:shelve:list` / `save` /
+ * `apply` / `delete`, plus the rename / diff / portable export / portable
+ * import channels):
  *
  * - Table of shelves with name, creation date and age.
  * - Expiry nudges: user-configurable max age (persisted via
  *   `lib/shelfManager.ts`); older shelves get a stale indicator and a
  *   delete prompt.
- * - Rename, diff-against-WC/HEAD, and portable import/export are rendered as
- *   disabled affordances with the exact backend channels they need — see the
- *   coordination request in the "Pending backend" section. The main-side
- *   services exist for portable shelves
- *   (`svn-portable-shelves.ts`) but expose no rename/diff/export/import
- *   operations and no preload channels either.
+ * - Rename (inline edit), diff against the working copy or HEAD (patch text
+ *   panel), export to a portable bundle directory, and import of a portable
+ *   bundle into this working copy.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   Archive,
+  Check,
   Clock,
   Download,
   FileDiff,
@@ -29,8 +28,9 @@ import {
   Play,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
-import type { SvnShelve } from '@shared/types';
+import type { SvnShelve, SvnShelveDiffAgainst } from '@shared/types';
 import {
   formatShelfAge,
   isShelfStale,
@@ -41,22 +41,16 @@ import {
 import { confirmAppAction } from '../../utils/dialogs';
 import { DialogBase } from './DialogBase';
 
-/**
- * Operations that need new IPC channels before the UI can enable them.
- * Rendered in the dialog so the request is visible exactly where the feature
- * will land.
- */
-export const PENDING_BACKEND_CHANNELS = [
-  'svn:shelve:rename (name, path, newName)',
-  'svn:shelve:diff (name, path, against: "working-copy" | "HEAD")',
-  'svn:shelve:export (name, path, outputPath)',
-  'svn:shelve:import (portableShelfPath, targetWorkingCopyPath)',
-] as const;
-
 export interface ShelfManagerDialogProps {
   isOpen: boolean;
   onClose: () => void;
   workingCopyPath: string;
+}
+
+interface DiffPanelState {
+  name: string;
+  against: SvnShelveDiffAgainst;
+  diff: string;
 }
 
 export function ShelfManagerDialog({
@@ -66,6 +60,11 @@ export function ShelfManagerDialog({
 }: ShelfManagerDialogProps) {
   const queryClient = useQueryClient();
   const [maxAgeDaysInput, setMaxAgeDaysInput] = useState<string>('');
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [diffPanel, setDiffPanel] = useState<DiffPanelState | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const { data: shelveData, isLoading } = useQuery({
     queryKey: ['svn:shelve:list', workingCopyPath],
@@ -90,15 +89,90 @@ export function ShelfManagerDialog({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shelf-manager:config'] }),
   });
 
+  const invalidateShelves = () =>
+    queryClient.invalidateQueries({ queryKey: ['svn:shelve:list', workingCopyPath] });
+
+  const surfaceError = (error: unknown) =>
+    setActionError(error instanceof Error ? error.message : String(error));
+
   const applyMutation = useMutation({
     mutationFn: (name: string) => window.api.svn.shelve.apply(name, workingCopyPath),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] }),
+    onSuccess: (result) => {
+      if (!result.success) setActionError(result.error ?? 'Unshelve failed.');
+      else setActionNotice(`Applied shelf changes to the working copy.`);
+      void queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+    },
+    onError: surfaceError,
   });
 
   const deleteMutation = useMutation({
     mutationFn: (name: string) => window.api.svn.shelve.delete(name, workingCopyPath),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['svn:shelve:list', workingCopyPath] }),
+    onSuccess: (result) => {
+      if (!result.success) setActionError(result.error ?? 'Delete failed.');
+      else setActionNotice('Shelf deleted.');
+      void invalidateShelves();
+    },
+    onError: surfaceError,
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: (input: { name: string; newName: string }) =>
+      window.api.svn.shelve.rename(input.name, workingCopyPath, input.newName),
+    onSuccess: (result, input) => {
+      if (!result.success) {
+        setActionError(result.error ?? 'Rename failed.');
+        return;
+      }
+      setActionNotice(`Renamed shelf to "${input.newName}".`);
+      setRenaming(null);
+      setDiffPanel((panel) => (panel?.name === input.name ? null : panel));
+      void invalidateShelves();
+    },
+    onError: surfaceError,
+  });
+
+  const diffMutation = useMutation({
+    mutationFn: (input: { name: string; against: SvnShelveDiffAgainst }) =>
+      window.api.svn.shelve.diff(input.name, workingCopyPath, input.against),
+    onSuccess: (result, input) => {
+      if (!result.success) {
+        setActionError(result.error ?? 'Could not read the shelf diff.');
+        return;
+      }
+      setDiffPanel({ name: input.name, against: input.against, diff: result.diff });
+    },
+    onError: surfaceError,
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: (input: { name: string; outputPath: string }) =>
+      window.api.svn.shelve.export(input.name, workingCopyPath, input.outputPath),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setActionError(result.error ?? 'Shelf export failed.');
+        return;
+      }
+      setActionNotice(
+        result.output
+          ? `Exported portable shelf bundle to ${result.output}`
+          : 'Exported portable shelf bundle.'
+      );
+    },
+    onError: surfaceError,
+  });
+
+  const importMutation = useMutation({
+    mutationFn: (portableShelfPath: string) =>
+      window.api.svn.shelve.import(portableShelfPath, workingCopyPath),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setActionError(result.error ?? 'Shelf import failed.');
+        return;
+      }
+      setActionNotice(result.output ?? 'Imported portable shelf.');
+      void invalidateShelves();
+    },
+    onError: surfaceError,
   });
 
   const maxAgeDays = config?.maxAgeDays ?? null;
@@ -122,6 +196,37 @@ export function ShelfManagerDialog({
       confirmLabel: 'Delete shelf',
     });
     if (confirmed) deleteMutation.mutate(shelf.name);
+  };
+
+  const handleDiff = (name: string, against: SvnShelveDiffAgainst) => {
+    setActionError(null);
+    diffMutation.mutate({ name, against });
+  };
+
+  const handleExport = async (name: string) => {
+    setActionError(null);
+    const outputPath = await window.api.dialog.openDirectory();
+    if (!outputPath) return;
+    exportMutation.mutate({ name, outputPath });
+  };
+
+  const handleImport = async () => {
+    setActionError(null);
+    const portableShelfPath = await window.api.dialog.openDirectory();
+    if (!portableShelfPath) return;
+    importMutation.mutate(portableShelfPath);
+  };
+
+  const startRename = (name: string) => {
+    setActionError(null);
+    setRenaming(name);
+    setRenameValue(name);
+  };
+
+  const commitRename = () => {
+    const newName = renameValue.trim();
+    if (!renaming || !newName) return;
+    renameMutation.mutate({ name: renaming, newName });
   };
 
   return (
@@ -151,6 +256,40 @@ export function ShelfManagerDialog({
           >
             <AlertCircle className="h-4 w-4" />
             {shelveData.error}
+          </div>
+        )}
+        {actionError && (
+          <div
+            className="flex items-start justify-between gap-2 rounded bg-error/10 p-3 text-sm text-error"
+            role="alert"
+            data-testid="shelf-action-error"
+          >
+            <span className="break-words">{actionError}</span>
+            <button
+              type="button"
+              className="btn-icon-sm flex-shrink-0"
+              aria-label="Dismiss error"
+              onClick={() => setActionError(null)}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {actionNotice && (
+          <div
+            className="flex items-start justify-between gap-2 rounded bg-success/10 p-3 text-sm text-success"
+            role="status"
+            data-testid="shelf-action-notice"
+          >
+            <span className="break-words">{actionNotice}</span>
+            <button
+              type="button"
+              className="btn-icon-sm flex-shrink-0"
+              aria-label="Dismiss notice"
+              onClick={() => setActionNotice(null)}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
@@ -224,26 +363,64 @@ export function ShelfManagerDialog({
               {shelves.map((shelf) => {
                 const stale = isShelfStale(shelf.date, maxAgeDays);
                 const age = shelfAgeDays(shelf.date);
+                const isRenamingThis = renaming === shelf.name;
                 return (
                   <tr
                     key={shelf.name}
                     className={`border-b border-border/50 ${stale ? 'bg-warning/5' : ''}`}
                   >
                     <td className="py-2 pr-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-text truncate max-w-40" title={shelf.name}>
-                          {shelf.name}
-                        </span>
-                        {stale && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full border border-warning/40 bg-warning/10 text-warning whitespace-nowrap">
-                            stale
-                          </span>
-                        )}
-                      </div>
-                      {shelf.message && (
-                        <p className="text-xs text-text-faint truncate max-w-52" title={shelf.message}>
-                          {shelf.message}
-                        </p>
+                      {isRenamingThis ? (
+                        <div className="flex items-center gap-1" data-testid="shelf-rename-editor">
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(event) => setRenameValue(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') commitRename();
+                              if (event.key === 'Escape') setRenaming(null);
+                            }}
+                            aria-label={`New name for shelf ${shelf.name}`}
+                            className="input py-0.5 w-36"
+                          />
+                          <button
+                            type="button"
+                            className="btn-icon-sm hover:text-success"
+                            title="Confirm rename"
+                            aria-label={`Confirm rename of shelf ${shelf.name}`}
+                            disabled={renameMutation.isPending || !renameValue.trim()}
+                            onClick={commitRename}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-icon-sm hover:text-error"
+                            title="Cancel rename"
+                            aria-label={`Cancel rename of shelf ${shelf.name}`}
+                            onClick={() => setRenaming(null)}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-text truncate max-w-40" title={shelf.name}>
+                              {shelf.name}
+                            </span>
+                            {stale && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full border border-warning/40 bg-warning/10 text-warning whitespace-nowrap">
+                                stale
+                              </span>
+                            )}
+                          </div>
+                          {shelf.message && (
+                            <p className="text-xs text-text-faint truncate max-w-52" title={shelf.message}>
+                              {shelf.message}
+                            </p>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="py-2 pr-2 text-text-secondary whitespace-nowrap">
@@ -265,16 +442,40 @@ export function ShelfManagerDialog({
                           <Play className="w-3.5 h-3.5" />
                           Apply
                         </button>
-                        <PendingButton
-                          label="Diff"
-                          icon={<FileDiff className="w-3.5 h-3.5" />}
-                          title="Diff shelf against working copy or HEAD — pending backend channel svn:shelve:diff"
-                        />
-                        <PendingButton
-                          label="Rename"
-                          icon={<Pencil className="w-3.5 h-3.5" />}
-                          title="Rename shelf — pending backend channel svn:shelve:rename"
-                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          title={`Diff shelf ${shelf.name} against the working copy or HEAD`}
+                          disabled={diffMutation.isPending}
+                          onClick={() => handleDiff(shelf.name, 'working-copy')}
+                        >
+                          {diffMutation.isPending &&
+                          diffMutation.variables?.name === shelf.name ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <FileDiff className="w-3.5 h-3.5" />
+                          )}
+                          Diff
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          title={`Rename shelf ${shelf.name}`}
+                          onClick={() => startRename(shelf.name)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icon-sm hover:text-accent"
+                          title={`Export shelf ${shelf.name} as a portable bundle directory`}
+                          aria-label={`Export shelf ${shelf.name} as a portable bundle`}
+                          disabled={exportMutation.isPending}
+                          onClick={() => void handleExport(shelf.name)}
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           className="btn-icon-sm hover:text-error"
@@ -294,41 +495,66 @@ export function ShelfManagerDialog({
           </table>
         )}
 
-        {/* Portable import/export — pending backend */}
-        <div className="flex items-center gap-2">
-          <PendingButton
-            label="Export shelf…"
-            icon={<Download className="w-3.5 h-3.5" />}
-            title="Export a shelf to a portable file — pending backend channel svn:shelve:export"
-          />
-          <PendingButton
-            label="Import shelf…"
-            icon={<Upload className="w-3.5 h-3.5" />}
-            title="Import a portable shelf file — pending backend channel svn:shelve:import"
-          />
-        </div>
+        {/* Shelf diff output */}
+        {diffPanel && (
+          <div
+            className="rounded-lg border border-border bg-bg-secondary"
+            data-testid="shelf-diff-panel"
+          >
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+              <FileDiff className="w-4 h-4 text-accent" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary">
+                {diffPanel.name} · against {diffPanel.against}
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm text-xs"
+                disabled={diffMutation.isPending}
+                onClick={() =>
+                  handleDiff(
+                    diffPanel.name,
+                    diffPanel.against === 'working-copy' ? 'HEAD' : 'working-copy'
+                  )
+                }
+              >
+                vs {diffPanel.against === 'working-copy' ? 'HEAD' : 'working copy'}
+              </button>
+              <button
+                type="button"
+                className="btn-icon-sm"
+                aria-label="Close diff"
+                onClick={() => setDiffPanel(null)}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <pre className="max-h-64 overflow-auto px-3 py-2 font-mono text-xs text-text whitespace-pre">
+              {diffPanel.diff.trim() || '(the shelf holds no textual changes)'}
+            </pre>
+          </div>
+        )}
 
-        {/* Coordination request: exact channels needed from the backend */}
-        <details className="text-xs text-text-faint border border-border rounded-lg p-2" data-testid="pending-backend">
-          <summary className="cursor-pointer text-text-secondary">
-            Pending backend (coordination request)
-          </summary>
-          <p className="mt-1.5">
-            These features need new IPC channels (main + preload) before they can be enabled.
-            The portable-shelf service (<span className="font-mono">svn-portable-shelves.ts</span>)
-            already provides list/save/apply/delete for the fallback store; it needs
-            rename/diff/export/import operations exposed through:
-          </p>
-          <ul className="mt-1 list-disc pl-4 font-mono space-y-0.5">
-            {PENDING_BACKEND_CHANNELS.map((channel) => (
-              <li key={channel}>{channel}</li>
-            ))}
-          </ul>
-          <p className="mt-1.5">
-            Rename could alternatively be approximated store-side, but without a backend channel
-            the renderer cannot reach the shelf storage at all.
-          </p>
-        </details>
+        {/* Portable import */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            title="Import a portable shelf bundle directory into this working copy"
+            disabled={importMutation.isPending}
+            onClick={() => void handleImport()}
+          >
+            {importMutation.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Upload className="w-3.5 h-3.5" />
+            )}
+            Import shelf…
+          </button>
+          <span className="text-xs text-text-faint">
+            Bundles are the <span className="font-mono">portable-shelf-&lt;name&gt;</span>{' '}
+            directories written by Export.
+          </span>
+        </div>
       </div>
 
       <div className="modal-footer">
@@ -340,29 +566,6 @@ export function ShelfManagerDialog({
         </button>
       </div>
     </DialogBase>
-  );
-}
-
-function PendingButton({
-  label,
-  icon,
-  title,
-}: {
-  label: string;
-  icon: ReactNode;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      className="btn btn-secondary btn-sm opacity-50"
-      title={title}
-      aria-label={`${label} (pending backend)`}
-      disabled
-    >
-      {icon}
-      {label}
-    </button>
   );
 }
 

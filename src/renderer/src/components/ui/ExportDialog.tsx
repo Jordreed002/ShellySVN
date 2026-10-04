@@ -44,13 +44,19 @@ type WizardStep = 0 | 1 | 2;
 
 const STEP_LABELS = ['Source', 'Options', 'Review'] as const;
 
-/** Depth choices the wizard offers. The IPC payload has no depth field yet,
- * so the selector renders disabled ("pending backend") and exports always run
- * with SVN's default (fully recursive). */
+/** Depth choices the wizard offers, mapped to `svn export --depth`. */
 const DEPTH_CHOICES = [
   { value: 'infinity', label: 'Fully recursive' },
   { value: 'immediates', label: 'Immediate children only' },
   { value: 'files', label: 'File only' },
+] as const;
+
+/** Line-ending choices mapped to `svn export --native-eol`. */
+const NATIVE_EOL_CHOICES = [
+  { value: '', label: 'Keep original line endings' },
+  { value: 'LF', label: 'Convert to LF' },
+  { value: 'CR', label: 'Convert to CR' },
+  { value: 'CRLF', label: 'Convert to CRLF (Windows)' },
 ] as const;
 
 type EstimateState =
@@ -67,11 +73,11 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
   const [destPath, setDestPath] = useState('');
   const [revisionPin, setRevisionPin] = useState<ExportRevisionPin>('head');
   const [revisionNumber, setRevisionNumber] = useState('');
-  // Kept (disabled) until the export IPC grows the matching fields — see the
-  // "pending backend" notes in the Options step.
+  // Optional export payload fields (svn:export[WithProgress] options).
   const [depth, setDepth] = useState<(typeof DEPTH_CHOICES)[number]['value']>('infinity');
   const [ignoreExternals, setIgnoreExternals] = useState(false);
-  const [nativeEol, setNativeEol] = useState(false);
+  const [nativeEol, setNativeEol] = useState<(typeof NATIVE_EOL_CHOICES)[number]['value']>('');
+  const [force, setForce] = useState(false);
   const [estimate, setEstimate] = useState<EstimateState>({ status: 'idle' });
 
   const op = useWizardOperation<ExportResult>({ label: 'Export' });
@@ -88,7 +94,8 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
       setRevisionNumber('');
       setDepth('infinity');
       setIgnoreExternals(false);
-      setNativeEol(false);
+      setNativeEol('');
+      setForce(false);
       setEstimate({ status: 'idle' });
       estimateKeyRef.current = null;
       resetOperation();
@@ -140,8 +147,20 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
   }, [isOpen, step, source, revision, op.phase, runEstimate]);
 
   const startExport = () => {
+    const options = {
+      depth: depth === 'infinity' ? undefined : depth,
+      ...(ignoreExternals ? { ignoreExternals: true } : {}),
+      ...(nativeEol ? { nativeEol: nativeEol as 'LF' | 'CR' | 'CRLF' } : {}),
+      ...(force ? { force: true } : {}),
+    };
     op.start((onProgress) =>
-      window.api.svn.exportWithProgress(source, destination, onProgress, revision ?? undefined)
+      window.api.svn.exportWithProgress(
+        source,
+        destination,
+        onProgress,
+        revision ?? undefined,
+        options
+      )
     );
   };
 
@@ -353,8 +372,8 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                     </button>
                   </div>
                   <p className="mt-1.5 text-xs text-text-faint">
-                    svn export refuses to write into an existing directory and this build cannot pass
-                    --force (pending backend) — choose a new or empty folder.
+                    svn export refuses to overwrite existing files unless you enable
+                    &ldquo;Overwrite existing files&rdquo; below (--force).
                   </p>
                 </div>
 
@@ -417,7 +436,7 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
                 <fieldset>
                   <legend className="mb-1.5 text-sm font-medium text-text-secondary">Depth</legend>
-                  <div className="space-y-1.5 text-sm opacity-60">
+                  <div className="space-y-1.5 text-sm">
                     {DEPTH_CHOICES.map((choice) => (
                       <label key={choice.value} className="flex items-center gap-2">
                         <input
@@ -425,7 +444,6 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                           name="export-depth"
                           value={choice.value}
                           checked={depth === choice.value}
-                          disabled
                           onChange={() => setDepth(choice.value)}
                         />
                         {choice.label}
@@ -433,28 +451,45 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                     ))}
                   </div>
                   <p className="text-xs text-text-faint">
-                    Pending backend — <code>svn:exportWithProgress</code> has no depth field yet, so
-                    exports always run fully recursive.
+                    Passed to <code>svn export --depth</code>.
                   </p>
                 </fieldset>
 
-                <div className="space-y-1.5 opacity-60">
+                <div className="space-y-1.5">
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={ignoreExternals}
-                      disabled
                       onChange={() => setIgnoreExternals(!ignoreExternals)}
                     />
                     Ignore externals
                   </label>
                   <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={nativeEol} disabled onChange={() => setNativeEol(!nativeEol)} />
-                    Convert line endings to native EOL
+                    <input
+                      type="checkbox"
+                      checked={force}
+                      onChange={() => setForce(!force)}
+                    />
+                    Overwrite existing files (--force)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span className="flex-1">Line endings</span>
+                    <select
+                      aria-label="Export line endings"
+                      value={nativeEol}
+                      onChange={(event) => setNativeEol(event.target.value as (typeof NATIVE_EOL_CHOICES)[number]['value'])}
+                      className="input py-1 w-52"
+                    >
+                      {NATIVE_EOL_CHOICES.map((choice) => (
+                        <option key={choice.value || 'keep'} value={choice.value}>
+                          {choice.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <p className="text-xs text-text-faint">
-                    Pending backend — the export IPC cannot receive --ignore-externals or --native-eol
-                    yet; externals are included with original line endings.
+                    &ldquo;Ignore externals&rdquo; passes <code>--ignore-externals</code>; the
+                    line-ending selector passes <code>--native-eol LF|CR|CRLF</code>.
                   </p>
                 </div>
               </section>
@@ -482,16 +517,25 @@ export function ExportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                   <div className="flex justify-between gap-4">
                     <dt className="text-text-secondary">Depth</dt>
                     <dd className="text-text">
-                      {DEPTH_CHOICES.find((choice) => choice.value === depth)?.label}{' '}
-                      <span className="text-xs text-text-faint">(pending backend)</span>
+                      {DEPTH_CHOICES.find((choice) => choice.value === depth)?.label}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-4">
                     <dt className="text-text-secondary">Externals</dt>
-                    <dd className="text-text">
-                      Included <span className="text-xs text-text-faint">(pending backend)</span>
-                    </dd>
+                    <dd className="text-text">{ignoreExternals ? 'Ignored' : 'Included'}</dd>
                   </div>
+                  {nativeEol ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-text-secondary">Line endings</dt>
+                      <dd className="text-text font-mono">{nativeEol}</dd>
+                    </div>
+                  ) : null}
+                  {force ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-text-secondary">Overwrite</dt>
+                      <dd className="text-text">Existing files replaced (--force)</dd>
+                    </div>
+                  ) : null}
                 </dl>
 
                 <div className="rounded border border-border bg-bg-secondary p-3" data-testid="export-estimate">

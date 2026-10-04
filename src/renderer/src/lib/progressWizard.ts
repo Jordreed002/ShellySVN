@@ -2,10 +2,10 @@
  * Pure helpers shared by the import/export wizards (backlog #62).
  *
  * Everything here is string/number shuffling around the *existing* IPC
- * contract — no option is invented client-side. Where the SVN payload has no
- * field for an option (export depth, ignore-externals, native EOL, import
- * excludes) the wizards render the control disabled with a "pending backend"
- * note instead of faking it; see the coordination notes in the dialogs.
+ * contract — no option is invented client-side. The export options payload
+ * (depth, ignore-externals, native EOL, force) and the import --no-ignore
+ * flag are backend-supported; `svn import` still has no exclude filter, so
+ * junk detection stays advisory.
  */
 
 import type { SvnRepoEntry } from '@shared/types';

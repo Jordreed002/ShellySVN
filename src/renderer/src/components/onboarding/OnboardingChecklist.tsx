@@ -7,9 +7,10 @@
  * sessions (lib/onboardingStore.ts persists the seen-done record), the card is
  * dismissible, and the welcome screen (EmptyBriefing) can bring it back.
  *
- * The "Create a sample repo" step is shipped marked "coming soon": making a
- * playground needs a repository-create IPC (svnadmin create + checkout pair)
- * the preload bridge does not expose yet — see the coordination request.
+ * The "Create a sample repo" step runs `svn:createSampleRepository` (a seeded
+ * local repository via svnadmin) and then the existing checkout flow: the user
+ * picks a parent folder, the trunk is checked out into it as
+ * `shellysvn-sample`, and the working-copy view opens.
  */
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
@@ -42,8 +43,11 @@ export interface OnboardingChecklistProps {
 
 export function OnboardingChecklist({ onOpenWorkingCopy }: OnboardingChecklistProps) {
   const navigate = useNavigate();
-  const { settings } = useSettings();
+  const { settings, addRecentRepo } = useSettings();
   const checklist = useSyncExternalStore(subscribeOnboardingChecklist, getOnboardingChecklist);
+  const [sampleState, setSampleState] = useState<
+    { phase: 'idle' } | { phase: 'creating' } | { phase: 'error'; message: string }
+  >({ phase: 'idle' });
 
   useEffect(() => {
     void ensureOnboardingHydrated();
@@ -105,6 +109,49 @@ export function OnboardingChecklist({ onOpenWorkingCopy }: OnboardingChecklistPr
   const doneCount = completable.filter((step) => step.done).length;
   const allDone = completable.length > 0 && doneCount === completable.length;
 
+  /**
+   * Sample-repo step (#88): create the seeded playground, then run the existing
+   * checkout flow — the user picks a parent folder and the trunk lands in
+   * `<parent>/shellysvn-sample`, which opens as the active working copy.
+   */
+  const runSampleRepoStep = useCallback(async () => {
+    setSampleState({ phase: 'creating' });
+    try {
+      const created = await window.api.svn.createSampleRepository();
+      if (!created.success || !created.url) {
+        setSampleState({
+          phase: 'error',
+          message: created.error ?? 'The sample repository could not be created.',
+        });
+        return;
+      }
+      markOnboardingStepsDone(['sample-repo']);
+      const parent = await window.api.dialog.openDirectory();
+      if (!parent) {
+        // Repository exists now; the checkout can happen any time via Checkout…
+        setSampleState({ phase: 'idle' });
+        return;
+      }
+      const checkoutPath = `${parent.replace(/[\\/]+$/, '')}/shellysvn-sample`;
+      const checkout = await window.api.svn.checkout(created.url, checkoutPath);
+      if (!checkout.success) {
+        setSampleState({
+          phase: 'error',
+          message: `Checking out ${created.url} failed.`,
+        });
+        return;
+      }
+      setSampleState({ phase: 'idle' });
+      await addRecentRepo(checkoutPath);
+      navigate({ to: '/files', search: { path: checkoutPath } });
+    } catch (error) {
+      setSampleState({
+        phase: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [addRecentRepo, navigate]);
+
   // Hooks before the early return below — hiding the card mid-session must not
   // change the hook count between renders.
   const runStep = useCallback(
@@ -122,10 +169,11 @@ export function OnboardingChecklist({ onOpenWorkingCopy }: OnboardingChecklistPr
           window.dispatchEvent(new CustomEvent(REVIEW_CENTER_OPEN_EVENT));
           break;
         case 'sample-repo':
-          break; // coming soon — the button is disabled
+          void runSampleRepoStep();
+          break;
       }
     },
-    [navigate, onOpenWorkingCopy, workingCopyPath]
+    [navigate, onOpenWorkingCopy, runSampleRepoStep, workingCopyPath]
   );
 
   // Hidden once dismissed or finished; the welcome screen can re-open it.
@@ -154,6 +202,15 @@ export function OnboardingChecklist({ onOpenWorkingCopy }: OnboardingChecklistPr
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       </div>
+      {sampleState.phase === 'error' && (
+        <div
+          role="alert"
+          className="border-b border-border-muted bg-svn-conflict/10 px-2.5 py-1.5 font-mono text-9.5 text-svn-conflict"
+          data-testid="sample-repo-error"
+        >
+          <span className="break-words">{sampleState.message}</span>
+        </div>
+      )}
       <ul className="list-none">
         {steps.map((step) => {
           const Icon = step.icon;
@@ -194,20 +251,32 @@ export function OnboardingChecklist({ onOpenWorkingCopy }: OnboardingChecklistPr
               <button
                 type="button"
                 onClick={() => runStep(step)}
-                disabled={step.done || step.comingSoon}
+                disabled={
+                  step.done || step.comingSoon || (step.id === 'sample-repo' && sampleState.phase === 'creating')
+                }
                 className="btn btn-secondary btn-sm flex-shrink-0 gap-1.5 text-10.5"
                 aria-label={
-                  step.comingSoon ? `${step.title} (coming soon)` : `Go: ${step.title}`
+                  step.comingSoon
+                    ? `${step.title} (coming soon)`
+                    : step.id === 'sample-repo' && sampleState.phase === 'creating'
+                      ? `${step.title} (creating…)`
+                      : `Go: ${step.title}`
                 }
                 title={
-                  step.comingSoon
-                    ? 'Needs a repository-create IPC pair (svnadmin create + checkout) that is not exposed yet'
-                    : step.done
-                      ? 'Done'
+                  step.done
+                    ? 'Done'
+                    : step.id === 'sample-repo' && sampleState.phase === 'creating'
+                      ? 'Creating the sample repository…'
                       : step.detail
                 }
               >
-                {step.done ? 'Done' : step.comingSoon ? 'Soon' : 'Go'}
+                {step.done
+                  ? 'Done'
+                  : step.comingSoon
+                    ? 'Soon'
+                    : step.id === 'sample-repo' && sampleState.phase === 'creating'
+                      ? 'Creating…'
+                      : 'Go'}
               </button>
             </li>
           );

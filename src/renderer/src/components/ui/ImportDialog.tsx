@@ -71,6 +71,7 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
   const [sourcePath, setSourcePath] = useState(initialPath);
   const [destUrl, setDestUrl] = useState('');
   const [message, setMessage] = useState('');
+  const [noIgnore, setNoIgnore] = useState(false);
   const [junk, setJunk] = useState<JunkScan>({ status: 'idle' });
   const [browser, setBrowser] = useState<BrowserState>({
     open: false,
@@ -90,6 +91,7 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
       setSourcePath(initialPath);
       setDestUrl('');
       setMessage('');
+      setNoIgnore(false);
       setJunk({ status: 'idle' });
       setBrowser({ open: false, url: '', status: 'idle', entries: [] });
       scannedPathRef.current = null;
@@ -191,7 +193,13 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
 
   const startImport = () => {
     op.start((onProgress) =>
-      window.api.svn.importWithProgress(sourcePath.trim(), destUrl.trim(), message.trim(), onProgress)
+      window.api.svn.importWithProgress(
+        sourcePath.trim(),
+        destUrl.trim(),
+        message.trim(),
+        onProgress,
+        noIgnore ? { noIgnore: true } : undefined
+      )
     );
   };
 
@@ -284,8 +292,9 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
           <p className="mt-1 text-text-faint">…and {junk.entries.length - JUNK_ADVISORY_LIMIT} more</p>
         ) : null}
         <p className="mt-1.5 text-text-faint">
-          Pending backend — the import IPC has no exclude/ignore field yet, so nothing can be
-          filtered out client-side.
+          svn import has no exclude filter — remove junk folders from the source before
+          importing, or they will be committed too. (--no-ignore below only adds ignored
+          files; it filters nothing.)
         </p>
       </div>
     );
@@ -527,6 +536,22 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                     className="input h-24 resize-none"
                   />
                 </div>
+
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={noIgnore}
+                      onChange={() => setNoIgnore(!noIgnore)}
+                    />
+                    Include ignored files (--no-ignore)
+                  </label>
+                  <p className="text-xs text-text-faint">
+                    svn import skips files matching ignore patterns (like
+                    <span className="font-mono"> node_modules</span> in a global-ignores list);
+                    this includes them.
+                  </p>
+                </div>
               </section>
             ) : null}
 
@@ -552,6 +577,12 @@ export function ImportDialog({ isOpen, onClose, onComplete, initialPath = '' }: 
                     <dt className="text-text-secondary">Log message</dt>
                     <dd className="mt-0.5 break-words text-text">{message.trim()}</dd>
                   </div>
+                  {noIgnore ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-text-secondary">Ignored files</dt>
+                      <dd className="text-text">Included (--no-ignore)</dd>
+                    </div>
+                  ) : null}
                 </dl>
 
                 {junkAdvisory}
