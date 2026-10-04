@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { Check, ChevronDown, GitBranch, GitBranchPlus, Loader2, Plus, Tag } from 'lucide-react';
 import { Popover } from '@renderer/components/ui/Popover';
 
+import { useSvnActions } from '@renderer/hooks/useSvnActions';
+
 import { mapSubPathToBranch, resolveBranchContext, type BranchKind } from './branchDetection';
 import { useBranchList, useInvalidateBranches } from './useBranches';
 
@@ -59,6 +61,7 @@ export function BranchSwitcher({
   const ctx = resolveBranchContext(url);
   const { data: list, isFetching } = useBranchList(ctx?.branchRootUrl ?? null);
   const invalidate = useInvalidateBranches();
+  const { switchTo } = useSvnActions();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
@@ -78,12 +81,14 @@ export function BranchSwitcher({
     setSwitchError(null);
     try {
       const target = mapSubPathToBranch(targetBranchUrl, ctx.subPath);
-      const result = await window.api.svn.switch(localPath, target);
+      // switchTo drops queries keyed by the URL being switched away from and
+      // invalidates this working copy's path-keyed queries on success.
+      const result = await switchTo(localPath, target, undefined, url);
       if (result.success) {
         invalidate(ctx.branchRootUrl);
         onSwitched?.();
       } else {
-        setSwitchError('SVN could not switch this working copy.');
+        setSwitchError(result.message || 'SVN could not switch this working copy.');
       }
     } catch (error) {
       setSwitchError(
