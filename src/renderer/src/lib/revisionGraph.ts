@@ -10,12 +10,13 @@
  *  2. **Copy sources** (`copyfrom-path` / `copyfrom-rev`, already parsed by the
  *     shared log parser) — the true branch/tag creation points. These become
  *     copy-point markers and diagonal "branch" edges.
- *  3. **Message heuristics** — a message that says "merge" plus branch names
- *     referenced in it (or in copy-from paths) yields "merge" annotations and
- *     dashed merge edges. This is best-effort: `svn:mergeinfo`-accurate edges
- *     would need `svn log --use-merge-history` data, which the current log
- *     payload does not surface to the renderer (the parser drops the
- *     `mod="merged"` path annotations), so we only claim what we can derive.
+ *  3. **Merge edges** — when the log was requested with
+ *     `--use-merge-history`, changed paths carry `mod="merged"` (parsed into
+ *     `SvnLogPath.merged`), and the branches of the flagged paths yield
+ *     *exact* merge sources. Without those flags (older payloads, or the log
+ *     was fetched without merge history) we fall back to message heuristics:
+ *     a message that says "merge" plus branch names referenced in it (or in
+ *     copy-from paths). Only the fallback is best-effort.
  *
  * The module is deliberately free of React/DOM so the lane assignment,
  * copy-point detection and edge resolution are unit-testable in isolation.
@@ -115,8 +116,11 @@ export interface RevisionGraphCopyPoint {
 
 export interface RevisionGraphMergeSource {
   branch: string;
-  /** How the merge was derived — only message heuristics exist today. */
-  kind: 'message';
+  /**
+   * How the merge was derived: `exact` from `--use-merge-history` merged-path
+   * flags, or `message` from the fallback heuristic on the commit message.
+   */
+  kind: 'exact' | 'message';
 }
 
 export interface RevisionGraphNode {
@@ -265,16 +269,25 @@ interface EntryClassification {
   copyPoint?: RevisionGraphCopyPoint;
   deletedBranches: string[];
   mergeSources: string[];
+  /** `exact` when mergeSources came from merged-path flags, else heuristic. */
+  mergeKind: 'exact' | 'message';
 }
 
 function classifyEntry(entry: SvnLogEntry): EntryClassification {
   const touched: string[] = [];
   const deleted: string[] = [];
   const copies: RevisionGraphCopyPoint[] = [];
+  const mergedBranches: string[] = [];
+  let hasMergeFlags = false;
 
   for (const change of entry.paths ?? []) {
     const branch = branchOfPath(change.path);
     if (!touched.includes(branch)) touched.push(branch);
+
+    if (change.merged === true) {
+      hasMergeFlags = true;
+      if (!mergedBranches.includes(branch)) mergedBranches.push(branch);
+    }
 
     if (change.action === 'D' && isBranchRootChange(change) && branch !== MAIN_LANE_BRANCH) {
       if (!deleted.includes(branch)) deleted.push(branch);
@@ -296,9 +309,24 @@ function classifyEntry(entry: SvnLogEntry): EntryClassification {
     copies.find((copy) => branchOfPath(copy.fromPath) !== copy.branch) ?? copies[0];
 
   const primaryBranch = copyPoint ? copyPoint.branch : (touched[0] ?? MAIN_LANE_BRANCH);
-  const mergeSources = extractMergeSources(entry.message ?? '', entry.paths ?? [], primaryBranch);
 
-  return { touchedBranches: touched, primaryBranch, copyPoint, deletedBranches: deleted, mergeSources };
+  // Exact merge sources: with --use-merge-history, flagged paths name the
+  // branches whose content the merge brought in. They win outright; the
+  // message heuristic only runs when no path carried a merged flag (older
+  // payloads / logs requested without merge history).
+  const mergeSources = hasMergeFlags
+    ? mergedBranches.filter((branch) => branch !== primaryBranch)
+    : extractMergeSources(entry.message ?? '', entry.paths ?? [], primaryBranch);
+  const mergeKind: 'exact' | 'message' = hasMergeFlags ? 'exact' : 'message';
+
+  return {
+    touchedBranches: touched,
+    primaryBranch,
+    copyPoint,
+    deletedBranches: deleted,
+    mergeSources,
+    mergeKind,
+  };
 }
 
 export interface RevisionGraphBuildOptions {
@@ -393,7 +421,10 @@ export function buildRevisionGraph(
       date: entry.date ?? '',
       message: entry.message ?? '',
       copyPoint: classification.copyPoint,
-      merges: classification.mergeSources.map((branch) => ({ branch, kind: 'message' as const })),
+      merges: classification.mergeSources.map((branch) => ({
+        branch,
+        kind: classification.mergeKind,
+      })),
       deletedBranches: classification.deletedBranches,
       rowIndex: 0, // assigned below
     });

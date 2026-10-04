@@ -82,12 +82,16 @@ export function RevisionGraphPanel({
     null
   );
 
-  // Same key + queryFn as CommitHistory, so panel and list share one IPC read.
+  // Merge-history log (-g): nested merged revisions are flattened into the
+  // merge commit's paths by the shared parser, giving revisionGraph exact
+  // merge edges. The cache scope intentionally differs from CommitHistory's —
+  // -g output is a superset, so sharing the key would serve the panel the
+  // non-merged variant (or vice versa).
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: svnLog(path),
     queryFn: async ({ signal }) =>
-      readCachedLog(path, `${path}::${buildLogCacheScope(LOG_LIMIT, false, {})}`, () =>
-        window.api.svn.log(path, LOG_LIMIT, undefined, undefined, false, { signal })
+      readCachedLog(path, `${path}::${buildLogCacheScope(LOG_LIMIT, true, {})}`, () =>
+        window.api.svn.log(path, LOG_LIMIT, undefined, undefined, true, { signal })
       ),
     enabled: !!path && path !== '/',
   });

@@ -125,15 +125,12 @@ const genStatusEntry = genRecord({
     }),
     0.3
   ),
-  // BUG (reported, source not modified): a numeric or boolean-looking
-  // changelist NAME attribute (e.g. name="5" or name="true") is strnum-
-  // converted by fast-xml-parser and surfaces as number/boolean on
-  // SvnStatusEntry.changelist despite the string type. The generator stays
-  // in the string-typed domain with a "cl-" prefix that can never convert.
-  changelist: genOptional(
-    genMap(genTrimmedText, (name) => `cl-${name}`),
-    0.3
-  ),
+  // The changelist NAME attribute must survive as a string whatever it looks
+  // like: numeric ("5"), boolean ("true"), hex ("0x1f") and scientific
+  // ("1e5") tokens are all legal names that fast-xml-parser's strnum option
+  // used to convert (the type leak from coordination item #9, now fixed by
+  // keeping attribute values unconverted).
+  changelist: genOptional(genTrimmedText, 0.3),
 });
 
 function serializeStatusEntry(entry: GeneratedStatusEntry, indent: string): string {
@@ -300,6 +297,143 @@ describe('parseSvnStatusXml properties', () => {
   });
 });
 
+describe('parseSvnStatusXml changelist names (item #9 type leak)', () => {
+  const statusXml = (name: string): string =>
+    `<status><target path="/wc"><changelist name="${name}">` +
+    '<entry path="/wc/file.txt"><wc-status item="modified"/></entry>' +
+    '</changelist></target></status>';
+
+  it.each([
+    ['5', '5'],
+    ['true', 'true'],
+    ['false', 'false'],
+    ['0x1f', '0x1f'],
+    ['1e5', '1e5'],
+    ['Infinity', 'Infinity'],
+    ['normal-name', 'normal-name'],
+  ])('keeps changelist name="%s" a string', (name, expected) => {
+    const result = parseSvnStatusXml(statusXml(name), '/wc');
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.changelist).toBe(expected);
+    expect(typeof result.entries[0]?.changelist).toBe('string');
+  });
+});
+
+describe('parseSvnLogXml mod="merged" (merge history)', () => {
+  const logXml = (pathAttrs: string): string =>
+    `<?xml version="1.0"?><log><logentry revision="42"><author>a</author>` +
+    `<date>2026-01-01T00:00:00Z</date><msg>m</msg><paths>` +
+    `<path ${pathAttrs}>/trunk/x</path></paths></logentry></log>`;
+
+  it('marks paths carrying mod="merged" as merged', () => {
+    const result = parseSvnLogXml(logXml('action="M" mod="merged"'));
+    expect(result.entries[0]?.paths[0]).toStrictEqual({
+      path: '/trunk/x',
+      action: 'M',
+      merged: true,
+    });
+  });
+
+  it('leaves the merged flag absent without the mod attribute', () => {
+    const result = parseSvnLogXml(logXml('action="M"'));
+    expect(result.entries[0]?.paths[0]).toStrictEqual({ path: '/trunk/x', action: 'M' });
+    expect('merged' in (result.entries[0]?.paths[0] ?? {})).toBe(false);
+  });
+
+  it('ignores non-merged mod values', () => {
+    const result = parseSvnLogXml(logXml('action="M" mod="normal"'));
+    expect(result.entries[0]?.paths[0]).toStrictEqual({ path: '/trunk/x', action: 'M' });
+  });
+});
+
+describe('parseSvnLogXml nested logentries (-g merge history)', () => {
+  // Real `svn log --use-merge-history --xml` nests each merged revision's
+  // logentry inside the merge commit's logentry.
+  const mergeXml = (nested: string): string =>
+    `<?xml version="1.0"?><log>` +
+    `<logentry revision="100"><author>merger</author>` +
+    `<date>2026-02-02T00:00:00Z</date><msg>merge to trunk</msg>` +
+    `<paths><path action="M">/trunk</path></paths>` +
+    nested +
+    `</logentry>` +
+    `<logentry revision="99"><author>a</author>` +
+    `<date>2026-02-01T00:00:00Z</date><msg>on trunk</msg>` +
+    `<paths><path action="M">/trunk/other</path></paths></logentry>` +
+    `</log>`;
+
+  it('flattens nested merged-revision paths into the merge commit, flagged merged', () => {
+    const result = parseSvnLogXml(
+      mergeXml(
+        `<logentry revision="98"><author>b</author>` +
+          `<date>2026-01-31T00:00:00Z</date><msg>on branch</msg>` +
+          `<paths><path action="M">/branches/feature/f</path></paths></logentry>`
+      )
+    );
+    // Nested revisions are not surfaced as top-level entries.
+    expect(result.entries.map((e) => e.revision)).toStrictEqual([100, 99]);
+    expect(result.entries[0]?.paths).toStrictEqual([
+      { path: '/trunk', action: 'M' },
+      { path: '/branches/feature/f', action: 'M', merged: true },
+    ]);
+  });
+
+  it('keeps copyfrom metadata on flattened merged paths', () => {
+    const result = parseSvnLogXml(
+      mergeXml(
+        `<logentry revision="98"><author>b</author>` +
+          `<date>2026-01-31T00:00:00Z</date><msg>copy</msg>` +
+          `<paths><path action="A" copyfrom-path="/trunk" copyfrom-rev="90">` +
+          `/branches/feature</path></paths></logentry>`
+      )
+    );
+    expect(result.entries[0]?.paths[1]).toStrictEqual({
+      path: '/branches/feature',
+      action: 'A',
+      copyFromPath: '/trunk',
+      copyFromRev: 90,
+      merged: true,
+    });
+  });
+
+  it('dedupes a merged path the merge commit itself also lists, keeping the own (unflagged) entry', () => {
+    const result = parseSvnLogXml(
+      `<?xml version="1.0"?><log>` +
+        `<logentry revision="100"><author>m</author>` +
+        `<date>2026-02-02T00:00:00Z</date><msg>merge</msg>` +
+        `<paths><path action="M">/trunk/f</path></paths>` +
+        `<logentry revision="98"><author>b</author>` +
+        `<date>2026-01-31T00:00:00Z</date><msg>on branch</msg>` +
+        `<paths><path action="M">/trunk/f</path></paths></logentry>` +
+        `</logentry></log>`
+    );
+    expect(result.entries[0]?.paths).toStrictEqual([{ path: '/trunk/f', action: 'M' }]);
+  });
+
+  it('flattens doubly-nested merged revisions (merge of a merge)', () => {
+    const result = parseSvnLogXml(
+      mergeXml(
+        `<logentry revision="98"><author>b</author>` +
+          `<date>2026-01-31T00:00:00Z</date><msg>branch merge</msg>` +
+          `<paths><path action="M">/branches/feature/f</path></paths>` +
+          `<logentry revision="95"><author>c</author>` +
+          `<date>2026-01-30T00:00:00Z</date><msg>older</msg>` +
+          `<paths><path action="M">/branches/other/g</path></paths></logentry>` +
+          `</logentry>`
+      )
+    );
+    expect(result.entries[0]?.paths).toStrictEqual([
+      { path: '/trunk', action: 'M' },
+      { path: '/branches/feature/f', action: 'M', merged: true },
+      { path: '/branches/other/g', action: 'M', merged: true },
+    ]);
+  });
+
+  it('emits only the own paths when no nested logentries are present', () => {
+    const result = parseSvnLogXml(mergeXml(''));
+    expect(result.entries[0]?.paths).toStrictEqual([{ path: '/trunk', action: 'M' }]);
+  });
+});
+
 /* ────────────────────────────── log XML ────────────────────────────── */
 
 interface GeneratedLogPath {
@@ -307,6 +441,7 @@ interface GeneratedLogPath {
   text: string;
   copyFromPath?: string;
   copyFromRev?: number;
+  mod?: 'merged';
 }
 
 const genLogPath = genRecord({
@@ -314,6 +449,8 @@ const genLogPath = genRecord({
   text: genXmlText(1),
   copyFromPath: genOptional(genXmlText(1), 0.4),
   copyFromRev: genOptional(genInt({ min: 1, max: 99999 }), 0.4),
+  // `svn log --use-merge-history` annotates merged paths with mod="merged".
+  mod: genOptional(genConstant('merged' as const), 0.3),
 });
 
 interface GeneratedLogEntry {
@@ -358,6 +495,7 @@ function serializeLogEntry(entry: GeneratedLogEntry): string {
         if (path.copyFromPath !== undefined)
           attrs.push(`copyfrom-path="${xmlEscape(path.copyFromPath)}"`);
         if (path.copyFromRev !== undefined) attrs.push(`copyfrom-rev="${path.copyFromRev}"`);
+        if (path.mod !== undefined) attrs.push(`mod="${path.mod}"`);
         return `<path ${attrs.join(' ')}>${xmlEscape(path.text)}</path>`;
       })
       .join('')}</paths>`;
@@ -397,6 +535,7 @@ describe('parseSvnLogXml properties', () => {
               action: path.action,
               ...(path.copyFromPath !== undefined && { copyFromPath: path.copyFromPath }),
               ...(path.copyFromRev !== undefined && { copyFromRev: path.copyFromRev }),
+              ...(path.mod === 'merged' && { merged: true }),
             });
           });
           if (entry.revprops !== undefined && entry.revprops.length > 0) {

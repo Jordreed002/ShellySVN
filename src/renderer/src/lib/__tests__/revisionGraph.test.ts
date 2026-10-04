@@ -23,7 +23,13 @@ import {
 function entry(
   revision: number,
   message: string,
-  paths: Array<{ action?: 'A' | 'D' | 'M' | 'R'; path: string; copyFromPath?: string; copyFromRev?: number }>,
+  paths: Array<{
+    action?: 'A' | 'D' | 'M' | 'R';
+    path: string;
+    copyFromPath?: string;
+    copyFromRev?: number;
+    merged?: boolean;
+  }>,
   author = 'alice'
 ): SvnLogEntry {
   return {
@@ -36,6 +42,7 @@ function entry(
       path: change.path,
       ...(change.copyFromPath && { copyFromPath: change.copyFromPath }),
       ...(change.copyFromRev !== undefined && { copyFromRev: change.copyFromRev }),
+      ...(change.merged && { merged: true }),
     })),
   };
 }
@@ -349,6 +356,56 @@ describe('buildRevisionGraph edges', () => {
       entry(10, 'Merge branches/ghost into trunk', [{ path: '/trunk/x' }]),
     ]);
     expect(model.nodes[0].merges).toEqual([{ branch: 'branches/ghost', kind: 'message' }]);
+    expect(model.edges.filter((edge) => edge.kind === 'merge')).toHaveLength(0);
+  });
+
+  it('emits exact merge edges from merged-path flags without relying on the message', () => {
+    // Message deliberately contains no merge keyword: only the
+    // --use-merge-history flags make this a merge.
+    const model = buildRevisionGraph([
+      entry(500, 'sync from upstream', [
+        { path: '/trunk/x' },
+        { path: '/branches/feature/src/y', merged: true },
+      ]),
+      entry(480, 'feature latest', [{ path: '/branches/feature/x' }]),
+      entry(470, 'trunk direct', [{ path: '/trunk/y' }]),
+      entry(450, 'feature older', [{ path: '/branches/feature/y' }]),
+    ]);
+    const mergeEdges = model.edges.filter((edge) => edge.kind === 'merge');
+    expect(mergeEdges).toHaveLength(1);
+    expect(mergeEdges[0]).toMatchObject({
+      from: { revision: 480, laneId: 'branches/feature' },
+      to: { revision: 500, laneId: 'trunk' },
+    });
+    expect(model.nodes.find((n) => n.revision === 500)?.merges).toEqual([
+      { branch: 'branches/feature', kind: 'exact' },
+    ]);
+  });
+
+  it('prefers exact flagged sources over contradictory message heuristics', () => {
+    // The message references branches/hotfix, but the flags name feature.
+    const model = buildRevisionGraph([
+      entry(90, 'Merge branches/hotfix into trunk', [
+        { path: '/trunk/x' },
+        { path: '/branches/feature/y', merged: true },
+      ]),
+      entry(80, 'feature work', [{ path: '/branches/feature/x' }]),
+      entry(70, 'hotfix work', [{ path: '/branches/hotfix/x' }]),
+    ]);
+    expect(model.nodes.find((n) => n.revision === 90)?.merges).toEqual([
+      { branch: 'branches/feature', kind: 'exact' },
+    ]);
+  });
+
+  it('skips flagged paths on the landing branch itself (no self-edge source)', () => {
+    const model = buildRevisionGraph([
+      entry(30, 'incoming change', [
+        { path: '/trunk/x', merged: true },
+        { path: '/trunk/y' },
+      ]),
+      entry(20, 'earlier', [{ path: '/trunk/z' }]),
+    ]);
+    expect(model.nodes[0].merges).toEqual([]);
     expect(model.edges.filter((edge) => edge.kind === 'merge')).toHaveLength(0);
   });
 

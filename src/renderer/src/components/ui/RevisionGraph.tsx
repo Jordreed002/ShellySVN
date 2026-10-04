@@ -74,10 +74,10 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['svn:log', path, 200],
+    queryKey: ['svn:log', path, 200, 'merge-history'],
     queryFn: async ({ signal }) =>
       assertSuccessfulSvnRead(
-        await window.api.svn.log(path, 200, undefined, undefined, false, { signal })
+        await window.api.svn.log(path, 200, undefined, undefined, true, { signal })
       ),
     enabled: isOpen && !!path,
   });

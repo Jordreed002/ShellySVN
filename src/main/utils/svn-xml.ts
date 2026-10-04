@@ -161,7 +161,11 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
       entries.push(
         ...asArray(changelist.entry).map((entry) => ({
           entry,
-          changelist: changelist['@_name'],
+          // This parser instance strnum-converts attributes, so a numeric-
+          // or boolean-looking name ("5", "true") arrives as number/boolean —
+          // coerce back to satisfy SvnStatusXmlEntry.changelist: string.
+          changelist:
+            changelist['@_name'] === undefined ? undefined : String(changelist['@_name']),
         }))
       );
     }
@@ -170,12 +174,13 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
     for (const { entry, changelist } of entries) {
       const wcStatus = entry['wc-status'];
       if (entry['@_path'] && wcStatus?.['@_item']) {
+        const entryChangelist = entry.changelist;
         results.push({
           path: entry['@_path'],
           item: wcStatus['@_item'],
           revision: wcStatus.commit?.['@_revision'] ?? wcStatus['@_revision'],
           author: wcStatus.commit?.author,
-          changelist: changelist ?? entry.changelist,
+          changelist: changelist ?? (entryChangelist === undefined ? undefined : String(entryChangelist)),
         });
       }
     }

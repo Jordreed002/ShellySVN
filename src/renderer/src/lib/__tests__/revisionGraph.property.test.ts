@@ -18,6 +18,7 @@ import type { SvnLogEntry } from '@shared/types';
 
 import {
   branchColorForIndex,
+  branchOfPath,
   buildRevisionGraph,
   DEFAULT_MAX_LANES,
   MAIN_LANE_BRANCH,
@@ -56,6 +57,7 @@ const genChange = genRecord({
   path: genRepoPath,
   copyFromPath: genOptional(genRepoPath, 0.25),
   copyFromRev: genOptional(genInt({ min: 0, max: 30 }), 0.25),
+  merged: genOptional(genConstant(true), 0.2),
 });
 
 const genMessage = genOneOf(
@@ -73,6 +75,7 @@ interface GeneratedEntry {
     path: string;
     copyFromPath?: string;
     copyFromRev?: number;
+    merged?: boolean;
   }>;
   message: string;
   author: string;
@@ -96,6 +99,7 @@ function toLogEntry(entry: GeneratedEntry): SvnLogEntry {
       path: change.path,
       ...(change.copyFromPath !== undefined && { copyFromPath: change.copyFromPath }),
       ...(change.copyFromRev !== undefined && { copyFromRev: change.copyFromRev }),
+      ...(change.merged === true && { merged: true }),
     })),
   };
 }
@@ -250,6 +254,38 @@ describe('buildRevisionGraph properties', () => {
         return true;
       },
       { runs: 100 }
+    );
+  });
+
+  it('derives merge kinds exactly: flagged entries are exact, unflagged are heuristic', () => {
+    forAll(
+      genScenario,
+      ({ entries, maxLanes }) => {
+        const model = buildRevisionGraph(entries.map(toLogEntry), maxLanes ? { maxLanes } : {});
+        for (const node of model.nodes) {
+          const generated = entries.find((entry) => entry.revision === node.revision);
+          expect(generated).toBeDefined();
+          const flagged = (generated as GeneratedEntry).changes.some((change) => change.merged);
+          for (const merge of node.merges) {
+            // Any merged flag on the entry pins every source to the exact
+            // derivation; without flags only the message heuristic runs.
+            expect(merge.kind).toBe(flagged ? 'exact' : 'message');
+            if (flagged) {
+              // Exact sources must come from a flagged path's branch and
+              // never the node's own landing branch.
+              const sourceBranches = new Set(
+                ((generated as GeneratedEntry).changes)
+                  .filter((change) => change.merged)
+                  .map((change) => branchOfPath(change.path))
+              );
+              expect(sourceBranches.has(merge.branch)).toBe(true);
+              expect(merge.branch).not.toBe(node.branch);
+            }
+          }
+        }
+        return true;
+      },
+      { runs: 120 }
     );
   });
 });

@@ -252,7 +252,16 @@ const xmlParser = new XMLParser({
   // ones) as literal text, which makes billion-laughs payloads inert. The
   // well-known five entities are decoded afterwards by sanitizeSvnXmlTree.
   processEntities: false,
-  parseAttributeValue: true,
+  // Correctness: keep attribute values as strings. fast-xml-parser's strnum
+  // conversion (parseAttributeValue: true) turned numeric/boolean-looking
+  // values into numbers/booleans (`changelist name="5"` → 5, `name="true"` →
+  // true), violating the string-typed fields built from them — and the
+  // conversion is lossy (name="0x1F" → 31), so read-time coercion cannot
+  // restore the original. Every consumer here already parses attributes in a
+  // string-safe way (parseInt for revisions, parseBooleanAttribute for
+  // "true"/"false" flags, vocabulary lookups for item/props names), so
+  // disabling the conversion is the exact, least-invasive fix.
+  parseAttributeValue: false,
   trimValues: true,
   parseTagValue: false,
   allowBooleanAttributes: true,
@@ -421,39 +430,81 @@ export function parseSvnStatusXml(xml: string, basePath: string): SvnStatusResul
   };
 }
 
+/** Raw fast-xml-parser shape of one `<logentry>` (recursive via `-g` nesting). */
+interface RawLogEntry {
+  '@_revision': string;
+  author?: string;
+  date?: string;
+  msg?: string;
+  paths?: { path?: Array<Record<string, string>> | Record<string, string> };
+  revprops?: {
+    property?:
+      | Array<{ '@_name'?: string; '#text'?: string }>
+      | { '@_name'?: string; '#text'?: string };
+  };
+  /**
+   * Nested logentries — merged revisions reported by
+   * `svn log --use-merge-history` (`-g`). Subversion nests the merged
+   * revisions' logentries inside the merge commit's own logentry rather than
+   * annotating the merge's `<path>` elements, so merge data is surfaced by
+   * flattening these into the parent's paths with `merged: true`.
+   */
+  logentry?: RawLogEntry | RawLogEntry[];
+}
+
+function toLogPath(p: Record<string, string>): SvnLogResult['entries'][number]['paths'][number] {
+  return {
+    path: p['#text'] || '',
+    action: (p['@_action'] || '') as 'A' | 'D' | 'M' | 'R',
+    ...(p['@_copyfrom-path'] && { copyFromPath: p['@_copyfrom-path'] }),
+    ...(p['@_copyfrom-rev'] && {
+      copyFromRev: parseInt(p['@_copyfrom-rev'], 10) || 0,
+    }),
+    // Subversion does not emit `mod` on log paths today; kept as a defensive
+    // read for server/proxy variants that annotate it. Attributes are parsed
+    // as strings (see xmlParser config), and strnum never converts "merged",
+    // so the strict equality is type-safe.
+    ...(p['@_mod'] === 'merged' && { merged: true }),
+  };
+}
+
+/**
+ * Recursively union the paths of `entry`'s nested (`-g`) logentries, flagged
+ * `merged: true`, so the merge commit's path set records where merged
+ * revisions touched. Nested entries themselves are not surfaced as top-level
+ * revisions — the merge already delivered their changes.
+ */
+function collectMergedPaths(entry: RawLogEntry): SvnLogResult['entries'][number]['paths'] {
+  const nested = entry.logentry ? (Array.isArray(entry.logentry) ? entry.logentry : [entry.logentry]) : [];
+  const merged: SvnLogResult['entries'][number]['paths'] = [];
+  for (const child of nested) {
+    const pathList = child.paths?.path
+      ? Array.isArray(child.paths.path)
+        ? child.paths.path
+        : [child.paths.path]
+      : [];
+    for (const p of pathList) {
+      const flagged = { ...toLogPath(p), merged: true };
+      if (!merged.some((m) => m.path === flagged.path && m.action === flagged.action)) {
+        merged.push(flagged);
+      }
+    }
+    for (const deeper of collectMergedPaths(child)) {
+      if (!merged.some((m) => m.path === deeper.path && m.action === deeper.action)) {
+        merged.push(deeper);
+      }
+    }
+  }
+  return merged;
+}
+
 export function parseSvnLogXml(xml: string): SvnLogResult {
   const entries: SvnLogResult['entries'] = [];
   let parseError: string | undefined;
 
   try {
     const parsed = parseXmlHardened(xml) as {
-      log?: {
-        logentry?:
-          | Array<{
-              '@_revision': string;
-              author?: string;
-              date?: string;
-              msg?: string;
-              paths?: { path?: Array<Record<string, string>> | Record<string, string> };
-              revprops?: {
-                property?:
-                  | Array<{ '@_name'?: string; '#text'?: string }>
-                  | { '@_name'?: string; '#text'?: string };
-              };
-            }>
-          | {
-              '@_revision': string;
-              author?: string;
-              date?: string;
-              msg?: string;
-              paths?: { path?: Array<Record<string, string>> | Record<string, string> };
-              revprops?: {
-                property?:
-                  | Array<{ '@_name'?: string; '#text'?: string }>
-                  | { '@_name'?: string; '#text'?: string };
-              };
-            };
-      };
+      log?: { logentry?: RawLogEntry | RawLogEntry[] };
     };
 
     const logEntries = parsed.log?.logentry;
@@ -478,19 +529,17 @@ export function parseSvnLogXml(xml: string): SvnLogResult {
           .map((property) => [property['@_name'] as string, property['#text'] ?? ''])
       );
 
+      const ownPaths = pathList.map(toLogPath);
+      const mergedPaths = collectMergedPaths(entry).filter(
+        (m) => !ownPaths.some((o) => o.path === m.path && o.action === m.action)
+      );
+
       entries.push({
         revision: parseInt(entry['@_revision'], 10) || 0,
         author: entry.author || 'unknown',
         date: entry.date || '',
         message: entry.msg || '',
-        paths: pathList.map((p) => ({
-          path: p['#text'] || '',
-          action: (p['@_action'] || '') as 'A' | 'D' | 'M' | 'R',
-          ...(p['@_copyfrom-path'] && { copyFromPath: p['@_copyfrom-path'] }),
-          ...(p['@_copyfrom-rev'] && {
-            copyFromRev: parseInt(p['@_copyfrom-rev'], 10) || 0,
-          }),
-        })),
+        paths: [...ownPaths, ...mergedPaths],
         ...(Object.keys(revisionProperties).length > 0 && { revisionProperties }),
       });
     }
