@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invalidate = vi.fn();
+const switchTo = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/features/branches/useBranches', () => ({
   useBranchList: () => ({
@@ -16,6 +17,12 @@ vi.mock('../src/features/branches/useBranches', () => ({
   useInvalidateBranches: () => invalidate,
 }));
 
+// Switching routes through the shared action (cache resets live there); mock
+// it so the component test stays a component test.
+vi.mock('../src/hooks/useSvnActions', () => ({
+  useSvnActions: () => ({ switchTo }),
+}));
+
 import { BranchSwitcher } from '../src/features/branches/BranchSwitcher';
 
 describe('BranchSwitcher', () => {
@@ -25,11 +32,7 @@ describe('BranchSwitcher', () => {
 
   it('shows a structured switch failure without reporting success', async () => {
     const onSwitched = vi.fn();
-    window.api = {
-      svn: {
-        switch: vi.fn().mockRejectedValue(new Error('Working copy is conflicted')),
-      },
-    } as unknown as Window['api'];
+    switchTo.mockRejectedValue(new Error('Working copy is conflicted'));
 
     render(
       <BranchSwitcher
@@ -50,11 +53,7 @@ describe('BranchSwitcher', () => {
   });
 
   it('shows a fallback error when switching returns an unsuccessful result', async () => {
-    window.api = {
-      svn: {
-        switch: vi.fn().mockResolvedValue({ success: false, revision: null }),
-      },
-    } as unknown as Window['api'];
+    switchTo.mockResolvedValue({ success: false });
 
     render(<BranchSwitcher url="https://svn.example.com/repo/trunk/src" localPath="C:\\wc\\src" />);
 

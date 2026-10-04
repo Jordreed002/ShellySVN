@@ -139,8 +139,9 @@ Wave 3 gate. Wave 4 (settings depth, e2e, property tests, i18n, docs) in flight.
   (StatusLegendDialog + files route) with en byte-identity test.
 - **#129/#132** e2e: all 5 runtime skips + 1 conditional un-skipped (root
   cause was test-environment assumptions — fixed with a real `svnadmin`
-  fixture + native-dialog mocking; no app bugs); a11y smoke spec (no new
-  deps; axe TODO documented for Track A); visual regression over 7 core
+  fixture + native-dialog mocking; no app bugs); a11y smoke spec — now with
+  full axe audits (`@axe-core/playwright` delivered by Track A, item 7 below);
+  visual regression over 7 core
   screens with deterministic setup and darwin baselines (3 consecutive clean
   passes). Known pre-existing flake: random Electron launches die mid-test
   (~10–20% under load, A/B-proven against HEAD) — CI retries absorb it today.
@@ -176,7 +177,10 @@ Ordered by user impact.
 > notes). Item 6 turned out to be a non-issue: `invalidateStatusAfter<T>`
 > preserves the handler's `{success: boolean}` return, so preload and main
 > already agree. Remaining open: 7 (axe-core), 8 (i18n extraction script),
-> 10 (external-tool launcher), 11 (per-WC proxy routing).
+> 11 (per-WC proxy routing). Item 10 (external-tool launcher) is also
+> delivered — see its inline note.
+>
+> **Third update:** items **7 and 8 are delivered** — see inline notes.
 
 1. **Shelf IPC** ~~(blocks #64 completion)~~ **DELIVERED**: `svn:shelve:rename(name, path, newName)`,
    `svn:shelve:diff(name, path, against: 'working-copy'|'HEAD')`,
@@ -208,14 +212,40 @@ Ordered by user impact.
 6. **`window.api.svn.cleanup` typing**: **RESOLVED AS NON-ISSUE** —
    `invalidateStatusAfter<T>` preserves the handler's `{success: boolean}`
    return; preload and main already agree.
-7. **axe-core dependency**: `@axe-core/playwright` needs a package.json change
-   (A-exclusive) to finish #129's accessibility audits; e2e specs have the
-   insertion points marked.
-8. **i18n extraction script** (if #134 scaffolding is adopted): a
-   `scripts/extract-strings.mjs` + npm script would need A's sign-off; the
-   renderer-side extractor + pseudo-localization test exist regardless.
+7. **axe-core dependency** ~~(A-exclusive package.json change)~~ **DELIVERED**:
+   `@axe-core/playwright@^4.10.0` is a dev dependency and
+   `accessibility-smoke.spec.ts` runs full axe audits (home, files empty state,
+   settings dialog, command palette) on top of the structural checks — 5/5
+   green (Electron `--project=electron`; legacy mode because Electron cannot
+   host axe's blank finisher page). Violations found live in renderer app code
+   (not fixed from the A side per ownership); each is disabled in-scope with a
+   justification comment and reported here:
+   - `color-contrast` — dark-theme token debt: `text-muted` #727d8a on #161b22
+     (~4.1:1), `kbd` #727d8a on #30363d (~2.9:1), `accent` #6366f1 on dark
+     (~3.9:1), `text-faint` #4d5866 (~2.1:1). Needs a palette re-tune.
+   - `aria-allowed-role` — `<footer role="status">` in `ui/StatusBar.tsx`
+     (the smoke spec itself asserts this live region; wants role="region" +
+     aria-live).
+   - `aria-prohibited-attr` — NotificationCenter's fixed toast region is a
+     `<div aria-label>` with no role (`layout/NotificationCenter.tsx`).
+   - `aria-required-children` + `region` — TabBar's `role="tablist"` contains
+     the "new tab" `button[aria-haspopup]` and sits outside any landmark
+     (`layout/TabBar.tsx`).
+   - `select-name` — the Language and Startup section `<select>`s in
+     `settings/SettingsPanels.tsx` have no accessible name (real bug).
+   - `scrollable-region-focusable` — `.command-palette-list` items are not
+     focusable (keyboard nav goes through the search input).
+   - `page-has-heading-one` (files) — best-practice rule; screens are
+     landmark-based, heading hierarchy is an app-wide decision.
+8. **i18n extraction script** **DELIVERED**: `scripts/extract-strings.mjs` walks
+   `src/renderer/src` (tests/generated code excluded), feeds the pure extractor
+   (`src/renderer/src/i18n/extract.ts`), and writes the deterministic POT-like
+   catalog to `src/renderer/src/i18n/extracted.json` (361 files / 2,713
+   candidates at delivery). npm scripts: `bun run i18n:extract` regenerates,
+   `bun run check:i18n` is the drift gate (exit 1 on stale catalog). Usage is
+   documented in the extractor header.
 9. **Status-parser type leak** **DELIVERED** (found by property testing, `packages/shared/src/svn-parsers.ts`): fixed by disabling `parseAttributeValue` on the shared xmlParser — coercion is lossy (`name="0x1F"` strnum-converts to 31) while disabling preserves every name exactly, and every consumer in the file already parses strings. The property generator is un-narrowed. The same leak in `src/main/utils/svn-xml.ts` `parseSvnStatusEntriesXml` is fixed with targeted `String()` coercion (that instance must keep numeric conversion for blame); logic-engine parsers audited clean.
-10. **Custom external-tool launcher** (#87 completion): `AppSettings.externalToolTemplates` holds executable + argument template; a main-side consumer for `external.openDiffTool/openMergeTool` (accept an `ExternalToolTemplateConfig`, expand placeholders, spawn) turns the settings into behavior.
+10. **Custom external-tool launcher** (#87 completion) **DELIVERED**: the pure placeholder/expansion logic moved to `packages/shared/src/external-tool-templates.ts` (renderer lib re-exports it, so settings-UI preview and main spawn can never diverge). `src/main/services/external-template-launcher.ts` validates the stored template, expands placeholders, verifies the executable, and spawns detached with an argv array (`shell: false`, no env). `external:openDiffTool`/`external:openMergeTool` resolve a settings template by id (checked between the built-in aliases and the registry; channel signatures unchanged, so preload/types/IPC contract are untouched), returning SvnMutationResult-style `errorCode`s (`TEMPLATE_INVALID`, `PLACEHOLDER_UNRESOLVED`, `EXECUTABLE_NOT_FOUND`, `SPAWN_FAILED`, `TOOL_CONFIG_INVALID`). SettingsManager now accepts `externalToolTemplates` ids as `diffMerge.externalDiffTool`/`externalMergeTool` (and override) values, so the renderer can point those settings at a custom template tool. Track B can now wire the settings UI selection.
 11. **Per-WC proxy routing** (#90 completion): overrides are stored + surfaced renderer-side; routing SVN network calls through them (SvnExecutionContext) is main-process territory.
 12. **Global shortcut overrides** **DELIVERED**: Layout.tsx's global handlers (⌘K/⌘B/⌘⇧A/⌥⌘P/?) now resolve through `useShortcutBindings` (new `command-palette-quick`/`ai-review-center`/`performance-dashboard`/`shortcut-help` bindings); remaps propagate live via the overrides-changed event (self-echo suppressed with an origin tag), the cheat sheet and recorder consume the same combo builder, and the site shortcuts page is updated.
 13. **Script-change requests**: none — no new npm scripts were needed by Track B.
