@@ -10,10 +10,13 @@ import type {
   SvnRepoLayout,
   SvnRepoLayoutDir,
   SvnRepoLayoutKind,
+  SvnShelveDiffAgainst,
+  SvnShelveDiffResult,
   SvnShelveListResult,
 } from '@shared/types';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { mkdir, writeFile } from 'fs/promises';
+import { join, resolve } from 'path';
 import { parseSvnExternals, parseSvnInfoXml, parseSvnListXml } from '../svn/parsers';
 import {
   parseSvnPropertiesXml,
@@ -390,6 +393,134 @@ export async function shelveDelete(name: string, path: string): Promise<SvnMutat
   } catch (error) {
     if (getShelvingUnsupportedReason(error, args)) return runPortable();
     return metadataFailure(error);
+  }
+}
+
+export async function shelveRename(
+  name: string,
+  path: string,
+  newName: string
+): Promise<SvnMutationResult> {
+  assertSafeName(name, 'Shelf name');
+  assertSafeName(newName, 'New shelf name');
+  validateSvnTargets([path], 'Shelf target');
+  const runPortable = async (): Promise<SvnMutationResult> => {
+    const { portableShelfRename } = await import('./svn-portable-shelves');
+    return portableShelfRename(name, path, newName);
+  };
+  const args = ['shelve', '--rename', name, newName];
+  if (!(await isNativeShelvingSupported())) return runPortable();
+  try {
+    await runSvnText(withSvnTargets(args, [path]));
+    return { success: true };
+  } catch (error) {
+    if (getShelvingUnsupportedReason(error, args)) return runPortable();
+    return metadataFailure(error);
+  }
+}
+
+/**
+ * Show a shelf's changes as unified diff text. Native clients answer
+ * `svn diff --shelved=<name>`; the portable store returns its stored patch.
+ * `against` is recorded on the result — the shelved patch is anchored at the
+ * working copy's base revision, so 'HEAD' only requests the HEAD peg where the
+ * client accepts one and degrades to the base-anchored patch otherwise.
+ */
+export async function shelveDiff(
+  name: string,
+  path: string,
+  against: SvnShelveDiffAgainst = 'working-copy'
+): Promise<SvnShelveDiffResult> {
+  assertSafeName(name, 'Shelf name');
+  validateSvnTargets([path], 'Shelf target');
+  const runPortable = async (): Promise<SvnShelveDiffResult> => {
+    const { portableShelfReadPatch } = await import('./svn-portable-shelves');
+    try {
+      return { success: true, diff: await portableShelfReadPatch(name, path), against };
+    } catch (error) {
+      return { success: false, diff: '', against, ...getSvnReadError(error) };
+    }
+  };
+  if (!(await isNativeShelvingSupported())) return runPortable();
+  const args = ['diff', `--shelved=${name}`];
+  if (against === 'HEAD') args.push('-r', 'HEAD');
+  try {
+    return { success: true, diff: await runSvnText(withSvnTargets(args, [path])), against };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (getShelvingUnsupportedReason(error, args) || /invalid option|unknown option/i.test(message)) {
+      return runPortable();
+    }
+    return { success: false, diff: '', against, ...getSvnReadError(error) };
+  }
+}
+
+/**
+ * Export a shelf as a portable bundle directory under `outputPath`:
+ * `<outputPath>/portable-shelf-<slug>/{metadata.json,changes.patch,files/}`.
+ * Portable shelves (which also carry captured unversioned files) export
+ * verbatim; native shelves export as a patch-based bundle of the same shape.
+ */
+export async function shelveExport(
+  name: string,
+  path: string,
+  outputPath: string
+): Promise<SvnMutationResult> {
+  assertSafeName(name, 'Shelf name');
+  validateSvnTargets([path, outputPath], 'Shelf export target');
+  const { portableShelfExists, portableShelfExport, shelfNameSlug } = await import(
+    './svn-portable-shelves'
+  );
+  if (await portableShelfExists(name, path)) {
+    try {
+      return await portableShelfExport(name, path, outputPath);
+    } catch (error) {
+      return metadataFailure(error);
+    }
+  }
+  if (!(await isNativeShelvingSupported())) {
+    return { success: false, error: `No shelf named "${name}" was found for this working copy.` };
+  }
+  try {
+    const patch = await runSvnText(withSvnTargets(['diff', `--shelved=${name}`], [path]));
+    const destination = join(outputPath, `portable-shelf-${shelfNameSlug(name)}`);
+    await mkdir(destination, { recursive: true });
+    await writeFile(
+      join(destination, 'metadata.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          name,
+          workingCopyPath: resolve(path),
+          createdAt: new Date().toISOString(),
+          files: [],
+        },
+        null,
+        2
+      ),
+      { mode: 0o600 }
+    );
+    await writeFile(join(destination, 'changes.patch'), patch, { mode: 0o600 });
+    return { success: true, output: destination };
+  } catch (error) {
+    if (getShelvingUnsupportedReason(error)) {
+      return { success: false, error: `No shelf named "${name}" was found for this working copy.` };
+    }
+    return metadataFailure(error);
+  }
+}
+
+/** Import a portable shelf bundle directory into a working copy's shelf store. */
+export async function shelveImport(
+  portableShelfPath: string,
+  targetWorkingCopyPath: string
+): Promise<SvnMutationResult> {
+  validateSvnTargets([portableShelfPath, targetWorkingCopyPath], 'Shelf import target');
+  const { portableShelfImport } = await import('./svn-portable-shelves');
+  try {
+    return await portableShelfImport(portableShelfPath, targetWorkingCopyPath);
+  } catch (error) {
+    return metadataFailure(error, 'The selected folder is not a valid portable shelf bundle.');
   }
 }
 

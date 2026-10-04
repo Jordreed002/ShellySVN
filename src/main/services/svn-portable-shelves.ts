@@ -1,6 +1,6 @@
 import { app, shell } from 'electron';
 import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -10,6 +10,26 @@ import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { assertSafeEntryRelativePath, assertWithinRoot } from '../utils/path-guard';
 import { runSvnText } from './svn-executor';
 import { collapseNestedFiles, type PortableShelfFile } from './svn-portable-shelf-files';
+
+/**
+ * Shelf names become directory names (base64url-encoded) inside the store, but
+ * they are also passed to `svn shelve` as arguments and rendered in file-system
+ * artifacts, so they must not carry path separators or option prefixes.
+ */
+export function assertSafeShelfName(value: string, label: string): void {
+  if (!value.trim()) throw new Error(`${label} is required`);
+  if (/[\u0000\u000D\u000A]/.test(value)) {
+    throw new Error(`${label} contains invalid control characters`);
+  }
+  if (value.startsWith('-')) throw new Error(`${label} must not begin with an option prefix`);
+  if (/[\\/]/.test(value)) throw new Error(`${label} must not contain path separators`);
+}
+
+/** File-system-safe slug for exported bundle directory names. */
+export function shelfNameSlug(name: string): string {
+  const slug = name.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^\.+/, '_').slice(0, 64);
+  return slug || 'shelf';
+}
 
 interface PortableShelfMetadata {
   version: 1;
@@ -259,4 +279,125 @@ export async function portableShelfDelete(
   await readMetadata(directory);
   await rm(directory, { recursive: true });
   return { success: true };
+}
+
+/** Does the portable store hold a shelf of this name for this working copy? */
+export async function portableShelfExists(
+  name: string,
+  workingCopyPath: string
+): Promise<boolean> {
+  try {
+    await readMetadata(shelfDirectory(workingCopyPath, name));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The shelf's stored patch text (empty string when it holds no textual diff). */
+export async function portableShelfReadPatch(
+  name: string,
+  workingCopyPath: string
+): Promise<string> {
+  const directory = shelfDirectory(workingCopyPath, name);
+  await readMetadata(directory);
+  return readFile(join(directory, 'changes.patch'), 'utf8');
+}
+
+export async function portableShelfRename(
+  name: string,
+  workingCopyPath: string,
+  newName: string
+): Promise<SvnMutationResult> {
+  assertSafeShelfName(name, 'Shelf name');
+  assertSafeShelfName(newName, 'New shelf name');
+  validateSvnTargets([workingCopyPath], 'Portable shelf target');
+  const directory = shelfDirectory(workingCopyPath, name);
+  await readMetadata(directory);
+  const newDirectory = shelfDirectory(workingCopyPath, newName);
+  if (directory === newDirectory) {
+    return { success: false, error: 'The new shelf name is the same as the old one.' };
+  }
+  try {
+    await stat(newDirectory);
+    return { success: false, error: `A shelf named "${newName}" already exists.` };
+  } catch {
+    // Expected when the target name is free.
+  }
+  await rename(directory, newDirectory);
+  const metadata = await readMetadata(newDirectory);
+  await writeFile(
+    join(newDirectory, 'metadata.json'),
+    JSON.stringify({ ...metadata, name: newName }, null, 2),
+    { mode: 0o600 }
+  );
+  return { success: true, output: `Renamed shelf to "${newName}".` };
+}
+
+/**
+ * Export a portable shelf as a bundle directory under `outputPath`:
+ * `<outputPath>/portable-shelf-<slug>/{metadata.json,changes.patch,files/}` —
+ * the exact shape `portableShelfImport` consumes.
+ */
+export async function portableShelfExport(
+  name: string,
+  workingCopyPath: string,
+  outputPath: string
+): Promise<SvnMutationResult> {
+  assertSafeShelfName(name, 'Shelf name');
+  validateSvnTargets([workingCopyPath, outputPath], 'Portable shelf export target');
+  const directory = shelfDirectory(workingCopyPath, name);
+  await readMetadata(directory);
+  const destination = join(outputPath, `portable-shelf-${shelfNameSlug(name)}`);
+  try {
+    await stat(destination);
+    return {
+      success: false,
+      error: `"${destination}" already exists — choose an empty destination folder.`,
+    };
+  } catch {
+    // Expected when the destination is free.
+  }
+  await mkdir(outputPath, { recursive: true });
+  // SECURITY: the destination stays under the user-chosen output directory; the
+  // source is the store's own shelf directory.
+  const guardedDestination = assertWithinRoot(outputPath, destination, 'Portable shelf export');
+  await cp(directory, guardedDestination, { recursive: true });
+  return { success: true, output: guardedDestination };
+}
+
+export async function portableShelfImport(
+  portableShelfPath: string,
+  targetWorkingCopyPath: string
+): Promise<SvnMutationResult> {
+  validateSvnTargets([portableShelfPath, targetWorkingCopyPath], 'Portable shelf import target');
+  // SECURITY (zip-slip): the bundle is on-disk data; its metadata decides where
+  // the shelf lands. Validate the shape and the name before any copy, and copy
+  // only into the store's per-working-copy root (base64url directory), never to
+  // an arbitrary location.
+  const metadata = await readMetadata(portableShelfPath);
+  assertSafeShelfName(metadata.name, 'Shelf name');
+  for (const file of metadata.files) {
+    assertSafeEntryRelativePath(file?.relativePath, 'Portable shelf entry');
+  }
+  const directory = shelfDirectory(targetWorkingCopyPath, metadata.name);
+  try {
+    await stat(directory);
+    return {
+      success: false,
+      error: `A shelf named "${metadata.name}" already exists in this working copy.`,
+    };
+  } catch {
+    // Expected when the name is free.
+  }
+  await mkdir(join(directory, '..'), { recursive: true });
+  await cp(portableShelfPath, directory, { recursive: true });
+  // The store's copy must claim the target working copy so a later apply works.
+  const imported = await readMetadata(directory);
+  await writeFile(
+    join(directory, 'metadata.json'),
+    JSON.stringify({ ...imported, workingCopyPath: resolve(targetWorkingCopyPath) }, null, 2),
+    { mode: 0o600 }
+  );
+  return { success: true, output: `Imported shelf "${metadata.name}".` };
 }

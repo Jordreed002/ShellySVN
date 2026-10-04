@@ -323,14 +323,32 @@ export interface IpcInvokeContract {
     RevisionResult
   >;
   'svn:cancelCheckout': IpcCall<[checkoutId: string], OperationResult>;
-  'svn:export': IpcCall<[url: string, path: string, revision?: string], RevisionResult>;
-  'svn:exportWithProgress': IpcCall<
-    [operationId: string, url: string, path: string, revision?: string],
+  'svn:export': IpcCall<
+    [url: string, path: string, revision?: string, options?: import('./types').SvnExportOptions],
     RevisionResult
   >;
-  'svn:import': IpcCall<[path: string, url: string, message: string], RevisionResult>;
+  'svn:exportWithProgress': IpcCall<
+    [
+      operationId: string,
+      url: string,
+      path: string,
+      revision?: string,
+      options?: import('./types').SvnExportOptions,
+    ],
+    RevisionResult
+  >;
+  'svn:import': IpcCall<
+    [path: string, url: string, message: string, options?: import('./types').SvnImportOptions],
+    RevisionResult
+  >;
   'svn:importWithProgress': IpcCall<
-    [operationId: string, path: string, url: string, message: string],
+    [
+      operationId: string,
+      path: string,
+      url: string,
+      message: string,
+      options?: import('./types').SvnImportOptions,
+    ],
     RevisionResult
   >;
   'svn:resolve': IpcCall<
@@ -390,6 +408,20 @@ export interface IpcInvokeContract {
   'svn:shelve:save': IpcCall<[name: string, path: string, message?: string], OperationResult>;
   'svn:shelve:apply': IpcCall<[name: string, path: string], OperationResult>;
   'svn:shelve:delete': IpcCall<[name: string, path: string], OperationResult>;
+  'svn:shelve:rename': IpcCall<
+    [name: string, path: string, newName: string],
+    OperationResult
+  >;
+  'svn:shelve:diff': IpcCall<
+    [name: string, path: string, against?: import('./types').SvnShelveDiffAgainst],
+    import('./types').SvnShelveDiffResult
+  >;
+  'svn:shelve:export': IpcCall<
+    [name: string, path: string, outputPath: string],
+    OperationResult
+  >;
+  'svn:shelve:import': IpcCall<[portableShelfPath: string, targetWorkingCopyPath: string], OperationResult>;
+  'svn:createSampleRepository': IpcCall<[], import('./types').SampleRepositoryResult>;
   'svn:proplist': IpcCall<[path: string, options?: SvnPropertyGetOptions], SvnPropertyListResult>;
   'svn:propget': IpcCall<
     [target: string, name: string, options?: SvnPropertyGetOptions],
@@ -649,6 +681,7 @@ export type IpcEventContract = {
   'svn:checkout:progress': CheckoutProgress & { checkoutId?: string };
   'svn:update:progress': CheckoutProgress & { updateId?: string };
   'svn:operation:progress': SvnOperationProgress;
+  'svn:repairProgress': import('./types').SvnWorkingCopyRepairProgress;
   'fs:watch:change': { path: string; eventType: string; changedPath: string };
   'fs:deepStatus:progress': DeepStatusProgress;
   'deep-link': {

@@ -310,15 +310,17 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       }
       return invokeIpc('svn:cancelCheckout', checkoutId);
     },
-    export: (url, path, revision?) => invokeIpc('svn:export', url, path, revision),
-    exportWithProgress: (url, path, onProgress, revision?) =>
+    export: (url, path, revision?, options?) =>
+      invokeIpc('svn:export', url, path, revision, options),
+    exportWithProgress: (url, path, onProgress, revision?, options?) =>
       invokeWithOperationProgress(ipcRenderer, 'export', onProgress, (operationId) =>
-        invokeIpc('svn:exportWithProgress', operationId, url, path, revision)
+        invokeIpc('svn:exportWithProgress', operationId, url, path, revision, options)
       ),
-    import: (path, url, message) => invokeIpc('svn:import', path, url, message),
-    importWithProgress: (path, url, message, onProgress) =>
+    import: (path, url, message, options?) =>
+      invokeIpc('svn:import', path, url, message, options),
+    importWithProgress: (path, url, message, onProgress, options?) =>
       invokeWithOperationProgress(ipcRenderer, 'import', onProgress, (operationId) =>
-        invokeIpc('svn:importWithProgress', operationId, path, url, message)
+        invokeIpc('svn:importWithProgress', operationId, path, url, message, options)
       ),
     resolve: (path, resolution, depth?) =>
       depth
@@ -356,6 +358,12 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
       save: (name, path, message?) => invokeIpc('svn:shelve:save', name, path, message),
       apply: (name, path) => invokeIpc('svn:shelve:apply', name, path),
       delete: (name, path) => invokeIpc('svn:shelve:delete', name, path),
+      rename: (name, path, newName) => invokeIpc('svn:shelve:rename', name, path, newName),
+      diff: (name, path, against?) =>
+        invokeIpc('svn:shelve:diff', name, path, against ?? 'working-copy'),
+      export: (name, path, outputPath) => invokeIpc('svn:shelve:export', name, path, outputPath),
+      import: (portableShelfPath, targetWorkingCopyPath) =>
+        invokeIpc('svn:shelve:import', portableShelfPath, targetWorkingCopyPath),
     },
     proplist: (path, options?) => invokeIpc('svn:proplist', path, options),
     propget: (target, name, options?) => invokeIpc('svn:propget', target, name, options),
@@ -425,6 +433,7 @@ export function createSvnApi(ipcRenderer: IpcRenderer, invokeIpc: InvokeIpc): El
     detectWcRelinks: () => invokeIpc('svn:detectWcRelinks'),
     applyWcRelink: (proposal) => invokeIpc('svn:applyWcRelink', proposal),
     workingCopyHealth: (workingCopyPath) => invokeIpc('svn:workingCopyHealth', workingCopyPath),
+    createSampleRepository: () => invokeIpc('svn:createSampleRepository'),
     commandTimeline: () => invokeIpc('svn:commandTimeline'),
     clearCommandTimeline: () => invokeIpc('svn:commandTimeline:clear'),
     trustServerCertificate: (url, errorText) =>

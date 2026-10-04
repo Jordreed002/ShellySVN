@@ -102,6 +102,12 @@ export function createMockElectronAPI(): ElectronAPI {
         save: vi.fn().mockResolvedValue({ success: true }),
         apply: vi.fn().mockResolvedValue({ success: true }),
         delete: vi.fn().mockResolvedValue({ success: true }),
+        rename: vi.fn().mockResolvedValue({ success: true }),
+        diff: vi
+          .fn()
+          .mockResolvedValue({ success: true, diff: '', against: 'working-copy' }),
+        export: vi.fn().mockResolvedValue({ success: true }),
+        import: vi.fn().mockResolvedValue({ success: true }),
       },
       proplist: vi.fn().mockResolvedValue([]),
       propset: vi.fn().mockResolvedValue({ success: true }),
@@ -137,6 +143,13 @@ export function createMockElectronAPI(): ElectronAPI {
         connectionStatus: 'ok',
       }),
       trustServerCertificate: vi.fn().mockResolvedValue({ success: true }),
+      createSampleRepository: vi.fn().mockResolvedValue({
+        success: true,
+        url: 'file:///sample/repo/trunk',
+        repositoryUrl: 'file:///sample/repo',
+        path: '/sample/repo',
+        created: true,
+      }),
     },
     external: {
       openDiffTool: vi.fn().mockResolvedValue({ success: true }),

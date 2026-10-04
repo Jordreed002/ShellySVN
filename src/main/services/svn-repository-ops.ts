@@ -1,5 +1,12 @@
 import type { IpcMainInvokeEvent } from 'electron';
-import type { SvnMergeOptions, SvnOperationRevision } from '@shared/types';
+import type {
+  SvnExportDepth,
+  SvnExportOptions,
+  SvnImportOptions,
+  SvnMergeOptions,
+  SvnNativeEol,
+  SvnOperationRevision,
+} from '@shared/types';
 import { runSvnText } from './svn-executor';
 import { runSvnOperationWithProgress } from './svn-progress';
 import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
@@ -39,13 +46,72 @@ function parseUpdatedRevision(output: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
+const EXPORT_DEPTHS: ReadonlySet<SvnExportDepth> = new Set([
+  'empty',
+  'files',
+  'immediates',
+  'infinity',
+]);
+const NATIVE_EOLS: ReadonlySet<SvnNativeEol> = new Set(['LF', 'CR', 'CRLF']);
+
+/**
+ * Append the optional export payload fields (`--depth`, `--ignore-externals`,
+ * `--native-eol`, `--force`) to an `svn export` argv. Pure validation: depth
+ * and native-eol values are checked against the closed sets SVN accepts so a
+ * hostile or stale renderer payload never reaches a spawn.
+ */
+export function appendExportOptions(
+  args: string[],
+  options?: SvnExportOptions
+): string[] {
+  if (!options) return args;
+  if (options.depth !== undefined) {
+    if (!EXPORT_DEPTHS.has(options.depth)) {
+      throw new Error(
+        `Invalid export depth "${options.depth}" — expected empty, files, immediates or infinity.`
+      );
+    }
+    args.push('--depth', options.depth);
+  }
+  if (options.ignoreExternals === true) args.push('--ignore-externals');
+  if (options.nativeEol !== undefined) {
+    if (!NATIVE_EOLS.has(options.nativeEol)) {
+      throw new Error(
+        `Invalid export native EOL "${options.nativeEol}" — expected LF, CR or CRLF.`
+      );
+    }
+    args.push('--native-eol', options.nativeEol);
+  }
+  if (options.force === true) args.push('--force');
+  return args;
+}
+
+/** Append the optional import payload field (`--no-ignore`) to an `svn import` argv. */
+export function appendImportOptions(
+  args: string[],
+  options?: SvnImportOptions
+): string[] {
+  if (options?.noIgnore === true) args.push('--no-ignore');
+  return args;
+}
+
+function buildExportArgs(revision: string | undefined, options?: SvnExportOptions): string[] {
+  const args = ['export', '--non-interactive'];
+  if (revision) args.push('-r', requireSvnRevision(revision, 'export revision'));
+  return appendExportOptions(args, options);
+}
+
+function buildImportArgs(message: string, options?: SvnImportOptions): string[] {
+  return appendImportOptions(['import', '-m', message, '--non-interactive'], options);
+}
+
 export async function exportRepository(
   url: string,
   path: string,
-  revision?: string
+  revision?: string,
+  options?: SvnExportOptions
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
-  const args = ['export', '--non-interactive'];
-  if (revision) args.push('-r', requireSvnRevision(revision, 'export revision'));
+  const args = buildExportArgs(revision, options);
   const output = await runSvnText(withSvnTargets(args, [url, path]));
   const match = output.match(/Exported revision (\d+)\./);
   return {
@@ -60,25 +126,25 @@ export async function exportRepositoryWithProgress(
   operationId: string,
   url: string,
   path: string,
-  revision?: string
+  revision?: string,
+  options?: SvnExportOptions
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
-  const args = ['export', '--non-interactive'];
-  if (revision) args.push('-r', requireSvnRevision(revision, 'export revision'));
   return runSvnOperationWithProgress(
     event,
     operationId,
     'export',
-    withSvnTargets(args, [url, path])
+    withSvnTargets(buildExportArgs(revision, options), [url, path])
   );
 }
 
 export async function importRepository(
   path: string,
   url: string,
-  message: string
+  message: string,
+  options?: SvnImportOptions
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
   const output = await runSvnText(
-    withSvnTargets(['import', '-m', message, '--non-interactive'], [path, url])
+    withSvnTargets(buildImportArgs(message, options), [path, url])
   );
   return {
     success: true,
@@ -92,13 +158,14 @@ export async function importRepositoryWithProgress(
   operationId: string,
   path: string,
   url: string,
-  message: string
+  message: string,
+  options?: SvnImportOptions
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output?: string; error?: string }> {
   return runSvnOperationWithProgress(
     event,
     operationId,
     'import',
-    withSvnTargets(['import', '-m', message, '--non-interactive'], [path, url])
+    withSvnTargets(buildImportArgs(message, options), [path, url])
   );
 }
 

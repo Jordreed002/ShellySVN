@@ -117,7 +117,11 @@ vi.mock('../../services/svn-metadata', () => ({
   revpropset: vi.fn(),
   shelveApply: vi.fn(),
   shelveDelete: vi.fn(),
+  shelveDiff: vi.fn(),
+  shelveExport: vi.fn(),
+  shelveImport: vi.fn(),
   shelveList: vi.fn(),
+  shelveRename: vi.fn(),
   shelveSave: vi.fn(),
 }));
 vi.mock('../../services/auth-session-manager', () => ({
@@ -146,6 +150,15 @@ vi.mock('../../services/svn-repository-ops', () => ({
   switchWorkingCopy: vi.fn(),
 }));
 vi.mock('../../services/svn-progress', () => ({ cancelSvnOperation: vi.fn() }));
+vi.mock('../../services/sample-repository', () => ({
+  createSampleRepository: vi.fn().mockResolvedValue({
+    success: true,
+    url: 'file:///sample/repo/trunk',
+    repositoryUrl: 'file:///sample/repo',
+    path: '/sample/repo',
+    created: true,
+  }),
+}));
 vi.mock('../../services/status-service', () => ({
   getStatusService: vi.fn(() => ({ invalidatePaths: vi.fn() })),
 }));
@@ -281,10 +294,10 @@ const ARGS: Record<string, unknown[]> = {
     { authSessionId: 's1' },
   ],
   'svn:cancelCheckout': ['id1'],
-  'svn:export': ['https://svn/r', '/wc', '3'],
-  'svn:exportWithProgress': ['op1', 'https://svn/r', '/wc', '3'],
-  'svn:import': ['/wc', 'https://svn/r', 'msg'],
-  'svn:importWithProgress': ['op1', '/wc', 'https://svn/r', 'msg'],
+  'svn:export': ['https://svn/r', '/wc', '3', { depth: 'files' }],
+  'svn:exportWithProgress': ['op1', 'https://svn/r', '/wc', '3', { ignoreExternals: true }],
+  'svn:import': ['/wc', 'https://svn/r', 'msg', { noIgnore: true }],
+  'svn:importWithProgress': ['op1', '/wc', 'https://svn/r', 'msg', { noIgnore: true }],
   'svn:lock': ['/wc/f', 'msg'],
   'svn:unlock': ['/wc/f', true],
   'svn:lockInfo': ['/wc/f'],
@@ -317,6 +330,11 @@ const ARGS: Record<string, unknown[]> = {
   'svn:shelve:save': ['name', '/wc', 'msg'],
   'svn:shelve:apply': ['name', '/wc'],
   'svn:shelve:delete': ['name', '/wc'],
+  'svn:shelve:rename': ['name', '/wc', 'new-name'],
+  'svn:shelve:diff': ['name', '/wc', 'HEAD'],
+  'svn:shelve:export': ['name', '/wc', '/out/bundle'],
+  'svn:shelve:import': ['/out/bundle', '/wc'],
+  'svn:createSampleRepository': [],
   'svn:proplist': ['/wc', {}],
   'svn:propget': ['/wc', 'svn:eol-style', {}],
   'svn:propset': ['/wc', 'svn:eol-style', 'LF'],

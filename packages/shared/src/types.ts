@@ -166,6 +166,11 @@ export interface SvnLogPath {
   path: string;
   copyFromPath?: string;
   copyFromRev?: number;
+  /**
+   * True when the path carried `mod="merged"` — only populated when the log
+   * was requested with merge history (`--use-merge-history`).
+   */
+  merged?: boolean;
 }
 
 export interface SvnLogResult {
@@ -1333,6 +1338,32 @@ export interface UpdateOptions {
   force?: boolean;
 }
 
+// ============================================
+// SVN Export / Import Options
+// ============================================
+
+/** Depth values `svn export --depth` accepts. */
+export type SvnExportDepth = 'empty' | 'files' | 'immediates' | 'infinity';
+
+/** Line-ending markers `svn export --native-eol` accepts. */
+export type SvnNativeEol = 'LF' | 'CR' | 'CRLF';
+
+export interface SvnExportOptions {
+  /** Limit recursion (`--depth <v>`); omitted = SVN default (fully recursive). */
+  depth?: SvnExportDepth;
+  /** Disregard externals (`--ignore-externals`). */
+  ignoreExternals?: boolean;
+  /** Rewrite line endings (`--native-eol <v>`); omitted keeps original endings. */
+  nativeEol?: SvnNativeEol;
+  /** Overwrite existing destination files (`--force`). */
+  force?: boolean;
+}
+
+export interface SvnImportOptions {
+  /** Include files matching ignore patterns (`--no-ignore`). */
+  noIgnore?: boolean;
+}
+
 /**
  * Checkout progress information for streaming updates
  */
@@ -1511,6 +1542,43 @@ export interface SvnShelveListResult {
   cancelled?: boolean;
   partial?: boolean;
   commandError?: SvnCommandErrorDetails;
+}
+
+/** Which side a shelf diff is taken against. */
+export type SvnShelveDiffAgainst = 'working-copy' | 'HEAD';
+
+/** Result of `svn:shelve:diff` — the shelf's changes as unified diff text. */
+export interface SvnShelveDiffResult {
+  success: boolean;
+  /** Unified diff text (may be empty for a shelf with no textual changes). */
+  diff: string;
+  against: SvnShelveDiffAgainst;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  commandError?: SvnCommandErrorDetails;
+}
+
+// ============================================
+// Sample Repository (onboarding playground)
+// ============================================
+
+/**
+ * Result of `svn:createSampleRepository` — a throwaway local repository
+ * (`svnadmin create`) seeded with a representative trunk/branches/tags tree
+ * and a handful of commits so log, graph and blame have content to show.
+ */
+export interface SampleRepositoryResult {
+  success: boolean;
+  /** Trunk URL ready for `svn checkout` (file:// scheme). */
+  url: string;
+  /** Repository root URL. */
+  repositoryUrl: string;
+  /** On-disk repository directory. */
+  path: string;
+  /** False when an existing playground was detected and reused as-is. */
+  created: boolean;
+  error?: string;
 }
 
 // ============================================
@@ -1942,13 +2010,15 @@ export interface ElectronAPI {
     export: (
       url: string,
       path: string,
-      revision?: string
+      revision?: string,
+      options?: SvnExportOptions
     ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
     exportWithProgress: (
       url: string,
       path: string,
       onProgress: (progress: SvnOperationProgress) => void,
-      revision?: string
+      revision?: string,
+      options?: SvnExportOptions
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
@@ -1958,13 +2028,15 @@ export interface ElectronAPI {
     import: (
       path: string,
       url: string,
-      message: string
+      message: string,
+      options?: SvnImportOptions
     ) => Promise<{ success: boolean; revision: SvnOperationRevision; output?: string }>;
     importWithProgress: (
       path: string,
       url: string,
       message: string,
-      onProgress: (progress: SvnOperationProgress) => void
+      onProgress: (progress: SvnOperationProgress) => void,
+      options?: SvnImportOptions
     ) => Promise<{
       success: boolean;
       revision: SvnOperationRevision;
@@ -2068,6 +2140,18 @@ export interface ElectronAPI {
       save: (name: string, path: string, message?: string) => Promise<SvnMutationResult>;
       apply: (name: string, path: string) => Promise<SvnMutationResult>;
       delete: (name: string, path: string) => Promise<SvnMutationResult>;
+      /** Rename a shelf in place. */
+      rename: (name: string, path: string, newName: string) => Promise<SvnMutationResult>;
+      /** Show a shelf's changes as unified diff text. */
+      diff: (
+        name: string,
+        path: string,
+        against?: SvnShelveDiffAgainst
+      ) => Promise<SvnShelveDiffResult>;
+      /** Export a shelf as a portable bundle directory at outputPath. */
+      export: (name: string, path: string, outputPath: string) => Promise<SvnMutationResult>;
+      /** Import a portable shelf bundle into a working copy's shelf store. */
+      import: (portableShelfPath: string, targetWorkingCopyPath: string) => Promise<SvnMutationResult>;
     };
     proplist: (path: string, options?: SvnPropertyGetOptions) => Promise<SvnPropertyListResult>;
     propget: (
@@ -2167,6 +2251,8 @@ export interface ElectronAPI {
     detectWcRelinks: () => Promise<WcRelinkDetectionResult>;
     /** Explicitly apply a relink proposal (registry + settings rewrite). */
     applyWcRelink: (proposal: RelinkProposal) => Promise<ApplyRelinkResult>;
+    /** Create (or reuse) the seeded local sample repository; returns file:// URLs. */
+    createSampleRepository: () => Promise<SampleRepositoryResult>;
     commandTimeline: () => Promise<SvnCommandTimelineEntry[]>;
     clearCommandTimeline: () => Promise<OperationResult>;
     trustServerCertificate: (

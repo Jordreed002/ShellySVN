@@ -1,5 +1,9 @@
 // @vitest-environment node
 
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
@@ -11,6 +15,12 @@ const mockState = vi.hoisted(() => ({
   portableShelfSave: vi.fn(),
   portableShelfApply: vi.fn(),
   portableShelfDelete: vi.fn(),
+  portableShelfRename: vi.fn(),
+  portableShelfReadPatch: vi.fn(),
+  portableShelfExists: vi.fn(),
+  portableShelfExport: vi.fn(),
+  portableShelfImport: vi.fn(),
+  shelfNameSlug: vi.fn((name: string) => name),
   existsSync: vi.fn(),
 }));
 
@@ -33,6 +43,12 @@ vi.mock('../svn-portable-shelves', () => ({
   portableShelfSave: mockState.portableShelfSave,
   portableShelfApply: mockState.portableShelfApply,
   portableShelfDelete: mockState.portableShelfDelete,
+  portableShelfRename: mockState.portableShelfRename,
+  portableShelfReadPatch: mockState.portableShelfReadPatch,
+  portableShelfExists: mockState.portableShelfExists,
+  portableShelfExport: mockState.portableShelfExport,
+  portableShelfImport: mockState.portableShelfImport,
+  shelfNameSlug: mockState.shelfNameSlug,
 }));
 
 vi.mock('../../utils/debug', () => ({
@@ -62,7 +78,11 @@ import {
   revpropset,
   shelveApply,
   shelveDelete,
+  shelveDiff,
+  shelveExport,
+  shelveImport,
   shelveList,
+  shelveRename,
   shelveSave,
 } from '../svn-metadata';
 import { normalizeRepoUrl } from '../../utils/svn-url';
@@ -80,6 +100,11 @@ beforeEach(() => {
   mockState.portableShelfSave.mockResolvedValue({ success: true });
   mockState.portableShelfApply.mockResolvedValue({ success: true });
   mockState.portableShelfDelete.mockResolvedValue({ success: true });
+  mockState.portableShelfRename.mockResolvedValue({ success: true });
+  mockState.portableShelfReadPatch.mockResolvedValue('--- a\n+++ b\n');
+  mockState.portableShelfExists.mockResolvedValue(false);
+  mockState.portableShelfExport.mockResolvedValue({ success: true, output: '/out/bundle' });
+  mockState.portableShelfImport.mockResolvedValue({ success: true, output: 'Imported shelf.' });
 });
 
 describe('svn-metadata repository browsing', () => {
@@ -762,6 +787,114 @@ describe('svn-metadata shelving', () => {
         category: 'network',
         retryable: true,
       },
+    });
+  });
+
+  it('renames shelves natively and falls back to the portable store', async () => {
+    mockState.runSvnText.mockResolvedValue('');
+
+    await expect(shelveRename('work', 'C:\\wc', 'renamed')).resolves.toEqual({ success: true });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'shelve',
+      '--rename',
+      'work',
+      'renamed',
+      '--',
+      'C:\\wc',
+    ]);
+
+    mockState.runSvn.mockRejectedValue(new Error('"shelve": unknown command.'));
+    mockState.runSvnText.mockClear();
+    await expect(shelveRename('work', 'C:\\wc', 'renamed')).resolves.toEqual({ success: true });
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+    expect(mockState.portableShelfRename).toHaveBeenCalledWith('work', 'C:\\wc', 'renamed');
+  });
+
+  it('diffs a native shelf, pegging HEAD when asked', async () => {
+    mockState.runSvnText.mockResolvedValue('--- a/README\n+++ b/README\n');
+
+    await expect(shelveDiff('work', 'C:\\wc')).resolves.toEqual({
+      success: true,
+      diff: '--- a/README\n+++ b/README\n',
+      against: 'working-copy',
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'diff',
+      '--shelved=work',
+      '--',
+      'C:\\wc',
+    ]);
+
+    mockState.runSvnText.mockClear();
+    await shelveDiff('work', 'C:\\wc', 'HEAD');
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'diff',
+      '--shelved=work',
+      '-r',
+      'HEAD',
+      '--',
+      'C:\\wc',
+    ]);
+  });
+
+  it('falls back to the stored patch when the client lacks --shelved', async () => {
+    mockState.runSvn.mockResolvedValue({ code: 0, stdout: 'shelve help', stderr: '' });
+    mockState.runSvnText.mockRejectedValue(new Error('svn: invalid option: --shelved'));
+
+    await expect(shelveDiff('work', 'C:\\wc')).resolves.toEqual({
+      success: true,
+      diff: '--- a\n+++ b\n',
+      against: 'working-copy',
+    });
+    expect(mockState.portableShelfReadPatch).toHaveBeenCalledWith('work', 'C:\\wc');
+  });
+
+  it('exports portable shelves verbatim and native shelves as patch bundles', async () => {
+    mockState.portableShelfExists.mockResolvedValue(true);
+
+    await expect(shelveExport('work', 'C:\\wc', '/out')).resolves.toEqual({
+      success: true,
+      output: '/out/bundle',
+    });
+    expect(mockState.portableShelfExport).toHaveBeenCalledWith('work', 'C:\\wc', '/out');
+    expect(mockState.runSvnText).not.toHaveBeenCalled();
+
+    // Native shelf: `svn diff --shelved` becomes a patch-only bundle.
+    mockState.portableShelfExists.mockResolvedValue(false);
+    mockState.runSvnText.mockResolvedValue('--- a\n+++ b\n');
+    const outputDir = await mkdtemp(join(tmpdir(), 'shelf-export-'));
+    const result = await shelveExport('work', 'C:\\wc', outputDir);
+    expect(result.success).toBe(true);
+    expect(typeof result.output).toBe('string');
+    await expect(readFile(join(String(result.output), 'changes.patch'), 'utf8')).resolves.toBe(
+      '--- a\n+++ b\n'
+    );
+    await expect(readFile(join(String(result.output), 'metadata.json'), 'utf8')).resolves.toContain(
+      '"name": "work"'
+    );
+  });
+
+  it('reports a missing shelf when exporting without any store entry', async () => {
+    mockState.runSvn.mockRejectedValue(new Error('"shelve": unknown command.'));
+    mockState.portableShelfExists.mockResolvedValue(false);
+
+    await expect(shelveExport('work', 'C:\\wc', '/out')).resolves.toMatchObject({
+      success: false,
+      error: /No shelf named "work"/,
+    });
+  });
+
+  it('imports portable bundles through the store, with structured failures', async () => {
+    await expect(shelveImport('/bundles/work', 'C:\\wc')).resolves.toEqual({
+      success: true,
+      output: 'Imported shelf.',
+    });
+    expect(mockState.portableShelfImport).toHaveBeenCalledWith('/bundles/work', 'C:\\wc');
+
+    mockState.portableShelfImport.mockRejectedValue(new Error('Portable shelf metadata is invalid'));
+    await expect(shelveImport('/bundles/broken', 'C:\\wc')).resolves.toMatchObject({
+      success: false,
+      error: /not a valid portable shelf/,
     });
   });
 });

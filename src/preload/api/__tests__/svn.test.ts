@@ -45,6 +45,30 @@ describe('SVN preload IPC contract', () => {
       () => api.nativeAuth.remove(['svn.simple']),
       ['svn:nativeAuth:remove', ['svn.simple']],
     ],
+    [
+      'verify credentials',
+      () => api.verifyCredentials('https://repo', 'alice', 'secret'),
+      ['svn:verifyCredentials', 'https://repo', 'alice', 'secret'],
+    ],
+    [
+      'repair working copy',
+      () =>
+        api.repairWorkingCopy({
+          workingCopyPath: '/wc',
+          restoreFiles: [],
+          completeDirs: [],
+          excludeDirs: [],
+        }),
+      [
+        'svn:repairWorkingCopy',
+        {
+          workingCopyPath: '/wc',
+          restoreFiles: [],
+          completeDirs: [],
+          excludeDirs: [],
+        },
+      ],
+    ],
     ['cat', () => api.cat('repo/file', '4'), ['svn:cat', 'repo/file', '4', undefined]],
     ['status', () => api.status('/wc'), ['svn:status', '/wc', undefined]],
     ['remote status', () => api.statusRemote('/wc'), ['svn:statusRemote', '/wc', undefined]],
@@ -166,12 +190,34 @@ describe('SVN preload IPC contract', () => {
     [
       'export',
       () => api.export('https://repo/trunk', '/out', '7'),
-      ['svn:export', 'https://repo/trunk', '/out', '7'],
+      ['svn:export', 'https://repo/trunk', '/out', '7', undefined],
+    ],
+    [
+      'export with options',
+      () =>
+        api.export('https://repo/trunk', '/out', '7', {
+          depth: 'files',
+          ignoreExternals: true,
+          nativeEol: 'LF',
+          force: true,
+        }),
+      [
+        'svn:export',
+        'https://repo/trunk',
+        '/out',
+        '7',
+        { depth: 'files', ignoreExternals: true, nativeEol: 'LF', force: true },
+      ],
     ],
     [
       'import',
       () => api.import('/src', 'https://repo/trunk', 'import'),
-      ['svn:import', '/src', 'https://repo/trunk', 'import'],
+      ['svn:import', '/src', 'https://repo/trunk', 'import', undefined],
+    ],
+    [
+      'import with options',
+      () => api.import('/src', 'https://repo/trunk', 'import', { noIgnore: true }),
+      ['svn:import', '/src', 'https://repo/trunk', 'import', { noIgnore: true }],
     ],
     ['resolve', () => api.resolve('/wc/a', 'working'), ['svn:resolve', '/wc/a', 'working']],
     [
@@ -249,6 +295,36 @@ describe('SVN preload IPC contract', () => {
     ],
     ['shelf apply', () => api.shelve.apply('work', '/wc'), ['svn:shelve:apply', 'work', '/wc']],
     ['shelf delete', () => api.shelve.delete('work', '/wc'), ['svn:shelve:delete', 'work', '/wc']],
+    [
+      'shelf rename',
+      () => api.shelve.rename('work', '/wc', 'renamed'),
+      ['svn:shelve:rename', 'work', '/wc', 'renamed'],
+    ],
+    [
+      'shelf diff',
+      () => api.shelve.diff('work', '/wc', 'HEAD'),
+      ['svn:shelve:diff', 'work', '/wc', 'HEAD'],
+    ],
+    [
+      'shelf diff default against',
+      () => api.shelve.diff('work', '/wc'),
+      ['svn:shelve:diff', 'work', '/wc', 'working-copy'],
+    ],
+    [
+      'shelf export',
+      () => api.shelve.export('work', '/wc', '/out/bundle'),
+      ['svn:shelve:export', 'work', '/wc', '/out/bundle'],
+    ],
+    [
+      'shelf import',
+      () => api.shelve.import('/out/bundle', '/wc'),
+      ['svn:shelve:import', '/out/bundle', '/wc'],
+    ],
+    [
+      'create sample repository',
+      () => api.createSampleRepository(),
+      ['svn:createSampleRepository'],
+    ],
     [
       'property list',
       () => api.proplist('/wc', propertyOptions),
@@ -417,13 +493,13 @@ describe('SVN preload IPC contract', () => {
       'export',
       () => api.exportWithProgress('https://repo', '/out', vi.fn(), '7'),
       'svn:exportWithProgress',
-      ['https://repo', '/out', '7'],
+      ['https://repo', '/out', '7', undefined],
     ],
     [
       'import',
       () => api.importWithProgress('/src', 'https://repo', 'message', vi.fn()),
       'svn:importWithProgress',
-      ['/src', 'https://repo', 'message'],
+      ['/src', 'https://repo', 'message', undefined],
     ],
     [
       'merge',

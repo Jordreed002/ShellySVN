@@ -29,15 +29,21 @@ vi.mock('../svn-mutation-queue', () => ({
 }));
 
 import {
+  appendExportOptions,
   copyRepositoryItem,
   createRemoteFolder,
   deleteRemoteItem,
+  exportRepository,
+  exportRepositoryWithProgress,
+  importRepository,
+  importRepositoryWithProgress,
   mergeRepositoryRange,
   moveRemoteItem,
   relocateWorkingCopy,
   resolveConflict,
   switchWorkingCopy,
 } from '../svn-repository-ops';
+import { runSvnOperationWithProgress } from '../svn-progress';
 
 function infoXml(
   url: string,
@@ -788,6 +794,153 @@ describe('svn-repository-ops resolveConflict', () => {
       1,
       ['resolve', '--', 'C:\\wc\\conflicted-folder'],
       { trustSslFailures: false, stdinInput: 'a' }
+    );
+  });
+});
+
+describe('svn-repository-ops export/import options', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.runSvnText.mockResolvedValue('Exported revision 12.\n');
+  });
+
+  describe('appendExportOptions (pure validation)', () => {
+    it('maps every optional field to its svn flag', () => {
+      expect(
+        appendExportOptions(['export', '--non-interactive'], {
+          depth: 'files',
+          ignoreExternals: true,
+          nativeEol: 'CRLF',
+          force: true,
+        })
+      ).toEqual([
+        'export',
+        '--non-interactive',
+        '--depth',
+        'files',
+        '--ignore-externals',
+        '--native-eol',
+        'CRLF',
+        '--force',
+      ]);
+    });
+
+    it('leaves the argv untouched for missing or falsey fields', () => {
+      expect(appendExportOptions(['export'])).toEqual(['export']);
+      expect(
+        appendExportOptions(['export'], { ignoreExternals: false, force: false })
+      ).toEqual(['export']);
+    });
+
+    it.each(['deep', 'Infinity', 'immediates ', '', 'files\n'] as const)(
+      'rejects an invalid depth %j before any spawn',
+      (depth) => {
+        expect(() => appendExportOptions(['export'], { depth: depth as never })).toThrow(
+          /Invalid export depth/
+        );
+      }
+    );
+
+    it.each(['lf', 'LF\r', 'native', '', 'CRLF '] as const)(
+      'rejects an invalid native EOL %j before any spawn',
+      (nativeEol) => {
+        expect(() => appendExportOptions(['export'], { nativeEol: nativeEol as never })).toThrow(
+          /Invalid export native EOL/
+        );
+      }
+    );
+  });
+
+  it('builds the full export argv with options and revision', async () => {
+    await exportRepository('https://example.test/svn/trunk', '/out', '7', {
+      depth: 'immediates',
+      ignoreExternals: true,
+    });
+
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'export',
+      '--non-interactive',
+      '-r',
+      '7',
+      '--depth',
+      'immediates',
+      '--ignore-externals',
+      '--',
+      'https://example.test/svn/trunk',
+      '/out',
+    ]);
+  });
+
+  it('hands the options argv to the progress runner', async () => {
+    const event = {} as never;
+    await exportRepositoryWithProgress(event, 'op1', 'https://example.test/svn/trunk', '/out', undefined, {
+      nativeEol: 'LF',
+      force: true,
+    });
+
+    expect(vi.mocked(runSvnOperationWithProgress)).toHaveBeenCalledWith(
+      event,
+      'op1',
+      'export',
+      [
+        'export',
+        '--non-interactive',
+        '--native-eol',
+        'LF',
+        '--force',
+        '--',
+        'https://example.test/svn/trunk',
+        '/out',
+      ]
+    );
+  });
+
+  it('appends --no-ignore to imports only when requested', async () => {
+    await importRepository('/src', 'https://example.test/svn/trunk', 'msg', { noIgnore: true });
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'import',
+      '-m',
+      'msg',
+      '--non-interactive',
+      '--no-ignore',
+      '--',
+      '/src',
+      'https://example.test/svn/trunk',
+    ]);
+
+    mockState.runSvnText.mockClear();
+    await importRepository('/src', 'https://example.test/svn/trunk', 'msg');
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'import',
+      '-m',
+      'msg',
+      '--non-interactive',
+      '--',
+      '/src',
+      'https://example.test/svn/trunk',
+    ]);
+  });
+
+  it('passes the no-ignore flag through the progress import path', async () => {
+    const event = {} as never;
+    await importRepositoryWithProgress(event, 'op1', '/src', 'https://example.test/svn/trunk', 'msg', {
+      noIgnore: true,
+    });
+
+    expect(vi.mocked(runSvnOperationWithProgress)).toHaveBeenCalledWith(
+      event,
+      'op1',
+      'import',
+      [
+        'import',
+        '-m',
+        'msg',
+        '--non-interactive',
+        '--no-ignore',
+        '--',
+        '/src',
+        'https://example.test/svn/trunk',
+      ]
     );
   });
 });

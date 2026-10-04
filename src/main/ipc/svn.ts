@@ -85,7 +85,11 @@ import {
   revpropset,
   shelveApply,
   shelveDelete,
+  shelveDiff,
+  shelveExport,
+  shelveImport,
   shelveList,
+  shelveRename,
   shelveSave,
 } from '../services/svn-metadata';
 import { resolveAuthSession } from '../services/auth-session-manager';
@@ -117,6 +121,7 @@ import {
   switchWorkingCopy,
 } from '../services/svn-repository-ops';
 import { cancelSvnOperation } from '../services/svn-progress';
+import { createSampleRepository } from '../services/sample-repository';
 import { validateSwitchOrRelocate } from '../services/svn-switch-relocate';
 import { editRevprop, getRevprop } from '../services/svn-revprop';
 import { analyzePristineStore } from '../services/pristine-analyzer';
@@ -750,17 +755,33 @@ export function registerSvnHandlers(): void {
   });
 
   // SVN Export
-  ipcMain.handle('svn:export', async (event, url: string, path: string, revision?: string) => {
-    return invalidateStatusAfter(
-      [path],
-      exportRepository(url, path, normalizeSvnRevision(revision, 'export revision')),
-      event
-    );
-  });
+  ipcMain.handle(
+    'svn:export',
+    async (
+      event,
+      url: string,
+      path: string,
+      revision?: string,
+      options?: import('@shared/types').SvnExportOptions
+    ) => {
+      return invalidateStatusAfter(
+        [path],
+        exportRepository(url, path, normalizeSvnRevision(revision, 'export revision'), options),
+        event
+      );
+    }
+  );
 
   ipcMain.handle(
     'svn:exportWithProgress',
-    async (event, operationId: string, url: string, path: string, revision?: string) => {
+    async (
+      event,
+      operationId: string,
+      url: string,
+      path: string,
+      revision?: string,
+      options?: import('@shared/types').SvnExportOptions
+    ) => {
       return invalidateStatusAfter(
         [path],
         exportRepositoryWithProgress(
@@ -768,7 +789,8 @@ export function registerSvnHandlers(): void {
           operationId,
           url,
           path,
-          normalizeSvnRevision(revision, 'export revision')
+          normalizeSvnRevision(revision, 'export revision'),
+          options
         ),
         event
       );
@@ -776,17 +798,33 @@ export function registerSvnHandlers(): void {
   );
 
   // SVN Import
-  ipcMain.handle('svn:import', async (event, path: string, url: string, message: string) => {
-    return invalidateRepositoryAfter(event, [url], importRepository(path, url, message));
-  });
+  ipcMain.handle(
+    'svn:import',
+    async (
+      event,
+      path: string,
+      url: string,
+      message: string,
+      options?: import('@shared/types').SvnImportOptions
+    ) => {
+      return invalidateRepositoryAfter(event, [url], importRepository(path, url, message, options));
+    }
+  );
 
   ipcMain.handle(
     'svn:importWithProgress',
-    async (event, operationId: string, path: string, url: string, message: string) => {
+    async (
+      event,
+      operationId: string,
+      path: string,
+      url: string,
+      message: string,
+      options?: import('@shared/types').SvnImportOptions
+    ) => {
       return invalidateRepositoryAfter(
         event,
         [url],
-        importRepositoryWithProgress(event, operationId, path, url, message)
+        importRepositoryWithProgress(event, operationId, path, url, message, options)
       );
     }
   );
@@ -1067,6 +1105,50 @@ export function registerSvnHandlers(): void {
   ipcMain.handle('svn:shelve:delete', async (event, name: string, path: string) => {
     return invalidateStatusAfter([path], shelveDelete(name, path), event);
   });
+
+  // SVN Shelve - Rename
+  ipcMain.handle(
+    'svn:shelve:rename',
+    async (event, name: string, path: string, newName: string) => {
+      return invalidateStatusAfter([path], shelveRename(name, path, newName), event);
+    }
+  );
+
+  // SVN Shelve - Diff (shelf changes as unified diff text)
+  ipcMain.handle(
+    'svn:shelve:diff',
+    async (
+      _,
+      name: string,
+      path: string,
+      against?: import('@shared/types').SvnShelveDiffAgainst
+    ): Promise<import('@shared/types').SvnShelveDiffResult> => {
+      return shelveDiff(name, path, against ?? 'working-copy');
+    }
+  );
+
+  // SVN Shelve - Export shelf as a portable bundle directory
+  ipcMain.handle(
+    'svn:shelve:export',
+    async (_, name: string, path: string, outputPath: string) => {
+      return shelveExport(name, path, outputPath);
+    }
+  );
+
+  // SVN Shelve - Import a portable shelf bundle into a working copy
+  ipcMain.handle(
+    'svn:shelve:import',
+    async (event, portableShelfPath: string, targetWorkingCopyPath: string) => {
+      return invalidateStatusAfter(
+        [targetWorkingCopyPath],
+        shelveImport(portableShelfPath, targetWorkingCopyPath),
+        event
+      );
+    }
+  );
+
+  // Onboarding playground — seeded local sample repository (#88)
+  ipcMain.handle('svn:createSampleRepository', async () => createSampleRepository());
 
   // SVN Proplist
   ipcMain.handle('svn:proplist', async (_, path: string, options) => {
