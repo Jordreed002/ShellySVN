@@ -89,7 +89,6 @@ interface MenuOver {
   entry?: RepoEntry;
   workingCopy?: WorkingCopyState | null;
   headRevision?: number | null;
-  shelfName?: string | null;
 }
 
 function build(over: MenuOver = {}) {
@@ -98,7 +97,6 @@ function build(over: MenuOver = {}) {
     entry: over.entry ?? fileEntry(),
     workingCopy: over.workingCopy === undefined ? workingCopy() : over.workingCopy,
     headRevision: over.headRevision === undefined ? 4838 : over.headRevision,
-    shelfName: over.shelfName ?? null,
     handlers,
   });
   return { ...menu, handlers };
@@ -139,6 +137,8 @@ describe('buildRepoBrowserMenu — the command under each item', () => {
       export: 'svn export',
       switch: 'svn switch',
       merge: 'svn merge',
+      // Scoped to the selected path; the name is asked for in the dialog.
+      shelf: 'svn shelve',
 
       log: 'svn log -v',
       diff: 'svn diff',
@@ -172,15 +172,11 @@ describe('buildRepoBrowserMenu — the command under each item', () => {
     });
   });
 
-  it('adds no command to the shelf item, whose dialog offers three different ones', () => {
-    const { items } = build({ shelfName: 'payments-wip' });
+  it('offers shelving with the command it runs, scoped to the selected path', () => {
+    const { items } = build();
     const shelf = itemById(items, 'shelf');
-    expect(shelf.label).toBe('Shelf: payments-wip…');
-    expect(shelf.command).toBeUndefined();
-  });
-
-  it('offers no shelf item when `svn shelf-list` returned nothing', () => {
-    expect(() => itemById(build().items, 'shelf')).toThrow();
+    expect(shelf.label).toBe('Shelve local changes…');
+    expect(shelf.command).toBe('svn shelve');
   });
 
   it('keeps the same command whichever entry the menu was opened on', () => {
@@ -204,7 +200,15 @@ describe('buildRepoBrowserMenu — what a missing checkout disables', () => {
     );
 
     expect(outside.filter((id) => !inside.includes(id)).toSorted()).toEqual(
-      ['bookmark', 'diff', 'locks', 'merge', 'remove-from-working-copy', 'switch'].toSorted()
+      [
+        'bookmark',
+        'diff',
+        'locks',
+        'merge',
+        'remove-from-working-copy',
+        'shelf',
+        'switch',
+      ].toSorted()
     );
     // Nothing becomes *more* available for want of a checkout.
     expect(inside.filter((id) => !outside.includes(id))).toEqual([]);
@@ -362,7 +366,7 @@ describe('buildRepoBrowserMenu — the header and the wiring', () => {
     }
   });
 
-  it('hands the lock dialog and the bookmark the path on disk, not the repository path', () => {
+  it('hands the lock dialog, the bookmark and the shelf the path on disk, not the repository path', () => {
     const entry = fileEntry();
     const { items, handlers } = build({ entry });
 
@@ -374,6 +378,14 @@ describe('buildRepoBrowserMenu — the header and the wiring', () => {
 
     itemById(items, 'bookmark').onClick?.();
     expect(handlers.onBookmark).toHaveBeenCalledWith(
+      entry,
+      '/Users/jordan/wc/acme-website/package.json'
+    );
+
+    // The shelf is scoped to the selection — that local path is the whole point
+    // of shelving from the browser rather than the manager.
+    itemById(items, 'shelf').onClick?.();
+    expect(handlers.onOpenShelf).toHaveBeenCalledWith(
       entry,
       '/Users/jordan/wc/acme-website/package.json'
     );

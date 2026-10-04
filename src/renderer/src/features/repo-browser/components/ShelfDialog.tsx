@@ -1,224 +1,195 @@
-import { Box, Copy, Download, FileDiff, Share2, Trash2, Undo2 } from 'lucide-react';
+import { useState } from 'react';
+import { Archive, Loader2, X } from 'lucide-react';
 import {
   AccessibleDialog,
   AccessibleDialogBody,
   AccessibleDialogFooter,
 } from '@renderer/components/AccessibleDialog';
-import type { Shelf } from '../types';
 
 /**
- * ShelfDialog — Subversion has no pull request.
+ * ShelfDialog — shelve the local changes under a path selected in the browser.
  *
- * `svn shelf` (1.14) is the nearest primitive: your uncommitted changes set
- * aside as a patch, restorable later and, if the team wants review before
- * commit, shareable. It is deliberately lightweight, because the alternative in
- * Subversion is nothing at all.
+ * The Shelf Manager (`components/ui/ShelfManagerDialog.tsx`) is the surface for
+ * everything that happens to a shelf *after* it exists: apply, rename, diff,
+ * export, delete. What it cannot do is answer "shelve *these* changes" — it has
+ * no selection. The browser does: the user right-clicked a path that lives in a
+ * checkout, so `svn shelve <name> <that path>` scopes the shelf to exactly the
+ * subtree on screen instead of the whole working copy.
  *
- * The honest part matters as much as the feature: **a shelf is local**. It
- * lives in the working copy's administrative area, it is not on the server, it
- * is not backed up, and nobody else can see it until the changes are committed
- * or the patch is handed over.
+ * The honest part matters as much as the feature: **a shelf is local**. It lives
+ * in the working copy's administrative area, it is not on the server, it is not
+ * backed up, and nobody else can see it until the changes are committed or the
+ * patch is handed over.
  */
 
-/** What the primary action will do to the shelf. */
-export type ShelfAction = 'unshelve' | 'share' | 'export';
-
-/** One file inside a shelf, as reported by `svn shelf-diff`. */
-export interface ShelfFileChange {
-  /** Working-copy-relative path. */
-  path: string;
-  linesAdded: number;
-  linesRemoved: number;
+/** What the browser is about to shelve: one selected path, on disk. */
+export interface ShelfTarget {
+  /** Display name of the selected entry. */
+  name: string;
+  /** Repository-relative path — context for the user, not for svn. */
+  repoPath: string;
+  /** Where the path lives inside the checkout — `svn shelve`'s target. */
+  localPath: string;
+  kind: 'file' | 'dir';
 }
 
 export interface ShelfDialogProps {
   isOpen: boolean;
   onClose: () => void;
-
-  shelf: Shelf;
-  /** Contents from `svn shelf-diff`; may be a subset of `shelf.fileCount`. */
-  files: ShelfFileChange[];
-
-  action: ShelfAction;
-  onActionChange: (action: ShelfAction) => void;
-
-  /** `svn unshelve <name>` — re-applies the patch to this working copy. Destructive. */
-  onUnshelve: () => void;
-  /** Export the patch and hand it to the team for review. */
-  onShareAsPatch: () => void;
-  /** Write the patch to a file on disk. */
-  onExportPatchFile: () => void;
-  /** `svn shelf-drop <name>` — throws the shelved changes away. Destructive. */
-  onDropShelf: () => void;
-
-  onCopyCommand?: (command: string) => void;
-  isBusy?: boolean;
+  /** The selected path whose local changes will be shelved. */
+  target: ShelfTarget;
+  /** The shelf consumed the local changes — caches describing disk are stale. */
+  onSaved: (shelfName: string) => void;
 }
 
-interface ActionCopy {
-  title: string;
-  detail: string;
-  command: (name: string) => string;
-}
+export function ShelfDialog({ isOpen, onClose, target, onSaved }: ShelfDialogProps): JSX.Element {
+  const [name, setName] = useState('');
+  const [message, setMessage] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-const ACTION_COPY: Record<ShelfAction, ActionCopy> = {
-  unshelve: {
-    title: 'Unshelve into this working copy',
-    detail:
-      'Re-applies the patch to the files on disk. Conflicts are reported exactly the way an update reports them, and the shelf is consumed once it applies cleanly.',
-    command: (name) => `svn unshelve ${name}`,
-  },
-  share: {
-    title: 'Share for review',
-    detail:
-      'Exports the patch and posts a link for the team. The closest Subversion gets to a pull request — deliberately lightweight, because the alternative is nothing.',
-    command: (name) => `svn shelf-diff ${name} → review link`,
-  },
-  export: {
-    title: 'Export as a patch file',
-    detail:
-      'Writes a unified diff you can attach to a ticket or apply in another working copy with `svn patch`.',
-    command: (name) => `svn shelf-diff ${name} > ${name}.patch`,
-  },
-};
+  const trimmedName = name.trim();
 
-const ACTION_ORDER: ShelfAction[] = ['unshelve', 'share', 'export'];
-
-function formatLineDelta(added: number, removed: number): string {
-  const parts: string[] = [];
-  if (added > 0) parts.push(`+${added}`);
-  if (removed > 0) parts.push(`−${removed}`);
-  return parts.length > 0 ? parts.join(' ') : '±0';
-}
-
-export function ShelfDialog({
-  isOpen,
-  onClose,
-  shelf,
-  files,
-  action,
-  onActionChange,
-  onUnshelve,
-  onShareAsPatch,
-  onExportPatchFile,
-  onDropShelf,
-  onCopyCommand,
-  isBusy = false,
-}: ShelfDialogProps) {
-  const hidden = Math.max(shelf.fileCount - files.length, 0);
-  const command = ACTION_COPY[action].command(shelf.name);
-
-  const runAction = () => {
-    if (action === 'unshelve') onUnshelve();
-    else if (action === 'share') onShareAsPatch();
-    else onExportPatchFile();
+  const runShelve = async () => {
+    if (!trimmedName || isBusy) return;
+    setIsBusy(true);
+    setError(null);
+    try {
+      const result = await window.api.svn.shelve.save(
+        trimmedName,
+        target.localPath,
+        message.trim() || undefined
+      );
+      if (!result?.success) {
+        setError(result?.error || 'Subversion did not report why the shelve failed.');
+        return;
+      }
+      setNotice(
+        `Shelved the local changes under ${target.name} as "${trimmedName}". Apply them again from the Shelf Manager.`
+      );
+      setName('');
+      setMessage('');
+      onSaved(trimmedName);
+    } catch (caught) {
+      setError((caught as Error)?.message ?? String(caught));
+    } finally {
+      setIsBusy(false);
+    }
   };
-
-  const primaryLabel =
-    action === 'unshelve' ? 'Unshelve' : action === 'share' ? 'Share for review' : 'Export patch';
 
   return (
     <AccessibleDialog
       isOpen={isOpen}
       onClose={onClose}
-      title={`Shelf · ${shelf.name}`}
+      title="Shelve local changes"
       size="md"
-      description="Contents of a local svn shelf, and what can be done with it."
+      description="Set the local changes under the selected path aside as a named shelf, restorable later."
     >
       <AccessibleDialogBody>
-        <div className="flex items-start gap-2.5">
-          <Box className="mt-0.5 h-4 w-4 flex-none text-accent" aria-hidden="true" />
-          <p className="text-xs leading-relaxed text-text-secondary">
-            Subversion has no pull request. A shelf is the nearest primitive: your changes set aside
-            as a patch, restorable later — and, if the team wants review before commit, shareable.
-          </p>
-        </div>
-        <p className="mb-4 mt-1.5 overflow-x-auto whitespace-pre font-mono text-[11px] text-text-muted">
-          svn shelf-diff {shelf.name} · {shelf.fileCount} {shelf.fileCount === 1 ? 'file' : 'files'}{' '}
-          · created {shelf.created}
+        <p className="text-xs leading-relaxed text-text-secondary">
+          A shelf takes the uncommitted changes under{' '}
+          <b className="font-semibold text-text">{target.name}</b> off your disk and keeps them in
+          the working copy's shelf store, restorable with{' '}
+          <span className="font-mono text-[11px] text-text">svn unshelve</span>. This is the
+          browser's own scoping: only the path you selected is shelved, not the whole working copy.
         </p>
 
-        <div className="mb-4 overflow-hidden rounded-xl border border-border">
-          <div className="flex items-center gap-2 border-b border-border-muted bg-bg-tertiary/40 px-3 py-1.5">
-            <FileDiff className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
-            <span className="text-2xs font-bold uppercase tracking-wide text-text-faint">
-              Contents
-            </span>
+        <dl className="mt-3 space-y-1.5 rounded-9 border border-border bg-bg-tertiary/40 p-3">
+          <div className="flex gap-2">
+            <dt className="eyebrow flex-none pt-px">Repository path</dt>
+            <dd
+              className="min-w-0 flex-1 truncate font-mono text-11 text-text-secondary"
+              style={{ direction: 'rtl', textAlign: 'left' }}
+              title={`^/${target.repoPath}`}
+            >
+              <bdi>^/{target.repoPath}</bdi>
+            </dd>
           </div>
-          {files.length === 0 ? (
-            <p className="px-3 py-3 text-xs text-text-secondary">
-              No file list available for this shelf — run{' '}
-              <span className="font-mono text-[11px] text-text">svn shelf-diff {shelf.name}</span>{' '}
-              to read it.
-            </p>
-          ) : (
-            <ul className="list-none">
-              {files.map((file) => (
-                <li
-                  key={file.path}
-                  className="flex items-center gap-3 border-b border-border-muted px-3 py-1.5 last:border-b-0"
-                >
-                  <span
-                    className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"
-                    style={{ direction: 'rtl', textAlign: 'left' }}
-                    title={file.path}
-                  >
-                    <bdi>{file.path}</bdi>
-                  </span>
-                  <span className="flex-none font-mono text-[11px] text-text-muted">
-                    {formatLineDelta(file.linesAdded, file.linesRemoved)}
-                  </span>
-                </li>
-              ))}
-              {hidden > 0 && (
-                <li className="px-3 py-1.5 text-[11px] text-text-faint">and {hidden} more</li>
-              )}
-            </ul>
-          )}
+          <div className="flex gap-2">
+            <dt className="eyebrow flex-none pt-px">Shelves</dt>
+            <dd
+              className="min-w-0 flex-1 truncate font-mono text-11 text-text-secondary"
+              style={{ direction: 'rtl', textAlign: 'left' }}
+              title={target.localPath}
+            >
+              <bdi>{target.localPath}</bdi>
+            </dd>
+          </div>
+        </dl>
+
+        <div className="mt-3">
+          <label htmlFor="shelf-name" className="mb-1.5 block text-xs font-bold text-text">
+            Shelf name <span className="text-svn-conflict">*</span>
+          </label>
+          <input
+            id="shelf-name"
+            type="text"
+            className="input"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="feature-wip"
+            disabled={isBusy}
+            autoComplete="off"
+          />
         </div>
 
-        {ACTION_ORDER.map((value) => {
-          const copy = ACTION_COPY[value];
-          const selected = value === action;
-          return (
-            <label
-              key={value}
-              className={`mb-2 flex cursor-pointer items-start gap-3 rounded-xl border p-3 last:mb-0 ${
-                selected
-                  ? 'border-accent bg-accent/10'
-                  : 'border-border bg-bg-tertiary/40 hover:border-border-focus'
-              }`}
-            >
-              <input
-                type="radio"
-                name="shelf-action"
-                className="mt-1 flex-none accent-accent"
-                checked={selected}
-                onChange={() => onActionChange(value)}
-              />
-              <span className="min-w-0 flex-1">
-                <b className="block text-[13px] font-bold text-text">{copy.title}</b>
-                <small className="mt-0.5 block text-xs leading-relaxed text-text-secondary">
-                  {copy.detail}
-                </small>
-                <code className="mt-1.5 block overflow-x-auto whitespace-pre font-mono text-[11px] text-text-muted">
-                  {copy.command(shelf.name)}
-                </code>
-              </span>
-            </label>
-          );
-        })}
+        <div className="mt-3">
+          <label htmlFor="shelf-message" className="mb-1.5 block text-xs font-bold text-text">
+            Message <span className="font-normal text-text-muted">(optional)</span>
+          </label>
+          <textarea
+            id="shelf-message"
+            className="input h-20 resize-none"
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="What is sitting on this shelf?"
+            disabled={isBusy}
+          />
+        </div>
 
-        {onCopyCommand && (
-          <button
-            type="button"
-            onClick={() => onCopyCommand(command)}
-            className="btn btn-sm btn-ghost mt-2"
+        <div className="mt-3 rounded-9 border border-border bg-bg-tertiary/40 p-3">
+          <b className="block text-xs font-bold text-text">Command that will run</b>
+          <code className="mt-1 block whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-text-secondary">
+            {`svn shelve${message.trim() ? ' -m <message>' : ''} ${trimmedName ? `"${trimmedName}"` : '<name>'} "${target.localPath}"`}
+          </code>
+        </div>
+
+        {error ? (
+          <div
+            className="mt-3 flex items-start justify-between gap-2 rounded bg-error/10 p-3 text-sm text-error"
+            role="alert"
+            data-testid="shelf-action-error"
           >
-            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-            Copy command
-          </button>
-        )}
+            <span className="break-words">{error}</span>
+            <button
+              type="button"
+              className="btn-icon-sm flex-shrink-0"
+              aria-label="Dismiss error"
+              onClick={() => setError(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+
+        {notice ? (
+          <div
+            className="mt-3 flex items-start justify-between gap-2 rounded bg-success/10 p-3 text-sm text-success"
+            role="status"
+            data-testid="shelf-action-notice"
+          >
+            <span className="break-words">{notice}</span>
+            <button
+              type="button"
+              className="btn-icon-sm flex-shrink-0"
+              aria-label="Dismiss notice"
+              onClick={() => setNotice(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
       </AccessibleDialogBody>
 
       <AccessibleDialogFooter>
@@ -228,25 +199,19 @@ export function ShelfDialog({
         <button type="button" onClick={onClose} className="btn btn-secondary" disabled={isBusy}>
           Close
         </button>
-        <button type="button" onClick={onDropShelf} className="btn btn-danger" disabled={isBusy}>
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-          Drop shelf
-        </button>
         <button
           type="button"
-          onClick={runAction}
+          onClick={() => void runShelve()}
           className="btn btn-primary"
-          disabled={isBusy}
+          disabled={isBusy || !trimmedName}
           aria-busy={isBusy}
         >
-          {action === 'unshelve' ? (
-            <Undo2 className="h-4 w-4" aria-hidden="true" />
-          ) : action === 'share' ? (
-            <Share2 className="h-4 w-4" aria-hidden="true" />
+          {isBusy ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
-            <Download className="h-4 w-4" aria-hidden="true" />
+            <Archive className="h-4 w-4" aria-hidden="true" />
           )}
-          {isBusy ? 'Working…' : primaryLabel}
+          {isBusy ? 'Shelving…' : 'Shelve changes'}
         </button>
       </AccessibleDialogFooter>
     </AccessibleDialog>

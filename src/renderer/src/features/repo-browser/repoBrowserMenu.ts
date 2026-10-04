@@ -93,8 +93,12 @@ export interface RepoBrowserMenuHandlers {
   onSwitch: (entry: RepoEntry) => void;
   /** Opens the merge dialog with this URL as the merge *source*. */
   onMerge: (entry: RepoEntry) => void;
-  /** Opens the shelf dialog. Only offered when a shelf exists. */
-  onOpenShelf: () => void;
+  /**
+   * Shelve the local changes under this path. Receives the resolved local
+   * path, because shelving is a working-copy operation — there is nothing to
+   * set aside where the path is not on disk.
+   */
+  onOpenShelf: (entry: RepoEntry, localPath: string) => void;
   onShowLog: (entry: RepoEntry) => void;
   onDiff: (entry: RepoEntry) => void;
   onBlame: (entry: RepoEntry) => void;
@@ -127,8 +131,6 @@ export interface RepoBrowserMenuOptions {
    * missing value is rendered as a missing revision, never as a guess.
    */
   headRevision?: number | null;
-  /** Newest shelf in that checkout, when `svn shelf-list` returned one. */
-  shelfName?: string | null;
   handlers: RepoBrowserMenuHandlers;
 }
 
@@ -152,7 +154,6 @@ export function buildRepoBrowserMenu({
   entry,
   workingCopy,
   headRevision = null,
-  shelfName = null,
   handlers,
 }: RepoBrowserMenuOptions): RepoBrowserMenu {
   const isDir = entry.kind === 'dir';
@@ -232,22 +233,24 @@ export function buildRepoBrowserMenu({
       disabled: !hasWorkingCopy,
       onClick: () => handlers.onMerge(entry),
     },
-    /*
-     * Not in the prototype, but the app has shelves and the dialog is reachable
-     * from nowhere else here. It is a working-copy operation, so it sits in this
-     * group, and only appears when `svn shelf-list` actually returned a shelf.
-     * The dialog offers unshelve, patch export and drop, so no single command.
-     */
-    ...(shelfName
-      ? [
-          {
-            id: 'shelf',
-            label: `Shelf: ${shelfName}…`,
-            icon: Archive,
-            onClick: () => handlers.onOpenShelf(),
-          } satisfies ContextMenuItem,
-        ]
-      : []),
+    {
+      /*
+       * Not in the prototype, but the app has shelves and the browser is the
+       * only surface that can scope one to a *selected path* — the manager
+       * shelves nothing, it manages what exists. This is a working-copy
+       * operation, so it sits in this group and is disabled where the path has
+       * no disk side. The name is asked for in the dialog, hence the bare
+       * command.
+       */
+      id: 'shelf',
+      label: 'Shelve local changes…',
+      icon: Archive,
+      command: 'svn shelve',
+      disabled: localPath === null,
+      onClick: () => {
+        if (localPath) handlers.onOpenShelf(entry, localPath);
+      },
+    },
 
     divider('sep-inspect'),
     divider('section-inspect', 'Inspect'),

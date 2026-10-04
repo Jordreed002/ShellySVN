@@ -153,13 +153,6 @@ export interface LogEntry {
   issue?: string;
 }
 
-/** A local `svn shelf` — the nearest thing SVN has to a pull request. */
-export interface Shelf {
-  name: string;
-  fileCount: number;
-  created: string;
-}
-
 /** Sort state for the contents list. */
 export interface RepoSort {
   key: 'name' | 'revision' | 'author' | 'date' | 'size' | 'status';

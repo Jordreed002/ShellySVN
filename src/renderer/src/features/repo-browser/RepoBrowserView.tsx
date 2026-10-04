@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { FolderDown, FolderMinus, PanelRightClose } from 'lucide-react';
 
 import {
@@ -27,7 +27,7 @@ import { MergeDialog, type MergeMode } from './components/MergeDialog';
 import { RevisionPickerDialog, type RevisionPickerMode } from './components/RevisionPickerDialog';
 import { SwitchDialog, type SwitchSelection } from './components/SwitchDialog';
 import { CompareDialog, type CompareMode } from './components/CompareDialog';
-import { ShelfDialog, type ShelfAction } from './components/ShelfDialog';
+import { ShelfDialog, type ShelfTarget } from './components/ShelfDialog';
 import { RemoteOpDialog, type RemoteOpRequest } from './components/RemoteOpDialog';
 import { RevpropEditDialog } from './components/RevpropEditDialog';
 import { RevisionDiffDialog } from '../../components/history/RevisionDiffDialog';
@@ -155,8 +155,14 @@ export function RepoBrowserView({
   const [compareTo, setCompareTo] = useState('');
   const [compareMode, setCompareMode] = useState<CompareMode>('summary');
 
-  const [shelfOpen, setShelfOpen] = useState(false);
-  const [shelfAction, setShelfAction] = useState<ShelfAction>('unshelve');
+  /**
+   * A path whose local changes the user asked to shelve, with the local path it
+   * maps to. Held as state so the dialog can name both, and so the shelf is
+   * scoped to the selection — the one thing the shelf manager cannot do.
+   */
+  const [shelfTarget, setShelfTarget] = useState<
+    { entry: RepoEntry; target: ShelfTarget } | null
+  >(null);
 
   /**
    * A pending repository-side write (#68, #69): mkdir / delete / move / copy
@@ -340,24 +346,6 @@ export function RepoBrowserView({
     externalPaths: externals.externalPaths,
   });
 
-  /**
-   * `svn shelf` is Subversion 1.14+ and can be reported unsupported by older
-   * clients; that is a normal answer, not an error, so it is surfaced rather
-   * than swallowed.
-   */
-  const shelves = useQuery({
-    queryKey: ['repo-browser:shelves', workingCopy.workingCopy?.localPath ?? null],
-    enabled: Boolean(workingCopy.workingCopy?.localPath),
-    staleTime: 30_000,
-    retry: false,
-    queryFn: async () => {
-      const target = workingCopy.workingCopy?.localPath;
-      if (!target) return { shelves: [], unsupportedReason: undefined };
-      return window.api.svn.shelve.list(target);
-    },
-  });
-  const latestShelf = shelves.data?.shelves?.[0] ?? null;
-
   /*
    * Every entry the browser knows about, by repository-relative path — the
    * listing plus whatever the tree pane has expanded. Drag sources are paths;
@@ -517,7 +505,17 @@ export function RepoBrowserView({
         setMergeMode('sync');
         setMergeOpen(true);
       },
-      onOpenShelf: () => setShelfOpen(true),
+      onOpenShelf: (target, targetLocalPath) => {
+        setShelfTarget({
+          entry: target,
+          target: {
+            name: target.name,
+            repoPath: target.path,
+            localPath: targetLocalPath,
+            kind: target.kind,
+          },
+        });
+      },
       onShowLog: (target) => {
         actions.select(target.path);
         actions.setDetailTab('log');
@@ -578,10 +576,9 @@ export function RepoBrowserView({
         entry,
         workingCopy: workingCopy.workingCopy,
         headRevision: workingCopy.workingCopy?.headRevision ?? null,
-        shelfName: latestShelf?.name ?? null,
         handlers: menuHandlers,
       }),
-    [workingCopy.workingCopy, latestShelf, menuHandlers]
+    [workingCopy.workingCopy, menuHandlers]
   );
 
   const menu = useMemo(() => {
@@ -934,24 +931,27 @@ export function RepoBrowserView({
         />
       ) : null}
 
-      {latestShelf ? (
+      {/* Shelve the selected path's local changes. Rendered only with a
+          resolved target and a working copy to shelve inside; `key` resets the
+          name/message form when the user shelves a different path. */}
+      {shelfTarget && workingCopy.workingCopy ? (
         <ShelfDialog
-          isOpen={shelfOpen}
-          onClose={() => setShelfOpen(false)}
-          shelf={{
-            name: latestShelf.name,
-            fileCount: 0,
-            created: latestShelf.date,
+          isOpen
+          key={shelfTarget.target.localPath}
+          onClose={() => setShelfTarget(null)}
+          target={shelfTarget.target}
+          onSaved={() => {
+            /* The shelf consumed the local changes under the target: status,
+               the working-copy band and any open shelf manager are all stale. */
+            void queryClient.invalidateQueries({
+              queryKey: ['svn:shelve:list', workingCopy.workingCopy?.localPath],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ['svn:status', workingCopy.workingCopy?.localPath],
+            });
+            workingCopy.refetch();
+            listingRefetchRef.current?.();
           }}
-          /* `svn shelf-list` does not enumerate the patch's files; showing an
-             empty manifest is honest, inventing one is not. */
-          files={[]}
-          action={shelfAction}
-          onActionChange={setShelfAction}
-          onUnshelve={() => setShelfOpen(false)}
-          onShareAsPatch={() => setShelfOpen(false)}
-          onExportPatchFile={() => setShelfOpen(false)}
-          onDropShelf={() => setShelfOpen(false)}
         />
       ) : null}
 
