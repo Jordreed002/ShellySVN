@@ -414,8 +414,9 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
 
         <p className="flex items-start gap-1.5 text-10 text-text-faint">
           <Globe className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
-          Proxy overrides currently advise the UI and stored working-copy preferences; routing every
-          SVN network call through them is main-process work in progress.
+          The main process routes every SVN command for a working copy through its effective proxy
+          and credential realm here (override → linked profile → global); repository-URL operations
+          match connection profiles by URL pattern.
         </p>
       </div>
     </SettingsGroup>

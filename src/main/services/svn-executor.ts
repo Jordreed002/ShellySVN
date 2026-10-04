@@ -9,6 +9,7 @@ import { getAuthCache } from '../auth-cache';
 import { getSslTrustCache } from '../ssl-trust-cache';
 import { debug } from '../utils/debug';
 import { createSvnNetworkSuspendedError, runResolvedSvn, type RunSvnResult } from './svn-runner';
+import { resolveWcContextForOperation } from './wc-operation-context';
 import {
   beginSvnTimelineEntry,
   completeSvnTimelineEntry,
@@ -379,13 +380,56 @@ export async function resolveSvnExecution(
   };
 }
 
+/**
+ * Per-WC proxy/credential routing (#90): resolve the working-copy overrides /
+ * connection profiles for this invocation (cwd walk-up + repo-URL matching)
+ * and merge them UNDER any explicit per-call operationContext — an explicit
+ * context (e.g. a checkout dialog's choices) always wins, per-WC values beat
+ * the linked/URL-matched profile, and global settings remain the fallback in
+ * resolveSvnExecution. Credential realms are dereferenced through the
+ * existing auth cache (the only secret store); a realm miss simply falls
+ * through to the URL-based cache lookup in runResolvedCommand.
+ */
+async function resolvePerWorkingCopyExecution(args: string[], options: RunSvnOptions) {
+  const wcContext = await resolveWcContextForOperation(args, options.cwd);
+  if (wcContext.source !== 'none') {
+    debug.log(
+      `[SVN] Per-working-copy routing (${wcContext.source}${
+        wcContext.profileName ? `: ${wcContext.profileName}` : ''
+      }) applied to: ${args[0] ?? '(svn)'}`
+    );
+  }
+  const realmCredentials = wcContext.credentialsProfileId
+    ? await getCredentialsForRealm(wcContext.credentialsProfileId)
+    : undefined;
+  return {
+    operationContext: { ...wcContext.context, ...options.operationContext },
+    ...(options.credentials === undefined && realmCredentials
+      ? { credentials: realmCredentials }
+      : {}),
+  };
+}
+
+/** Dereference a credential realm (a per-WC/profile credential reference) via the auth cache. */
+async function getCredentialsForRealm(realm: string): Promise<{ username: string; password: string } | undefined> {
+  try {
+    const cache = getAuthCache();
+    await cache.ready();
+    return cache.get(realm) ?? undefined;
+  } catch (error) {
+    debug.warn('[SVN] Failed to resolve per-working-copy credential realm:', error);
+    return undefined;
+  }
+}
+
 export async function runSvn(args: string[], options: RunSvnOptions = {}): Promise<RunSvnResult> {
   const startedAt = Date.now();
   const timelineId = beginSvnTimelineEntry(args);
   try {
-    const { svnCommand, context } = await resolveSvnExecution(options);
+    const perWorkingCopy = await resolvePerWorkingCopyExecution(args, options);
+    const { svnCommand, context } = await resolveSvnExecution(perWorkingCopy);
     const result = await runWithNetworkGate(args, options, (signal) =>
-      runResolvedCommand(args, svnCommand, context, { ...options, signal })
+      runResolvedCommand(args, svnCommand, context, { ...options, ...perWorkingCopy, signal })
     );
     completeSvnTimelineEntry(timelineId, startedAt, result, options.signal?.aborted === true);
     return result;
@@ -448,9 +492,14 @@ export async function runSvnText(args: string[], options: RunSvnOptions = {}): P
  * timeout, cancellation, and output handling as normal SVN commands.
  */
 export async function runSvnMuccText(args: string[], options: RunSvnOptions = {}): Promise<string> {
-  const { svnCommand, context } = await resolveSvnExecution(options);
+  const perWorkingCopy = await resolvePerWorkingCopyExecution(args, options);
+  const { svnCommand, context } = await resolveSvnExecution(perWorkingCopy);
   const result = await runWithNetworkGate(args, options, (signal) =>
-    runResolvedCommand(args, getSvnMuccCommand(svnCommand), context, { ...options, signal })
+    runResolvedCommand(args, getSvnMuccCommand(svnCommand), context, {
+      ...options,
+      ...perWorkingCopy,
+      signal,
+    })
   );
   return result.stdout;
 }

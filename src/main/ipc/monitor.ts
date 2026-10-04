@@ -6,6 +6,7 @@ import { runSvnText } from '../services/svn-executor';
 import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { withSvnTargets } from '../utils/svn-targets';
 import { closeFileWatchersForPath } from './fs';
+import { setWorkingCopyUrlLookup } from '../services/wc-operation-context';
 
 // In-memory storage for monitored working copies
 let monitoredWorkingCopies: Map<string, WorkingCopyInfo> = new Map();
@@ -47,6 +48,12 @@ export function stopMonitoring(): void {
 export function getMonitoredWorkingCopies(): WorkingCopyInfo[] {
   return Array.from(monitoredWorkingCopies.values());
 }
+
+// Per-WC routing (#90): repository-URL operations (repo browser) resolve
+// working-copy overrides through the monitor's URL→path registry. Registered
+// here so the wc-operation-context service never imports the monitor
+// (dependency stays one-way: monitor → services).
+setWorkingCopyUrlLookup(() => getMonitoredWorkingCopies());
 
 /**
  * Rekey a monitored working copy after its folder moved/renamed on disk.

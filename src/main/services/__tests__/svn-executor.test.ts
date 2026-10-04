@@ -25,6 +25,8 @@ const mockState = vi.hoisted(() => ({
   debugError: vi.fn(),
   authReady: vi.fn().mockResolvedValue(undefined),
   authFindForUrl: vi.fn(),
+  authGet: vi.fn(),
+  storeGet: vi.fn(),
   sslReady: vi.fn().mockResolvedValue(undefined),
   sslFindForUrl: vi.fn(),
   terminateProcessTree: vi.fn().mockResolvedValue(undefined),
@@ -53,6 +55,14 @@ function createMockProcess() {
 vi.mock('child_process', () => ({
   default: { spawn: mockState.spawn },
   spawn: mockState.spawn,
+}));
+
+// Per-WC routing (item #11): the resolver reads the renderer-persisted
+// override/profile stores through the main-side SimpleStore (mocked here; the
+// `.svn` admin-area probe is swapped via the module's test seam because
+// `node:fs` cannot be mocked wholesale in this jsdom suite).
+vi.mock('../../ipc/store', () => ({
+  getStore: vi.fn(async () => ({ get: mockState.storeGet })),
 }));
 
 vi.mock('fs/promises', () => ({
@@ -95,6 +105,7 @@ vi.mock('../../auth-cache', () => ({
   getAuthCache: () => ({
     ready: mockState.authReady,
     findForUrl: mockState.authFindForUrl,
+    get: mockState.authGet,
   }),
 }));
 
@@ -111,6 +122,11 @@ vi.mock('../../utils/process-tree', () => ({
 
 import { runSvn, runSvnMuccText, runSvnText } from '../svn-executor';
 import { buildSvnSshCommand } from '../svn-runner';
+import {
+  resetWcOperationContextForTests,
+  setSvnAdminAreaProbeForTests,
+  setWorkingCopyUrlLookup,
+} from '../wc-operation-context';
 import {
   buildSvnDiskFullRecoveryHint,
   extractSvnDiskFullDetails,
@@ -165,6 +181,9 @@ describe('svn-executor', () => {
     });
     mockState.authReady.mockResolvedValue(undefined);
     mockState.authFindForUrl.mockReturnValue(null);
+    mockState.authGet.mockReturnValue(null);
+    mockState.storeGet.mockResolvedValue(undefined);
+    resetWcOperationContextForTests();
     mockState.sslReady.mockResolvedValue(undefined);
     mockState.sslFindForUrl.mockReturnValue(null);
   });
@@ -676,6 +695,237 @@ describe('svn-executor', () => {
     await expect(promise).resolves.toMatchObject({
       stderr: 'abc',
       stderrTruncated: true,
+    });
+  });
+
+  describe('per-working-copy proxy/credential routing (#90 / item #11)', () => {
+    const WC_ROOT = 'C:\\wc';
+    const WC_PROXY = {
+      enabled: true,
+      host: 'wc-proxy.example.com',
+      port: 3128,
+      username: '',
+      password: '',
+      bypassForLocal: true,
+    };
+
+    /** Point the cwd walk at one simulated working-copy root. */
+    function simulateWorkingCopy() {
+      setSvnAdminAreaProbeForTests((candidate: string) => candidate === join(WC_ROOT, '.svn'));
+    }
+
+    function seedOverrideStore(overrides: Record<string, unknown>) {
+      mockState.storeGet.mockImplementation(async (key: string) =>
+        key === 'shellysvn:wc-overrides:v1' ? { version: 1, overrides } : undefined
+      );
+    }
+
+    function writtenServerConfig(): string {
+      return mockState.writeFile.mock.calls.map((call) => String(call[1] ?? '')).join('\n');
+    }
+
+    it('routes a working-copy override proxy from the command cwd', async () => {
+      simulateWorkingCopy();
+      seedOverrideStore({
+        [WC_ROOT]: {
+          version: 1,
+          workingCopyPath: WC_ROOT,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          proxy: WC_PROXY,
+        },
+      });
+
+      const { proc, promise } = await startSvn(['info', '--xml'], { cwd: WC_ROOT });
+      proc.emit('close', 0);
+      await expect(promise).resolves.toBe('');
+
+      expect(writtenServerConfig()).toContain('http-proxy-host = wc-proxy.example.com');
+    });
+
+    it('prefers the working-copy proxy over the enabled global proxy', async () => {
+      simulateWorkingCopy();
+      mockState.getSvnExecutionContext.mockReturnValue({
+        proxySettings: {
+          enabled: true,
+          host: 'global-proxy.example.com',
+          port: 8080,
+          username: '',
+          password: '',
+          bypassForLocal: true,
+        },
+        connectionTimeout: 0,
+        sslVerify: true,
+        clientCertificatePath: '',
+      });
+      seedOverrideStore({
+        [WC_ROOT]: {
+          version: 1,
+          workingCopyPath: WC_ROOT,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          proxy: WC_PROXY,
+        },
+      });
+
+      const { proc, promise } = await startSvn(['update'], { cwd: join(WC_ROOT, 'trunk') });
+      proc.emit('close', 0);
+      await expect(promise).resolves.toBe('');
+
+      const config = writtenServerConfig();
+      expect(config).toContain('http-proxy-host = wc-proxy.example.com');
+      expect(config).not.toContain('global-proxy.example.com');
+    });
+
+    it('lets a disabled override proxy switch the proxy off against an enabled global proxy', async () => {
+      simulateWorkingCopy();
+      mockState.getSvnExecutionContext.mockReturnValue({
+        proxySettings: {
+          enabled: true,
+          host: 'global-proxy.example.com',
+          port: 8080,
+          username: '',
+          password: '',
+          bypassForLocal: true,
+        },
+        connectionTimeout: 0,
+        sslVerify: true,
+        clientCertificatePath: '',
+      });
+      seedOverrideStore({
+        [WC_ROOT]: {
+          version: 1,
+          workingCopyPath: WC_ROOT,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          proxy: { ...WC_PROXY, enabled: false },
+        },
+      });
+
+      const { proc, promise } = await startSvn(['info'], { cwd: WC_ROOT });
+      proc.emit('close', 0);
+      await expect(promise).resolves.toBe('');
+
+      expect(writtenServerConfig()).not.toContain('http-proxy-host');
+    });
+
+    it('matches connection profiles by repository URL for repo-browser commands', async () => {
+      mockState.storeGet.mockImplementation(async (key: string) =>
+        key === 'shellysvn:connection-profiles:v1'
+          ? {
+              version: 1,
+              profiles: [
+                {
+                  id: 'p1',
+                  name: 'Acme',
+                  repoUrlPattern: 'https://svn.acme.com/*',
+                  proxy: {
+                    enabled: true,
+                    host: 'profile-proxy.example.com',
+                    port: 8888,
+                    username: '',
+                    password: '',
+                    bypassForLocal: true,
+                  },
+                },
+              ],
+            }
+          : undefined
+      );
+
+      const { proc, promise } = await startSvn(['list', '--xml', 'https://svn.acme.com/trunk']);
+      proc.emit('close', 0);
+      await expect(promise).resolves.toBe('');
+
+      expect(writtenServerConfig()).toContain('http-proxy-host = profile-proxy.example.com');
+    });
+
+    it('keeps an explicit per-call operation context ahead of the working-copy override', async () => {
+      simulateWorkingCopy();
+      seedOverrideStore({
+        [WC_ROOT]: {
+          version: 1,
+          workingCopyPath: WC_ROOT,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          proxy: WC_PROXY,
+        },
+      });
+
+      const { proc, promise } = await startSvn(['info'], {
+        cwd: WC_ROOT,
+        operationContext: {
+          proxySettings: {
+            enabled: true,
+            host: 'explicit-proxy.example.com',
+            port: 9999,
+            username: '',
+            password: '',
+            bypassForLocal: true,
+          },
+        },
+      });
+      proc.emit('close', 0);
+      await expect(promise).resolves.toBe('');
+
+      const config = writtenServerConfig();
+      expect(config).toContain('http-proxy-host = explicit-proxy.example.com');
+      expect(config).not.toContain('wc-proxy.example.com');
+    });
+
+    it('applies the override credential realm ahead of URL-cached credentials', async () => {
+      seedOverrideStore({
+        [WC_ROOT]: {
+          version: 1,
+          workingCopyPath: WC_ROOT,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          credentialsProfileId: 'https://svn.acme.com/repo',
+        },
+      });
+      // A repository-URL command resolves the working copy through the
+      // monitor's URL registry (registered in ipc/monitor.ts).
+      setWorkingCopyUrlLookup(() => [{ path: WC_ROOT, url: 'https://svn.acme.com/repo' }]);
+      mockState.authGet.mockReturnValue({ username: 'bob', password: 'hunter2' });
+      mockState.authFindForUrl.mockReturnValue({
+        realm: 'https://svn.acme.com/repo',
+        username: 'alice',
+        password: 'cached-pass',
+      });
+
+      const { proc, promise } = await startSvn(['list', '--xml', 'https://svn.acme.com/repo/trunk']);
+      proc.emit('close', 0);
+      await expect(promise).resolves.toBe('');
+
+      expect(mockState.authGet).toHaveBeenCalledWith('https://svn.acme.com/repo');
+      expect(mockState.authFindForUrl).not.toHaveBeenCalled();
+      expect(mockState.spawn.mock.calls.at(-1)?.[1]).toEqual(
+        expect.arrayContaining(['--username', 'bob', '--password-from-stdin'])
+      );
+      expect(proc.stdin.write).toHaveBeenCalledWith(
+        `hunter2${process.platform === 'win32' ? '\r\n' : '\n'}`
+      );
+    });
+
+    it('still uses URL-cached credentials when the realm has no saved credential', async () => {
+      seedOverrideStore({
+        [WC_ROOT]: {
+          version: 1,
+          workingCopyPath: WC_ROOT,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          credentialsProfileId: 'https://svn.acme.com/repo',
+        },
+      });
+      setWorkingCopyUrlLookup(() => [{ path: WC_ROOT, url: 'https://svn.acme.com/repo' }]);
+      mockState.authGet.mockReturnValue(null);
+      mockState.authFindForUrl.mockReturnValue({
+        realm: 'https://svn.acme.com/repo',
+        username: 'alice',
+        password: 'cached-pass',
+      });
+
+      const { proc, promise } = await startSvn(['list', '--xml', 'https://svn.acme.com/repo/trunk']);
+      proc.emit('close', 0);
+      await expect(promise).resolves.toBe('');
+
+      expect(mockState.spawn.mock.calls.at(-1)?.[1]).toEqual(
+        expect.arrayContaining(['--username', 'alice', '--password-from-stdin'])
+      );
     });
   });
 

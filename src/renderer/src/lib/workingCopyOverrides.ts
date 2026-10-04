@@ -4,27 +4,36 @@
  *
  * Resolution order for every advised field: working-copy override → linked
  * connection profile → global settings. The renderer surfaces the effective
- * value and its source; features that already read these stores consume them
- * where feasible. AI consent is NOT written here — its store lives at
- * `shellysvn:ai-consent:v1` and the settings UI only reads it (via the
- * existing aiConsent lib) so the toggle has exactly one write path.
+ * value and its source; the MAIN process resolves the same stores for every
+ * SVN command it runs (see `@shared/wc-connection-settings`, the single
+ * source of truth for parsing and precedence, consumed by main's
+ * wc-operation-context service). AI consent is NOT written here — its store
+ * lives at `shellysvn:ai-consent:v1` and the settings UI only reads it (via
+ * the existing aiConsent lib) so the toggle has exactly one write path.
  */
 
 import type { AppSettings, ConnectionProfile, ProxySettings, WorkingCopyOverride } from '@shared/types';
 
+import {
+  WORKING_COPY_OVERRIDES_STORE_KEY,
+  parseWorkingCopyOverrides,
+  type WorkingCopyOverrideMap,
+  type WorkingCopyOverrideStorePayload,
+} from '@shared/wc-connection-settings';
 import { readAiConsent } from '../features/ai-review-center/lib/aiConsent';
 import { findSuggestedProfile } from './connectionProfiles';
 
-export const WORKING_COPY_OVERRIDES_STORE_KEY = 'shellysvn:wc-overrides:v1';
+// Re-exported for existing callers (tests, settings UI); the implementations
+// are shared with the main process.
+export {
+  WORKING_COPY_OVERRIDES_STORE_KEY,
+  parseWorkingCopyOverrides,
+  normalizeWcPathKey,
+  type WorkingCopyOverrideMap,
+  type WorkingCopyOverrideStorePayload,
+} from '@shared/wc-connection-settings';
+
 const SCHEMA_VERSION = 1;
-const MAX_ENTRIES = 500;
-
-export type WorkingCopyOverrideMap = Record<string, WorkingCopyOverride>;
-
-export interface WorkingCopyOverrideStorePayload {
-  version: 1;
-  overrides: WorkingCopyOverrideMap;
-}
 
 export type EffectiveProxySource = 'override' | 'profile' | 'global';
 
@@ -33,58 +42,6 @@ export interface EffectiveProxy {
   source: EffectiveProxySource;
   /** Profile name when the value comes from a linked profile. */
   profileName?: string;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function sanitizeProxy(value: unknown): ProxySettings | undefined {
-  if (!isPlainObject(value)) return undefined;
-  const port =
-    typeof value.port === 'number' && Number.isFinite(value.port)
-      ? Math.min(Math.max(Math.trunc(value.port), 1), 65535)
-      : 8080;
-  return {
-    enabled: value.enabled === true,
-    host: typeof value.host === 'string' ? value.host.slice(0, 500) : '',
-    port,
-    username: typeof value.username === 'string' ? value.username.slice(0, 200) : '',
-    password: typeof value.password === 'string' ? value.password.slice(0, 500) : '',
-    bypassForLocal: value.bypassForLocal !== false,
-  };
-}
-
-function optionalTrimmed(value: unknown, maxLength: number): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed.slice(0, maxLength) : undefined;
-}
-
-/** Validate an unknown store payload into a safe override map; never throws. */
-export function parseWorkingCopyOverrides(value: unknown): WorkingCopyOverrideMap {
-  const container = isPlainObject(value) ? (value.overrides ?? value) : undefined;
-  if (!isPlainObject(container)) return {};
-  const map: WorkingCopyOverrideMap = {};
-  for (const [rawPath, entry] of Object.entries(container).slice(0, MAX_ENTRIES)) {
-    if (rawPath === '__proto__' || rawPath === 'constructor' || rawPath === 'prototype') continue;
-    const workingCopyPath = rawPath.slice(0, 1024);
-    if (!workingCopyPath || !isPlainObject(entry)) continue;
-    const profileId = optionalTrimmed(entry.profileId, 100);
-    const credentialsProfileId = optionalTrimmed(entry.credentialsProfileId, 200);
-    const proxy = sanitizeProxy(entry.proxy);
-    map[workingCopyPath] = {
-      version: 1,
-      workingCopyPath,
-      updatedAt:
-        typeof entry.updatedAt === 'string' && entry.updatedAt ? entry.updatedAt.slice(0, 40) : new Date(0).toISOString(),
-      ...(profileId ? { profileId } : {}),
-      ...(proxy ? { proxy } : {}),
-      ...(credentialsProfileId ? { credentialsProfileId } : {}),
-      ...(typeof entry.aiOptIn === 'boolean' ? { aiOptIn: entry.aiOptIn } : {}),
-    };
-  }
-  return map;
 }
 
 /** Insert or replace one working copy's override (get-merge-set friendly). */
