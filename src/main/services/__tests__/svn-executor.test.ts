@@ -9,6 +9,11 @@ const mockState = vi.hoisted(() => ({
   rm: vi.fn().mockResolvedValue(undefined),
   getSvnClientPath: vi.fn().mockReturnValue('custom-svn'),
   settingsReady: vi.fn().mockResolvedValue(undefined),
+  resolveSvnClientPath: vi.fn().mockImplementation(() =>
+    // Faithful to the real contract: the resolved executable is the
+    // configured client path (the manager validates it before returning).
+    Promise.resolve(mockState.getSvnClientPath())
+  ),
   getSvnExecutionContext: vi.fn().mockReturnValue({
     proxySettings: { enabled: false },
     connectionTimeout: 0,
@@ -66,6 +71,10 @@ vi.mock('../../settings-manager', () => ({
     ready: mockState.settingsReady,
     getSvnClientPath: mockState.getSvnClientPath,
     getSvnExecutionContext: mockState.getSvnExecutionContext,
+    // resolveSvnExecution awaits this before every spawn — without the stub,
+    // every runSvn-path test rejects and waitFor assertions grind to their
+    // timeouts (same stale-mock fix as app-shutdown-safety.test.ts).
+    resolveSvnClientPath: mockState.resolveSvnClientPath,
   }),
 }));
 

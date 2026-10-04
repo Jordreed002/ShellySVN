@@ -22,7 +22,9 @@ vi.mock('fs/promises', () => ({
   rm: mockState.rm,
   readFile: mockState.readFile,
   writeFile: vi.fn(async (path: string, content: string) => {
-    mockState.writtenFiles.set(path, content);
+    // path.join uses the HOST separator; store forward-slashed so posix-style
+    // assertions match on every OS.
+    mockState.writtenFiles.set(String(path).replaceAll('\\', '/'), content);
   }),
 }));
 

@@ -1,8 +1,8 @@
 # Skipped Test Triage
 
-Updated: 2026-08-08
+Updated: 2026-10-04
 
-The current exact inventory is **9 direct `.skip` references**, **10 `skipIf` modifiers**, and
+The current exact inventory is **9 direct `.skip` references**, **22 `skipIf` modifiers**, and
 **1 `runIf` modifier**. `scripts/check-skipped-tests.mjs` scans `src`, `packages`, and `tests` and
 fails if any per-file count is added, removed, or changed without an accompanying inventory update.
 
@@ -28,15 +28,21 @@ the guard.
 | File                                                               | Form     |  Count | Condition and decision                                         |
 | ------------------------------------------------------------------ | -------- | -----: | -------------------------------------------------------------- |
 | `src/integration/__tests__/svn-restore-excluded.real.test.ts`      | `runIf`  |      1 | Runs only when an SVN toolchain is available.                  |
+| `src/main/ipc/__tests__/background-status-scan.test.ts`            | `skipIf` |      1 | POSIX symlink-escape watch behavior; skipped on Windows.       |
 | `src/main/ipc/__tests__/fs.test.ts`                                | `skipIf` |      1 | Windows-only drive-navigation behavior.                        |
+| `src/main/services/__tests__/ai-commit-message.test.ts`            | `skipIf` |      1 | Windows-only CLI executable candidates (PATHEXT launchers); skipped elsewhere. |
 | `src/main/services/__tests__/code-editors.macos.test.ts`           | `skipIf` |      1 | macOS-only application discovery behavior.                     |
 | `src/main/services/__tests__/code-editors.test.ts`                 | `skipIf` |      2 | POSIX executable and login-shell behavior; skipped on Windows. |
 | `src/main/services/__tests__/external-tool-registry.macos.test.ts` | `skipIf` |      1 | macOS-only `.app` bundle behavior.                             |
+| `src/main/services/__tests__/sample-repository.test.ts`            | `skipIf` |      1 | POSIX `file://` URL construction; skipped on Windows.          |
+| `src/main/services/__tests__/svn-portable-shelves.test.ts`         | `skipIf` |      3 | POSIX symlink zip-slip/symlink-rejection scenarios; skipped on Windows. |
 | `src/main/services/__tests__/svn-release-workflows.real.test.ts`   | `skipIf` |      2 | Requires `svnserve` and a non-Windows execution path.          |
+| `src/main/services/__tests__/svn-runner.test.ts`                   | `skipIf` |      1 | Non-Windows spawn argv/cwd behavior; skipped on Windows.       |
 | `src/main/services/__tests__/svn-working-copy.real.test.ts`        | `skipIf` |      1 | POSIX-specific symlink scenario; skipped on Windows.           |
 | `src/main/utils/__tests__/approved-paths.test.ts`                  | `skipIf` |      1 | POSIX path/permission behavior; skipped on Windows.            |
+| `src/main/utils/__tests__/path-guard.test.ts`                      | `skipIf` |      5 | POSIX symlink containment behavior; skipped on Windows.        |
 | `src/main/utils/__tests__/process-tree.test.ts`                    | `skipIf` |      1 | POSIX process-tree termination; skipped on Windows.            |
-| **Total**                                                          |          | **11** | **10 `skipIf`, 1 `runIf`**                                     |
+| **Total**                                                          |          | **23** | **22 `skipIf`, 1 `runIf`**                                     |
 
 ## Governance
 

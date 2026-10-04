@@ -11,7 +11,7 @@
  * executor/runner/queue modules run without Electron or a real svn binary.
  */
 import { EventEmitter } from 'node:events';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,10 @@ const mockState = vi.hoisted(() => ({
   rm: vi.fn().mockResolvedValue(undefined),
   settingsReady: vi.fn().mockResolvedValue(undefined),
   getSvnClientPath: vi.fn().mockReturnValue('svn'),
+  // The real settings manager resolves the client path asynchronously (it can
+  // fall back to probing known install locations); runSvn goes through
+  // resolveSvnClientPath(), not the synchronous getter, before every spawn.
+  resolveSvnClientPath: vi.fn().mockResolvedValue('svn'),
   getSvnExecutionContext: vi.fn().mockReturnValue({
     proxySettings: { enabled: false },
     connectionTimeout: 0,
@@ -74,6 +78,7 @@ vi.mock('../settings-manager', () => ({
   getSettingsManager: () => ({
     ready: mockState.settingsReady,
     getSvnClientPath: mockState.getSvnClientPath,
+    resolveSvnClientPath: mockState.resolveSvnClientPath,
     getSvnExecutionContext: mockState.getSvnExecutionContext,
   }),
 }));

@@ -1,8 +1,9 @@
 import { app, shell } from 'electron';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { cp, lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { SvnMutationResult, SvnShelve, SvnShelveListResult } from '@shared/types';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
@@ -40,8 +41,31 @@ interface PortableShelfMetadata {
   files: PortableShelfFile[];
 }
 
+/**
+ * The working-copy root owning the `.svn` admin area above `candidate`, or the
+ * resolved candidate itself when none is found (a bare directory still gets a
+ * working, isolated store). Bounded so a pathological loop of `..` resolves
+ * instead of spinning.
+ */
+function resolveShelfStoreRoot(candidate: string): string {
+  let current = resolve(candidate);
+  for (let hops = 0; hops < 64; hops += 1) {
+    if (existsSync(join(current, '.svn'))) return current;
+    const parent = dirname(current);
+    if (parent === current) return resolve(candidate);
+    current = parent;
+  }
+  return resolve(candidate);
+}
+
+/**
+ * The store is keyed by the working-copy ROOT, not the exact path a shelf was
+ * scoped to: a subpath-scoped save (e.g. from the repo browser) must stay
+ * visible to list/apply against the root. Each shelf's metadata still records
+ * the scope it was saved at, and apply restores into that scope.
+ */
 function shelfRoot(workingCopyPath: string): string {
-  const key = createHash('sha256').update(resolve(workingCopyPath)).digest('hex');
+  const key = createHash('sha256').update(resolveShelfStoreRoot(workingCopyPath)).digest('hex');
   const userDataRoot =
     process.env.SHELLYSVN_PORTABLE_SHELF_ROOT ||
     app?.getPath?.('userData') ||
@@ -210,12 +234,19 @@ export async function portableShelfApply(
   validateSvnTargets([workingCopyPath], 'Portable shelf target');
   const directory = shelfDirectory(workingCopyPath, name);
   const metadata = await readMetadata(directory);
-  if (resolve(metadata.workingCopyPath) !== resolve(workingCopyPath)) {
+  // The shelf may have been saved at a sub-path scope (store is keyed by the
+  // working-copy root). Restore into that recorded scope, not the path this
+  // call addressed. SECURITY: metadata is on-disk data — a crafted scope must
+  // not direct writes outside the working copy the store belongs to.
+  const scope = resolve(metadata.workingCopyPath);
+  try {
+    assertWithinRoot(resolveShelfStoreRoot(workingCopyPath), scope, 'Portable shelf scope');
+  } catch {
     return { success: false, error: 'This shelf belongs to a different working copy.' };
   }
 
   const statusXml = await runSvnText(
-    withSvnTargets(['status', '--xml', '--depth', 'infinity'], [workingCopyPath])
+    withSvnTargets(['status', '--xml', '--depth', 'infinity'], [scope])
   );
   const currentChanges = parseSvnStatusEntriesXml(statusXml).filter(
     (entry) => !['normal', 'external', 'ignored'].includes(entry.item)
@@ -229,7 +260,7 @@ export async function portableShelfApply(
 
   const patchPath = join(directory, 'changes.patch');
   if ((await readFile(patchPath, 'utf8')).trim()) {
-    await runSvnText(withSvnTargets(['patch'], [patchPath, workingCopyPath]));
+    await runSvnText(withSvnTargets(['patch'], [patchPath, scope]));
   }
 
   for (const file of metadata.files) {
@@ -240,8 +271,8 @@ export async function portableShelfApply(
     // (symlinked directories cannot redirect the copy outside it), and the
     // copy source must stay inside the shelf's own `files` directory.
     assertSafeEntryRelativePath(file?.relativePath, 'Portable shelf entry');
-    const target = resolve(workingCopyPath, file.relativePath);
-    assertInsideWorkingCopy(workingCopyPath, target);
+    const target = resolve(scope, file.relativePath);
+    assertInsideWorkingCopy(scope, target);
     if (
       ['deleted', 'missing'].includes(file.status) ||
       (file.kind === 'directory' && !['added', 'unversioned'].includes(file.status))

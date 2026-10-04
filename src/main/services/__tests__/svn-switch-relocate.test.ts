@@ -49,7 +49,8 @@ describe('validateSwitchOrRelocate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockState.stat.mockImplementation(async (path: string) => {
-      if (path === WC_ADMIN) return { isDirectory: () => true };
+      // join() normalizes separators per host, so compare forward-slashed.
+      if (String(path).replace(/\\/g, '/') === WC_ADMIN) return { isDirectory: () => true };
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
     });
     mockState.runSvnText.mockImplementation(async (args: string[]) => {

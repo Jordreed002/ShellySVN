@@ -20,7 +20,7 @@ vi.mock('electron', () => ({
   shell: undefined,
 }));
 
-import { portableShelfApply, portableShelfSave } from '../svn-portable-shelves';
+import { portableShelfApply, portableShelfList, portableShelfSave } from '../svn-portable-shelves';
 
 /**
  * J4 / J14 — Portable shelves.
@@ -277,5 +277,73 @@ describe('portable shelf extraction hardening', () => {
     await expect(portableShelfSave('escape', workingCopy)).rejects.toThrow(
       /resolves outside|escapes/
     );
+  });
+
+  describe('working-copy-root store keying', () => {
+    let wcRoot: string;
+    let subPath: string;
+
+    beforeEach(async () => {
+      wcRoot = await mkdtemp(join(tmpdir(), 'shellysvn-shelf-keyed-'));
+      // A real admin area: the store must key on this root, not the sub-path.
+      await mkdir(join(wcRoot, '.svn'), { recursive: true });
+      subPath = join(wcRoot, 'sub');
+      await mkdir(subPath, { recursive: true });
+    });
+
+    it('keys a sub-path save under the root, visible to list and restore from the root', async () => {
+      await writeFile(join(subPath, 'nested.txt'), 'nested shelved', 'utf8');
+      mockState.runSvnText.mockImplementation((args: string[]) => {
+        if (args[0] === 'status') {
+          return Promise.resolve(
+            `<?xml version="1.0"?><status><target path="."><entry path="nested.txt">` +
+              `<wc-status item="modified" props="none"/></entry></target></status>`
+          );
+        }
+        if (args[0] === 'diff') return Promise.resolve('diff --git a/nested.txt b/nested.txt');
+        return Promise.resolve('');
+      });
+
+      await expect(portableShelfSave('scoped', subPath, 'from the browser')).resolves.toMatchObject(
+        { success: true }
+      );
+      // The shelf landed in the ROOT's store, not a sub-path-keyed one.
+      await expect(
+        readFile(join(shelfDirectoryFor(wcRoot, 'scoped'), 'files', 'nested.txt'), 'utf8')
+      ).resolves.toBe('nested shelved');
+
+      mockState.runSvnText.mockResolvedValue('');
+      const list = await portableShelfList(wcRoot);
+      expect(list.shelves.some((shelf) => shelf.name === 'scoped')).toBe(true);
+
+      // Simulate the post-save revert, then apply FROM THE ROOT: the restore
+      // must land back inside the recorded sub-path scope.
+      await writeFile(join(subPath, 'nested.txt'), 'reverted', 'utf8');
+      await expect(portableShelfApply('scoped', wcRoot)).resolves.toMatchObject({ success: true });
+      await expect(readFile(join(subPath, 'nested.txt'), 'utf8')).resolves.toBe('nested shelved');
+    });
+
+    it('rejects a crafted metadata scope outside the working-copy root', async () => {
+      const outside = await mkdtemp(join(tmpdir(), 'shellysvn-shelf-outside-'));
+      const directory = shelfDirectoryFor(wcRoot, 'foreign');
+      await mkdir(join(directory, 'files'), { recursive: true });
+      await writeFile(
+        join(directory, 'metadata.json'),
+        JSON.stringify({
+          version: 1,
+          name: 'foreign',
+          workingCopyPath: resolve(outside),
+          createdAt: new Date().toISOString(),
+          files: [{ relativePath: 'x.txt', status: 'modified', kind: 'file' }],
+        }),
+        'utf8'
+      );
+      await writeFile(join(directory, 'changes.patch'), '', 'utf8');
+
+      await expect(portableShelfApply('foreign', wcRoot)).resolves.toMatchObject({
+        success: false,
+        error: 'This shelf belongs to a different working copy.',
+      });
+    });
   });
 });

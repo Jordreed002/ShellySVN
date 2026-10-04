@@ -3,7 +3,7 @@
 import { mkdir, mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   PRISTINE_SIZE_BUCKETS,
   PRISTINE_VACUUM_ABSOLUTE_THRESHOLD_BYTES,
@@ -210,14 +210,22 @@ describe('analyzePristineStore', () => {
   it('analyzes a 10k-file synthetic store quickly', async () => {
     await makeWorkingCopy();
     const started = Date.now();
-    await Promise.all(
-      Array.from({ length: 10_000 }, (_, index) => {
-        const sha1 = index.toString(16).padStart(40, '0');
-        return mkdir(join(root, '.svn', 'pristine', sha1.slice(0, 2)), { recursive: true }).then(
-          () => writeFile(pristinePath(sha1), Buffer.alloc(64 + (index % 512), 1)) // shard dir created above
-        );
-      })
-    );
+    // Bounded batches: firing all 10,000 mkdir/writeFile chains at once
+    // exhausts the process file-descriptor table (EMFILE) before the analyzer
+    // under test ever runs — a fixture bug, not a product one.
+    const FILE_COUNT = 10_000;
+    const BATCH_SIZE = 250;
+    for (let offset = 0; offset < FILE_COUNT; offset += BATCH_SIZE) {
+      await Promise.all(
+        Array.from({ length: Math.min(BATCH_SIZE, FILE_COUNT - offset) }, (_, batchIndex) => {
+          const index = offset + batchIndex;
+          const sha1 = index.toString(16).padStart(40, '0');
+          return mkdir(join(root, '.svn', 'pristine', sha1.slice(0, 2)), { recursive: true }).then(
+            () => writeFile(pristinePath(sha1), Buffer.alloc(64 + (index % 512), 1)) // shard dir created above
+          );
+        })
+      );
+    }
     const fixtureMs = Date.now() - started;
 
     const analysisStarted = Date.now();
