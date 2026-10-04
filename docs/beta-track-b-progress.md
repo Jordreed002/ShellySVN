@@ -165,39 +165,59 @@ fixed from this side per the ownership protocol.
 
 Ordered by user impact.
 
-1. **Shelf IPC** (blocks #64 completion): `svn:shelve:rename(name, path, newName)`,
+> **Status update (Track A, in the working tree):** items **1–3 are now
+> implemented** — the four `svn:shelve:*` channels, the export/import payload
+> fields, and `svn:createSampleRepository` — and the corresponding disabled
+> affordances (ShelfManagerDialog rename/diff/export/import, export wizard
+> options, import `--no-ignore`, onboarding playground step) are enabled.
+> The renderer can drop its local pending-backend shims.
+>
+> **Second update:** items **4, 5, 9 and 12 are also done** (see inline
+> notes). Item 6 turned out to be a non-issue: `invalidateStatusAfter<T>`
+> preserves the handler's `{success: boolean}` return, so preload and main
+> already agree. Remaining open: 7 (axe-core), 8 (i18n extraction script),
+> 10 (external-tool launcher), 11 (per-WC proxy routing).
+
+1. **Shelf IPC** ~~(blocks #64 completion)~~ **DELIVERED**: `svn:shelve:rename(name, path, newName)`,
    `svn:shelve:diff(name, path, against: 'working-copy'|'HEAD')`,
    `svn:shelve:export(name, path, outputPath)`,
    `svn:shelve:import(portableShelfPath, targetWorkingCopyPath)`.
    The ShelfManagerDialog UI is complete; the four affordances render disabled
    with these exact channel names.
-2. **Export/import payload fields** (blocks #62 options): `depth?`,
+2. **Export/import payload fields** ~~(blocks #62 options)~~ **DELIVERED**: `depth?`,
    `ignoreExternals?`, `nativeEol?`, `force?` on
    `exportRepositoryWithProgress` (channels `svn:export[WithProgress]`), and
    `noIgnore?` on `importRepositoryWithProgress`. Controls are rendered
    disabled with per-field notes.
-3. **Sample-repository IPC** (blocks #88 playground step): e.g.
+3. **Sample-repository IPC** ~~(blocks #88 playground step)~~ **DELIVERED**: e.g.
    `svn:createSampleRepository()` wrapping `svnadmin create` + seed import →
    `file://` URL, then the existing `svn:checkout` finishes the flow.
-4. **Merge-history parser field** (upgrades #45 merge edges from
-   message-heuristic to exact): `parseSvnLogXml` drops `mod="merged"`; adding
-   `merged?: boolean` to `SvnLogPath` when `useMergeHistory` is set lets
-   `lib/revisionGraph.ts` emit exact merge edges (IPC flag already plumbed).
-5. **Main-window geometry** (#40 main half): persist window bounds/position
-   per-monitor in `src/main`; renderer dialog geometry is done independently.
-6. **`window.api.svn.cleanup` typing**: preload types it as
-   `Promise<{success:boolean}>` but main returns `SvnMutationResult` — align
-   when convenient (B-side note; shared types are A-owned).
+4. **Merge-history parser field** **DELIVERED (superseded design)**: verified
+   against the Subversion source that `svn log -g --xml` emits merged
+   revisions as *nested `<logentry>` elements* — there is no `mod` attribute.
+   `parseSvnLogXml` now flattens nested logentries into the merge commit's
+   paths flagged `merged: true` (the `@_mod` read is kept as a defensive
+   extra), `SvnLogPath.merged` exists, `lib/revisionGraph.ts` emits exact
+   merge edges with the message heuristic as fallback, and both graph
+   consumers (`RevisionGraph.tsx`, `RevisionGraphPanel.tsx`) request merge
+   history — the panel's log-cache scope intentionally splits from
+   CommitHistory's since `-g` output is a superset.
+5. **Main-window geometry** **DELIVERED** (#40 main half): `src/main/window-geometry.ts`
+   persists bounds+maximized per display id (debounced saves, close flush,
+   off-screen fallback, hostile-input-safe restore); wired in `src/main/index.ts`.
+6. **`window.api.svn.cleanup` typing**: **RESOLVED AS NON-ISSUE** —
+   `invalidateStatusAfter<T>` preserves the handler's `{success: boolean}`
+   return; preload and main already agree.
 7. **axe-core dependency**: `@axe-core/playwright` needs a package.json change
    (A-exclusive) to finish #129's accessibility audits; e2e specs have the
    insertion points marked.
 8. **i18n extraction script** (if #134 scaffolding is adopted): a
    `scripts/extract-strings.mjs` + npm script would need A's sign-off; the
    renderer-side extractor + pseudo-localization test exist regardless.
-9. **Status-parser type leak** (found by property testing, `packages/shared/src/svn-parsers.ts`): `parseSvnStatusXml` passes fast-xml-parser's strnum-converted attributes through untyped — `changelist name="5"` yields the number `5`, `name="true"` yields boolean, violating `SvnStatusEntry.changelist: string`. Fix on A's side (coerce attributes to string, or disable `parseAttributeValue` for that field). Track B's generator is narrowed with a comment until then.
+9. **Status-parser type leak** **DELIVERED** (found by property testing, `packages/shared/src/svn-parsers.ts`): fixed by disabling `parseAttributeValue` on the shared xmlParser — coercion is lossy (`name="0x1F"` strnum-converts to 31) while disabling preserves every name exactly, and every consumer in the file already parses strings. The property generator is un-narrowed. The same leak in `src/main/utils/svn-xml.ts` `parseSvnStatusEntriesXml` is fixed with targeted `String()` coercion (that instance must keep numeric conversion for blame); logic-engine parsers audited clean.
 10. **Custom external-tool launcher** (#87 completion): `AppSettings.externalToolTemplates` holds executable + argument template; a main-side consumer for `external.openDiffTool/openMergeTool` (accept an `ExternalToolTemplateConfig`, expand placeholders, spawn) turns the settings into behavior.
 11. **Per-WC proxy routing** (#90 completion): overrides are stored + surfaced renderer-side; routing SVN network calls through them (SvnExecutionContext) is main-process territory.
-12. **Global shortcut overrides** (renderer-internal but Layout-owned wiring): overrides persist and the cheat-sheet consumes them, but Layout.tsx's hardcoded global handlers (⌘K/⌘B/⌘⇧A/⌥⌘P/?) don't read the override map — routing them through `useShortcutBindings` makes remapping effective app-wide (flagged by the palette agent and confirmed by the docs pass).
+12. **Global shortcut overrides** **DELIVERED**: Layout.tsx's global handlers (⌘K/⌘B/⌘⇧A/⌥⌘P/?) now resolve through `useShortcutBindings` (new `command-palette-quick`/`ai-review-center`/`performance-dashboard`/`shortcut-help` bindings); remaps propagate live via the overrides-changed event (self-echo suppressed with an origin tag), the cheat sheet and recorder consume the same combo builder, and the site shortcuts page is updated.
 13. **Script-change requests**: none — no new npm scripts were needed by Track B.
 
 ## Known follow-ups (Track B internal, not blocking)
@@ -205,15 +225,19 @@ Ordered by user impact.
 - Repo-browser `ShelfDialog` handlers in `RepoBrowserView` are display-only
   stubs (open/close, empty files) — wire to the real shelve IPC when touched
   next; the ShelfManagerDialog is the functional surface.
-- `CLAUDE.md` claims a Zustand dependency that doesn't exist — renderer stores
-  are `useSyncExternalStore` modules (flagged during the docs pass).
+- ~~`CLAUDE.md` claims a Zustand dependency that doesn't exist~~ **fixed** —
+  now documents the plain `useSyncExternalStore` store modules.
 - DialogBase migration remains for ~15 lower-traffic dialogs (pattern is
   documented in the DialogBase header).
 - Density CSS vars (`--row-height` etc.) are wired app-wide; a retrofit pass
   over per-component hardcoded row heights (FileExplorer, MillerColumns,
   RepoTreeNode/RepoContentsRow) would let compact mode reach 100%.
-- `BranchSwitcher` (features/branches) still calls `svn switch` directly —
-  adopting `useSvnActions.switchTo` would inherit the cache reset (#41).
+- ~~`BranchSwitcher` (features/branches) still calls `svn switch` directly~~
+  **fixed** — now routes through `useSvnActions.switchTo` (inherits the #41
+  cache reset and surfaces real error messages).
+- Stale default pins in `settings-defaults.test.ts` / `settingsTransfer.test.ts`
+  (timeout 30→300s, `aiCommit.claudeModel`/`disabledCliProviders` from the
+  recovery/auth commit) **fixed** — they had been failing on the branch tip.
 - Repo-browser `RevisionLogView` got show-changes; its full filter-bar/saved-view
   adoption of `useLogViewSurface` is prepared (snippet in the log agent's
   report) but not yet mounted.

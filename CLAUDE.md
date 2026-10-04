@@ -67,7 +67,7 @@ The renderer accesses these via `window.api` (typed as `ElectronAPI` in `package
 
 - **SVN Operations**: Spawn `svn` CLI processes, parse XML output with `fast-xml-parser`
 - **Routing**: TanStack Router with file-based routes in `src/renderer/src/routes/`
-- **State Management**: Zustand stores for client state, TanStack Query for server state
+- **State Management**: Plain `useSyncExternalStore` store modules for client state, TanStack Query for server state (no state-management dependency)
 - **Styling**: TailwindCSS with custom components in `src/renderer/src/components/ui/`
 
 ### Logic Engine Package
