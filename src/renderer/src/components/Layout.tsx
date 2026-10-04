@@ -6,6 +6,8 @@ import { REVIEW_CENTER_OPEN_EVENT } from '@renderer/features/ai-review-center/re
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
+import { useShortcutBindings } from '@renderer/hooks/useShortcutBindings';
+import { normalizeShortcutKey, shortcutComboFromEvent } from '@renderer/lib/shortcutStore';
 
 import { RepositoryPillButton } from './layout/RepositoryPillButton';
 import { describeRepositoryPill } from './layout/repositoryPill';
@@ -159,6 +161,9 @@ export function Layout({ children }: LayoutProps) {
   const shelfManager = useShelfManagerOpenState();
   useNotificationCenterOpenEvent(() => setNotificationPanelOpen(true));
 
+  // Remappable keybindings for the global shell shortcuts (see keydown effect).
+  const { bindings: shortcutBindings } = useShortcutBindings();
+
   const isMac = navigator.platform.toLowerCase().includes('mac');
   const isWindows = navigator.platform.toLowerCase().includes('win');
 
@@ -262,52 +267,68 @@ export function Layout({ children }: LayoutProps) {
   }, []);
 
   useEffect(() => {
+    // Global shell shortcuts, routed through the remappable binding registry
+    // (#12) so user overrides from the customize tab take effect app-wide.
+    // With no overrides the resolved bindings equal the defaults, preserving
+    // the original hardcoded behaviour exactly (⌘K / ⌘⇧P palette, ⌘B sidebar,
+    // ⌘⇧A AI review center, ⌥⌘P performance dashboard, ? cheat sheet).
+    const enabledKey = (id: string): string | null => {
+      const binding = shortcutBindings.find((candidate) => candidate.id === id);
+      if (!binding || !binding.enabled) return null;
+      return normalizeShortcutKey(binding.currentKey) || null;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Command palette: ⌘K / Ctrl+K (the advertised shortcut) and Ctrl/Cmd+Shift+P.
-      // Don't hijack ⌘K while typing in a text field.
+      const combo = shortcutComboFromEvent(e);
+      if (!combo) return;
+
       const target = e.target as HTMLElement | null;
       const isTyping =
         !!target &&
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        !e.shiftKey &&
-        !e.altKey &&
-        e.key.toLowerCase() === 'k' &&
-        !isTyping
-      ) {
+      const isTextEntry =
+        !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+
+      // Command palette: the advertised quick-open key (⌘K / Ctrl+K) and
+      // Ctrl/Cmd+Shift+P. Don't hijack the quick-open key while typing.
+      const quickPaletteKey = enabledKey('command-palette-quick');
+      if (quickPaletteKey && combo === quickPaletteKey && !isTyping) {
         e.preventDefault();
         setShowCommandPalette(true);
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+      const paletteKey = enabledKey('command-palette');
+      if (paletteKey && combo === paletteKey) {
         e.preventDefault();
         setShowCommandPalette(true);
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
+      const sidebarKey = enabledKey('toggle-sidebar');
+      if (sidebarKey && combo === sidebarKey) {
         e.preventDefault();
         toggleSidebar();
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+      const reviewCenterKey = enabledKey('ai-review-center');
+      if (reviewCenterKey && combo === reviewCenterKey) {
         e.preventDefault();
         setShowAiReviewCenter((previous) => !previous);
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'p') {
+      const dashboardKey = enabledKey('performance-dashboard');
+      if (dashboardKey && combo === dashboardKey) {
         e.preventDefault();
-        setShowPerformanceDashboard((prev) => !prev);
+        setShowPerformanceDashboard((previous) => !previous);
         return;
       }
 
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      const helpKey = enabledKey('shortcut-help');
+      if (helpKey && combo === helpKey) {
+        if (isTextEntry) return;
         e.preventDefault();
         setShowShortcuts(true);
       }
@@ -315,7 +336,7 @@ export function Layout({ children }: LayoutProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSidebar]);
+  }, [shortcutBindings, toggleSidebar]);
 
   useEffect(() => {
     const open = () => setShowAiReviewCenter(true);

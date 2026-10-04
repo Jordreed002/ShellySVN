@@ -70,6 +70,45 @@ describe('keyboard shortcut parity', () => {
     );
   });
 
+  it('exposes the Layout shell shortcuts as remappable bindings (#12)', async () => {
+    window.api = {
+      store: {
+        get: vi.fn().mockResolvedValue(null),
+        set: vi.fn(),
+      },
+    } as unknown as Window['api'];
+
+    const { result } = renderHook(() => useShortcutBindings());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.bindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'command-palette-quick',
+          currentKey: 'Ctrl+K',
+          enabled: true,
+        }),
+        expect.objectContaining({
+          id: 'toggle-sidebar',
+          currentKey: 'Ctrl+B',
+          enabled: true,
+        }),
+        expect.objectContaining({
+          id: 'ai-review-center',
+          currentKey: 'Ctrl+Shift+A',
+          enabled: true,
+        }),
+        expect.objectContaining({
+          id: 'performance-dashboard',
+          currentKey: 'Ctrl+Alt+P',
+          enabled: true,
+        }),
+        expect.objectContaining({ id: 'shortcut-help', currentKey: '?', enabled: true }),
+      ])
+    );
+  });
+
   it('handles file explorer keyboard navigation and selection shortcuts', () => {
     const setSelectedPaths = vi.fn();
     const setFocusedIndex = vi.fn();

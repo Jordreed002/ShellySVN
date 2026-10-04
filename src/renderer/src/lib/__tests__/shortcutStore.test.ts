@@ -6,6 +6,7 @@ import {
   parseLegacyShortcutBindings,
   parseShortcutOverrides,
   resolveBindings,
+  shortcutComboFromEvent,
   toOverrideMap,
 } from '../shortcutStore';
 import type { ShortcutBinding } from '../../hooks/useShortcutBindings';
@@ -19,6 +20,21 @@ function binding(overrides: Partial<ShortcutBinding>): ShortcutBinding {
     currentKey: 'Ctrl+S',
     enabled: true,
     ...overrides,
+  };
+}
+
+/** A synthetic key press for shortcutComboFromEvent. */
+function press(
+  key: string,
+  modifiers: Partial<Parameters<typeof shortcutComboFromEvent>[0]> = {}
+): Parameters<typeof shortcutComboFromEvent>[0] {
+  return {
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    key,
+    ...modifiers,
   };
 }
 
@@ -139,5 +155,40 @@ describe('toOverrideMap', () => {
 
   it('saves nothing when everything is default', () => {
     expect(toOverrideMap([binding({})])).toEqual({});
+  });
+});
+
+describe('shortcutComboFromEvent', () => {
+  it('maps Cmd and Ctrl to the same canonical Ctrl modifier', () => {
+    expect(shortcutComboFromEvent(press('k', { metaKey: true }))).toBe('Ctrl+K');
+    expect(shortcutComboFromEvent(press('k', { ctrlKey: true }))).toBe('Ctrl+K');
+  });
+
+  it('builds the Layout shell default combos', () => {
+    expect(shortcutComboFromEvent(press('p', { ctrlKey: true, shiftKey: true }))).toBe(
+      'Ctrl+Shift+P'
+    );
+    expect(shortcutComboFromEvent(press('b', { ctrlKey: true }))).toBe('Ctrl+B');
+    expect(shortcutComboFromEvent(press('a', { metaKey: true, shiftKey: true }))).toBe(
+      'Ctrl+Shift+A'
+    );
+    expect(shortcutComboFromEvent(press('p', { metaKey: true, altKey: true }))).toBe('Ctrl+Alt+P');
+  });
+
+  it('drops the Shift modifier when it is baked into a symbol key', () => {
+    // Shift+/ reports key '?' — both must match a `?` binding.
+    expect(shortcutComboFromEvent(press('?', { shiftKey: true }))).toBe('?');
+    expect(shortcutComboFromEvent(press('?'))).toBe('?');
+  });
+
+  it('keeps Shift for alphanumeric and named keys', () => {
+    expect(shortcutComboFromEvent(press('A', { shiftKey: true }))).toBe('Shift+A');
+    expect(shortcutComboFromEvent(press('F5', { shiftKey: true }))).toBe('Shift+F5');
+  });
+
+  it('returns an empty combo for bare modifier presses', () => {
+    expect(shortcutComboFromEvent(press('Shift', { shiftKey: true }))).toBe('');
+    expect(shortcutComboFromEvent(press('Control', { ctrlKey: true }))).toBe('');
+    expect(shortcutComboFromEvent(press(''))).toBe('');
   });
 });

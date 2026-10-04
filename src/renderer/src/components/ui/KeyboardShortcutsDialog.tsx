@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Keyboard, Pencil, RotateCcw, X } from 'lucide-react';
 import { useShortcutBindings } from '../../hooks/useShortcutBindings';
-import { normalizeShortcutKey } from '../../lib/shortcutStore';
+import { normalizeShortcutKey, shortcutComboFromEvent } from '../../lib/shortcutStore';
 
 /**
  * A row of the cheat sheet. Rows whose action is user-remappable carry the
@@ -63,6 +63,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['F5'], description: 'Refresh', bindingId: 'refresh' },
       { keys: ['Ctrl', 'F'], description: 'Focus search', bindingId: 'search' },
       { keys: ['Ctrl', 'B'], description: 'Toggle sidebar', bindingId: 'toggle-sidebar' },
+      { keys: ['Ctrl', 'Shift', 'A'], description: 'Toggle AI review center', bindingId: 'ai-review-center' },
+      { keys: ['Ctrl', 'Alt', 'P'], description: 'Toggle performance dashboard', bindingId: 'performance-dashboard' },
       { keys: ['Ctrl', 'P'], description: 'Toggle preview panel' },
     ],
   },
@@ -71,7 +73,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: ['Ctrl', ','], description: 'Open settings', bindingId: 'settings' },
       { keys: ['Ctrl', 'Shift', 'P'], description: 'Command palette', bindingId: 'command-palette' },
-      { keys: ['?'], description: 'Show keyboard shortcuts' },
+      { keys: ['Ctrl', 'K'], description: 'Command palette (quick open)', bindingId: 'command-palette-quick' },
+      { keys: ['?'], description: 'Show keyboard shortcuts', bindingId: 'shortcut-help' },
     ],
   },
   {
@@ -151,14 +154,15 @@ export function KeyboardShortcutsDialog({ isOpen, onClose }: KeyboardShortcutsDi
       if (MODIFIER_KEYS.has(event.key)) return;
 
       const recordingId = isRecording;
-      const combo = normalizeShortcutKey(
-        [
-          ...(event.ctrlKey || event.metaKey ? ['Ctrl'] : []),
-          ...(event.altKey ? ['Alt'] : []),
-          ...(event.shiftKey ? ['Shift'] : []),
-          event.key.length === 1 ? event.key.toLowerCase() : event.key,
-        ].join('+')
-      );
+      // Same builder the runtime handlers use, so a recorded key always fires
+      // the action it was bound to (e.g. `?` recorded without a stray Shift).
+      const combo = shortcutComboFromEvent({
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        key: event.key,
+      });
       if (!combo) return;
 
       stopRecording();

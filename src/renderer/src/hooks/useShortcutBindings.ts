@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { debug } from '@shared/utils/debug';
 import {
   findConflictingBinding,
@@ -7,6 +7,7 @@ import {
   normalizeShortcutKey,
   resolveBindings,
   saveShortcutOverrides,
+  SHORTCUT_OVERRIDES_CHANGED_EVENT,
   toOverrideMap,
   type ShortcutConflict,
 } from '../lib/shortcutStore';
@@ -32,6 +33,9 @@ export interface ShortcutCategory {
   name: string;
   description?: string;
 }
+
+/** Distinguishes this hook instance's own saves from other instances' on the change event. */
+let nextBindingsInstanceId = 0;
 
 const CATEGORIES: ShortcutCategory[] = [
   { id: 'navigation', name: 'Navigation' },
@@ -158,6 +162,39 @@ const DEFAULT_BINDINGS: ShortcutBinding[] = [
     enabled: true,
   },
   {
+    // The advertised quick-open key (⌘K / Ctrl+K) Layout also honours.
+    id: 'command-palette-quick',
+    name: 'Command Palette (Quick Open)',
+    category: 'general',
+    defaultKey: 'Ctrl+K',
+    currentKey: 'Ctrl+K',
+    enabled: true,
+  },
+  {
+    id: 'ai-review-center',
+    name: 'Toggle AI Review Center',
+    category: 'view',
+    defaultKey: 'Ctrl+Shift+A',
+    currentKey: 'Ctrl+Shift+A',
+    enabled: true,
+  },
+  {
+    id: 'performance-dashboard',
+    name: 'Toggle Performance Dashboard',
+    category: 'view',
+    defaultKey: 'Ctrl+Alt+P',
+    currentKey: 'Ctrl+Alt+P',
+    enabled: true,
+  },
+  {
+    id: 'shortcut-help',
+    name: 'Show Keyboard Shortcuts',
+    category: 'general',
+    defaultKey: '?',
+    currentKey: '?',
+    enabled: true,
+  },
+  {
     id: 'settings',
     name: 'Open Settings',
     category: 'general',
@@ -183,6 +220,8 @@ export function useShortcutBindings() {
   const [isRecording, setIsRecording] = useState<string | null>(null);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  /* Tags this instance's saves on the overrides-changed event (see below). */
+  const originRef = useRef(`shortcut-bindings-${++nextBindingsInstanceId}`);
 
   /**
    * Load the persisted override map and merge it over the defaults.
@@ -204,7 +243,7 @@ export function useShortcutBindings() {
    */
   const saveBindings = useCallback(async (newBindings: ShortcutBinding[]) => {
     try {
-      await saveShortcutOverrides(toOverrideMap(newBindings));
+      await saveShortcutOverrides(toOverrideMap(newBindings), originRef.current);
     } catch (error) {
       debug.error('Failed to save shortcut bindings:', error);
     }
@@ -334,9 +373,21 @@ export function useShortcutBindings() {
   // Keys claimed by more than one enabled binding, recomputed as bindings change.
   const conflicts = useMemo<ShortcutConflict[]>(() => findConflicts(bindings), [bindings]);
 
-  // Load on mount
+  // Load on mount, and reload whenever another useShortcutBindings instance
+  // (e.g. the customize tab) persists new overrides, so consumers like the
+  // Layout shell act on remapped keys without a reload. Saves from THIS
+  // instance are skipped — it already applied them optimistically, and a
+  // self-echo reload would clobber that state if the store read races.
   useEffect(() => {
     loadBindings();
+    const reload = (event: Event) => {
+      if ((event as CustomEvent<{ origin?: string }>).detail?.origin === originRef.current) {
+        return;
+      }
+      void loadBindings();
+    };
+    window.addEventListener(SHORTCUT_OVERRIDES_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(SHORTCUT_OVERRIDES_CHANGED_EVENT, reload);
   }, [loadBindings]);
 
   return {

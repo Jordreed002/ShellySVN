@@ -46,6 +46,12 @@ import {
 } from './services/svn-progress';
 import { cancelAllUpdates } from './services/svn-working-copy';
 import { cancelAllAiCommitMessages } from './services/ai-commit-message';
+import {
+  DEFAULT_WINDOW_HEIGHT,
+  DEFAULT_WINDOW_WIDTH,
+  restoreMainWindowGeometry,
+  trackMainWindowGeometry,
+} from './window-geometry';
 
 let mainWindow: BrowserWindow | null = null;
 let shutdownPromise: Promise<void> | null = null;
@@ -127,11 +133,16 @@ function runSmokeTest(): number {
   return 0;
 }
 
-function createWindow(): void {
+async function createWindow(): Promise<void> {
+  // Restore the per-monitor persisted geometry (#5): bounds are saved keyed by
+  // display id; a missing monitor or off-screen bounds fall back to defaults.
+  const geometry = await restoreMainWindowGeometry();
+
   // Create the browser window
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: geometry.bounds?.width ?? DEFAULT_WINDOW_WIDTH,
+    height: geometry.bounds?.height ?? DEFAULT_WINDOW_HEIGHT,
+    ...(geometry.bounds ? { x: geometry.bounds.x, y: geometry.bounds.y } : {}),
     minWidth: 900,
     minHeight: 600,
     show: false,
@@ -158,6 +169,13 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
   });
+
+  if (geometry.maximized) {
+    mainWindow.maximize();
+  }
+
+  // Save bounds (debounced on move/resize, flushed on close), keyed by display.
+  trackMainWindowGeometry(mainWindow);
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     openValidatedExternalUrl(details.url).catch((error) => {
@@ -277,14 +295,14 @@ app.whenReady().then(async () => {
     console.error('[approved-paths] Bootstrap failed:', error);
   }
 
-  createWindow();
+  void createWindow();
   registerPowerMonitorHandlers();
   void initializeAppLifecycle();
   void getUpdateService().initialize(shutdownApplicationServices);
 
   app.on('activate', () => {
     // On macOS, re-create window when dock icon is clicked
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });
 });
 

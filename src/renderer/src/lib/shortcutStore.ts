@@ -14,6 +14,13 @@ import type { ShortcutBinding } from '../hooks/useShortcutBindings';
 
 export const SHORTCUT_OVERRIDES_KEY = 'shellysvn:shortcut-overrides:v1';
 
+/**
+ * Fired on `window` after overrides are saved so every mounted
+ * `useShortcutBindings` instance (the Layout shell included) reloads and a
+ * remap made in the customize tab takes effect app-wide immediately.
+ */
+export const SHORTCUT_OVERRIDES_CHANGED_EVENT = 'shellysvn:shortcut-overrides-changed';
+
 /** Pre-#78 storage wrote the entire binding array under this key. */
 const LEGACY_SHORTCUTS_KEY = 'shellysvn-shortcut-bindings';
 
@@ -87,6 +94,48 @@ export function normalizeShortcutKey(key: string): string {
     main.length === 1 ? main.toUpperCase() : main.charAt(0).toUpperCase() + main.slice(1);
 
   return [...ordered, canonicalMain].filter(Boolean).join('+');
+}
+
+/** Modifier-only keys that never complete a combo on their own. */
+const BARE_MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta']);
+
+/** The fields of KeyboardEvent the combo builder reads. */
+export interface ShortcutEventInput {
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  key: string;
+}
+
+/**
+ * Build the canonical combo a key press represents, in the same normalized
+ * form bindings use, so runtime handlers can compare live events against a
+ * binding's `currentKey` regardless of platform modifier naming (Cmd and Ctrl
+ * both normalize to `Ctrl`, which is how the defaults stay cross-platform).
+ *
+ * A shifted printable character (`?`, `!`) already encodes Shift in the
+ * character itself, so the explicit modifier is dropped for non-alphanumeric
+ * keys — pressing `Shift+/` produces key `?` and matches a `?` binding. This
+ * is the same shape the customize tab records, so recorded keys always match
+ * the keys the handlers fire on.
+ */
+export function shortcutComboFromEvent(event: ShortcutEventInput): string {
+  if (!event.key || BARE_MODIFIER_KEYS.has(event.key)) return '';
+
+  const isPrintable = event.key.length === 1;
+  const main = isPrintable ? event.key.toLowerCase() : event.key;
+  // Keep Shift only when it isn't already baked into the produced character.
+  const keepShift = !isPrintable || /[a-z0-9]/i.test(event.key);
+
+  return normalizeShortcutKey(
+    [
+      ...(event.ctrlKey || event.metaKey ? ['Ctrl'] : []),
+      ...(event.altKey ? ['Alt'] : []),
+      ...(event.shiftKey && keepShift ? ['Shift'] : []),
+      main,
+    ].join('+')
+  );
 }
 
 /** Validate an unknown payload as the v1 override map; anything else is empty. */
@@ -192,7 +241,17 @@ export async function loadShortcutOverrides(): Promise<ShortcutOverrideMap> {
   }
 }
 
-/** Persist the override map; callers decide how to surface failures. */
-export async function saveShortcutOverrides(overrides: ShortcutOverrideMap): Promise<void> {
+/**
+ * Persist the override map; callers decide how to surface failures.
+ * `origin` is echoed on the change event so a saver (e.g. the bindings hook)
+ * can skip reloading in response to its own write.
+ */
+export async function saveShortcutOverrides(
+  overrides: ShortcutOverrideMap,
+  origin?: string
+): Promise<void> {
   await window.api?.store?.set(SHORTCUT_OVERRIDES_KEY, overrides);
+  window.dispatchEvent(
+    new CustomEvent(SHORTCUT_OVERRIDES_CHANGED_EVENT, { detail: { origin } })
+  );
 }
