@@ -275,7 +275,10 @@ export function StatusBar() {
   const location = currentPath || browsedUrl;
 
   return (
-    <footer
+    // A div, not a <footer>: `role="status"` is only allowed on generic
+    // elements (aria-allowed-role), and the live-region semantics matter more
+    // here than the landmark.
+    <div
       className="flex items-center h-control-sm flex-shrink-0 bg-bg-secondary border-t border-border font-mono text-10.5 leading-none text-text-muted"
       role="status"
       aria-live="polite"
@@ -403,6 +406,6 @@ export function StatusBar() {
       {/* Status legend dialog (#94): opens from the button above or the
           command palette via STATUS_LEGEND_OPEN_EVENT. */}
       <StatusLegendDialogMount />
-    </footer>
+    </div>
   );
 }

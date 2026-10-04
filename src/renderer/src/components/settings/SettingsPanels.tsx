@@ -119,6 +119,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       <SettingsGroup title="Language" description="Application display language" resetKeys={['language']}>
         <div className="relative">
           <select
+            aria-label="Language"
             value={settings.language}
             onChange={(e) => onChange('language', e.target.value)}
             className="input appearance-none pr-10 cursor-pointer"
@@ -138,6 +139,7 @@ export function GeneralSettings({ settings, onChange }: SettingsSectionProps) {
       <SettingsGroup title="Startup" description="What to do when the application starts" resetKeys={['startupAction']}>
         <div className="relative">
           <select
+            aria-label="Startup action"
             value={settings.startupAction}
             onChange={(e) => onChange('startupAction', e.target.value as StartupAction)}
             className="input appearance-none pr-10 cursor-pointer"

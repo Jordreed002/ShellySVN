@@ -230,7 +230,10 @@ export function ToastStack() {
   const dismiss = useCallback((id: string) => dismissToast(id), []);
 
   return (
+    // role="region" gives the live region a name — aria-label is prohibited on
+    // a generic div (aria-prohibited-attr).
     <div
+      role="region"
       aria-live="polite"
       aria-label="Notifications"
       className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2 w-[340px] max-w-[calc(100vw-24px)] pointer-events-none"

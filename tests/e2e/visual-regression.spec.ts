@@ -47,12 +47,10 @@ import type { ElectronApplication, Locator, Page } from '@playwright/test';
  *     paths are masked via matcher masking — they embed machine-specific
  *     paths, revisions and the local `svn` version.
  *
- * TODO(a11e / #129 — axe coordination): once `@axe-core/playwright` is
- * approved as a dependency (package.json is owned by Track A), insert
- * `AxeBuilder.analyze()` snapshots for these same screens and replace the
- * hand-rolled checks in `accessibility-smoke.spec.ts` with axe audits. Keep
- * the capture order/stabilization from this file so both suites share one
- * deterministic setup.
+ * a11y (#129 — axe delivered): `@axe-core/playwright` is installed and
+ * `accessibility-smoke.spec.ts` runs axe audits (home, files empty state,
+ * settings dialog, command palette) reusing this file's stabilization
+ * measures so both suites share one deterministic setup.
  */
 
 // Dates in listings and status cells must not depend on the host timezone.
