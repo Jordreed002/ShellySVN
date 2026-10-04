@@ -4,9 +4,12 @@
  * occurrences).
  *
  * PURE by design — it operates on supplied source text only (no fs, no glob),
- * so it is trivially testable and reusable. A future `scripts/` pipeline
- * (Track A) can walk the repo, read files, and feed them to `extractMessages`;
- * see the COORDINATION note at the bottom of this doc and the test fixture in
+ * so it is trivially testable and reusable. The repo-scan pipeline lives in
+ * `scripts/extract-strings.mjs` (Track A item 8): it walks
+ * `src/renderer/src` (skipping tests and generated code), feeds every file to
+ * `extractMessages`, and writes the catalog to `src/renderer/src/i18n/extracted.json`.
+ * Run `bun run i18n:extract` to regenerate, `bun run check:i18n` for the drift
+ * gate (exits non-zero when the catalog is stale). See the test fixture in
  * `__tests__/extract.test.ts`.
  *
  * Heuristics (configurable, deterministic, intentionally imperfect):
@@ -18,11 +21,9 @@
  *   collisions between different texts get `-2`, `-3`, … suffixes in first-seen
  *   order; identical texts merge their occurrences.
  *
- * COORDINATION (npm script, Track A owns `scripts/` + `package.json`): once a
- * CLI wrapper exists (read glob → `extractMessages` → write
- * `src/renderer/src/i18n/extracted.json`), please add
- * `"extract:i18n": "bun run scripts/extract-i18n.ts"` to package.json. Nothing
- * in the runtime depends on that script; it is a developer convenience.
+ * COORDINATION (npm script) — DELIVERED as `scripts/extract-strings.mjs` +
+ * the `i18n:extract` / `check:i18n` npm scripts. Nothing in the runtime
+ * depends on the script or the catalog; they are developer conveniences.
  */
 
 /** A source file supplied to the extractor. */
