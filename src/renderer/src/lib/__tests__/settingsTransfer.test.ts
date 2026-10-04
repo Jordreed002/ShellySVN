@@ -188,7 +188,7 @@ describe('reset semantics', () => {
     const settings = mergeSettings({ theme: 'dark', language: 'de', connectionTimeout: 120 });
     const next = applySectionReset(settings, ['theme', 'connectionTimeout']);
     expect(next.theme).toBe('system');
-    expect(next.connectionTimeout).toBe(30);
+    expect(next.connectionTimeout).toBe(300);
     expect(next.language).toBe('de');
   });
 

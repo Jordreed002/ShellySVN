@@ -83,7 +83,7 @@ describe('DEFAULT_SETTINGS', () => {
     expect(DEFAULT_SETTINGS.updateChannel).toBe('stable');
     expect(DEFAULT_SETTINGS.confirmDestructiveOps).toBe(true);
     expect(DEFAULT_SETTINGS.sslVerify).toBe(true);
-    expect(DEFAULT_SETTINGS.connectionTimeout).toBe(30);
+    expect(DEFAULT_SETTINGS.connectionTimeout).toBe(300);
     expect(DEFAULT_SETTINGS.hasCompletedTutorial).toBe(false);
   });
 
@@ -98,6 +98,7 @@ describe('DEFAULT_SETTINGS', () => {
       enabled: false,
       provider: 'auto',
       codexModel: 'gpt-5.6-luna',
+      claudeModel: 'sonnet',
       style: 'conventional',
       includeRecentHistory: false,
       historyLimit: 10,
@@ -107,6 +108,7 @@ describe('DEFAULT_SETTINGS', () => {
       maxSessionInvocations: 100,
       usageRetentionDays: 30,
       usageMaxEntries: 200,
+      disabledCliProviders: [],
     });
   });
 });
