@@ -88,8 +88,19 @@ class SettingsManager {
       // Merge with defaults to ensure all fields exist
       this.settings = mergeSettings(stored.settings || stored);
 
+      // Custom template tools (#87) live in externalToolTemplates; their ids
+      // are valid tool selections wherever a diff/merge tool id is stored.
+      const templateIds = new Set(
+        (this.settings.externalToolTemplates ?? [])
+          .map((tool) => (typeof tool?.id === 'string' ? tool.id : ''))
+          .filter(Boolean)
+      );
       const safeToolId = (value: string, allowedAliases: ReadonlySet<string>) =>
-        allowedAliases.has(value.toLowerCase()) || value.startsWith('registered:') ? value : '';
+        allowedAliases.has(value.toLowerCase()) ||
+        value.startsWith('registered:') ||
+        templateIds.has(value)
+          ? value
+          : '';
       this.settings.diffMerge.externalDiffTool = safeToolId(
         this.settings.diffMerge.externalDiffTool,
         KNOWN_DIFF_TOOL_ALIASES
@@ -362,9 +373,22 @@ class SettingsManager {
       await this.validateSvnClientPath(updates.svnClientPath);
     }
     await this.validateLogCacheSettings(updates.logCachePath, updates.maxLogCacheSize);
+
+    // Tool selections may reference registry tools ('registered:…') or custom
+    // template tools by their externalToolTemplates id (#87). Ownership and
+    // role are verified at launch time, not here.
+    const templateIds = new Set(
+      [
+        ...((this.settings.externalToolTemplates ?? []).map((tool) => tool?.id)),
+        ...((updates.externalToolTemplates ?? []).map((tool) => tool?.id)),
+      ].filter((id): id is string => typeof id === 'string' && id.length > 0)
+    );
+    const isAllowedExternalToolId = (value: string): boolean =>
+      value.startsWith('registered:') || templateIds.has(value);
+
     if (updates.diffMerge?.externalDiffTool !== undefined) {
-      if (updates.diffMerge.externalDiffTool.startsWith('registered:')) {
-        // Registry ownership and role are checked when the tool is launched.
+      if (isAllowedExternalToolId(updates.diffMerge.externalDiffTool)) {
+        // Registry/template ownership and role are checked when the tool is launched.
       } else {
         validateExternalToolSetting(
           updates.diffMerge.externalDiffTool,
@@ -374,8 +398,8 @@ class SettingsManager {
       }
     }
     if (updates.diffMerge?.externalMergeTool !== undefined) {
-      if (updates.diffMerge.externalMergeTool.startsWith('registered:')) {
-        // Registry ownership and role are checked when the tool is launched.
+      if (isAllowedExternalToolId(updates.diffMerge.externalMergeTool)) {
+        // Registry/template ownership and role are checked when the tool is launched.
       } else {
         validateExternalToolSetting(
           updates.diffMerge.externalMergeTool,
@@ -387,18 +411,22 @@ class SettingsManager {
     if (updates.diffMerge?.externalToolOverrides !== undefined) {
       for (const override of updates.diffMerge.externalToolOverrides) {
         if (override.diffTool !== undefined) {
-          validateExternalToolSetting(
-            override.diffTool,
-            `Diff tool override for ${override.extension || 'extension'}`,
-            KNOWN_DIFF_TOOL_ALIASES
-          );
+          if (!isAllowedExternalToolId(override.diffTool)) {
+            validateExternalToolSetting(
+              override.diffTool,
+              `Diff tool override for ${override.extension || 'extension'}`,
+              KNOWN_DIFF_TOOL_ALIASES
+            );
+          }
         }
         if (override.mergeTool !== undefined) {
-          validateExternalToolSetting(
-            override.mergeTool,
-            `Merge tool override for ${override.extension || 'extension'}`,
-            KNOWN_MERGE_TOOL_ALIASES
-          );
+          if (!isAllowedExternalToolId(override.mergeTool)) {
+            validateExternalToolSetting(
+              override.mergeTool,
+              `Merge tool override for ${override.extension || 'extension'}`,
+              KNOWN_MERGE_TOOL_ALIASES
+            );
+          }
         }
       }
     }

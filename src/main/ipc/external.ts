@@ -7,6 +7,11 @@ import { assertPathApprovedForIpc } from '../utils/approved-paths';
 import { listCodeEditors, openInCodeEditor } from '../services/code-editors';
 import { catRepositoryFile } from '../services/svn-content';
 import { getExternalToolRegistry } from '../services/external-tool-registry';
+import {
+  findSettingsToolTemplate,
+  launchDiffToolTemplate,
+  launchMergeToolTemplate,
+} from '../services/external-template-launcher';
 
 /**
  * SECURITY: Whitelist of allowed diff tools (known aliases)
@@ -129,6 +134,14 @@ export function registerExternalHandlers(): void {
         command = toolConfig.command;
         args = toolConfig.getArgs(leftValidation.normalized!, rightValidation.normalized!);
       } else {
+        // Settings-stored template tool (AppSettings.externalToolTemplates, #87)?
+        const templateTool = await findSettingsToolTemplate(tool, 'diff');
+        if (templateTool) {
+          return launchDiffToolTemplate(templateTool, {
+            left: leftValidation.normalized!,
+            right: rightValidation.normalized!,
+          });
+        }
         const resolved = await getExternalToolRegistry().resolve(tool, 'diff', {
           '{left}': leftValidation.normalized!,
           '{right}': rightValidation.normalized!,
@@ -201,6 +214,16 @@ export function registerExternalHandlers(): void {
             mergedNormalized
           );
         } else {
+          // Settings-stored template tool (AppSettings.externalToolTemplates, #87)?
+          const templateTool = await findSettingsToolTemplate(tool, 'merge');
+          if (templateTool) {
+            return launchMergeToolTemplate(templateTool, {
+              base: baseValidation.normalized!,
+              mine: mineValidation.normalized!,
+              theirs: theirsValidation.normalized!,
+              merged: mergedNormalized,
+            });
+          }
           const resolved = await getExternalToolRegistry().resolve(tool, 'merge', {
             '{base}': baseValidation.normalized!,
             '{mine}': mineValidation.normalized!,
