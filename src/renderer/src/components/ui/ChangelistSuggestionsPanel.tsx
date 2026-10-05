@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Lightbulb, Loader2, Plus, Sparkles, X } from 'lucide-react';
 import type { SvnStatusChar } from '@shared/types';
+import { changelistSuggestionsContext, changelistSuggestionsStatus } from '@renderer/lib/queryKeys';
 import {
   confidenceLabel,
   suggestChangelists,
@@ -241,13 +242,13 @@ export function ChangelistSuggestionsEntry({ workingCopyPath }: ChangelistSugges
   const [isOpen, setIsOpen] = useState(false);
 
   const { data: status } = useQuery({
-    queryKey: ['changelist-suggestions:status', workingCopyPath],
+    queryKey: changelistSuggestionsStatus(workingCopyPath),
     queryFn: () => window.api.svn.status(workingCopyPath),
     enabled: !!workingCopyPath,
   });
 
   const { data: context } = useQuery({
-    queryKey: ['changelist-suggestions:context', workingCopyPath],
+    queryKey: changelistSuggestionsContext(workingCopyPath),
     queryFn: () => window.api.svn.getWorkingCopyContext(workingCopyPath),
     enabled: !!workingCopyPath,
   });

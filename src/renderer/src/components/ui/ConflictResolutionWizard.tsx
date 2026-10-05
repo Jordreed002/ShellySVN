@@ -23,6 +23,7 @@ import { VirtualizedDiffViewer } from './VirtualizedDiffViewer';
 import { DialogBase } from './DialogBase';
 import { ConflictAiExplainer } from '../ai/ConflictAiExplainer';
 import { useSettings } from '@renderer/hooks/useSettings';
+import { svnStatus } from '@renderer/lib/queryKeys';
 import { resolveExternalToolForPath } from '@renderer/utils/externalToolOverrides';
 import { PropertyConflictPanel } from './PropertyConflictPanel';
 import { BinaryConflictPanel } from './BinaryConflictPanel';
@@ -387,7 +388,7 @@ export function ConflictResolutionWizard({
       );
 
       // Invalidate status cache
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
 
       // Auto-advance to next conflict
       const nextIndex = conflictFiles.findIndex(
@@ -683,7 +684,7 @@ export function ConflictResolutionWizard({
         statusByPath.set(path, 'skipped');
         setConflictFiles((prev) => markItemSkipped(prev, path) as ConflictFile[]);
       }
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
       setBatchConfirmPlan(null);
       setBatchOverrides({});
 

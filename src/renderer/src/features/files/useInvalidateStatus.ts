@@ -1,5 +1,12 @@
 import { useCallback } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  fsGetDeepStatus,
+  fsGetDirectoryMetadata,
+  fsGetStatus,
+  fsListDirectory,
+  svnChildCommits,
+} from '@renderer/lib/queryKeys';
 
 type InvalidationScope = 'status' | 'directory' | 'all';
 
@@ -37,16 +44,16 @@ export function invalidateWorkingCopyViews(
 
   for (const targetPath of targetPaths) {
     if (shouldInvalidateDirectory) {
-      queryClient.invalidateQueries({ queryKey: ['fs:getDirectoryMetadata', targetPath] });
-      queryClient.invalidateQueries({ queryKey: ['fs:listDirectory', targetPath] });
+      queryClient.invalidateQueries({ queryKey: fsGetDirectoryMetadata(targetPath) });
+      queryClient.invalidateQueries({ queryKey: fsListDirectory(targetPath) });
       // Carries the last-activity column and which children are excluded from
       // the checkout, so it goes stale whenever the listing does.
-      queryClient.invalidateQueries({ queryKey: ['svn:childCommits', targetPath] });
+      queryClient.invalidateQueries({ queryKey: svnChildCommits(targetPath) });
     }
 
     if (shouldInvalidateStatus) {
-      queryClient.invalidateQueries({ queryKey: ['fs:getStatus', targetPath] });
-      queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', targetPath] });
+      queryClient.invalidateQueries({ queryKey: fsGetStatus(targetPath) });
+      queryClient.invalidateQueries({ queryKey: fsGetDeepStatus(targetPath) });
     }
   }
 }

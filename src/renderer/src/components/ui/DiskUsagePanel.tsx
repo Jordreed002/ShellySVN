@@ -28,6 +28,7 @@ import type { PristineAnalysisResult } from '@shared/types';
 
 import { DialogBase } from './DialogBase';
 import { confirmAppAction } from '@renderer/utils/dialogs';
+import { diskUsageFolderSize } from '@renderer/lib/queryKeys';
 import { formatDiskSize } from '@renderer/components/sidebar/sidebarData';
 import { describeRepo } from '@renderer/components/sidebar/workingCopyOverview';
 
@@ -71,7 +72,7 @@ export function DiskUsagePanel({ isOpen, onClose, workingCopyPath }: DiskUsagePa
   // Fallback fact for builds without the analyzer IPC: folder size via the
   // existing fs channel (gated the same way the sidebar's disk card gates it).
   const folderSize = useQuery<Record<string, number>>({
-    queryKey: ['disk-usage:folder-size', workingCopyPath],
+    queryKey: diskUsageFolderSize(workingCopyPath),
     queryFn: () => window.api.fs.getFolderSizes([workingCopyPath]),
     enabled: isOpen && !hasAnalyzer,
     retry: false,
@@ -95,7 +96,7 @@ export function DiskUsagePanel({ isOpen, onClose, workingCopyPath }: DiskUsagePa
     onSuccess: () => {
       setCleanupError(null);
       void queryClient.invalidateQueries({ queryKey: pristineAnalysisKey(workingCopyPath) });
-      void queryClient.invalidateQueries({ queryKey: ['disk-usage:folder-size', workingCopyPath] });
+      void queryClient.invalidateQueries({ queryKey: diskUsageFolderSize(workingCopyPath) });
     },
     onError: (error: Error) => {
       setCleanupError(error.message === 'cancelled' ? null : error.message);
@@ -104,7 +105,7 @@ export function DiskUsagePanel({ isOpen, onClose, workingCopyPath }: DiskUsagePa
 
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: pristineAnalysisKey(workingCopyPath) });
-    void queryClient.invalidateQueries({ queryKey: ['disk-usage:folder-size', workingCopyPath] });
+    void queryClient.invalidateQueries({ queryKey: diskUsageFolderSize(workingCopyPath) });
   }, [queryClient, workingCopyPath]);
 
   const result = analysis.data;

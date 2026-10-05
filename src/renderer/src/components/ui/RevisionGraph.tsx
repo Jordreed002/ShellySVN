@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Popover } from './Popover';
 import { useQuery } from '@tanstack/react-query';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
+import { svnLogMergeHistory } from '@renderer/lib/queryKeys';
 import { buildRevisionGraph } from '../../lib/revisionGraph';
 import {
   X,
@@ -74,7 +75,7 @@ export function RevisionGraph({ isOpen, path, onClose }: RevisionGraphProps) {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['svn:log', path, 200, 'merge-history'],
+    queryKey: svnLogMergeHistory(path),
     queryFn: async ({ signal }) =>
       assertSuccessfulSvnRead(
         await window.api.svn.log(path, 200, undefined, undefined, true, { signal })

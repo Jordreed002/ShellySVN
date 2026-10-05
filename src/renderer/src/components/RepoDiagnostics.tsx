@@ -20,6 +20,11 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import type { RepoDiagnostics } from '@shared/types';
+import {
+  diagnostics as diagnosticsKey,
+  svnCommandTimeline,
+  workingCopyHealth,
+} from '@renderer/lib/queryKeys';
 import { redactDiagnosticText } from './ErrorBoundary/redaction';
 import { DialogBase } from './ui/DialogBase';
 import { WorkingCopyFixWizard } from './ui/WorkingCopyFixWizard';
@@ -131,18 +136,18 @@ export function RepoDiagnosticsPanel({
     error: queryError,
     refetch,
   } = useQuery({
-    queryKey: ['diagnostics', workingCopyPath],
+    queryKey: diagnosticsKey(workingCopyPath),
     queryFn: () => window.api.svn.diagnostics(workingCopyPath),
     staleTime: 30000, // 30 seconds
   });
   const healthQuery = useQuery({
-    queryKey: ['working-copy-health', workingCopyPath],
+    queryKey: workingCopyHealth(workingCopyPath),
     queryFn: () => window.api.svn.workingCopyHealth(workingCopyPath),
     enabled: typeof window.api.svn.workingCopyHealth === 'function',
     staleTime: 30_000,
   });
   const timelineQuery = useQuery({
-    queryKey: ['svn-command-timeline'],
+    queryKey: svnCommandTimeline(),
     queryFn: () => window.api.svn.commandTimeline(),
     enabled: typeof window.api.svn.commandTimeline === 'function',
     staleTime: 5_000,

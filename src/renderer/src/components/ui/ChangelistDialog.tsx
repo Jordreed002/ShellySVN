@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, List, Plus, AlertCircle, Loader2, FileText, Trash2, Unlink, Lightbulb } from 'lucide-react';
+import { svnChangelistList, svnStatus } from '@renderer/lib/queryKeys';
 import { ChangelistSuggestionsList } from './ChangelistSuggestionsPanel';
 
 interface ChangelistDialogProps {
@@ -25,7 +26,7 @@ export function ChangelistDialog({
 
   // Fetch existing changelists
   const { data: changelistData, isLoading } = useQuery({
-    queryKey: ['svn:changelist:list', path],
+    queryKey: svnChangelistList(path),
     queryFn: () => window.api.svn.changelist.list(path),
     enabled: isOpen && !!path,
   });
@@ -35,8 +36,8 @@ export function ChangelistDialog({
     mutationFn: ({ files, changelist }: { files: string[]; changelist: string }) =>
       window.api.svn.changelist.add(files, changelist),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['svn:changelist:list', path] });
-      queryClient.invalidateQueries({ queryKey: ['svn:status', path] });
+      queryClient.invalidateQueries({ queryKey: svnChangelistList(path) });
+      queryClient.invalidateQueries({ queryKey: svnStatus(path) });
       onClose();
     },
     onError: (err) => {
@@ -47,8 +48,8 @@ export function ChangelistDialog({
   const removeFromChangelist = useMutation({
     mutationFn: (files: string[]) => window.api.svn.changelist.remove(files),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['svn:changelist:list', path] });
-      queryClient.invalidateQueries({ queryKey: ['svn:status', path] });
+      queryClient.invalidateQueries({ queryKey: svnChangelistList(path) });
+      queryClient.invalidateQueries({ queryKey: svnStatus(path) });
     },
     onError: (err) => setError((err as Error).message || 'Failed to remove from changelist'),
   });
@@ -57,8 +58,8 @@ export function ChangelistDialog({
     mutationFn: (name: string) => window.api.svn.changelist.delete(name, path),
     onSuccess: () => {
       setSelectedChangelist(null);
-      queryClient.invalidateQueries({ queryKey: ['svn:changelist:list', path] });
-      queryClient.invalidateQueries({ queryKey: ['svn:status', path] });
+      queryClient.invalidateQueries({ queryKey: svnChangelistList(path) });
+      queryClient.invalidateQueries({ queryKey: svnStatus(path) });
     },
     onError: (err) => setError((err as Error).message || 'Failed to delete changelist'),
   });

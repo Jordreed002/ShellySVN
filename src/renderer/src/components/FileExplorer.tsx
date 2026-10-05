@@ -78,6 +78,17 @@ import {
   useFileExplorerDirectoryData,
 } from './files/useFileExplorerDirectoryData';
 import { resolveRemoteUpdateTarget } from './files/remoteUpdateTarget';
+import {
+  authSession,
+  fsGetDirectoryMetadata,
+  fsIsVersioned,
+  fsListDirectory,
+  svnCapabilities as svnCapabilitiesKey,
+  svnChildCommits,
+  svnInfo as svnInfoKey,
+  svnListFamily,
+  svnWorkingCopyUpgradeStatus,
+} from '@renderer/lib/queryKeys';
 import { isNotOnDisk } from './files/entryPresence';
 import { resolveRemoteUrlToLocalPath } from '../utils/pathResolution';
 import { useFileExplorerCommandEvents } from './files/useFileExplorerCommandEvents';
@@ -171,7 +182,7 @@ export function FileExplorer() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: svnCapabilities } = useQuery({
-    queryKey: ['svn:capabilities'],
+    queryKey: svnCapabilitiesKey(),
     queryFn: () => window.api.svn.capabilities(),
     staleTime: Infinity,
   });
@@ -386,8 +397,8 @@ export function FileExplorer() {
           type: 'info',
           message: 'Working copy upgraded successfully.',
         });
-        queryClient.invalidateQueries({ queryKey: ['svn:workingCopyUpgradeStatus', path] });
-        queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+        queryClient.invalidateQueries({ queryKey: svnWorkingCopyUpgradeStatus(path) });
+        queryClient.invalidateQueries({ queryKey: svnInfoKey(path) });
         invalidateCurrentPath();
       } else {
         await showAppMessage({
@@ -452,7 +463,7 @@ export function FileExplorer() {
   ]);
 
   const { data: storedCreds } = useQuery({
-    queryKey: ['auth', effectiveRepoRoot],
+    queryKey: authSession(effectiveRepoRoot ?? ''),
     queryFn: async () => {
       if (!effectiveRepoRoot) return null;
       try {
@@ -823,8 +834,8 @@ export function FileExplorer() {
     // the denial cached before the native picker granted access so both the
     // directory listing and its metadata are fetched again immediately.
     await Promise.all([
-      queryClient.resetQueries({ queryKey: ['fs:listDirectory', selectedPath], exact: true }),
-      queryClient.resetQueries({ queryKey: ['fs:getDirectoryMetadata', selectedPath] }),
+      queryClient.resetQueries({ queryKey: fsListDirectory(selectedPath), exact: true }),
+      queryClient.resetQueries({ queryKey: fsGetDirectoryMetadata(selectedPath) }),
     ]);
     handleNavigate(selectedPath);
   }, [handleNavigate, path, queryClient]);
@@ -893,7 +904,7 @@ export function FileExplorer() {
         if (!confirmed) return;
         await window.api.svn.unversion([entry.path]);
         invalidateCurrentPath();
-        queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+        queryClient.invalidateQueries({ queryKey: svnListFamily() });
       },
       onExclude: async (entry: SvnStatusEntry) => {
         // A right-click inside a multi-selection removes the whole selection,
@@ -934,11 +945,11 @@ export function FileExplorer() {
           }
         }
         invalidateCurrentPath();
-        queryClient.invalidateQueries({ queryKey: ['svn:list'] });
-        queryClient.invalidateQueries({ queryKey: ['fs:listDirectory'] });
+        queryClient.invalidateQueries({ queryKey: svnListFamily() });
+        queryClient.invalidateQueries({ queryKey: fsListDirectory() });
         // Re-read which children are excluded, so what was just removed comes
         // back as a "Not checked out" row instead of vanishing from the view.
-        queryClient.invalidateQueries({ queryKey: ['svn:childCommits'] });
+        queryClient.invalidateQueries({ queryKey: svnChildCommits() });
       },
       onAdd: async () => {
         if (selectedEntry) await actions.handleAddSelected();
@@ -1186,7 +1197,7 @@ export function FileExplorer() {
           );
           if (result.success) {
             invalidateCurrentPath();
-            queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+            queryClient.invalidateQueries({ queryKey: svnListFamily() });
           }
           return result;
         } catch (err) {
@@ -1201,7 +1212,7 @@ export function FileExplorer() {
           const result = await window.api.svn.updateItem(entry.path);
           if (result.success) {
             invalidateCurrentPath();
-            queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+            queryClient.invalidateQueries({ queryKey: svnListFamily() });
           }
           return result;
         } catch (err) {
@@ -1280,7 +1291,7 @@ export function FileExplorer() {
       }
 
       invalidateCurrentPath();
-      queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+      queryClient.invalidateQueries({ queryKey: svnListFamily() });
       return { success: true as const, revision };
     },
     [
@@ -1375,7 +1386,7 @@ export function FileExplorer() {
       // are all stale.
       clearSelection();
       invalidateCurrentPath();
-      queryClient.invalidateQueries({ queryKey: ['svn:list'] });
+      queryClient.invalidateQueries({ queryKey: svnListFamily() });
     } catch (err) {
       await showAppMessage({
         type: 'error',
@@ -1523,7 +1534,7 @@ export function FileExplorer() {
           localPath={path}
           onSwitched={() => {
             invalidateCurrentPath();
-            queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+            queryClient.invalidateQueries({ queryKey: svnInfoKey(path) });
           }}
           onCreateBranch={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.BRANCH_TAG))}
           onCreateTag={() => window.dispatchEvent(new CustomEvent(SVN_EVENTS.TAG))}
@@ -1586,8 +1597,8 @@ export function FileExplorer() {
           onExplorerViewModeChange={(mode) => void updateSettings({ explorerViewMode: mode })}
           onRefresh={() => {
             invalidateCurrentPath();
-            queryClient.invalidateQueries({ queryKey: ['fs:isVersioned', path] });
-            queryClient.invalidateQueries({ queryKey: ['svn:workingCopyUpgradeStatus', path] });
+            queryClient.invalidateQueries({ queryKey: fsIsVersioned(path) });
+            queryClient.invalidateQueries({ queryKey: svnWorkingCopyUpgradeStatus(path) });
           }}
           onUpdate={actions.handleUpdate}
           onCommit={actions.handleCommit}
@@ -2053,7 +2064,7 @@ export function FileExplorer() {
                 includeParents: false,
                 scope: 'directory',
               });
-              queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+              queryClient.invalidateQueries({ queryKey: svnInfoKey(path) });
             }}
           />
         </Suspense>
@@ -2120,7 +2131,7 @@ export function FileExplorer() {
                 includeParents: false,
                 scope: 'directory',
               });
-              queryClient.invalidateQueries({ queryKey: ['svn:info', path] });
+              queryClient.invalidateQueries({ queryKey: svnInfoKey(path) });
             }}
           />
         </Suspense>

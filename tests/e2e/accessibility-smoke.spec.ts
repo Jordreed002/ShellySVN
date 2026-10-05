@@ -111,17 +111,13 @@ const CONTRAST_DEBT: AxeRuleExclusion = {
   why: 'Dark-theme token debt: text-muted #727d8a on #161b22 (~4.1:1), kbd #727d8a on #30363d (~2.9:1), accent #6366f1 on dark (~3.9:1), text-faint #4d5866 (~2.1:1). Fixing means re-tuning the shared palette, not one component — reported to the renderer owners.',
 };
 
-/** App-chrome ARIA issues shared by every screen (TabBar). */
-const CHROME_ARIA_DEBT: AxeRuleExclusion[] = [
-  {
-    rule: 'aria-required-children',
-    why: 'TabBar puts the "new tab" button[aria-haspopup=menu] inside role="tablist" (layout/TabBar.tsx), whose allowed children are only role="tab". Reported.',
-  },
-  {
-    rule: 'region',
-    why: 'The same TabBar strip sits outside any landmark. Reported (moves inside <main> or gains role="navigation" with the tablist fix).',
-  },
-];
+/*
+ * TabBar's two former exclusions (aria-required-children, region) were fixed
+ * in layout/TabBar.tsx: the tablist now holds only role="tab" children and the
+ * strip is a named <nav> landmark, so both entries were removed after the axe
+ * audits passed without them.
+ */
+const CHROME_ARIA_DEBT: AxeRuleExclusion[] = [];
 
 test.describe('Accessibility smoke', () => {
   test.beforeEach(async ({ electronApp, page }) => {

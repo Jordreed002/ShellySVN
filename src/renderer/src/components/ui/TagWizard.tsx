@@ -35,6 +35,7 @@ import {
   type RecentTagTemplate,
 } from '@renderer/lib/tagTemplateStore';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { svnListTagWizard } from '@renderer/lib/queryKeys';
 
 /**
  * Tag / release wizard (#51): create tags from any revision.
@@ -154,7 +155,7 @@ export function TagWizard({
 
   // Existing tags in the destination — powers the bump buttons and duplicate check.
   const { data: tagsResult, error: tagsError } = useQuery({
-    queryKey: ['svn:list', destUrl, 'tag-wizard'],
+    queryKey: svnListTagWizard(destUrl),
     queryFn: async () =>
       assertSuccessfulSvnRead(await window.api.svn.list(destUrl, undefined, 'immediates')),
     enabled: isOpen && step !== 'source' && destUrl !== '',
@@ -718,7 +719,7 @@ function TagsDirectoryBrowser({ initialUrl, onSelect }: { initialUrl: string; on
   const [showParents, setShowParents] = useState(true);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['svn:list', currentUrl, 'tag-wizard-browser'],
+    queryKey: svnListTagWizard(currentUrl, 'tag-wizard-browser'),
     queryFn: async () =>
       assertSuccessfulSvnRead(await window.api.svn.list(currentUrl, undefined, 'immediates')),
     enabled: currentUrl !== '',

@@ -5,6 +5,7 @@ import { X, User, Search, Loader2, ExternalLink } from 'lucide-react';
 import { useIssueTrackerConfig } from '@renderer/hooks/useIssueTrackerConfig';
 import { extractIssueLinks, type IssueLink } from '@renderer/utils/issueTracker';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { svnBlame, svnLogBlameContext } from '@renderer/lib/queryKeys';
 
 interface BlameViewerProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ export function BlameViewer({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['svn:blame', filePath, startRevision, endRevision],
+    queryKey: svnBlame(filePath, startRevision, endRevision),
     queryFn: async ({ signal }): Promise<BlameLine[]> => {
       const startRev = startRevision ? parseInt(startRevision, 10) : undefined;
       const endRev = endRevision ? parseInt(endRevision, 10) : undefined;
@@ -88,7 +89,7 @@ export function BlameViewer({
   );
 
   const { data: logData } = useQuery({
-    queryKey: ['svn:log:blame-context', filePath, revisions.join(','), issueTrackerConfig],
+    queryKey: svnLogBlameContext(filePath, revisions.join(','), issueTrackerConfig),
     queryFn: async ({ signal }) =>
       assertSuccessfulSvnRead(
         await window.api.svn.log(

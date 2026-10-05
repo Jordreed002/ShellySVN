@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { onboarding } from '@renderer/lib/queryKeys';
 import type { OnboardingState } from './types';
 import { DEFAULT_ONBOARDING_STATE } from './types';
 
@@ -13,7 +14,7 @@ export function useOnboarding() {
 
   // Query to fetch onboarding state
   const { data: onboardingState, isLoading } = useQuery({
-    queryKey: ['onboarding'],
+    queryKey: onboarding(),
     queryFn: async (): Promise<OnboardingState> => {
       const stored = await window.api.store.get<OnboardingState>(ONBOARDING_STORAGE_KEY);
       return stored ? { ...DEFAULT_ONBOARDING_STATE, ...stored } : DEFAULT_ONBOARDING_STATE;
@@ -25,13 +26,13 @@ export function useOnboarding() {
   const updateMutation = useMutation({
     mutationFn: async (updates: Partial<OnboardingState>) => {
       const current =
-        queryClient.getQueryData<OnboardingState>(['onboarding']) || DEFAULT_ONBOARDING_STATE;
+        queryClient.getQueryData<OnboardingState>(onboarding()) || DEFAULT_ONBOARDING_STATE;
       const updated = { ...current, ...updates };
       await window.api.store.set(ONBOARDING_STORAGE_KEY, updated);
       return updated;
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(['onboarding'], updated);
+      queryClient.setQueryData(onboarding(), updated);
     },
   });
 
@@ -63,7 +64,7 @@ export function useOnboarding() {
   const completeStep = useCallback(
     async (stepId: string) => {
       const current =
-        queryClient.getQueryData<OnboardingState>(['onboarding']) || DEFAULT_ONBOARDING_STATE;
+        queryClient.getQueryData<OnboardingState>(onboarding()) || DEFAULT_ONBOARDING_STATE;
       if (current.completedSteps.includes(stepId)) return;
       await updateMutation.mutateAsync({
         completedSteps: [...current.completedSteps, stepId],

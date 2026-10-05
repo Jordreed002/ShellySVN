@@ -24,7 +24,13 @@ import { FolderSearch, FolderOpen, Loader2, AlertTriangle, CheckCircle2, Info } 
 import type { RelinkConfidence, RelinkMatchBasis, SvnInfoResult } from '@shared/types';
 
 import { DialogBase } from './DialogBase';
-import { keyTouchesPrefix, resetRepositoryQueries } from '@renderer/lib/queryKeys';
+import {
+  keyTouchesPrefix,
+  resetRepositoryQueries,
+  settings,
+  sidebarInfo,
+  sidebarOverview,
+} from '@renderer/lib/queryKeys';
 import { readCachedInfo } from '@renderer/utils/cachedSvnRead';
 import { shortenPath } from '@renderer/components/sidebar/sidebarData';
 
@@ -285,9 +291,9 @@ export function RelinkDialog({
         resetRepositoryQueries(queryClient, { previousRepoUrl: expectedIdentity.url });
       }
       resetRepositoryQueries(queryClient, { workingCopyPath: verification.path });
-      await queryClient.invalidateQueries({ queryKey: ['settings'] });
-      await queryClient.invalidateQueries({ queryKey: ['sidebar:overview'] });
-      await queryClient.invalidateQueries({ queryKey: ['sidebar:info'] });
+      await queryClient.invalidateQueries({ queryKey: settings() });
+      await queryClient.invalidateQueries({ queryKey: sidebarOverview() });
+      await queryClient.invalidateQueries({ queryKey: sidebarInfo() });
 
       setAppliedTo(verification.path);
       onApplied?.(oldPath, verification.path);

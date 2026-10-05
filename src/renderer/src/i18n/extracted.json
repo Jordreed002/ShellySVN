@@ -511,7 +511,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 495
+          "line": 496
         }
       ]
     },
@@ -1067,7 +1067,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 843
+          "line": 844
         }
       ]
     },
@@ -1087,7 +1087,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 228
+          "line": 234
         }
       ]
     },
@@ -1127,7 +1127,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 403
+          "line": 405
         },
         {
           "file": "src/renderer/src/components/ui/PluginManagerDialog.tsx",
@@ -1135,7 +1135,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 359
+          "line": 360
         },
         {
           "file": "src/renderer/src/components/ui/Toolbar.tsx",
@@ -1243,7 +1243,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 293
+          "line": 294
         }
       ]
     },
@@ -1369,7 +1369,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1093
+          "line": 1097
         }
       ]
     },
@@ -1379,7 +1379,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 977
+          "line": 981
         }
       ]
     },
@@ -1423,7 +1423,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 244
+          "line": 245
         }
       ]
     },
@@ -1433,7 +1433,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 440
+          "line": 445
         }
       ]
     },
@@ -1483,7 +1483,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1393
+          "line": 1394
         }
       ]
     },
@@ -1493,7 +1493,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 355
+          "line": 356
         }
       ]
     },
@@ -1669,7 +1669,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 312
+          "line": 313
         }
       ]
     },
@@ -1679,7 +1679,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1550
+          "line": 1551
         }
       ]
     },
@@ -1689,7 +1689,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 136
+          "line": 143
         }
       ]
     },
@@ -1729,7 +1729,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 209
+          "line": 210
         }
       ]
     },
@@ -1947,7 +1947,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 423
+          "line": 428
         }
       ]
     },
@@ -1997,7 +1997,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 289
+          "line": 290
         }
       ]
     },
@@ -2047,7 +2047,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 338
+          "line": 339
         }
       ]
     },
@@ -2057,7 +2057,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 442
+          "line": 443
         }
       ]
     },
@@ -2127,7 +2127,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 438
+          "line": 439
         }
       ]
     },
@@ -2137,7 +2137,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 216
+          "line": 217
         }
       ]
     },
@@ -2151,7 +2151,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 424
+          "line": 425
         }
       ]
     },
@@ -2185,7 +2185,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 441
+          "line": 447
         }
       ]
     },
@@ -2243,7 +2243,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 304
+          "line": 305
         }
       ]
     },
@@ -2297,7 +2297,7 @@
         },
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 656
+          "line": 661
         },
         {
           "file": "src/renderer/src/components/ui/AddRepoModal.tsx",
@@ -2329,7 +2329,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 558
+          "line": 563
         },
         {
           "file": "src/renderer/src/components/ui/AddRepoModal.tsx",
@@ -2399,7 +2399,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 255
+          "line": 256
         }
       ]
     },
@@ -2419,7 +2419,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 230
+          "line": 231
         }
       ]
     },
@@ -2439,7 +2439,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1100
+          "line": 1101
         }
       ]
     },
@@ -2479,7 +2479,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 198
+          "line": 199
         }
       ]
     },
@@ -2509,7 +2509,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 460
+          "line": 461
         }
       ]
     },
@@ -2547,7 +2547,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1570
+          "line": 1571
         },
         {
           "file": "src/renderer/src/components/ui/ExportDialog.tsx",
@@ -2563,7 +2563,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 107
+          "line": 108
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/RepoNavBar.tsx",
@@ -2587,7 +2587,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 417
+          "line": 418
         }
       ]
     },
@@ -2681,7 +2681,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1177
+          "line": 1178
         }
       ]
     },
@@ -2789,7 +2789,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 850
+          "line": 851
         }
       ]
     },
@@ -2819,7 +2819,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 286
+          "line": 349
         }
       ]
     },
@@ -3083,7 +3083,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 554
+          "line": 556
         }
       ]
     },
@@ -3187,7 +3187,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 471
+          "line": 472
         }
       ]
     },
@@ -3301,7 +3301,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 115
+          "line": 116
         }
       ]
     },
@@ -3321,7 +3321,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/MillerColumns.tsx",
-          "line": 119
+          "line": 120
         }
       ]
     },
@@ -3341,7 +3341,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 553
+          "line": 554
         }
       ]
     },
@@ -3491,7 +3491,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 323
+          "line": 329
         }
       ]
     },
@@ -3521,7 +3521,7 @@
         },
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 246
+          "line": 252
         },
         {
           "file": "src/renderer/src/components/settings/AddProviderDialog.tsx",
@@ -3557,7 +3557,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ChangelistDialog.tsx",
-          "line": 302
+          "line": 303
         },
         {
           "file": "src/renderer/src/components/ui/CheckoutDialog.tsx",
@@ -3581,7 +3581,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 942
+          "line": 943
         },
         {
           "file": "src/renderer/src/components/ui/CreatePatchDialog.tsx",
@@ -3601,11 +3601,11 @@
         },
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 507
+          "line": 509
         },
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 550
+          "line": 552
         },
         {
           "file": "src/renderer/src/components/ui/MoveRenameDialog.tsx",
@@ -3649,7 +3649,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 143
+          "line": 144
         },
         {
           "file": "src/renderer/src/components/ui/SwitchDialog.tsx",
@@ -3697,11 +3697,11 @@
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1058
+          "line": 1062
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1145
+          "line": 1149
         }
       ]
     },
@@ -3789,7 +3789,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 399
+          "line": 400
         }
       ]
     },
@@ -3869,7 +3869,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 36
+          "line": 41
         }
       ]
     },
@@ -3879,7 +3879,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 643
+          "line": 644
         }
       ]
     },
@@ -3889,7 +3889,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 40
+          "line": 45
         }
       ]
     },
@@ -3899,7 +3899,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 659
+          "line": 663
         }
       ]
     },
@@ -3909,7 +3909,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 38
+          "line": 43
         }
       ]
     },
@@ -4061,7 +4061,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistDialog.tsx",
-          "line": 113
+          "line": 114
         }
       ]
     },
@@ -4071,7 +4071,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistDialog.tsx",
-          "line": 258
+          "line": 259
         }
       ]
     },
@@ -4391,7 +4391,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 261
+          "line": 275
         }
       ]
     },
@@ -4401,7 +4401,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1456
+          "line": 1467
         }
       ]
     },
@@ -4421,7 +4421,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1464
+          "line": 1475
         }
       ]
     },
@@ -4431,7 +4431,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 344
+          "line": 350
         }
       ]
     },
@@ -4487,7 +4487,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1319
+          "line": 1320
         }
       ]
     },
@@ -4507,7 +4507,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 692
+          "line": 693
         }
       ]
     },
@@ -4571,7 +4571,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1800
+          "line": 1811
         },
         {
           "file": "src/renderer/src/components/history/LogFilterBar.tsx",
@@ -4583,7 +4583,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 559
+          "line": 560
         },
         {
           "file": "src/renderer/src/features/ai-review-center/AiReviewCenter.tsx",
@@ -4671,11 +4671,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 377
+          "line": 382
         },
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 378
+          "line": 383
         }
       ]
     },
@@ -4807,7 +4807,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1797
+          "line": 1808
         }
       ]
     },
@@ -4939,7 +4939,7 @@
         },
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 665
+          "line": 670
         },
         {
           "file": "src/renderer/src/components/ui/CommitTemplateManager.tsx",
@@ -4951,7 +4951,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 320
+          "line": 321
         },
         {
           "file": "src/renderer/src/components/ui/KeyboardShortcutsDialog.tsx",
@@ -4959,7 +4959,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 469
+          "line": 471
         },
         {
           "file": "src/renderer/src/components/ui/PluginManagerDialog.tsx",
@@ -4971,7 +4971,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 118
+          "line": 119
         },
         {
           "file": "src/renderer/src/components/ui/WorkingCopyFixWizard.tsx",
@@ -5071,7 +5071,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 525
+          "line": 526
         }
       ]
     },
@@ -5101,7 +5101,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 297
+          "line": 310
         }
       ]
     },
@@ -5171,11 +5171,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 197
+          "line": 205
         },
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 285
+          "line": 298
         }
       ]
     },
@@ -5307,11 +5307,11 @@
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1033
+          "line": 1037
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1120
+          "line": 1124
         }
       ]
     },
@@ -5321,7 +5321,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 370
+          "line": 375
         }
       ]
     },
@@ -5361,7 +5361,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 374
+          "line": 376
         }
       ]
     },
@@ -5371,7 +5371,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1769
+          "line": 1780
         },
         {
           "file": "src/renderer/src/components/tutorial/CommitUpdateStep.tsx",
@@ -5471,11 +5471,11 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 575
+          "line": 576
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 585
+          "line": 586
         }
       ]
     },
@@ -5555,7 +5555,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1766
+          "line": 1777
         }
       ]
     },
@@ -5679,7 +5679,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1244
+          "line": 1245
         }
       ]
     },
@@ -5859,7 +5859,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 529
+          "line": 531
         }
       ]
     },
@@ -5889,7 +5889,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 389
+          "line": 390
         }
       ]
     },
@@ -5899,7 +5899,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 485
+          "line": 487
         }
       ]
     },
@@ -5979,7 +5979,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 738
+          "line": 739
         }
       ]
     },
@@ -6019,7 +6019,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 599
+          "line": 604
         },
         {
           "file": "src/renderer/src/components/settings/SettingsPanels.tsx",
@@ -6093,7 +6093,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 146
+          "line": 153
         }
       ]
     },
@@ -6133,7 +6133,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 28
+          "line": 40
         }
       ]
     },
@@ -6183,7 +6183,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 102
+          "line": 108
         }
       ]
     },
@@ -6203,7 +6203,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 243
+          "line": 244
         }
       ]
     },
@@ -6257,7 +6257,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 145
+          "line": 152
         }
       ]
     },
@@ -6327,7 +6327,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 151
+          "line": 158
         }
       ]
     },
@@ -6387,7 +6387,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 148
+          "line": 155
         }
       ]
     },
@@ -6507,7 +6507,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 30
+          "line": 31
         }
       ]
     },
@@ -6567,7 +6567,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 62
+          "line": 63
         }
       ]
     },
@@ -6647,7 +6647,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 94
+          "line": 95
         }
       ]
     },
@@ -6697,7 +6697,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 147
+          "line": 154
         }
       ]
     },
@@ -6747,7 +6747,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 258
+          "line": 259
         }
       ]
     },
@@ -6777,7 +6777,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 217
+          "line": 218
         }
       ]
     },
@@ -6787,7 +6787,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 50
+          "line": 51
         }
       ]
     },
@@ -6867,7 +6867,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 626
+          "line": 631
         }
       ]
     },
@@ -6877,7 +6877,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 367
+          "line": 368
         }
       ]
     },
@@ -6901,7 +6901,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 344
+          "line": 345
         }
       ]
     },
@@ -6911,7 +6911,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1791
+          "line": 1802
         }
       ]
     },
@@ -6921,11 +6921,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 227
+          "line": 232
         },
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 228
+          "line": 233
         }
       ]
     },
@@ -6995,7 +6995,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1786
+          "line": 1797
         }
       ]
     },
@@ -7035,7 +7035,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 266
+          "line": 272
         }
       ]
     },
@@ -7085,7 +7085,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 311
+          "line": 312
         }
       ]
     },
@@ -7095,7 +7095,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 986
+          "line": 990
         }
       ]
     },
@@ -7105,7 +7105,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 188
+          "line": 189
         }
       ]
     },
@@ -7145,7 +7145,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistDialog.tsx",
-          "line": 245
+          "line": 246
         }
       ]
     },
@@ -7165,7 +7165,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 345
+          "line": 346
         }
       ]
     },
@@ -7175,7 +7175,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 296
+          "line": 297
         }
       ]
     },
@@ -7195,7 +7195,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 354
+          "line": 355
         }
       ]
     },
@@ -7255,7 +7255,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 564
+          "line": 569
         }
       ]
     },
@@ -7389,7 +7389,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 145
+          "line": 146
         }
       ]
     },
@@ -7499,7 +7499,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 526
+          "line": 527
         }
       ]
     },
@@ -7609,7 +7609,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 256
+          "line": 257
         }
       ]
     },
@@ -7689,7 +7689,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 139
+          "line": 146
         }
       ]
     },
@@ -7739,7 +7739,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 857
+          "line": 858
         }
       ]
     },
@@ -7759,7 +7759,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 863
+          "line": 864
         }
       ]
     },
@@ -7769,7 +7769,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 42
+          "line": 47
         }
       ]
     },
@@ -7829,7 +7829,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1417
+          "line": 1418
         }
       ]
     },
@@ -7839,7 +7839,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1506
+          "line": 1507
         }
       ]
     },
@@ -7897,7 +7897,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 239
+          "line": 240
         }
       ]
     },
@@ -7927,7 +7927,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 293
+          "line": 299
         }
       ]
     },
@@ -7973,7 +7973,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1014
+          "line": 1015
         }
       ]
     },
@@ -8061,7 +8061,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 153
+          "line": 154
         }
       ]
     },
@@ -8111,7 +8111,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 271
+          "line": 276
         }
       ]
     },
@@ -8275,7 +8275,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 819
+          "line": 820
         }
       ]
     },
@@ -8285,7 +8285,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 683
+          "line": 687
         }
       ]
     },
@@ -8295,7 +8295,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 790
+          "line": 791
         }
       ]
     },
@@ -8325,7 +8325,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1775
+          "line": 1786
         }
       ]
     },
@@ -8345,7 +8345,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1355
+          "line": 1356
         }
       ]
     },
@@ -8389,11 +8389,11 @@
         },
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 298
+          "line": 300
         },
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 317
+          "line": 319
         },
         {
           "file": "src/renderer/src/components/ui/PluginManagerDialog.tsx",
@@ -8435,7 +8435,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 271
+          "line": 272
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/ShelfDialog.tsx",
@@ -8489,7 +8489,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 288
+          "line": 289
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/ShelfDialog.tsx",
@@ -8513,7 +8513,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 104
+          "line": 105
         }
       ]
     },
@@ -8691,7 +8691,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 331
+          "line": 332
         },
         {
           "file": "src/renderer/src/components/ui/BranchTagDialog.tsx",
@@ -8699,7 +8699,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 309
+          "line": 310
         },
         {
           "file": "src/renderer/src/components/ui/CheckoutDialog.tsx",
@@ -8727,7 +8727,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 369
+          "line": 370
         },
         {
           "file": "src/renderer/src/components/ui/RelocateDialog.tsx",
@@ -8739,19 +8739,19 @@
         },
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 572
+          "line": 573
         },
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 564
+          "line": 565
         },
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 305
+          "line": 306
         },
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 256
+          "line": 257
         },
         {
           "file": "src/renderer/src/components/ui/SwitchDialog.tsx",
@@ -8759,7 +8759,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 326
+          "line": 327
         },
         {
           "file": "src/renderer/src/components/ui/UpdateToRevisionDialog.tsx",
@@ -8913,7 +8913,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1085
+          "line": 1089
         }
       ]
     },
@@ -8953,7 +8953,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 662
+          "line": 663
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/MergeDialog.tsx",
@@ -8967,7 +8967,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 516
+          "line": 517
         }
       ]
     },
@@ -8997,7 +8997,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 480
+          "line": 481
         }
       ]
     },
@@ -9089,7 +9089,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 253
+          "line": 315
         }
       ]
     },
@@ -9169,7 +9169,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/MillerColumns.tsx",
-          "line": 284
+          "line": 285
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/RepoContents.tsx",
@@ -9287,7 +9287,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 446
+          "line": 451
         }
       ]
     },
@@ -9321,7 +9321,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 440
+          "line": 441
         }
       ]
     },
@@ -9331,7 +9331,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 149
+          "line": 150
         }
       ]
     },
@@ -9381,7 +9381,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 150
+          "line": 151
         }
       ]
     },
@@ -9391,7 +9391,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/MillerColumns.tsx",
-          "line": 282
+          "line": 283
         }
       ]
     },
@@ -9426,12 +9426,22 @@
       ]
     },
     {
+      "key": "entry.undefined.return",
+      "text": "entry !== undefined); return (",
+      "occurrences": [
+        {
+          "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
+          "line": 181
+        }
+      ]
+    },
+    {
       "key": "error",
       "text": ") : error ? (",
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 244
+          "line": 245
         },
         {
           "file": "src/renderer/src/components/ui/FilePreview.tsx",
@@ -9443,7 +9453,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 786
+          "line": 787
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/RepoDetailPane.tsx",
@@ -9550,12 +9560,22 @@
       ]
     },
     {
+      "key": "every.loaded.revision.is.filtered.out.clear.or.loosen.the.filters.or.load.older.revisions.if.the.match.lies.further.back.in.history",
+      "text": "Every loaded revision is filtered out. Clear or loosen the filters — or load older revisions if the match lies further back in history.",
+      "occurrences": [
+        {
+          "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
+          "line": 193
+        }
+      ]
+    },
+    {
       "key": "exact.command.to.run",
       "text": "Exact command to run",
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 616
+          "line": 617
         }
       ]
     },
@@ -9595,7 +9615,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/MillerColumns.tsx",
-          "line": 343
+          "line": 344
         }
       ]
     },
@@ -9615,7 +9635,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistDialog.tsx",
-          "line": 158
+          "line": 159
         }
       ]
     },
@@ -9635,7 +9655,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 194
+          "line": 195
         }
       ]
     },
@@ -9703,7 +9723,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 205
+          "line": 206
         }
       ]
     },
@@ -9887,7 +9907,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1367
+          "line": 1368
         },
         {
           "file": "src/renderer/src/components/ui/ResolveDialog.tsx",
@@ -9995,7 +10015,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 246
+          "line": 247
         }
       ]
     },
@@ -10049,7 +10069,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 267
+          "line": 272
         }
       ]
     },
@@ -10059,7 +10079,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 260
+          "line": 261
         }
       ]
     },
@@ -10079,7 +10099,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 980
+          "line": 984
         }
       ]
     },
@@ -10089,7 +10109,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1478
+          "line": 1489
         }
       ]
     },
@@ -10099,7 +10119,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 275
+          "line": 338
         }
       ]
     },
@@ -10123,7 +10143,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 415
+          "line": 422
         }
       ]
     },
@@ -10133,7 +10153,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 666
+          "line": 667
         }
       ]
     },
@@ -10173,7 +10193,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 255
+          "line": 256
         }
       ]
     },
@@ -10183,7 +10203,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 723
+          "line": 724
         }
       ]
     },
@@ -10223,7 +10243,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 485
+          "line": 486
         },
         {
           "file": "src/renderer/src/components/ui/ResolveDialog.tsx",
@@ -10289,7 +10309,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 586
+          "line": 587
         }
       ]
     },
@@ -10331,7 +10351,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 356
+          "line": 357
         }
       ]
     },
@@ -10473,7 +10493,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 246
+          "line": 247
         }
       ]
     },
@@ -10503,7 +10523,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 49
+          "line": 50
         }
       ]
     },
@@ -10557,7 +10577,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1555
+          "line": 1556
         }
       ]
     },
@@ -10641,7 +10661,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 298
+          "line": 303
         }
       ]
     },
@@ -10823,7 +10843,7 @@
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 992
+          "line": 996
         }
       ]
     },
@@ -11023,7 +11043,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 134
+          "line": 135
         }
       ]
     },
@@ -11165,7 +11185,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 204
+          "line": 205
         }
       ]
     },
@@ -11195,7 +11215,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 202
+          "line": 208
         }
       ]
     },
@@ -11215,7 +11235,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 145
+          "line": 146
         }
       ]
     },
@@ -11235,7 +11255,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 85
+          "line": 86
         }
       ]
     },
@@ -11327,11 +11347,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 865
+          "line": 869
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 866
+          "line": 870
         }
       ]
     },
@@ -11485,7 +11505,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1014
+          "line": 1018
         }
       ]
     },
@@ -11565,7 +11585,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 31
+          "line": 32
         }
       ]
     },
@@ -11585,7 +11605,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 123
+          "line": 128
         }
       ]
     },
@@ -11725,7 +11745,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 450
+          "line": 451
         },
         {
           "file": "src/renderer/src/components/ui/VirtualizedDiffViewer.tsx",
@@ -11831,7 +11851,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 542
+          "line": 543
         }
       ]
     },
@@ -12021,7 +12041,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 193
+          "line": 194
         }
       ]
     },
@@ -12151,7 +12171,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 443
+          "line": 449
         }
       ]
     },
@@ -12161,7 +12181,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 984
+          "line": 988
         }
       ]
     },
@@ -12171,7 +12191,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 157
+          "line": 158
         }
       ]
     },
@@ -12181,7 +12201,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1089
+          "line": 1093
         }
       ]
     },
@@ -12231,7 +12251,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 179
+          "line": 180
         }
       ]
     },
@@ -12275,7 +12295,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 290
+          "line": 295
         }
       ]
     },
@@ -12315,7 +12335,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 358
+          "line": 359
         },
         {
           "file": "src/renderer/src/components/ui/CommitDialog.tsx",
@@ -12375,7 +12395,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 254
+          "line": 255
         },
         {
           "file": "src/renderer/src/components/ui/LogViewer.tsx",
@@ -12509,7 +12529,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 834
+          "line": 835
         }
       ]
     },
@@ -12529,7 +12549,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1108
+          "line": 1112
         }
       ]
     },
@@ -12539,7 +12559,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/MillerColumns.tsx",
-          "line": 130
+          "line": 131
         }
       ]
     },
@@ -12641,11 +12661,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 281
+          "line": 282
         },
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 282
+          "line": 283
         }
       ]
     },
@@ -12779,7 +12799,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 399
+          "line": 400
         }
       ]
     },
@@ -12857,7 +12877,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 252
+          "line": 253
         }
       ]
     },
@@ -12959,7 +12979,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1936
+          "line": 1947
         }
       ]
     },
@@ -12989,7 +13009,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 324
+          "line": 330
         }
       ]
     },
@@ -13039,7 +13059,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 280
+          "line": 343
         }
       ]
     },
@@ -13121,7 +13141,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1477
+          "line": 1488
         }
       ]
     },
@@ -13171,7 +13191,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 241
+          "line": 243
         }
       ]
     },
@@ -13181,7 +13201,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 238
+          "line": 240
         }
       ]
     },
@@ -13427,7 +13447,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 280
+          "line": 286
         }
       ]
     },
@@ -13437,7 +13457,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 288
+          "line": 290
         }
       ]
     },
@@ -13447,7 +13467,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 342
+          "line": 344
         }
       ]
     },
@@ -13457,7 +13477,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 198
+          "line": 200
         }
       ]
     },
@@ -13467,7 +13487,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 387
+          "line": 389
         }
       ]
     },
@@ -13477,7 +13497,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 317
+          "line": 323
         }
       ]
     },
@@ -13507,11 +13527,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 209
+          "line": 211
         },
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 233
+          "line": 235
         }
       ]
     },
@@ -13521,7 +13541,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 359
+          "line": 361
         }
       ]
     },
@@ -13531,7 +13551,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 242
+          "line": 244
         }
       ]
     },
@@ -13653,7 +13673,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1401
+          "line": 1412
         }
       ]
     },
@@ -13673,7 +13693,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 265
+          "line": 266
         }
       ]
     },
@@ -13683,7 +13703,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 47
+          "line": 48
         }
       ]
     },
@@ -13757,7 +13777,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/useWorkingCopyTree.ts",
-          "line": 146
+          "line": 147
         },
         {
           "file": "src/renderer/src/components/ui/VirtualizedList.tsx",
@@ -13791,7 +13811,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1389
+          "line": 1390
         },
         {
           "file": "src/renderer/src/components/ui/ResolveDialog.tsx",
@@ -13865,7 +13885,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 325
+          "line": 331
         }
       ]
     },
@@ -13925,7 +13945,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 173
+          "line": 174
         }
       ]
     },
@@ -14083,7 +14103,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 257
+          "line": 258
         },
         {
           "file": "src/renderer/src/components/ui/LogViewer.tsx",
@@ -14111,7 +14131,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 124
+          "line": 125
         }
       ]
     },
@@ -14181,7 +14201,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 266
+          "line": 267
         }
       ]
     },
@@ -14379,7 +14399,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1340
+          "line": 1341
         }
       ]
     },
@@ -14417,7 +14437,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 353
+          "line": 354
         }
       ]
     },
@@ -14427,7 +14447,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 314
+          "line": 325
         }
       ]
     },
@@ -14447,7 +14467,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 489
+          "line": 490
         }
       ]
     },
@@ -14517,7 +14537,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 231
+          "line": 232
         }
       ]
     },
@@ -14527,7 +14547,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 64
+          "line": 65
         }
       ]
     },
@@ -14585,7 +14605,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 178
+          "line": 184
         },
         {
           "file": "src/renderer/src/components/home/HomeSections.tsx",
@@ -14733,7 +14753,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 285
+          "line": 286
         }
       ]
     },
@@ -14771,7 +14791,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 164
+          "line": 165
         }
       ]
     },
@@ -14801,7 +14821,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 165
+          "line": 166
         }
       ]
     },
@@ -14891,7 +14911,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 217
+          "line": 231
         }
       ]
     },
@@ -14967,7 +14987,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1580
+          "line": 1581
         },
         {
           "file": "src/renderer/src/components/ui/ExportDialog.tsx",
@@ -14987,7 +15007,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 651
+          "line": 652
         }
       ]
     },
@@ -15017,7 +15037,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1426
+          "line": 1427
         }
       ]
     },
@@ -15067,7 +15087,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 192
+          "line": 193
         }
       ]
     },
@@ -15181,7 +15201,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 584
+          "line": 589
         }
       ]
     },
@@ -15191,7 +15211,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 282
+          "line": 288
         }
       ]
     },
@@ -15345,7 +15365,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 249
+          "line": 251
         }
       ]
     },
@@ -15355,7 +15375,17 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 171
+          "line": 233
+        }
+      ]
+    },
+    {
+      "key": "no.matching.revisions",
+      "text": "No matching revisions",
+      "occurrences": [
+        {
+          "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
+          "line": 191
         }
       ]
     },
@@ -15445,7 +15475,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 310
+          "line": 311
         }
       ]
     },
@@ -15525,7 +15555,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 233
+          "line": 247
         }
       ]
     },
@@ -15545,7 +15575,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 248
+          "line": 249
         }
       ]
     },
@@ -15555,7 +15585,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 373
+          "line": 374
         }
       ]
     },
@@ -15569,7 +15599,7 @@
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 123
+          "line": 165
         }
       ]
     },
@@ -15609,11 +15639,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 344
+          "line": 345
         },
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 187
+          "line": 188
         }
       ]
     },
@@ -15623,7 +15653,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 792
+          "line": 793
         }
       ]
     },
@@ -15711,7 +15741,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 326
+          "line": 331
         }
       ]
     },
@@ -15731,7 +15761,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 317
+          "line": 318
         }
       ]
     },
@@ -15771,7 +15801,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 369
+          "line": 370
         }
       ]
     },
@@ -15781,7 +15811,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 73
+          "line": 79
         }
       ]
     },
@@ -15815,11 +15845,11 @@
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 986
+          "line": 990
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1090
+          "line": 1094
         }
       ]
     },
@@ -15829,7 +15859,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 515
+          "line": 520
         }
       ]
     },
@@ -15839,7 +15869,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/MillerColumns.tsx",
-          "line": 345
+          "line": 346
         },
         {
           "file": "src/renderer/src/components/ui/FileRow.tsx",
@@ -15921,7 +15951,7 @@
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 675
+          "line": 679
         }
       ]
     },
@@ -15969,7 +15999,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 302
+          "line": 303
         }
       ]
     },
@@ -15979,7 +16009,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 176
+          "line": 177
         }
       ]
     },
@@ -15989,7 +16019,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 165
+          "line": 166
         }
       ]
     },
@@ -16013,7 +16043,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 263
+          "line": 264
         }
       ]
     },
@@ -16043,7 +16073,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 65
+          "line": 66
         }
       ]
     },
@@ -16053,7 +16083,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 69
+          "line": 70
         },
         {
           "file": "src/renderer/src/components/ui/PluginManagerDialog.tsx",
@@ -16067,7 +16097,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 66
+          "line": 67
         }
       ]
     },
@@ -16077,7 +16107,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 229
+          "line": 230
         }
       ]
     },
@@ -16087,7 +16117,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 180
+          "line": 187
         }
       ]
     },
@@ -16107,7 +16137,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 185
+          "line": 186
         }
       ]
     },
@@ -16127,7 +16157,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 163
+          "line": 170
         }
       ]
     },
@@ -16137,7 +16167,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 164
+          "line": 171
         }
       ]
     },
@@ -16147,7 +16177,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 160
+          "line": 167
         },
         {
           "file": "src/renderer/src/components/ui/ThreeWayMergeEditor.tsx",
@@ -16161,7 +16191,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 165
+          "line": 172
         }
       ]
     },
@@ -16171,7 +16201,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 161
+          "line": 168
         }
       ]
     },
@@ -16201,7 +16231,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 162
+          "line": 169
         }
       ]
     },
@@ -16261,7 +16291,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 96
+          "line": 97
         }
       ]
     },
@@ -16291,7 +16321,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 268
+          "line": 269
         }
       ]
     },
@@ -16391,7 +16421,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 40
+          "line": 41
         }
       ]
     },
@@ -16401,7 +16431,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 122
+          "line": 128
         }
       ]
     },
@@ -16481,7 +16511,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 172
+          "line": 179
         }
       ]
     },
@@ -16641,7 +16671,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/hooks/useIncrementalStatus.ts",
-          "line": 98
+          "line": 99
         }
       ]
     },
@@ -16681,7 +16711,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 73
+          "line": 74
         },
         {
           "file": "src/renderer/src/components/ui/PluginManagerDialog.tsx",
@@ -16745,7 +16775,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 60
+          "line": 61
         }
       ]
     },
@@ -16755,7 +16785,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 126
+          "line": 127
         }
       ]
     },
@@ -16895,7 +16925,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 186
+          "line": 187
         }
       ]
     },
@@ -16935,7 +16965,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistDialog.tsx",
-          "line": 21
+          "line": 22
         }
       ]
     },
@@ -17061,7 +17091,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 251
+          "line": 252
         }
       ]
     },
@@ -17081,7 +17111,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 154
+          "line": 161
         }
       ]
     },
@@ -17155,7 +17185,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/hooks/useIncrementalStatus.ts",
-          "line": 95
+          "line": 96
         }
       ]
     },
@@ -17165,7 +17195,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 118
+          "line": 124
         }
       ]
     },
@@ -17277,7 +17307,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 249
+          "line": 250
         }
       ]
     },
@@ -17287,7 +17317,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 250
+          "line": 251
         }
       ]
     },
@@ -17337,7 +17367,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 59
+          "line": 60
         }
       ]
     },
@@ -17417,7 +17447,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 97
+          "line": 98
         }
       ]
     },
@@ -17487,7 +17517,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 158
+          "line": 165
         }
       ]
     },
@@ -17567,7 +17597,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 256
+          "line": 257
         }
       ]
     },
@@ -17577,7 +17607,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 255
+          "line": 256
         }
       ]
     },
@@ -17611,7 +17641,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 127
+          "line": 128
         }
       ]
     },
@@ -17645,7 +17675,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 259
+          "line": 260
         }
       ]
     },
@@ -17655,7 +17685,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 261
+          "line": 262
         }
       ]
     },
@@ -17665,7 +17695,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 260
+          "line": 261
         }
       ]
     },
@@ -17735,7 +17765,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 199
+          "line": 200
         }
       ]
     },
@@ -17745,7 +17775,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 63
+          "line": 64
         }
       ]
     },
@@ -17957,7 +17987,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 129
+          "line": 136
         }
       ]
     },
@@ -18007,7 +18037,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 70
+          "line": 71
         }
       ]
     },
@@ -18027,7 +18057,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 61
+          "line": 62
         }
       ]
     },
@@ -18057,7 +18087,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 130
+          "line": 137
         }
       ]
     },
@@ -18107,7 +18137,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 170
+          "line": 177
         }
       ]
     },
@@ -18117,7 +18147,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 128
+          "line": 135
         },
         {
           "file": "src/renderer/src/components/ui/ApplyPatchDialog.tsx",
@@ -18149,7 +18179,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 97
+          "line": 98
         },
         {
           "file": "src/renderer/src/components/ui/UpdateToRevisionDialog.tsx",
@@ -18213,7 +18243,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 178
+          "line": 179
         }
       ]
     },
@@ -18267,7 +18297,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 117
+          "line": 123
         }
       ]
     },
@@ -18337,7 +18367,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 124
+          "line": 130
         }
       ]
     },
@@ -18531,7 +18561,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 176
+          "line": 177
         }
       ]
     },
@@ -18541,7 +18571,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 174
+          "line": 175
         }
       ]
     },
@@ -18551,7 +18581,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 172
+          "line": 173
         }
       ]
     },
@@ -18611,7 +18641,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 385
+          "line": 386
         }
       ]
     },
@@ -18651,7 +18681,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 310
+          "line": 316
         }
       ]
     },
@@ -18809,7 +18839,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1002
+          "line": 1006
         }
       ]
     },
@@ -18901,7 +18931,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 214
+          "line": 228
         }
       ]
     },
@@ -18971,7 +19001,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 612
+          "line": 613
         }
       ]
     },
@@ -19031,7 +19061,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 318
+          "line": 319
         }
       ]
     },
@@ -19255,7 +19285,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 431
+          "line": 432
         }
       ]
     },
@@ -19429,7 +19459,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 242
+          "line": 243
         }
       ]
     },
@@ -19469,7 +19499,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 350
+          "line": 352
         }
       ]
     },
@@ -19489,7 +19519,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 263
+          "line": 264
         }
       ]
     },
@@ -19499,7 +19529,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 755
+          "line": 756
         }
       ]
     },
@@ -19675,7 +19705,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 256
+          "line": 257
         }
       ]
     },
@@ -19685,7 +19715,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 316
+          "line": 317
         }
       ]
     },
@@ -19705,7 +19735,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 306
+          "line": 307
         }
       ]
     },
@@ -19883,11 +19913,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1517
+          "line": 1518
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1532
+          "line": 1533
         }
       ]
     },
@@ -19897,7 +19927,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 149
+          "line": 150
         }
       ]
     },
@@ -19967,7 +19997,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 851
+          "line": 852
         }
       ]
     },
@@ -20201,7 +20231,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 554
+          "line": 555
         }
       ]
     },
@@ -20377,7 +20407,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1224
+          "line": 1225
         }
       ]
     },
@@ -20397,7 +20427,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 473
+          "line": 474
         }
       ]
     },
@@ -20457,7 +20487,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 201
+          "line": 202
         }
       ]
     },
@@ -20481,7 +20511,7 @@
         },
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 64
+          "line": 71
         },
         {
           "file": "src/renderer/src/components/history/useLogViewState.tsx",
@@ -20725,11 +20755,11 @@
         },
         {
           "file": "src/renderer/src/lib/queryKeys.ts",
-          "line": 274
+          "line": 378
         },
         {
           "file": "src/renderer/src/lib/queryKeys.ts",
-          "line": 277
+          "line": 381
         },
         {
           "file": "src/renderer/src/lib/queryTimeout.ts",
@@ -20917,7 +20947,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1186
+          "line": 1187
         }
       ]
     },
@@ -21081,7 +21111,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 261
+          "line": 266
         }
       ]
     },
@@ -21091,7 +21121,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 825
+          "line": 826
         }
       ]
     },
@@ -21101,11 +21131,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 189
+          "line": 190
         },
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 237
+          "line": 238
         }
       ]
     },
@@ -21115,7 +21145,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 192
+          "line": 193
         }
       ]
     },
@@ -21213,7 +21243,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 133
+          "line": 134
         }
       ]
     },
@@ -21223,7 +21253,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 132
+          "line": 133
         }
       ]
     },
@@ -21233,7 +21263,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 482
+          "line": 483
         }
       ]
     },
@@ -21243,7 +21273,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 643
+          "line": 648
         }
       ]
     },
@@ -21253,7 +21283,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 638
+          "line": 643
         }
       ]
     },
@@ -21263,7 +21293,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 369
+          "line": 370
         }
       ]
     },
@@ -21467,7 +21497,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 221
+          "line": 227
         },
         {
           "file": "src/renderer/src/components/settings/SettingsPanels.tsx",
@@ -21483,7 +21513,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 220
+          "line": 222
         },
         {
           "file": "src/renderer/src/components/ui/LogViewer.tsx",
@@ -21495,7 +21525,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 273
+          "line": 274
         }
       ]
     },
@@ -21505,7 +21535,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 240
+          "line": 245
         }
       ]
     },
@@ -21549,7 +21579,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 221
+          "line": 223
         }
       ]
     },
@@ -21559,7 +21589,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 241
+          "line": 246
         }
       ]
     },
@@ -21653,7 +21683,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 666
+          "line": 667
         }
       ]
     },
@@ -21677,7 +21707,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 621
+          "line": 622
         }
       ]
     },
@@ -21717,7 +21747,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 316
+          "line": 322
         }
       ]
     },
@@ -21727,7 +21757,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 336
+          "line": 342
         }
       ]
     },
@@ -21851,7 +21881,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 353
+          "line": 354
         }
       ]
     },
@@ -21871,7 +21901,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1082
+          "line": 1086
         }
       ]
     },
@@ -21901,7 +21931,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 441
+          "line": 443
         }
       ]
     },
@@ -21921,7 +21951,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1098
+          "line": 1102
         }
       ]
     },
@@ -21935,7 +21965,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 466
+          "line": 467
         }
       ]
     },
@@ -21975,7 +22005,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1499
+          "line": 1500
         }
       ]
     },
@@ -21985,7 +22015,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 259
+          "line": 260
         }
       ]
     },
@@ -22035,7 +22065,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 525
+          "line": 530
         },
         {
           "file": "src/renderer/src/components/Sidebar.tsx",
@@ -22123,7 +22153,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 218
+          "line": 223
         }
       ]
     },
@@ -22235,7 +22265,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 385
+          "line": 386
         },
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserScreen.tsx",
@@ -22269,7 +22299,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/useWorkingCopyTree.ts",
-          "line": 58
+          "line": 59
         }
       ]
     },
@@ -22279,7 +22309,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/useWorkingCopyTree.ts",
-          "line": 60
+          "line": 61
         }
       ]
     },
@@ -22319,7 +22349,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 33
+          "line": 34
         }
       ]
     },
@@ -22329,7 +22359,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 51
+          "line": 52
         }
       ]
     },
@@ -22383,7 +22413,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 275
+          "line": 276
         }
       ]
     },
@@ -22403,7 +22433,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1560
+          "line": 1571
         }
       ]
     },
@@ -22433,7 +22463,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 832
+          "line": 833
         }
       ]
     },
@@ -22443,7 +22473,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 841
+          "line": 842
         }
       ]
     },
@@ -22473,7 +22503,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 198
+          "line": 204
         }
       ]
     },
@@ -22483,7 +22513,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 200
+          "line": 206
         }
       ]
     },
@@ -22493,11 +22523,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1056
+          "line": 1057
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1528
+          "line": 1529
         }
       ]
     },
@@ -22637,7 +22667,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1511
+          "line": 1512
         }
       ]
     },
@@ -22669,7 +22699,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 377
+          "line": 378
         }
       ]
     },
@@ -22713,7 +22743,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 374
+          "line": 375
         }
       ]
     },
@@ -22737,7 +22767,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1532
+          "line": 1543
         },
         {
           "file": "src/renderer/src/components/ui/Breadcrumb.tsx",
@@ -22771,7 +22801,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/hooks/useIncrementalStatus.ts",
-          "line": 269
+          "line": 270
         }
       ]
     },
@@ -22811,7 +22841,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/BlameViewer.tsx",
-          "line": 253
+          "line": 254
         }
       ]
     },
@@ -22865,7 +22895,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 440
+          "line": 441
         }
       ]
     },
@@ -22875,7 +22905,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1778
+          "line": 1789
         }
       ]
     },
@@ -23019,7 +23049,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1460
+          "line": 1461
         }
       ]
     },
@@ -23081,7 +23111,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 406
+          "line": 407
         }
       ]
     },
@@ -23095,7 +23125,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 428
+          "line": 429
         }
       ]
     },
@@ -23115,7 +23145,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 239
+          "line": 240
         }
       ]
     },
@@ -23233,7 +23263,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 32
+          "line": 33
         }
       ]
     },
@@ -23263,7 +23293,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 278
+          "line": 279
         }
       ]
     },
@@ -23273,7 +23303,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 537
+          "line": 542
         }
       ]
     },
@@ -23427,7 +23457,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 209
+          "line": 215
         }
       ]
     },
@@ -23461,7 +23491,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 260
+          "line": 265
         }
       ]
     },
@@ -23509,7 +23539,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 104
+          "line": 146
         }
       ]
     },
@@ -23601,7 +23631,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 317
+          "line": 318
         }
       ]
     },
@@ -23621,7 +23651,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1412
+          "line": 1413
         }
       ]
     },
@@ -23841,7 +23871,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 580
+          "line": 581
         }
       ]
     },
@@ -23861,7 +23891,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 592
+          "line": 593
         }
       ]
     },
@@ -24111,7 +24141,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1455
+          "line": 1466
         }
       ]
     },
@@ -24121,7 +24151,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 452
+          "line": 454
         }
       ]
     },
@@ -24169,7 +24199,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1004
+          "line": 1005
         }
       ]
     },
@@ -24199,7 +24229,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 995
+          "line": 996
         }
       ]
     },
@@ -24239,7 +24269,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1741
+          "line": 1752
         }
       ]
     },
@@ -24279,7 +24309,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1736
+          "line": 1747
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/RepoContents.tsx",
@@ -24557,7 +24587,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 181
+          "line": 182
         }
       ]
     },
@@ -24617,7 +24647,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1047
+          "line": 1051
         }
       ]
     },
@@ -24711,7 +24741,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 239
+          "line": 240
         }
       ]
     },
@@ -24735,7 +24765,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 156
+          "line": 157
         }
       ]
     },
@@ -24805,7 +24835,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 166
+          "line": 167
         }
       ]
     },
@@ -24825,7 +24855,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 108
+          "line": 109
         }
       ]
     },
@@ -24843,11 +24873,11 @@
         },
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 350
+          "line": 351
         },
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 74
+          "line": 75
         },
         {
           "file": "src/renderer/src/features/repo-browser/components/ShelfDialog.tsx",
@@ -24871,11 +24901,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 340
+          "line": 341
         },
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 183
+          "line": 184
         }
       ]
     },
@@ -24885,7 +24915,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 86
+          "line": 87
         }
       ]
     },
@@ -25331,7 +25361,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 256
+          "line": 257
         }
       ]
     },
@@ -25399,7 +25429,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1536
+          "line": 1537
         }
       ]
     },
@@ -25513,7 +25543,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 82
+          "line": 83
         }
       ]
     },
@@ -25547,7 +25577,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 395
+          "line": 396
         }
       ]
     },
@@ -25581,7 +25611,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 435
+          "line": 436
         }
       ]
     },
@@ -25689,7 +25719,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 413
+          "line": 414
         }
       ]
     },
@@ -25809,7 +25839,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 204
+          "line": 205
         }
       ]
     },
@@ -25849,7 +25879,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 511
+          "line": 513
         }
       ]
     },
@@ -25907,11 +25937,11 @@
         },
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 453
+          "line": 454
         },
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 456
+          "line": 457
         }
       ]
     },
@@ -26005,7 +26035,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 277
+          "line": 278
         }
       ]
     },
@@ -26015,7 +26045,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 275
+          "line": 276
         }
       ]
     },
@@ -26025,7 +26055,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 274
+          "line": 275
         }
       ]
     },
@@ -26045,11 +26075,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 161
+          "line": 162
         },
         {
           "file": "src/renderer/src/components/ui/ChangelistSuggestionsPanel.tsx",
-          "line": 287
+          "line": 288
         }
       ]
     },
@@ -26109,7 +26139,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 156
+          "line": 157
         }
       ]
     },
@@ -26119,7 +26149,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 166
+          "line": 173
         }
       ]
     },
@@ -26159,7 +26189,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 157
+          "line": 158
         }
       ]
     },
@@ -26169,7 +26199,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 443
+          "line": 449
         }
       ]
     },
@@ -26209,7 +26239,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 427
+          "line": 432
         }
       ]
     },
@@ -26229,7 +26259,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 218
+          "line": 219
         }
       ]
     },
@@ -26249,7 +26279,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 623
+          "line": 624
         }
       ]
     },
@@ -26373,7 +26403,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 235
+          "line": 241
         }
       ]
     },
@@ -26403,7 +26433,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/components/RevisionLogView.tsx",
-          "line": 112
+          "line": 154
         }
       ]
     },
@@ -26483,7 +26513,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelfManagerDialog.tsx",
-          "line": 356
+          "line": 357
         }
       ]
     },
@@ -26547,7 +26577,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 434
+          "line": 439
         }
       ]
     },
@@ -26567,7 +26597,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 586
+          "line": 587
         }
       ]
     },
@@ -26737,7 +26767,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 130
+          "line": 131
         }
       ]
     },
@@ -26816,8 +26846,8 @@
       ]
     },
     {
-      "key": "tab.id.menu.tabid.undefined.return",
-      "text": "tab.id === menu.tabId) : undefined; return (",
+      "key": "tab.id.menu.tabid.undefined.129.axe.the.strip.is.a.nav.landmark.so.its.content.is.not.region.debt.and.the.tablist.holds.only.role.tab.children.the.new.tab.picker.button.sits.beside.it.inside.the.nav.but.outside.the.tablist.which.only.allows.tabs.as.descendants.visually.the.button.stays.at.the.end.of.the.strip.it.no.longer.scrolls.away.under.tab.overflow.return",
+      "text": "tab.id === menu.tabId) : undefined; /* * #129 (axe): the strip is a `nav` landmark so its content is not \"region\" * debt, and the tablist holds only `role=\"tab\"` children — the new-tab * picker button sits beside it, inside the nav but outside the tablist, * which only allows tabs as descendants. Visually the button stays at the * end of the strip; it no longer scrolls away under tab overflow. */ return (",
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
@@ -26871,7 +26901,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 312
+          "line": 313
         }
       ]
     },
@@ -26881,7 +26911,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 541
+          "line": 542
         }
       ]
     },
@@ -26921,7 +26951,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 458
+          "line": 459
         }
       ]
     },
@@ -26931,7 +26961,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 468
+          "line": 469
         }
       ]
     },
@@ -26965,7 +26995,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/PatchHubDialog.tsx",
-          "line": 619
+          "line": 620
         }
       ]
     },
@@ -27155,7 +27185,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 156
+          "line": 157
         }
       ]
     },
@@ -27165,7 +27195,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 301
+          "line": 302
         }
       ]
     },
@@ -27219,7 +27249,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 229
+          "line": 230
         }
       ]
     },
@@ -27279,7 +27309,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 493
+          "line": 495
         }
       ]
     },
@@ -27299,7 +27329,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 497
+          "line": 499
         }
       ]
     },
@@ -27349,7 +27379,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RepoBrowser.tsx",
-          "line": 154
+          "line": 155
         }
       ]
     },
@@ -27369,7 +27399,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 541
+          "line": 543
         }
       ]
     },
@@ -27449,7 +27479,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 229
+          "line": 235
         }
       ]
     },
@@ -27479,7 +27509,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 537
+          "line": 539
         }
       ]
     },
@@ -27583,7 +27613,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 981
+          "line": 982
         }
       ]
     },
@@ -27607,7 +27637,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1093
+          "line": 1097
         }
       ]
     },
@@ -27695,7 +27725,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 812
+          "line": 813
         }
       ]
     },
@@ -27735,7 +27765,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 198
+          "line": 199
         }
       ]
     },
@@ -27745,7 +27775,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/LockManagementDialog.tsx",
-          "line": 420
+          "line": 422
         }
       ]
     },
@@ -27775,7 +27805,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 314
+          "line": 320
         }
       ]
     },
@@ -27983,7 +28013,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 87
+          "line": 88
         }
       ]
     },
@@ -28141,7 +28171,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/commit/useCommitDialogController.ts",
-          "line": 137
+          "line": 144
         }
       ]
     },
@@ -28299,7 +28329,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/features/repo-browser/RepoBrowserView.tsx",
-          "line": 1134
+          "line": 1138
         }
       ]
     },
@@ -28407,7 +28437,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/files/WorkingCopyProblemsDialog.tsx",
-          "line": 311
+          "line": 317
         }
       ]
     },
@@ -28511,7 +28541,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 530
+          "line": 535
         }
       ]
     },
@@ -28525,7 +28555,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 397
+          "line": 403
         }
       ]
     },
@@ -28535,7 +28565,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 83
+          "line": 84
         }
       ]
     },
@@ -28619,7 +28649,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 901
+          "line": 902
         }
       ]
     },
@@ -28699,7 +28729,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 65
+          "line": 66
         }
       ]
     },
@@ -28729,7 +28759,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 817
+          "line": 818
         }
       ]
     },
@@ -28853,7 +28883,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShelveDialog.tsx",
-          "line": 89
+          "line": 90
         }
       ]
     },
@@ -28863,7 +28893,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 544
+          "line": 549
         }
       ]
     },
@@ -28873,7 +28903,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 401
+          "line": 407
         }
       ]
     },
@@ -28883,7 +28913,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 247
+          "line": 248
         }
       ]
     },
@@ -28921,7 +28951,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 501
+          "line": 506
         }
       ]
     },
@@ -28965,7 +28995,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 371
+          "line": 377
         }
       ]
     },
@@ -29149,7 +29179,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/QuickActionsMenu.tsx",
-          "line": 144
+          "line": 145
         }
       ]
     },
@@ -29445,7 +29475,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RelinkDialog.tsx",
-          "line": 406
+          "line": 412
         }
       ]
     },
@@ -29485,7 +29515,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 397
+          "line": 398
         }
       ]
     },
@@ -29505,7 +29535,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/StatusBar.tsx",
-          "line": 396
+          "line": 397
         }
       ]
     },
@@ -29725,7 +29755,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 264
+          "line": 265
         }
       ]
     },
@@ -29735,7 +29765,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 29
+          "line": 30
         }
       ]
     },
@@ -29745,7 +29775,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ShellIntegrationDialog.tsx",
-          "line": 245
+          "line": 246
         }
       ]
     },
@@ -29807,7 +29837,7 @@
         },
         {
           "file": "src/renderer/src/components/ui/DiskUsagePanel.tsx",
-          "line": 213
+          "line": 214
         },
         {
           "file": "src/renderer/src/components/ui/Toolbar.tsx",
@@ -29821,7 +29851,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 495
+          "line": 500
         },
         {
           "file": "src/renderer/src/components/tutorial/DiffViewerStep.tsx",
@@ -29855,7 +29885,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 442
+          "line": 443
         }
       ]
     },
@@ -29875,7 +29905,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1541
+          "line": 1552
         }
       ]
     },
@@ -29905,7 +29935,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/RepoDiagnostics.tsx",
-          "line": 279
+          "line": 284
         }
       ]
     },
@@ -29915,7 +29945,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/TagWizard.tsx",
-          "line": 376
+          "line": 377
         }
       ]
     },
@@ -29999,7 +30029,11 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/layout/TabBar.tsx",
-          "line": 149
+          "line": 155
+        },
+        {
+          "file": "src/renderer/src/components/layout/TabBar.tsx",
+          "line": 160
         }
       ]
     },
@@ -30029,7 +30063,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/FileExplorer.tsx",
-          "line": 1672
+          "line": 1683
         }
       ]
     },
@@ -30089,7 +30123,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 982
+          "line": 983
         }
       ]
     },
@@ -30109,7 +30143,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 1551
+          "line": 1552
         }
       ]
     },
@@ -30139,7 +30173,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/ConflictResolutionWizard.tsx",
-          "line": 801
+          "line": 802
         }
       ]
     },
@@ -30179,7 +30213,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 264
+          "line": 265
         }
       ]
     },
@@ -30189,7 +30223,7 @@
       "occurrences": [
         {
           "file": "src/renderer/src/components/ui/RevisionGraph.tsx",
-          "line": 252
+          "line": 253
         }
       ]
     }

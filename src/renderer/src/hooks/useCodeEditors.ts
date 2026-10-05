@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CodeEditorInfo } from '@shared/types';
+import { externalEditors } from '@renderer/lib/queryKeys';
 
 import { useSettings } from './useSettings';
 
@@ -24,7 +25,7 @@ export function useCodeEditors(): readonly CodeEditorInfo[] {
     .join('|');
 
   const { data } = useQuery({
-    queryKey: ['external:editors', customFingerprint],
+    queryKey: externalEditors(customFingerprint),
     queryFn: () => window.api.external.listEditors(),
     staleTime: Infinity,
     gcTime: Infinity,

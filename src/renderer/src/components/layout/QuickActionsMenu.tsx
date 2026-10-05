@@ -11,6 +11,7 @@ import {
   type QuickActionKind,
 } from '@renderer/lib/quickActions';
 import { pushNotification } from '@renderer/lib/notificationCenterStore';
+import { externalToolsList } from '@renderer/lib/queryKeys';
 
 const KIND_ICON: Record<QuickActionKind, typeof ExternalLink> = {
   reveal: ExternalLink,
@@ -23,7 +24,7 @@ const KIND_ICON: Record<QuickActionKind, typeof ExternalLink> = {
 /** The registered-tool query behind the quick actions (#86). */
 export function useExternalToolsRegistry(): readonly ExternalToolSummary[] {
   const { data } = useQuery({
-    queryKey: ['externalTools:list'],
+    queryKey: externalToolsList(),
     queryFn: () => window.api.externalTools.list(),
     staleTime: 60_000,
     retry: false,

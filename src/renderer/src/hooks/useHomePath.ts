@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { appHomePath } from '@renderer/lib/queryKeys';
 
 /**
  * Resolves the user's home location for "go home" affordances:
@@ -9,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
  */
 export function useHomePath(): string {
   const { data } = useQuery({
-    queryKey: ['app:homePath'],
+    queryKey: appHomePath(),
     queryFn: () => window.api.app.getHomePath(),
     staleTime: Infinity,
     gcTime: Infinity,

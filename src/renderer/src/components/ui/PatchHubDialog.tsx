@@ -48,6 +48,7 @@ import {
 } from '@renderer/lib/patchHub';
 import { DialogBase } from './DialogBase';
 import { CreatePatchDialog } from './CreatePatchDialog';
+import { patchHubIndex, svnStatus } from '@renderer/lib/queryKeys';
 
 interface RejectHunkRecovery {
   rejectPath: string;
@@ -98,7 +99,7 @@ export function PatchHubDialog({
   const [options, setOptions] = useState<SvnPatchApplyOptions>({ stripCount: 0 });
 
   const { data: patches = [], isLoading } = useQuery({
-    queryKey: ['patch-hub:index', workingCopyPath],
+    queryKey: patchHubIndex(workingCopyPath),
     queryFn: loadPatchIndex,
     enabled: isOpen,
   });
@@ -121,7 +122,7 @@ export function PatchHubDialog({
         workingCopyPath,
         createdAt: new Date().toISOString(),
       });
-      await queryClient.invalidateQueries({ queryKey: ['patch-hub:index', workingCopyPath] });
+      await queryClient.invalidateQueries({ queryKey: patchHubIndex(workingCopyPath) });
     },
     [queryClient, workingCopyPath]
   );
@@ -146,7 +147,7 @@ export function PatchHubDialog({
 
   const handleRemove = async (entry: PatchHubEntry) => {
     await removePatchFromIndex(entry.path);
-    await queryClient.invalidateQueries({ queryKey: ['patch-hub:index', workingCopyPath] });
+    await queryClient.invalidateQueries({ queryKey: patchHubIndex(workingCopyPath) });
   };
 
   const runDryRun = async (patch: PatchHubEntry, target: string) => {
@@ -229,7 +230,7 @@ export function PatchHubDialog({
         state ? { ...state, applyResult: result, isApplying: false } : state
       );
       onComplete?.();
-      await queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      await queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
       if (result.appliedWithConflicts || result.rejects > 0 || result.rejectFiles.length > 0) {
         await scanRejects(target, result.rejectFiles);
       }

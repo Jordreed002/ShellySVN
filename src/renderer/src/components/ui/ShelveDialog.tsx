@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Archive, Plus, Trash2, Play, Loader2, Clock, AlertCircle } from 'lucide-react';
 import { confirmAppAction } from '../../utils/dialogs';
+import { svnShelveList, svnStatus } from '@renderer/lib/queryKeys';
 
 interface ShelveDialogProps {
   isOpen: boolean;
@@ -17,7 +18,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
 
   // Fetch shelves
   const { data: shelveData, isLoading } = useQuery({
-    queryKey: ['svn:shelve:list', workingCopyPath],
+    queryKey: svnShelveList(workingCopyPath),
     queryFn: () => window.api.svn.shelve.list(workingCopyPath),
     enabled: isOpen && !!workingCopyPath,
   });
@@ -31,7 +32,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
         shelveMessage.trim() || undefined
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['svn:shelve:list', workingCopyPath] });
+      queryClient.invalidateQueries({ queryKey: svnShelveList(workingCopyPath) });
       setShelveName('');
       setShelveMessage('');
       setShowCreate(false);
@@ -42,7 +43,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
   const applyMutation = useMutation({
     mutationFn: (name: string) => window.api.svn.shelve.apply(name, workingCopyPath),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
     },
   });
 
@@ -50,7 +51,7 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
   const deleteMutation = useMutation({
     mutationFn: (name: string) => window.api.svn.shelve.delete(name, workingCopyPath),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['svn:shelve:list', workingCopyPath] });
+      queryClient.invalidateQueries({ queryKey: svnShelveList(workingCopyPath) });
     },
   });
 

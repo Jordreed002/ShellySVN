@@ -1,4 +1,10 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import {
+  fsGetDeepStatus,
+  fsGetDirectoryMetadata,
+  fsListDirectory,
+  svnChildCommits,
+} from '@renderer/lib/queryKeys';
 
 export const FILE_CACHE_TIME = 5 * 60 * 1000;
 export const STATUS_STALE_TIME = 30 * 1000;
@@ -12,7 +18,7 @@ export function useFileExplorerDirectoryData(path: string) {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['fs:listDirectory', path],
+    queryKey: fsListDirectory(path),
     queryFn: () => window.api.fs.listDirectory(path),
     enabled: !!path,
     staleTime: FILE_CACHE_TIME,
@@ -31,7 +37,7 @@ export function useFileExplorerDirectoryData(path: string) {
     isFetching: isLoadingStatus,
     isPlaceholderData: isMetadataFromPreviousPath,
   } = useQuery({
-    queryKey: ['fs:getDirectoryMetadata', path, Boolean(rawFiles?.length)],
+    queryKey: fsGetDirectoryMetadata(path, Boolean(rawFiles?.length)),
     queryFn: () => window.api.fs.getDirectoryMetadata(path, Boolean(rawFiles?.length)),
     enabled: !!path && path !== 'DRIVES://' && !!rawFiles,
     staleTime: STATUS_STALE_TIME,
@@ -48,7 +54,7 @@ export function useFileExplorerDirectoryData(path: string) {
   const isKnownVersioned = directoryMetadata?.isVersioned === true && !isMetadataFromPreviousPath;
 
   const { data: deepStatusData, isFetching: isLoadingDeep } = useQuery({
-    queryKey: ['fs:getDeepStatus', path],
+    queryKey: fsGetDeepStatus(path),
     queryFn: () => window.api.fs.getDeepStatus(path),
     enabled: !!path && path !== 'DRIVES://' && isKnownVersioned && !!rawFiles,
     staleTime: DEEP_STATUS_STALE_TIME,
@@ -58,7 +64,7 @@ export function useFileExplorerDirectoryData(path: string) {
 
   // Last-commit info per immediate child (offline) for the last-activity column.
   const { data: childCommits } = useQuery({
-    queryKey: ['svn:childCommits', path],
+    queryKey: svnChildCommits(path),
     queryFn: () => window.api.svn.childCommits(path),
     enabled: !!path && path !== 'DRIVES://' && isKnownVersioned && !!rawFiles,
     staleTime: STATUS_STALE_TIME,

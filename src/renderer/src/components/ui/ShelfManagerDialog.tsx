@@ -39,6 +39,7 @@ import {
   shelfAgeDays,
 } from '@renderer/lib/shelfManager';
 import { confirmAppAction } from '../../utils/dialogs';
+import { shelfManagerConfig, svnShelveList, svnStatus } from '@renderer/lib/queryKeys';
 import { DialogBase } from './DialogBase';
 
 export interface ShelfManagerDialogProps {
@@ -67,13 +68,13 @@ export function ShelfManagerDialog({
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const { data: shelveData, isLoading } = useQuery({
-    queryKey: ['svn:shelve:list', workingCopyPath],
+    queryKey: svnShelveList(workingCopyPath),
     queryFn: () => window.api.svn.shelve.list(workingCopyPath),
     enabled: isOpen && !!workingCopyPath,
   });
 
   const { data: config } = useQuery({
-    queryKey: ['shelf-manager:config'],
+    queryKey: shelfManagerConfig(),
     queryFn: loadShelfManagerConfig,
     enabled: isOpen,
   });
@@ -86,11 +87,11 @@ export function ShelfManagerDialog({
 
   const saveConfig = useMutation({
     mutationFn: (next: { maxAgeDays: number | null }) => saveShelfManagerConfig(next),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shelf-manager:config'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: shelfManagerConfig() }),
   });
 
   const invalidateShelves = () =>
-    queryClient.invalidateQueries({ queryKey: ['svn:shelve:list', workingCopyPath] });
+    queryClient.invalidateQueries({ queryKey: svnShelveList(workingCopyPath) });
 
   const surfaceError = (error: unknown) =>
     setActionError(error instanceof Error ? error.message : String(error));
@@ -100,7 +101,7 @@ export function ShelfManagerDialog({
     onSuccess: (result) => {
       if (!result.success) setActionError(result.error ?? 'Unshelve failed.');
       else setActionNotice(`Applied shelf changes to the working copy.`);
-      void queryClient.invalidateQueries({ queryKey: ['svn:status', workingCopyPath] });
+      void queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
     },
     onError: surfaceError,
   });

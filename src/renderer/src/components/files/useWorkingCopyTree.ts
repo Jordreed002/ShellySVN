@@ -25,6 +25,7 @@
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import type { FileInfo, FsStatusResult, SvnStatusChar } from '@shared/types';
+import { fsListDirectory } from '@renderer/lib/queryKeys';
 
 import type { RepoEntry, RepoRollup } from '../../features/repo-browser/types';
 
@@ -238,7 +239,7 @@ export function useWorkingCopyTree({
   const results = useQueries({
     queries: activePaths.map((dirPath) => ({
       // Shared with the file list and the Miller columns — one listing per folder.
-      queryKey: ['fs:listDirectory', dirPath],
+      queryKey: fsListDirectory(dirPath),
       queryFn: () => window.api.fs.listDirectory(dirPath),
       enabled: enabled && !!dirPath && dirPath !== 'DRIVES://',
       staleTime: DIRECTORY_STALE_TIME,

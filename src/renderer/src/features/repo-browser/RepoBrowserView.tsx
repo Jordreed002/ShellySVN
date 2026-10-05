@@ -10,6 +10,7 @@ import {
 import { ContextMenu, useContextMenu } from '@renderer/components/ui/ContextMenu';
 import { LockManagementDialog } from '@renderer/components/ui/LockManagementDialog';
 import { useSettings } from '@renderer/hooks/useSettings';
+import { svnShelveList, svnStatus } from '@renderer/lib/queryKeys';
 
 import { RepoAddressBar, type RepoAddressBarHandle } from './components/RepoAddressBar';
 import { RepoBrowserShell } from './components/RepoBrowserShell';
@@ -647,6 +648,9 @@ export function RepoBrowserView({
           <RevisionLogView
             entries={log.entries}
             path={state.selectedPath ?? state.path}
+            /* Saved views persist per repository (URL-keyed, prefixed so they
+               can never collide with a working-copy path key). */
+            storageKey={`repo:${rootUrl}`}
             loading={log.isLoading}
             error={log.error}
             hasMore={log.hasNextPage}
@@ -944,10 +948,10 @@ export function RepoBrowserView({
             /* The shelf consumed the local changes under the target: status,
                the working-copy band and any open shelf manager are all stale. */
             void queryClient.invalidateQueries({
-              queryKey: ['svn:shelve:list', workingCopy.workingCopy?.localPath],
+              queryKey: svnShelveList(workingCopy.workingCopy?.localPath ?? ''),
             });
             void queryClient.invalidateQueries({
-              queryKey: ['svn:status', workingCopy.workingCopy?.localPath],
+              queryKey: svnStatus(workingCopy.workingCopy?.localPath ?? ''),
             });
             workingCopy.refetch();
             listingRefetchRef.current?.();

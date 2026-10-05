@@ -17,6 +17,7 @@ import type { RepoDiagnostics } from '@shared/types';
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useWorkingCopyMixedRevisions } from '@renderer/hooks/useWorkingCopyFreshness';
 import { describeMixedRevisions } from '@renderer/lib/workingCopyFreshness';
+import { diagnostics } from '@renderer/lib/queryKeys';
 import {
   isFailedWorkingCopyQuery,
   isPathKeyedScope,
@@ -122,13 +123,13 @@ function useKnownSvnVersion(): string | null {
   return useSyncExternalStore(
     (onStoreChange) =>
       queryCache.subscribe((event) => {
-        if (event.query.queryKey[0] === 'diagnostics') onStoreChange();
+        if (event.query.queryKey[0] === diagnostics()[0]) onStoreChange();
       }),
     () => {
-      for (const [, diagnostics] of queryClient.getQueriesData<RepoDiagnostics>({
-        queryKey: ['diagnostics'],
+      for (const [, entry] of queryClient.getQueriesData<RepoDiagnostics>({
+        queryKey: diagnostics(),
       })) {
-        if (diagnostics?.svnVersion) return diagnostics.svnVersion;
+        if (entry?.svnVersion) return entry.svnVersion;
       }
       return null;
     }

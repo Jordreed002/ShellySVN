@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { RefreshCw, Folder, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
+import { repoList, svnInfo } from '@renderer/lib/queryKeys';
 
 /**
  * Compact repository-path picker used by BranchTagDialog.
@@ -32,7 +33,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
 
   // Get repository info
   const { data: repoInfo, isLoading: isLoadingInfo } = useQuery({
-    queryKey: ['svn:info', currentUrl],
+    queryKey: svnInfo(currentUrl),
     queryFn: () => window.api.svn.info(currentUrl),
     enabled: !!currentUrl,
   });
@@ -43,7 +44,7 @@ export function RepoBrowser({ isOpen = true, repoUrl, onNavigate, onClose }: Rep
     isLoading: isLoadingEntries,
     refetch,
   } = useQuery({
-    queryKey: ['repo:list', currentUrl],
+    queryKey: repoList(currentUrl),
     queryFn: async (): Promise<RepoEntry[]> => {
       const result = assertSuccessfulSvnRead(
         await window.api.svn.list(currentUrl, undefined, 'immediates')

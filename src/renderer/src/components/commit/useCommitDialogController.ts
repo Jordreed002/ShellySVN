@@ -21,6 +21,13 @@ import {
 } from '@renderer/utils/issueTracker';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
 import { DEFAULT_DIFF_DISPLAY_OPTIONS, type DiffDisplayOptions } from '@renderer/lib/diffOptions';
+import {
+  aiProviders as aiProvidersKey,
+  aiRepositoryProfile,
+  fsGetDeepStatus,
+  svnDiff,
+  svnStatus,
+} from '@renderer/lib/queryKeys';
 import { providerLabel } from '../settings/AddProviderDialog';
 import { useRecentCommitMessages } from './useRecentCommitMessages';
 import type { CommitSuggestion, TemplateRecommendation } from '@renderer/utils/suggestionEngine';
@@ -236,7 +243,7 @@ export function useCommitDialogController({
     isLoading: isLoadingSvnStatus,
     refetch,
   } = useQuery({
-    queryKey: ['svn:status', workingCopyPath],
+    queryKey: svnStatus(workingCopyPath),
     queryFn: async ({ signal }) =>
       assertSuccessfulSvnRead(await window.api.svn.status(workingCopyPath, { signal })),
     enabled: isOpen && !!workingCopyPath,
@@ -250,7 +257,7 @@ export function useCommitDialogController({
     isLoading: isLoadingDeepStatus,
     refetch: refetchDeepStatus,
   } = useQuery({
-    queryKey: ['fs:getDeepStatus', workingCopyPath],
+    queryKey: fsGetDeepStatus(workingCopyPath),
     queryFn: () => window.api.fs.getDeepStatus(workingCopyPath),
     enabled: isOpen && !!workingCopyPath,
     staleTime: 0,
@@ -405,7 +412,7 @@ export function useCommitDialogController({
   }, [deferredMessage, history, keywordSuggestions, selectedFileSummaries]);
 
   const { data: diffData } = useQuery({
-    queryKey: ['svn:diff', selectedDiffFile],
+    queryKey: svnDiff(selectedDiffFile!),
     queryFn: ({ signal }) => window.api.svn.diff(selectedDiffFile!, undefined, { signal }),
     enabled: !!selectedDiffFile,
   });
@@ -498,7 +505,7 @@ export function useCommitDialogController({
   }, [cancelAiAssistant, cancelMessageGeneration, selectionFingerprint]);
 
   const { data: aiProviders = [], isLoading: isLoadingAiProviders } = useQuery({
-    queryKey: ['ai:providers'],
+    queryKey: aiProvidersKey(),
     queryFn: () => window.api.ai.providers(),
     enabled: isOpen && settings.aiCommit.enabled,
     staleTime: 30_000,
@@ -506,7 +513,7 @@ export function useCommitDialogController({
   });
 
   const { data: repositoryAiProfile } = useQuery({
-    queryKey: ['ai:repository-profile', workingCopyPath],
+    queryKey: aiRepositoryProfile(workingCopyPath),
     queryFn: () => window.api.ai.repositoryProfile.get(workingCopyPath),
     enabled: isOpen && !!workingCopyPath,
     staleTime: 30_000,

@@ -6,9 +6,18 @@
  * — so both are shown when the route can supply them, rather than making the
  * reader alt-tab to a CI dashboard.
  *
- * Presentational only: entries, paging state and handlers arrive via props.
+ * The shared log-search surface (#66/#67/#72) sits on top: `useLogViewSurface`
+ * supplies the filter bar (full-text/regex search, field filters, date and
+ * revision ranges), saved views and export — the same tools the working-copy
+ * LogViewer and CommitHistory run on, so every log in the app filters the same
+ * way. The show-changes dialog stays the parent's (#72): this view reports the
+ * revision through `onShowChanges` and does not mount the surface's own diff
+ * dialog, avoiding two dialogs for one gesture.
+ *
+ * Entries and paging state arrive via props; only the filtering is local.
  */
 
+import { useMemo } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -17,10 +26,13 @@ import {
   Loader2,
   PencilLine,
   ScrollText,
+  SearchX,
   Tag,
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
+import type { SvnLogEntry } from '@shared/types';
+import { useLogViewSurface } from '@renderer/components/history/useLogViewState';
 import type { LogEntry } from '../types';
 import { DetailMessage, useRepoBrowserRetry } from './RepoDetailPane';
 import { formatEntryDate } from './RepoContentsRow';
@@ -47,8 +59,14 @@ const BUILD_PILL: Record<BuildStatus, { label: string; icon: LucideIcon; classNa
 
 export interface RevisionLogViewProps {
   entries: readonly LogEntry[];
-  /** Path the log belongs to, used in the empty state. */
+  /** Path the log belongs to, used in the empty state and export metadata. */
   path?: string;
+  /**
+   * Persistence identity for saved views and the sort preference — the
+   * repository root URL, so a repository's views survive moving between paths
+   * inside it. Unset (or null) disables persistence; filters stay in-memory.
+   */
+  storageKey?: string | null;
   /** Revision currently shown elsewhere in the pane. */
   selectedRevision?: number | null;
   onSelectRevision?: (revision: number) => void;
@@ -85,6 +103,7 @@ export interface RevisionLogViewProps {
 export function RevisionLogView({
   entries,
   path,
+  storageKey = null,
   selectedRevision = null,
   onSelectRevision,
   onIssueClick,
@@ -99,6 +118,29 @@ export function RevisionLogView({
   className = '',
 }: RevisionLogViewProps): React.JSX.Element {
   const retryDefault = useRepoBrowserRetry();
+
+  /*
+   * The shared filter model runs on `SvnLogEntry`; this feature's `LogEntry`
+   * carries a changed-path *count* rather than the paths themselves, so the
+   * path-scoped filters match nothing here (the count is not a list to search).
+   * Author, message, revision, date and issue filters all work unchanged.
+   */
+  const svnEntries = useMemo<SvnLogEntry[]>(
+    () => entries.map((entry) => ({ ...entry, paths: [] })),
+    [entries]
+  );
+  const entryByRevision = useMemo(() => {
+    const map = new Map<number, LogEntry>();
+    for (const entry of entries) map.set(entry.revision, entry);
+    return map;
+  }, [entries]);
+
+  const logView = useLogViewSurface({
+    path: path ?? null,
+    entries: svnEntries,
+    storageKey,
+    countLabel: 'revisions',
+  });
 
   if (loading) {
     return <DetailMessage icon={Loader2} title="Running svn log…" busy />;
@@ -133,134 +175,156 @@ export function RevisionLogView({
     );
   }
 
+  // The filtered, sorted result mapped back to this feature's entry shape.
+  const visibleEntries = logView.filteredEntries
+    .map((entry) => entryByRevision.get(entry.revision))
+    .filter((entry): entry is LogEntry => entry !== undefined);
+
   return (
     <div className={`font-sans ${className}`}>
-      <ul className="list-none">
-        {entries.map((entry) => {
-          const selected = entry.revision === selectedRevision;
-          const build = entry.build ? BUILD_PILL[entry.build] : null;
-          const BuildIcon = build?.icon;
-          return (
-            <li key={entry.revision}>
-              <div
-                role={onSelectRevision ? 'button' : undefined}
-                tabIndex={onSelectRevision ? 0 : undefined}
-                onClick={onSelectRevision ? () => onSelectRevision(entry.revision) : undefined}
-                onKeyDown={
-                  onSelectRevision
-                    ? (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          onSelectRevision(entry.revision);
+      {/* Sticky so the toolbar stays reachable while the list scrolls. */}
+      <div className="sticky top-0 z-10">{logView.filterBar}</div>
+
+      {visibleEntries.length === 0 ? (
+        <DetailMessage
+          icon={SearchX}
+          title="No matching revisions"
+          detail={
+            <>
+              Every loaded revision is filtered out. Clear or loosen the filters — or load older
+              revisions if the match lies further back in history.
+            </>
+          }
+        />
+      ) : (
+        <ul className="list-none">
+          {visibleEntries.map((entry) => {
+            const selected = entry.revision === selectedRevision;
+            const build = entry.build ? BUILD_PILL[entry.build] : null;
+            const BuildIcon = build?.icon;
+            return (
+              <li key={entry.revision}>
+                <div
+                  role={onSelectRevision ? 'button' : undefined}
+                  tabIndex={onSelectRevision ? 0 : undefined}
+                  onClick={onSelectRevision ? () => onSelectRevision(entry.revision) : undefined}
+                  onKeyDown={
+                    onSelectRevision
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            onSelectRevision(entry.revision);
+                          }
                         }
-                      }
-                    : undefined
-                }
-                aria-current={selected ? 'true' : undefined}
-                className={`flex w-full gap-2.5 border-b border-border-muted px-3 py-2 text-left ${
-                  selected ? 'bg-accent/10' : ''
-                } ${onSelectRevision ? 'cursor-pointer hover:bg-bg-tertiary focus:outline-none focus-visible:ring-1 focus-visible:ring-accent' : ''}`}
-              >
-                <span className="flex-none pt-0.5 font-mono text-2xs text-accent">
-                  r{entry.revision}
-                </span>
-
-                <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-semibold leading-snug text-text">
-                    {entry.message.trim() === '' ? (
-                      <span className="italic text-text-muted">(no log message)</span>
-                    ) : (
-                      entry.message
-                    )}
+                      : undefined
+                  }
+                  aria-current={selected ? 'true' : undefined}
+                  className={`flex w-full gap-2.5 border-b border-border-muted px-3 py-2 text-left ${
+                    selected ? 'bg-accent/10' : ''
+                  } ${onSelectRevision ? 'cursor-pointer hover:bg-bg-tertiary focus:outline-none focus-visible:ring-1 focus-visible:ring-accent' : ''}`}
+                >
+                  <span className="flex-none pt-0.5 font-mono text-2xs text-accent">
+                    r{entry.revision}
                   </span>
 
-                  {/* Same relative format as the contents list — one product,
-                      one way of saying when. The exact timestamp stays on hover. */}
-                  <span className="mt-0.5 block text-2xs text-text-secondary">
-                    {entry.author} ·{' '}
-                    <time dateTime={entry.date} title={entry.date}>
-                      {formatEntryDate(entry.date)}
-                    </time>{' '}
-                    · {entry.changedPaths === 1 ? '1 path' : `${entry.changedPaths} paths`} changed
-                  </span>
-
-                  {build || entry.issue ? (
-                    <span className="mt-1.5 flex flex-wrap gap-1.5">
-                      {build && BuildIcon ? (
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-2xs font-bold ${build.className}`}
-                        >
-                          <BuildIcon
-                            className={`h-2.5 w-2.5 ${entry.build === 'running' ? 'animate-spin' : ''}`}
-                            aria-hidden="true"
-                          />
-                          {build.label}
-                        </span>
-                      ) : null}
-
-                      {entry.issue ? (
-                        onIssueClick ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (entry.issue) onIssueClick(entry.issue);
-                            }}
-                            title={`Open ${entry.issue}`}
-                            className="inline-flex items-center gap-1 rounded-full border border-accent/50 bg-accent/10 px-1.5 py-px font-mono text-2xs text-accent hover:bg-accent/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-                          >
-                            <Tag className="h-2.5 w-2.5" aria-hidden="true" />
-                            {entry.issue}
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-accent/50 bg-accent/10 px-1.5 py-px font-mono text-2xs text-accent">
-                            <Tag className="h-2.5 w-2.5" aria-hidden="true" />
-                            {entry.issue}
-                          </span>
-                        )
-                      ) : null}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-semibold leading-snug text-text">
+                      {entry.message.trim() === '' ? (
+                        <span className="italic text-text-muted">(no log message)</span>
+                      ) : (
+                        entry.message
+                      )}
                     </span>
+
+                    {/* Same relative format as the contents list — one product,
+                      one way of saying when. The exact timestamp stays on hover. */}
+                    <span className="mt-0.5 block text-2xs text-text-secondary">
+                      {entry.author} ·{' '}
+                      <time dateTime={entry.date} title={entry.date}>
+                        {formatEntryDate(entry.date)}
+                      </time>{' '}
+                      · {entry.changedPaths === 1 ? '1 path' : `${entry.changedPaths} paths`}{' '}
+                      changed
+                    </span>
+
+                    {build || entry.issue ? (
+                      <span className="mt-1.5 flex flex-wrap gap-1.5">
+                        {build && BuildIcon ? (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-2xs font-bold ${build.className}`}
+                          >
+                            <BuildIcon
+                              className={`h-2.5 w-2.5 ${entry.build === 'running' ? 'animate-spin' : ''}`}
+                              aria-hidden="true"
+                            />
+                            {build.label}
+                          </span>
+                        ) : null}
+
+                        {entry.issue ? (
+                          onIssueClick ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (entry.issue) onIssueClick(entry.issue);
+                              }}
+                              title={`Open ${entry.issue}`}
+                              className="inline-flex items-center gap-1 rounded-full border border-accent/50 bg-accent/10 px-1.5 py-px font-mono text-2xs text-accent hover:bg-accent/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                            >
+                              <Tag className="h-2.5 w-2.5" aria-hidden="true" />
+                              {entry.issue}
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-accent/50 bg-accent/10 px-1.5 py-px font-mono text-2xs text-accent">
+                              <Tag className="h-2.5 w-2.5" aria-hidden="true" />
+                              {entry.issue}
+                            </span>
+                          )
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </span>
+
+                  {/* #72: show this revision's diff against its predecessor. */}
+                  {onShowChanges ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onShowChanges(entry.revision);
+                      }}
+                      className="flex-none self-start rounded-md p-1 text-text-faint transition-colors hover:bg-bg-tertiary hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                      title={`Diff r${entry.revision} against r${entry.revision - 1}`}
+                      aria-label={`Show changes for r${entry.revision}`}
+                    >
+                      <GitCompare className="h-3 w-3" aria-hidden="true" />
+                    </button>
                   ) : null}
-                </span>
 
-                {/* #72: show this revision's diff against its predecessor. */}
-                {onShowChanges ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onShowChanges(entry.revision);
-                    }}
-                    className="flex-none self-start rounded-md p-1 text-text-faint transition-colors hover:bg-bg-tertiary hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-                    title={`Diff r${entry.revision} against r${entry.revision - 1}`}
-                    aria-label={`Show changes for r${entry.revision}`}
-                  >
-                    <GitCompare className="h-3 w-3" aria-hidden="true" />
-                  </button>
-                ) : null}
-
-                {/* #70: edit svn:log / svn:author / svn:date on this revision.
+                  {/* #70: edit svn:log / svn:author / svn:date on this revision.
                     Visible-but-faint by design — keyboard users must reach it
                     without hovering, but it must not compete with the message. */}
-                {onEditRevprops ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEditRevprops(entry);
-                    }}
-                    className="flex-none self-start rounded-md p-1 text-text-faint transition-colors hover:bg-bg-tertiary hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-                    title="Edit revision properties — svn:log, svn:author, svn:date"
-                    aria-label={`Edit revision properties for r${entry.revision}`}
-                  >
-                    <PencilLine className="h-3 w-3" aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                  {onEditRevprops ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEditRevprops(entry);
+                      }}
+                      className="flex-none self-start rounded-md p-1 text-text-faint transition-colors hover:bg-bg-tertiary hover:text-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                      title="Edit revision properties — svn:log, svn:author, svn:date"
+                      aria-label={`Edit revision properties for r${entry.revision}`}
+                    >
+                      <PencilLine className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {onLoadMore ? (
         hasMore ? (

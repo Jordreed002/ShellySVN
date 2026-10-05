@@ -45,6 +45,25 @@ export function svnLog(path: string, limit?: number) {
   return limit === undefined ? (['svn:log', path] as const) : (['svn:log', path, limit] as const);
 }
 
+/** `svn log --use-merge-history` behind the revision graph (#45 read). */
+export function svnLogMergeHistory(path: string) {
+  return ['svn:log', path, 200, 'merge-history'] as const;
+}
+
+/** `svn blame` of one file between two optional peg revisions. */
+export function svnBlame(filePath: string, startRevision?: string, endRevision?: string) {
+  return ['svn:blame', filePath, startRevision, endRevision] as const;
+}
+
+/** Surrounding `svn log` context for the blame view's revision annotations. */
+export function svnLogBlameContext(
+  filePath: string,
+  revisions: string,
+  issueTrackerConfig: unknown
+) {
+  return ['svn:log:blame-context', filePath, revisions, issueTrackerConfig] as const;
+}
+
 /** `svn status` — the bare key doubles as the family-wide invalidation prefix. */
 export function svnStatus(path?: string) {
   return path === undefined ? (['svn:status'] as const) : (['svn:status', path] as const);
@@ -94,6 +113,41 @@ export function svnWorkingCopyProblems(path: string) {
   return ['svn:working-copy-problems', path] as const;
 }
 
+/** Remote counterpart of the working-copy problems scan (post-update check). */
+export function svnWorkingCopyProblemsRemote(path: string) {
+  return ['svn:working-copy-problems-remote', path] as const;
+}
+
+/** Changelist-suggestion candidates for a working copy. */
+export function changelistSuggestionsStatus(workingCopyPath: string) {
+  return ['changelist-suggestions:status', workingCopyPath] as const;
+}
+
+/** Working-copy context the changelist suggestions are computed against. */
+export function changelistSuggestionsContext(workingCopyPath: string) {
+  return ['changelist-suggestions:context', workingCopyPath] as const;
+}
+
+/** Folder-size scan behind the disk-usage panel. */
+export function diskUsageFolderSize(workingCopyPath: string) {
+  return ['disk-usage:folder-size', workingCopyPath] as const;
+}
+
+/** Patch-hub index of a working copy's known patches. */
+export function patchHubIndex(workingCopyPath: string) {
+  return ['patch-hub:index', workingCopyPath] as const;
+}
+
+/** The shelf manager's per-user configuration. */
+export function shelfManagerConfig() {
+  return ['shelf-manager:config'] as const;
+}
+
+/** Shell-integration probe (is the CLI on PATH, which shell). */
+export function shellStatus() {
+  return ['shell:status'] as const;
+}
+
 /**
  * `svn list` reads the file-explorer performs through its persistent cache —
  * the same shape `features/files/authQueryKeys.ts` builds inline.
@@ -104,6 +158,22 @@ export function svnList(
   authPresence: 'stored' | 'anonymous'
 ) {
   return [`svn:list:${scope}`, url, authPresence] as const;
+}
+
+/**
+ * Family-wide `svn:list` prefix — matches every `svn:list:*` scope above plus
+ * the tag-wizard reads below, so one invalidation covers them all.
+ */
+export function svnListFamily() {
+  return ['svn:list'] as const;
+}
+
+/** `svn list` the tag wizard runs while picking or browsing a destination. */
+export function svnListTagWizard(
+  url: string,
+  view: 'tag-wizard' | 'tag-wizard-browser' = 'tag-wizard'
+) {
+  return ['svn:list', url, view] as const;
 }
 
 /** Repository-level listing behind the classic repository browser. */
@@ -151,8 +221,10 @@ export function fsGetDeepStatus(path: string) {
   return ['fs:getDeepStatus', path] as const;
 }
 
-export function fsGetDirectoryMetadata(path: string) {
-  return ['fs:getDirectoryMetadata', path] as const;
+export function fsGetDirectoryMetadata(path: string, filesLoaded?: boolean) {
+  return filesLoaded === undefined
+    ? (['fs:getDirectoryMetadata', path] as const)
+    : (['fs:getDirectoryMetadata', path, filesLoaded] as const);
 }
 
 export function fsIsVersioned(path: string) {
@@ -184,6 +256,38 @@ export function aiProviders() {
 
 export function aiRepositoryProfile(workingCopyPath: string) {
   return ['ai:repository-profile', workingCopyPath] as const;
+}
+
+/* ─────────────────────────── app-chrome families ─────────────────────────── */
+
+/** External diff/merge/edit tools discoverable on this machine. */
+export function externalToolsList() {
+  return ['externalTools:list'] as const;
+}
+
+/** Code editors for the open-with menu, keyed by the settings fingerprint. */
+export function externalEditors(customFingerprint: unknown) {
+  return ['external:editors', customFingerprint] as const;
+}
+
+/** Mirror of the persistent settings store. */
+export function settings() {
+  return ['settings'] as const;
+}
+
+/** Sidebar overview strip (working-copy counts summary). */
+export function sidebarOverview() {
+  return ['sidebar:overview'] as const;
+}
+
+/** Sidebar remote-status read (incoming/outgoing vs the server). */
+export function sidebarStatusRemote() {
+  return ['sidebar:status-remote'] as const;
+}
+
+/** Sidebar `svn info` read. */
+export function sidebarInfo() {
+  return ['sidebar:info'] as const;
 }
 
 /* ─────────────────────── prefix/segment predicates ───────────────────────── */

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SvnStatusEntry, SvnStatusChar } from '@shared/types';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { fsGetDeepStatus, fsGetStatus } from '@renderer/lib/queryKeys';
 
 export interface IncrementalStatusProgress {
   phase: 'idle' | 'scanning' | 'processing' | 'complete' | 'error';
@@ -204,8 +205,8 @@ export function useIncrementalStatus(options: IncrementalStatusOptions) {
 
       // These fs:* keys contain FsStatusResult, not SvnStatusResult. Mark them
       // stale so active filesystem consumers refetch the correctly shaped data.
-      void queryClient.invalidateQueries({ queryKey: ['fs:getStatus', path] });
-      void queryClient.invalidateQueries({ queryKey: ['fs:getDeepStatus', path] });
+      void queryClient.invalidateQueries({ queryKey: fsGetStatus(path) });
+      void queryClient.invalidateQueries({ queryKey: fsGetDeepStatus(path) });
 
       onUpdateRef.current?.({
         type: 'complete',

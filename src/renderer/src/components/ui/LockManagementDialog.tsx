@@ -16,6 +16,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { assertSuccessfulSvnRead } from '@renderer/utils/svnReadResult';
+import { svnLockInfo, svnLockList, svnStatus } from '@renderer/lib/queryKeys';
 import { DialogBase } from './DialogBase';
 import type { SvnLockInfo } from '@shared/types';
 
@@ -84,7 +85,7 @@ export function LockManagementDialog({
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['svn:lockList', workingCopyPath],
+    queryKey: svnLockList(workingCopyPath),
     queryFn: () => window.api.svn.lockList(workingCopyPath),
     enabled: isOpen && !!workingCopyPath,
   });
@@ -93,7 +94,8 @@ export function LockManagementDialog({
 
   // Fetch lock info for selected path if provided
   const { data: selectedLockInfo } = useQuery({
-    queryKey: ['svn:lockInfo', selectedPath],
+    // `''` when unset: the query is disabled without a path, so the key is inert.
+    queryKey: svnLockInfo(selectedPath ?? ''),
     queryFn: async () => assertSuccessfulSvnRead(await window.api.svn.lockInfo(selectedPath!)),
     enabled: isOpen && !!selectedPath,
   });
@@ -142,7 +144,7 @@ export function LockManagementDialog({
       if (result.success) {
         setSuccessMessage(`Lock stolen from ${selectedLock.owner}`);
         await refetch();
-        queryClient.invalidateQueries({ queryKey: ['svn:status'] });
+        queryClient.invalidateQueries({ queryKey: svnStatus() });
         onRefresh?.();
       } else {
         setErrorMessage(result.error || 'Failed to steal lock');
@@ -167,7 +169,7 @@ export function LockManagementDialog({
         setSuccessMessage(`Lock broken for ${selectedLock.owner}`);
         setSelectedLock(null);
         await refetch();
-        queryClient.invalidateQueries({ queryKey: ['svn:status'] });
+        queryClient.invalidateQueries({ queryKey: svnStatus() });
         onRefresh?.();
       } else {
         setErrorMessage(result.error || 'Failed to break lock');

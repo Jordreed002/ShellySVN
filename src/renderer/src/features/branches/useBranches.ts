@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SvnRepoEntry } from '@shared/types';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
+import { branches } from '@renderer/lib/queryKeys';
 
 export interface BranchEntry {
   name: string;
@@ -67,7 +68,7 @@ export function useBranchList(branchRootUrl: string | null | undefined) {
   // Seed from the persisted store for instant display when reopening a repo.
   useEffect(() => {
     if (!branchRootUrl) return;
-    const key = ['branches', branchRootUrl];
+    const key = branches(branchRootUrl);
     if (queryClient.getQueryData(key)) return;
     let cancelled = false;
     window.api.store
@@ -84,7 +85,7 @@ export function useBranchList(branchRootUrl: string | null | undefined) {
   }, [branchRootUrl, queryClient]);
 
   const query = useQuery({
-    queryKey: ['branches', branchRootUrl],
+    queryKey: branches(branchRootUrl as string),
     queryFn: () => fetchBranchList(branchRootUrl as string),
     enabled: Boolean(branchRootUrl),
     staleTime: STALE_TIME,
@@ -107,5 +108,5 @@ export function useBranchList(branchRootUrl: string | null | undefined) {
 export function useInvalidateBranches() {
   const queryClient = useQueryClient();
   return (branchRootUrl: string) =>
-    queryClient.invalidateQueries({ queryKey: ['branches', branchRootUrl] });
+    queryClient.invalidateQueries({ queryKey: branches(branchRootUrl) });
 }

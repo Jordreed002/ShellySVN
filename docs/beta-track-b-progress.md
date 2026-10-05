@@ -268,9 +268,17 @@ Ordered by user impact.
 - Stale default pins in `settings-defaults.test.ts` / `settingsTransfer.test.ts`
   (timeout 30→300s, `aiCommit.claudeModel`/`disabledCliProviders` from the
   recovery/auth commit) **fixed** — they had been failing on the branch tip.
-- Repo-browser `RevisionLogView` got show-changes; its full filter-bar/saved-view
+- ~~Repo-browser `RevisionLogView` got show-changes; its full filter-bar/saved-view
   adoption of `useLogViewSurface` is prepared (snippet in the log agent's
-  report) but not yet mounted.
-- Un-migrated inline query keys (ChangelistDialog, LockManagementDialog,
+  report) but not yet mounted.~~ **fixed** — RevisionLogView now mounts
+  `useLogViewSurface` (filter bar, saved views, export; views persisted per
+  repository under a `repo:`-prefixed storage key). Path-scoped filters match
+  nothing there because the repo-browser entry carries a changed-path count,
+  not the paths.
+- ~~Un-migrated inline query keys (ChangelistDialog, LockManagementDialog,
   BlameViewer, etc.) behave correctly via registry segment matching;
-  migration is cosmetic.
+  migration is cosmetic.~~ **fixed** — every renderer inline query-key literal
+  now goes through `lib/queryKeys.ts`; new factories were added for the
+  families that had none (svn:blame, blame-context, tag-wizard svn:list,
+  changelist-suggestions, disk-usage, patch-hub, shelf-manager config,
+  shell status, sidebar/settings/app-chrome scopes).

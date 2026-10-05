@@ -2,6 +2,12 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowDownToLine, RefreshCw } from 'lucide-react';
 import type { SvnStatusEntry, SvnStatusResult } from '@shared/types';
+import {
+  sidebarOverview,
+  sidebarStatusRemote,
+  svnWorkingCopyProblems,
+  svnWorkingCopyProblemsRemote,
+} from '@renderer/lib/queryKeys';
 
 import { AccessibleDialog } from '../AccessibleDialog';
 import { StatusIcon } from '../ui/StatusIcon';
@@ -102,12 +108,12 @@ export function WorkingCopyProblemsDialog({ path, onClose }: WorkingCopyProblems
   const [resolveError, setResolveError] = useState<string>();
   const [confirmRepositoryState, setConfirmRepositoryState] = useState(false);
   const localQuery = useQuery<SvnStatusResult>({
-    queryKey: ['svn:working-copy-problems', path],
+    queryKey: svnWorkingCopyProblems(path),
     queryFn: ({ signal }) => window.api.svn.status(path, { signal }),
     staleTime: 10_000,
   });
   const remoteQuery = useQuery<SvnStatusResult>({
-    queryKey: ['svn:working-copy-problems-remote', path],
+    queryKey: svnWorkingCopyProblemsRemote(path),
     queryFn: ({ signal }) => window.api.svn.statusRemote(path, { signal }),
     staleTime: 10_000,
     retry: false,
@@ -135,8 +141,8 @@ export function WorkingCopyProblemsDialog({ path, onClose }: WorkingCopyProblems
         return;
       }
       await Promise.allSettled([
-        queryClient.invalidateQueries({ queryKey: ['sidebar:overview'] }),
-        queryClient.invalidateQueries({ queryKey: ['sidebar:status-remote'] }),
+        queryClient.invalidateQueries({ queryKey: sidebarOverview() }),
+        queryClient.invalidateQueries({ queryKey: sidebarStatusRemote() }),
         localQuery.refetch(),
         remoteQuery.refetch(),
       ]);
@@ -159,8 +165,8 @@ export function WorkingCopyProblemsDialog({ path, onClose }: WorkingCopyProblems
       }
       setConfirmRepositoryState(false);
       await Promise.allSettled([
-        queryClient.invalidateQueries({ queryKey: ['sidebar:overview'] }),
-        queryClient.invalidateQueries({ queryKey: ['sidebar:status-remote'] }),
+        queryClient.invalidateQueries({ queryKey: sidebarOverview() }),
+        queryClient.invalidateQueries({ queryKey: sidebarStatusRemote() }),
         localQuery.refetch(),
         remoteQuery.refetch(),
       ]);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { authSession } from '@renderer/lib/queryKeys';
 
 export function useFileExplorerAuthPrompt() {
   const queryClient = useQueryClient();
@@ -44,7 +45,7 @@ export function useFileExplorerAuthPrompt() {
         password,
         persistence: 'stored',
       });
-      queryClient.invalidateQueries({ queryKey: ['auth', realm] });
+      queryClient.invalidateQueries({ queryKey: authSession(realm) });
       setIsOpen(false);
       setUsername('');
       setPassword('');

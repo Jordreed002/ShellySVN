@@ -18,6 +18,7 @@ import {
 } from '../../features/repo-browser/components/RepoStatusFlag';
 import type { RepoRollup, RepoStatusCode } from '../../features/repo-browser/types';
 import { appendExcludedChildren } from '../../features/files/excludedChildren';
+import { fsGetStatus, fsListDirectory, svnChildCommits } from '@renderer/lib/queryKeys';
 import { ContextMenu, useContextMenu } from '../ui/ContextMenu';
 import { buildSvnContextMenuItems, type FileRowActions } from '../ui/FileRow';
 
@@ -194,7 +195,7 @@ function MillerColumn({
   workingCopyRoot,
 }: MillerColumnProps) {
   const { data, isLoading } = useQuery({
-    queryKey: ['fs:listDirectory', dirPath],
+    queryKey: fsListDirectory(dirPath),
     queryFn: () => window.api.fs.listDirectory(dirPath),
     enabled: !!dirPath,
     staleTime: FILE_CACHE_TIME,
@@ -203,7 +204,7 @@ function MillerColumn({
     placeholderData: keepPreviousData,
   });
   const { data: statusData } = useQuery({
-    queryKey: ['fs:getStatus', dirPath],
+    queryKey: fsGetStatus(dirPath),
     queryFn: () => window.api.fs.getStatus(dirPath),
     enabled: !!dirPath,
     staleTime: FILE_CACHE_TIME,
@@ -218,7 +219,7 @@ function MillerColumn({
       dirPath.startsWith(workingCopyRoot.replace(/[\\/]+$/, '') + detectSeparator(dirPath)))
   );
   const { data: childCommits } = useQuery({
-    queryKey: ['svn:childCommits', dirPath],
+    queryKey: svnChildCommits(dirPath),
     queryFn: () => window.api.svn.childCommits(dirPath),
     enabled: !!dirPath && isInsideWorkingCopy,
     staleTime: FILE_CACHE_TIME,

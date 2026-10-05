@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import type { ShellIntegrationStatus } from '@shared/types';
+import { shellStatus } from '@renderer/lib/queryKeys';
 
 interface ShellIntegrationDialogProps {
   isOpen: boolean;
@@ -97,7 +98,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['shell:status'],
+    queryKey: shellStatus(),
     queryFn: () => window.api.shell.getStatus(),
     enabled: isOpen,
   });
@@ -115,7 +116,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shell:status'] });
+      queryClient.invalidateQueries({ queryKey: shellStatus() });
       setIsRegistering(false);
     },
     onError: (err) => {
@@ -137,7 +138,7 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shell:status'] });
+      queryClient.invalidateQueries({ queryKey: shellStatus() });
       setIsRegistering(false);
     },
     onError: (err) => {
