@@ -43,7 +43,7 @@ import type { ElectronApplication, Locator, Page } from '@playwright/test';
  *   - `TZ=UTC` for the app process so date formatting (repo browser rows,
  *     status ages) cannot shift with the host timezone;
  *   - `document.fonts.ready` before every capture;
- *   - the status bar (`footer[role="status"]`) and any text containing user
+ *   - the status bar (`div[role="status"]`) and any text containing user
  *     paths are masked via matcher masking — they embed machine-specific
  *     paths, revisions and the local `svn` version.
  *
@@ -63,9 +63,14 @@ function userPathTexts(page: Page): Locator {
   return page.getByText(/\/(?:Users|home|runner)\//);
 }
 
-/** The status bar embeds paths, revisions, disk usage and the svn version. */
+/**
+ * The status bar embeds paths, revisions, disk usage and the svn version.
+ * It is a `div[role="status"]`, not a `<footer>`: role="status" is only
+ * allowed on generic elements (aria-allowed-role), so the component uses a
+ * div with an explicit aria-label (see StatusBar.tsx).
+ */
 function statusBar(page: Page): Locator {
-  return page.locator('footer[role="status"]');
+  return page.locator('div[role="status"][aria-label="Application status"]');
 }
 
 async function volatileMasks(page: Page): Promise<Locator[]> {
@@ -90,14 +95,18 @@ async function stabilize(electronApp: ElectronApplication, page: Page): Promise<
   // tutorial's visibility is decided by the same reads, so by the time these
   // settle, the tutorial either is on screen or never will be — the launch
   // fixture may already have closed it, which is fine.
-  await expect(page.locator('footer[role="status"]')).toBeAttached({ timeout: 10000 });
+  await expect(statusBar(page)).toBeAttached({ timeout: 10000 });
   await expect(page.locator('.skeleton-shimmer')).toHaveCount(0, { timeout: 10000 });
 
+  // The tutorial's lifetime is decided by the same store reads that just
+  // settled, so it can unmount between the visibility check and the click.
+  // Give the click a short budget and treat a mid-click unmount as "already
+  // closed"; only a tutorial that stubbornly stays on screen fails the run.
   const closeTutorialButton = page.getByLabel('Close tutorial');
-  if (await closeTutorialButton.isVisible()) {
-    await closeTutorialButton.click();
-    await expect(closeTutorialButton).toBeHidden({ timeout: 5000 });
-  }
+  await closeTutorialButton.click({ timeout: 2000 }).catch(() => {
+    /* self-dismissed before the click landed */
+  });
+  await expect(closeTutorialButton).toHaveCount(0, { timeout: 5000 });
 
   // 'system' theme follows the OS; reduced motion is the app's own kill-switch.
   await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
@@ -115,7 +124,7 @@ async function stabilize(electronApp: ElectronApplication, page: Page): Promise<
  */
 async function waitForSettled(page: Page): Promise<void> {
   await expect(page.locator('.skeleton-shimmer')).toHaveCount(0, { timeout: 10000 });
-  await expect(page.locator('footer[role="status"]')).toBeAttached({ timeout: 10000 });
+  await expect(statusBar(page)).toBeAttached({ timeout: 10000 });
   // If the tutorial made it through anyway, fail loudly rather than capture it.
   await expect(page.getByLabel('Close tutorial')).toHaveCount(0);
   await page.waitForTimeout(400);
