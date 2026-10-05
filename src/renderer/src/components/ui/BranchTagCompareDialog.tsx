@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, GitCompare, Loader2, X } from 'lucide-react';
+import { AlertCircle, GitCompare, Loader2 } from 'lucide-react';
 import type { BranchComparisonReport, SvnDiffResult } from '@shared/types';
 import { EnhancedDiffViewer } from './EnhancedDiffViewer';
 import { VirtualizedDiffViewer } from './VirtualizedDiffViewer';
+import { DialogBase } from './DialogBase';
 
 interface BranchTagCompareDialogProps {
   isOpen: boolean;
@@ -58,15 +59,6 @@ export function BranchTagCompareDialog({
     setIsLoading(false);
   }, [isOpen, sourceUrl]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) onClose();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
   const canCompare = useMemo(() => leftUrl.trim() && rightUrl.trim(), [leftUrl, rightUrl]);
 
   const handleCompare = async (event: React.FormEvent) => {
@@ -92,153 +84,143 @@ export function BranchTagCompareDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal flex h-[82vh] w-[1100px] max-w-[96vw] flex-col"
-        onClick={(event) => event.stopPropagation()}
+    <DialogBase
+      isOpen={isOpen}
+      onClose={onClose}
+      dialogId="branch-tag-compare"
+      title={
+        <span className="flex items-center gap-2">
+          <GitCompare className="h-5 w-5 text-accent" />
+          Compare Branches or Tags
+        </span>
+      }
+      className="flex h-[82vh] w-[1100px] max-w-[96vw] flex-col"
+    >
+      <form
+        onSubmit={handleCompare}
+        className="flex-shrink-0 border-b border-border bg-bg-secondary px-4 py-3"
       >
-        <div className="modal-header flex-shrink-0">
-          <h2 className="modal-title">
-            <GitCompare className="h-5 w-5 text-accent" />
-            Compare Branches or Tags
-          </h2>
-          <button type="button" onClick={onClose} className="btn-icon-sm" disabled={isLoading}>
-            <X className="h-4 w-4" />
+        <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-text-secondary">Base URL</span>
+            <input
+              type="text"
+              value={leftUrl}
+              onChange={(event) => setLeftUrl(event.target.value)}
+              className="input h-9 text-sm"
+              placeholder="https://svn.example.com/repo/trunk"
+              disabled={isLoading}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-text-secondary">Compare URL</span>
+            <input
+              type="text"
+              value={rightUrl}
+              onChange={(event) => setRightUrl(event.target.value)}
+              className="input h-9 text-sm"
+              placeholder="https://svn.example.com/repo/branches/feature"
+              disabled={isLoading}
+            />
+          </label>
+          <button type="submit" className="btn btn-primary h-9" disabled={isLoading || !canCompare}>
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Comparing
+              </>
+            ) : (
+              <>
+                <GitCompare className="h-4 w-4" />
+                Compare
+              </>
+            )}
           </button>
         </div>
+      </form>
 
-        <form
-          onSubmit={handleCompare}
-          className="flex-shrink-0 border-b border-border bg-bg-secondary px-4 py-3"
-        >
-          <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-text-secondary">Base URL</span>
-              <input
-                type="text"
-                value={leftUrl}
-                onChange={(event) => setLeftUrl(event.target.value)}
-                className="input h-9 text-sm"
-                placeholder="https://svn.example.com/repo/trunk"
-                disabled={isLoading}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-text-secondary">
-                Compare URL
-              </span>
-              <input
-                type="text"
-                value={rightUrl}
-                onChange={(event) => setRightUrl(event.target.value)}
-                className="input h-9 text-sm"
-                placeholder="https://svn.example.com/repo/branches/feature"
-                disabled={isLoading}
-              />
-            </label>
-            <button
-              type="submit"
-              className="btn btn-primary h-9"
-              disabled={isLoading || !canCompare}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Comparing
-                </>
-              ) : (
-                <>
-                  <GitCompare className="h-4 w-4" />
-                  Compare
-                </>
-              )}
-            </button>
+      <div className="flex flex-1 flex-col overflow-hidden bg-bg">
+        {error && (
+          <div className="m-4 flex items-center gap-2 rounded border border-error/30 bg-error/10 p-3 text-sm text-error">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span>{error}</span>
           </div>
-        </form>
+        )}
 
-        <div className="flex flex-1 flex-col overflow-hidden bg-bg">
-          {error && (
-            <div className="m-4 flex items-center gap-2 rounded border border-error/30 bg-error/10 p-3 text-sm text-error">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+        {isLoading && (
+          <div className="flex h-full items-center justify-center text-text-muted">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin text-accent" />
+            Comparing repository URLs…
+          </div>
+        )}
 
-          {isLoading && (
-            <div className="flex h-full items-center justify-center text-text-muted">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin text-accent" />
-              Comparing repository URLs…
-            </div>
-          )}
-
-          {!isLoading && summary && (
-            <section className="flex-shrink-0 border-b border-border bg-bg-sunk px-4 py-3">
-              <div className="grid grid-cols-[auto_auto_1fr] items-start gap-4">
-                <SummaryMetric label="Changed paths" value={summary.changedFiles.length} />
-                <SummaryMetric
-                  label="Unique revisions"
-                  value={summary.leftOnlyRevisions.length + summary.rightOnlyRevisions.length}
-                />
-                <div className="min-w-0">
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-text-faint">
-                    Deterministic impact evidence
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {summary.impactGroups.map((group) => (
-                      <span
-                        key={group.category}
-                        className="rounded border border-border bg-bg-secondary px-2 py-1 text-xs text-text-secondary"
-                        title={group.evidence
-                          .slice(0, 10)
-                          .map((item) => `r${item.revision} ${item.action} ${item.path}`)
-                          .join('\n')}
-                      >
-                        {impactLabel(group.category)} · {group.evidence.length}
-                      </span>
-                    ))}
-                  </div>
+        {!isLoading && summary && (
+          <section className="flex-shrink-0 border-b border-border bg-bg-sunk px-4 py-3">
+            <div className="grid grid-cols-[auto_auto_1fr] items-start gap-4">
+              <SummaryMetric label="Changed paths" value={summary.changedFiles.length} />
+              <SummaryMetric
+                label="Unique revisions"
+                value={summary.leftOnlyRevisions.length + summary.rightOnlyRevisions.length}
+              />
+              <div className="min-w-0">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-text-faint">
+                  Deterministic impact evidence
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {summary.impactGroups.map((group) => (
+                    <span
+                      key={group.category}
+                      className="rounded border border-border bg-bg-secondary px-2 py-1 text-xs text-text-secondary"
+                      title={group.evidence
+                        .slice(0, 10)
+                        .map((item) => `r${item.revision} ${item.action} ${item.path}`)
+                        .join('\n')}
+                    >
+                      {impactLabel(group.category)} · {group.evidence.length}
+                    </span>
+                  ))}
                 </div>
               </div>
-              {(summary.leftOnlyRevisions.length > 0 || summary.rightOnlyRevisions.length > 0) && (
-                <div className="mt-2 flex gap-4 font-mono text-[10px] text-text-muted">
-                  <span title={summary.leftOnlyRevisions.join(', ')}>
-                    Base only: {formatRevisions(summary.leftOnlyRevisions)}
-                  </span>
-                  <span title={summary.rightOnlyRevisions.join(', ')}>
-                    Compare only: {formatRevisions(summary.rightOnlyRevisions)}
-                  </span>
-                </div>
-              )}
-            </section>
-          )}
-
-          {!isLoading &&
-            diff &&
-            diff.hasChanges &&
-            (getDiffLineCount(diff) > 2000 ? (
-              <VirtualizedDiffViewer diff={diff} className="min-h-0 flex-1" />
-            ) : (
-              <EnhancedDiffViewer
-                diff={diff}
-                filePath={`${leftUrl.trim()} -> ${rightUrl.trim()}`}
-                className="min-h-0 flex-1"
-              />
-            ))}
-
-          {!isLoading && diff && !diff.hasChanges && (
-            <div className="flex h-full items-center justify-center text-text-muted">
-              No differences found
             </div>
-          )}
+            {(summary.leftOnlyRevisions.length > 0 || summary.rightOnlyRevisions.length > 0) && (
+              <div className="mt-2 flex gap-4 font-mono text-[10px] text-text-muted">
+                <span title={summary.leftOnlyRevisions.join(', ')}>
+                  Base only: {formatRevisions(summary.leftOnlyRevisions)}
+                </span>
+                <span title={summary.rightOnlyRevisions.join(', ')}>
+                  Compare only: {formatRevisions(summary.rightOnlyRevisions)}
+                </span>
+              </div>
+            )}
+          </section>
+        )}
 
-          {!isLoading && !diff && !error && (
-            <div className="flex h-full items-center justify-center text-text-muted">
-              Enter two branch, tag, or trunk URLs to compare
-            </div>
-          )}
-        </div>
+        {!isLoading &&
+          diff &&
+          diff.hasChanges &&
+          (getDiffLineCount(diff) > 2000 ? (
+            <VirtualizedDiffViewer diff={diff} className="min-h-0 flex-1" />
+          ) : (
+            <EnhancedDiffViewer
+              diff={diff}
+              filePath={`${leftUrl.trim()} -> ${rightUrl.trim()}`}
+              className="min-h-0 flex-1"
+            />
+          ))}
+
+        {!isLoading && diff && !diff.hasChanges && (
+          <div className="flex h-full items-center justify-center text-text-muted">
+            No differences found
+          </div>
+        )}
+
+        {!isLoading && !diff && !error && (
+          <div className="flex h-full items-center justify-center text-text-muted">
+            Enter two branch, tag, or trunk URLs to compare
+          </div>
+        )}
       </div>
-    </div>
+    </DialogBase>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, FileDiff, Save, AlertCircle, CheckCircle, Loader2, FolderOpen } from 'lucide-react';
+import { FileDiff, Save, AlertCircle, CheckCircle, Loader2, FolderOpen } from 'lucide-react';
+import { DialogBase } from './DialogBase';
 
 interface CreatePatchDialogProps {
   isOpen: boolean;
@@ -109,155 +110,149 @@ export function CreatePatchDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[700px] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <h2 className="modal-title">
-            <FileDiff className="w-5 h-5 text-accent" />
-            Create Patch
-          </h2>
-          <button onClick={onClose} className="btn-icon-sm">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="modal-body space-y-4">
-          {success ? (
-            <div className="flex flex-col items-center py-8 text-center">
-              <div className="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center mb-4">
-                <CheckCircle className="w-6 h-6 text-success" />
-              </div>
-              <h3 className="text-lg font-medium text-text mb-2">Patch Saved</h3>
-              <p className="text-text-secondary mb-6">{filename}</p>
-              <button onClick={onClose} className="btn btn-primary">
-                Done
-              </button>
+    <DialogBase
+      isOpen={isOpen}
+      onClose={onClose}
+      dialogId="create-patch"
+      title={
+        <span className="flex items-center gap-2">
+          <FileDiff className="w-5 h-5 text-accent" />
+          Create Patch
+        </span>
+      }
+      className="w-[700px] max-h-[90vh]"
+    >
+      {/* Content */}
+      <div className="modal-body space-y-4">
+        {success ? (
+          <div className="flex flex-col items-center py-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-success/20 flex items-center justify-center mb-4">
+              <CheckCircle className="w-6 h-6 text-success" />
             </div>
-          ) : (
-            <>
-              <p className="text-sm text-text-secondary">
-                Create a unified diff patch file from your local changes.
-              </p>
-
-              {/* Generate button */}
-              {!patchContent && (
-                <button
-                  onClick={handleGenerate}
-                  className="btn btn-primary w-full"
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating…
-                    </>
-                  ) : (
-                    <>
-                      <FileDiff className="w-4 h-4" />
-                      Generate Patch
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Output path */}
-              {patchContent && (
-                <div>
-                  <label
-                    htmlFor="create-patch-output"
-                    className="text-sm font-medium text-text-secondary mb-1.5 block"
-                  >
-                    Save to
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      id="create-patch-output"
-                      type="text"
-                      value={outputPath || filename}
-                      onChange={(e) => {
-                        setOutputPath(e.target.value);
-                        // Also update filename if it looks like just a filename
-                        const name = e.target.value.split(/[/\\]/).pop() || e.target.value;
-                        if (name === e.target.value) {
-                          setFilename(name);
-                        }
-                      }}
-                      placeholder="changes.patch"
-                      className="input flex-1"
-                    />
-                    <button onClick={handleBrowseOutputPath} className="btn btn-secondary">
-                      <FolderOpen className="w-4 h-4" />
-                      Browse
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Patch content */}
-              {patchContent && (
-                <div>
-                  <label
-                    htmlFor="create-patch-content"
-                    className="text-sm font-medium text-text-secondary mb-1.5 block"
-                  >
-                    Patch content
-                  </label>
-                  <textarea
-                    id="create-patch-content"
-                    value={patchContent}
-                    onChange={(e) => setPatchContent(e.target.value)}
-                    className="input h-64 resize-none font-mono text-xs"
-                  />
-                  <div className="flex justify-end mt-2 gap-2">
-                    <button onClick={handleCopy} className="btn btn-secondary btn-sm">
-                      Copy to Clipboard
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Stats */}
-              {patchContent && (
-                <div className="flex gap-4 text-sm text-text-faint">
-                  <span>
-                    +{patchContent.split('\n').filter((l) => l.startsWith('+')).length} additions
-                  </span>
-                  <span>
-                    -{patchContent.split('\n').filter((l) => l.startsWith('-')).length} deletions
-                  </span>
-                </div>
-              )}
-
-              {/* Error */}
-              {error && (
-                <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        {!success && (
-          <div className="modal-footer">
-            <button onClick={onClose} className="btn btn-secondary">
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="btn btn-primary"
-              disabled={!patchContent.trim()}
-            >
-              <Save className="w-4 h-4" />
-              Save Patch
+            <h3 className="text-lg font-medium text-text mb-2">Patch Saved</h3>
+            <p className="text-text-secondary mb-6">{filename}</p>
+            <button onClick={onClose} className="btn btn-primary">
+              Done
             </button>
           </div>
+        ) : (
+          <>
+            <p className="text-sm text-text-secondary">
+              Create a unified diff patch file from your local changes.
+            </p>
+
+            {/* Generate button */}
+            {!patchContent && (
+              <button
+                onClick={handleGenerate}
+                className="btn btn-primary w-full"
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <FileDiff className="w-4 h-4" />
+                    Generate Patch
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Output path */}
+            {patchContent && (
+              <div>
+                <label
+                  htmlFor="create-patch-output"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
+                  Save to
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="create-patch-output"
+                    type="text"
+                    value={outputPath || filename}
+                    onChange={(e) => {
+                      setOutputPath(e.target.value);
+                      // Also update filename if it looks like just a filename
+                      const name = e.target.value.split(/[/\\]/).pop() || e.target.value;
+                      if (name === e.target.value) {
+                        setFilename(name);
+                      }
+                    }}
+                    placeholder="changes.patch"
+                    className="input flex-1"
+                  />
+                  <button onClick={handleBrowseOutputPath} className="btn btn-secondary">
+                    <FolderOpen className="w-4 h-4" />
+                    Browse
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Patch content */}
+            {patchContent && (
+              <div>
+                <label
+                  htmlFor="create-patch-content"
+                  className="text-sm font-medium text-text-secondary mb-1.5 block"
+                >
+                  Patch content
+                </label>
+                <textarea
+                  id="create-patch-content"
+                  value={patchContent}
+                  onChange={(e) => setPatchContent(e.target.value)}
+                  className="input h-64 resize-none font-mono text-xs"
+                />
+                <div className="flex justify-end mt-2 gap-2">
+                  <button onClick={handleCopy} className="btn btn-secondary btn-sm">
+                    Copy to Clipboard
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Stats */}
+            {patchContent && (
+              <div className="flex gap-4 text-sm text-text-faint">
+                <span>
+                  +{patchContent.split('\n').filter((l) => l.startsWith('+')).length} additions
+                </span>
+                <span>
+                  -{patchContent.split('\n').filter((l) => l.startsWith('-')).length} deletions
+                </span>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded p-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
-    </div>
+
+      {/* Footer */}
+      {!success && (
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn btn-secondary">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="btn btn-primary" disabled={!patchContent.trim()}>
+            <Save className="w-4 h-4" />
+            Save Patch
+          </button>
+        </div>
+      )}
+    </DialogBase>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, FileInput, FolderOpen, AlertCircle, CheckCircle, Loader2, Layers } from 'lucide-react';
+import { FileInput, FolderOpen, AlertCircle, CheckCircle, Loader2, Layers } from 'lucide-react';
 import { PatchHubDialog } from './PatchHubDialog';
+import { DialogBase } from './DialogBase';
 
 interface ApplyPatchDialogProps {
   isOpen: boolean;
@@ -146,30 +147,30 @@ export function ApplyPatchDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[600px]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <h2 className="modal-title">
+    <>
+      <DialogBase
+        isOpen={isOpen}
+        onClose={onClose}
+        dialogId="apply-patch"
+        title={
+          <span className="flex items-center gap-2">
             <FileInput className="w-5 h-5 text-accent" />
             Apply Patch
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setHubOpen(true)}
-              title="Open the Patch Hub (created patches, conflict preview, reject recovery)"
-            >
-              <Layers className="w-4 h-4" />
-              Patch Hub…
-            </button>
-            <button onClick={onClose} className="btn-icon-sm" aria-label="Close dialog">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
+          </span>
+        }
+        headerExtras={
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setHubOpen(true)}
+            title="Open the Patch Hub (created patches, conflict preview, reject recovery)"
+          >
+            <Layers className="w-4 h-4" />
+            Patch Hub…
+          </button>
+        }
+        className="w-[600px]"
+      >
         {/* Content */}
         <div className="modal-body space-y-4">
           {success ? (
@@ -341,7 +342,7 @@ export function ApplyPatchDialog({
             )}
           </div>
         )}
-      </div>
+      </DialogBase>
       {hubOpen && (
         <PatchHubDialog
           isOpen={hubOpen}
@@ -350,6 +351,6 @@ export function ApplyPatchDialog({
           onComplete={onComplete}
         />
       )}
-    </div>
+    </>
   );
 }

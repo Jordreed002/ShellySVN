@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { X, GitBranch, Tag, FolderOpen, AlertCircle, CheckCircle, Loader2, Wand2 } from 'lucide-react';
+import { GitBranch, Tag, FolderOpen, AlertCircle, CheckCircle, Loader2, Wand2 } from 'lucide-react';
 import { RepoBrowser } from './RepoBrowser';
 import { TagWizard } from './TagWizard';
+import { DialogBase } from './DialogBase';
 
 interface BranchTagDialogProps {
   isOpen: boolean;
@@ -118,6 +119,8 @@ export function BranchTagDialog({
     }
   };
 
+  const closeRepoBrowser = () => setShowRepoBrowser(false);
+
   if (!isOpen) return null;
 
   // #51: the guided tag wizard replaces the simple form when the user opts in.
@@ -143,19 +146,19 @@ export function BranchTagDialog({
   const title = mode === 'branch' ? 'Create Branch' : 'Create Tag';
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal w-[550px]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <h2 className="modal-title">
+    <>
+      <DialogBase
+        isOpen={isOpen}
+        onClose={handleClose}
+        dialogId={mode === 'tag' ? 'create-tag' : 'create-branch'}
+        title={
+          <span className="flex items-center gap-2">
             <Icon className={`w-5 h-5 ${mode === 'branch' ? 'text-accent' : 'text-success'}`} />
             {title}
-          </h2>
-          <button onClick={handleClose} className="btn-icon-sm" disabled={isCreating}>
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
+          </span>
+        }
+        className="w-[550px]"
+      >
         {/* Content */}
         {success ? (
           <div className="modal-body">
@@ -314,8 +317,8 @@ export function BranchTagDialog({
                   <span>
                     Need release names and templates? Use the{' '}
                     <span className="font-medium text-text">Tag Wizard</span> — name presets
-                    (release/x.y.z, tags/#rev), version bumping, a dry-run preview, and a
-                    repository directory browser.
+                    (release/x.y.z, tags/#rev), version bumping, a dry-run preview, and a repository
+                    directory browser.
                   </span>
                 </button>
               )}
@@ -351,46 +354,39 @@ export function BranchTagDialog({
             </div>
           </form>
         )}
-      </div>
+      </DialogBase>
 
-      {/* Repository Browser Modal */}
+      {/* Repository Browser Modal (nested: portals above and owns Escape) */}
       {showRepoBrowser && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowRepoBrowser(false)}
-          style={{ zIndex: 100 }}
+        <DialogBase
+          isOpen={showRepoBrowser}
+          onClose={closeRepoBrowser}
+          dialogId="branch-tag-repo-browser"
+          title={
+            <span className="flex items-center gap-2">
+              <FolderOpen className="w-5 h-5 text-accent" />
+              Browse Repository
+            </span>
+          }
+          className="w-[700px] h-[500px] flex flex-col"
         >
-          <div
-            className="modal w-[700px] h-[500px] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h2 className="modal-title">
-                <FolderOpen className="w-5 h-5 text-accent" />
-                Browse Repository
-              </h2>
-              <button onClick={() => setShowRepoBrowser(false)} className="btn-icon-sm">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <RepoBrowser
-                isOpen={true}
-                repoUrl={repoBaseUrl}
-                onNavigate={(url) => {
-                  setDestUrl(url);
-                }}
-                onClose={() => setShowRepoBrowser(false)}
-              />
-            </div>
-            <div className="modal-footer">
-              <button onClick={() => setShowRepoBrowser(false)} className="btn btn-primary">
-                Select
-              </button>
-            </div>
+          <div className="flex-1 overflow-hidden">
+            <RepoBrowser
+              isOpen={true}
+              repoUrl={repoBaseUrl}
+              onNavigate={(url) => {
+                setDestUrl(url);
+              }}
+              onClose={closeRepoBrowser}
+            />
           </div>
-        </div>
+          <div className="modal-footer">
+            <button onClick={closeRepoBrowser} className="btn btn-primary">
+              Select
+            </button>
+          </div>
+        </DialogBase>
       )}
-    </div>
+    </>
   );
 }

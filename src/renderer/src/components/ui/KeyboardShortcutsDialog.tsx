@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Keyboard, Pencil, RotateCcw, X } from 'lucide-react';
 import { useShortcutBindings } from '../../hooks/useShortcutBindings';
 import { normalizeShortcutKey, shortcutComboFromEvent } from '../../lib/shortcutStore';
+import { DialogBase } from './DialogBase';
 
 /**
  * A row of the cheat sheet. Rows whose action is user-remappable carry the
@@ -63,8 +64,16 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['F5'], description: 'Refresh', bindingId: 'refresh' },
       { keys: ['Ctrl', 'F'], description: 'Focus search', bindingId: 'search' },
       { keys: ['Ctrl', 'B'], description: 'Toggle sidebar', bindingId: 'toggle-sidebar' },
-      { keys: ['Ctrl', 'Shift', 'A'], description: 'Toggle AI review center', bindingId: 'ai-review-center' },
-      { keys: ['Ctrl', 'Alt', 'P'], description: 'Toggle performance dashboard', bindingId: 'performance-dashboard' },
+      {
+        keys: ['Ctrl', 'Shift', 'A'],
+        description: 'Toggle AI review center',
+        bindingId: 'ai-review-center',
+      },
+      {
+        keys: ['Ctrl', 'Alt', 'P'],
+        description: 'Toggle performance dashboard',
+        bindingId: 'performance-dashboard',
+      },
       { keys: ['Ctrl', 'P'], description: 'Toggle preview panel' },
     ],
   },
@@ -72,8 +81,16 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: 'General',
     shortcuts: [
       { keys: ['Ctrl', ','], description: 'Open settings', bindingId: 'settings' },
-      { keys: ['Ctrl', 'Shift', 'P'], description: 'Command palette', bindingId: 'command-palette' },
-      { keys: ['Ctrl', 'K'], description: 'Command palette (quick open)', bindingId: 'command-palette-quick' },
+      {
+        keys: ['Ctrl', 'Shift', 'P'],
+        description: 'Command palette',
+        bindingId: 'command-palette',
+      },
+      {
+        keys: ['Ctrl', 'K'],
+        description: 'Command palette (quick open)',
+        bindingId: 'command-palette-quick',
+      },
       { keys: ['?'], description: 'Show keyboard shortcuts', bindingId: 'shortcut-help' },
     ],
   },
@@ -176,240 +193,230 @@ export function KeyboardShortcutsDialog({ isOpen, onClose }: KeyboardShortcutsDi
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[640px] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="flex items-center gap-3">
-            <Keyboard className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-text">Keyboard Shortcuts</h2>
-          </div>
-          <button onClick={onClose} className="btn-icon-sm" aria-label="Close">
-            <X className="w-4 h-4" />
+    <DialogBase
+      isOpen={isOpen}
+      onClose={onClose}
+      dialogId="keyboard-shortcuts"
+      title={
+        <span className="flex items-center gap-2">
+          <Keyboard className="w-5 h-5 text-accent" />
+          Keyboard Shortcuts
+        </span>
+      }
+      className="w-[640px] max-h-[80vh]"
+    >
+      {/* Tab bar: read-only sheet vs. remapping */}
+      <div className="flex items-center gap-1 px-4 pt-3" role="tablist" aria-label="Shortcut views">
+        {(
+          [
+            ['cheatsheet', 'Cheat sheet'],
+            ['customize', 'Customize'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            onClick={() => setTab(value)}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-fast ${
+              tab === value
+                ? 'bg-accent/10 text-accent border border-accent/40'
+                : 'text-text-secondary hover:text-text border border-transparent hover:bg-bg-tertiary'
+            }`}
+          >
+            {label}
           </button>
-        </div>
+        ))}
+      </div>
 
-        {/* Tab bar: read-only sheet vs. remapping */}
-        <div className="flex items-center gap-1 px-4 pt-3" role="tablist" aria-label="Shortcut views">
-          {(
-            [
-              ['cheatsheet', 'Cheat sheet'],
-              ['customize', 'Customize'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={tab === value}
-              onClick={() => setTab(value)}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-fast ${
-                tab === value
-                  ? 'bg-accent/10 text-accent border border-accent/40'
-                  : 'text-text-secondary hover:text-text border border-transparent hover:bg-bg-tertiary'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="modal-body overflow-auto">
-          {tab === 'cheatsheet' ? (
-            <div className="grid grid-cols-2 gap-6">
-              {SHORTCUT_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <h3 className="text-sm font-medium text-text mb-3 pb-2 border-b border-border">
-                    {group.title}
-                  </h3>
-                  <div className="space-y-2">
-                    {group.shortcuts.map((shortcut, index) => {
-                      const binding = shortcut.bindingId
-                        ? bindingById.get(shortcut.bindingId)
-                        : undefined;
-                      const keys = binding ? keyParts(binding.currentKey) : shortcut.keys;
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between text-sm"
+      <div className="modal-body overflow-auto">
+        {tab === 'cheatsheet' ? (
+          <div className="grid grid-cols-2 gap-6">
+            {SHORTCUT_GROUPS.map((group) => (
+              <div key={group.title}>
+                <h3 className="text-sm font-medium text-text mb-3 pb-2 border-b border-border">
+                  {group.title}
+                </h3>
+                <div className="space-y-2">
+                  {group.shortcuts.map((shortcut, index) => {
+                    const binding = shortcut.bindingId
+                      ? bindingById.get(shortcut.bindingId)
+                      : undefined;
+                    const keys = binding ? keyParts(binding.currentKey) : shortcut.keys;
+                    return (
+                      <div key={index} className="flex items-center justify-between text-sm">
+                        <span
+                          className={`text-text-secondary ${
+                            binding && !binding.enabled ? 'line-through opacity-60' : ''
+                          }`}
                         >
+                          {shortcut.description}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {keys.map((key, keyIndex) => (
+                            <span key={keyIndex}>
+                              <kbd className="px-2 py-0.5 bg-bg-elevated border border-border rounded text-xs font-mono text-text">
+                                {key}
+                              </kbd>
+                              {keyIndex < keys.length - 1 && (
+                                <span className="text-text-muted mx-0.5">+</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-5" aria-busy={isLoading}>
+            {conflictWarning && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/40 text-sm text-text"
+              >
+                <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                <span className="flex-1">{conflictWarning}</span>
+                <button
+                  type="button"
+                  onClick={clearConflictWarning}
+                  className="btn-icon-sm"
+                  aria-label="Dismiss warning"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {categories.map((category) => {
+              const categoryBindings = getByCategory(category.id);
+              if (categoryBindings.length === 0) return null;
+              return (
+                <section key={category.id}>
+                  <h3 className="text-sm font-medium text-text mb-3 pb-2 border-b border-border">
+                    {category.name}
+                  </h3>
+                  <div className="space-y-1.5">
+                    {categoryBindings.map((binding) => {
+                      const isCustomized =
+                        normalizeShortcutKey(binding.currentKey) !==
+                        normalizeShortcutKey(binding.defaultKey);
+                      const conflictLabel = conflictLabels.get(binding.id);
+                      const recordingThis = isRecording === binding.id;
+                      return (
+                        <div key={binding.id} className="flex items-center gap-3 text-sm py-1">
                           <span
-                            className={`text-text-secondary ${
-                              binding && !binding.enabled ? 'line-through opacity-60' : ''
+                            className={`flex-1 min-w-0 truncate ${
+                              binding.enabled
+                                ? 'text-text-secondary'
+                                : 'text-text-faint line-through'
                             }`}
                           >
-                            {shortcut.description}
+                            {binding.name}
                           </span>
-                          <div className="flex items-center gap-1">
-                            {keys.map((key, keyIndex) => (
-                              <span key={keyIndex}>
-                                <kbd className="px-2 py-0.5 bg-bg-elevated border border-border rounded text-xs font-mono text-text">
-                                  {key}
-                                </kbd>
-                                {keyIndex < keys.length - 1 && (
-                                  <span className="text-text-muted mx-0.5">+</span>
-                                )}
-                              </span>
-                            ))}
-                          </div>
+
+                          {recordingThis ? (
+                            <span className="text-xs text-accent animate-pulse" role="status">
+                              Press the new key… Esc cancels
+                            </span>
+                          ) : (
+                            <kbd
+                              className={`px-2 py-0.5 bg-bg-elevated border border-border rounded text-xs font-mono ${
+                                binding.enabled ? 'text-text' : 'text-text-faint'
+                              }`}
+                            >
+                              {binding.currentKey}
+                            </kbd>
+                          )}
+
+                          {conflictLabel && !recordingThis && (
+                            <span
+                              className="flex items-center gap-1 text-xs text-warning"
+                              title={conflictLabel}
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+                              Conflict
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              recordingThis ? stopRecording() : startRecording(binding.id)
+                            }
+                            className="btn-icon-sm"
+                            aria-label={
+                              recordingThis
+                                ? `Cancel recording for ${binding.name}`
+                                : `Record a new key for ${binding.name}`
+                            }
+                            title={recordingThis ? 'Cancel recording' : 'Record new key'}
+                          >
+                            {recordingThis ? (
+                              <X className="w-3.5 h-3.5" />
+                            ) : (
+                              <Pencil className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+
+                          {isCustomized && (
+                            <button
+                              type="button"
+                              onClick={() => void resetBinding(binding.id)}
+                              className="btn-icon-sm"
+                              aria-label={`Reset ${binding.name} to ${binding.defaultKey}`}
+                              title={`Reset to default (${binding.defaultKey})`}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          <input
+                            type="checkbox"
+                            checked={binding.enabled}
+                            onChange={(event) =>
+                              void setBindingEnabled(binding.id, event.target.checked)
+                            }
+                            aria-label={
+                              binding.enabled ? `Disable ${binding.name}` : `Enable ${binding.name}`
+                            }
+                            className="accent-accent"
+                          />
                         </div>
                       );
                     })}
                   </div>
-                </div>
-              ))}
+                </section>
+              );
+            })}
+
+            <div className="pt-2 border-t border-border flex items-center justify-between">
+              <p className="text-xs text-text-muted">
+                Bindings are stored as overrides; defaults never change.
+              </p>
+              <button
+                type="button"
+                onClick={() => void resetAllBindings()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:text-text hover:bg-bg-tertiary transition-fast"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset all to defaults
+              </button>
             </div>
-          ) : (
-            <div className="space-y-5" aria-busy={isLoading}>
-              {conflictWarning && (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/40 text-sm text-text"
-                >
-                  <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
-                  <span className="flex-1">{conflictWarning}</span>
-                  <button
-                    type="button"
-                    onClick={clearConflictWarning}
-                    className="btn-icon-sm"
-                    aria-label="Dismiss warning"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {categories.map((category) => {
-                const categoryBindings = getByCategory(category.id);
-                if (categoryBindings.length === 0) return null;
-                return (
-                  <section key={category.id}>
-                    <h3 className="text-sm font-medium text-text mb-3 pb-2 border-b border-border">
-                      {category.name}
-                    </h3>
-                    <div className="space-y-1.5">
-                      {categoryBindings.map((binding) => {
-                        const isCustomized =
-                          normalizeShortcutKey(binding.currentKey) !==
-                          normalizeShortcutKey(binding.defaultKey);
-                        const conflictLabel = conflictLabels.get(binding.id);
-                        const recordingThis = isRecording === binding.id;
-                        return (
-                          <div
-                            key={binding.id}
-                            className="flex items-center gap-3 text-sm py-1"
-                          >
-                            <span
-                              className={`flex-1 min-w-0 truncate ${
-                                binding.enabled ? 'text-text-secondary' : 'text-text-faint line-through'
-                              }`}
-                            >
-                              {binding.name}
-                            </span>
-
-                            {recordingThis ? (
-                              <span
-                                className="text-xs text-accent animate-pulse"
-                                role="status"
-                              >
-                                Press the new key… Esc cancels
-                              </span>
-                            ) : (
-                              <kbd
-                                className={`px-2 py-0.5 bg-bg-elevated border border-border rounded text-xs font-mono ${
-                                  binding.enabled ? 'text-text' : 'text-text-faint'
-                                }`}
-                              >
-                                {binding.currentKey}
-                              </kbd>
-                            )}
-
-                            {conflictLabel && !recordingThis && (
-                              <span
-                                className="flex items-center gap-1 text-xs text-warning"
-                                title={conflictLabel}
-                              >
-                                <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
-                                Conflict
-                              </span>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                recordingThis ? stopRecording() : startRecording(binding.id)
-                              }
-                              className="btn-icon-sm"
-                              aria-label={
-                                recordingThis
-                                  ? `Cancel recording for ${binding.name}`
-                                  : `Record a new key for ${binding.name}`
-                              }
-                              title={recordingThis ? 'Cancel recording' : 'Record new key'}
-                            >
-                              {recordingThis ? (
-                                <X className="w-3.5 h-3.5" />
-                              ) : (
-                                <Pencil className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-
-                            {isCustomized && (
-                              <button
-                                type="button"
-                                onClick={() => void resetBinding(binding.id)}
-                                className="btn-icon-sm"
-                                aria-label={`Reset ${binding.name} to ${binding.defaultKey}`}
-                                title={`Reset to default (${binding.defaultKey})`}
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-
-                            <input
-                              type="checkbox"
-                              checked={binding.enabled}
-                              onChange={(event) =>
-                                void setBindingEnabled(binding.id, event.target.checked)
-                              }
-                              aria-label={
-                                binding.enabled
-                                  ? `Disable ${binding.name}`
-                                  : `Enable ${binding.name}`
-                              }
-                              className="accent-accent"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-
-              <div className="pt-2 border-t border-border flex items-center justify-between">
-                <p className="text-xs text-text-muted">
-                  Bindings are stored as overrides; defaults never change.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void resetAllBindings()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:text-text hover:bg-bg-tertiary transition-fast"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Reset all to defaults
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="modal-footer">
-          <p className="text-xs text-text-muted">
-            Press <kbd className="px-1 py-0.5 bg-bg-elevated rounded text-text-faint">?</kbd>{' '}
-            anytime to show this dialog
-          </p>
-        </div>
+          </div>
+        )}
       </div>
-    </div>
+
+      <div className="modal-footer">
+        <p className="text-xs text-text-muted">
+          Press <kbd className="px-1 py-0.5 bg-bg-elevated rounded text-text-faint">?</kbd> anytime
+          to show this dialog
+        </p>
+      </div>
+    </DialogBase>
   );
 }

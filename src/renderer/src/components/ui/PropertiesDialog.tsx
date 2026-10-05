@@ -1,10 +1,22 @@
 import { useState, useEffect } from 'react';
-import { X, Settings, Plus, Trash2, AlertCircle, Loader2, Check, Save, Eye, FileCode, Link2 } from 'lucide-react';
+import {
+  Settings,
+  Plus,
+  Trash2,
+  AlertCircle,
+  Loader2,
+  Check,
+  Save,
+  Eye,
+  FileCode,
+  Link2,
+} from 'lucide-react';
 import { confirmAppAction } from '../../utils/dialogs';
 import { assertSuccessfulSvnRead } from '../../utils/svnReadResult';
 import { KeywordsEditorDialog } from './KeywordsEditorDialog';
 import { ExternalsManagerDialog } from './ExternalsManagerDialog';
 import { IgnoreDialog } from './IgnoreDialog';
+import { DialogBase } from './DialogBase';
 
 interface PropertiesDialogProps {
   isOpen: boolean;
@@ -368,19 +380,18 @@ export function PropertiesDialog({
           onApplyValue={(value) => applyStructuredValue(ignoreTarget.name, value)}
         />
       )}
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal w-[600px] max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <h2 className="modal-title">
+      <DialogBase
+        isOpen={isOpen}
+        onClose={onClose}
+        dialogId="properties"
+        title={
+          <span className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-accent" />
             Properties
-          </h2>
-          <button onClick={onClose} className="btn-icon-sm">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
+          </span>
+        }
+        className="w-[600px] max-h-[80vh]"
+      >
         {/* Path */}
         <div className="px-4 py-2 bg-bg-tertiary border-b border-border text-sm text-text-secondary truncate">
           {path}
@@ -695,8 +706,7 @@ export function PropertiesDialog({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogBase>
     </>
   );
 }

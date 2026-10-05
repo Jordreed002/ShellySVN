@@ -10,10 +10,10 @@ import {
   RefreshCw,
   Shield,
   Terminal,
-  X,
 } from 'lucide-react';
 import type { ShellIntegrationStatus } from '@shared/types';
 import { shellStatus } from '@renderer/lib/queryKeys';
+import { DialogBase } from './DialogBase';
 
 interface ShellIntegrationDialogProps {
   isOpen: boolean;
@@ -150,164 +150,161 @@ export function ShellIntegrationDialog({ isOpen, onClose }: ShellIntegrationDial
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal w-[550px]" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">
-            <Shield className="w-5 h-5 text-accent" />
-            Shell Integration
-          </h2>
-          <button onClick={onClose} className="btn-icon-sm">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="modal-body space-y-4">
-          {isLoading || !status ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 text-text-muted animate-spin" />
-            </div>
-          ) : (
-            <>
-              <div
-                className={`rounded-lg p-4 ${
-                  status.registered
-                    ? 'bg-success/10 border border-success/30'
-                    : 'bg-bg-tertiary border border-border'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {status.registered ? (
-                    <CheckCircle className="w-6 h-6 text-success" />
-                  ) : (
-                    <AlertCircle className="w-6 h-6 text-text-muted" />
-                  )}
-                  <div>
-                    <p className="font-medium text-text">
-                      {status.registered
-                        ? 'Shell Integration Active'
-                        : 'Shell Integration Not Active'}
-                    </p>
-                    <p className="text-sm text-text-secondary">{status.message}</p>
-                  </div>
-                </div>
-              </div>
-
-              <PlatformInfo status={status} />
-
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-text">Available Features</h4>
-
-                <div className="bg-bg-tertiary rounded-lg p-3 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <Image className="w-5 h-5 text-accent" />
-                    <div className="flex-1">
-                      <p className="text-sm text-text">Status icons</p>
-                      <p className="text-xs text-text-faint">
-                        Explorer overlays or Finder badges where available
-                      </p>
-                    </div>
-                    {(status.iconOverlaysAvailable || status.finderBadgesAvailable) && (
-                      <CheckCircle className="w-4 h-4 text-success" />
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Terminal className="w-5 h-5 text-accent" />
-                    <div className="flex-1">
-                      <p className="text-sm text-text">Context Menu</p>
-                      <p className="text-xs text-text-faint">
-                        SVN commands in native file-manager menus
-                      </p>
-                    </div>
-                    {status.contextMenuAvailable && (
-                      <CheckCircle className="w-4 h-4 text-success" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {status.helperPath && (
-                <div className="bg-bg-secondary rounded-lg p-3 text-xs">
-                  <p className="font-medium text-text mb-1">Native helper</p>
-                  <p className="text-text-secondary break-all">{status.helperPath}</p>
-                  <p className={status.helperExists ? 'text-success mt-1' : 'text-warning mt-1'}>
-                    {status.helperExists ? 'Helper found' : 'Helper missing'}
+    <DialogBase
+      isOpen={isOpen}
+      onClose={onClose}
+      dialogId="shell-integration"
+      title={
+        <span className="flex items-center gap-2">
+          <Shield className="w-5 h-5 text-accent" />
+          Shell Integration
+        </span>
+      }
+      className="w-[550px]"
+    >
+      <div className="modal-body space-y-4">
+        {isLoading || !status ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-text-muted animate-spin" />
+          </div>
+        ) : (
+          <>
+            <div
+              className={`rounded-lg p-4 ${
+                status.registered
+                  ? 'bg-success/10 border border-success/30'
+                  : 'bg-bg-tertiary border border-border'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {status.registered ? (
+                  <CheckCircle className="w-6 h-6 text-success" />
+                ) : (
+                  <AlertCircle className="w-6 h-6 text-text-muted" />
+                )}
+                <div>
+                  <p className="font-medium text-text">
+                    {status.registered
+                      ? 'Shell Integration Active'
+                      : 'Shell Integration Not Active'}
                   </p>
+                  <p className="text-sm text-text-secondary">{status.message}</p>
                 </div>
-              )}
+              </div>
+            </div>
 
-              {status.needsAdmin && !status.registered && (
-                <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-warning">
-                      <p className="font-medium">Administrator Rights May Be Required</p>
-                      <p className="mt-1 text-warning/80">
-                        Windows shell helper registration can require elevated permissions.
-                      </p>
-                    </div>
+            <PlatformInfo status={status} />
+
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-text">Available Features</h4>
+
+              <div className="bg-bg-tertiary rounded-lg p-3 space-y-2">
+                <div className="flex items-center gap-3">
+                  <Image className="w-5 h-5 text-accent" />
+                  <div className="flex-1">
+                    <p className="text-sm text-text">Status icons</p>
+                    <p className="text-xs text-text-faint">
+                      Explorer overlays or Finder badges where available
+                    </p>
+                  </div>
+                  {(status.iconOverlaysAvailable || status.finderBadgesAvailable) && (
+                    <CheckCircle className="w-4 h-4 text-success" />
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Terminal className="w-5 h-5 text-accent" />
+                  <div className="flex-1">
+                    <p className="text-sm text-text">Context Menu</p>
+                    <p className="text-xs text-text-faint">
+                      SVN commands in native file-manager menus
+                    </p>
+                  </div>
+                  {status.contextMenuAvailable && <CheckCircle className="w-4 h-4 text-success" />}
+                </div>
+              </div>
+            </div>
+
+            {status.helperPath && (
+              <div className="bg-bg-secondary rounded-lg p-3 text-xs">
+                <p className="font-medium text-text mb-1">Native helper</p>
+                <p className="text-text-secondary break-all">{status.helperPath}</p>
+                <p className={status.helperExists ? 'text-success mt-1' : 'text-warning mt-1'}>
+                  {status.helperExists ? 'Helper found' : 'Helper missing'}
+                </p>
+              </div>
+            )}
+
+            {status.needsAdmin && !status.registered && (
+              <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-warning">
+                    <p className="font-medium">Administrator Rights May Be Required</p>
+                    <p className="mt-1 text-warning/80">
+                      Windows shell helper registration can require elevated permissions.
+                    </p>
                   </div>
                 </div>
-              )}
-
-              {error && (
-                <div className="bg-error/10 border border-error/30 rounded-lg p-3 text-sm text-error">
-                  {error}
-                </div>
-              )}
-
-              <DetailList title="Repair actions" items={status.repairActions} />
-              <DetailList title="Fallback behavior" items={status.limitations} />
-
-              <div className="text-xs text-text-faint bg-bg-secondary rounded-lg p-3">
-                <p className="font-medium mb-1">Packaged helper requirements:</p>
-                <p>Windows: install a packaged build containing ShellySVNShellHelper.exe</p>
-                <p>macOS: install a signed package containing the Finder Sync extension</p>
               </div>
-            </>
-          )}
-        </div>
+            )}
 
-        <div className="modal-footer">
-          <button onClick={() => refetch()} className="btn btn-secondary">
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
+            {error && (
+              <div className="bg-error/10 border border-error/30 rounded-lg p-3 text-sm text-error">
+                {error}
+              </div>
+            )}
 
-          {status?.registered ? (
-            <button
-              onClick={() => unregisterMutation.mutate()}
-              disabled={isRegistering}
-              className="btn btn-secondary"
-            >
-              {isRegistering ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FolderSync className="w-4 h-4" />
-              )}
-              Unregister
-            </button>
-          ) : (
-            <button
-              onClick={() => registerMutation.mutate()}
-              disabled={isRegistering || !status?.supported}
-              className="btn btn-primary"
-            >
-              {isRegistering ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Shield className="w-4 h-4" />
-              )}
-              Register
-            </button>
-          )}
+            <DetailList title="Repair actions" items={status.repairActions} />
+            <DetailList title="Fallback behavior" items={status.limitations} />
 
-          <button onClick={onClose} className="btn btn-primary">
-            Done
-          </button>
-        </div>
+            <div className="text-xs text-text-faint bg-bg-secondary rounded-lg p-3">
+              <p className="font-medium mb-1">Packaged helper requirements:</p>
+              <p>Windows: install a packaged build containing ShellySVNShellHelper.exe</p>
+              <p>macOS: install a signed package containing the Finder Sync extension</p>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+
+      <div className="modal-footer">
+        <button onClick={() => refetch()} className="btn btn-secondary">
+          <RefreshCw className="w-4 h-4" />
+          Refresh
+        </button>
+
+        {status?.registered ? (
+          <button
+            onClick={() => unregisterMutation.mutate()}
+            disabled={isRegistering}
+            className="btn btn-secondary"
+          >
+            {isRegistering ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FolderSync className="w-4 h-4" />
+            )}
+            Unregister
+          </button>
+        ) : (
+          <button
+            onClick={() => registerMutation.mutate()}
+            disabled={isRegistering || !status?.supported}
+            className="btn btn-primary"
+          >
+            {isRegistering ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Shield className="w-4 h-4" />
+            )}
+            Register
+          </button>
+        )}
+
+        <button onClick={onClose} className="btn btn-primary">
+          Done
+        </button>
+      </div>
+    </DialogBase>
   );
 }
