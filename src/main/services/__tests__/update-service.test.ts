@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
 
 const originalAppImage = process.env.APPIMAGE;
 
@@ -235,7 +236,11 @@ describe('UpdateService', () => {
     await service.check('manual');
 
     await vi.waitFor(() => expect(fs.appendFile).toHaveBeenCalled());
-    expect(fs.rm).toHaveBeenCalledWith('/tmp/updater.log.1', { force: true });
-    expect(fs.rename).toHaveBeenCalledWith('/tmp/updater.log', '/tmp/updater.log.1');
+    // join() spells the log path with host-native separators.
+    expect(fs.rm).toHaveBeenCalledWith(join('/tmp', 'updater.log.1'), { force: true });
+    expect(fs.rename).toHaveBeenCalledWith(
+      join('/tmp', 'updater.log'),
+      join('/tmp', 'updater.log.1')
+    );
   });
 });

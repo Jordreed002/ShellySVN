@@ -25,7 +25,15 @@ export function validateRepositoryUrl(value: string, label: string): string {
     if (url.host && url.host !== 'localhost') {
       throw new Error(`${label} must not use a remote file URL.`);
     }
-    assertPathApprovedForIpc(fileURLToPath(url), label);
+    let localPath: string;
+    try {
+      localPath = fileURLToPath(url);
+    } catch {
+      // Drive-less file URLs (e.g. file:///private/x) are not valid Windows
+      // paths; they can never name an approved root on that host.
+      throw new Error(`${label} file URL does not name a valid local path on this system.`);
+    }
+    assertPathApprovedForIpc(localPath, label);
   }
   return url.toString();
 }

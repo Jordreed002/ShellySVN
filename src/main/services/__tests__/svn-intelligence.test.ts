@@ -1,5 +1,7 @@
 import type { SvnLogEntry } from '@shared/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const mocks = vi.hoisted(() => ({
   getLog: vi.fn(),
@@ -53,10 +55,18 @@ describe('deterministic SVN intelligence', () => {
     mocks.assertPathApprovedForIpc.mockImplementation(() => {
       throw new Error('not approved');
     });
-    expect(() => validateRepositoryUrl('file:///private/repository', 'Branch')).toThrow(
+    // pathToFileURL/resolve keep the fixture valid on every host: file URLs
+    // without a drive letter cannot be converted to a Windows path at all.
+    const localPath = resolve('/private/repository');
+    expect(() => validateRepositoryUrl(pathToFileURL(localPath).href, 'Branch')).toThrow(
       /not approved/i
     );
-    expect(mocks.assertPathApprovedForIpc).toHaveBeenCalledWith('/private/repository', 'Branch');
+    expect(mocks.assertPathApprovedForIpc).toHaveBeenCalledWith(localPath, 'Branch');
+    // Drive-less file URLs are structurally invalid on Windows and must be
+    // rejected as validation errors, not as Node internal TypeErrors.
+    expect(() => validateRepositoryUrl('file:///private/repository', 'Branch')).toThrow(
+      /must not use a remote file URL|does not name a valid local path|not approved/i
+    );
   });
 
   it('derives evidence-backed revision impact groups from bounded log paths', async () => {

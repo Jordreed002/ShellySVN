@@ -109,14 +109,15 @@ describe('LogViewer', () => {
     await screen.findByText('r130');
     expect(screen.getByText('r106')).toBeInTheDocument();
     expect(screen.queryByText('r105')).not.toBeInTheDocument();
-    expect(screen.getByText(/Showing 1-25 of 30 matching revisions/)).toBeInTheDocument();
+    // The footer spells ranges with an en dash (Showing 1–25 …).
+    expect(screen.getByText(/Showing 1[–-]25 of 30 matching revisions/)).toBeInTheDocument();
     expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(screen.getByText('r105')).toBeInTheDocument();
     expect(screen.queryByText('r106')).not.toBeInTheDocument();
-    expect(screen.getByText(/Showing 26-30 of 30 matching revisions/)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 26[–-]30 of 30 matching revisions/)).toBeInTheDocument();
   });
 
   it('filters by changed paths and message search before paginating', async () => {
@@ -131,6 +132,8 @@ describe('LogViewer', () => {
     renderViewer();
 
     await screen.findByText('r203');
+    // Field-scoped filters live behind the Filters popover.
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     fireEvent.change(screen.getByLabelText('Path'), {
       target: { value: '/trunk/src' },
     });
@@ -141,7 +144,7 @@ describe('LogViewer', () => {
     // Filters are debounced, so wait on the post-filter footer rather than on
     // an entry that is also present before filtering.
     await waitFor(() => {
-      expect(screen.getByText(/Showing 1-1 of 1 matching revisions/)).toBeInTheDocument();
+      expect(screen.getByText(/Showing 1[–-]1 of 1 matching revisions/)).toBeInTheDocument();
     });
 
     expect(screen.queryByText('r203')).not.toBeInTheDocument();
@@ -163,7 +166,10 @@ describe('LogViewer', () => {
       revisionProperties: [],
     });
 
-    fireEvent.click(screen.getByLabelText('Merged revisions'));
+    // Query flags live behind the Options popover.
+    fireEvent.click(screen.getByRole('button', { name: 'Options' }));
+    // The check row's label carries the flag hint ("svn log -g") too.
+    fireEvent.click(screen.getByLabelText(/Merged revisions/));
 
     await waitFor(() => {
       expect(logCacheMocks.useCachedLog).toHaveBeenLastCalledWith('C:/repo', 50, true, {
@@ -188,6 +194,8 @@ describe('LogViewer', () => {
     renderViewer();
 
     await screen.findByText('r401');
+    // Revision properties live behind the Options popover.
+    fireEvent.click(screen.getByRole('button', { name: 'Options' }));
     fireEvent.change(screen.getByLabelText('Revision properties'), {
       target: { value: 'review:status, build:id' },
     });

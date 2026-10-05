@@ -40,9 +40,16 @@ export function isNfcNormalized(path: string): boolean {
   return path === path.normalize('NFC');
 }
 
-/** Canonical comparison key for normalization-sensitive path comparison: the NFC form. */
+/**
+ * Canonical comparison key for normalization-sensitive path comparison: the
+ * NFC form with separators unified ('\' → '/'). The two sides of a comparison
+ * may be spelled with different separator styles (renderer-normalized '/'
+ * scan paths vs host-native `join()` output on Windows); unifying them keeps
+ * the canonically-equivalent check from being defeated by spelling alone.
+ */
 export function normalizePathForComparison(path: string): string {
-  return path.normalize('NFC');
+  const unified = path.includes('\\') ? path.replace(/\\/g, '/') : path;
+  return unified.normalize('NFC');
 }
 
 /**

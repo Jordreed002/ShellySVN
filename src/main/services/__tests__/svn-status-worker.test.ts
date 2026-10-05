@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
 
 const mockState = vi.hoisted(() => ({
   resolveSvnExecution: vi.fn(),
@@ -134,11 +135,12 @@ describe('svn-status-worker — unicode warnings', () => {
     const result = await getWorkerFsStatus('/repo', 'immediates');
 
     expect(mockReaddir).toHaveBeenCalledWith('/repo');
+    // The worker re-spells the on-disk path with host-native join() output.
     expect(result.unicodeWarnings).toEqual({
       normalizationMismatches: [
         {
           expected: `/repo/${CAFE_NFC}`,
-          onDisk: `/repo/${CAFE_NFD}`,
+          onDisk: join('/repo', CAFE_NFD),
           expectedForm: 'NFC',
           onDiskForm: 'NFD',
         },
@@ -224,12 +226,13 @@ describe('svn-status-worker — unicode warnings', () => {
 
     const result = await getWorkerSvnStatus('/repo');
 
-    expect(mockReaddir).toHaveBeenCalledWith('/repo');
+    // Relative svn entries are absolutized with host-native join().
+    expect(mockReaddir).toHaveBeenCalledWith(join('/repo'));
     expect(result.unicodeWarnings).toEqual({
       normalizationMismatches: [
         {
-          expected: `/repo/${CAFE_NFC}`,
-          onDisk: `/repo/${CAFE_NFD}`,
+          expected: join('/repo', CAFE_NFC),
+          onDisk: join('/repo', CAFE_NFD),
           expectedForm: 'NFC',
           onDiskForm: 'NFD',
         },
@@ -253,7 +256,7 @@ describe('svn-status-worker — unicode warnings', () => {
 
     expect(result.remoteChecked).toBe(true);
     expect(result.unicodeWarnings?.caseCollisions).toEqual([
-      { pathA: '/repo/Readme.md', pathB: '/repo/README.md' },
+      { pathA: join('/repo', 'Readme.md'), pathB: join('/repo', 'README.md') },
     ]);
   });
 });

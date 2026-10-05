@@ -874,10 +874,15 @@ describe('FS IPC Handlers', () => {
 
     it('fs:writeFile blocks paths whose realpath escapes the approved root via symlink', async () => {
       approvePathForIpc('/test/path');
-      // Simulate `/test/path/escape` being a symlink to /etc on disk.
-      mockState.realpathSync.mockImplementation((p: string) =>
-        p.startsWith('/test/path/escape') ? p.replace('/test/path/escape', '/etc') : p
-      );
+      // Simulate `/test/path/escape` being a symlink to /etc on disk. The
+      // guard resolves to host-native (drive-anchored) paths, so match on a
+      // normalized form and return the host-resolved escape target.
+      mockState.realpathSync.mockImplementation((p: string) => {
+        const normalized = String(p).replaceAll('\\', '/');
+        return normalized.includes('/test/path/escape')
+          ? resolve(normalized.replace('/test/path/escape', '/etc'))
+          : p;
+      });
 
       const handler = handlers.get('fs:writeFile');
       const result = (await handler!({}, '/test/path/escape/passwd', 'pwn')) as {
@@ -893,9 +898,12 @@ describe('FS IPC Handlers', () => {
 
     it('fs:copyFile guards both ends of the copy against realpath escapes', async () => {
       approvePathForIpc('/test/path');
-      mockState.realpathSync.mockImplementation((p: string) =>
-        p.startsWith('/test/path/escape') ? p.replace('/test/path/escape', '/etc') : p
-      );
+      mockState.realpathSync.mockImplementation((p: string) => {
+        const normalized = String(p).replaceAll('\\', '/');
+        return normalized.includes('/test/path/escape')
+          ? resolve(normalized.replace('/test/path/escape', '/etc'))
+          : p;
+      });
 
       const handler = handlers.get('fs:copyFile');
       const result = (await handler!({}, '/test/path/escape/passwd', '/test/path/copy.txt')) as {
@@ -1074,7 +1082,8 @@ describe('FS IPC Handlers', () => {
       expect(wcWatcher.close).toHaveBeenCalledTimes(1);
       expect(subWatcher.close).toHaveBeenCalledTimes(1);
       expect(otherWatcher.close).not.toHaveBeenCalled();
-      expect(getActiveFileWatcherPathsForTests()).toEqual(['/other']);
+      // Watcher paths are stored host-resolved (drive-anchored on Windows).
+      expect(getActiveFileWatcherPathsForTests()).toEqual([resolve('/other')]);
     });
 
     it('allows re-watching a path after its working copy was removed', async () => {

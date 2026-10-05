@@ -20,6 +20,8 @@ const mockState = vi.hoisted(() => ({
   runResolvedSvn: vi.fn(),
   settingsReady: vi.fn().mockResolvedValue(undefined),
   getSvnClientPath: vi.fn().mockReturnValue('svn'),
+  // svn-executor resolves the client path through this async API.
+  resolveSvnClientPath: vi.fn().mockResolvedValue('svn'),
   getSvnExecutionContext: vi.fn(),
   authReady: vi.fn().mockResolvedValue(undefined),
   authFindForUrl: vi.fn().mockReturnValue(null),
@@ -43,6 +45,7 @@ vi.mock('../../settings-manager', () => ({
   getSettingsManager: () => ({
     ready: mockState.settingsReady,
     getSvnClientPath: mockState.getSvnClientPath,
+    resolveSvnClientPath: mockState.resolveSvnClientPath,
     getSvnExecutionContext: mockState.getSvnExecutionContext,
   }),
 }));

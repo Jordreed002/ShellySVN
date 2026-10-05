@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { resolve } from 'node:path';
 
 // Create mock state with hoisting
 const mockState = vi.hoisted(() => ({
@@ -194,8 +195,10 @@ describe('App IPC Handlers', () => {
 
       expect(await handler!({})).toBe('/Users/test');
       expect(mockState.appGetPath).toHaveBeenCalledWith('home');
+      // resolve() anchors posix-style literals to the host drive on Windows;
+      // the guard must return exactly the host-resolved form of the input.
       expect(assertPathApprovedForIpc('/Users/test/Documents', 'Directory listing')).toBe(
-        '/Users/test/Documents'
+        resolve('/Users/test/Documents')
       );
     });
   });
