@@ -211,6 +211,15 @@ function breadcrumbs(page: Page): Locator {
   return page.locator('.breadcrumb');
 }
 
+/**
+ * The repo browser renders listing rows with minute-granularity relative ages
+ * ("33 min"), which drift between runs. Mask the age cells; revisions and
+ * names stay visible.
+ */
+function relativeAgeTexts(page: Page): Locator {
+  return page.getByText(/\b\d+ min\b/);
+}
+
 test.describe('Visual regression — working copy screens', () => {
   test.skip(
     !labAvailable,
@@ -242,7 +251,7 @@ test.describe('Visual regression — working copy screens', () => {
     await page.waitForTimeout(400);
   }
 
-  test('home with a working copy open', async ({ electronApp, page }) => {
+  test('home with a bookmarked working copy', async ({ electronApp, page }) => {
     await openWorkingCopy(electronApp, page);
 
     await page.getByRole('link', { name: 'Home', exact: true }).click();
@@ -323,6 +332,6 @@ test.describe('Visual regression — working copy screens', () => {
     await page.getByRole('button', { name: /connect/i }).click();
     await expect(page.getByText('README.md').first()).toBeVisible({ timeout: 15000 });
 
-    await capture(page, 'repo-browser-live', [breadcrumbs(page), fixtureTempTexts(page)]);
+    await capture(page, 'repo-browser-live', [breadcrumbs(page), fixtureTempTexts(page), relativeAgeTexts(page)]);
   });
 });
