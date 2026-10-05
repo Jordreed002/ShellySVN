@@ -2,9 +2,10 @@
  * Miller (column) browsing of the working copy.
  *
  * Design source: `prototypes/12-browser.html`. Each column is a narrow `.clist`:
- * a 32px `.chead` naming the folder, then 38px `.crow`s with a hairline rule and
+ * a 32px `.chead` naming the folder, then `.crow`s with a hairline rule and
  * the same `RepoStatusFlag` the list view and the repository browser use, so the
- * two view modes read as one product rather than two.
+ * two view modes read as one product rather than two. Rows are sized with
+ * `h-row`, so the density setting (compact/comfortable) applies here too.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -307,7 +308,7 @@ function MillerColumn({
                   onSelect(svnEntry);
                   showContextMenu(e, svnEntry);
                 }}
-                className={`group relative flex h-[38px] w-full items-center gap-2 border-b border-border-muted px-3 text-left transition-fast ${
+                className={`group relative flex h-row w-full items-center gap-2 border-b border-border-muted px-3 text-left transition-fast ${
                   isActive
                     ? 'bg-accent/10'
                     : isSelected

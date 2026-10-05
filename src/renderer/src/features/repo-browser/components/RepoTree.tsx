@@ -49,8 +49,8 @@ import {
   RepoTreeNode,
   RepoTreeStatusRow,
   TREE_AUX_ROW_HEIGHT,
-  TREE_ROW_HEIGHT,
 } from './RepoTreeNode';
+import { TREE_ROW_HEIGHTS, useDensity } from '../../../lib/density';
 
 /** Identity of the synthetic top level, kept separate from any real entry path (which may be `''`). */
 const ROOT_KEY = '#root';
@@ -457,11 +457,16 @@ export function RepoTree({
   }, []);
 
   const shouldVirtualize = viewportMeasured && rows.length > virtualizeThreshold;
+  // Scroll math must match what RepoTreeNode paints; both read the same ladder
+  // (lib/density.ts mirrors --row-height-tree). Aux rows keep their own fixed
+  // height in both densities.
+  const density = useDensity();
+  const treeRowHeight = TREE_ROW_HEIGHTS[density];
   const virtualizer = useVirtualizer({
     count: shouldVirtualize ? rows.length : 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) =>
-      rows[index]?.kind === 'entry' ? TREE_ROW_HEIGHT : TREE_AUX_ROW_HEIGHT,
+      rows[index]?.kind === 'entry' ? treeRowHeight : TREE_AUX_ROW_HEIGHT,
     getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 12,
   });

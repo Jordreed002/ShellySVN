@@ -58,9 +58,11 @@ import {
 } from '../lib/repoDragDrop';
 import {
   REPO_CONTENTS_ROW_HEIGHT,
+  REPO_CONTENTS_ROW_HEIGHT_COMPACT,
   RepoContentsRow,
   repoContentsGridTemplate,
 } from './RepoContentsRow';
+import { useDensity } from '../../../lib/density';
 import { useRepoBrowserLayout } from './RepoBrowserShell';
 
 type SortKey = RepoSort['key'];
@@ -303,10 +305,20 @@ export function RepoContents({
    */
   const virtualized = sorted.length > VIRTUALIZE_ABOVE;
 
+  /*
+   * Row height follows the density setting (lib/density.ts mirrors
+   * `--row-height`), so the virtualizer's offsets and the inline height on the
+   * unwindowed rows always agree with what a row paints. Comfortable is the
+   * historical 38px; compact tightens both together.
+   */
+  const density = useDensity();
+  const rowHeight =
+    density === 'compact' ? REPO_CONTENTS_ROW_HEIGHT_COMPACT : REPO_CONTENTS_ROW_HEIGHT;
+
   const rowVirtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => REPO_CONTENTS_ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     getItemKey: (index) => sorted[index]?.path ?? index,
     overscan: 12,
     /* A plausible first window before the pane has been measured. */
@@ -875,7 +887,7 @@ export function RepoContents({
                 {sorted.map((entry, index) =>
                   renderRow(entry, index, {
                     position: 'relative',
-                    height: `${REPO_CONTENTS_ROW_HEIGHT}px`,
+                    height: `${rowHeight}px`,
                   })
                 )}
               </div>

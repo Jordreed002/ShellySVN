@@ -31,7 +31,15 @@ import type { RepoStatusCode } from '../../features/repo-browser/types';
 import { useContextMenu, getSvnContextMenuItems, ContextMenu } from './ContextMenu';
 import { FileThumbnail } from './FileThumbnail';
 
-/** Row heights, from the prototype's `.crow`. Exported for the virtualizer. */
+/**
+ * Row heights, from the prototype's `.crow`. Exported for the virtualizer.
+ *
+ * `FILE_ROW_HEIGHT` is the comfortable-mode value and only a fallback for the
+ * scroll math — the painted height is the `h-row` utility (the `--row-height`
+ * density variable), so the list view follows the density setting. The compact
+ * value belongs to the legacy "compact file rows" setting, which wins over
+ * density when it is on; the density ladder lives in `lib/density.ts`.
+ */
 export const FILE_ROW_HEIGHT = 38;
 export const FILE_ROW_HEIGHT_COMPACT = 30;
 
@@ -439,7 +447,7 @@ export const FileRow = memo(function FileRow({
         className={`
           file-row group/row grid items-center gap-[9px] mx-0 rounded-none border-b border-border-muted px-3 py-0
           outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent
-          ${compact ? 'h-[30px]' : 'h-[38px]'}
+          ${compact ? 'h-[30px]' : 'h-row'}
           ${isSelected ? 'file-row-selected' : 'hover:bg-bg-secondary'}
           ${entry.isDirectory ? 'text-text' : 'text-text-secondary'}
           ${entry.status === 'O' ? 'opacity-60' : ''}

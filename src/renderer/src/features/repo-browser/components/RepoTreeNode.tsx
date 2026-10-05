@@ -25,9 +25,16 @@ import type {
 
 import type { RepoEntry } from '../types';
 import type { RepoDragEventLike } from '../lib/repoDragDrop';
+import { TREE_ROW_HEIGHTS, useDensity } from '../../../lib/density';
 
-/** Height of an entry row, in px. Matches `.tnode` in the prototype. */
+/**
+ * Height of an entry row, in px. Matches `.tnode` in the prototype — and
+ * `--row-height-tree`, whose compact value the rows and the tree's
+ * virtualizer both take from `lib/density.ts` so scroll math stays honest.
+ */
 export const TREE_ROW_HEIGHT = 27;
+/** Height of an entry row when the density setting is compact. */
+export const TREE_ROW_HEIGHT_COMPACT = TREE_ROW_HEIGHTS.compact;
 /** Height of a "more"/"listing…" row, in px. Matches `.tmore` / `.tloading`. */
 export const TREE_AUX_ROW_HEIGHT = 24;
 /** Indentation added per depth level, in px. */
@@ -141,6 +148,11 @@ export function RepoTreeNode({
   const conflicted = rollup ? rollup.conflicted : 0;
   const ghosted = entry.presence === 'none';
 
+  // Same source the tree's virtualizer reads (lib/density.ts), so the painted
+  // height and the scroll offsets cannot drift apart.
+  const density = useDensity();
+  const rowHeight = TREE_ROW_HEIGHTS[density];
+
   const Icon = entry.kind === 'dir' ? (expanded ? FolderOpen : Folder) : File;
 
   return (
@@ -175,7 +187,7 @@ export function RepoTreeNode({
             onDrop: (event: RepoDragEventLike) => dnd.onDrop?.(entry, event),
           }
         : {})}
-      style={{ height: TREE_ROW_HEIGHT, paddingLeft: treeRowIndent(depth), ...style }}
+      style={{ height: rowHeight, paddingLeft: treeRowIndent(depth), ...style }}
       className={cx(
         ROW_BASE,
         'cursor-pointer',

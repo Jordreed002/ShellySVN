@@ -39,7 +39,7 @@ import { SVN_EVENTS } from '../lib/svnOperationEvents';
 import { RouteState } from './ui/RouteState';
 import { Toolbar } from './ui/Toolbar';
 import { ProgressIndicator } from './ui/ProgressIndicator';
-import { FILE_ROW_HEIGHT, FILE_ROW_HEIGHT_COMPACT, FileRow, FileListHeader } from './ui/FileRow';
+import { FILE_ROW_HEIGHT_COMPACT, FileRow, FileListHeader } from './ui/FileRow';
 import { FilterBar, useFileFilters } from './ui/FilterBar';
 import { confirmAppAction, promptAppInput, showAppMessage } from '../utils/dialogs';
 import { assertSuccessfulSvnRead } from '../utils/svnReadResult';
@@ -90,6 +90,7 @@ import {
   svnWorkingCopyUpgradeStatus,
 } from '@renderer/lib/queryKeys';
 import { isNotOnDisk } from './files/entryPresence';
+import { ROW_HEIGHTS, useDensity } from '../lib/density';
 import { resolveRemoteUrlToLocalPath } from '../utils/pathResolution';
 import { useFileExplorerCommandEvents } from './files/useFileExplorerCommandEvents';
 import {
@@ -150,7 +151,7 @@ function WorkingCopyTreeFallback() {
       {[70, 88, 54, 76, 62, 84, 58].map((width) => (
         <div
           key={width}
-          className="h-[27px] rounded-md bg-bg-elevated/50 animate-pulse"
+          className="h-row-tree rounded-md bg-bg-elevated/50 animate-pulse"
           style={{ width: `${width}%` }}
         />
       ))}
@@ -809,8 +810,16 @@ export function FileExplorer() {
     setSwitchPath,
   });
 
-  // Virtualizer — row height matches the prototype's `.crow` (38px, 30px compact)
-  const rowHeight = settings.compactFileRows ? FILE_ROW_HEIGHT_COMPACT : FILE_ROW_HEIGHT;
+  /*
+   * Virtualizer — the scroll math must match the height the rows paint. The
+   * legacy "compact file rows" setting (30px) wins when it is on; otherwise the
+   * density ladder (`--row-height`, mirrored in lib/density.ts) decides, so
+   * comfortable is 38px exactly as before and compact tracks the setting.
+   */
+  const density = useDensity();
+  const rowHeight = settings.compactFileRows
+    ? FILE_ROW_HEIGHT_COMPACT
+    : ROW_HEIGHTS[density];
   const virtualizer = useVirtualizer({
     count: filteredEntries.length,
     getScrollElement: () => parentRef.current,

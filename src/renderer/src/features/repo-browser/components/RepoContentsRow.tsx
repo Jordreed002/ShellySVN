@@ -20,10 +20,18 @@ import { File, FileImage, Folder } from 'lucide-react';
 
 import type { RepoEntry, RepoScope } from '../types';
 import type { RepoDragEventLike } from '../lib/repoDragDrop';
+import { ROW_HEIGHTS } from '../../../lib/density';
 import { RepoLockFlag, RepoPresenceFlag, RepoRollupFlags, RepoStatusFlag } from './RepoStatusFlag';
 
-/** Row height in pixels. Exported so the virtualizer can estimate without measuring. */
+/**
+ * Row height in pixels. Exported so the virtualizer can estimate without
+ * measuring. The comfortable value matches `--row-height`'s default; the
+ * compact one is taken from the same ladder (lib/density.ts) when the density
+ * setting is compact, so the scroll math follows what the rows paint.
+ */
 export const REPO_CONTENTS_ROW_HEIGHT = 38;
+/** Row height when the density setting is compact. */
+export const REPO_CONTENTS_ROW_HEIGHT_COMPACT = ROW_HEIGHTS.compact;
 
 /**
  * The grid track list shared by the header and every row.
