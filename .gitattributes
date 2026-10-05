@@ -1,0 +1,2 @@
+tests/fixtures/svn-compat-server/entrypoint.sh text eol=lf
+tests/fixtures/svn-compat-server/apache-svn.conf text eol=lf
