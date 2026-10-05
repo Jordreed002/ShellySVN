@@ -141,25 +141,39 @@
   --color-border-muted: rgb(28 35 44);
   --color-border-strong: rgb(58 68 83);
 
-  /* Text */
+  /*
+   * Text — muted/faint tuned so every tier clears WCAG AA 4.5:1 on the dark
+   * surfaces it actually sits on (secondary/tertiary/glass composites), not
+   * just the canvas. Faint remains the quietest tier but is no longer
+   * sub-AA decorative grey.
+   */
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 154 164 176;
-  --color-text-muted-rgb: 114 125 138;
-  --color-text-faint-rgb: 77 88 102;
+  --color-text-muted-rgb: 145 156 170;
+  --color-text-faint-rgb: 133 145 159;
   --color-text: rgb(230 237 243);
   --color-text-secondary: rgb(154 164 176);
-  --color-text-muted: rgb(114 125 138);
-  --color-text-faint: rgb(77 88 102);
+  --color-text-muted: rgb(145 156 170);
+  --color-text-faint: rgb(133 145 159);
 
-  /* Accent — original blue (user-customizable) */
-  --color-accent-rgb: 88 166 255;
+  /*
+   * Accent — original blue (user-customizable). The tokens resolve through
+   * indirection vars so the runtime (lib/appearance.ts) can derive per-theme
+   * shades from one user-chosen base: light renders the base as-is, dark lifts
+   * it (+12% brightness) so accent TEXT clears AA on dark surfaces, and solid
+   * fills (buttons, active menu items) use a slightly deepened shade so their
+   * white labels clear AA in both themes. Fallbacks are the stylesheet
+   * defaults used before settings load (or when no accent is set).
+   */
+  --color-accent-rgb: var(--color-accent-base-rgb, 88 166 255);
   --color-accent-hover-rgb: 132 192 255;
   --color-accent-muted-rgb: 56 139 253;
-  --color-accent-soft-rgb: 88 166 255;
+  --color-accent-soft-rgb: var(--color-accent-base-rgb, 88 166 255);
   --color-accent-glow: rgba(88, 166, 255, 0.4);
-  --color-accent: rgb(88 166 255);
+  --color-accent: rgb(var(--color-accent-rgb));
   --color-accent-hover: rgb(132 192 255);
   --color-accent-muted: rgb(56 139 253);
+  --color-accent-fill-rgb: var(--color-accent-fill-base-rgb, 56 139 253);
 
   /* SVN Status Colors */
   --color-svn-normal-rgb: 63 185 80;
@@ -238,12 +252,12 @@
   --color-text-faint: rgb(178 184 194);
 
   /* Accent darkens in light so white-on-accent text stays legible */
-  --color-accent-rgb: 37 99 201;
+  --color-accent-rgb: var(--color-accent-base-rgb, 37 99 201);
   --color-accent-hover-rgb: 28 79 165;
   --color-accent-muted-rgb: 26 70 145;
-  --color-accent-soft-rgb: 37 99 201;
+  --color-accent-soft-rgb: var(--color-accent-base-rgb, 37 99 201);
   --color-accent-glow: rgba(37, 99, 201, 0.25);
-  --color-accent: rgb(37 99 201);
+  --color-accent: rgb(var(--color-accent-rgb));
   --color-accent-hover: rgb(28 79 165);
   --color-accent-muted: rgb(26 70 145);
 
@@ -312,14 +326,23 @@
 
   --color-text-rgb: 230 237 243;
   --color-text-secondary-rgb: 154 164 176;
-  --color-text-muted-rgb: 114 125 138;
-  --color-text-faint-rgb: 77 88 102;
+  --color-text-muted-rgb: 145 156 170;
+  --color-text-faint-rgb: 133 145 159;
   --color-text: rgb(230 237 243);
   --color-text-secondary: rgb(154 164 176);
-  --color-text-muted: rgb(114 125 138);
-  --color-text-faint: rgb(77 88 102);
+  --color-text-muted: rgb(145 156 170);
+  --color-text-faint: rgb(133 145 159);
 
   --color-accent-glow: rgba(88, 166, 255, 0.4);
+
+  /*
+   * Dark theme lifts the accent for text-token usage (see the accent comment
+   * in :root above): the raw base is tuned for light surfaces, so accent TEXT
+   * on dark surfaces resolves to the +12% variant the runtime derives. Solid
+   * accent fills keep the deepened base shade via --color-accent-fill-rgb
+   * inherited from :root so white labels stay ≥4.5:1.
+   */
+  --color-accent-rgb: var(--color-accent-dark-rgb, 132 192 255);
 }
 
 /*
@@ -686,7 +709,11 @@ body {
   }
 
   .btn-primary {
-    @apply bg-accent text-white font-semibold hover:bg-accent-hover shadow-sm hover:shadow-glow-accent;
+    @apply text-white font-semibold hover:bg-accent-hover shadow-sm hover:shadow-glow-accent;
+    /* Deepened accent fill so the white label clears WCAG AA (4.5:1) on the
+       small button sizes this app uses; bg-accent stays the (lighter in dark)
+       text/border token. */
+    background-color: rgb(var(--color-accent-fill-rgb, 56 139 253));
   }
 
   .btn-secondary {
@@ -808,7 +835,8 @@ body {
   }
 
   .dropdown-item-active {
-    @apply bg-accent text-white font-medium hover:bg-accent-hover;
+    @apply text-white font-medium hover:bg-accent-hover;
+    background-color: rgb(var(--color-accent-fill-rgb, 56 139 253));
   }
 
   /* File Row — vertical padding follows the density variables */
@@ -946,9 +974,10 @@ body {
     box-shadow: var(--shadow-panel);
   }
 
-  /* Kbd hint */
+  /* Kbd hint — secondary (not muted) text: the chip's elevated background is
+     the lightest dark surface, and muted cannot clear 4.5:1 on it. */
   .kbd {
-    @apply inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-2xs font-medium font-mono text-text-muted bg-bg-elevated border border-border rounded-md;
+    @apply inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-2xs font-medium font-mono text-text-secondary bg-bg-elevated border border-border rounded-md;
   }
 }
 

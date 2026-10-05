@@ -110,10 +110,11 @@ describe('SettingsPreviewContext appearance preview', () => {
 
     const { result } = renderHook(() => useSettingsPreview(), { wrapper });
     act(() => result.current.startPreview(settings({ accentColor: '#0ea5e9' })));
-    expect(root.style.getPropertyValue('--color-accent-rgb')).toBe('14 165 233');
-    // The direct (non-triplet) variables used by hand-written CSS must be
-    // kept in sync with the saved-settings path in useVisualSettings.
-    expect(root.style.getPropertyValue('--color-accent')).toBe('rgb(14 165 233)');
+    // Only base vars are set inline (per-theme mapping lives in global.css);
+    // they must stay in sync with the saved-settings path in useVisualSettings.
+    expect(root.style.getPropertyValue('--color-accent-base-rgb')).toBe('14 165 233');
+    expect(root.style.getPropertyValue('--color-accent-dark-rgb')).toBe('45 196 255');
+    expect(root.style.getPropertyValue('--color-accent-fill-base-rgb')).toBe('1 152 220');
     expect(root.style.getPropertyValue('--color-accent-hover')).toBe('rgb(65 216 255)');
 
     restore();

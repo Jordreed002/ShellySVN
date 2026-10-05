@@ -134,8 +134,12 @@ describe('useVisualSettings — accent color', () => {
       initialProps: baseSettings({ accentColor: '#22c55e' }),
     });
     const style = document.documentElement.style;
-    expect(style.getPropertyValue('--color-accent-rgb')).toBe('34 197 94');
-    expect(style.getPropertyValue('--color-accent')).toBe('rgb(34 197 94)');
+    // The runtime only sets base vars; global.css maps them per theme, so
+    // --color-accent-rgb itself is deliberately NOT set inline.
+    expect(style.getPropertyValue('--color-accent-rgb')).toBe('');
+    expect(style.getPropertyValue('--color-accent-base-rgb')).toBe('34 197 94');
+    expect(style.getPropertyValue('--color-accent-dark-rgb')).toBe('65 228 125');
+    expect(style.getPropertyValue('--color-accent-fill-base-rgb')).toBe('21 184 81');
     expect(style.getPropertyValue('--color-accent-hover-rgb')).toBe('85 248 145');
     expect(style.getPropertyValue('--color-accent-glow')).toBe('rgba(34, 197, 94, 0.4)');
   });

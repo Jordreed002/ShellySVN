@@ -74,9 +74,15 @@ describe('applyAccentColor', () => {
     const root = makeRoot();
     applyAccentColor('#58a6ff', root);
 
-    expect(root.style.getPropertyValue('--color-accent-rgb')).toBe('88 166 255');
-    expect(root.style.getPropertyValue('--color-accent')).toBe('rgb(88 166 255)');
-    // hover = +20% brightness (blue clamps at 255), muted = -15% brightness
+    // Only base vars are set inline; global.css maps them per theme, so
+    // --color-accent-rgb itself is deliberately NOT an inline override.
+    expect(root.style.getPropertyValue('--color-accent-rgb')).toBe('');
+    expect(root.style.getPropertyValue('--color-accent')).toBe('');
+    expect(root.style.getPropertyValue('--color-accent-base-rgb')).toBe('88 166 255');
+    // dark lift = +12% brightness (blue clamps at 255), fill = -5% brightness
+    expect(root.style.getPropertyValue('--color-accent-dark-rgb')).toBe('119 197 255');
+    expect(root.style.getPropertyValue('--color-accent-fill-base-rgb')).toBe('75 153 242');
+    // hover = +20% brightness, muted = -15% brightness
     expect(root.style.getPropertyValue('--color-accent-hover-rgb')).toBe('139 217 255');
     expect(root.style.getPropertyValue('--color-accent-muted-rgb')).toBe('50 128 217');
     expect(root.style.getPropertyValue('--color-accent-glow')).toBe(
@@ -87,15 +93,16 @@ describe('applyAccentColor', () => {
   it('is a no-op for an unparseable color', () => {
     const root = makeRoot();
     applyAccentColor('not-a-color', root);
-    expect(root.style.getPropertyValue('--color-accent-rgb')).toBe('');
+    expect(root.style.getPropertyValue('--color-accent-base-rgb')).toBe('');
   });
 
   it('clears inline overrides when no accent is set', () => {
     const root = makeRoot();
     applyAccentColor('#58a6ff', root);
     applyAccentColor(undefined, root);
-    expect(root.style.getPropertyValue('--color-accent-rgb')).toBe('');
-    expect(root.style.getPropertyValue('--color-accent')).toBe('');
+    expect(root.style.getPropertyValue('--color-accent-base-rgb')).toBe('');
+    expect(root.style.getPropertyValue('--color-accent-dark-rgb')).toBe('');
+    expect(root.style.getPropertyValue('--color-accent-fill-base-rgb')).toBe('');
   });
 });
 

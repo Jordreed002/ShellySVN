@@ -96,7 +96,13 @@ export function resolveHighContrast(
  *
  * All accent shades hang off `--color-accent-rgb` (Tailwind's `accent` token
  * and `border-focus` read it, and alpha utilities like `bg-accent/10` compose
- * on top of it). Hover/muted shades need per-theme lightening/darkening that a
+ * on top of it). The runtime sets *base* variables only; the per-theme
+ * mappings in styles/global.css resolve them (`:root`/`:root.light` render the
+ * base as-is, `:root.dark` resolves the text tokens to the lifted variant), so
+ * `--color-accent-rgb` itself is never set inline and flipping the theme class
+ * re-resolves every accent token without re-running this function.
+ *
+ * Hover/muted shades need per-theme lightening/darkening that a
  * single alpha cannot express, so they keep dedicated `-rgb` variables that are
  * recomputed here whenever the base accent changes.
  */
@@ -104,8 +110,9 @@ export function applyAccentColor(accentColor: string | undefined, root: HTMLElem
   if (!accentColor) {
     // Restore the stylesheet defaults fully when no accent is set.
     for (const prop of [
-      '--color-accent-rgb',
-      '--color-accent',
+      '--color-accent-base-rgb',
+      '--color-accent-dark-rgb',
+      '--color-accent-fill-base-rgb',
       '--color-accent-hover-rgb',
       '--color-accent-hover',
       '--color-accent-muted-rgb',
@@ -123,9 +130,26 @@ export function applyAccentColor(accentColor: string | undefined, root: HTMLElem
   }
   const triplet = `${rgb.r} ${rgb.g} ${rgb.b}`;
 
-  // Base — the single source every other accent shade derives from.
-  root.style.setProperty('--color-accent-rgb', triplet);
-  root.style.setProperty('--color-accent', `rgb(${triplet})`);
+  // Base — the single source every other accent shade derives from. Light
+  // theme renders it as-is.
+  root.style.setProperty('--color-accent-base-rgb', triplet);
+
+  // Dark lift — accent TEXT sits on dark surfaces, where the raw base misses
+  // WCAG AA (e.g. indigo #6366f1 is ~3.9:1 on the canvas ramp). +12% is the
+  // smallest uniform lift that clears 4.5:1 for the default palette while
+  // keeping the hue recognizable.
+  const darkRgb = hexToRgb(adjustColorBrightness(accentColor, 12));
+  if (darkRgb) {
+    root.style.setProperty('--color-accent-dark-rgb', `${darkRgb.r} ${darkRgb.g} ${darkRgb.b}`);
+  }
+
+  // Fill — solid accent fills that carry white labels (buttons, active menu
+  // items) use a slightly deepened shade so those labels clear AA at the
+  // small text sizes this UI renders them at.
+  const fillRgb = hexToRgb(adjustColorBrightness(accentColor, -5));
+  if (fillRgb) {
+    root.style.setProperty('--color-accent-fill-base-rgb', `${fillRgb.r} ${fillRgb.g} ${fillRgb.b}`);
+  }
 
   // Hover — slightly lighter in dark themes.
   const hoverRgb = hexToRgb(adjustColorBrightness(accentColor, 20));

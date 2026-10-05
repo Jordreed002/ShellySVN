@@ -105,11 +105,12 @@ async function expectNoAxeViolations(
  * known debt on every run; remove each entry when its app-side fix lands.
  */
 
-/** Dark-theme token contrast debt (text-muted, text-faint, accent, kbd colors). */
-const CONTRAST_DEBT: AxeRuleExclusion = {
-  rule: 'color-contrast',
-  why: 'Dark-theme token debt: text-muted #727d8a on #161b22 (~4.1:1), kbd #727d8a on #30363d (~2.9:1), accent #6366f1 on dark (~3.9:1), text-faint #4d5866 (~2.1:1). Fixing means re-tuning the shared palette, not one component — reported to the renderer owners.',
-};
+/*
+ * Dark-theme token contrast debt — CLOSED. The former color-contrast exclusion
+ * (text-muted #727d8a on #161b22 ~4.1:1, kbd #727d8a on #30363d ~2.9:1, accent
+ * #6366f1 on dark ~3.9:1, text-faint #4d5866 ~2.1:1) was removed after the
+ * shared dark palette was re-tuned to meet WCAG AA 4.5:1 (styles/global.css).
+ */
 
 /*
  * TabBar's two former exclusions (aria-required-children, region) were fixed
@@ -139,7 +140,6 @@ test.describe('Accessibility smoke', () => {
 
     // axe audit — home screen, full page.
     await expectNoAxeViolations(new AxeBuilder({ page }), 'home', [
-      CONTRAST_DEBT,
       ...CHROME_ARIA_DEBT,
     ]);
   });
@@ -154,7 +154,6 @@ test.describe('Accessibility smoke', () => {
     await expect(page.locator('.skeleton-shimmer')).toHaveCount(0, { timeout: 10000 });
 
     await expectNoAxeViolations(new AxeBuilder({ page }), 'files empty state', [
-      CONTRAST_DEBT,
       ...CHROME_ARIA_DEBT,
       {
         rule: 'page-has-heading-one',
@@ -182,7 +181,6 @@ test.describe('Accessibility smoke', () => {
     await expectNoAxeViolations(
       new AxeBuilder({ page }).include('.modal-overlay'),
       'settings dialog',
-      [CONTRAST_DEBT]
     );
 
     // Tab cycles within the dialog (focus containment, 6 hops).
@@ -229,7 +227,6 @@ test.describe('Accessibility smoke', () => {
       new AxeBuilder({ page }).include('.command-palette'),
       'command palette',
       [
-        CONTRAST_DEBT,
         {
           rule: 'scrollable-region-focusable',
           why: '.command-palette-list is a scrollable div whose items are not focusable; keyboard users drive it via the search input (arrows + enter). Functional, but item focusability would improve SR support — reported.',
