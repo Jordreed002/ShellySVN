@@ -168,6 +168,7 @@ export function CommitHistory({
         window.api.svn.log(path, 100, undefined, undefined, false, { signal })
       ),
     enabled: !!path && path !== '/',
+    refetchOnMount: 'always',
   });
 
   const entries = data?.data.entries ?? [];

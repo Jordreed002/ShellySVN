@@ -40,6 +40,7 @@ vi.mock('@tanstack/react-virtual', () => ({
 }));
 
 import { CommitHistory } from '../CommitHistory';
+import { svnLog } from '../../lib/queryKeys';
 
 const logResult: SvnLogResult = {
   entries: [
@@ -96,6 +97,24 @@ describe('CommitHistory — empty and loading states', () => {
     expect(screen.getByRole('button', { name: /Open working copy…/ })).toBeInTheDocument();
     // Not the old ad-hoc markup.
     expect(container.querySelector('.spinner')).not.toBeInTheDocument();
+  });
+
+  it('refreshes repository history on reopening even when cached data is fresh', async () => {
+    search = { path: '/wc/atlas' };
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    queryClient.setQueryData(svnLog(search.path!), {
+      data: logResult, source: 'network', cachedAt: Date.now(), age: 0,
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const first = render(<CommitHistory />, { wrapper });
+    await waitFor(() => expect(window.api.svn.log).toHaveBeenCalledTimes(1));
+    first.unmount();
+    render(<CommitHistory />, { wrapper });
+    await waitFor(() => expect(window.api.svn.log).toHaveBeenCalledTimes(2));
   });
 
   it('shows a skeleton list while the log loads', async () => {
