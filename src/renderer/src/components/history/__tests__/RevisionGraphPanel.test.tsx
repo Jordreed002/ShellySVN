@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -79,9 +79,9 @@ describe('RevisionGraphPanel', () => {
     expect(screen.getByTestId('revision-graph-node-r200')).toBeInTheDocument();
 
     // Legend + header stats derived from the model.
-    expect(screen.getByText('trunk')).toBeInTheDocument();
-    expect(screen.getByText('branches/feature')).toBeInTheDocument();
-    expect(screen.getByText('tags/v1.0')).toBeInTheDocument();
+    expect(screen.getAllByText('trunk')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('branches/feature')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('tags/v1.0')[0]).toBeInTheDocument();
     expect(screen.getByText('4 rev · 3 br')).toBeInTheDocument();
   });
 
@@ -95,7 +95,9 @@ describe('RevisionGraphPanel', () => {
     expect(onSelectRevision).toHaveBeenCalledWith(250);
 
     rerender(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
         <RevisionGraphPanel
           path="/wc/repo"
           selectedRevision={250}
@@ -112,8 +114,37 @@ describe('RevisionGraphPanel', () => {
     expect(screen.getByTestId('revision-graph-node-r300')).not.toHaveAttribute('aria-current');
   });
 
-  it('shows a tooltip with revision, author, branch and copy point on hover', async () => {
+  it('keeps commit metadata in its graph row without an overflowing hover tooltip', async () => {
     renderWithQueryClient(<RevisionGraphPanel path="/wc/repo" />);
+    const row = await screen.findByTestId('revision-graph-node-r300');
+    expect(within(row).getByText('r300')).toBeInTheDocument();
+    expect(within(row).getByText('Merge branches/feature into trunk')).toBeInTheDocument();
+    expect(within(row).getByText('alice')).toBeInTheDocument();
+    fireEvent.mouseEnter(row);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.getByTestId('revision-graph-panel')).toHaveClass('min-w-0', 'overflow-hidden');
+    expect(screen.getByTestId('revision-graph-scroll')).toHaveClass('min-w-0', 'overflow-auto');
+  });
+
+  it('moves selection with arrow keys and opens changes on double click', async () => {
+    const onSelectRevision = vi.fn();
+    const onShowChanges = vi.fn();
+    renderWithQueryClient(
+      <RevisionGraphPanel
+        path="/wc/repo"
+        onSelectRevision={onSelectRevision}
+        onShowChanges={onShowChanges}
+      />
+    );
+    const row = await screen.findByTestId('revision-graph-node-r300');
+    fireEvent.keyDown(row, { key: 'ArrowDown' });
+    expect(onSelectRevision).toHaveBeenCalledWith(250);
+    fireEvent.doubleClick(row);
+    expect(onShowChanges).toHaveBeenCalledWith(300);
+  });
+
+  it('shows a tooltip with revision, author, branch and copy point on hover', async () => {
+    renderWithQueryClient(<RevisionGraphPanel path="/wc/repo" variant="compact" />);
 
     fireEvent.mouseEnter(await screen.findByTestId('revision-graph-node-r250'));
 
@@ -128,7 +159,7 @@ describe('RevisionGraphPanel', () => {
   });
 
   it('annotates merge revisions in the tooltip', async () => {
-    renderWithQueryClient(<RevisionGraphPanel path="/wc/repo" />);
+    renderWithQueryClient(<RevisionGraphPanel path="/wc/repo" variant="compact" />);
 
     fireEvent.mouseEnter(await screen.findByTestId('revision-graph-node-r300'));
     const tooltip = await screen.findByTestId('revision-graph-tooltip');

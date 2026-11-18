@@ -98,10 +98,18 @@ describe('merge heuristics', () => {
 
   it('scans copy-from paths and skips non-merge messages entirely', () => {
     expect(
-      extractMergeSources('nothing here', [{ action: 'A', path: '/trunk/x', copyFromPath: '/branches/old' }], 'trunk')
+      extractMergeSources(
+        'nothing here',
+        [{ action: 'A', path: '/trunk/x', copyFromPath: '/branches/old' }],
+        'trunk'
+      )
     ).toEqual([]);
     expect(
-      extractMergeSources('Merge over', [{ action: 'A', path: '/trunk/x', copyFromPath: '/branches/old' }], 'trunk')
+      extractMergeSources(
+        'Merge over',
+        [{ action: 'A', path: '/trunk/x', copyFromPath: '/branches/old' }],
+        'trunk'
+      )
     ).toEqual(['branches/old']);
   });
 });
@@ -109,7 +117,9 @@ describe('merge heuristics', () => {
 describe('buildRevisionGraph lanes', () => {
   const fixture = (): SvnLogEntry[] => [
     entry(300, 'Merge branches/feature into trunk', [{ path: '/trunk/src/app.ts' }]),
-    entry(250, 'Create release tag', [{ action: 'A', path: '/tags/v1.0', copyFromPath: '/trunk', copyFromRev: 200 }]),
+    entry(250, 'Create release tag', [
+      { action: 'A', path: '/tags/v1.0', copyFromPath: '/trunk', copyFromRev: 200 },
+    ]),
     entry(220, 'Feature work', [{ path: '/branches/feature/src/app.ts' }]),
     entry(210, 'More feature work', [{ path: '/branches/feature/lib.ts' }]),
     entry(200, 'Trunk baseline', [{ path: '/trunk/src/app.ts' }]),
@@ -399,10 +409,7 @@ describe('buildRevisionGraph edges', () => {
 
   it('skips flagged paths on the landing branch itself (no self-edge source)', () => {
     const model = buildRevisionGraph([
-      entry(30, 'incoming change', [
-        { path: '/trunk/x', merged: true },
-        { path: '/trunk/y' },
-      ]),
+      entry(30, 'incoming change', [{ path: '/trunk/x', merged: true }, { path: '/trunk/y' }]),
       entry(20, 'earlier', [{ path: '/trunk/z' }]),
     ]);
     expect(model.nodes[0].merges).toEqual([]);
@@ -410,9 +417,7 @@ describe('buildRevisionGraph edges', () => {
   });
 
   it('drops edges whose endpoints vanished and never emits self edges', () => {
-    const model = buildRevisionGraph([
-      entry(10, 'merge self', [{ path: '/trunk' }]),
-    ]);
+    const model = buildRevisionGraph([entry(10, 'merge self', [{ path: '/trunk' }])]);
     expect(model.edges).toHaveLength(0);
   });
 });
@@ -422,7 +427,9 @@ describe('palette', () => {
     expect(new Set(BRANCH_COLORS).size).toBe(BRANCH_COLORS.length);
     expect(BRANCH_COLORS[0]).toBe('#58a6ff');
     // The first N lanes always get distinct colors.
-    const firstPass = Array.from({ length: BRANCH_COLORS.length }, (_, i) => branchColorForIndex(i));
+    const firstPass = Array.from({ length: BRANCH_COLORS.length }, (_, i) =>
+      branchColorForIndex(i)
+    );
     expect(new Set(firstPass).size).toBe(BRANCH_COLORS.length);
   });
 
@@ -467,8 +474,25 @@ describe('windowing', () => {
     expect(edges.some((edge) => edge.kind === 'parent' && edge.to.rowIndex === 0)).toBe(true);
     const deep = windowRevisionGraph(model, { offset: 30, count: 2 }).edges;
     expect(
-      deep.every((edge) => edge.from.rowIndex >= 29 && edge.from.rowIndex <= 33)
+      deep.every(
+        (edge) =>
+          Math.max(edge.from.rowIndex, edge.to.rowIndex) >= 29 &&
+          Math.min(edge.from.rowIndex, edge.to.rowIndex) <= 32
+      )
     ).toBe(true);
+  });
+
+  it('keeps a long connection whose endpoints are outside the viewport', () => {
+    const spanningEdge = {
+      ...model.edges[0]!,
+      from: { ...model.edges[0]!.from, rowIndex: 40 },
+      to: { ...model.edges[0]!.to, rowIndex: 0 },
+    };
+    const slice = windowRevisionGraph(
+      { ...model, edges: [spanningEdge] },
+      { offset: 20, count: 3 }
+    );
+    expect(slice.edges).toEqual([spanningEdge]);
   });
 
   it('returns empty slices for out-of-range windows', () => {
@@ -482,9 +506,11 @@ describe('large-input sanity', () => {
     for (let i = 0; i < 10_000; i++) {
       const revision = 20_000 - i;
       const branch = i % 17 === 0 ? `/branches/b${i % 40}` : '/trunk';
-      entries.push(entry(revision, i % 23 === 0 ? `Merge branches/b${(i + 1) % 40} into trunk` : 'work', [
-        { path: `${branch}/src/file${i % 50}.ts` },
-      ]));
+      entries.push(
+        entry(revision, i % 23 === 0 ? `Merge branches/b${(i + 1) % 40} into trunk` : 'work', [
+          { path: `${branch}/src/file${i % 50}.ts` },
+        ])
+      );
     }
     const startedAt = performance.now();
     const model = buildRevisionGraph(entries, { maxLanes: 12 });

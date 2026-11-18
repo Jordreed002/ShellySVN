@@ -18,13 +18,7 @@ import { HistorySurface } from '../src/routes/history/index';
 // ChooseItemsDialog test uses the same pattern. The graph panel has its own
 // windowing and needs no stub.
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: ({
-    count,
-    estimateSize,
-  }: {
-    count: number;
-    estimateSize: () => number;
-  }) => ({
+  useVirtualizer: ({ count, estimateSize }: { count: number; estimateSize: () => number }) => ({
     getTotalSize: () => count * estimateSize(),
     getVirtualItems: () =>
       Array.from({ length: count }, (_, index) => ({
@@ -125,49 +119,33 @@ describe('History surface graph integration (#45)', () => {
     expect(screen.queryByTestId('revision-graph-panel')).not.toBeInTheDocument();
   });
 
-  it('mounts the graph panel beside the list after toggling', async () => {
+  it('replaces the list with the full-width timeline after toggling', async () => {
     renderHistorySurface();
 
     await screen.findByText('Commit History');
     fireEvent.click(screen.getByTestId('history-view-graph'));
 
     expect(await screen.findByTestId('revision-graph-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('revision-graph-node-r300')).toBeInTheDocument();
-    // The log list stays mounted next to it.
+    expect(await screen.findByTestId('revision-graph-node-r300')).toBeInTheDocument();
+    expect(screen.queryByText('Commit History')).not.toBeInTheDocument();
+    // Commit metadata is rendered directly beside its graph node.
     expect(await screen.findByText('Feature work')).toBeInTheDocument();
     // Mode is persisted for the next visit.
     expect(localStorage.getItem('shellysvn:history:view-mode')).toBe('graph');
   });
 
-  it('syncs selection from the graph to the log list', async () => {
+  it('selects timeline rows and preserves selection when returning to the list', async () => {
     renderHistorySurface();
     await screen.findByText('Commit History');
     fireEvent.click(screen.getByTestId('history-view-graph'));
-
     fireEvent.click(await screen.findByTestId('revision-graph-node-r220'));
-    await screen.findByText('r220');
-
-    await waitFor(() => {
-      const highlightedRow = screen.getByText('r220').closest('div[aria-current="true"]');
-      expect(highlightedRow).not.toBeNull();
-    });
-  });
-
-  it('syncs selection from the log list back to the graph', async () => {
-    renderHistorySurface();
-    await screen.findByText('Commit History');
-    fireEvent.click(screen.getByTestId('history-view-graph'));
-    await screen.findByTestId('revision-graph-panel');
-
-    // Clicking anywhere on the log row selects that revision.
-    fireEvent.click(await screen.findByText('Trunk baseline'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('revision-graph-node-r200')).toHaveAttribute(
-        'aria-current',
-        'true'
-      );
-    });
+    expect(screen.getByTestId('revision-graph-node-r220')).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByTestId('graph-selection-details')).toHaveTextContent('Feature work');
+    expect(screen.getByRole('button', { name: 'Show changes' })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('history-view-list'));
+    await waitFor(() =>
+      expect(screen.getByText('r220').closest('div[aria-current="true"]')).not.toBeNull()
+    );
   });
 
   it('restores graph mode from the previous session', async () => {

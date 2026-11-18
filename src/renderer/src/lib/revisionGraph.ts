@@ -305,8 +305,7 @@ function classifyEntry(entry: SvnLogEntry): EntryClassification {
 
   // A true branch creation copies *across* branches; prefer that over an
   // in-branch file copy when several copy operations share the revision.
-  const copyPoint =
-    copies.find((copy) => branchOfPath(copy.fromPath) !== copy.branch) ?? copies[0];
+  const copyPoint = copies.find((copy) => branchOfPath(copy.fromPath) !== copy.branch) ?? copies[0];
 
   const primaryBranch = copyPoint ? copyPoint.branch : (touched[0] ?? MAIN_LANE_BRANCH);
 
@@ -566,7 +565,10 @@ export function buildRevisionGraph(
       let bestLane: InternalLane | null = null;
       for (const lane of candidates) {
         for (const candidate of lane.revisions) {
-          if (candidate < pending.toRevision && (bestRevision === null || candidate > bestRevision)) {
+          if (
+            candidate < pending.toRevision &&
+            (bestRevision === null || candidate > bestRevision)
+          ) {
             bestRevision = candidate;
             bestLane = lane;
           }
@@ -706,10 +708,8 @@ export function windowRevisionGraph(
   );
   const edges = model.edges.filter(
     (edge) =>
-      edge.from.rowIndex >= lo &&
-      edge.from.rowIndex <= hi &&
-      edge.to.rowIndex >= lo &&
-      edge.to.rowIndex <= hi
+      Math.max(edge.from.rowIndex, edge.to.rowIndex) >= lo &&
+      Math.min(edge.from.rowIndex, edge.to.rowIndex) <= hi
   );
   return { nodes, edges };
 }
