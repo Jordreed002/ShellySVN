@@ -320,6 +320,20 @@ export function AiProviderSettings() {
     }
   }, []);
 
+  useEffect(() => {
+    void loadModels('codex');
+    void loadModels('claude');
+  }, [loadModels]);
+
+  const cliModels = (provider: 'codex' | 'claude') => {
+    const selected =
+      provider === 'codex' ? settings.aiCommit.codexModel : settings.aiCommit.claudeModel;
+    const list = models[provider] ?? [];
+    return list.some((model) => model.id === selected)
+      ? list
+      : [{ id: selected, label: selected, provider, local: false }, ...list];
+  };
+
   const loadEstimate = useCallback(async (provider: AiProviderId, model?: string) => {
     setEstimateLoading((current) => ({ ...current, [provider]: true }));
     try {
@@ -946,22 +960,19 @@ export function AiProviderSettings() {
               className="input mt-1 w-full disabled:opacity-50"
             >
               <option value="auto">Auto (prefer Codex, then Claude)</option>
-              <optgroup label="Codex CLI">
-                <option value="codex:gpt-5.6-luna">GPT-5.6 Luna — fastest / lowest cost</option>
-                <option value="codex:gpt-5.6-terra">GPT-5.6 Terra — balanced</option>
-                <option value="codex:gpt-5.6-sol">GPT-5.6 Sol — highest capability</option>
-              </optgroup>
-              <optgroup label="Claude CLI">
-                <option value="claude:sonnet" disabled={!claudeReady}>
-                  Sonnet — balanced (recommended)
-                </option>
-                <option value="claude:opus" disabled={!claudeReady}>
-                  Opus — highest capability
-                </option>
-                <option value="claude:haiku" disabled={!claudeReady}>
-                  Haiku — fastest / lowest cost
-                </option>
-              </optgroup>
+              {(['codex', 'claude'] as const).map((provider) => (
+                <optgroup key={provider} label={provider === 'codex' ? 'Codex CLI' : 'Claude CLI'}>
+                  {cliModels(provider).map((model) => (
+                    <option
+                      key={model.id}
+                      value={`${provider}:${model.id}`}
+                      disabled={provider === 'claude' && !claudeReady}
+                    >
+                      {model.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
               {aiProviderOptions.length > 0 && (
                 <optgroup label="HTTP providers">
                   {aiProviderOptions.map((option) => (
@@ -977,6 +988,19 @@ export function AiProviderSettings() {
                 </option>
               )}
             </select>
+            <button
+              type="button"
+              className="mt-1.5 text-12 text-text-muted underline-offset-2 hover:text-text hover:underline disabled:cursor-wait disabled:no-underline"
+              disabled={modelsLoading.codex || modelsLoading.claude}
+              onClick={() => {
+                void loadModels('codex');
+                void loadModels('claude');
+              }}
+            >
+              {modelsLoading.codex || modelsLoading.claude
+                ? 'Loading CLI models…'
+                : 'Refresh CLI models'}
+            </button>
           </label>
 
           <label className="block">

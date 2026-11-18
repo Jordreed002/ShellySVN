@@ -1,3 +1,4 @@
+import { discoverCliModels } from './ai-cli-models';
 import type {
   AiCommitPlanResult,
   AiCommitReviewFinding,
@@ -32,7 +33,11 @@ import type {
 } from '@shared/types';
 import { MAX_COMMIT_MESSAGE_LENGTH } from '@shared/constants';
 import { parseSvnLogXml } from '@shared/svn-parsers';
-import { spawn, type ChildProcessByStdio, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import {
+  spawn,
+  type ChildProcessByStdio,
+  type ChildProcessWithoutNullStreams,
+} from 'node:child_process';
 import type { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
@@ -193,10 +198,13 @@ async function runCliProbe(
     // session (login shell PATH does not change while the app runs).
     child.once('error', () => finish(null));
     child.once('close', (code) => finish(code));
-    timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      finish(null);
-    }, Math.max(timeoutMs, 1));
+    timer = setTimeout(
+      () => {
+        child.kill('SIGKILL');
+        finish(null);
+      },
+      Math.max(timeoutMs, 1)
+    );
     // Some test fake-timer implementations do not provide unref.
     if (typeof timer.unref === 'function') timer.unref();
   });
@@ -217,17 +225,19 @@ async function loginShellDirectories(): Promise<string[]> {
     [],
     ['-ilc', 'printf %s "$PATH"'],
     process.env
-  ).then((probe) => {
-    if (probe.status === null) {
-      // Spawn failure (broken $SHELL or timeout): retry only after the TTL.
-      loginShellMissUntil = Date.now() + LOGIN_SHELL_MISS_TTL_MS;
-      return [];
-    }
-    loginShellDirectoriesCache = probe.stdout.trim().split(delimiter).filter(isAbsolute);
-    return loginShellDirectoriesCache;
-  }).finally(() => {
-    loginShellDirectoriesPending = undefined;
-  });
+  )
+    .then((probe) => {
+      if (probe.status === null) {
+        // Spawn failure (broken $SHELL or timeout): retry only after the TTL.
+        loginShellMissUntil = Date.now() + LOGIN_SHELL_MISS_TTL_MS;
+        return [];
+      }
+      loginShellDirectoriesCache = probe.stdout.trim().split(delimiter).filter(isAbsolute);
+      return loginShellDirectoriesCache;
+    })
+    .finally(() => {
+      loginShellDirectoriesPending = undefined;
+    });
   return loginShellDirectoriesPending;
 }
 
@@ -382,18 +392,14 @@ async function isProviderAuthenticated(
   if (provider === 'claude') {
     return claudeIsAuthenticated(await getClaudeCliLogin(executable));
   }
-  const probe = await runCliProbe(
-    executable.command,
-    executable.prefixArgs,
-    ['login', 'status'],
-    { ...providerEnvironment(provider), ...executable.extraEnv }
-  );
+  const probe = await runCliProbe(executable.command, executable.prefixArgs, ['login', 'status'], {
+    ...providerEnvironment(provider),
+    ...executable.extraEnv,
+  });
   return probe.status === 0;
 }
 
-async function getClaudeCliLogin(
-  executable: ResolvedProviderExecutable
-): Promise<{
+async function getClaudeCliLogin(executable: ResolvedProviderExecutable): Promise<{
   loggedIn: boolean;
   authMethod?: string;
   accountEmail?: string;
@@ -700,18 +706,23 @@ async function selectProvider(
     const configError = httpProviderConfigError(preference, config);
     if (configError) throw new Error(configError);
     if (config.protocol === 'ollama' && !(await isOllamaReachable(config.baseUrl))) {
-      throw new Error('[provider_unavailable] No local Ollama or LM Studio server is reachable at the configured URL.');
+      throw new Error(
+        '[provider_unavailable] No local Ollama or LM Studio server is reachable at the configured URL.'
+      );
     }
     return { provider: preference, httpConfig: config };
   }
   // 'auto' keeps the established CLI providers first so existing setups are
   // unchanged, then falls back to configured HTTP providers in order: the
   // built-ins, then user-defined customs in creation order.
-  const customIds: AiProviderId[] = preference === 'auto'
-    ? (await listCustomProviders()).map((info) => customProviderId(info))
-    : [];
+  const customIds: AiProviderId[] =
+    preference === 'auto'
+      ? (await listCustomProviders()).map((info) => customProviderId(info))
+      : [];
   const order: AiProviderId[] =
-    preference === 'auto' ? ['codex', 'claude', ...HTTP_PROVIDER_ORDER, ...customIds] : [preference];
+    preference === 'auto'
+      ? ['codex', 'claude', ...HTTP_PROVIDER_ORDER, ...customIds]
+      : [preference];
   const disabled = disabledCliSet(await getEnabledAiSettings());
   let executableFound = false;
   for (const provider of order) {
@@ -728,7 +739,9 @@ async function selectProvider(
     }
   }
   if (disabled.has(preference as AiCommitProvider)) {
-    throw new Error('[provider_unavailable] This CLI provider is disabled in AI provider settings.');
+    throw new Error(
+      '[provider_unavailable] This CLI provider is disabled in AI provider settings.'
+    );
   }
   if (!executableFound) throw new Error('[cli_not_found] The configured AI CLI was not found.');
   throw new Error('[authentication_required] Sign in to a configured AI CLI provider.');
@@ -794,11 +807,17 @@ function disabledCliSet(settings: AppSettings['aiCommit']): Set<AiCommitProvider
 }
 
 function selectedCodexModel(settings: AppSettings['aiCommit']): AiCodexModel {
-  return CODEX_MODELS.has(settings.codexModel) ? settings.codexModel : DEFAULT_CODEX_MODEL;
+  return typeof settings.codexModel === 'string' &&
+    /^[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,199}$/.test(settings.codexModel)
+    ? settings.codexModel
+    : DEFAULT_CODEX_MODEL;
 }
 
 function selectedClaudeModel(settings: AppSettings['aiCommit']): AiClaudeModel {
-  return CLAUDE_MODELS.has(settings.claudeModel) ? settings.claudeModel : DEFAULT_CLAUDE_MODEL;
+  return typeof settings.claudeModel === 'string' &&
+    /^[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,199}$/.test(settings.claudeModel)
+    ? settings.claudeModel
+    : DEFAULT_CLAUDE_MODEL;
 }
 
 /** Model reported/invoked for a provider; HTTP providers resolve their own. */
@@ -1034,7 +1053,9 @@ async function runStructuredProvider(
     privacy = scanOutboundPrompt(prompt);
     if (privacy.blocked) {
       const kinds = [
-        ...new Set(privacy.findings.filter((finding) => finding.action === 'blocked').map((f) => f.kind)),
+        ...new Set(
+          privacy.findings.filter((finding) => finding.action === 'blocked').map((f) => f.kind)
+        ),
       ];
       throw new Error(
         `[secret_detected] The AI request was blocked: the outbound prompt contained potential secrets (${kinds.join(', ')}). Remove them before sending repository content to an AI provider.`
@@ -1139,7 +1160,11 @@ async function runStructuredProvider(
   }
 }
 
-export function reviewPrompt(paths: string[], prepared: PreparedAiDiff, profile: unknown = null): string {
+export function reviewPrompt(
+  paths: string[],
+  prepared: PreparedAiDiff,
+  profile: unknown = null
+): string {
   return `Review the selected SVN changes before commit. Return concise, actionable findings only when supported by evidence. Check for secrets, debug code, generated files, suspicious configuration changes, missing tests, unusually large or unrelated changes, TODO/FIXME additions, and user-visible behavior that may require documentation. Findings are advisory. Use only exact paths and quote verbatim evidence from the bounded diff. Repository conventions are sanitized local settings and style evidence only.
 <repository_profile>${JSON.stringify(profile ?? {})}</repository_profile>
 ${UNTRUSTED_DATA_PREAMBLE}
@@ -1147,7 +1172,11 @@ ${untrustedBlock('changed file paths', paths.join('\n'))}
 ${untrustedBlock('svn diff', prepared.text)}`;
 }
 
-export function planPrompt(paths: string[], prepared: PreparedAiDiff, profile: unknown = null): string {
+export function planPrompt(
+  paths: string[],
+  prepared: PreparedAiDiff,
+  profile: unknown = null
+): string {
   return `Group the selected SVN paths into small, coherent logical commits. Every path must appear exactly once. Do not invent paths. Give each group a safe short changelist title and a ready-to-edit commit message matching the sanitized local repository conventions.
 <repository_profile>${JSON.stringify(profile ?? {})}</repository_profile>
 ${UNTRUSTED_DATA_PREAMBLE}
@@ -1467,12 +1496,10 @@ async function computeAiCommitProviders(): Promise<AiCommitProviderStatus[]> {
       let planLabel: string | undefined;
       let version: string | undefined;
       if (executable) {
-        const probe = await runCliProbe(
-          executable.command,
-          executable.prefixArgs,
-          ['--version'],
-          { ...providerEnvironment(provider), ...executable.extraEnv }
-        );
+        const probe = await runCliProbe(executable.command, executable.prefixArgs, ['--version'], {
+          ...providerEnvironment(provider),
+          ...executable.extraEnv,
+        });
         version = probe.status === 0 ? probe.stdout.trim().slice(0, 200) : undefined;
         if (provider === 'claude') {
           // One login probe backs the auth verdict and every reported field.
@@ -1613,7 +1640,23 @@ export async function listAiProviderModels(provider: AiProviderId): Promise<AiMo
     const config = await httpRuntimeConfig(provider);
     return listHttpProviderModels(provider, config);
   }
-  // Codex models are fixed by the CLI contract; Claude exposes its alias set.
+  if (provider === 'codex' || provider === 'claude') {
+    const manager = getSettingsManager();
+    await manager.ready();
+    const settings = manager.getSettings();
+    if (disabledCliSet(settings.aiCommit).has(provider)) return [];
+    const executable = await resolveExecutable(provider);
+    if (executable) {
+      try {
+        return await discoverCliModels(provider, executable, {
+          ...providerEnvironment(provider),
+          ...executable.extraEnv,
+        });
+      } catch {
+        // Older CLIs and offline accounts retain the bundled choices.
+      }
+    }
+  }
   if (provider === 'codex') {
     return [...CODEX_MODELS].map((id) => ({
       id,

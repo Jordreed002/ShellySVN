@@ -32,7 +32,10 @@ const upsert = vi.fn();
 const listModels = vi.fn();
 const estimateCost = vi.fn();
 
-const httpStatus = (provider: string, overrides: Partial<AiCommitProviderStatus> = {}): AiCommitProviderStatus => ({
+const httpStatus = (
+  provider: string,
+  overrides: Partial<AiCommitProviderStatus> = {}
+): AiCommitProviderStatus => ({
   provider: provider as AiCommitProviderStatus['provider'],
   available: false,
   kind: 'http',
@@ -43,14 +46,21 @@ function credential(
   provider: string,
   overrides: Partial<AiProviderCredentialStatus> = {}
 ): AiProviderCredentialStatus {
-  return { provider: provider as AiProviderCredentialStatus['provider'], hasApiKey: false, hasBaseUrl: false, ...overrides };
+  return {
+    provider: provider as AiProviderCredentialStatus['provider'],
+    hasApiKey: false,
+    hasBaseUrl: false,
+    ...overrides,
+  };
 }
 
 /** Every built-in HTTP provider configured — closest to the pre-dialog page. */
 function allBuiltInsSummary(overrides: Partial<AiCredentialsSummary> = {}): AiCredentialsSummary {
   return {
     encryptionAvailable: true,
-    providers: ['anthropic', 'azure-openai', 'openai-compatible', 'ollama'].map((id) => credential(id)),
+    providers: ['anthropic', 'azure-openai', 'openai-compatible', 'ollama'].map((id) =>
+      credential(id)
+    ),
     ...overrides,
   };
 }
@@ -92,7 +102,14 @@ beforeEach(() => {
   save.mockResolvedValue({ success: true });
   remove.mockResolvedValue({ success: true });
   upsert.mockResolvedValue({ success: true, id: 'custom:new' });
-  listModels.mockResolvedValue([]);
+  listModels.mockImplementation(async (provider: string) =>
+    (provider === 'codex'
+      ? ['gpt-5.6-luna', 'gpt-5.6-terra', 'provider-new-model']
+      : provider === 'claude'
+        ? ['sonnet', 'opus', 'haiku']
+        : []
+    ).map((id) => ({ id, label: id, provider, local: false }))
+  );
   estimateCost.mockResolvedValue({
     provider: 'anthropic',
     model: 'claude-sonnet-4-5',
@@ -228,7 +245,13 @@ describe('AiProviderSettings configured-card model', () => {
 
   it('loads models on focus and lists them in the picker', async () => {
     listModels.mockResolvedValue([
-      { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5 (default)', provider: 'anthropic', local: false, defaultForProvider: true },
+      {
+        id: 'claude-sonnet-4-5',
+        label: 'Claude Sonnet 4.5 (default)',
+        provider: 'anthropic',
+        local: false,
+        defaultForProvider: true,
+      },
       { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', local: false },
     ]);
     await rendered();
@@ -243,7 +266,9 @@ describe('AiProviderSettings configured-card model', () => {
   it('previews the cost estimate for a sample 10k-char diff', async () => {
     await rendered();
     fireEvent.click(screen.getByTestId('ai-estimate-button-anthropic'));
-    await waitFor(() => expect(estimateCost).toHaveBeenCalledWith({ provider: 'anthropic', inputChars: 10_000 }));
+    await waitFor(() =>
+      expect(estimateCost).toHaveBeenCalledWith({ provider: 'anthropic', inputChars: 10_000 })
+    );
     const text = await waitFor(() => screen.getByTestId('ai-estimate-anthropic'));
     expect(text.textContent).toContain('10,000');
     expect(text.textContent).toContain('2,500');
@@ -337,6 +362,7 @@ describe('AI Commit Messages group (hosted on this page)', () => {
         'auto',
         'codex:gpt-5.6-luna',
         'codex:gpt-5.6-terra',
+        'codex:provider-new-model',
         'claude:sonnet',
         'claude:haiku',
       ])
@@ -420,7 +446,9 @@ describe('custom provider cards', () => {
     expect(screen.getByTestId(`ai-base-url-${CUSTOM_ID}`)).toBeInTheDocument();
     expect(screen.getByTestId(`ai-key-status-${CUSTOM_ID}`).textContent).toContain('Key set');
     // Rename is an inline text input seeded with the display name.
-    expect((screen.getByTestId(`ai-rename-${CUSTOM_ID}`) as HTMLInputElement).value).toBe('OpenRouter');
+    expect((screen.getByTestId(`ai-rename-${CUSTOM_ID}`) as HTMLInputElement).value).toBe(
+      'OpenRouter'
+    );
   });
 
   it('commits an inline rename through customProviders.upsert on blur', async () => {
@@ -496,7 +524,9 @@ describe('Add provider dialog (through the page)', () => {
     const submit = screen.getByTestId('ai-add-submit') as HTMLButtonElement;
     expect(submit).toBeDisabled();
     fireEvent.change(screen.getByTestId('ai-add-name'), { target: { value: 'OpenRouter' } });
-    expect((screen.getByTestId('ai-add-protocol') as HTMLSelectElement).value).toBe('openai-compatible');
+    expect((screen.getByTestId('ai-add-protocol') as HTMLSelectElement).value).toBe(
+      'openai-compatible'
+    );
     expect(screen.queryByTestId('ai-add-api-key')).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('ai-add-api-key'), { target: { value: 'sk-or' } });
     fireEvent.change(screen.getByTestId('ai-add-base-url'), {
@@ -548,7 +578,10 @@ describe('Add provider dialog (through the page)', () => {
     expect(anthropic).toBeDisabled();
     expect(anthropic.textContent).toContain('Configured');
     // Default selection skips the configured row.
-    expect(screen.getByTestId('ai-add-option-azure-openai')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('ai-add-option-azure-openai')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
     expect(screen.getByTestId('ai-add-option-anthropic')).toHaveAttribute('aria-checked', 'false');
   });
 });

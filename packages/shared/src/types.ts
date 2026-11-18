@@ -729,9 +729,9 @@ export type AiCustomProviderProtocol =
   | 'ollama';
 /** Built-in provider id, or a user-defined custom provider id (`custom:<slug>`). */
 export type AiProviderId = AiCommitProvider | `custom:${string}`;
-export type AiCodexModel = 'gpt-5.6-luna' | 'gpt-5.6-terra' | 'gpt-5.6-sol';
+export type AiCodexModel = string;
 /** Stable Claude Code model aliases accepted by `claude --model`. */
-export type AiClaudeModel = 'sonnet' | 'opus' | 'haiku';
+export type AiClaudeModel = string;
 export type AiTaskKind =
   | 'commit-message'
   | 'draft-transformation'
