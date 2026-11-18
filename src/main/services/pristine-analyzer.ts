@@ -6,8 +6,7 @@ import type {
   PristineVacuumReason,
   PristineVacuumRecommendation,
 } from '@shared/types';
-import { existsSync } from 'fs';
-import { opendir, stat } from 'fs/promises';
+import { access, opendir, stat } from 'fs/promises';
 import { basename, dirname, join, relative } from 'path';
 import { debug } from '../utils/debug';
 
@@ -76,11 +75,20 @@ function isAborted(signal?: AbortSignal): boolean {
   return signal?.aborted === true;
 }
 
-/** Resolve the working-copy root owning the `.svn` admin area, or null. */
-function resolveWorkingCopyRoot(candidate: string): string | null {
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Resolve the nearest working-copy root owning the `.svn` admin area. */
+async function resolveWorkingCopyRoot(candidate: string): Promise<string | null> {
   let current = candidate;
   for (let hops = 0; hops < MAX_ROOT_HOPS; hops += 1) {
-    if (existsSync(join(current, '.svn'))) return current;
+    if (await pathExists(join(current, '.svn'))) return current;
     const parent = dirname(current);
     if (parent === current) return null;
     current = parent;
@@ -328,15 +336,19 @@ export async function analyzePristineStore(
     throw new Error('A working copy path is required to analyze the pristine store.');
   }
 
-  const wcRoot = resolveWorkingCopyRoot(workingCopyPath);
+  const wcRoot = await resolveWorkingCopyRoot(workingCopyPath);
   if (!wcRoot) return unavailableResult(workingCopyPath, 'not_a_working_copy', startedAt);
 
   const pristineRoot = join(wcRoot, '.svn', 'pristine');
-  if (!existsSync(pristineRoot)) {
+  const [hasPristineStore, hasDatabase] = await Promise.all([
+    pathExists(pristineRoot),
+    pathExists(join(wcRoot, '.svn', 'wc.db')),
+  ]);
+  if (!hasPristineStore) {
     return unavailableResult(workingCopyPath, 'pristine_store_missing', startedAt);
   }
 
-  const storeOrphaned = !existsSync(join(wcRoot, '.svn', 'wc.db'));
+  const storeOrphaned = !hasDatabase;
   const aggregate = await walkPristineStore(pristineRoot, options.signal);
 
   let workingCopySize: { bytes: number; truncated: boolean } | null = null;

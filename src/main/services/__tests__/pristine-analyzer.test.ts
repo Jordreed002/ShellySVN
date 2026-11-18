@@ -1,9 +1,9 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, writeFile } from 'fs/promises';
+import { access, mkdir, mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PRISTINE_SIZE_BUCKETS,
   PRISTINE_VACUUM_ABSOLUTE_THRESHOLD_BYTES,
@@ -11,6 +11,11 @@ import {
   analyzePristineStore,
   evaluatePristineVacuumRecommendation,
 } from '../pristine-analyzer';
+
+vi.mock('fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs/promises')>();
+  return { ...actual, access: vi.fn(actual.access) };
+});
 
 let root: string;
 
@@ -91,6 +96,30 @@ describe('analyzePristineStore', () => {
     expect(result.available).toBe(true);
     expect(result.workingCopyPath).toBe(root);
     expect(result.fileCount).toBe(1);
+  });
+
+  it('probes the pristine store and database asynchronously in parallel', async () => {
+    await makeWorkingCopy();
+    let finishStoreProbe!: () => void;
+    const storeProbe = new Promise<void>((resolve) => {
+      finishStoreProbe = resolve;
+    });
+    const probe = vi.mocked(access);
+    probe.mockClear();
+    probe.mockResolvedValueOnce(undefined).mockImplementationOnce(() => storeProbe);
+
+    const analysis = analyzePristineStore(root);
+    try {
+      await vi.waitFor(() => {
+        expect(probe).toHaveBeenNthCalledWith(1, join(root, '.svn'));
+        expect(probe).toHaveBeenNthCalledWith(2, join(root, '.svn', 'pristine'));
+        expect(probe).toHaveBeenNthCalledWith(3, join(root, '.svn', 'wc.db'));
+      });
+    } finally {
+      finishStoreProbe();
+      await analysis;
+    }
+    await expect(analysis).resolves.toMatchObject({ available: true, cancelled: false });
   });
 
   it('flags malformed and mis-sharded files as definite orphans', async () => {
