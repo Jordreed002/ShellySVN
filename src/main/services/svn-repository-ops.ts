@@ -60,10 +60,7 @@ const NATIVE_EOLS: ReadonlySet<SvnNativeEol> = new Set(['LF', 'CR', 'CRLF']);
  * and native-eol values are checked against the closed sets SVN accepts so a
  * hostile or stale renderer payload never reaches a spawn.
  */
-export function appendExportOptions(
-  args: string[],
-  options?: SvnExportOptions
-): string[] {
+export function appendExportOptions(args: string[], options?: SvnExportOptions): string[] {
   if (!options) return args;
   if (options.depth !== undefined) {
     if (!EXPORT_DEPTHS.has(options.depth)) {
@@ -87,10 +84,7 @@ export function appendExportOptions(
 }
 
 /** Append the optional import payload field (`--no-ignore`) to an `svn import` argv. */
-export function appendImportOptions(
-  args: string[],
-  options?: SvnImportOptions
-): string[] {
+export function appendImportOptions(args: string[], options?: SvnImportOptions): string[] {
   if (options?.noIgnore === true) args.push('--no-ignore');
   return args;
 }
@@ -143,9 +137,7 @@ export async function importRepository(
   message: string,
   options?: SvnImportOptions
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
-  const output = await runSvnText(
-    withSvnTargets(buildImportArgs(message, options), [path, url])
-  );
+  const output = await runSvnText(withSvnTargets(buildImportArgs(message, options), [path, url]));
   return {
     success: true,
     revision: parseCommittedRevision(output),
@@ -220,12 +212,16 @@ export async function switchWorkingCopy(
 ): Promise<{ success: boolean; revision: SvnOperationRevision; output: string }> {
   const args = ['switch'];
   if (revision) args.push('-r', requireSvnRevision(revision, 'switch revision'));
-  const output = await runSvnText(withSvnTargets(args, [url, path]));
-  return {
-    success: true,
-    revision: parseUpdatedRevision(output),
-    output,
-  };
+  const targets = withSvnTargets(args, [url, path]);
+  // The queue resolves nested paths to their administrative working-copy root.
+  return runSerializedWorkingCopyMutation(path, async () => {
+    const output = await runSvnText(targets);
+    return {
+      success: true,
+      revision: parseUpdatedRevision(output),
+      output,
+    };
+  });
 }
 
 export async function copyRepositoryItem(
