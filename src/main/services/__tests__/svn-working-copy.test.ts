@@ -887,17 +887,7 @@ describe('svn-working-copy update progress', () => {
     });
 
     expect(mockState.runSvn).toHaveBeenCalledWith(
-      [
-        'update',
-        '-r',
-        '42',
-        '--depth',
-        'files',
-        '--ignore-externals',
-        '--force',
-        '--',
-        '/wc',
-      ],
+      ['update', '-r', '42', '--depth', 'files', '--ignore-externals', '--force', '--', '/wc'],
       expect.objectContaining({
         trustSslFailures: false,
       })
@@ -927,9 +917,15 @@ describe('svn-working-copy update progress', () => {
     const send = vi.fn();
     mockState.runSvnText.mockResolvedValue('');
 
-    const result = await updateWithProgress({ sender: { send } } as never, 'update-bad-rev', '/wc', undefined, {
-      revision: '12x',
-    });
+    const result = await updateWithProgress(
+      { sender: { send } } as never,
+      'update-bad-rev',
+      '/wc',
+      undefined,
+      {
+        revision: '12x',
+      }
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('not a valid SVN revision');
@@ -943,7 +939,11 @@ describe('svn-working-copy update progress', () => {
       new Error("svn: E720123: Can't write to file: No space left on device")
     );
 
-    const result = await updateWithProgress({ sender: { send } } as never, 'update-disk-full', '/wc');
+    const result = await updateWithProgress(
+      { sender: { send } } as never,
+      'update-disk-full',
+      '/wc'
+    );
 
     expect(result.success).toBe(false);
     expect(result.revision).toBeNull();

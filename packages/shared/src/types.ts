@@ -2151,7 +2151,10 @@ export interface ElectronAPI {
       /** Export a shelf as a portable bundle directory at outputPath. */
       export: (name: string, path: string, outputPath: string) => Promise<SvnMutationResult>;
       /** Import a portable shelf bundle into a working copy's shelf store. */
-      import: (portableShelfPath: string, targetWorkingCopyPath: string) => Promise<SvnMutationResult>;
+      import: (
+        portableShelfPath: string,
+        targetWorkingCopyPath: string
+      ) => Promise<SvnMutationResult>;
     };
     proplist: (path: string, options?: SvnPropertyGetOptions) => Promise<SvnPropertyListResult>;
     propget: (
