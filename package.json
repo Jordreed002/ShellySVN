@@ -1,6 +1,6 @@
 {
   "name": "shellysvn",
-  "version": "1.1.0-beta.3",
+  "version": "1.2.0-beta",
   "description": "A standalone Subversion client for macOS, Windows, and Linux",
   "main": "./out/main/index.js",
   "bin": {
