@@ -1,7 +1,14 @@
 import { lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Archive, BrainCircuit, Search, StickyNote } from 'lucide-react';
+import {
+  Archive,
+  BrainCircuit,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  StickyNote,
+} from 'lucide-react';
 import { REVIEW_CENTER_OPEN_EVENT } from '@renderer/features/ai-review-center/reviewCenterEvents';
 
 import { useSettings } from '@renderer/hooks/useSettings';
@@ -9,9 +16,8 @@ import { useVisualSettings } from '@renderer/hooks/useVisualSettings';
 import { useShortcutBindings } from '@renderer/hooks/useShortcutBindings';
 import { normalizeShortcutKey, shortcutComboFromEvent } from '@renderer/lib/shortcutStore';
 
-import { RepositoryPillButton } from './layout/RepositoryPillButton';
-import { describeRepositoryPill } from './layout/repositoryPill';
-import { ShellMark } from './ShellMark';
+import { SHELL_ICON, shellIconButtonClass } from './layout/shellIconButton';
+import { ariaShortcut, formatShortcut, isMacPlatform } from '@renderer/lib/platformKeys';
 import { GlobalBatchProgress } from '@renderer/features/working-copy-command-center/GlobalBatchProgress';
 
 import { TabBar } from './layout/TabBar';
@@ -20,10 +26,7 @@ import {
   NotificationCenterPanel,
   ToastStack,
 } from './layout/NotificationCenter';
-import {
-  QuickActionsContextMenu,
-  QuickActionsMenuButton,
-} from './layout/QuickActionsMenu';
+import { QuickActionsMenuButton } from './layout/QuickActionsMenu';
 import { FolderDropZone } from './layout/DropOverlay';
 import { OperationNotifications } from './layout/OperationNotifications';
 import {
@@ -51,9 +54,6 @@ const Sidebar = lazy(() => import('./Sidebar').then((mod) => ({ default: mod.Sid
 const StatusBar = lazy(() => import('./ui/StatusBar').then((mod) => ({ default: mod.StatusBar })));
 const UpdateBanner = lazy(() =>
   import('./ui/UpdateBanner').then((mod) => ({ default: mod.UpdateBanner }))
-);
-const RepositoryPillControl = lazy(() =>
-  import('./layout/RepositoryPillControl').then((mod) => ({ default: mod.RepositoryPillControl }))
 );
 const TitlebarControls = lazy(() =>
   import('./layout/TitlebarControls').then((mod) => ({ default: mod.TitlebarControls }))
@@ -94,19 +94,8 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-/**
- * `.ibtn` from the prototype: a 32px square ghost control that fills in on hover
- * and adopts the accent when it represents an "on" state.
- */
-const ICON_BUTTON_BASE =
-  'titlebar-no-drag w-8 h-8 grid place-items-center rounded-lg border transition-fast';
-const ICON_BUTTON_IDLE =
-  'bg-transparent border-transparent text-text-secondary hover:bg-bg-tertiary hover:border-border hover:text-text';
-const ICON_BUTTON_ON = 'bg-accent/10 border-accent/40 text-accent';
+const iconButtonClass = shellIconButtonClass;
 
-function iconButtonClass(active = false): string {
-  return `${ICON_BUTTON_BASE} ${active ? ICON_BUTTON_ON : ICON_BUTTON_IDLE}`;
-}
 
 export function SidebarFallback() {
   return (
@@ -147,9 +136,6 @@ export function Layout({ children }: LayoutProps) {
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   /* The panel portals out of the bell's box, so it anchors to it by ref. */
   const notificationBellRef = useRef<HTMLButtonElement | null>(null);
-  const [quickMenuPosition, setQuickMenuPosition] = useState<{ x: number; y: number } | null>(
-    null
-  );
   const [restorePlan, setRestorePlan] = useState<SessionRestorePlan | null>(null);
   const [restoreCtaDismissed, setRestoreCtaDismissed] = useState(false);
   const { settings, isLoading: settingsLoading, updateSettings, addRecentRepo } = useSettings();
@@ -164,13 +150,23 @@ export function Layout({ children }: LayoutProps) {
   // Remappable keybindings for the global shell shortcuts (see keydown effect).
   const { bindings: shortcutBindings } = useShortcutBindings();
 
-  const isMac = navigator.platform.toLowerCase().includes('mac');
+  const isMac = isMacPlatform();
   const isWindows = navigator.platform.toLowerCase().includes('win');
+
+  /** Current binding for a shell shortcut, in this platform's words. */
+  const shortcutFor = (id: string, fallback: string) => {
+    const binding = shortcutBindings.find((candidate) => candidate.id === id);
+    const key = binding?.enabled ? normalizeShortcutKey(binding.currentKey) : '';
+    const canonical = key || fallback;
+    return { label: formatShortcut(canonical, isMac), aria: ariaShortcut(canonical, isMac) };
+  };
+  const paletteShortcut = shortcutFor('command-palette-quick', 'Ctrl+K');
+  const sidebarShortcut = shortcutFor('toggle-sidebar', 'Ctrl+B');
+  const reviewShortcut = shortcutFor('ai-review-center', 'Ctrl+Shift+A');
 
   const routerState = useRouterState();
   const search = routerState.location.search as CommonSearchSchema;
   const currentPath = search?.path;
-  const browsedUrl = search?.url;
   const recentRepositories = useMemo(
     () => settings.recentRepositories || [],
     [settings.recentRepositories]
@@ -185,7 +181,6 @@ export function Layout({ children }: LayoutProps) {
       (repo) => currentPath === repo || currentPath.startsWith(repo + '/')
     );
   }, [currentPath, search?.localPath, recentRepositories]);
-  const repositoryPillFallback = describeRepositoryPill({ workingCopyPath, browsedUrl });
 
   useVisualSettings(settings);
 
@@ -464,71 +459,61 @@ export function Layout({ children }: LayoutProps) {
     void updateSettings({ theme: isDarkTheme ? 'light' : 'dark' });
   };
 
-  const handlePillContextMenu = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      setQuickMenuPosition({ x: event.clientX, y: event.clientY });
-    },
-    []
-  );
-
   const shelfWorkingCopyPath = workingCopyPath ?? recentRepositories[0] ?? '';
   return (
     <div className="flex flex-col h-screen shell-backdrop text-text overflow-hidden">
-      {/* Top bar — prototype `.top`: brand · repository pill · search · controls */}
+      {/*
+       * Top bar — chrome only: the sidebar toggle, the one command search, the
+       * global utilities and the window controls. Workspace identity, the
+       * selected working copy and its views (Changes / History / Repository)
+       * live once, in the sidebar, so nothing here repeats them.
+       */}
       <header
-        className={`relative z-20 h-[50px] flex-shrink-0 flex items-center gap-[13px] px-3.5 bg-bg-secondary border-b border-border shadow-card titlebar-drag ${
-          isMac ? 'pl-[92px]' : ''
+        className={`app-topbar relative z-20 h-11 flex-shrink-0 flex items-center gap-2 pr-3 bg-bg border-b border-border titlebar-drag ${
+          isMac ? 'pl-[84px]' : 'pl-2'
         }`}
       >
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 flex-shrink-0 select-none">
-          <ShellMark className="w-[21px] h-[21px] text-accent" />
-          <span className="text-[14.5px] font-bold tracking-[-0.025em] leading-none">
-            Shelly<span className="text-accent">SVN</span>
-          </span>
-        </div>
-
-        {/* Repository pill */}
-        <Suspense
-          fallback={
-            <RepositoryPillButton
-              pill={repositoryPillFallback}
-              onActivate={() => setShowCommandPalette(true)}
-              busy
-            />
-          }
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className={iconButtonClass(false)}
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!sidebarCollapsed}
+          aria-keyshortcuts={sidebarShortcut.aria}
+          title={`${sidebarCollapsed ? 'Expand' : 'Collapse'} sidebar (${sidebarShortcut.label})`}
         >
-          <RepositoryPillControl
-            workingCopyPath={workingCopyPath}
-            browsedUrl={browsedUrl}
-            recentRepositories={recentRepositories}
-            onActivate={() => setShowCommandPalette(true)}
-            onContextMenu={handlePillContextMenu}
-          />
-        </Suspense>
+          {sidebarCollapsed ? (
+            <PanelLeftOpen className={SHELL_ICON} aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className={SHELL_ICON} aria-hidden="true" />
+          )}
+        </button>
 
-        {/* Centred search — a button that opens the command palette */}
+        {/* Drag region — location lives in the sidebar's selected working copy. */}
+        <div className="min-w-0 flex-1 self-stretch" aria-hidden="true" />
+
+        {/* The one command search — opens the command palette */}
         <button
           type="button"
           onClick={() => setShowCommandPalette(true)}
-          className="titlebar-no-drag group flex-1 min-w-0 max-w-[470px] mx-auto h-[34px] flex items-center gap-2.5 px-3 rounded-[9px] bg-bg border border-border hover:border-border-strong text-[13px] text-text-muted cursor-text transition-fast"
-          aria-label="Run a command — opens the command palette"
-          aria-keyshortcuts="Meta+K Control+K"
-          title="Run a command (⌘K)"
+          className="command-search titlebar-no-drag group flex h-7 w-7 flex-shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-bg-secondary text-12.5 text-text-muted transition-fast hover:border-border-strong hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 md:w-[220px] md:justify-start md:px-2 lg:w-[260px]"
+          aria-label="Search and run commands — opens the command palette"
+          aria-keyshortcuts={paletteShortcut.aria}
+          title={`Search and run commands (${paletteShortcut.label})`}
         >
-          <Search
-            className="w-[15px] h-[15px] flex-shrink-0 group-hover:text-text-secondary transition-fast"
-            aria-hidden="true"
-          />
-          <span className="flex-1 min-w-0 truncate text-left">Run a command</span>
-          <span className="kbd flex-shrink-0" aria-hidden="true">
-            ⌘K
+          <Search className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+          <span className="hidden min-w-0 flex-1 truncate text-left md:inline">
+            Search or run a command…
+          </span>
+          <span className="kbd hidden flex-shrink-0 md:inline-flex" aria-hidden="true">
+            {paletteShortcut.label}
           </span>
         </button>
 
-        {/* Right: controls + window controls */}
-        <div className="flex items-center gap-1.5 ml-auto flex-shrink-0 titlebar-no-drag">
+        <div className="mx-1 h-4 w-px flex-shrink-0 bg-border" aria-hidden="true" />
+
+        {/* Right: global utilities + window controls */}
+        <div className="flex items-center gap-0.5 flex-shrink-0 titlebar-no-drag">
           <button
             type="button"
             onClick={() => setShowNotes(!showNotes)}
@@ -537,7 +522,7 @@ export function Layout({ children }: LayoutProps) {
             aria-label="Quick notes"
             title="Quick notes"
           >
-            <StickyNote className="w-4 h-4" aria-hidden="true" />
+            <StickyNote className={SHELL_ICON} aria-hidden="true" />
           </button>
 
           <button
@@ -546,10 +531,10 @@ export function Layout({ children }: LayoutProps) {
             className={iconButtonClass(showAiReviewCenter)}
             aria-pressed={showAiReviewCenter}
             aria-label="AI Review Center"
-            aria-keyshortcuts="Meta+Shift+A Control+Shift+A"
-            title="AI Review Center (⌘⇧A)"
+            aria-keyshortcuts={reviewShortcut.aria}
+            title={`AI Review Center (${reviewShortcut.label})`}
           >
-            <BrainCircuit className="w-4 h-4" aria-hidden="true" />
+            <BrainCircuit className={SHELL_ICON} aria-hidden="true" />
           </button>
 
           <button
@@ -561,7 +546,7 @@ export function Layout({ children }: LayoutProps) {
             aria-label="Shelf manager"
             title={shelfWorkingCopyPath ? 'Shelf manager' : 'Shelf manager — open a working copy first'}
           >
-            <Archive className="w-4 h-4" aria-hidden="true" />
+            <Archive className={SHELL_ICON} aria-hidden="true" />
           </button>
 
           <QuickActionsMenuButton workingCopyPath={workingCopyPath} />
@@ -598,7 +583,9 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      {/* Working-copy tabs (#83) */}
+      {/* Working-copy tabs (#83) — only once there is more than the sidebar's
+          single active working copy to switch between. */}
+      {tabSession.tabs.length > 0 && (
       <TabBar
         tabs={tabSession.tabs}
         activeTabId={tabSession.activeTabId}
@@ -608,9 +595,10 @@ export function Layout({ children }: LayoutProps) {
         onCloseOthers={handleCloseOtherTabs}
         onOpenWorkingCopy={(path) => void handleOpenWorkingCopy(path)}
       />
+      )}
 
       {showRestoreCta && (
-        <div className="flex h-8 flex-shrink-0 items-center gap-2 border-b border-border bg-accent/10 px-3 text-12">
+        <div className="flex h-9 flex-shrink-0 items-center gap-2 border-b border-border bg-bg-secondary px-3 text-12.5">
           <span className="text-text">
             Reopen your last session ({restorePlan.session.tabs.length} tab
             {restorePlan.session.tabs.length === 1 ? '' : 's'})?
@@ -722,13 +710,6 @@ export function Layout({ children }: LayoutProps) {
       <OperationNotifications />
       <ToastStack />
       <FolderDropZone onOpenWorkingCopy={handleOpenWorkingCopy} />
-      {quickMenuPosition && (
-        <QuickActionsContextMenu
-          position={quickMenuPosition}
-          workingCopyPath={workingCopyPath}
-          onClose={() => setQuickMenuPosition(null)}
-        />
-      )}
       {shelfManager.isOpen && shelfWorkingCopyPath && (
         <Suspense fallback={null}>
           <ShelfManagerDialog

@@ -62,10 +62,14 @@ import { STATUS_LEGEND_OPEN_EVENT, StatusLegendDialogMount } from './StatusLegen
  * calls. Nothing here polls.
  */
 
-const CELL = 'flex items-center gap-1.5 h-full px-[11px] whitespace-nowrap';
-const CELL_LEADING = `${CELL} border-r border-border-muted`;
-const CELL_TRAILING = `${CELL} border-l border-border-muted min-w-0`;
-const ICON = 'w-[11px] h-[11px]';
+/*
+ * Quiet, flat cells: no hairline between every fact, just spacing. Mono is kept
+ * for the values that are identifiers (revision, version), not for prose.
+ */
+const CELL = 'flex items-center gap-1.5 h-full px-2 whitespace-nowrap';
+const CELL_LEADING = CELL;
+const CELL_TRAILING = `${CELL} min-w-0`;
+const ICON = 'w-3 h-3 flex-shrink-0';
 
 /** Emphasised value inside a cell — the prototype's `<b>`. */
 function Value({ children }: { children: ReactNode }) {
@@ -280,7 +284,7 @@ export function StatusBar() {
     // elements (aria-allowed-role), and the live-region semantics matter more
     // here than the landmark.
     <div
-      className="flex items-center h-control-sm flex-shrink-0 bg-bg-secondary border-t border-border font-mono text-10.5 leading-none text-text-muted"
+      className="app-statusbar flex items-center h-control-sm flex-shrink-0 bg-bg border-t border-border px-1 text-11 leading-none text-text-muted"
       role="status"
       aria-live="polite"
       // `role="status"` implies `aria-atomic="true"`, which re-announces the
@@ -293,7 +297,7 @@ export function StatusBar() {
       {repoName ? (
         <>
           <span className={CELL_LEADING}>
-            <FolderGit2 className={`${ICON} text-accent`} aria-hidden="true" />
+            <FolderGit2 className={ICON} aria-hidden="true" />
             <Value>{repoName}</Value>
           </span>
           {info && (
@@ -303,7 +307,10 @@ export function StatusBar() {
                 <Value>{info.branch}</Value>
               </span>
               <span className={CELL_LEADING}>
-                at <Value>r{info.revision}</Value>
+                at{' '}
+                <span className="font-mono">
+                  <Value>r{info.revision}</Value>
+                </span>
               </span>
               {info.source === 'cache' && (
                 <span className={`${CELL_LEADING} text-svn-modified`}>
@@ -340,7 +347,7 @@ export function StatusBar() {
       {/* Mixed-revision state of the active working copy, when already read */}
       {mixedRevisions && (
         <span
-          className={`${CELL_LEADING} text-accent`}
+          className={`${CELL_LEADING} text-text-secondary`}
           title={`Parts of this working copy are at newer revisions than r${mixedRevisions.baseRevision}:\n${mixedRevisions.items.join('\n')}`}
         >
           <Layers className={ICON} aria-hidden="true" />
@@ -355,7 +362,7 @@ export function StatusBar() {
       {location && (
         <span className={CELL_TRAILING} title={location}>
           <span
-            className="truncate max-w-[42vw] text-text-faint"
+            className="truncate max-w-[42vw] font-mono text-text-muted"
             style={{ direction: 'rtl', textAlign: 'left' }}
           >
             {location}
@@ -402,7 +409,7 @@ export function StatusBar() {
         </button>
       </span>
 
-      {svnVersion && <span className={CELL_TRAILING}>svn {svnVersion}</span>}
+      {svnVersion && <span className={`${CELL_TRAILING} font-mono`}>svn {svnVersion}</span>}
 
       {/* Status legend dialog (#94): opens from the button above or the
           command palette via STATUS_LEGEND_OPEN_EVENT. */}

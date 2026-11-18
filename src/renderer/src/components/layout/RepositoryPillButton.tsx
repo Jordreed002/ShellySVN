@@ -20,20 +20,20 @@ export function RepositoryPillButton({
       type="button"
       onClick={onActivate}
       onContextMenu={onContextMenu}
-      className="titlebar-no-drag flex items-center gap-2 h-control px-[11px] flex-shrink-0 min-w-0 rounded-9 bg-bg border border-border hover:border-border-strong text-12.5 transition-fast"
+      className="repository-switcher titlebar-no-drag flex h-7 min-w-0 flex-shrink items-center gap-1.5 rounded-md px-2 text-13 transition-fast hover:bg-bg-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
       aria-label={pill.ariaLabel}
       aria-haspopup={onContextMenu ? 'menu' : undefined}
       aria-busy={busy || undefined}
       title={pill.title}
     >
-      <Box className="w-3 h-3 flex-shrink-0 text-text-faint" aria-hidden="true" />
-      <span className="font-semibold text-text truncate max-w-[150px]">{pill.label}</span>
+      <Box className="h-3.5 w-3.5 flex-shrink-0 text-text-muted" aria-hidden="true" />
+      <span className="min-w-0 max-w-[180px] truncate font-medium text-text">{pill.label}</span>
       {pill.host && (
-        <span className="font-mono text-11 text-text-muted truncate max-w-[190px]">
+        <span className="hidden min-w-0 max-w-[180px] truncate font-mono text-11 text-text-muted xl:inline">
           {pill.host}
         </span>
       )}
-      <ChevronDown className="w-3 h-3 flex-shrink-0 text-text-faint" aria-hidden="true" />
+      <ChevronDown className="h-3 w-3 flex-shrink-0 text-text-muted" aria-hidden="true" />
     </button>
   );
 }

@@ -18,6 +18,7 @@ import {
   Columns2,
   Eye,
   EyeOff,
+  FileCog,
   Star,
   StarOff,
   HardDrive,
@@ -69,88 +70,88 @@ const ICON_ONLY_BELOW_PX = 900;
 
 /** `.btn` — 32px high, 8px radius, hairline border, 12.5px semibold label. */
 const BTN_BASE =
-  'inline-flex h-control flex-none items-center gap-[7px] rounded-8 border px-3 text-12.5 font-semibold transition-fast active:translate-y-px disabled:pointer-events-none disabled:opacity-40';
+  'inline-flex h-7 flex-none items-center gap-1.5 rounded-md border px-2.5 text-12.5 font-medium transition-fast disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
 const BTN_TONE =
-  'border-border-strong bg-bg-secondary text-text shadow-card hover:border-text-faint hover:bg-bg-tertiary';
+  'border-border bg-bg-secondary text-text hover:border-border-strong hover:bg-bg-tertiary';
 
 /** `.btn.pri` — the one action the toolbar is for. */
 const BTN_PRIMARY_TONE =
-  'border-accent bg-accent text-white shadow-card hover:border-accent-hover hover:bg-accent-hover';
+  'border-transparent bg-[rgb(var(--color-accent-fill-rgb))] text-white hover:brightness-110';
 
 /** `.btn.ghost` — no chrome until you touch it. */
 const BTN_GHOST_TONE =
-  'border-transparent bg-transparent text-text hover:border-border hover:bg-bg-tertiary';
+  'border-transparent bg-transparent text-text-secondary hover:bg-bg-tertiary hover:text-text';
 
 const BTN = `${BTN_BASE} ${BTN_TONE}`;
 
 /** `.btn` with the label dropped — the glyph and the accessible name remain. */
 const BTN_ICON_BASE =
-  'inline-flex h-control w-control flex-none items-center justify-center rounded-8 border transition-fast active:translate-y-px disabled:pointer-events-none disabled:opacity-40';
+  'inline-flex h-7 w-7 flex-none items-center justify-center rounded-md border transition-fast disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 const BTN_ICON = `${BTN_ICON_BASE} ${BTN_TONE}`;
 const BTN_PRIMARY = `${BTN_BASE} ${BTN_PRIMARY_TONE}`;
 const BTN_GHOST = `${BTN_BASE} ${BTN_GHOST_TONE}`;
 
 /** `.btn.pri.icon` — a square primary button. */
-const BTN_PRIMARY_ICON = `inline-flex h-control w-control flex-none items-center justify-center rounded-8 border ${BTN_PRIMARY_TONE} transition-fast active:translate-y-px disabled:pointer-events-none disabled:opacity-40`;
+const BTN_PRIMARY_ICON = `${BTN_ICON_BASE} ${BTN_PRIMARY_TONE}`;
 
 /** `.btn.icon` — the bordered 30px square of the navigation group. */
 const NAV_ICON_BTN =
-  'flex h-control w-control-md flex-none items-center justify-center rounded-8 border border-border bg-bg text-text-secondary shadow-card transition-fast hover:border-text-faint hover:bg-bg-tertiary hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-bg disabled:hover:text-text-secondary';
+  'flex h-7 w-7 flex-none items-center justify-center rounded-md text-text-muted transition-fast hover:bg-bg-tertiary hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-muted';
 
 /** `.ibtn` — 32px square, quiet until hovered. */
 const ICON_BTN_BASE =
-  'relative inline-grid h-control w-control flex-none place-items-center rounded-8 border transition-fast disabled:pointer-events-none disabled:opacity-40';
+  'relative inline-grid h-7 w-7 flex-none place-items-center rounded-md border transition-fast disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
 const ICON_BTN_QUIET =
-  'border-transparent text-text-secondary hover:border-border hover:bg-bg-tertiary hover:text-text';
+  'border-transparent text-text-muted hover:bg-bg-tertiary hover:text-text';
 
 /** `.ibtn[aria-pressed=true]` — an engaged toggle. */
-const ICON_BTN_ON = 'border-accent/40 bg-accent/10 text-accent';
+const ICON_BTN_ON = 'border-transparent bg-bg-tertiary text-text';
 
 const ICON_BTN = `${ICON_BTN_BASE} ${ICON_BTN_QUIET}`;
 
 /** `.ibtn` with room for a label or a chevron. */
 const ICON_BTN_WIDE_BASE =
-  'relative inline-flex h-control flex-none items-center gap-1 rounded-8 border px-2 transition-fast disabled:pointer-events-none disabled:opacity-40';
+  'relative inline-flex h-7 flex-none items-center gap-1 rounded-md border px-1.5 transition-fast disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
 /** A segmented control — `.scopetog`'s big brother, used for the Local/Online pair. */
 const SEGMENT_GROUP =
-  'flex flex-none items-center gap-0.5 rounded-8 border border-border bg-bg-secondary p-0.5';
+  'flex flex-none items-center gap-0.5 rounded-md border border-border bg-bg-secondary p-0.5';
 
-const SEGMENT_ON = 'bg-accent/15 text-accent';
+const SEGMENT_ON = 'bg-bg-tertiary text-text';
 const SEGMENT_OFF = 'text-text-secondary hover:bg-bg-tertiary hover:text-text';
 
 const SEGMENT_BASE =
-  'flex h-control-sm flex-none items-center gap-1.5 rounded-6 px-2.5 text-12.5 font-semibold transition-fast';
+  'flex h-6 flex-none items-center gap-1.5 rounded-[5px] px-2 text-12.5 font-medium transition-fast';
 
 /** `.ctx` — menus share the context menu's surface. */
 const MENU_SURFACE =
-  'min-w-[248px] rounded-11 border border-border-strong bg-bg-secondary p-[5px] shadow-overlay';
+  'min-w-[248px] rounded-lg border border-border-strong bg-bg-secondary p-1 shadow-overlay';
 
 /** `.ci` — a menu row. */
 const MENU_ITEM =
-  'group flex w-full items-center gap-2.5 rounded-7 px-[9px] py-[7px] text-left text-12.5 leading-tight disabled:pointer-events-none disabled:opacity-40';
+  'group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-13 leading-tight disabled:pointer-events-none disabled:opacity-40';
 
 /** `.ci:hover` — fills with the accent and inverts the label. */
-const MENU_ITEM_TONE = 'text-text hover:bg-accent hover:text-white';
+const MENU_ITEM_TONE = 'text-text hover:bg-bg-tertiary';
 
 /** `.ci.danger:hover` — fills red instead. */
-const MENU_ITEM_DANGER = 'text-svn-conflict hover:bg-svn-conflict hover:text-white';
+const MENU_ITEM_DANGER = 'text-svn-conflict hover:bg-svn-conflict/15';
 
 /** The row whose setting is currently in force. */
 const MENU_ITEM_ON = 'bg-accent/10';
 
 /** `.ctx .lbl` — an uppercase section label. */
-const MENU_EYEBROW = 'eyebrow px-[9px] pb-[3px] pt-1.5 text-9.5';
+const MENU_EYEBROW = 'px-2 pb-1 pt-1.5 text-11 font-medium text-text-muted';
 
 /** `.ci .cmd` — the `svn` command a row runs. Decorative for assistive tech. */
 const MENU_COMMAND =
-  'mt-px block font-mono text-9.5 font-normal text-text-faint group-hover:text-white/80';
+  'mt-px block font-mono text-11 font-normal text-text-muted';
 
-const MENU_ICON = 'h-[15px] w-[15px] flex-none text-text-muted group-hover:text-white/80';
+const MENU_ICON = 'h-3.5 w-3.5 flex-none text-text-muted group-hover:text-text';
 
-const MENU_CHECK = 'h-3.5 w-3.5 flex-none text-accent group-hover:text-white';
+const MENU_CHECK = 'h-3.5 w-3.5 flex-none text-accent';
 
 interface ToolbarActionItem {
   key: string;
@@ -476,7 +477,7 @@ export function Toolbar({
   return (
     <div
       ref={barRef}
-      className={`toolbar flex h-auto flex-none items-center gap-2 border-b border-border bg-bg px-3.5 py-2 ${className}`}
+      className={`toolbar flex h-auto min-w-0 flex-none items-center gap-1.5 border-b border-border bg-bg px-3 py-1.5 ${className}`}
       role="toolbar"
       aria-label="Main toolbar"
     >
@@ -664,7 +665,11 @@ export function Toolbar({
                 aria-haspopup="menu"
                 aria-expanded={showActionsMenu}
               >
-                <span>Actions</span>
+                {isIconOnly ? (
+                  <FileCog className="h-3.5 w-3.5" aria-hidden="true" />
+                ) : (
+                  <span>Actions</span>
+                )}
                 <ChevronDown className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
               </button>
 
@@ -703,8 +708,8 @@ export function Toolbar({
                           <Icon
                             className={`h-[15px] w-[15px] flex-none ${
                               item.danger
-                                ? 'text-svn-conflict group-hover:text-white'
-                                : 'text-text-muted group-hover:text-white/80'
+                                ? 'text-svn-conflict'
+                                : 'text-text-muted group-hover:text-text'
                             }`}
                             aria-hidden="true"
                           />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Popover } from '@renderer/components/ui/Popover';
+import { SHELL_ICON, shellIconButtonClass } from './shellIconButton';
 import { useQuery } from '@tanstack/react-query';
 import { EllipsisVertical, ExternalLink, FolderOpen, Monitor, SquareTerminal } from 'lucide-react';
 import type { CodeEditorInfo, ExternalToolSummary } from '@shared/types';
@@ -191,13 +192,9 @@ export function QuickActionsMenuButton({ workingCopyPath }: QuickActionsMenuButt
         aria-haspopup="menu"
         aria-expanded={open}
         title="Quick actions — open in Finder, Terminal, editors"
-        className={`w-8 h-8 grid place-items-center rounded-lg border transition-fast ${
-          open
-            ? 'bg-accent/10 border-accent/40 text-accent'
-            : 'bg-transparent border-transparent text-text-secondary hover:bg-bg-tertiary hover:border-border hover:text-text'
-        }`}
+        className={shellIconButtonClass(open)}
       >
-        <EllipsisVertical className="w-4 h-4" aria-hidden="true" />
+        <EllipsisVertical className={SHELL_ICON} aria-hidden="true" />
       </button>
       {open && (
         <Popover

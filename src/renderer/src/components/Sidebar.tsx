@@ -2,10 +2,10 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   ArrowUpDown,
+  ChevronRight,
   Clock,
-  Database,
   ExternalLink,
-  FolderGit2,
+  FileDiff,
   FolderOpen,
   FolderPlus,
   Globe,
@@ -13,8 +13,8 @@ import {
   History,
   Home,
   Key,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ListFilter,
+  PanelTop,
   Pin,
   PinOff,
   Plus,
@@ -30,9 +30,16 @@ import {
 import { useSettings } from '@renderer/hooks/useSettings';
 import { useHomePath } from '@renderer/hooks/useHomePath';
 
-import { RailLinkRow, RailSection, RepoRailItem, railRowClass } from './sidebar/RepoRow';
 import {
-  collectRepositoryRoots,
+  RAIL_ACTION_CLASS,
+  RailLinkRow,
+  RailSection,
+  RepoRailItem,
+  railRowClass,
+} from './sidebar/RepoRow';
+import { ShellMark } from './ShellMark';
+import { openTab } from '@renderer/lib/tabsStore';
+import {
   describeRepo,
   shortenPath,
   useWorkingCopyOverview,
@@ -44,7 +51,6 @@ import { useWorkingCopyGroups } from './sidebar/useWorkingCopyGroups';
 import { useSidebarUiState } from './sidebar/useSidebarUiState';
 import { groupWorkingCopies } from '@renderer/lib/workingCopyGroups';
 import type { SidebarSortMode } from '@renderer/lib/sidebarUiState';
-import { aggregateWorkingCopyStatus } from './sidebar/groupAggregates';
 import {
   BatchCompletionNotice,
   UpdateAllButton,
@@ -98,7 +104,10 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const navigate = useNavigate();
   const routerState = useRouterState();
 
-  const currentPath = (routerState.location.search as { path?: string })?.path || '';
+  const routeSearch = routerState.location.search as { path?: string; localPath?: string };
+  const currentPath = routeSearch?.path || '';
+  // The repository browser names the checkout it is inside as `localPath`.
+  const repoBrowserLocalPath = routeSearch?.localPath;
   const currentPathWithDefault = currentPath;
   const pathname = routerState.location.pathname;
   const homePath = useHomePath();
@@ -108,6 +117,10 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // The working-copy filter is revealed on demand rather than always on screen.
+  const [filterOpen, setFilterOpen] = useState(false);
+  // Secondary rail sections are folded by default; remember the user's choice.
+  const [moreOpen, setMoreOpen] = useState(false);
   // Working copy whose shelves the shelf manager is open on.
   const [shelvesFor, setShelvesFor] = useState<string | null>(null);
   // Gate for rail data nothing on screen is waiting for; see `runWhenIdle`.
@@ -152,23 +165,17 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
     [filteredRepos, groupsController.state, sidebarUi.state.sortMode, isPinned]
   );
 
-  // The recent repo that contains the current path, if any (drives the panel).
-  const activeRepo = recentRepos.find(
-    (repo) => currentPath === repo || currentPath.startsWith(repo + '/')
-  );
+  // The recent repo that contains the current location, if any. The repository
+  // browser reports its checkout as `localPath`, so honour that too.
+  const activeRepo =
+    (repoBrowserLocalPath && recentRepos.includes(repoBrowserLocalPath)
+      ? repoBrowserLocalPath
+      : undefined) ??
+    recentRepos.find((repo) => currentPath === repo || currentPath.startsWith(repo + '/'));
 
   /* ── working-copy facts: one query feeds every row and the disk card ── */
   const overview = useWorkingCopyOverview(recentRepos);
 
-  // Union of every working copy's local state — the rail's aggregate badge.
-  const railAggregate = useMemo(
-    () => aggregateWorkingCopyStatus(filteredRepos, overview),
-    [filteredRepos, overview]
-  );
-
-  const repositoryRoots = collectRepositoryRoots(recentRepos, overview).filter(
-    (root) => matchesSearch(root.url) || root.workingCopies.some((wc) => matchesSearch(wc))
-  );
   const filteredBookmarks = bookmarks.filter(
     (bookmark) => matchesSearch(bookmark.name) || matchesSearch(bookmark.path)
   );
@@ -180,6 +187,27 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const canBookmarkCurrentPath =
     currentPath.length > 0 && !bookmarks.some((bookmark) => bookmark.path === currentPath);
 
+  useEffect(() => {
+    let cancelled = false;
+    window.api.store
+      .get<boolean>('shellysvn:sidebar-more-open')
+      .then((value) => {
+        if (!cancelled && typeof value === 'boolean') setMoreOpen(value);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleMore = useCallback(() => {
+    setMoreOpen((previous) => {
+      const next = !previous;
+      void window.api.store.set('shellysvn:sidebar-more-open', next);
+      return next;
+    });
+  }, []);
+
   // Preload the settings dialog when the app is idle.
   useEffect(() => runWhenIdle(() => void loadSettingsDialog()), []);
 
@@ -187,13 +215,13 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   // moment rather than competing with the working-copy reads that rows need.
   useEffect(() => runWhenIdle(() => setRailIsIdle(true)), []);
 
-  // When the rail's Search button expands the sidebar, focus the search field.
+  // When a filter button reveals the filter (and maybe expands the sidebar), focus it.
   useEffect(() => {
     if (!collapsed && pendingSearchFocus.current) {
       pendingSearchFocus.current = false;
       searchInputRef.current?.focus();
     }
-  }, [collapsed]);
+  }, [collapsed, filterOpen]);
 
   // Close the repo context menu on any outside click.
   useEffect(() => {
@@ -304,37 +332,46 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
     return () => window.removeEventListener('shellysvn:open-settings', handleSettingsRequest);
   }, [handleSettingsRequest]);
 
+  /*
+   * The sidebar answers "which workspace, which working copy" — the top bar
+   * answers "where in it, and what can I do here". So the rail owns:
+   *
+   *  1. workspace identity (brand + what is on this machine),
+   *  2. global destinations that exist without a checkout (Home, Files,
+   *     Repository browser),
+   *  3. the active working copy's own views, in journey order — inspect
+   *     Changes, review History, browse its Repository — so the context of
+   *     every view is explicit, and
+   *  4. the list of working copies to switch between.
+   *
+   * Search over the list is a filter, revealed on demand; the global command
+   * search lives once, in the top bar. Collapse lives once, in the top bar.
+   */
+  const activeName = activeRepo ? describeRepo(activeRepo).name : '';
+  const activeStatus = activeRepo ? overview.get(activeRepo)?.status : undefined;
+  const activeChanges = activeStatus?.changes ?? 0;
+  const activeConflicts = activeStatus?.conflicts ?? 0;
+  const isActiveChangesView = Boolean(activeRepo) && pathname.startsWith('/files');
+  const isActiveHistoryView = Boolean(activeRepo) && pathname.startsWith('/history');
+  const isActiveRepositoryView =
+    pathname.startsWith('/repo-browser') && Boolean(activeRepo) && repoBrowserLocalPath === activeRepo;
+  const showFilter = filterOpen || searchQuery.length > 0;
+  const workspaceSummary =
+    recentRepos.length === 0
+      ? 'No working copies yet'
+      : `${recentRepos.length} working ${recentRepos.length === 1 ? 'copy' : 'copies'} on this machine`;
+
   return (
     <>
       {collapsed ? (
         <aside
-          className="w-[--rail-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col items-center py-2 gap-1"
+          className="app-sidebar app-sidebar-collapsed w-[--rail-width] h-full bg-bg-secondary border-r border-border flex flex-col items-center py-2 gap-0.5"
           aria-label="Sidebar"
           data-testid="sidebar-ready"
         >
-          <button
-            type="button"
-            onClick={() => setIsAddRepoModalOpen(true)}
-            className="rail-item"
-            title="Add repository"
-            aria-label="Add repository"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              pendingSearchFocus.current = true;
-              onToggleCollapse?.();
-            }}
-            className="rail-item"
-            title="Search repositories"
-            aria-label="Search repositories"
-          >
-            <Search className="w-5 h-5" />
-          </button>
-
-          <div className="my-1 h-px w-6 bg-border" />
+          <div className="mb-1 grid h-8 w-8 place-items-center" title="ShellySVN">
+            <ShellMark className="h-4 w-4 text-text" />
+          </div>
 
           <Link
             to="/"
@@ -344,54 +381,62 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             title="Home"
             aria-label="Home"
           >
-            <Home className="w-5 h-5" />
+            <Home className="h-4 w-4" aria-hidden="true" />
           </Link>
           <Link
             to="/files"
             search={{ path: homePath || currentPathWithDefault }}
-            className="rail-item"
-            activeProps={{ className: 'rail-item rail-item-active' }}
+            className={`rail-item ${pathname.startsWith('/files') && !activeRepo ? 'rail-item-active' : ''}`}
             title="Files"
             aria-label="Files"
           >
-            <FolderOpen className="w-5 h-5" />
+            <FolderOpen className="h-4 w-4" aria-hidden="true" />
           </Link>
           <Link
             to="/repo-browser"
             search={{ url: '', localPath: undefined }}
-            className="rail-item"
-            activeProps={{ className: 'rail-item rail-item-active' }}
+            className={`rail-item ${pathname.startsWith('/repo-browser') && !isActiveRepositoryView ? 'rail-item-active' : ''}`}
             title="Repository browser"
             aria-label="Repository browser"
           >
-            <Globe className="w-5 h-5" />
+            <Globe className="h-4 w-4" aria-hidden="true" />
           </Link>
+
           {activeRepo && (
-            <Link
-              to="/history"
-              search={{ path: currentPathWithDefault }}
-              className="rail-item"
-              activeProps={{ className: 'rail-item rail-item-active' }}
-              title="History"
-              aria-label="History"
-            >
-              <History className="w-5 h-5" />
-            </Link>
+            <>
+              <div className="my-1 h-px w-6 bg-border" aria-hidden="true" />
+              <Link
+                to="/files"
+                search={{ path: activeRepo }}
+                className={`rail-item ${isActiveChangesView ? 'rail-item-active' : ''}`}
+                title={`Changes in ${activeName}`}
+                aria-label={`Changes in ${activeName}`}
+              >
+                <FileDiff className="h-4 w-4" aria-hidden="true" />
+                {activeChanges > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${
+                      activeConflicts > 0 ? 'bg-svn-conflict' : 'bg-svn-modified'
+                    }`}
+                  />
+                )}
+              </Link>
+              <Link
+                to="/history"
+                search={{ path: activeRepo }}
+                className={`rail-item ${isActiveHistoryView ? 'rail-item-active' : ''}`}
+                title={`History of ${activeName}`}
+                aria-label="History"
+              >
+                <History className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </>
           )}
 
-          <div className="my-1 h-px w-6 bg-border" />
+          <div className="my-1 h-px w-6 bg-border" aria-hidden="true" />
 
-          <UpdateAllButton
-            iconOnly
-            label="Update all working copies"
-            title={
-              railAggregate.changes + railAggregate.conflicts > 0
-                ? `Update all — ${railAggregate.changes} pending changes across ${filteredRepos.length} working copies`
-                : `Update all working copies (${filteredRepos.length})`
-            }
-          />
-
-          <div className="flex-1 w-full overflow-y-auto scrollbar-overlay flex flex-col items-center gap-1 py-1">
+          <div className="flex-1 w-full overflow-y-auto scrollbar-overlay flex flex-col items-center gap-0.5 py-0.5">
             {sortedRepos.map((repo) => (
               <RepoRailItem
                 key={repo}
@@ -407,6 +452,28 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
 
           <button
             type="button"
+            onClick={() => {
+              pendingSearchFocus.current = true;
+              setFilterOpen(true);
+              onToggleCollapse?.();
+            }}
+            className="rail-item"
+            title="Filter working copies"
+            aria-label="Filter working copies"
+          >
+            <ListFilter className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAddRepoModalOpen(true)}
+            className="rail-item"
+            title="Add working copy"
+            aria-label="Add working copy"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
             onPointerEnter={() => void loadSettingsDialog()}
             onFocus={() => void loadSettingsDialog()}
             onClick={openSettings}
@@ -415,107 +482,124 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             title="Settings"
             aria-label="Settings"
           >
-            <Settings className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="rail-item"
-            title="Expand sidebar (Ctrl/Cmd+B)"
-            aria-label="Expand sidebar"
-          >
-            <PanelLeftOpen className="w-5 h-5" />
+            <Settings className="h-4 w-4" aria-hidden="true" />
           </button>
         </aside>
       ) : (
         <aside
-          className="w-[--sidebar-width] h-full bg-bg-secondary/70 border-r border-border flex flex-col overflow-hidden"
+          className="app-sidebar w-[--sidebar-width] h-full bg-bg-secondary border-r border-border flex flex-col overflow-hidden"
           aria-label="Sidebar"
           data-testid="sidebar-ready"
         >
-          {/* Search + add */}
-          <div className="flex items-center gap-2 px-3 pt-3.5 pb-1">
-            <div className="relative flex-1 group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted group-focus-within:text-accent transition-fast" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search repositories…"
-                aria-label="Search repositories"
-                className="w-full pl-9 pr-3 py-2 text-sm bg-bg-tertiary/60 border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25 transition-fast"
-              />
-            </div>
+          {/* Workspace identity: what this app is, and what is on this machine. */}
+          <div className="sidebar-workspace flex h-12 flex-shrink-0 items-center gap-2.5 border-b border-border px-3">
+            <span
+              className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-md bg-bg-tertiary"
+              aria-hidden="true"
+            >
+              <ShellMark className="h-3.5 w-3.5 text-text" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-13 font-semibold leading-tight text-text">
+                ShellySVN
+              </span>
+              <span className="block truncate text-11 leading-tight text-text-muted">
+                {workspaceSummary}
+              </span>
+            </span>
             <button
               type="button"
               onClick={() => setIsAddRepoModalOpen(true)}
-              className="btn-icon"
-              title="Add repository"
-              aria-label="Add repository"
+              className={RAIL_ACTION_CLASS}
+              title="Add working copy — open a folder or check out"
+              aria-label="Add working copy"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
 
           <nav
             aria-label="Repositories and locations"
-            className="flex-1 overflow-y-auto scrollbar-overlay pb-4"
+            className="flex-1 overflow-y-auto scrollbar-overlay pb-3"
           >
-            {/* Always-available destinations. */}
-            <div className="space-y-0.5 px-1.5 pt-2">
-              <Link to="/" className={railRowClass(pathname === '/')}>
-                <Home className="h-[15px] w-[15px] flex-shrink-0 opacity-85" />
-                <span className="flex-1 truncate">Home</span>
-              </Link>
-              <Link
-                to="/files"
-                search={{ path: homePath || currentPathWithDefault }}
-                className={railRowClass(pathname.startsWith('/files') && !activeRepo)}
-              >
-                <FolderOpen className="h-[15px] w-[15px] flex-shrink-0 opacity-85" />
-                <span className="flex-1 truncate">Files</span>
-              </Link>
-              <Link
-                to="/repo-browser"
-                search={{ url: '', localPath: undefined }}
-                className={railRowClass(pathname.startsWith('/repo-browser'))}
-              >
-                <Globe className="h-[15px] w-[15px] flex-shrink-0 opacity-85" />
-                <span className="flex-1 truncate">Repository browser</span>
-              </Link>
-            </div>
+            {/* Global destinations — available with or without a checkout. */}
+            <ul className="space-y-px px-2 pt-2" aria-label="Global">
+              <li>
+                <Link
+                  to="/"
+                  className={railRowClass(pathname === '/')}
+                  aria-current={pathname === '/' ? 'page' : undefined}
+                >
+                  <Home className="h-3.5 w-3.5 flex-shrink-0 text-text-muted" aria-hidden="true" />
+                  <span className="flex-1 truncate">Home</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/files"
+                  search={{ path: homePath || currentPathWithDefault }}
+                  className={railRowClass(pathname.startsWith('/files') && !activeRepo)}
+                  aria-current={pathname.startsWith('/files') && !activeRepo ? 'page' : undefined}
+                >
+                  <FolderOpen
+                    className="h-3.5 w-3.5 flex-shrink-0 text-text-muted"
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1 truncate">Files</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/repo-browser"
+                  search={{ url: '', localPath: undefined }}
+                  className={railRowClass(
+                    pathname.startsWith('/repo-browser') && !isActiveRepositoryView
+                  )}
+                  aria-current={
+                    pathname.startsWith('/repo-browser') && !isActiveRepositoryView
+                      ? 'page'
+                      : undefined
+                  }
+                >
+                  <Globe className="h-3.5 w-3.5 flex-shrink-0 text-text-muted" aria-hidden="true" />
+                  <span className="flex-1 truncate">Repository browser</span>
+                </Link>
+              </li>
+            </ul>
 
             {/* ── Working copies ── */}
             <RailSection
               title="Working copies"
               action={
-                <span className="flex items-center gap-1">
-                  <UpdateAllButton
-                    iconOnly
-                    className="text-text-muted hover:text-text transition-fast"
-                    iconClassName="h-3 w-3"
-                    label="Update all"
-                    title="Update every working copy through the batch pipeline"
-                  />
+                <>
                   <button
                     type="button"
-                    onClick={() => void handleCreateGroup()}
-                    className="text-text-muted hover:text-text transition-fast"
-                    title="New group"
-                    aria-label="Create a working-copy group"
-                    data-testid="create-group-button"
+                    onClick={() => {
+                      if (showFilter) {
+                        setFilterOpen(false);
+                        setSearchQuery('');
+                      } else {
+                        pendingSearchFocus.current = true;
+                        setFilterOpen(true);
+                      }
+                    }}
+                    className={`${RAIL_ACTION_CLASS} ${showFilter ? 'bg-bg-tertiary text-text' : ''}`}
+                    title="Filter working copies"
+                    aria-label="Filter working copies"
+                    aria-pressed={showFilter}
                   >
-                    <FolderPlus className="h-3 w-3" />
+                    <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
-                  <label className="flex items-center text-text-muted hover:text-text transition-fast">
+                  <label
+                    className={`${RAIL_ACTION_CLASS} relative cursor-pointer`}
+                    title="Sort working copies"
+                  >
                     <span className="sr-only">Sort working copies</span>
-                    <ArrowUpDown className="h-3 w-3" aria-hidden="true" />
+                    <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
                     <select
                       value={sidebarUi.state.sortMode}
                       onChange={handleSortModeChange}
-                      className="cursor-pointer appearance-none bg-transparent pl-0.5 pr-1 text-2xs font-semibold normal-case tracking-normal focus:outline-none"
-                      title="Sort working copies"
+                      className="absolute inset-0 cursor-pointer appearance-none opacity-0"
                       data-testid="sort-mode-select"
                     >
                       <option value="default">Recent</option>
@@ -525,34 +609,64 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                   </label>
                   <button
                     type="button"
-                    onClick={() => setIsAddRepoModalOpen(true)}
-                    className="text-text-muted hover:text-text transition-fast"
-                    title="Add working copy"
-                    aria-label="Add working copy"
+                    onClick={() => void handleCreateGroup()}
+                    className={RAIL_ACTION_CLASS}
+                    title="New group"
+                    aria-label="Create a working-copy group"
+                    data-testid="create-group-button"
                   >
-                    <Plus className="h-3 w-3" />
+                    <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
-                </span>
+                  <UpdateAllButton
+                    iconOnly
+                    className={RAIL_ACTION_CLASS}
+                    iconClassName="h-3.5 w-3.5"
+                    label="Update all"
+                    title="Update every working copy through the batch pipeline"
+                  />
+                </>
               }
             />
+
+            {showFilter && (
+              <div className="relative px-2 pb-1 pt-0.5">
+                <Search
+                  className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted"
+                  aria-hidden="true"
+                />
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setSearchQuery('');
+                      setFilterOpen(false);
+                    }
+                  }}
+                  placeholder="Filter working copies…"
+                  aria-label="Search repositories"
+                  className="h-7 w-full rounded-md border border-border bg-bg pl-7 pr-2 text-12.5 text-text placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
+                />
+              </div>
+            )}
 
             <BatchCompletionNotice />
 
             {sortedRepos.length === 0 ? (
-              <div className="px-3 py-8 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-bg-tertiary/70 flex items-center justify-center mx-auto mb-3">
-                  <FolderGit2 className="w-6 h-6 text-text-faint" />
-                </div>
-                <p className="text-sm text-text-secondary mb-1">
-                  {searchQuery ? 'No matches' : 'No working copies yet'}
+              <div className="px-3.5 py-3">
+                <p className="text-12.5 text-text-secondary">
+                  {searchQuery ? 'No working copies match.' : 'No working copies yet.'}
                 </p>
                 {!searchQuery && (
                   <button
                     type="button"
                     onClick={() => setIsAddRepoModalOpen(true)}
-                    className="text-xs text-accent hover:text-accent-hover transition-fast"
+                    className="mt-1 text-12.5 font-medium text-accent hover:text-accent-hover transition-fast"
                   >
-                    Add your first repository
+                    Open or check out a working copy
                   </button>
                 )}
               </div>
@@ -560,7 +674,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               <WorkingCopyList
                 sections={sections}
                 overview={overview}
-                currentPath={currentPath}
+                currentPath={activeRepo ?? currentPath}
                 contextMenuRepo={contextMenu?.repo ?? null}
                 isPinned={isPinned}
                 groups={groupsController}
@@ -568,39 +682,6 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                 onOpen={(r) => void addRecentRepo(r)}
                 onMenu={openContextMenu}
               />
-            )}
-
-            {/* ── Repository ── */}
-            {repositoryRoots.length > 0 && (
-              <>
-                <RailSection title="Repository" />
-                <div className="space-y-0.5 px-1.5">
-                  {repositoryRoots.map((root) => (
-                    <RailLinkRow
-                      key={root.url}
-                      path={root.workingCopies[0]}
-                      icon={<Database />}
-                      label={root.name}
-                      detail={root.url}
-                      count={root.workingCopies.length}
-                      onSelect={() => void addRecentRepo(root.workingCopies[0])}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {shouldLoadSidebarInsights(collapsed, railIsIdle) && (
-              <Suspense fallback={null}>
-                <SidebarInsights
-                  recentRepos={recentRepos}
-                  overview={overview}
-                  searchQuery={searchQuery}
-                  activeRepo={activeRepo}
-                  showFolderSizes={settings?.showFolderSizes ?? false}
-                  onOpenShelves={setShelvesFor}
-                />
-              </Suspense>
             )}
 
             {/* ── Bookmarks ── */}
@@ -615,16 +696,16 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                         onClick={() =>
                           void addBookmark(currentPath, describeRepo(currentPath).name)
                         }
-                        className="text-text-muted hover:text-text transition-fast"
+                        className={RAIL_ACTION_CLASS}
                         title="Bookmark this location"
                         aria-label="Bookmark this location"
                       >
-                        <Star className="h-3 w-3" />
+                        <Star className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     ) : undefined
                   }
                 />
-                <div className="space-y-0.5 px-1.5">
+                <div className="space-y-px px-2">
                   {filteredBookmarks.map((bookmark) => (
                     <RailLinkRow
                       key={bookmark.path}
@@ -641,7 +722,7 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
                           className="btn-icon-sm absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover/row:opacity-100 focus:opacity-100"
                           aria-label={`Remove bookmark ${bookmark.name}`}
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-3 w-3" aria-hidden="true" />
                         </button>
                       }
                     />
@@ -650,47 +731,72 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
               </>
             )}
 
-            {/* ── Recent locations ── */}
-            {filteredRecentPaths.length > 0 && (
-              <>
-                <RailSection title="Recent locations" />
-                <div className="space-y-0.5 px-1.5">
-                  {filteredRecentPaths.map((path) => (
-                    <RailLinkRow
-                      key={path}
-                      path={path}
-                      icon={<Clock />}
-                      label={shortenPath(path)}
-                      detailTitle={path}
-                      isActive={currentPath === path}
+            {/* ── More: shelves, problems, disk and recent locations, folded by default ── */}
+            <div className="mt-3 border-t border-border pt-1">
+              <button
+                type="button"
+                onClick={toggleMore}
+                aria-expanded={moreOpen}
+                aria-controls="sidebar-more"
+                className="flex h-7 w-full items-center gap-1.5 rounded-md px-3.5 text-left text-11.5 font-medium text-text-muted transition-fast hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                data-testid="sidebar-more-toggle"
+              >
+                <ChevronRight
+                  className={`h-3 w-3 flex-shrink-0 transition-transform ${moreOpen ? 'rotate-90' : ''}`}
+                  aria-hidden="true"
+                />
+                <span className="flex-1 truncate">Shelves, problems &amp; recent</span>
+              </button>
+              {moreOpen && (
+                <div id="sidebar-more">
+                {shouldLoadSidebarInsights(collapsed, railIsIdle) && (
+                  <Suspense fallback={null}>
+                    <SidebarInsights
+                      recentRepos={recentRepos}
+                      overview={overview}
+                      searchQuery={searchQuery}
+                      activeRepo={activeRepo}
+                      showFolderSizes={settings?.showFolderSizes ?? false}
+                      onOpenShelves={setShelvesFor}
                     />
-                  ))}
+                  </Suspense>
+                )}
+
+                {/* ── Recent locations ── */}
+                {filteredRecentPaths.length > 0 && (
+                  <>
+                    <RailSection title="Recent locations" />
+                    <div className="space-y-px px-2">
+                      {filteredRecentPaths.map((path) => (
+                        <RailLinkRow
+                          key={path}
+                          path={path}
+                          icon={<Clock />}
+                          label={shortenPath(path)}
+                          detailTitle={path}
+                          isActive={currentPath === path}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </nav>
 
-          {/* Footer */}
-          <div className="border-t border-border p-1.5 flex items-center gap-1">
+          {/* Footer — settings only; collapse lives in the top bar beside the location. */}
+          <div className="flex-shrink-0 border-t border-border p-2">
             <button
               type="button"
               onPointerEnter={() => void loadSettingsDialog()}
               onFocus={() => void loadSettingsDialog()}
               onClick={openSettings}
-              className="tree-item flex-1"
+              className={`${railRowClass(false)} w-full`}
               data-testid="settings-button"
             >
-              <Settings className="w-4 h-4" />
-              <span>Settings</span>
-            </button>
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="btn-icon-sm flex-shrink-0"
-              title="Collapse sidebar (Ctrl/Cmd+B)"
-              aria-label="Collapse sidebar"
-            >
-              <PanelLeftClose className="w-4 h-4" />
+              <Settings className="h-3.5 w-3.5 flex-shrink-0 text-text-muted" aria-hidden="true" />
+              <span className="flex-1 truncate text-left">Settings</span>
             </button>
           </div>
         </aside>
@@ -717,8 +823,24 @@ export function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
             }}
             className="context-menu-item w-full"
           >
-            <FolderOpen className="w-4 h-4" />
+            <FolderOpen className="w-4 h-4" aria-hidden="true" />
             Open
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              const path = contextMenu.repo;
+              setContextMenu(null);
+              void addRecentRepo(path).then(() => {
+                openTab(path);
+                navigate({ to: '/files', search: { path } });
+              });
+            }}
+            className="context-menu-item w-full"
+          >
+            <PanelTop className="w-4 h-4" aria-hidden="true" />
+            Open in new tab
           </button>
           <button
             type="button"

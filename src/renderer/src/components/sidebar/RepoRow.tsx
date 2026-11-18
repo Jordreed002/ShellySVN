@@ -1,10 +1,10 @@
 /**
  * Rail primitives for the global sidebar.
  *
- * These mirror `prototypes/12-browser.html`'s `.rail`: an uppercase
- * letter-spaced section heading (`.rsec`/`.eyebrow`), compact 32px rows
- * (`.ritem`), taller 46px working-copy rows (`.ritem.tall`) carrying a
- * local-presence dot and a mono sub-line, and mono count badges (`.c`).
+ * A flat, list-first rail: sentence-case section headings, compact 28px rows,
+ * taller 40px working-copy rows carrying a local-presence dot and a mono
+ * sub-line, and quiet count badges. Selection is a neutral raised fill — the
+ * accent is kept for the primary action, not for "where you are".
  */
 import { type MouseEvent, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -27,17 +27,21 @@ interface RailSectionProps {
   action?: ReactNode;
 }
 
-/** Uppercase, letter-spaced heading that opens each rail section. */
+/** Quiet sentence-case heading that opens each rail section. */
 export function RailSection({ title, action }: RailSectionProps) {
   return (
-    <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-1">
-      <span className="min-w-0 flex-1 truncate text-2xs font-bold uppercase tracking-[0.13em] text-text-muted">
+    <div className="rail-section flex h-7 items-center gap-2 pl-3.5 pr-2 pt-3">
+      <span className="min-w-0 flex-1 truncate text-11.5 font-medium text-text-muted">
         {title}
       </span>
-      {action}
+      {action && <span className="flex flex-shrink-0 items-center gap-0.5">{action}</span>}
     </div>
   );
 }
+
+/** Tiny ghost button used in rail section headers. */
+export const RAIL_ACTION_CLASS =
+  'grid h-6 w-6 place-items-center rounded-md text-text-muted transition-fast hover:bg-bg-tertiary hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
 /* ── count badge (.c) ────────────────────────────────────────────────────── */
 
@@ -51,14 +55,14 @@ interface RailCountProps {
 /** Mono pill carrying a count — entries, changes, working copies. */
 export function RailCount({ value, tone = 'neutral', title }: RailCountProps) {
   const tones = {
-    neutral: 'bg-bg-tertiary border-border text-text-muted',
-    modified: 'bg-svn-modified/15 border-svn-modified/40 text-svn-modified',
-    conflict: 'bg-svn-conflict/15 border-svn-conflict/40 text-svn-conflict',
+    neutral: 'text-text-muted',
+    modified: 'text-svn-modified',
+    conflict: 'bg-svn-conflict/15 text-svn-conflict',
   } as const;
 
   return (
     <span
-      className={`flex-shrink-0 rounded-full border px-1.5 py-px font-mono text-2xs tabular-nums ${tones[tone]}`}
+      className={`flex-shrink-0 rounded-md px-1.5 font-mono text-11 leading-5 tabular-nums ${tones[tone]}`}
       title={title}
     >
       {value}
@@ -73,7 +77,7 @@ export function RailCount({ value, tone = 'neutral', title }: RailCountProps) {
  * hollow = not checked out. Always paired with a spoken label — never
  * colour-only.
  */
-function PresenceDot({ presence }: { presence: SidebarPresence }) {
+export function PresenceDot({ presence }: { presence: SidebarPresence }) {
   const label = PRESENCE_LABEL[presence];
   const shape = {
     full: 'bg-svn-added',
@@ -98,14 +102,18 @@ function PresenceDot({ presence }: { presence: SidebarPresence }) {
 
 /* ── rows ────────────────────────────────────────────────────────────────── */
 
-/** Shared `.ritem` shape. `tall` matches the prototype's 46px working-copy row. */
+/**
+ * Shared rail row shape: 28px, or 40px for rows with a sub-line. Selected rows
+ * take the neutral raised fill and full-strength ink (Linear-style), never an
+ * accent wash, so the accent stays meaningful for primary actions.
+ */
 export function railRowClass(active: boolean, tall = false): string {
   return [
-    'group/row relative flex items-center gap-2.5 rounded-lg border px-2.5 text-xs transition-fast',
-    tall ? 'h-[46px]' : 'h-8',
+    'rail-row group/row relative flex items-center gap-2 rounded-md px-2 text-13 transition-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60',
+    tall ? 'h-10' : 'h-7',
     active
-      ? 'border-accent/30 bg-accent/10 font-semibold text-accent'
-      : 'border-transparent text-text-secondary hover:bg-bg-tertiary hover:text-text',
+      ? 'bg-bg-tertiary font-medium text-text'
+      : 'text-text-secondary hover:bg-bg-tertiary/70 hover:text-text',
   ].join(' ');
 }
 
@@ -133,12 +141,12 @@ function RailRowContent({
 }: RailRowContentProps) {
   return (
     <>
-      <span className="flex-shrink-0 opacity-85 [&>svg]:h-[15px] [&>svg]:w-[15px]">{icon}</span>
+      <span className="flex-shrink-0 text-text-muted [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
       <span className="min-w-0 flex-1 text-left">
         <span className="block truncate leading-tight">{label}</span>
         {detail && (
           <span
-            className="block truncate font-mono text-2xs font-normal leading-tight text-text-muted"
+            className="block truncate font-mono text-11 font-normal leading-tight text-text-muted"
             title={detailTitle ?? detail}
           >
             {detail}
@@ -253,13 +261,19 @@ export function WorkingCopyRow({
         search={{ path: repo }}
         onClick={() => onOpen(repo)}
         onContextMenu={(e) => onMenu(e, repo)}
-        className={`${railRowClass(isActive || isMenuOpen, true)} pr-8`}
+        aria-current={isActive ? 'true' : undefined}
+        className={`${
+          isActive
+            ? // The selected working copy is a parent: its nested view carries the fill.
+              'group/row relative flex h-10 items-center gap-2 rounded-md px-2 text-13 font-semibold text-text transition-fast hover:bg-bg-tertiary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60'
+            : railRowClass(isMenuOpen, true)
+        } pr-8`}
       >
         <PresenceDot presence={presence} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium leading-tight">{name}</span>
+          <span className="block truncate leading-tight">{name}</span>
           <span
-            className="block truncate font-mono text-2xs font-normal leading-tight text-text-muted"
+            className="block truncate font-mono text-11 font-normal leading-tight text-text-muted"
             title={info ? `${info.url} · r${info.revision}` : repo}
           >
             {detail}
@@ -279,7 +293,9 @@ export function WorkingCopyRow({
               }
             />
           )}
-          {isPinned && <Star className="h-3.5 w-3.5 fill-current text-accent" />}
+          {isPinned && (
+            <Star className="h-3 w-3 fill-current text-text-muted" aria-label="Pinned" />
+          )}
         </span>
       </Link>
 
@@ -291,7 +307,7 @@ export function WorkingCopyRow({
         }`}
         aria-label={`Actions for ${name}`}
       >
-        <MoreHorizontal className="h-3.5 w-3.5" />
+        <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </m.div>
   );
@@ -329,7 +345,7 @@ export function RepoRailItem({
       aria-label={name}
       className={`rail-item ${isActive ? 'rail-item-active' : ''}`}
     >
-      <FolderGit2 className="w-5 h-5" />
+      <FolderGit2 className="h-4 w-4" aria-hidden="true" />
       {changes > 0 && (
         <span
           className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-bg-secondary ${
@@ -338,7 +354,7 @@ export function RepoRailItem({
         />
       )}
       {isPinned && (
-        <Star className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 text-accent fill-current" />
+        <Star className="absolute bottom-0.5 right-0.5 h-2.5 w-2.5 fill-current text-text-muted" />
       )}
     </Link>
   );

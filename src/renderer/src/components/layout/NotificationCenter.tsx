@@ -6,6 +6,7 @@ import {
   type RefObject,
 } from 'react';
 import { Popover } from '@renderer/components/ui/Popover';
+import { SHELL_ICON, shellIconButtonClass } from './shellIconButton';
 import {
   AlertTriangle,
   Bell,
@@ -101,17 +102,13 @@ export function NotificationCenterBell({
       aria-haspopup="dialog"
       aria-expanded={isOpen}
       title="Notifications"
-      className={`titlebar-no-drag relative w-8 h-8 grid place-items-center rounded-lg border transition-fast ${
-        isOpen
-          ? 'bg-accent/10 border-accent/40 text-accent'
-          : 'bg-transparent border-transparent text-text-secondary hover:bg-bg-tertiary hover:border-border hover:text-text'
-      }`}
+      className={shellIconButtonClass(isOpen)}
     >
-      <Bell className="w-4 h-4" aria-hidden="true" />
+      <Bell className={SHELL_ICON} aria-hidden="true" />
       {unread > 0 && (
         <span
           aria-hidden="true"
-          className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 grid place-items-center rounded-full bg-accent text-white text-[10px] font-bold leading-none ${
+          className={`absolute -top-1 -right-1 min-w-[16px] h-4 px-1 grid place-items-center rounded-full bg-accent text-white text-11 font-semibold leading-none ring-2 ring-bg ${
             unread > 9 ? 'px-0.5' : ''
           }`}
         >

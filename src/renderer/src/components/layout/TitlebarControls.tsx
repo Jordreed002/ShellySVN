@@ -1,7 +1,7 @@
 import { Minus, Moon, Square, Sun, X } from 'lucide-react';
+import { SHELL_ICON, shellIconButtonClass } from './shellIconButton';
 
-const ICON_BUTTON_CLASS =
-  'titlebar-no-drag w-8 h-8 grid place-items-center rounded-lg border transition-fast bg-transparent border-transparent text-text-secondary hover:bg-bg-tertiary hover:border-border hover:text-text';
+const ICON_BUTTON_CLASS = shellIconButtonClass(false);
 
 interface TitlebarControlsProps {
   isWindows: boolean;
@@ -33,20 +33,20 @@ export function TitlebarControls({
         title={isDarkTheme ? 'Switch to the light theme' : 'Switch to the dark theme'}
       >
         {isDarkTheme ? (
-          <Sun className="w-4 h-4" aria-hidden="true" />
+          <Sun className={SHELL_ICON} aria-hidden="true" />
         ) : (
-          <Moon className="w-4 h-4" aria-hidden="true" />
+          <Moon className={SHELL_ICON} aria-hidden="true" />
         )}
       </button>
 
       {isWindows && (
-        <div className={`flex items-center ml-1 ${isWindows ? 'h-[50px] -mr-3.5' : 'h-full'}`}>
+        <div className={`flex items-center ml-1 ${isWindows ? 'h-11 -mr-3' : 'h-full'}`}>
           <button
             type="button"
             onClick={onMinimize}
             className={
               isWindows
-                ? 'titlebar-no-drag w-[46px] h-[50px] grid place-items-center text-text-muted hover:bg-bg-tertiary hover:text-text transition-colors duration-100'
+                ? 'titlebar-no-drag w-[46px] h-11 grid place-items-center text-text-muted hover:bg-bg-tertiary hover:text-text transition-colors duration-100'
                 : 'window-control rounded-md hover:bg-bg-elevated transition-fast'
             }
             aria-label="Minimize"
@@ -63,7 +63,7 @@ export function TitlebarControls({
             onClick={onMaximize}
             className={
               isWindows
-                ? 'titlebar-no-drag w-[46px] h-[50px] grid place-items-center text-text-muted hover:bg-bg-tertiary hover:text-text transition-colors duration-100'
+                ? 'titlebar-no-drag w-[46px] h-11 grid place-items-center text-text-muted hover:bg-bg-tertiary hover:text-text transition-colors duration-100'
                 : 'window-control rounded-md hover:bg-bg-elevated transition-fast'
             }
             aria-label={isMaximized ? 'Restore window' : 'Maximize'}
@@ -87,7 +87,7 @@ export function TitlebarControls({
             onClick={onClose}
             className={
               isWindows
-                ? 'titlebar-no-drag w-[46px] h-[50px] grid place-items-center text-text-muted hover:bg-error hover:text-white transition-colors duration-100'
+                ? 'titlebar-no-drag w-[46px] h-11 grid place-items-center text-text-muted hover:bg-error hover:text-white transition-colors duration-100'
                 : 'window-control rounded-md hover:bg-error hover:text-white transition-fast'
             }
             aria-label="Close"

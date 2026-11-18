@@ -150,13 +150,35 @@ export function TabBar({
   return (
     <nav
       aria-label="Working copy tabs"
-      className="relative z-10 h-9 flex-shrink-0 flex items-stretch gap-1 border-b border-border bg-bg-secondary/60 px-2 titlebar-drag"
+      className="app-tabbar relative z-10 h-9 flex-shrink-0 flex items-stretch gap-1 border-b border-border bg-bg px-2 titlebar-drag"
     >
       <div
         role="tablist"
         aria-label="Working copy tabs"
-        className="flex-1 min-w-0 flex items-stretch gap-1 overflow-x-auto titlebar-no-drag"
+        className="flex-1 min-w-0 flex items-stretch gap-0.5 overflow-x-auto titlebar-no-drag"
         style={{ scrollbarWidth: 'thin' }}
+        onKeyDown={(event) => {
+          // Roving tabindex: arrows/Home/End move between tabs and activate them.
+          const index = tabs.findIndex((tab) => tab.id === activeTabId);
+          if (index < 0 || tabs.length === 0) return;
+          let next = -1;
+          if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+          else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+          else if (event.key === 'Home') next = 0;
+          else if (event.key === 'End') next = tabs.length - 1;
+          else if (event.key === 'Delete') {
+            event.preventDefault();
+            onClose(tabs[index].id);
+            return;
+          }
+          if (next < 0 || next === index) return;
+          event.preventDefault();
+          onActivate(tabs[next]);
+          const container = event.currentTarget;
+          requestAnimationFrame(() => {
+            container.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
+          });
+        }}
       >
         {tabs.map((tab) => {
           const active = tab.id === activeTabId;
@@ -180,10 +202,10 @@ export function TabBar({
                 event.preventDefault();
                 setMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
               }}
-              className={`group min-w-[120px] max-w-[220px] flex-shrink-0 flex items-center gap-1.5 px-2.5 my-1 rounded-md border cursor-default transition-fast select-none ${
+              className={`group min-w-[112px] max-w-[220px] flex-shrink-0 flex items-center gap-1.5 pl-2.5 pr-1 my-1 rounded-md cursor-default transition-fast select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
                 active
-                  ? 'bg-bg border-border-strong text-text shadow-card'
-                  : 'bg-transparent border-transparent text-text-muted hover:bg-bg-tertiary hover:text-text'
+                  ? 'bg-bg-tertiary text-text'
+                  : 'text-text-muted hover:bg-bg-tertiary/60 hover:text-text'
               }`}
             >
               {dirty && (
@@ -193,7 +215,7 @@ export function TabBar({
                   className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${DIRTY_CLASS[dirty]}`}
                 />
               )}
-              <span className="flex-1 min-w-0 truncate text-12 font-medium">
+              <span className="flex-1 min-w-0 truncate text-12.5 font-medium">
                 {pathTail(tab.workingCopyPath)}
               </span>
               <button
@@ -204,7 +226,10 @@ export function TabBar({
                   event.stopPropagation();
                   onClose(tab.id);
                 }}
-                className="h-5 w-5 grid place-items-center rounded text-text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-bg-elevated hover:text-text transition-fast"
+                tabIndex={active ? 0 : -1}
+                className={`h-5 w-5 grid place-items-center rounded text-text-muted hover:bg-bg-elevated hover:text-text focus-visible:opacity-100 transition-fast ${
+                  active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
@@ -223,9 +248,9 @@ export function TabBar({
           aria-expanded={pickerOpen}
           title="New tab"
           onClick={() => setPickerOpen((previous) => !previous)}
-          className="my-1 h-7 w-7 grid place-items-center rounded-md text-text-muted hover:bg-bg-tertiary hover:text-text transition-fast self-center"
+          className="my-1 h-7 w-7 grid place-items-center rounded-md text-text-muted hover:bg-bg-tertiary hover:text-text transition-fast self-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
         >
-          <Plus className="h-4 w-4" aria-hidden="true" />
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
         {pickerOpen && (
           <Popover
@@ -234,7 +259,7 @@ export function TabBar({
             onClose={() => setPickerOpen(false)}
             role="menu"
             ariaLabel="Open a working copy"
-            className="w-72 py-1 rounded-lg border border-border bg-bg-elevated shadow-card"
+            className="w-72 p-1 rounded-lg border border-border bg-bg-elevated shadow-overlay"
           >
             {recentRepositories.length === 0 && (
               <p className="px-3 py-2 text-12 text-text-muted">No recent working copies yet.</p>
@@ -249,14 +274,14 @@ export function TabBar({
                   onOpenWorkingCopy(path);
                 }}
                 title={path}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-12.5 text-text hover:bg-bg-tertiary transition-fast"
+                className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-12.5 text-text hover:bg-bg-tertiary transition-fast"
               >
                 <FolderOpen
                   className="h-3.5 w-3.5 flex-shrink-0 text-text-faint"
                   aria-hidden="true"
                 />
                 <span className="truncate">{pathTail(path)}</span>
-                <span className="ml-auto text-10.5 text-text-faint truncate max-w-[110px]">
+                <span className="ml-auto text-11 text-text-muted truncate max-w-[110px]">
                   {path}
                 </span>
               </button>
@@ -266,7 +291,7 @@ export function TabBar({
               type="button"
               role="menuitem"
               onClick={() => void handleBrowse()}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-12.5 text-accent hover:bg-accent/10 transition-fast"
+              className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-12.5 text-text hover:bg-bg-tertiary transition-fast"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               Choose a folder…

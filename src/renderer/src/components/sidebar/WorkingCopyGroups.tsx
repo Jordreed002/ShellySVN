@@ -356,8 +356,8 @@ export function WorkingCopyList({
               onDragLeave={clearDropTarget}
               onDrop={handleGroupHeaderDrop(section)}
               className={[
-                'group/section flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2 text-2xs font-bold uppercase tracking-[0.13em] text-text-muted transition-fast',
-                isDragOver ? 'border-accent/60 bg-accent/10' : 'hover:bg-bg-tertiary',
+                'group/section flex h-7 items-center gap-1.5 rounded-md border border-transparent px-2 text-12 font-medium text-text-muted transition-fast',
+                isDragOver ? 'border-accent/60 bg-accent/10' : 'hover:bg-bg-tertiary/70',
               ].join(' ')}
               data-testid={`wc-group-header-${groupId}`}
             >
@@ -390,7 +390,7 @@ export function WorkingCopyList({
                   <>
                     <button
                       type="button"
-                      className={`btn-icon-sm ${isFilterActive ? 'text-accent' : ''}`}
+                      className={`btn-icon-sm ${isFilterActive ? 'bg-bg-tertiary text-text' : ''}`}
                       aria-pressed={isFilterActive}
                       aria-label={
                         isFilterActive ? `Stop filtering to ${label}` : `Show only ${label}`
@@ -428,7 +428,7 @@ export function WorkingCopyList({
               <div className="space-y-0.5 pl-1.5">{section.paths.map(renderRow)}</div>
             )}
             {!collapsed && section.paths.length === 0 && (
-              <p className="px-3.5 py-1.5 text-2xs font-normal normal-case tracking-normal text-text-faint">
+              <p className="px-3.5 py-1.5 text-11 text-text-muted">
                 Drop working copies here
               </p>
             )}
