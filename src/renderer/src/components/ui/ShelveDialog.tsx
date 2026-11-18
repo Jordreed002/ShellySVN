@@ -4,6 +4,11 @@ import { Archive, Plus, Trash2, Play, Loader2, Clock, AlertCircle } from 'lucide
 import { confirmAppAction } from '../../utils/dialogs';
 import { svnShelveList, svnStatus } from '@renderer/lib/queryKeys';
 import { DialogBase } from './DialogBase';
+import type { SvnMutationResult } from '@shared/types';
+
+function requireShelfSuccess(result: SvnMutationResult, action: string): void {
+  if (!result.success) throw new Error(result.error || `Failed to ${action} shelf.`);
+}
 
 interface ShelveDialogProps {
   isOpen: boolean;
@@ -26,12 +31,14 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
 
   // Create shelve mutation
   const createMutation = useMutation({
-    mutationFn: () =>
-      window.api.svn.shelve.save(
+    mutationFn: async () => {
+      const result = await window.api.svn.shelve.save(
         shelveName.trim(),
         workingCopyPath,
         shelveMessage.trim() || undefined
-      ),
+      );
+      requireShelfSuccess(result, 'save');
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: svnShelveList(workingCopyPath) });
       setShelveName('');
@@ -42,7 +49,9 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
 
   // Apply shelve mutation
   const applyMutation = useMutation({
-    mutationFn: (name: string) => window.api.svn.shelve.apply(name, workingCopyPath),
+    mutationFn: async (name: string) => {
+      requireShelfSuccess(await window.api.svn.shelve.apply(name, workingCopyPath), 'apply');
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
     },
@@ -50,7 +59,9 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
 
   // Delete shelve mutation
   const deleteMutation = useMutation({
-    mutationFn: (name: string) => window.api.svn.shelve.delete(name, workingCopyPath),
+    mutationFn: async (name: string) => {
+      requireShelfSuccess(await window.api.svn.shelve.delete(name, workingCopyPath), 'delete');
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: svnShelveList(workingCopyPath) });
     },
@@ -93,6 +104,14 @@ export function ShelveDialog({ isOpen, onClose, workingCopyPath }: ShelveDialogP
             <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <span>{unsupportedReason}</span>
           </div>
+        )}
+
+        {[createMutation.error, applyMutation.error, deleteMutation.error].map((error, index) =>
+          error ? (
+            <div key={index} role="alert" className="rounded bg-error/10 p-3 text-sm text-error">
+              {error.message}
+            </div>
+          ) : null
         )}
 
         {/* Create new shelve */}
