@@ -282,9 +282,7 @@ export function AiProviderSettings() {
     ).map((id) => ({ value: id as string, label: providerLabel(id) }));
     const customs = configured
       .filter((entry) => entry.provider.startsWith('custom:'))
-      .toSorted((a, b) =>
-        (a.displayName ?? a.provider).localeCompare(b.displayName ?? b.provider)
-      );
+      .toSorted((a, b) => (a.displayName ?? a.provider).localeCompare(b.displayName ?? b.provider));
     return [
       ...options,
       ...customs.map((entry) => ({
@@ -371,7 +369,10 @@ export function AiProviderSettings() {
         modelOverride: draft.modelOverride,
       });
       if (result.success === false) {
-        setMessage({ tone: 'error', text: result.error || 'Saving the provider configuration failed.' });
+        setMessage({
+          tone: 'error',
+          text: result.error || 'Saving the provider configuration failed.',
+        });
         return;
       }
       setDrafts((current) => ({ ...current, [provider]: { ...draft, apiKey: '' } }));
@@ -456,19 +457,19 @@ export function AiProviderSettings() {
   );
   const customIds = [
     ...new Set(
-      [...(statuses ?? []).map((status) => status.provider), ...summary.providers.map((entry) => entry.provider)]
-        .filter((provider) => isCustomProvider(provider))
+      [
+        ...(statuses ?? []).map((status) => status.provider),
+        ...summary.providers.map((entry) => entry.provider),
+      ].filter((provider) => isCustomProvider(provider))
     ),
-  ].toSorted((a, b) =>
-    (displayNameOf(a) || a).localeCompare(displayNameOf(b) || b)
-  );
+  ].toSorted((a, b) => (displayNameOf(a) || a).localeCompare(displayNameOf(b) || b));
   const configuredCards: AiProviderId[] = [...configuredBuiltIns, ...customIds];
 
   return (
-    <div className="space-y-6">
+    <>
       {storageUnavailable && (
         <div
-          className="rounded-lg border border-warning/30 bg-warning/10 p-3"
+          className="settings-notice settings-notice-warning block"
           role="alert"
           data-testid="ai-storage-unavailable"
         >
@@ -476,8 +477,8 @@ export function AiProviderSettings() {
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             Secure credential storage is unavailable
           </p>
-          <p className="mt-1 text-xs text-warning">{storageUnavailable}</p>
-          <p className="mt-1 text-xs text-text-secondary">
+          <p className="mt-1 text-12 text-warning">{storageUnavailable}</p>
+          <p className="mt-1 text-12 text-text-secondary">
             API keys cannot be saved until the OS credential store is available. Base URLs and model
             overrides can still be configured.
           </p>
@@ -495,7 +496,7 @@ export function AiProviderSettings() {
       )}
 
       <SettingsGroup
-        title="HTTP Providers"
+        title="HTTP providers"
         description="Providers you've added; keys are stored encrypted and never shown back"
       >
         <div className="space-y-3">
@@ -512,7 +513,8 @@ export function AiProviderSettings() {
               </div>
             ) : (
               <span className="text-xs text-text-faint">
-                {configuredCards.length} provider{configuredCards.length !== 1 ? 's' : ''} configured
+                {configuredCards.length} provider{configuredCards.length !== 1 ? 's' : ''}{' '}
+                configured
               </span>
             )}
             <button
@@ -541,18 +543,23 @@ export function AiProviderSettings() {
             // Customs show the base URL for every protocol (required for
             // azure / openai-compatible protocols); built-ins keep the
             // historical field set.
-            const showBaseUrl = custom || HTTP_PROVIDERS_WITH_BASE_URL.has(provider as AiCommitProvider);
-            const baseUrlRequired = custom && (protocol === 'azure-openai' || protocol === 'openai-compatible');
+            const showBaseUrl =
+              custom || HTTP_PROVIDERS_WITH_BASE_URL.has(provider as AiCommitProvider);
+            const baseUrlRequired =
+              custom && (protocol === 'azure-openai' || protocol === 'openai-compatible');
             const baseUrlInvalid = showBaseUrl && !isValidBaseUrl(draft.baseUrl);
             const baseUrlMissing = baseUrlRequired && !draft.baseUrl.trim();
             const keySaveBlocked = Boolean(draft.apiKey) && Boolean(storageUnavailable);
-            const baseUrlPlaceholder = custom && protocol
-              ? AI_PROTOCOL_META[protocol].baseUrlPlaceholder
-              : provider === 'ollama' ? 'http://localhost:11434' : 'https://api.example.com/v1';
+            const baseUrlPlaceholder =
+              custom && protocol
+                ? AI_PROTOCOL_META[protocol].baseUrlPlaceholder
+                : provider === 'ollama'
+                  ? 'http://localhost:11434'
+                  : 'https://api.example.com/v1';
             return (
               <div
                 key={provider}
-                className="space-y-3 rounded-lg border border-border bg-bg-tertiary p-3"
+                className="settings-card space-y-3 p-3.5"
                 data-testid={`ai-provider-${provider}`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -561,9 +568,17 @@ export function AiProviderSettings() {
                       <>
                         <input
                           type="text"
-                          value={renames[provider] ?? credential?.displayName ?? status?.displayName ?? ''}
+                          value={
+                            renames[provider] ??
+                            credential?.displayName ??
+                            status?.displayName ??
+                            ''
+                          }
                           onChange={(event) =>
-                            setRenames((current) => ({ ...current, [provider]: event.target.value }))
+                            setRenames((current) => ({
+                              ...current,
+                              [provider]: event.target.value,
+                            }))
                           }
                           onBlur={() => void commitRename(provider)}
                           maxLength={80}
@@ -588,7 +603,10 @@ export function AiProviderSettings() {
                         aria-label={`Checking status for ${label}`}
                         data-testid="ai-status-pending"
                       >
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-text-faint" aria-hidden="true" />
+                        <Loader2
+                          className="h-3.5 w-3.5 animate-spin text-text-faint"
+                          aria-hidden="true"
+                        />
                         Checking…
                       </span>
                     ) : (
@@ -606,7 +624,7 @@ export function AiProviderSettings() {
 
                 {showApiKey ? (
                   <div>
-                    <span className="text-xs text-text-muted">API key</span>
+                    <span className="settings-label">API key</span>
                     <div className="mt-1 flex gap-2">
                       <input
                         type="password"
@@ -618,7 +636,9 @@ export function AiProviderSettings() {
                           }))
                         }
                         placeholder={
-                          credential?.hasApiKey ? 'Key saved — enter a new key to replace' : 'Enter API key'
+                          credential?.hasApiKey
+                            ? 'Key saved — enter a new key to replace'
+                            : 'Enter API key'
                         }
                         className="input flex-1 font-mono text-xs"
                         aria-label={`API key for ${label}`}
@@ -663,7 +683,10 @@ export function AiProviderSettings() {
                         )
                       )}
                     </div>
-                    <p className="mt-1 text-10.5 text-text-muted" data-testid={`ai-key-status-${provider}`}>
+                    <p
+                      className="mt-1 text-10.5 text-text-muted"
+                      data-testid={`ai-key-status-${provider}`}
+                    >
                       {credential?.hasApiKey
                         ? `Key set${credential.updatedAt ? ` (updated ${new Date(credential.updatedAt).toLocaleString()})` : ''}.`
                         : 'No key saved.'}
@@ -677,7 +700,7 @@ export function AiProviderSettings() {
 
                 {showBaseUrl && (
                   <div>
-                    <span className="text-xs text-text-muted">
+                    <span className="settings-label">
                       Base URL{baseUrlRequired ? '' : ' (optional)'}
                     </span>
                     <input
@@ -709,7 +732,7 @@ export function AiProviderSettings() {
 
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-muted">Model</span>
+                    <span className="settings-label">Model</span>
                     <button
                       type="button"
                       className="btn-icon-sm"
@@ -755,11 +778,9 @@ export function AiProviderSettings() {
                   )}
                 </div>
 
-                <div className="rounded-7 border border-border-muted bg-bg-sunk/60 p-2.5">
+                <div className="settings-inset p-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
-                      Cost estimate
-                    </span>
+                    <span className="settings-label">Cost estimate</span>
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm text-10.5"
@@ -775,7 +796,10 @@ export function AiProviderSettings() {
                     </button>
                   </div>
                   {estimate ? (
-                    <p className="mt-1.5 text-10.5 text-text-secondary" data-testid={`ai-estimate-${provider}`}>
+                    <p
+                      className="mt-1.5 text-10.5 text-text-secondary"
+                      data-testid={`ai-estimate-${provider}`}
+                    >
                       {SAMPLE_DIFF_CHARS.toLocaleString()}-char diff ≈{' '}
                       {estimate.estimatedInputTokens.toLocaleString()} input +{' '}
                       {estimate.estimatedOutputTokens.toLocaleString()} output tokens ≈{' '}
@@ -796,13 +820,13 @@ export function AiProviderSettings() {
       </SettingsGroup>
 
       <SettingsGroup
-        title="CLI Providers"
+        title="CLI providers"
         description="ShellySVN invokes your own CLIs and reuses their stored login"
       >
         <div className="space-y-2">
           {!statusesLoaded && (
             <div
-              className="flex items-center gap-2 rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2 text-sm text-text-muted"
+              className="settings-card flex items-center gap-2 px-3 py-2.5 text-13 text-text-muted"
               aria-label="Checking CLI providers"
               data-testid="ai-cli-pending"
             >
@@ -825,7 +849,7 @@ export function AiProviderSettings() {
             return (
               <div
                 key={status.provider}
-                className="rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2"
+                className="settings-card px-3 py-2.5"
                 data-testid={`ai-provider-${status.provider}`}
               >
                 <div className="flex items-center gap-2.5">
@@ -833,11 +857,7 @@ export function AiProviderSettings() {
                     {cliMark(status.provider, 'h-5 w-5 text-text')}
                     <span
                       className={`absolute -left-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ${
-                        !enabled
-                          ? 'bg-text-faint'
-                          : status.available
-                            ? 'bg-success'
-                            : 'bg-warning'
+                        !enabled ? 'bg-text-faint' : status.available ? 'bg-success' : 'bg-warning'
                       }`}
                       aria-hidden="true"
                     />
@@ -919,7 +939,7 @@ export function AiProviderSettings() {
       </SettingsGroup>
 
       <SettingsGroup
-        title="AI Commit Messages"
+        title="AI commit messages"
         description="Draft an editable message from the files selected for commit"
         resetKeys={['aiCommit']}
       >
@@ -935,11 +955,11 @@ export function AiProviderSettings() {
               className="checkbox mt-0.5"
             />
             <span>
-              <span className="flex items-center gap-2 text-sm text-text group-hover:text-accent">
+              <span className="flex items-center gap-2 text-13 font-medium text-text">
                 <Sparkles className="w-4 h-4" aria-hidden="true" />
                 Enable generated commit-message drafts
               </span>
-              <span className="mt-1 block text-xs text-text-muted">
+              <span className="mt-0.5 block text-12 text-text-muted">
                 Only runs when you press Generate. Selected filenames and bounded diff content are
                 sent to the configured model provider.
               </span>
@@ -947,7 +967,7 @@ export function AiProviderSettings() {
           </label>
 
           <label className="block">
-            <span className="text-xs text-text-muted">Provider &amp; model</span>
+            <span className="settings-label">Provider &amp; model</span>
             <select
               value={providerChoice}
               onChange={(event) => changeProviderChoice(event.target.value)}
@@ -955,7 +975,8 @@ export function AiProviderSettings() {
               title={
                 claudeReady
                   ? undefined
-                  : claudeStatus?.reason ?? 'Claude CLI is not signed in — its models are unavailable.'
+                  : (claudeStatus?.reason ??
+                    'Claude CLI is not signed in — its models are unavailable.')
               }
               className="input mt-1 w-full disabled:opacity-50"
             >
@@ -1004,7 +1025,7 @@ export function AiProviderSettings() {
           </label>
 
           <label className="block">
-            <span className="text-xs text-text-muted">Message style</span>
+            <span className="settings-label">Message style</span>
             <select
               value={settings.aiCommit.style}
               onChange={(event) =>
@@ -1019,7 +1040,7 @@ export function AiProviderSettings() {
           </label>
 
           <label className="block">
-            <span className="text-xs text-text-muted">Maximum diff sent (KiB)</span>
+            <span className="settings-label">Maximum diff sent (KiB)</span>
             <input
               type="number"
               min={32}
@@ -1036,7 +1057,7 @@ export function AiProviderSettings() {
             />
           </label>
 
-          <label className="flex items-center gap-3 text-sm text-text-secondary">
+          <label className="flex cursor-pointer items-center gap-3 text-13 text-text">
             <input
               type="checkbox"
               checked={settings.aiCommit.confirmBeforeSending}
@@ -1047,8 +1068,8 @@ export function AiProviderSettings() {
             Confirm before sending each selected diff
           </label>
 
-          <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
-            <label className="flex items-start gap-3 text-sm text-text-secondary">
+          <div className="settings-inset p-3">
+            <label className="flex cursor-pointer items-start gap-3 text-13 text-text">
               <input
                 type="checkbox"
                 checked={settings.aiCommit.includeRecentHistory}
@@ -1058,7 +1079,7 @@ export function AiProviderSettings() {
               />
               <span>
                 Match recent repository message style
-                <span className="mt-1 block text-xs text-text-muted">
+                <span className="mt-0.5 block text-12 text-text-muted">
                   Sends a redacted sample of recent commit messages in addition to the selected
                   diff. This is a separate privacy choice and is disabled by default.
                 </span>
@@ -1066,7 +1087,7 @@ export function AiProviderSettings() {
             </label>
             {settings.aiCommit.includeRecentHistory && (
               <label className="mt-3 block">
-                <span className="text-xs text-text-muted">Recent messages sampled</span>
+                <span className="settings-label">Recent messages sampled</span>
                 <input
                   type="number"
                   min={1}
@@ -1084,13 +1105,11 @@ export function AiProviderSettings() {
             )}
           </div>
 
-          <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
-            <div className="mb-3 text-10 font-semibold uppercase tracking-caps text-text-muted">
-              Provider budgets
-            </div>
+          <div className="settings-inset p-3">
+            <div className="settings-label mb-2.5">Provider budgets</div>
             <div className="grid grid-cols-3 gap-3">
               <label className="block">
-                <span className="text-xs text-text-muted">Timeout (seconds)</span>
+                <span className="settings-label">Timeout (seconds)</span>
                 <input
                   type="number"
                   min={15}
@@ -1107,7 +1126,7 @@ export function AiProviderSettings() {
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-text-muted">Calls per session</span>
+                <span className="settings-label">Calls per session</span>
                 <input
                   type="number"
                   min={1}
@@ -1123,7 +1142,7 @@ export function AiProviderSettings() {
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-text-muted">History retention</span>
+                <span className="settings-label">History retention</span>
                 <select
                   value={settings.aiCommit.usageRetentionDays}
                   onChange={(event) =>
@@ -1144,18 +1163,16 @@ export function AiProviderSettings() {
             </p>
           </div>
 
-          <p className="text-xs text-text-muted">
+          <p className="settings-hint">
             ShellySVN runs your separately installed CLIs. Codex executes sandboxed read-only;
             Claude answers a single non-interactive turn. Both use the CLI's own stored login —
             subscription OAuth or API key, whichever you signed in with.
           </p>
 
           {settings.aiCommit.enabled && aiUsage.length > 0 && (
-            <div className="rounded-9 border border-border bg-bg-sunk/60 p-3">
+            <div className="settings-inset p-3">
               <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-10 font-semibold uppercase tracking-caps text-text-muted">
-                  Recent AI activity
-                </span>
+                <span className="settings-label">Recent AI activity</span>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm text-10.5"
@@ -1171,7 +1188,7 @@ export function AiProviderSettings() {
                 {aiUsage.slice(0, 8).map((entry) => (
                   <div
                     key={entry.id}
-                    className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-7 border border-border-muted bg-bg-secondary/60 px-3 py-2 text-10.5"
+                    className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-6 border border-border-muted bg-bg px-3 py-2 text-11"
                   >
                     <span className="truncate text-text-secondary">
                       {entry.task.replaceAll('-', ' ')}
@@ -1211,6 +1228,6 @@ export function AiProviderSettings() {
           void refreshAll();
         }}
       />
-    </div>
+    </>
   );
 }

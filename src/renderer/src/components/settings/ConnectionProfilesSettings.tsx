@@ -113,25 +113,25 @@ export function ConnectionProfilesSettings() {
 
   return (
     <SettingsGroup
-      title="Connection Profiles"
-      description="Reusable repo URL pattern, proxy, and credential bundles — saved immediately"
+      title="Connection profiles"
+      description="Reusable bundles of URL pattern, proxy and credentials. Changes save immediately."
     >
       <div className="space-y-3">
         {error && (
-          <p className="text-xs text-error" role="alert">
+          <p className="text-12 text-error" role="alert">
             {error}
           </p>
         )}
 
         {profiles === null ? (
-          <div className="flex items-center gap-2 py-4 text-sm text-text-muted">
+          <div className="settings-empty text-13 text-text-muted">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Loading profiles…
           </div>
         ) : (
           <>
             {profiles.length === 0 && (
-              <p className="text-sm text-text-muted">
+              <p className="settings-empty text-13 text-text-muted">
                 No profiles yet. Working copies can link to a profile to inherit its proxy and
                 credential settings.
               </p>
@@ -140,7 +140,7 @@ export function ConnectionProfilesSettings() {
             {profiles.map((profile) => (
               <div
                 key={profile.id}
-                className="space-y-3 rounded-lg border border-border bg-bg-tertiary p-3"
+                className="settings-card space-y-3 p-3.5"
                 data-testid={`profile-${profile.id}`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -164,7 +164,7 @@ export function ConnectionProfilesSettings() {
                       </button>
                     </span>
                   ) : (
-                    <p className="text-sm font-medium text-text">{profile.name}</p>
+                    <p className="text-13 font-medium text-text">{profile.name}</p>
                   )}
                   <span className="flex shrink-0 items-center gap-1">
                     <button
@@ -195,7 +195,7 @@ export function ConnectionProfilesSettings() {
                 </div>
 
                 <label className="block">
-                  <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                  <span className="settings-label flex items-center gap-1.5">
                     <Globe className="h-3 w-3" aria-hidden="true" />
                     Repository URL pattern (optional, `*` wildcard)
                   </span>
@@ -210,8 +210,8 @@ export function ConnectionProfilesSettings() {
                   />
                 </label>
 
-                <div className="rounded-7 border border-border-muted bg-bg-sunk/60 p-2.5">
-                  <label className="flex items-center gap-2 text-xs text-text-secondary">
+                <div className="settings-inset p-2.5">
+                  <label className="flex cursor-pointer items-center gap-2 text-13 text-text">
                     <input
                       type="checkbox"
                       checked={profile.proxy?.enabled ?? false}
@@ -266,7 +266,7 @@ export function ConnectionProfilesSettings() {
                 </div>
 
                 <label className="block">
-                  <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                  <span className="settings-label flex items-center gap-1.5">
                     <Key className="h-3 w-3" aria-hidden="true" />
                     Credential realm (reference — secrets stay in the credential store)
                   </span>
@@ -290,7 +290,7 @@ export function ConnectionProfilesSettings() {
                   </select>
                 </label>
 
-                <p className="flex items-center gap-1.5 text-10 text-text-faint">
+                <p className="flex items-center gap-1.5 text-11 text-text-muted">
                   <Shield className="h-3 w-3" aria-hidden="true" />
                   {describeProxy(profile.proxy)}
                   {profile.credentialsProfileId
@@ -306,7 +306,7 @@ export function ConnectionProfilesSettings() {
               onClick={() => void mutate((current) => [...current, createProfile('New profile')])}
             >
               <Plus className="h-3.5 w-3.5" />
-              Add Profile
+              Add profile
             </button>
           </>
         )}

@@ -144,13 +144,13 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
 
   return (
     <SettingsGroup
-      title="Custom Tools"
-      description="Add diff or merge tools with your own executable and arguments"
+      title="Custom tools"
+      description="Diff or merge tools with your own executable and argument template"
     >
       <div className="space-y-4">
         {registered !== null && registered.length > 0 && (
           <div className="space-y-1.5">
-            <p className="text-xs text-text-muted">Registered with the system:</p>
+            <p className="settings-label">Registered with the system</p>
             <div className="flex flex-wrap gap-1.5">
               {registered.map((tool) => (
                 <span
@@ -170,7 +170,7 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
         )}
 
         {tools.length === 0 && !editor && (
-          <p className="text-sm text-text-muted">
+          <p className="settings-empty text-13 text-text-muted">
             No custom tools yet. The built-in viewer and the registered tools above stay available.
           </p>
         )}
@@ -181,10 +181,10 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
             return (
               <div
                 key={tool.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-border bg-bg-tertiary p-3"
+                className="settings-card flex items-start justify-between gap-3 p-3"
               >
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-medium text-text">
+                  <p className="flex items-center gap-2 text-13 font-medium text-text">
                     {validation.valid ? (
                       <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
                     ) : (
@@ -231,12 +231,12 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
 
         {editor && editorValidation && (
           <div
-            className="space-y-3 rounded-lg border border-border-focus bg-bg-sunk/60 p-3"
+            className="settings-inset space-y-3 p-3"
             data-testid="external-tool-editor"
           >
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="text-xs text-text-muted">Name</span>
+                <span className="settings-label">Name</span>
                 <input
                   type="text"
                   value={editor.name}
@@ -251,7 +251,7 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
                 )}
               </label>
               <label className="block">
-                <span className="text-xs text-text-muted">Kind</span>
+                <span className="settings-label">Kind</span>
                 <select
                   value={editor.kind}
                   onChange={(event) =>
@@ -267,7 +267,7 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
               </label>
             </div>
             <div>
-              <span className="text-xs text-text-muted">Executable</span>
+              <span className="settings-label">Executable</span>
               <div className="mt-1 flex gap-2">
                 <input
                   type="text"
@@ -288,7 +288,7 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
               )}
             </div>
             <div>
-              <span className="text-xs text-text-muted">
+              <span className="settings-label">
                 Argument template — required: {describeRequiredPlaceholders(editor.kind)}
               </span>
               <input
@@ -338,7 +338,7 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
                 disabled={!editorValidation.valid}
                 data-testid="external-tool-save"
               >
-                Save Tool
+                Save tool
               </button>
             </div>
           </div>
@@ -347,7 +347,7 @@ export function ExternalToolsSettings({ tools, onChange }: ExternalToolsSettings
         {!editor && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={startAdd}>
             <Plus className="h-3.5 w-3.5" />
-            Add Custom Tool
+            Add custom tool
           </button>
         )}
       </div>

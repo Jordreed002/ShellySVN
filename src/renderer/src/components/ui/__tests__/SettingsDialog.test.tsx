@@ -100,7 +100,7 @@ describe('SettingsDialog AI tab', () => {
     const toggle = screen.getByRole('checkbox', {
       name: /^Enable generated commit-message drafts/,
     });
-    const saveButton = screen.getByRole('button', { name: /Save Changes/ });
+    const saveButton = screen.getByRole('button', { name: /Save changes/ });
     expect(saveButton).toBeDisabled();
     expect(toggle).not.toBeChecked();
     fireEvent.click(toggle);
@@ -137,7 +137,7 @@ describe('SettingsDialog AI tab', () => {
     // An unrelated local edit in another tab, then Save.
     fireEvent.click(screen.getByRole('button', { name: 'General' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Dark' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Save Changes/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Save changes/ }));
 
     await waitFor(() => {
       expect(window.api.store.set).toHaveBeenCalledTimes(2);
@@ -154,9 +154,85 @@ describe('SettingsDialog AI tab', () => {
     // state from the saved values landing back in the settings cache.
     expect(onClose).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Save Changes/ })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Save changes/ })).toBeDisabled();
     });
     expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 3, name: 'General' })).toBeInTheDocument();
+  });
+});
+
+describe('SettingsDialog navigation and search coverage', () => {
+  it('renders a section for every search index entry so jumps always land', async () => {
+    const { SETTINGS_SEARCH_INDEX, sectionSlug } = await import('../../../lib/settingsSearch');
+    // Backend probes the other tabs start on mount; every one resolves empty.
+    Object.assign(window.api, {
+      auth: {
+        list: vi.fn().mockResolvedValue([]),
+        isEncryptionAvailable: vi.fn().mockResolvedValue(true),
+      },
+      svn: {
+        info: vi.fn().mockResolvedValue({}),
+        nativeAuth: { list: vi.fn().mockResolvedValue([]) },
+      },
+      monitor: { getWorkingCopies: vi.fn().mockResolvedValue([]) },
+      shell: { isRegistered: vi.fn().mockResolvedValue({ registered: false }) },
+      externalTools: { list: vi.fn().mockResolvedValue([]) },
+    });
+    Object.assign(window.api.app, {
+      getPlatform: vi.fn().mockResolvedValue('win32'),
+      getCacheSize: vi.fn().mockResolvedValue({ size: 0, files: 0 }),
+    });
+    renderDialog();
+    await screen.findByRole('heading', { level: 3, name: 'General' });
+
+    const tabs = Array.from(new Set(SETTINGS_SEARCH_INDEX.map((entry) => entry.tab)));
+    for (const tab of tabs) {
+      const navButton = document.querySelector<HTMLButtonElement>(
+        `button[data-settings-tab="${tab}"]`
+      );
+      expect(navButton).not.toBeNull();
+      fireEvent.click(navButton!);
+      const expected = SETTINGS_SEARCH_INDEX.filter((entry) => entry.tab === tab).map((entry) =>
+        sectionSlug(entry.section)
+      );
+      await waitFor(() => {
+        const rendered = new Set(
+          Array.from(document.querySelectorAll<HTMLElement>('[data-settings-section]')).map(
+            (node) => node.dataset.settingsSection
+          )
+        );
+        for (const slug of expected) expect(rendered.has(slug), `${tab}: ${slug}`).toBe(true);
+      });
+    }
+  });
+
+  it('moves between sections with the arrow keys and marks the current page', async () => {
+    renderDialog();
+    const general = await screen.findByRole('button', { name: 'General' });
+    expect(general).toHaveAttribute('aria-current', 'page');
+
+    general.focus();
+    fireEvent.keyDown(general, { key: 'ArrowDown' });
+
+    const appearance = screen.getByRole('button', { name: 'Appearance' });
+    expect(appearance).toHaveFocus();
+    expect(appearance).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('heading', { level: 3, name: 'Appearance' })).toBeInTheDocument();
+
+    fireEvent.keyDown(appearance, { key: 'End' });
+    expect(screen.getByRole('heading', { level: 3, name: 'Advanced' })).toBeInTheDocument();
+  });
+
+  it('saves pending changes with Ctrl+S', async () => {
+    renderDialog();
+    fireEvent.click(await screen.findByRole('button', { name: 'Dark' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 's', ctrlKey: true });
+
+    await waitFor(() => {
+      expect(window.api.store.set).toHaveBeenCalledTimes(1);
+    });
+    const savedPayload = vi.mocked(window.api.store.set).mock.calls[0][1] as { theme: string };
+    expect(savedPayload.theme).toBe('dark');
   });
 });

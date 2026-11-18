@@ -57,25 +57,25 @@ export function OpenWithSettings(_props: OpenWithSettingsProps) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-text-muted">
+      <p className="settings-hint">
         Applications are registered through the system picker. Legacy command strings are disabled
         and must be registered again.
       </p>
-      {error ? <p className="text-sm text-error">{error}</p> : null}
+      {error ? <p className="text-12 text-error" role="alert">{error}</p> : null}
       {tools.length ? (
-        <ul className="space-y-2">
+        <ul className="settings-list">
           {tools.map((tool) => (
             <li
               key={tool.id}
-              className="flex items-center justify-between rounded-lg border border-border bg-bg-tertiary/40 p-3"
+              className="flex items-center justify-between gap-3 px-3 py-2.5"
             >
               <div>
-                <p className="text-sm font-medium text-text">{tool.name}</p>
-                <p className="text-xs text-text-muted">Registered application · path hidden</p>
+                <p className="text-13 font-medium text-text">{tool.name}</p>
+                <p className="text-12 text-text-muted">Registered application · path hidden</p>
               </div>
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn-icon-sm text-text-muted hover:bg-error/10 hover:text-error"
                 aria-label={`Remove ${tool.name}`}
                 disabled={busy}
                 onClick={() => void remove(tool.id)}
@@ -86,11 +86,11 @@ export function OpenWithSettings(_props: OpenWithSettingsProps) {
           ))}
         </ul>
       ) : (
-        <p className="py-2 text-sm text-text-muted">No registered applications.</p>
+        <p className="settings-empty text-13 text-text-muted">No registered applications.</p>
       )}
       <button
         type="button"
-        className="btn btn-secondary"
+        className="btn btn-secondary btn-sm"
         disabled={busy}
         onClick={() => void register()}
       >

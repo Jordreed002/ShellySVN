@@ -153,12 +153,12 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
 
   return (
     <SettingsGroup
-      title="Working Copies"
-      description="Per-working-copy overrides for proxy, credentials, and AI — saved immediately"
+      title="Working copies"
+      description="Proxy, credential and AI overrides for each working copy. Changes save immediately."
     >
       <div className="space-y-2">
         {knownPaths.length === 0 && (
-          <p className="text-sm text-text-muted">
+          <p className="settings-empty text-13 text-text-muted">
             No known working copies yet. Open a repository to populate this list.
           </p>
         )}
@@ -186,7 +186,7 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
           return (
             <div
               key={path}
-              className="rounded-lg border border-border bg-bg-tertiary"
+              className="settings-card"
               data-testid={`wc-override-${path}`}
             >
               <button
@@ -202,8 +202,8 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
                 )}
                 <FolderTree className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-text">{leafName(path)}</span>
-                  <span className="block truncate text-10.5 text-text-muted" title={path}>
+                  <span className="block truncate text-13 font-medium text-text">{leafName(path)}</span>
+                  <span className="block truncate font-mono text-11 text-text-muted" title={path}>
                     {path}
                   </span>
                 </span>
@@ -217,7 +217,7 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
               </button>
 
               {isOpen && (
-                <div className="space-y-3 border-t border-border px-3 py-3">
+                <div className="space-y-3 border-t border-border-muted px-3 py-3">
                   {repoUrl && (
                     <p className="truncate font-mono text-10 text-text-faint" title={repoUrl}>
                       {repoUrl}
@@ -225,7 +225,7 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
                   )}
 
                   <label className="block">
-                    <span className="text-xs text-text-muted">Connection profile</span>
+                    <span className="settings-label">Connection profile</span>
                     <select
                       value={override?.profileId ?? ''}
                       onChange={(event) =>
@@ -274,8 +274,8 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
                     </p>
                   )}
 
-                  <div className="rounded-7 border border-border-muted bg-bg-sunk/60 p-2.5">
-                    <label className="flex items-center gap-2 text-xs text-text-secondary">
+                  <div className="settings-inset p-2.5">
+                    <label className="flex cursor-pointer items-center gap-2 text-13 text-text">
                       <input
                         type="checkbox"
                         checked={override?.proxy?.enabled ?? false}
@@ -351,7 +351,7 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
                   </div>
 
                   <label className="block">
-                    <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                    <span className="settings-label flex items-center gap-1.5">
                       <Key className="h-3 w-3" aria-hidden="true" />
                       Credential realm
                     </span>
@@ -383,7 +383,7 @@ export function WorkingCopiesSettings({ settings }: { settings: AppSettings }) {
                     </select>
                   </label>
 
-                  <div className="flex items-center justify-between gap-2 rounded-7 border border-border-muted bg-bg-sunk/60 px-2.5 py-2">
+                  <div className="settings-inset flex items-center justify-between gap-2 px-2.5 py-2">
                     <p className="flex min-w-0 items-center gap-1.5 text-10.5 text-text-secondary">
                       <Sparkles className="h-3 w-3 shrink-0 text-accent" aria-hidden="true" />
                       {describeAiState(aiStates[path] ?? 'unset')} — managed per working copy in the

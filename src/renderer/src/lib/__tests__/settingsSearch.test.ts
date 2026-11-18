@@ -50,8 +50,8 @@ describe('search filtering across sections', () => {
     const tabs = new Set(SETTINGS_SEARCH_INDEX.map((entry) => entry.tab));
     expect(tabs.has('connections')).toBe(true);
     expect(tabs.has('ai')).toBe(true);
-    expect(SETTINGS_SEARCH_INDEX.some((entry) => entry.section === 'Custom Tools')).toBe(true);
-    expect(SETTINGS_SEARCH_INDEX.some((entry) => entry.section === 'Import & Export')).toBe(true);
+    expect(SETTINGS_SEARCH_INDEX.some((entry) => entry.section === 'Custom tools')).toBe(true);
+    expect(SETTINGS_SEARCH_INDEX.some((entry) => entry.section === 'Import & export')).toBe(true);
   });
 
   it('produces a stable slug for section anchors', () => {

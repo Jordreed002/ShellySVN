@@ -3,6 +3,9 @@
  * `data-settings-section` slug (jump-to-section target for search) and renders
  * a per-section reset button when the group declares `resetKeys` and the
  * dialog provided a reset handler via SettingsSectionResetContext.
+ *
+ * Sections are flat: a title, a one-line description and the controls, with
+ * the page (`.settings-page`) drawing one hairline between sections.
  */
 
 import type { ReactNode } from 'react';
@@ -15,7 +18,7 @@ import { useSettingsSectionReset } from './sectionReset';
 
 interface SettingsGroupProps {
   title: string;
-  description?: string;
+  description?: ReactNode;
   children: ReactNode;
   /**
    * Top-level settings keys this group owns (#89 per-section reset). When
@@ -23,31 +26,46 @@ interface SettingsGroupProps {
    * appears in the group header.
    */
   resetKeys?: readonly (keyof AppSettings)[];
+  /** Extra controls aligned with the section title (for example an Add button). */
+  actions?: ReactNode;
 }
 
-export function SettingsGroup({ title, description, children, resetKeys }: SettingsGroupProps) {
+export function SettingsGroup({
+  title,
+  description,
+  children,
+  resetKeys,
+  actions,
+}: SettingsGroupProps) {
   const resetSection = useSettingsSectionReset();
   return (
-    <div data-settings-section={sectionSlug(title)}>
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <h4 className="text-sm font-medium text-text">{title}</h4>
-          {description && <p className="text-xs text-text-muted mt-0.5">{description}</p>}
+    <section className="group/section" data-settings-section={sectionSlug(title)}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-13 font-semibold text-text">
+            {title}
+          </h4>
+          {description && <p className="mt-0.5 text-12 text-text-muted">{description}</p>}
         </div>
-        {resetKeys && resetSection && (
-          <button
-            type="button"
-            className="btn-icon-sm shrink-0 text-text-faint hover:text-text"
-            onClick={() => resetSection(resetKeys)}
-            aria-label={`Reset ${title} to defaults`}
-            title={`Reset ${title} to defaults`}
-            data-testid={`settings-section-reset-${sectionSlug(title)}`}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+        {(actions || (resetKeys && resetSection)) && (
+          <div className="flex shrink-0 items-center gap-1">
+            {actions}
+            {resetKeys && resetSection && (
+              <button
+                type="button"
+                className="btn-icon-sm text-text-muted opacity-0 transition-opacity hover:text-text focus-visible:opacity-100 group-hover/section:opacity-100 group-focus-within/section:opacity-100"
+                onClick={() => resetSection(resetKeys)}
+                aria-label={`Reset ${title} to defaults`}
+                title={`Reset ${title} to defaults`}
+                data-testid={`settings-section-reset-${sectionSlug(title)}`}
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )}
       </div>
       {children}
-    </div>
+    </section>
   );
 }

@@ -1295,3 +1295,249 @@ body {
     animation-iteration-count: 1 !important;
   }
 }
+
+/*
+ * Settings dialog (scoped). Shared row, field, segmented, notice and list
+ * styles for the settings panels. Everything is prefixed `settings-` so the
+ * rest of the app is unaffected; surfaces are opaque theme tokens so the
+ * contrast checks for the standard surfaces still apply.
+ */
+@layer components {
+  .settings-label {
+    display: block;
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+
+  .settings-hint {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+  }
+
+  .settings-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+  }
+
+  .settings-select {
+    cursor: pointer;
+  }
+
+  .settings-select:disabled,
+  .settings-page .input:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .settings-segmented {
+    display: flex;
+    width: 100%;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-7);
+    background: var(--color-bg-sunk);
+  }
+
+  .settings-segment {
+    display: inline-flex;
+    flex: 1 1 0;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-5);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    transition:
+      background-color 0.13s ease,
+      color 0.13s ease,
+      border-color 0.13s ease;
+  }
+
+  .settings-segment:hover {
+    color: var(--color-text);
+  }
+
+  .settings-segment[aria-pressed='true'] {
+    border-color: var(--color-border);
+    background: var(--color-bg-elevated);
+    color: var(--color-text);
+    box-shadow: var(--shadow-card);
+  }
+
+  .settings-segment[aria-pressed='true'] svg {
+    color: var(--color-accent);
+  }
+
+  .settings-segment-tile {
+    flex-direction: column;
+    height: auto;
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .settings-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-7);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .settings-notice-icon {
+    display: inline-flex;
+    margin-top: 1px;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  .settings-notice-success {
+    border-color: rgb(var(--color-success-rgb) / 0.35);
+  }
+  .settings-notice-success .settings-notice-icon {
+    color: var(--color-success);
+  }
+
+  .settings-notice-warning {
+    border-color: rgb(var(--color-warning-rgb) / 0.4);
+  }
+  .settings-notice-warning .settings-notice-icon,
+  .settings-notice-warning > div > p:first-child {
+    color: var(--color-warning);
+  }
+
+  .settings-notice-error {
+    border-color: rgb(var(--color-error-rgb) / 0.4);
+  }
+  .settings-notice-error .settings-notice-icon,
+  .settings-notice-error > div > p:first-child {
+    color: var(--color-error);
+  }
+
+  .settings-list {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-7);
+    background: var(--color-bg);
+  }
+
+  .settings-list > li + li {
+    border-top: 1px solid var(--color-border-muted);
+  }
+
+  .settings-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-7);
+  }
+
+  /* Bordered container for a configured item (provider, profile, tool). */
+  .settings-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-8);
+    background: var(--color-bg);
+  }
+
+  /* Recessed sub-panel inside a section or card. */
+  .settings-inset {
+    border: 1px solid var(--color-border-muted);
+    border-radius: var(--radius-7);
+    background: var(--color-bg-sunk);
+  }
+
+  .settings-nav-item {
+    position: relative;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: var(--radius-6);
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    text-align: left;
+    transition:
+      background-color 0.13s ease,
+      color 0.13s ease;
+  }
+
+  .settings-nav-item svg {
+    color: var(--color-text-muted);
+  }
+
+  .settings-nav-item:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+  }
+
+  .settings-nav-item[aria-current='page'] {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+    font-weight: 500;
+  }
+
+  .settings-nav-item[aria-current='page']::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 7px;
+    bottom: 7px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--color-accent);
+  }
+
+  .settings-nav-item[aria-current='page'] svg {
+    color: var(--color-accent);
+  }
+
+  /* Sections separate with a single hairline, no nested cards. */
+  .settings-page > [data-settings-section] {
+    padding: 20px 0;
+  }
+
+  .settings-page > [data-settings-section] + [data-settings-section],
+  .settings-page > * + [data-settings-section] {
+    border-top: 1px solid var(--color-border-muted);
+  }
+
+  .settings-page > [data-settings-section]:first-child {
+    padding-top: 4px;
+  }
+
+  .settings-page > :not([data-settings-section]) + :not([data-settings-section]) {
+    margin-top: 12px;
+  }
+
+  .settings-page > :not([data-settings-section]):first-child {
+    margin-top: 4px;
+  }
+
+  /* Jump-to-section flash after a search result is chosen. */
+  .settings-section-flash {
+    border-radius: var(--radius-8);
+    background: rgb(var(--color-accent-rgb) / 0.07);
+    box-shadow: 0 0 0 8px rgb(var(--color-accent-rgb) / 0.07);
+    transition:
+      background-color 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+}
