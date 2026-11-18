@@ -97,7 +97,7 @@ export function summarizeBriefing(
 
 /* ── the four operations ─────────────────────────────────────────────────── */
 
-export type OperationKind = 'update' | 'commit' | 'revert' | 'diff';
+type OperationKind = 'update' | 'commit' | 'revert' | 'diff';
 
 export interface OperationState {
   kind: OperationKind;
@@ -219,4 +219,53 @@ export function describeOperations(target: HomeWorkingCopy | undefined): Operati
         : `Compare ${path} with BASE — svn diff`,
     },
   ];
+}
+
+/* ── the focus working copy ──────────────────────────────────────────────── */
+
+/**
+ * The working copy Home leads with: the most recently opened one that is (or
+ * may still turn out to be) a checkout. A row whose status is still loading is
+ * kept in place rather than skipped, so the focus does not jump to another
+ * working copy when a slow `svn status` resolves.
+ */
+export function pickFocusWorkingCopy(
+  rows: readonly HomeWorkingCopy[]
+): HomeWorkingCopy | undefined {
+  return rows.find((row) => row.presence !== 'none') ?? rows[0];
+}
+
+export type LocalStateTone = 'muted' | 'clean' | 'modified' | 'conflict';
+
+export interface LocalStateDescription {
+  label: string;
+  tone: LocalStateTone;
+}
+
+const formatCount = (count: number) => count.toLocaleString('en-US');
+
+/**
+ * One phrase for what `svn status` said about a working copy. Keeps the three
+ * states apart: a checkout that answered, one that has not answered yet, and
+ * a path that is no longer a checkout at all.
+ */
+export function describeLocalState(row: HomeWorkingCopy): LocalStateDescription {
+  if (row.presence === 'none') return { label: 'Not a working copy', tone: 'conflict' };
+  const status = row.status;
+  if (!status) return { label: 'Reading local state…', tone: 'muted' };
+  if (status.conflicts > 0) {
+    return {
+      label: `${plural(status.conflicts, 'conflict', 'conflicts')} · ${formatCount(status.changes)} local ${
+        status.changes === 1 ? 'change' : 'changes'
+      }`,
+      tone: 'conflict',
+    };
+  }
+  if (status.changes > 0) {
+    return {
+      label: `${formatCount(status.changes)} local ${status.changes === 1 ? 'change' : 'changes'}`,
+      tone: 'modified',
+    };
+  }
+  return { label: 'No local changes', tone: 'clean' };
 }

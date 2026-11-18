@@ -32,7 +32,7 @@ export function GlobalBatchProgress() {
       <span className="font-semibold text-text">Working-copy updates</span>
       <span className="text-text-muted">{text}</span>
       <Link to="/" className="ml-auto rounded-6 px-1.5 py-0.5 text-accent hover:bg-accent/10">
-        View command center
+        View on Home
       </Link>
       {active > 0 && (
         <button

@@ -9,7 +9,9 @@ import type {
 
 import {
   buildHomeWorkingCopies,
+  describeLocalState,
   describeOperations,
+  pickFocusWorkingCopy,
   isCheckedOut,
   summarizeBriefing,
   type HomeWorkingCopy,
@@ -179,5 +181,44 @@ describe('describeOperations', () => {
   it('includes the BASE revision in the diff note when info is present', () => {
     const ops = describeOperations(row({ status: counts(2), info: info({ revision: 99 }) }));
     expect(ops.find((op) => op.kind === 'diff')!.note).toContain('BASE r99');
+  });
+});
+
+describe('pickFocusWorkingCopy', () => {
+  it('leads with the most recent working copy that is (or may be) a checkout', () => {
+    const rows = [
+      row({ path: '/wc/gone', name: 'gone', presence: 'none' }),
+      row({ path: '/wc/loading', name: 'loading', presence: 'unknown' }),
+      row({ path: '/wc/ready', name: 'ready', presence: 'full' }),
+    ];
+    // A still-loading row keeps its place, so focus does not jump when it resolves.
+    expect(pickFocusWorkingCopy(rows)?.path).toBe('/wc/loading');
+  });
+
+  it('falls back to the first row when none is a checkout, and to nothing when empty', () => {
+    expect(pickFocusWorkingCopy([row({ presence: 'none' })])?.presence).toBe('none');
+    expect(pickFocusWorkingCopy([])).toBeUndefined();
+  });
+});
+
+describe('describeLocalState', () => {
+  it('keeps missing, unmeasured, clean, modified and conflicted apart', () => {
+    expect(describeLocalState(row({ presence: 'none' }))).toEqual({
+      label: 'Not a working copy',
+      tone: 'conflict',
+    });
+    expect(describeLocalState(row({ presence: 'unknown' })).tone).toBe('muted');
+    expect(describeLocalState(row({ status: counts(0) }))).toEqual({
+      label: 'No local changes',
+      tone: 'clean',
+    });
+    expect(describeLocalState(row({ status: counts(4931) }))).toEqual({
+      label: '4,931 local changes',
+      tone: 'modified',
+    });
+    expect(describeLocalState(row({ status: counts(3, 1) }))).toEqual({
+      label: '1 conflict · 3 local changes',
+      tone: 'conflict',
+    });
   });
 });

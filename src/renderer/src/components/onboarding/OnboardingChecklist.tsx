@@ -5,7 +5,8 @@
  * svn command timeline, the review-center open event — see
  * ./onboardingSteps.ts); nothing new is collected. Steps stay checked across
  * sessions (lib/onboardingStore.ts persists the seen-done record), the card is
- * dismissible, and the welcome screen (EmptyBriefing) can bring it back.
+ * dismissible, and Home can bring it back. Home renders it compact (one
+ * summary line with the next step) once a working copy exists.
  *
  * The "Create a sample repo" step runs `svn:createSampleRepository` (a seeded
  * local repository via svnadmin) and then the existing checkout flow: the user
@@ -16,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, Circle, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Circle, X } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 import { svnCommandTimeline } from '@renderer/lib/queryKeys';
@@ -39,15 +40,25 @@ const TIMELINE_REFETCH_MS = 5000;
 export interface OnboardingChecklistProps {
   /** Opens the "Open working copy…" dialog on the home screen. */
   onOpenWorkingCopy?: () => void;
+  /**
+   * Start as a single summary line (progress + the next step) that expands to
+   * the full list. Home uses this once a working copy exists, so the checklist
+   * does not push the day's work below the fold for a returning user.
+   */
+  compact?: boolean;
 }
 
-export function OnboardingChecklist({ onOpenWorkingCopy }: OnboardingChecklistProps) {
+export function OnboardingChecklist({
+  onOpenWorkingCopy,
+  compact = false,
+}: OnboardingChecklistProps) {
   const navigate = useNavigate();
   const { settings, addRecentRepo } = useSettings();
   const checklist = useSyncExternalStore(subscribeOnboardingChecklist, getOnboardingChecklist);
   const [sampleState, setSampleState] = useState<
     { phase: 'idle' } | { phase: 'creating' } | { phase: 'error'; message: string }
   >({ phase: 'idle' });
+  const [expanded, setExpanded] = useState(!compact);
 
   useEffect(() => {
     void ensureOnboardingHydrated();
@@ -176,112 +187,160 @@ export function OnboardingChecklist({ onOpenWorkingCopy }: OnboardingChecklistPr
     [navigate, onOpenWorkingCopy, runSampleRepoStep, workingCopyPath]
   );
 
-  // Hidden once dismissed or finished; the welcome screen can re-open it.
+  // Hidden once dismissed or finished; Home can re-open it.
   if (checklist.dismissed || allDone) return null;
+
+  const nextStep = steps.find((step) => !step.done && !step.comingSoon);
+  const isBusy = (step: OnboardingStepState) =>
+    step.id === 'sample-repo' && sampleState.phase === 'creating';
+  const percent = completable.length ? (doneCount / completable.length) * 100 : 0;
 
   return (
     <section
       aria-labelledby="onboarding-checklist-title"
-      className="overflow-hidden rounded-10 border border-border bg-bg-secondary shadow-card"
+      className="overflow-hidden rounded-10 border border-border bg-bg-secondary"
       data-testid="onboarding-checklist"
     >
-      <div className="flex h-control-md items-center gap-2 border-b border-border px-2.5">
-        <h2 id="onboarding-checklist-title" className="eyebrow flex-shrink-0">
+      <div className="flex min-h-control-md flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2">
+        <h2
+          id="onboarding-checklist-title"
+          className="flex-shrink-0 text-13 font-semibold text-text"
+        >
           Getting started
         </h2>
-        <span className="min-w-0 flex-1 truncate font-mono text-10 text-text-muted">
-          {doneCount} of {completable.length} done · checked from what the app already knows
-        </span>
-        <button
-          type="button"
-          onClick={dismissOnboardingChecklist}
-          className="btn-icon-sm flex-shrink-0"
-          aria-label="Hide the getting-started checklist"
-          title="Hide the checklist — reopen it from the welcome screen"
+        <span
+          className="flex flex-shrink-0 items-center gap-2 text-12 text-text-muted"
+          title="Checked from what the app already knows — nothing new is collected"
         >
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+          <span
+            className="block h-1 w-16 overflow-hidden rounded-full bg-bg-tertiary"
+            role="progressbar"
+            aria-label="Getting-started progress"
+            aria-valuemin={0}
+            aria-valuemax={completable.length}
+            aria-valuenow={doneCount}
+          >
+            <span className="block h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
+          </span>
+          {doneCount} of {completable.length} done
+        </span>
+        {!expanded && nextStep && (
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="min-w-0 truncate text-12 text-text-secondary" title={nextStep.detail}>
+              Next: {nextStep.title}
+            </span>
+            <button
+              type="button"
+              onClick={() => runStep(nextStep)}
+              disabled={isBusy(nextStep)}
+              className="btn btn-secondary btn-sm flex-shrink-0"
+              aria-label={`Continue: ${nextStep.title}`}
+              title={nextStep.detail}
+            >
+              {isBusy(nextStep) ? 'Creating…' : 'Start'}
+            </button>
+          </span>
+        )}
+        <span className="ml-auto flex flex-shrink-0 items-center gap-1">
+          {compact && (
+            <button
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              className="btn btn-ghost btn-sm gap-1"
+              aria-expanded={expanded}
+              aria-controls="onboarding-checklist-steps"
+            >
+              {expanded ? 'Hide steps' : 'All steps'}
+              <ChevronDown
+                aria-hidden="true"
+                className={`h-3.5 w-3.5 transition-fast ${expanded ? 'rotate-180' : ''}`}
+              />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={dismissOnboardingChecklist}
+            className="btn-icon-sm flex-shrink-0"
+            aria-label="Hide the getting-started checklist"
+            title="Hide the checklist — Home can show it again"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </span>
       </div>
       {sampleState.phase === 'error' && (
         <div
           role="alert"
-          className="border-b border-border-muted bg-svn-conflict/10 px-2.5 py-1.5 font-mono text-9.5 text-svn-conflict"
+          className="border-t border-border-muted bg-svn-conflict/10 px-3 py-1.5 text-12 text-svn-conflict"
           data-testid="sample-repo-error"
         >
           <span className="break-words">{sampleState.message}</span>
         </div>
       )}
-      <ul className="list-none">
-        {steps.map((step) => {
-          const Icon = step.icon;
-          return (
-            <li
-              key={step.id}
-              className="flex min-h-row items-center gap-2.5 border-b border-border-muted px-2.5 py-1.5 last:border-b-0"
-            >
-              {step.done ? (
-                <CheckCircle2
-                  aria-hidden="true"
-                  className="h-4 w-4 flex-shrink-0 text-svn-normal"
-                />
-              ) : (
-                <Circle aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-text-faint" />
-              )}
-              <Icon aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-text-muted" />
-              <div className="min-w-0 flex-1">
-                <span
-                  className={`block truncate text-13 font-medium ${
-                    step.done ? 'text-text-muted' : 'text-text'
-                  }`}
-                >
-                  {step.title}
-                </span>
-                <span className="block truncate font-mono text-9.5 text-text-faint">
-                  {step.comingSoon ? 'coming soon' : step.detail}
-                </span>
-              </div>
-              {step.command && (
-                <span
-                  className="hidden flex-shrink-0 font-mono text-9.5 text-text-faint sm:inline"
-                  title={step.command}
-                >
-                  {step.command}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => runStep(step)}
-                disabled={
-                  step.done || step.comingSoon || (step.id === 'sample-repo' && sampleState.phase === 'creating')
-                }
-                className="btn btn-secondary btn-sm flex-shrink-0 gap-1.5 text-10.5"
-                aria-label={
-                  step.comingSoon
-                    ? `${step.title} (coming soon)`
-                    : step.id === 'sample-repo' && sampleState.phase === 'creating'
-                      ? `${step.title} (creating…)`
-                      : `Go: ${step.title}`
-                }
-                title={
-                  step.done
-                    ? 'Done'
-                    : step.id === 'sample-repo' && sampleState.phase === 'creating'
-                      ? 'Creating the sample repository…'
-                      : step.detail
-                }
+      {expanded && (
+        <ul id="onboarding-checklist-steps" className="list-none border-t border-border-muted">
+          {steps.map((step) => {
+            const Icon = step.icon;
+            const busy = isBusy(step);
+            return (
+              <li
+                key={step.id}
+                className="flex min-h-row items-center gap-3 border-b border-border-muted px-3 py-2 last:border-b-0"
               >
-                {step.done
-                  ? 'Done'
-                  : step.comingSoon
-                    ? 'Soon'
-                    : step.id === 'sample-repo' && sampleState.phase === 'creating'
-                      ? 'Creating…'
-                      : 'Go'}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                {step.done ? (
+                  <CheckCircle2
+                    aria-hidden="true"
+                    className="h-4 w-4 flex-shrink-0 text-svn-normal"
+                  />
+                ) : (
+                  <Circle aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-text-faint" />
+                )}
+                <Icon
+                  aria-hidden="true"
+                  className="hidden h-4 w-4 flex-shrink-0 text-text-muted sm:block"
+                />
+                <div className="min-w-0 flex-1">
+                  <span
+                    className={`block text-13 font-medium ${
+                      step.done ? 'text-text-muted' : 'text-text'
+                    }`}
+                  >
+                    {step.title}
+                  </span>
+                  {!step.done && (
+                    <span className="block text-12 text-text-muted">
+                      {step.comingSoon ? 'Coming soon' : step.detail}
+                      {step.command && (
+                        <span className="ml-1.5 font-mono text-11 text-text-muted">
+                          {step.command}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => runStep(step)}
+                  disabled={step.done || step.comingSoon || busy}
+                  className={`btn btn-sm flex-shrink-0 ${step.done ? 'btn-ghost' : 'btn-secondary'}`}
+                  aria-label={
+                    step.comingSoon
+                      ? `${step.title} (coming soon)`
+                      : busy
+                        ? `${step.title} (creating…)`
+                        : `Go: ${step.title}`
+                  }
+                  title={
+                    step.done ? 'Done' : busy ? 'Creating the sample repository…' : step.detail
+                  }
+                >
+                  {step.done ? 'Done' : step.comingSoon ? 'Soon' : busy ? 'Creating…' : 'Go'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

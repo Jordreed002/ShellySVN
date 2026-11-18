@@ -276,4 +276,34 @@ describe('OnboardingChecklist', () => {
     expect(await screen.findByTestId('sample-repo-error')).toHaveTextContent(/E165001/);
     expect(getOnboardingChecklist().completedAt['sample-repo']).toBeUndefined();
   });
+
+  it('compact: one summary line with the next step, expandable to every step', async () => {
+    settings = { recentRepositories: ['/wc/atlas'] };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OnboardingChecklist compact onOpenWorkingCopy={mocks.onOpenWorkingCopy} />
+      </QueryClientProvider>
+    );
+
+    // Collapsed: progress and the next unfinished step, not the full list.
+    expect(await screen.findByText(/1 of 5 done/)).toBeInTheDocument();
+    expect(screen.getByText('Next: Run your first update')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Go: / })).not.toBeInTheDocument();
+
+    // The next step runs from the summary line, against the recent working copy.
+    fireEvent.click(screen.getByRole('button', { name: 'Continue: Run your first update' }));
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/files', search: { path: '/wc/atlas' } });
+
+    const toggle = screen.getByRole('button', { name: /All steps/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: /Hide steps/ })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    expect(
+      screen.getByRole('button', { name: /Go: Create a sample repo playground/ })
+    ).toBeInTheDocument();
+  });
 });

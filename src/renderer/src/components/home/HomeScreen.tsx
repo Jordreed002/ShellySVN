@@ -1,68 +1,97 @@
 /**
- * Home — a briefing on the checkouts on this machine, not a splash screen.
+ * Home — where the day's work starts.
  *
- * The app already knows, before this route renders, what needs attention and
- * where the session left off: the rail resolves `svn status` and `svn info` once
- * per working copy (`useWorkingCopyOverview`) and lists shelves once per
- * checkout (`useWorkingCopyShelves`). Home is a **second consumer of those same
- * query keys** — every number here is a cache hit, not another `svn` process.
+ * It leads with the working copy you were last in: its local changes, whether
+ * the repository has moved on, and the next useful action for it. Below that,
+ * problems `svn status` found (only when there are any), every saved working
+ * copy with the batch update pipeline, and shelves. Recent locations and the
+ * working-copy switcher live in the sidebar and are not repeated here.
  *
- * Three rules this screen is built around:
+ * The app already knows most of this before the route renders: the rail
+ * resolves `svn status` and `svn info` once per working copy
+ * (`useWorkingCopyOverview`) and lists shelves once per checkout
+ * (`useWorkingCopyShelves`). Home is a **second consumer of those same query
+ * keys** — every local number here is a cache hit, not another `svn` process.
+ * Incoming revisions need a round trip, so they stay "Not checked" until
+ * someone asks the server through the batch pipeline.
  *
- * 1. **Subversion's vocabulary.** checkout, update, commit, revert, diff,
- *    revision, BASE, HEAD, shelf — with the command shown beside the word.
- *    There is no "push": that is Git's, and Subversion has no such operation.
- * 2. **Local facts belong to working copies.** Change counts, conflicts and
- *    shelves exist only inside a checkout, and are never attributed to the
- *    server.
- * 3. **No confident zeros.** A checkout whose status has not resolved is
- *    reported as unmeasured; incoming revisions, which need a round trip, are
- *    `—` until someone asks the server.
+ * Rules: Subversion's vocabulary (update, commit, BASE, HEAD, shelf — no
+ * "push"); local facts belong to a named working copy; no confident zeros.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { FolderOpen, GitBranch, Turtle } from 'lucide-react';
+import { FolderOpen, GitBranch } from 'lucide-react';
 
 import { useSettings } from '@renderer/hooks/useSettings';
 // Read-only imports: the rail owns these queries and Home reuses them, so the
 // two surfaces can never disagree about the same working copy.
 import {
   collectProblems,
-  describeRepo,
   useWorkingCopyOverview,
   useWorkingCopyShelves,
 } from '@renderer/components/sidebar/sidebarData';
+import {
+  getOnboardingChecklist,
+  reopenOnboardingChecklist,
+  subscribeOnboardingChecklist,
+} from '@renderer/lib/onboardingStore';
+import { REVIEW_CENTER_OPEN_EVENT } from '@renderer/features/ai-review-center/reviewCenterEvents';
+import { useBatchUpdate } from '@renderer/features/working-copy-command-center/BatchUpdateProvider';
+import {
+  BatchRunBar,
+  CommandCenterSection,
+} from '@renderer/features/working-copy-command-center/CommandCenterSection';
+import {
+  batchItemRevisions,
+  batchItemStateLabel,
+  batchItemTone,
+  isBatchItemBusy,
+} from '@renderer/features/working-copy-command-center/itemLabels';
 
 import {
   buildHomeWorkingCopies,
+  describeLocalState,
   describeOperations,
   isCheckedOut,
+  pickFocusWorkingCopy,
   summarizeBriefing,
-  type OperationKind,
 } from './homeBriefing';
 import {
   AttentionSection,
   EmptyBriefing,
+  FocusWorkingCopy,
+  HomeLoading,
   HomeShelvesSection,
-  OperationsSection,
-  RecentLocationsSection,
+  LOCAL_TONE_CLASS,
 } from './HomeSections';
-import { CommandCenterSection } from '@renderer/features/working-copy-command-center/CommandCenterSection';
+import { PageHeader } from '@renderer/components/ui/PageHeader';
 import { OnboardingChecklist } from '@renderer/components/onboarding/OnboardingChecklist';
+import { ONBOARDING_STEPS } from '@renderer/components/onboarding/onboardingSteps';
 
 const AddRepoModal = lazy(() =>
-  import('@renderer/components/ui/AddRepoModal').then((m) => ({ default: m.AddRepoModal }))
+  import('@renderer/components/ui/AddRepoModal').then((m) => ({
+    default: m.AddRepoModal,
+  }))
 );
 const ImportDialog = lazy(() =>
-  import('@renderer/components/ui/ImportDialog').then((m) => ({ default: m.ImportDialog }))
+  import('@renderer/components/ui/ImportDialog').then((m) => ({
+    default: m.ImportDialog,
+  }))
 );
 const ShelveDialog = lazy(() =>
-  import('@renderer/components/ui/ShelveDialog').then((m) => ({ default: m.ShelveDialog }))
+  import('@renderer/components/ui/ShelveDialog').then((m) => ({
+    default: m.ShelveDialog,
+  }))
 );
-
-/** Locations are a shortcut list, not a log — the rail uses the same ceiling. */
-const MAX_RECENT_LOCATIONS = 6;
 
 /** Wait for a quiet moment before asking each checkout for its shelves. */
 function runWhenIdle(callback: () => void, timeout = 1500): () => void {
@@ -76,7 +105,9 @@ function runWhenIdle(callback: () => void, timeout = 1500): () => void {
 
 export function HomeScreen() {
   const navigate = useNavigate();
-  const { settings, addRecentRepo } = useSettings();
+  const { settings, isLoading, addRecentRepo, removeRecentRepo } = useSettings();
+  const batch = useBatchUpdate();
+  const onboarding = useSyncExternalStore(subscribeOnboardingChecklist, getOnboardingChecklist);
 
   const [modal, setModal] = useState<'open' | 'checkout' | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -86,8 +117,6 @@ export function HomeScreen() {
   const [isIdle, setIsIdle] = useState(false);
 
   const recentRepos = useMemo(() => settings?.recentRepositories ?? [], [settings]);
-  const recentPaths = settings?.recentPaths ?? [];
-  const bookmarks = settings?.bookmarks ?? [];
 
   /* ── the rail's facts, read from the same cache ── */
   const overview = useWorkingCopyOverview(recentRepos);
@@ -95,29 +124,28 @@ export function HomeScreen() {
     () => buildHomeWorkingCopies(recentRepos, overview),
     [recentRepos, overview]
   );
-  const problems = collectProblems(recentRepos, overview);
+  const problems = useMemo(() => collectProblems(recentRepos, overview), [recentRepos, overview]);
 
-  const checkedOut = rows.filter(isCheckedOut);
-  const measuredClean = rows.filter((row) => row.status && row.status.problems.total === 0).length;
-  const attributeWorkingCopy = checkedOut.length > 1;
+  const checkedOutPaths = useMemo(() => rows.filter(isCheckedOut).map((row) => row.path), [rows]);
+  const attributeWorkingCopy = checkedOutPaths.length > 1;
 
   // One `svn shelf-list` per checkout is a process each, so this waits for idle
   // exactly as the rail does — and shares the rail's query keys.
-  const shelvesOf = useWorkingCopyShelves(
-    checkedOut.map((row) => row.path),
-    isIdle
+  const shelvesOf = useWorkingCopyShelves(checkedOutPaths, isIdle);
+
+  // Every action in the focus panel targets this one working copy, named in
+  // its heading — never an unrelated recent path.
+  const focus = pickFocusWorkingCopy(rows);
+  const focusPath = focus?.path;
+  const focusItem = focusPath ? batch.items.find((item) => item.path === focusPath) : undefined;
+  const batchActive = batch.summary.running + batch.summary.queued;
+  const showList = batch.items.length > 1;
+
+  const isLoadingSettings = isLoading;
+  const onboardingComplete = ONBOARDING_STEPS.filter((step) => !step.comingSoon).every((step) =>
+    Boolean(onboarding.completedAt[step.id])
   );
-
-  // The operations act on the checkout you last opened — named on screen, so
-  // "Commit" is never ambiguous about which working copy it means.
-  const target = checkedOut[0];
-  const operations = describeOperations(target);
-
-  const locations = recentPaths
-    .filter((path) => !recentRepos.includes(path))
-    .slice(0, MAX_RECENT_LOCATIONS);
-
-  const isFirstRun = recentRepos.length === 0 && recentPaths.length === 0 && bookmarks.length === 0;
+  const isFirstRun = !isLoadingSettings && recentRepos.length === 0;
 
   useEffect(() => runWhenIdle(() => setIsIdle(true)), []);
 
@@ -127,6 +155,16 @@ export function HomeScreen() {
       navigate({ to: '/files', search: { path } });
     },
     [addRecentRepo, navigate]
+  );
+
+  const localStateOf = useCallback(
+    (path: string) => {
+      const row = rows.find((candidate) => candidate.path === path);
+      if (!row) return undefined;
+      const local = describeLocalState(row);
+      return { label: local.label, className: LOCAL_TONE_CLASS[local.tone] };
+    },
+    [rows]
   );
 
   /* ── drag and drop: a folder dropped anywhere on this screen ── */
@@ -161,17 +199,13 @@ export function HomeScreen() {
     [openWorkingCopy]
   );
 
-  const handleRunOperation = useCallback(
-    (kind: OperationKind) => {
-      if (!target) return;
-      // Every one of these runs against a working copy, which is what the
-      // working-copy view is: it carries Update, Commit, Revert and Diff.
-      void addRecentRepo(target.path);
-      navigate({ to: '/files', search: { path: target.path } });
-      void kind;
-    },
-    [addRecentRepo, navigate, target]
-  );
+  const summary = isDragOver
+    ? 'Drop the folder to open it as a working copy'
+    : isLoadingSettings
+      ? undefined
+      : isFirstRun
+        ? 'Nothing checked out on this machine yet'
+        : summarizeBriefing(rows, problems);
 
   return (
     <div
@@ -185,104 +219,133 @@ export function HomeScreen() {
       onDragLeave={() => setIsDragOver(false)}
       onDrop={handleDrop}
     >
-      {/* Header: what this screen is, what it adds up to, and the two ways in. */}
-      <div className="flex h-[44px] flex-shrink-0 items-center gap-2.5 border-b border-border bg-bg-secondary/60 px-4">
-        <h1 className="eyebrow flex-shrink-0">Briefing</h1>
-        <span
-          className="min-w-0 flex-1 truncate font-mono text-10 text-text-muted"
-          title="Counts come from the svn status and svn info reads the sidebar already made for each working copy."
-        >
-          {isDragOver
-            ? 'Drop the folder to open it as a working copy'
-            : isFirstRun
-              ? 'nothing checked out on this machine yet'
-              : summarizeBriefing(rows, problems)}
-        </span>
-        <button
-          type="button"
-          onClick={() => setModal('open')}
-          className="btn btn-secondary btn-sm flex-shrink-0 gap-1.5 text-11"
-          data-testid="browse-button"
-          title="Open a folder that is already a working copy"
-        >
-          <FolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
-          Open working copy…
-        </button>
-        <button
-          type="button"
-          onClick={() => setModal('checkout')}
-          className="btn btn-primary btn-sm flex-shrink-0 gap-1.5 text-11"
-          data-testid="checkout-button"
-          title="Check a repository out to this machine — svn checkout"
-        >
-          <GitBranch aria-hidden="true" className="h-3.5 w-3.5" />
-          Checkout…
-        </button>
-      </div>
+      <PageHeader
+        title="Home"
+        summary={summary}
+        summaryTitle="Local counts come from the svn status and svn info reads the sidebar already made for each working copy."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setModal('open')}
+              className="btn btn-ghost btn-sm gap-1.5"
+              data-testid="browse-button"
+              title="Open a folder that is already a working copy"
+            >
+              <FolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
+              Open working copy…
+            </button>
+            <button
+              type="button"
+              onClick={() => setModal('checkout')}
+              className="btn btn-primary btn-sm gap-1.5"
+              data-testid="checkout-button"
+              title="Check a repository out to this machine — svn checkout"
+            >
+              <GitBranch aria-hidden="true" className="h-3.5 w-3.5" />
+              Checkout…
+            </button>
+          </>
+        }
+      />
 
       {dropError && (
         <div
           role="alert"
-          className="flex-shrink-0 border-b border-svn-conflict/40 bg-svn-conflict/10 px-3 py-1.5 font-mono text-10.5 text-svn-conflict"
+          className="flex flex-shrink-0 items-center gap-2 border-b border-svn-conflict/40 bg-svn-conflict/10 px-4 py-1.5 text-12 text-svn-conflict"
         >
-          {dropError}
+          <span className="min-w-0 flex-1 break-words">{dropError}</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm flex-shrink-0"
+            onClick={() => setDropError(null)}
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-overlay">
-        <div className="mx-auto grid max-w-[1180px] gap-3 p-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:items-start">
-          {/* Getting-started checklist (#88): auto-checked from app state,
-              dismissible, hidden once every completable step is done. */}
-          <div className="xl:col-span-2">
-            <OnboardingChecklist onOpenWorkingCopy={() => setModal('open')} />
-          </div>
-          {isFirstRun ? (
+        <div className="home-content mx-auto flex max-w-[960px] flex-col gap-7 px-4 py-6 sm:px-6">
+          {isLoadingSettings ? (
+            <HomeLoading />
+          ) : isFirstRun ? (
             <>
-              <div className="xl:col-span-2">
-                <EmptyBriefing
-                  onOpen={() => setModal('open')}
-                  onCheckout={() => setModal('checkout')}
-                />
-              </div>
-              <div className="xl:col-span-2">
-                <OperationsSection operations={operations} onRun={handleRunOperation} />
-              </div>
+              <EmptyBriefing
+                onOpen={() => setModal('open')}
+                onCheckout={() => setModal('checkout')}
+                showChecklistLink={onboarding.dismissed}
+              />
+              <OnboardingChecklist onOpenWorkingCopy={() => setModal('open')} />
             </>
           ) : (
             <>
-              <div className="grid gap-3">
-                <AttentionSection
-                  problems={problems}
-                  measuredClean={measuredClean}
-                  attributeWorkingCopy={attributeWorkingCopy}
+              <OnboardingChecklist compact onOpenWorkingCopy={() => setModal('open')} />
+
+              {focus && (
+                <FocusWorkingCopy
+                  row={focus}
+                  local={describeLocalState(focus)}
+                  operations={describeOperations(isCheckedOut(focus) ? focus : undefined)}
+                  remote={
+                    focusItem && (focusItem.status !== 'idle' || focusItem.checkedAt)
+                      ? {
+                          label: batchItemStateLabel(focusItem),
+                          className: batchItemTone(focusItem),
+                          revisions: batchItemRevisions(focusItem),
+                          detail:
+                            focusItem.verificationError ??
+                            focusItem.error ??
+                            focusItem.blockedReason,
+                        }
+                      : null
+                  }
+                  updateBusy={
+                    batch.isChecking ||
+                    batchActive > 0 ||
+                    (focusItem ? isBatchItemBusy(focusItem) : false)
+                  }
+                  isChecking={batch.isChecking}
+                  hasOthers={rows.length > 1}
+                  onOpenFiles={() => void openWorkingCopy(focus.path)}
+                  onUpdate={() => void batch.updatePaths([focus.path])}
+                  onCheck={() => void batch.checkAll()}
+                  onHistory={() => {
+                    void addRecentRepo(focus.path);
+                    navigate({ to: '/history', search: { path: focus.path } });
+                  }}
+                  onReview={() => window.dispatchEvent(new CustomEvent(REVIEW_CENTER_OPEN_EVENT))}
+                  onOpenAnother={() => setModal('open')}
+                  onForget={() => void removeRecentRepo(focus.path)}
+                  footer={showList ? undefined : <BatchRunBar />}
                 />
-                <CommandCenterSection />
-                <OperationsSection
-                  operations={operations}
-                  targetName={target ? describeRepo(target.path).name : undefined}
-                  onRun={handleRunOperation}
-                />
-              </div>
-              <div className="grid gap-3">
-                <HomeShelvesSection
-                  shelves={shelvesOf.shelves}
-                  unsupported={shelvesOf.unsupported}
-                  attributeWorkingCopy={attributeWorkingCopy}
-                  onOpenShelves={setShelvesFor}
-                />
-                <RecentLocationsSection paths={locations} />
-              </div>
+              )}
+
+              <AttentionSection problems={problems} attributeWorkingCopy={attributeWorkingCopy} />
+
+              {showList && <CommandCenterSection localStateOf={localStateOf} />}
+
+              <HomeShelvesSection
+                shelves={shelvesOf.shelves}
+                unsupported={shelvesOf.unsupported}
+                attributeWorkingCopy={attributeWorkingCopy}
+                onOpenShelves={setShelvesFor}
+              />
+
+              {onboarding.dismissed && !onboardingComplete && (
+                <p className="px-1 text-12 text-text-muted">
+                  <button
+                    type="button"
+                    onClick={reopenOnboardingChecklist}
+                    className="rounded-6 underline decoration-border-strong underline-offset-2 hover:text-text-secondary"
+                  >
+                    Show the getting-started checklist
+                  </button>
+                </p>
+              )}
             </>
           )}
         </div>
-      </div>
-
-      <div className="flex h-control-sm flex-shrink-0 items-center gap-2 border-t border-border px-3 font-mono text-9.5 text-text-faint">
-        <Turtle aria-hidden="true" className="h-3 w-3 flex-shrink-0" />
-        <span className="truncate">ShellySVN bundles Subversion 1.14.x</span>
-        <span className="ml-auto hidden flex-shrink-0 sm:inline">
-          no external dependencies required
-        </span>
       </div>
 
       {modal && (
