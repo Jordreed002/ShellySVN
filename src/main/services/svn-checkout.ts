@@ -6,9 +6,11 @@ import {
   extractSvnDiskFullDetails,
   runSvn,
   runSvnText,
+  type RunSvnOptions,
   type SvnDiskFullErrorDetails,
 } from './svn-executor';
 import { getSslTrustCache } from '../ssl-trust-cache';
+import { parseSvnInfoXml } from '../svn/parsers';
 import { debug } from '../utils/debug';
 import { requireSvnRevision } from '../utils/svn-revision';
 import { withSvnTargets } from '../utils/svn-targets';
@@ -114,9 +116,27 @@ function buildCheckoutArgs(
   return withSvnTargets(args, [url, path]);
 }
 
-function parseSvnRevision(output: string): number | null {
-  const match = output.match(/(?:Checked out|Updated to|At) revision (\d+)\./);
-  return match ? parseInt(match[1], 10) : null;
+async function resolveSparseCheckoutRevision(
+  checkoutRevision: number | null,
+  options: RunSvnOptions
+): Promise<number> {
+  if (checkoutRevision !== null) return checkoutRevision;
+
+  // Localized or truncated checkout output may omit the revision summary.
+  // Read the new working copy's base revision without contacting the server.
+  const output = await runSvnText(withSvnTargets(['info', '--xml'], ['.']), options);
+  const info = parseSvnInfoXml(output);
+  if (info.url && Number.isSafeInteger(info.revision) && info.revision >= 0) {
+    return info.revision;
+  }
+  throw new Error('Could not determine the checkout revision for sparse expansion.');
+}
+
+function buildSparseUpdateArgs(path: string, revision: number): string[] {
+  return withSvnTargets(
+    ['update', '--parents', '--depth', 'infinity', '-r', String(revision)],
+    [path]
+  );
 }
 
 function normalizeUrlPath(pathname: string): string {
@@ -198,12 +218,17 @@ async function runSparseCheckout(
     credentials: options?.credentials,
   });
 
-  let revisionNumber = parseSvnRevision(bootstrapOutput);
+  const revisionNumber = await resolveSparseCheckoutRevision(
+    parseCheckoutRevision(bootstrapOutput),
+    {
+      cwd: path,
+    }
+  );
   const outputs = [bootstrapOutput];
 
   for (const sparseRelativePath of sparseRelativePaths) {
     const updateOutput = await runSvnText(
-      ['update', '--parents', '--depth', 'infinity', sparseRelativePath],
+      buildSparseUpdateArgs(sparseRelativePath, revisionNumber),
       {
         cwd: path,
         trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
@@ -211,7 +236,6 @@ async function runSparseCheckout(
         credentials: options?.credentials,
       }
     );
-    revisionNumber = parseSvnRevision(updateOutput) ?? revisionNumber;
     outputs.push(updateOutput);
   }
 
@@ -234,8 +258,9 @@ function parseCheckoutProgress(line: string): {
 }
 
 function parseCheckoutRevision(output: string): number | null {
-  const match = output.match(/Checked out revision (\d+)\./);
-  return match ? parseInt(match[1], 10) : null;
+  const match = output.match(/^Checked out revision (\d+)\.\r?$/m);
+  const revision = match ? Number(match[1]) : NaN;
+  return Number.isSafeInteger(revision) ? revision : null;
 }
 
 export async function checkout(
@@ -327,9 +352,13 @@ export async function checkoutWithProgress(
         maxStderrBytes: DEFAULT_STREAMED_SVN_OUTPUT_CAP_BYTES,
         onStdout: (chunk) => {
           revisionBuffer = (revisionBuffer + chunk).slice(-2000);
-          streamedRevision = parseSvnRevision(revisionBuffer) ?? streamedRevision;
+          streamedRevision = parseCheckoutRevision(revisionBuffer) ?? streamedRevision;
         },
       });
+      const revisionNumber = await resolveSparseCheckoutRevision(
+        streamedRevision ?? parseCheckoutRevision(result.stdout),
+        { cwd: path, signal: controller.signal }
+      );
 
       for (const sparseRelativePath of sparseRelativePaths) {
         currentPath = sparseRelativePath;
@@ -342,7 +371,7 @@ export async function checkoutWithProgress(
         });
 
         const updateOutput = await runSvnText(
-          ['update', '--parents', '--depth', 'infinity', sparseRelativePath],
+          buildSparseUpdateArgs(sparseRelativePath, revisionNumber),
           {
             cwd: path,
             trustSslFailures: isHttpsRepositoryUrl(url) && options?.trustSsl,
@@ -351,7 +380,6 @@ export async function checkoutWithProgress(
             signal: controller.signal,
           }
         );
-        streamedRevision = parseSvnRevision(updateOutput) ?? streamedRevision;
         result.stdout += updateOutput;
       }
 
@@ -359,7 +387,7 @@ export async function checkoutWithProgress(
 
       return {
         success: true,
-        revision: streamedRevision ?? parseSvnRevision(result.stdout),
+        revision: revisionNumber,
         output: result.stdout,
         filesProcessed,
       };
@@ -417,7 +445,7 @@ export async function checkoutWithProgress(
 
     return {
       success: true,
-      revision: streamedRevision || parseCheckoutRevision(result.stdout),
+      revision: streamedRevision ?? parseCheckoutRevision(result.stdout),
       output: result.stdout,
       filesProcessed,
     };

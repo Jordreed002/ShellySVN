@@ -216,15 +216,150 @@ describe('svn-checkout progress', () => {
     );
     expect(mockState.runSvnText).toHaveBeenNthCalledWith(
       2,
-      ['update', '--parents', '--depth', 'infinity', 'src/file1.ts'],
+      ['update', '--parents', '--depth', 'infinity', '-r', '12', '--', 'src/file1.ts'],
       expect.objectContaining({ cwd: 'C:\\wc' })
     );
     expect(mockState.runSvnText).toHaveBeenNthCalledWith(
       3,
-      ['update', '--parents', '--depth', 'infinity', 'src/file2.ts'],
+      ['update', '--parents', '--depth', 'infinity', '-r', '12', '--', 'src/file2.ts'],
       expect.objectContaining({ cwd: 'C:\\wc' })
     );
   });
+
+  it.each([
+    { progress: false, requestedRevision: '7', bootstrapRevision: 7 },
+    { progress: true, requestedRevision: '{2025-01-01}', bootstrapRevision: 12 },
+    { progress: true, requestedRevision: 'HEAD', bootstrapRevision: 0 },
+  ])(
+    'pins sparse expansions to revision $bootstrapRevision after checking out $requestedRevision',
+    async ({ progress, requestedRevision, bootstrapRevision }) => {
+      const url = 'https://example.test/svn/project/trunk';
+      const path = 'C:\\wc';
+      const options = { sparsePaths: ['src', 'docs'] };
+      const summary = `Checked out revision ${bootstrapRevision}.`;
+      mockState.runSvnText.mockResolvedValue('At revision 123.');
+      if (progress) {
+        mockState.runSvn.mockImplementation(async (_args, { onStdout }) => {
+          onStdout('Checked out rev');
+          onStdout(`ision ${bootstrapRevision}.\r\n`);
+          return { stdout: '', stderr: '', code: 0, stdoutTruncated: true };
+        });
+      } else {
+        mockState.runSvnText.mockResolvedValueOnce(summary);
+      }
+
+      const result = progress
+        ? await checkoutWithProgress(
+            { sender: { send: vi.fn() } } as never,
+            'sparse-pinned',
+            url,
+            path,
+            requestedRevision,
+            'empty',
+            options
+          )
+        : await checkout(url, path, requestedRevision, 'empty', options);
+
+      expect(result).toMatchObject({ success: true, revision: bootstrapRevision });
+      const updates = mockState.runSvnText.mock.calls.filter(([args]) => args[0] === 'update');
+      expect(updates.map(([args]) => args)).toEqual(
+        options.sparsePaths.map((target) => [
+          'update',
+          '--parents',
+          '--depth',
+          'infinity',
+          '-r',
+          String(bootstrapRevision),
+          '--',
+          target,
+        ])
+      );
+    }
+  );
+
+  it('gets the sparse base revision from the working copy if checkout omits the summary', async () => {
+    const url = 'https://example.test/svn/project';
+    mockState.runSvnText
+      .mockResolvedValueOnce('Checkout summary unavailable.')
+      .mockResolvedValueOnce(
+        `<info><entry path="." revision="8" kind="dir"><url>${url}</url></entry></info>`
+      )
+      .mockResolvedValueOnce('At revision 8.');
+
+    await expect(
+      checkout(url, 'C:\\wc', 'HEAD', 'empty', { sparsePaths: ['src'] })
+    ).resolves.toMatchObject({
+      success: true,
+      revision: 8,
+    });
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(2, ['info', '--xml', '--', '.'], {
+      cwd: 'C:\\wc',
+    });
+    expect(mockState.runSvnText).toHaveBeenNthCalledWith(
+      3,
+      ['update', '--parents', '--depth', 'infinity', '-r', '8', '--', 'src'],
+      expect.objectContaining({ cwd: 'C:\\wc' })
+    );
+  });
+
+  it('stops sparse expansion when there is no reliable checkout revision', async () => {
+    mockState.runSvnText.mockResolvedValue('');
+    await expect(
+      checkout('https://example.test/svn/project', 'C:\\wc', undefined, 'empty', {
+        sparsePaths: ['src'],
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      revision: null,
+      output: 'Could not determine the checkout revision for sparse expansion.',
+    });
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(2);
+    expect(mockState.runSvnText.mock.calls.map(([args]) => args[0])).toEqual(['checkout', 'info']);
+  });
+
+  it.each([false, true])(
+    'escapes sparse directory names in progress=%s checkout',
+    async (progress) => {
+      const url = 'https://example.test/svn/project/trunk';
+      const credentials = { username: 'alice', password: 'secret' };
+      mockState.runSvnText.mockResolvedValue('Updated to revision 12.');
+      if (!progress) mockState.runSvnText.mockResolvedValueOnce('Checked out revision 12.');
+      mockState.runSvn.mockResolvedValue({
+        stdout: 'Checked out revision 12.',
+        stderr: '',
+        code: 0,
+      });
+      const options = {
+        sparsePaths: [`${url}/dir@name`, `${url}/-directory`],
+        credentials,
+      };
+
+      const result = progress
+        ? await checkoutWithProgress(
+            { sender: { send: vi.fn() } } as never,
+            'sparse-escaped',
+            url,
+            'C:\\wc',
+            undefined,
+            'empty',
+            options
+          )
+        : await checkout(url, 'C:\\wc', undefined, 'empty', options);
+
+      expect(result.success).toBe(true);
+      const updates = mockState.runSvnText.mock.calls.filter(([args]) => args[0] === 'update');
+      expect(updates).toHaveLength(2);
+      expect(updates[0]).toEqual([
+        ['update', '--parents', '--depth', 'infinity', '-r', '12', '--', 'dir@name@'],
+        expect.objectContaining({ cwd: 'C:\\wc', credentials }),
+      ]);
+      expect(updates[1]).toEqual([
+        ['update', '--parents', '--depth', 'infinity', '-r', '12', '--', '-directory'],
+        expect.objectContaining({ cwd: 'C:\\wc', credentials }),
+      ]);
+      if (progress) expect(updates[0][1].signal).toBeInstanceOf(AbortSignal);
+    }
+  );
 
   it('rejects sparse selections outside the checkout URL before checkout starts', async () => {
     const result = await checkout(
