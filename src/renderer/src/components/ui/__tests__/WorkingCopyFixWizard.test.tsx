@@ -81,19 +81,27 @@ describe('WorkingCopyFixWizard', () => {
     expect(onRepaired).toHaveBeenCalled();
   });
 
-  it('sends an excluded group to the remove-from-working-copy tool', async () => {
-    window.api.svn.status = vi.fn().mockResolvedValue(
-      statusWith([
-        entry(`${WC}\\Clients\\Gone\\site\\a.php`, '!'),
-        entry(`${WC}\\Clients\\Gone\\uploads\\banner.png`, '?'),
-      ])
-    );
-    const repair = vi
+  it.each([
+    [WC, '\\'],
+    ['/wc', '/'],
+  ])('restores missing files before excluding their group in %s', async (root, separator) => {
+    const dir = [root, 'Clients', 'Gone'].join(separator);
+    const file = [dir, 'site', 'a.php'].join(separator);
+    window.api.svn.status = vi
       .fn()
-      .mockResolvedValue({ success: true, restored: 0, completedDirs: 0, excludedDirs: 1, stepErrors: [] });
+      .mockResolvedValue(
+        statusWith([entry(file, '!'), entry([dir, 'uploads', 'banner.png'].join(separator), '?')])
+      );
+    const repair = vi.fn().mockResolvedValue({
+      success: true,
+      restored: 1,
+      completedDirs: 0,
+      excludedDirs: 1,
+      stepErrors: [],
+    });
     window.api.svn.repairWorkingCopy = repair;
 
-    renderWizard();
+    renderWizard({ workingCopyPath: root });
     await screen.findByTestId('fix-wizard-choose');
 
     fireEvent.click(screen.getByLabelText('Remove from working copy', { selector: 'input' }));
@@ -101,8 +109,8 @@ describe('WorkingCopyFixWizard', () => {
 
     await waitFor(() => expect(screen.getByTestId('fix-wizard-summary')).toBeTruthy());
     const plan = repair.mock.calls[0][0];
-    expect(plan.restoreFiles).toEqual([]);
-    expect(plan.excludeDirs).toEqual([`${WC}\\Clients\\Gone`]);
+    expect(plan.restoreFiles).toEqual([file]);
+    expect(plan.excludeDirs).toEqual([dir]);
   });
 
   it('completes missing directories with cleanup and update', async () => {
@@ -133,5 +141,22 @@ describe('WorkingCopyFixWizard', () => {
 
     await waitFor(() => expect(screen.getByTestId('fix-wizard-nothing')).toBeTruthy());
     expect(screen.queryByTestId('fix-wizard-run')).toBeNull();
+  });
+
+  it('reports a resolved status error and allows a new scan', async () => {
+    window.api.svn.status = vi
+      .fn()
+      .mockResolvedValueOnce({ ...statusWith([]), error: 'Working copy is locked' })
+      .mockResolvedValueOnce(statusWith([entry(`${WC}\\src\\main.ts`, '!')]));
+
+    renderWizard();
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Working copy is locked');
+    expect(screen.queryByTestId('fix-wizard-nothing')).toBeNull();
+    expect(screen.queryByTestId('fix-wizard-run')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry scan' }));
+
+    expect(await screen.findByTestId('fix-wizard-choose')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

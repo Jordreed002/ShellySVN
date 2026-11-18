@@ -7,8 +7,7 @@
  * - Missing files (`!`) are grouped by the directory that contains them;
  *   each group can be restored from the local pristine store (a chunked,
  *   exact-path `svn revert` — offline, and local edits elsewhere are never
- *   touched), removed from the working copy via the sticky-exclude tool
- *   (repository untouched, local-only leftovers trashed), or skipped.
+ *   touched), restored then removed via the sticky-exclude tool, or skipped.
  * - Missing/incomplete directories are completed with cleanup + update
  *   (repository access needed).
  *
@@ -56,10 +55,15 @@ interface MissingGroup {
   action: GroupAction;
 }
 
-const SEPARATORS = /[/\\]/;
-
-function joinPath(root: string, segment: string): string {
-  return `${root.replace(/[\\/]+$/, '')}\\${segment}`;
+function groupKey(root: string, path: string, separator: '/' | '\\'): string {
+  const rootPrefix = `${root}${separator}`;
+  const normalized = separator === '\\' ? path.replaceAll('/', '\\') : path;
+  const insideRoot =
+    separator === '\\'
+      ? normalized.toLowerCase().startsWith(rootPrefix.toLowerCase())
+      : normalized.startsWith(rootPrefix);
+  const relative = insideRoot ? normalized.slice(rootPrefix.length) : normalized;
+  return relative.split(separator).filter(Boolean).slice(0, 2).join(separator);
 }
 
 /**
@@ -69,42 +73,32 @@ function joinPath(root: string, segment: string): string {
  */
 function groupMissingFiles(root: string, entries: SvnStatusEntry[]): MissingGroup[] {
   const groups = new Map<string, MissingGroup>();
-  const trimmedRoot = root.replace(/[\\/]+$/, '');
+  const separator = /^(?:[A-Za-z]:|\\\\)/.test(root) ? '\\' : '/';
+  const trimmedRoot =
+    separator === '\\' ? root.replaceAll('/', '\\').replace(/\\+$/, '') : root.replace(/\/+$/, '');
   for (const entry of entries) {
     if (entry.status !== '!' || entry.isDirectory) continue;
-    const relative = entry.path.startsWith(trimmedRoot)
-      ? entry.path.slice(trimmedRoot.length).replace(/^[\\/]+/, '')
-      : entry.path;
-    const segments = relative.split(SEPARATORS).filter(Boolean);
-    const key = segments.length > 2 ? segments.slice(0, 2).join('\\') : segments.join('\\');
-    let group = groups.get(key);
+    const key = groupKey(trimmedRoot, entry.path, separator);
+    const lookupKey = separator === '\\' ? key.toLowerCase() : key;
+    let group = groups.get(lookupKey);
     if (!group) {
       group = {
-        groupPath: joinPath(trimmedRoot, key),
+        groupPath: `${trimmedRoot}${separator}${key}`,
         label: key,
         files: [],
         otherEntries: [],
         action: 'restore',
       };
-      groups.set(key, group);
+      groups.set(lookupKey, group);
     }
     group.files.push(entry);
   }
-  return Array.from(groups.values()).sort((a, b) => b.files.length - a.files.length);
-}
-
-function collectOtherEntries(root: string, entries: SvnStatusEntry[], groups: MissingGroup[]): void {
-  const trimmedRoot = root.replace(/[\\/]+$/, '');
   for (const entry of entries) {
     if (entry.status === '!') continue;
-    const normalized = entry.path.replace(/^[\\/]+/, '');
-    for (const group of groups) {
-      const relativeGroup = group.groupPath.slice(trimmedRoot.length).replace(/^[\\/]+/, '');
-      if (normalized.startsWith(relativeGroup + '\\')) {
-        group.otherEntries.push(entry);
-      }
-    }
+    const key = groupKey(trimmedRoot, entry.path, separator);
+    groups.get(separator === '\\' ? key.toLowerCase() : key)?.otherEntries.push(entry);
   }
+  return Array.from(groups.values()).sort((a, b) => b.files.length - a.files.length);
 }
 
 const STEP_LABELS: Record<SvnWorkingCopyRepairProgress['step'], string> = {
@@ -134,6 +128,13 @@ export function WorkingCopyFixWizard({
     enabled: isOpen,
     staleTime: 30_000,
   });
+  const scanError =
+    statusQuery.error?.message ||
+    statusQuery.data?.error ||
+    statusQuery.data?.parseError ||
+    (statusQuery.data?.cancelled || statusQuery.data?.partial
+      ? 'The status scan did not finish.'
+      : null);
 
   const reset = useCallback(() => {
     setGroups([]);
@@ -147,7 +148,6 @@ export function WorkingCopyFixWizard({
   const analyze = useCallback(
     (entries: SvnStatusEntry[]) => {
       const nextGroups = groupMissingFiles(workingCopyPath, entries);
-      collectOtherEntries(workingCopyPath, entries, nextGroups);
       setGroups(nextGroups);
       const dirs = entries.filter((entry) => entry.status === '!' && entry.isDirectory);
       setCompleteDirs(new Map(dirs.map((entry) => [entry.path, true])));
@@ -165,9 +165,10 @@ export function WorkingCopyFixWizard({
 
   // Move from scanning to choosing once the status scan lands.
   useEffect(() => {
-    if (phase !== 'scanning' || statusQuery.isFetching || !statusQuery.data) return;
+    if (!isOpen || phase !== 'scanning' || statusQuery.isFetching || scanError || !statusQuery.data)
+      return;
     analyze(statusQuery.data.entries);
-  }, [analyze, phase, statusQuery.data, statusQuery.isFetching]);
+  }, [analyze, isOpen, phase, scanError, statusQuery.data, statusQuery.isFetching]);
 
   const setGroupAction = useCallback((groupPath: string, action: GroupAction) => {
     setGroups((previous) =>
@@ -178,8 +179,10 @@ export function WorkingCopyFixWizard({
   const plan: SvnWorkingCopyRepairPlan = useMemo(
     () => ({
       workingCopyPath,
+      // SVN can leave an exclusion incomplete if versioned files are missing.
+      // Restore just those files from cache before the checked exclusion.
       restoreFiles: groups
-        .filter((group) => group.action === 'restore')
+        .filter((group) => group.action !== 'skip')
         .flatMap((group) => group.files.map((file) => file.path)),
       completeDirs: Array.from(completeDirs.entries())
         .filter(([, enabled]) => enabled)
@@ -229,20 +232,28 @@ export function WorkingCopyFixWizard({
 
         {phase === 'scanning' && (
           <div className="space-y-2" data-testid="fix-wizard-scan">
-            <p className="flex items-center gap-2 text-sm text-text-muted" role="status">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              Scanning the working copy for missing and incomplete paths…
-            </p>
+            {(!scanError || statusQuery.isFetching) && (
+              <p className="flex items-center gap-2 text-sm text-text-muted" role="status">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Scanning the working copy for missing and incomplete paths…
+              </p>
+            )}
             {statusQuery.isFetching && (
               <p className="text-11 text-text-faint">
                 Large working copies can take a while to scan. The result is shared with the file
                 list, so nothing is scanned twice.
               </p>
             )}
-            {statusQuery.error && (
-              <p className="flex items-start gap-2 rounded-lg border border-svn-conflict/40 bg-svn-conflict/10 p-2.5 text-12.5 text-text-secondary" role="alert">
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-svn-conflict" aria-hidden="true" />
-                {(statusQuery.error as Error).message}
+            {scanError && !statusQuery.isFetching && (
+              <p
+                className="flex items-start gap-2 rounded-lg border border-svn-conflict/40 bg-svn-conflict/10 p-2.5 text-12.5 text-text-secondary"
+                role="alert"
+              >
+                <AlertTriangle
+                  className="mt-0.5 h-4 w-4 flex-shrink-0 text-svn-conflict"
+                  aria-hidden="true"
+                />
+                {scanError}
               </p>
             )}
           </div>
@@ -257,12 +268,10 @@ export function WorkingCopyFixWizard({
                   folder{groups.length === 1 ? '' : 's'}
                 </h3>
                 <p className="text-12.5 leading-relaxed text-text-secondary">
-                  Missing files are versioned but no longer on disk. Restoring brings them back
-                  from the local pristine cache (offline, and only these exact paths — your other
-                  changes are never reverted). Removing drops the folder from this checkout
-                  without touching the repository; leftover unversioned files inside move to the
-                  trash and <span className="font-mono text-11">svn update</span> can bring the
-                  folder back later.
+                  Missing files are versioned but no longer on disk. Restoring brings them back from
+                  the local pristine cache. Removing a group restores its missing files first so SVN
+                  can exclude it. Exclusion refuses groups with versioned edits. Unversioned and
+                  ignored files move to the trash.
                 </p>
                 <div className="max-h-64 space-y-2 overflow-y-auto pr-1" data-testid="fix-wizard-groups">
                   {groups.map((group) => (
@@ -302,10 +311,13 @@ export function WorkingCopyFixWizard({
                       </div>
                       {group.action === 'exclude' && group.otherEntries.length > 0 && (
                         <p className="mt-2 flex items-start gap-1.5 text-11.5 text-warning">
-                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
-                          The whole folder is removed, including the {group.otherEntries.length}{' '}
-                          other changed/unversioned path
-                          {group.otherEntries.length === 1 ? '' : 's'} inside it.
+                          <AlertTriangle
+                            className="mt-0.5 h-3.5 w-3.5 flex-shrink-0"
+                            aria-hidden="true"
+                          />
+                          Review the {group.otherEntries.length} other changed or unversioned path
+                          {group.otherEntries.length === 1 ? '' : 's'} in this group before removing
+                          it.
                         </p>
                       )}
                     </div>
@@ -427,6 +439,15 @@ export function WorkingCopyFixWizard({
       </div>
 
       <div className="modal-footer">
+        {phase === 'scanning' && scanError && !statusQuery.isFetching && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void statusQuery.refetch()}
+          >
+            Retry scan
+          </button>
+        )}
         {phase === 'choose' && (
           <>
             <button type="button" className="btn btn-secondary" onClick={closeAndReset}>

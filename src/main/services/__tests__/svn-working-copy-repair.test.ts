@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
   excludeFromWorkingCopy: vi.fn(),
+  lstat: vi.fn(),
 }));
 
 vi.mock('../svn-executor', () => ({
@@ -13,6 +14,11 @@ vi.mock('../svn-executor', () => ({
 
 vi.mock('../svn-working-copy', () => ({
   excludeFromWorkingCopy: mockState.excludeFromWorkingCopy,
+}));
+
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs/promises')>()),
+  lstat: mockState.lstat,
 }));
 
 import { repairWorkingCopy } from '../svn-working-copy-repair';
@@ -24,9 +30,26 @@ function paths(count: number, prefix = 'src'): string[] {
   return Array.from({ length: count }, (_, index) => `${ROOT}\\${prefix}\\file${index}.txt`);
 }
 
+function statusXml(entries: Array<[path: string, status: string]>): string {
+  return `<status>${entries
+    .map(
+      ([path, status]) =>
+        `<target path="${path}"><entry path="${path}"><wc-status item="${status}" props="none"/></entry></target>`
+    )
+    .join('')}</status>`;
+}
+
+function svnOutput(args: string[]): string {
+  return args[0] === 'status'
+    ? statusXml(args.slice(args.indexOf('--') + 1).map((path) => [path, 'missing']))
+    : '';
+}
+
 beforeEach(() => {
   mockState.runSvnText.mockReset();
-  mockState.runSvnText.mockResolvedValue('');
+  mockState.runSvnText.mockImplementation(async (args: string[]) => svnOutput(args));
+  mockState.lstat.mockReset();
+  mockState.lstat.mockRejectedValue(Object.assign(new Error('Missing'), { code: 'ENOENT' }));
   mockState.excludeFromWorkingCopy.mockReset();
   mockState.excludeFromWorkingCopy.mockResolvedValue({ success: true });
 });
@@ -44,12 +67,21 @@ describe('svn-working-copy-repair', () => {
 
     expect(result).toEqual({
       success: true,
-      restored: 0,
+      restored: 450,
       completedDirs: 0,
       excludedDirs: 0,
       stepErrors: [],
     });
-    const revertCalls = mockState.runSvnText.mock.calls.map((call) => call[0] as string[]);
+    const calls = mockState.runSvnText.mock.calls.map((call) => call[0] as string[]);
+    expect(calls.map((args) => args[0])).toEqual([
+      'status',
+      'revert',
+      'status',
+      'revert',
+      'status',
+      'revert',
+    ]);
+    const revertCalls = calls.filter((args) => args[0] === 'revert');
     expect(revertCalls).toHaveLength(3);
     // Chunks of 200, 200, then the 50-file remainder.
     expect(revertCalls[0]?.slice(-200)).toEqual(files.slice(0, 200));
@@ -76,11 +108,7 @@ describe('svn-working-copy-repair', () => {
     const steps = mockState.runSvnText.mock.calls.map((call) => (call[0] as string[])[0]);
     expect(steps[0]).toBe('cleanup');
     expect(steps.filter((step) => step === 'update')).toHaveLength(2);
-    expect(progress.map((entry) => entry.step)).toEqual([
-      'cleanup',
-      'complete',
-      'complete',
-    ]);
+    expect(progress.map((entry) => entry.step)).toEqual(['cleanup', 'complete', 'complete']);
     expect(progress.at(-1)).toMatchObject({ step: 'complete', completed: 2, total: 2 });
   });
 
@@ -93,7 +121,53 @@ describe('svn-working-copy-repair', () => {
     });
 
     const commands = mockState.runSvnText.mock.calls.map((call) => (call[0] as string[])[0]);
-    expect(commands).toEqual(['revert']);
+    expect(commands).toEqual(['status', 'revert']);
+  });
+
+  it('leaves recreated files and paths whose SVN status is no longer missing alone', async () => {
+    const [missing, recreated, deleted, changed] = paths(4);
+    mockState.runSvnText.mockResolvedValueOnce(
+      statusXml([
+        [missing, 'missing'],
+        [recreated, 'missing'],
+        [deleted, 'deleted'],
+        [changed, 'modified'],
+      ])
+    );
+    mockState.lstat.mockImplementation(async (path: string) => {
+      if (path === recreated) return {};
+      throw Object.assign(new Error('Missing'), { code: 'ENOENT' });
+    });
+
+    const result = await repairWorkingCopy({
+      workingCopyPath: ROOT,
+      restoreFiles: [missing, recreated, deleted, changed],
+      completeDirs: [],
+      excludeDirs: [],
+    });
+
+    expect(result).toMatchObject({ success: true, restored: 1 });
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith([
+      'revert',
+      '--depth',
+      'empty',
+      '--',
+      missing,
+    ]);
+    expect(mockState.lstat).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not revert files when the new status scan fails', async () => {
+    mockState.runSvnText.mockRejectedValueOnce(new Error('Status unavailable'));
+    const result = await repairWorkingCopy({
+      workingCopyPath: ROOT,
+      restoreFiles: paths(1),
+      completeDirs: [],
+      excludeDirs: [],
+    });
+    expect(result).toMatchObject({ success: false, restored: 0 });
+    expect(result.stepErrors[0]).toContain('Status unavailable');
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
   });
 
   it('routes exclusions through the remove-from-working-copy tool', async () => {
@@ -108,16 +182,44 @@ describe('svn-working-copy-repair', () => {
     expect(mockState.excludeFromWorkingCopy).toHaveBeenCalledWith([`${ROOT}\\Clients\\Gone`]);
   });
 
+  it('restores missing files before the checked exclusion tool inspects their folder', async () => {
+    const [missing] = paths(1);
+    const dir = `${ROOT}\\src`;
+    mockState.excludeFromWorkingCopy.mockImplementation(async () => {
+      expect(mockState.runSvnText).toHaveBeenLastCalledWith([
+        'revert',
+        '--depth',
+        'empty',
+        '--',
+        missing,
+      ]);
+      return { success: true };
+    });
+
+    const result = await repairWorkingCopy({
+      workingCopyPath: ROOT,
+      restoreFiles: [missing],
+      completeDirs: [],
+      excludeDirs: [dir],
+    });
+
+    expect(result).toMatchObject({ success: true, restored: 1, excludedDirs: 1 });
+    expect(mockState.excludeFromWorkingCopy).toHaveBeenCalledWith([dir]);
+  });
+
   it('records chunk failures and keeps repairing the remaining files', async () => {
     const files = paths(400);
     mockState.runSvnText.mockImplementation(async (args: string[]) => {
       // Fail exactly the second chunk (['revert','--depth','empty','--',200
       // targets] — 204 argv entries, first target file200.txt).
-      const argv = args as string[];
-      if (argv.length === 204 && argv.includes(`${ROOT}\\src\\file200.txt`)) {
+      if (
+        args[0] === 'revert' &&
+        args.length === 204 &&
+        args.includes(`${ROOT}\\src\\file200.txt`)
+      ) {
         throw new Error('svn: E155004: working copy locked');
       }
-      return '';
+      return svnOutput(args);
     });
 
     const result = await repairWorkingCopy({
@@ -130,7 +232,8 @@ describe('svn-working-copy-repair', () => {
     expect(result.success).toBe(false);
     expect(result.stepErrors).toHaveLength(1);
     expect(result.stepErrors[0]).toContain('file200.txt');
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(2);
+    expect(result.restored).toBe(200);
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(4);
   });
 
   it('reports exclusion tool failures instead of throwing', async () => {

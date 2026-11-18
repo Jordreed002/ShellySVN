@@ -67,6 +67,8 @@ const svnXmlParser = createSvnXmlParser({
 export interface SvnStatusXmlEntry {
   path: string;
   item: string;
+  props?: string;
+  treeConflicted?: boolean;
   revision?: number;
   author?: string;
   changelist?: string;
@@ -125,12 +127,15 @@ function optionalNumber(value: number | string | undefined): number | undefined 
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
+export function parseSvnStatusEntriesXml(xml: string, strict = false): SvnStatusXmlEntry[] {
   try {
     type StatusEntry = {
       '@_path'?: string;
       'wc-status'?: {
         '@_item'?: string;
+        '@_props'?: string;
+        '@_tree-conflicted'?: boolean | string;
+        'tree-conflict'?: unknown;
         '@_revision'?: number;
         commit?: { '@_revision'?: number; author?: string };
       };
@@ -138,24 +143,25 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
     };
     const parsed = svnXmlParser.parse(xml) as {
       status?: {
-        target?: {
-          entry?: StatusEntry | StatusEntry[];
-          changelist?:
-            | { '@_name'?: string; entry?: StatusEntry | StatusEntry[] }
-            | Array<{ '@_name'?: string; entry?: StatusEntry | StatusEntry[] }>;
-        };
+        target?: StatusTarget | StatusTarget[];
         changelist?:
           | { '@_name'?: string; entry?: StatusEntry | StatusEntry[] }
           | Array<{ '@_name'?: string; entry?: StatusEntry | StatusEntry[] }>;
       };
     };
+    type StatusTarget = {
+      entry?: StatusEntry | StatusEntry[];
+      changelist?:
+        | { '@_name'?: string; entry?: StatusEntry | StatusEntry[] }
+        | Array<{ '@_name'?: string; entry?: StatusEntry | StatusEntry[] }>;
+    };
 
-    const target = parsed.status?.target;
-    const entries: Array<{ entry: StatusEntry; changelist?: string }> = asArray(target?.entry).map(
-      (entry) => ({ entry })
+    const targets = asArray(parsed.status?.target);
+    const entries: Array<{ entry: StatusEntry; changelist?: string }> = targets.flatMap((target) =>
+      asArray(target.entry).map((entry) => ({ entry }))
     );
     for (const changelist of [
-      ...asArray(target?.changelist),
+      ...targets.flatMap((target) => asArray(target.changelist)),
       ...asArray(parsed.status?.changelist),
     ]) {
       entries.push(
@@ -164,8 +170,7 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
           // This parser instance strnum-converts attributes, so a numeric-
           // or boolean-looking name ("5", "true") arrives as number/boolean —
           // coerce back to satisfy SvnStatusXmlEntry.changelist: string.
-          changelist:
-            changelist['@_name'] === undefined ? undefined : String(changelist['@_name']),
+          changelist: changelist['@_name'] === undefined ? undefined : String(changelist['@_name']),
         }))
       );
     }
@@ -178,14 +183,22 @@ export function parseSvnStatusEntriesXml(xml: string): SvnStatusXmlEntry[] {
         results.push({
           path: entry['@_path'],
           item: wcStatus['@_item'],
+          ...(wcStatus['@_props'] ? { props: wcStatus['@_props'] } : {}),
+          ...(wcStatus['@_tree-conflicted'] === true ||
+          wcStatus['@_tree-conflicted'] === 'true' ||
+          wcStatus['tree-conflict']
+            ? { treeConflicted: true }
+            : {}),
           revision: wcStatus.commit?.['@_revision'] ?? wcStatus['@_revision'],
           author: wcStatus.commit?.author,
-          changelist: changelist ?? (entryChangelist === undefined ? undefined : String(entryChangelist)),
+          changelist:
+            changelist ?? (entryChangelist === undefined ? undefined : String(entryChangelist)),
         });
       }
     }
     return results;
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return [];
   }
 }

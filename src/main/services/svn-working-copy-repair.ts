@@ -3,9 +3,13 @@ import type {
   SvnWorkingCopyRepairProgress,
   SvnWorkingCopyRepairResult,
 } from '@shared/types';
+import { lstat } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { debug } from '../utils/debug';
+import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { runSvnText } from './svn-executor';
+import { runSerializedWorkingCopyMutation } from './svn-mutation-queue';
 import { excludeFromWorkingCopy } from './svn-working-copy';
 
 /**
@@ -18,6 +22,40 @@ const RESTORE_CHUNK_SIZE = 200;
 
 export type RepairProgressSink = (progress: SvnWorkingCopyRepairProgress) => void;
 
+async function isAbsentOnDisk(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true;
+    throw error;
+  }
+}
+
+async function findStillMissingFiles(paths: string[]): Promise<string[]> {
+  const xml = await runSvnText(withSvnTargets(['status', '--xml', '--depth', 'empty'], paths));
+  if (!xml.includes('<status') || !xml.includes('</status>')) {
+    throw new Error('Could not verify status before restoring missing files.');
+  }
+  const missing = new Set(
+    parseSvnStatusEntriesXml(xml, true)
+      .filter((entry) => entry.item === 'missing')
+      .map((entry) => {
+        if (entry.treeConflicted || (entry.props && !['none', 'normal'].includes(entry.props))) {
+          throw new Error(
+            `Resolve the local changes at ${entry.path} before restoring this batch.`
+          );
+        }
+        return resolve(entry.path);
+      })
+  );
+  const candidates = paths.filter((path) => missing.has(resolve(path)));
+  // Status comes from SVN metadata. Check disk again, including dangling links,
+  // to catch files restored while the fresh scan was running.
+  const absent = await Promise.all(candidates.map(isAbsentOnDisk));
+  return candidates.filter((_, index) => absent[index]);
+}
+
 /**
  * Execute a fix-wizard repair plan: bring missing files back from the local
  * pristine store, complete missing/incomplete directories from the
@@ -27,8 +65,7 @@ export type RepairProgressSink = (progress: SvnWorkingCopyRepairProgress) => voi
  * away). Every step is idempotent: an interrupted repair can simply be run
  * again, and already-repaired paths revert/update/exclude as no-ops.
  *
- * Restore only reverts the exact missing paths, never a whole subtree, so
- * genuine local edits anywhere in the working copy are out of reach.
+ * Before reverting exact paths, verify fresh SVN status and disk presence.
  */
 export async function repairWorkingCopy(
   plan: SvnWorkingCopyRepairPlan,
@@ -68,7 +105,7 @@ export async function repairWorkingCopy(
     debug.error(`[SVN] Repair ${step} failed for ${path}:`, error);
   };
 
-  try {
+  const restoreAndComplete = async () => {
     if (plan.completeDirs.length > 0) {
       // Interrupted updates leave administrative locks behind; clear them
       // before revert/update touch the working copy.
@@ -79,7 +116,11 @@ export async function repairWorkingCopy(
     for (let offset = 0; offset < plan.restoreFiles.length; offset += RESTORE_CHUNK_SIZE) {
       const chunk = plan.restoreFiles.slice(offset, offset + RESTORE_CHUNK_SIZE);
       try {
-        await runSvnText(withSvnTargets(['revert', '--depth', 'empty'], chunk));
+        const missing = await findStillMissingFiles(chunk);
+        if (missing.length > 0) {
+          await runSvnText(withSvnTargets(['revert', '--depth', 'empty'], missing));
+          result.restored += missing.length;
+        }
       } catch (error) {
         recordFailure('restore', `${chunk.length} path(s) at ${chunk[0]}`, error);
       }
@@ -105,10 +146,15 @@ export async function repairWorkingCopy(
         currentPath: dir,
       });
     }
+  };
 
-    // The remove-from-working-copy tool owns the exclusion semantics — most
-    // importantly moving local-only content to the trash first, without which
-    // SVN half-applies the exclusion and leaves the working copy locked.
+  try {
+    if (plan.restoreFiles.length > 0 || plan.completeDirs.length > 0) {
+      await runSerializedWorkingCopyMutation(plan.workingCopyPath, restoreAndComplete);
+    }
+
+    // Exclusion takes the mutation lock itself and rechecks the working copy
+    // after restoring files. Keep it outside the preceding queue callback.
     if (plan.excludeDirs.length > 0) {
       const exclusion = await excludeFromWorkingCopy(plan.excludeDirs);
       if (exclusion.success) {
