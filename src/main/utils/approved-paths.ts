@@ -1,5 +1,7 @@
 import { existsSync, realpathSync, readFileSync } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
+import { realpath } from 'node:fs/promises';
+import { writeSecureJson } from './secure-json';
 import { hardenPrivateFile, writeSecureJsonSync } from './secure-json';
 
 interface ApprovedPathRecord {
@@ -35,6 +37,92 @@ function normalizePath(path: string): string {
   } catch {
     return normalized;
   }
+}
+
+async function normalizePathAsync(path: string): Promise<string> {
+  const normalized = resolve(path);
+  let ancestor = normalized;
+  for (;;) {
+    try {
+      const canonical = await realpath(ancestor);
+      return resolve(canonical, relative(ancestor, normalized));
+    } catch {
+      const parent = dirname(ancestor);
+      if (parent === ancestor) return normalized;
+      ancestor = parent;
+    }
+  }
+}
+
+let persistenceWrite: Promise<void> = Promise.resolve();
+function savePersistedAsync(): Promise<void> {
+  const file = persistenceFile;
+  if (!file) return Promise.resolve();
+  persistenceWrite = persistenceWrite
+    .then(async () => {
+      const registry: ApprovedPathRegistryV2 = {
+        version: 2,
+        roots: Array.from(approvedRoots.values()),
+      };
+      await writeSecureJson(file, registry);
+    })
+    .catch((error) => console.error('[approved-paths] Failed to persist approved roots:', error));
+  return persistenceWrite;
+}
+
+export async function approvePathForIpcAsync(
+  path: string,
+  kind: 'directory' | 'file' = 'directory'
+): Promise<string> {
+  return approvePathWithSourceAsync(path, kind, 'native-picker');
+}
+
+export async function approveApplicationHomeForIpcAsync(path: string): Promise<string> {
+  return approvePathWithSourceAsync(path, 'directory', 'application-home');
+}
+
+async function approvePathWithSourceAsync(
+  path: string,
+  kind: 'directory' | 'file',
+  source: ApprovedPathRecord['source']
+): Promise<string> {
+  const canonicalPath = await normalizePathAsync(path);
+  if (!approvedRoots.has(canonicalPath)) {
+    approvedRoots.set(canonicalPath, {
+      canonicalPath,
+      kind,
+      source,
+      approvedAt: new Date().toISOString(),
+    });
+    await savePersistedAsync();
+  }
+  return path;
+}
+
+export async function isPathApprovedForIpcAsync(path: string): Promise<boolean> {
+  return isCanonicalPathApproved(await normalizePathAsync(path));
+}
+
+function isCanonicalPathApproved(normalized: string): boolean {
+  for (const [root, record] of approvedRoots) {
+    if (
+      (record.kind === 'file' && root === normalized) ||
+      (record.kind === 'directory' && isInsideRoot(root, normalized))
+    )
+      return true;
+  }
+  return false;
+}
+
+export async function assertPathApprovedForIpcAsync(
+  path: string,
+  operation: string
+): Promise<string> {
+  const normalized = await normalizePathAsync(path);
+  if (!isCanonicalPathApproved(normalized)) {
+    throw new Error(`${operation} is only allowed inside a folder selected through ShellySVN.`);
+  }
+  return normalized;
 }
 
 function isInsideRoot(root: string, candidate: string): boolean {

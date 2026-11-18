@@ -50,8 +50,8 @@ export async function compareBranches(
   leftUrl: string,
   rightUrl: string
 ): Promise<BranchComparisonResult> {
-  const left = validateRepositoryUrl(leftUrl, 'Left branch');
-  const right = validateRepositoryUrl(rightUrl, 'Right branch');
+  const left = await validateRepositoryUrl(leftUrl, 'Left branch');
+  const right = await validateRepositoryUrl(rightUrl, 'Right branch');
   const [diff, leftHistory, rightHistory] = await Promise.all([
     getUrlDiff(left, right),
     getLog(left, MAX_LOG_ENTRIES),

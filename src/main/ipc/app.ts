@@ -3,7 +3,7 @@ import { readdir, stat, unlink as removeFile, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { openValidatedExternalUrl } from '../utils/external-url';
 import { getSvnCacheService } from '../services/svn-cache-service';
-import { approveApplicationHomeForIpc } from '../utils/approved-paths';
+import { approveApplicationHomeForIpcAsync } from '../utils/approved-paths';
 
 /**
  * Cache type definitions
@@ -170,7 +170,7 @@ export function registerAppHandlers(): void {
   ipcMain.handle('app:getPlatform', () => process.platform);
 
   ipcMain.handle('app:getHomePath', () => {
-    return approveApplicationHomeForIpc(app.getPath('home'));
+    return approveApplicationHomeForIpcAsync(app.getPath('home'));
   });
 
   ipcMain.handle('app:openExternal', async (_, url: string) => {

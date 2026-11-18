@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getUrlDiff: vi.fn(),
   runSvnText: vi.fn(),
   assertPathApprovedForIpc: vi.fn((path: string) => path),
+  assertPathApprovedForIpcAsync: vi.fn((path: string) => path),
 }));
 vi.mock('../svn-history', () => ({
   getLog: mocks.getLog,
@@ -18,6 +19,7 @@ vi.mock('../svn-history', () => ({
 vi.mock('../svn-executor', () => ({ runSvnText: mocks.runSvnText }));
 vi.mock('../../utils/approved-paths', () => ({
   assertPathApprovedForIpc: mocks.assertPathApprovedForIpc,
+  assertPathApprovedForIpcAsync: mocks.assertPathApprovedForIpc,
 }));
 
 import { compareBranches } from '../svn-branch-comparison';
@@ -41,30 +43,32 @@ describe('deterministic SVN intelligence', () => {
     mocks.assertPathApprovedForIpc.mockImplementation((path: string) => path);
   });
 
-  it('rejects unsupported URLs, embedded credentials, and control characters', () => {
-    expect(() => validateRepositoryUrl('javascript:alert(1)', 'Branch')).toThrow(/unsupported/i);
-    expect(() => validateRepositoryUrl('https://user:secret@example.test/repo', 'Branch')).toThrow(
-      /credentials/i
+  it('rejects unsupported URLs, embedded credentials, and control characters', async () => {
+    await expect(validateRepositoryUrl('javascript:alert(1)', 'Branch')).rejects.toThrow(
+      /unsupported/i
     );
-    expect(() => validateRepositoryUrl('https://example.test/repo\n--force', 'Branch')).toThrow(
-      /control/i
-    );
+    await expect(
+      validateRepositoryUrl('https://user:secret@example.test/repo', 'Branch')
+    ).rejects.toThrow(/credentials/i);
+    await expect(
+      validateRepositoryUrl('https://example.test/repo\n--force', 'Branch')
+    ).rejects.toThrow(/control/i);
   });
 
-  it('subjects local repository URLs to the approved-path boundary', () => {
+  it('subjects local repository URLs to the approved-path boundary', async () => {
     mocks.assertPathApprovedForIpc.mockImplementation(() => {
       throw new Error('not approved');
     });
     // pathToFileURL/resolve keep the fixture valid on every host: file URLs
     // without a drive letter cannot be converted to a Windows path at all.
     const localPath = resolve('/private/repository');
-    expect(() => validateRepositoryUrl(pathToFileURL(localPath).href, 'Branch')).toThrow(
+    await expect(validateRepositoryUrl(pathToFileURL(localPath).href, 'Branch')).rejects.toThrow(
       /not approved/i
     );
     expect(mocks.assertPathApprovedForIpc).toHaveBeenCalledWith(localPath, 'Branch');
     // Drive-less file URLs are structurally invalid on Windows and must be
     // rejected as validation errors, not as Node internal TypeErrors.
-    expect(() => validateRepositoryUrl('file:///private/repository', 'Branch')).toThrow(
+    await expect(validateRepositoryUrl('file:///private/repository', 'Branch')).rejects.toThrow(
       /must not use a remote file URL|does not name a valid local path|not approved/i
     );
   });

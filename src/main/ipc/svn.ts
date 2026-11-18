@@ -132,7 +132,7 @@ import {
   type KnownWorkingCopyEntry,
 } from '../services/wc-relink-detector';
 import { getSettingsManager } from '../settings-manager';
-import { approvePathForIpc, assertPathApprovedForIpc } from '../utils/approved-paths';
+import { approvePathForIpcAsync, assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { getMonitoredWorkingCopies, renameMonitoredWorkingCopy } from './monitor';
 import { getStatusService } from '../services/status-service';
 import { getSvnCacheService } from '../services/svn-cache-service';
@@ -372,7 +372,7 @@ async function applyRelinkRegistryUpdate(oldPath: string, newPath: string): Prom
 
   // The moved folder was never picked through a native dialog; the user
   // confirmed the proposal, which is equivalent consent for the new root.
-  approvePathForIpc(newPath, 'directory');
+  await approvePathForIpcAsync(newPath, 'directory');
 }
 
 export function registerSvnHandlers(): void {
@@ -1128,12 +1128,9 @@ export function registerSvnHandlers(): void {
   );
 
   // SVN Shelve - Export shelf as a portable bundle directory
-  ipcMain.handle(
-    'svn:shelve:export',
-    async (_, name: string, path: string, outputPath: string) => {
-      return shelveExport(name, path, outputPath);
-    }
-  );
+  ipcMain.handle('svn:shelve:export', async (_, name: string, path: string, outputPath: string) => {
+    return shelveExport(name, path, outputPath);
+  });
 
   // SVN Shelve - Import a portable shelf bundle into a working copy
   ipcMain.handle(
@@ -1381,7 +1378,10 @@ export function registerSvnHandlers(): void {
   ipcMain.handle(
     'svn:analyzePristine',
     async (_, workingCopyPath: string, options?: Omit<PristineAnalysisOptions, 'signal'>) => {
-      const approvedPath = assertPathApprovedForIpc(workingCopyPath, 'Pristine analysis');
+      const approvedPath = await assertPathApprovedForIpcAsync(
+        workingCopyPath,
+        'Pristine analysis'
+      );
       return analyzePristineStore(approvedPath, options);
     }
   );
@@ -1392,7 +1392,9 @@ export function registerSvnHandlers(): void {
     'svn:scanSecrets',
     async (_, paths: string[], options?: Omit<SecretScanOptions, 'signal'>) => {
       const targets = Array.isArray(paths) ? paths : [paths];
-      const approvedPaths = targets.map((path) => assertPathApprovedForIpc(path, 'Secret scan'));
+      const approvedPaths = await Promise.all(
+        targets.map((path) => assertPathApprovedForIpcAsync(path, 'Secret scan'))
+      );
       return scanFilesForSecrets(approvedPaths, options);
     }
   );

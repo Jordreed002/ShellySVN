@@ -1,11 +1,11 @@
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { validateSvnTargets } from '../utils/svn-targets';
 import { fileURLToPath } from 'node:url';
 
 const ALLOWED_REPOSITORY_PROTOCOLS = new Set(['https:', 'http:', 'svn:', 'svn+ssh:', 'file:']);
 const MAX_REPOSITORY_URL_LENGTH = 8 * 1024;
 
-export function validateRepositoryUrl(value: string, label: string): string {
+export async function validateRepositoryUrl(value: string, label: string): Promise<string> {
   if (typeof value !== 'string' || value.length > MAX_REPOSITORY_URL_LENGTH) {
     throw new Error(`${label} must be a bounded SVN repository URL.`);
   }
@@ -33,13 +33,13 @@ export function validateRepositoryUrl(value: string, label: string): string {
       // paths; they can never name an approved root on that host.
       throw new Error(`${label} file URL does not name a valid local path on this system.`);
     }
-    assertPathApprovedForIpc(localPath, label);
+    await assertPathApprovedForIpcAsync(localPath, label);
   }
   return url.toString();
 }
 
-export function validateRepositoryTarget(value: string, label: string): string {
+export async function validateRepositoryTarget(value: string, label: string): Promise<string> {
   return /^(?:https?|svn(?:\+ssh)?|file):\/\//i.test(value)
     ? validateRepositoryUrl(value, label)
-    : assertPathApprovedForIpc(value, label);
+    : assertPathApprovedForIpcAsync(value, label);
 }

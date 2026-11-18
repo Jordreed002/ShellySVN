@@ -68,6 +68,7 @@ vi.mock('electron', () => ({
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
   default: {
+    realpath: async (p: string) => mockState.realpathSync(p),
     readdir: mockState.readdir,
     stat: mockState.stat,
     readFile: mockState.readFile,
@@ -75,6 +76,7 @@ vi.mock('fs/promises', () => ({
     copyFile: mockState.copyFile,
     mkdir: mockState.mkdir,
   },
+  realpath: async (p: string) => mockState.realpathSync(p),
   readdir: mockState.readdir,
   stat: mockState.stat,
   readFile: mockState.readFile,
@@ -85,6 +87,7 @@ vi.mock('fs/promises', () => ({
 
 vi.mock('node:fs/promises', () => ({
   default: {
+    realpath: async (p: string) => mockState.realpathSync(p),
     readdir: mockState.readdir,
     stat: mockState.stat,
     readFile: mockState.readFile,
@@ -92,6 +95,7 @@ vi.mock('node:fs/promises', () => ({
     copyFile: mockState.copyFile,
     mkdir: mockState.mkdir,
   },
+  realpath: async (p: string) => mockState.realpathSync(p),
   readdir: mockState.readdir,
   stat: mockState.stat,
   readFile: mockState.readFile,
@@ -1043,10 +1047,7 @@ describe('FS IPC Handlers', () => {
       approvePathForIpc('/test/path');
       const sender = makeSender(30);
 
-      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
-        { sender },
-        '/test/path'
-      );
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)({ sender }, '/test/path');
       const watcher = createdWatchers[createdWatchers.length - 1];
       expect(getActiveFileWatcherPathsForTests()).toHaveLength(1);
 
@@ -1090,16 +1091,10 @@ describe('FS IPC Handlers', () => {
       approvePathForIpc('/test/wc');
       const sender = makeSender(34);
 
-      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
-        { sender },
-        '/test/wc'
-      );
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)({ sender }, '/test/wc');
       await closeFileWatchersForPath('/test/wc');
 
-      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)(
-        { sender },
-        '/test/wc'
-      );
+      await (handlers.get('fs:watch') as (...args: unknown[]) => unknown)({ sender }, '/test/wc');
       expect(createdWatchers).toHaveLength(2);
       expect(getActiveFileWatcherPathsForTests()).toHaveLength(1);
     });

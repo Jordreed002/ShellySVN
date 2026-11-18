@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import { mkdtemp, rm, stat, writeFile } from 'fs/promises';
 import { basename, join, normalize } from 'path';
 import debug from '../utils/debug';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { listCodeEditors, openInCodeEditor } from '../services/code-editors';
 import { catRepositoryFile } from '../services/svn-content';
 import { getExternalToolRegistry } from '../services/external-tool-registry';
@@ -111,14 +111,14 @@ export function registerExternalHandlers(): void {
     try {
       // SECURITY: Validate file paths first
       const leftValidation = await validateFilePath(
-        assertPathApprovedForIpc(left, 'Opening files in a diff tool')
+        await assertPathApprovedForIpcAsync(left, 'Opening files in a diff tool')
       );
       if (!leftValidation.valid) {
         return { success: false, error: `Left file: ${leftValidation.error}` };
       }
 
       const rightValidation = await validateFilePath(
-        assertPathApprovedForIpc(right, 'Opening files in a diff tool')
+        await assertPathApprovedForIpcAsync(right, 'Opening files in a diff tool')
       );
       if (!rightValidation.valid) {
         return { success: false, error: `Right file: ${rightValidation.error}` };
@@ -173,28 +173,31 @@ export function registerExternalHandlers(): void {
       try {
         // SECURITY: Validate file paths (merged file doesn't need to exist)
         const baseValidation = await validateFilePath(
-          assertPathApprovedForIpc(base, 'Opening files in a merge tool')
+          await assertPathApprovedForIpcAsync(base, 'Opening files in a merge tool')
         );
         if (!baseValidation.valid) {
           return { success: false, error: `Base file: ${baseValidation.error}` };
         }
 
         const mineValidation = await validateFilePath(
-          assertPathApprovedForIpc(mine, 'Opening files in a merge tool')
+          await assertPathApprovedForIpcAsync(mine, 'Opening files in a merge tool')
         );
         if (!mineValidation.valid) {
           return { success: false, error: `Mine file: ${mineValidation.error}` };
         }
 
         const theirsValidation = await validateFilePath(
-          assertPathApprovedForIpc(theirs, 'Opening files in a merge tool')
+          await assertPathApprovedForIpcAsync(theirs, 'Opening files in a merge tool')
         );
         if (!theirsValidation.valid) {
           return { success: false, error: `Theirs file: ${theirsValidation.error}` };
         }
 
         // Normalize merged path (file may not exist yet)
-        const mergedNormalized = assertPathApprovedForIpc(merged, 'Writing merge results');
+        const mergedNormalized = await assertPathApprovedForIpcAsync(
+          merged,
+          'Writing merge results'
+        );
         if (hasPathTraversal(merged)) {
           return { success: false, error: 'Path traversal not allowed in merged file path' };
         }
@@ -255,7 +258,7 @@ export function registerExternalHandlers(): void {
     'external:openWorkingCopyDiff',
     async (_, input: { toolId: string; workingPath: string }) => {
       try {
-        const workingPath = assertPathApprovedForIpc(
+        const workingPath = await assertPathApprovedForIpcAsync(
           input?.workingPath,
           'Opening a working-copy diff'
         );
@@ -301,7 +304,7 @@ export function registerExternalHandlers(): void {
       if (hasPathTraversal(path)) {
         return { success: false, error: 'Path traversal not allowed' };
       }
-      const normalized = assertPathApprovedForIpc(path, 'Opening local folders');
+      const normalized = await assertPathApprovedForIpcAsync(path, 'Opening local folders');
 
       let stats;
       try {
@@ -326,7 +329,7 @@ export function registerExternalHandlers(): void {
   // Open file with default application
   ipcMain.handle('external:openFile', async (_, path: string) => {
     try {
-      assertPathApprovedForIpc(path, 'Opening local files');
+      await assertPathApprovedForIpcAsync(path, 'Opening local files');
       // SECURITY: Validate path
       const validation = await validateFilePath(path);
       if (!validation.valid) {
@@ -349,7 +352,7 @@ export function registerExternalHandlers(): void {
       if (hasPathTraversal(path)) {
         return { success: false, error: 'Path traversal not allowed' };
       }
-      const normalized = assertPathApprovedForIpc(path, 'Revealing local files');
+      const normalized = await assertPathApprovedForIpcAsync(path, 'Revealing local files');
 
       let stats;
       try {
@@ -382,7 +385,7 @@ export function registerExternalHandlers(): void {
       if (hasPathTraversal(path)) {
         return { success: false, error: 'Path traversal not allowed' };
       }
-      const normalized = assertPathApprovedForIpc(path, 'Opening paths in an editor');
+      const normalized = await assertPathApprovedForIpcAsync(path, 'Opening paths in an editor');
 
       try {
         await stat(normalized);

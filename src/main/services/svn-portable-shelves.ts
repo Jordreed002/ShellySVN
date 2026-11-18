@@ -1,14 +1,24 @@
 import { app, shell } from 'electron';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { cp, lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  access,
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { SvnMutationResult, SvnShelve, SvnShelveListResult } from '@shared/types';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
-import { assertSafeEntryRelativePath, assertWithinRoot } from '../utils/path-guard';
+import { assertSafeEntryRelativePath, assertWithinRootAsync } from '../utils/path-guard';
 import { runSvnText } from './svn-executor';
 import { collapseNestedFiles, type PortableShelfFile } from './svn-portable-shelf-files';
 
@@ -28,7 +38,10 @@ export function assertSafeShelfName(value: string, label: string): void {
 
 /** File-system-safe slug for exported bundle directory names. */
 export function shelfNameSlug(name: string): string {
-  const slug = name.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^\.+/, '_').slice(0, 64);
+  const slug = name
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^\.+/, '_')
+    .slice(0, 64);
   return slug || 'shelf';
 }
 
@@ -47,10 +60,16 @@ interface PortableShelfMetadata {
  * working, isolated store). Bounded so a pathological loop of `..` resolves
  * instead of spinning.
  */
-function resolveShelfStoreRoot(candidate: string): string {
+async function resolveShelfStoreRoot(candidate: string): Promise<string> {
   let current = resolve(candidate);
   for (let hops = 0; hops < 64; hops += 1) {
-    if (existsSync(join(current, '.svn'))) return current;
+    if (
+      await access(join(current, '.svn')).then(
+        () => true,
+        () => false
+      )
+    )
+      return current;
     const parent = dirname(current);
     if (parent === current) return resolve(candidate);
     current = parent;
@@ -64,8 +83,10 @@ function resolveShelfStoreRoot(candidate: string): string {
  * visible to list/apply against the root. Each shelf's metadata still records
  * the scope it was saved at, and apply restores into that scope.
  */
-function shelfRoot(workingCopyPath: string): string {
-  const key = createHash('sha256').update(resolveShelfStoreRoot(workingCopyPath)).digest('hex');
+async function shelfRoot(workingCopyPath: string): Promise<string> {
+  const key = createHash('sha256')
+    .update(await resolveShelfStoreRoot(workingCopyPath))
+    .digest('hex');
   const userDataRoot =
     process.env.SHELLYSVN_PORTABLE_SHELF_ROOT ||
     app?.getPath?.('userData') ||
@@ -73,16 +94,19 @@ function shelfRoot(workingCopyPath: string): string {
   return join(userDataRoot, 'portable-shelves', key);
 }
 
-function shelfDirectory(workingCopyPath: string, name: string): string {
+async function shelfDirectory(workingCopyPath: string, name: string): Promise<string> {
   const safeName = Buffer.from(name, 'utf8').toString('base64url');
-  return join(shelfRoot(workingCopyPath), safeName);
+  return join(await shelfRoot(workingCopyPath), safeName);
 }
 
-function assertInsideWorkingCopy(workingCopyPath: string, candidate: string): string {
+async function assertInsideWorkingCopy(
+  workingCopyPath: string,
+  candidate: string
+): Promise<string> {
   const root = resolve(workingCopyPath);
   // SECURITY: path-guard containment — rejects lexical escapes (`..`, absolute
   // overrides) and symlinks under the working copy that redirect outside it.
-  assertWithinRoot(root, candidate, 'Portable shelf entry');
+  await assertWithinRootAsync(root, candidate, 'Portable shelf entry');
   // Derive the relative path from the lexical form (the guard may re-anchor
   // the candidate under the canonical root).
   const relativePath = relative(root, resolve(root, candidate));
@@ -104,7 +128,7 @@ async function readMetadata(directory: string): Promise<PortableShelfMetadata> {
 
 export async function portableShelfList(workingCopyPath: string): Promise<SvnShelveListResult> {
   try {
-    const root = shelfRoot(workingCopyPath);
+    const root = await shelfRoot(workingCopyPath);
     const directories = await readdir(root, { withFileTypes: true }).catch(() => []);
     const shelves: SvnShelve[] = [];
     for (const directory of directories) {
@@ -133,7 +157,7 @@ export async function portableShelfSave(
   message?: string
 ): Promise<SvnMutationResult> {
   validateSvnTargets([workingCopyPath], 'Portable shelf target');
-  const directory = shelfDirectory(workingCopyPath, name);
+  const directory = await shelfDirectory(workingCopyPath, name);
   try {
     await stat(directory);
     return { success: false, error: `A shelf named "${name}" already exists.` };
@@ -163,7 +187,7 @@ export async function portableShelfSave(
     const absolutePath = isAbsolute(entry.path)
       ? resolve(entry.path)
       : resolve(workingCopyPath, entry.path);
-    const relativePath = assertInsideWorkingCopy(workingCopyPath, absolutePath);
+    const relativePath = await assertInsideWorkingCopy(workingCopyPath, absolutePath);
     const fileStat = await stat(absolutePath).catch(() => null);
     if (!fileStat) {
       files.push({ relativePath, status: entry.item, kind: 'file' });
@@ -184,13 +208,13 @@ export async function portableShelfSave(
     // SECURITY: both ends of the copy are guarded. The source must stay inside
     // the working copy (symlinks included) and the destination inside the
     // shelf's own `files` directory, so entry names cannot write elsewhere.
-    const source = assertWithinRoot(
+    const source = await assertWithinRootAsync(
       workingCopyPath,
       resolve(workingCopyPath, file.relativePath),
       'Portable shelf capture'
     );
     const destinationRoot = join(directory, 'files');
-    const destination = assertWithinRoot(
+    const destination = await assertWithinRootAsync(
       destinationRoot,
       join(destinationRoot, file.relativePath),
       'Portable shelf capture'
@@ -232,7 +256,7 @@ export async function portableShelfApply(
   workingCopyPath: string
 ): Promise<SvnMutationResult> {
   validateSvnTargets([workingCopyPath], 'Portable shelf target');
-  const directory = shelfDirectory(workingCopyPath, name);
+  const directory = await shelfDirectory(workingCopyPath, name);
   const metadata = await readMetadata(directory);
   // The shelf may have been saved at a sub-path scope (store is keyed by the
   // working-copy root). Restore into that recorded scope, not the path this
@@ -240,7 +264,11 @@ export async function portableShelfApply(
   // not direct writes outside the working copy the store belongs to.
   const scope = resolve(metadata.workingCopyPath);
   try {
-    assertWithinRoot(resolveShelfStoreRoot(workingCopyPath), scope, 'Portable shelf scope');
+    await assertWithinRootAsync(
+      await resolveShelfStoreRoot(workingCopyPath),
+      scope,
+      'Portable shelf scope'
+    );
   } catch {
     return { success: false, error: 'This shelf belongs to a different working copy.' };
   }
@@ -272,7 +300,7 @@ export async function portableShelfApply(
     // copy source must stay inside the shelf's own `files` directory.
     assertSafeEntryRelativePath(file?.relativePath, 'Portable shelf entry');
     const target = resolve(scope, file.relativePath);
-    assertInsideWorkingCopy(scope, target);
+    await assertInsideWorkingCopy(scope, target);
     if (
       ['deleted', 'missing'].includes(file.status) ||
       (file.kind === 'directory' && !['added', 'unversioned'].includes(file.status))
@@ -280,7 +308,7 @@ export async function portableShelfApply(
       continue;
     }
     const filesRoot = join(directory, 'files');
-    const source = assertWithinRoot(
+    const source = await assertWithinRootAsync(
       filesRoot,
       join(filesRoot, file.relativePath),
       'Portable shelf restore'
@@ -306,19 +334,16 @@ export async function portableShelfDelete(
   name: string,
   workingCopyPath: string
 ): Promise<SvnMutationResult> {
-  const directory = shelfDirectory(workingCopyPath, name);
+  const directory = await shelfDirectory(workingCopyPath, name);
   await readMetadata(directory);
   await rm(directory, { recursive: true });
   return { success: true };
 }
 
 /** Does the portable store hold a shelf of this name for this working copy? */
-export async function portableShelfExists(
-  name: string,
-  workingCopyPath: string
-): Promise<boolean> {
+export async function portableShelfExists(name: string, workingCopyPath: string): Promise<boolean> {
   try {
-    await readMetadata(shelfDirectory(workingCopyPath, name));
+    await readMetadata(await shelfDirectory(workingCopyPath, name));
     return true;
   } catch {
     return false;
@@ -330,7 +355,7 @@ export async function portableShelfReadPatch(
   name: string,
   workingCopyPath: string
 ): Promise<string> {
-  const directory = shelfDirectory(workingCopyPath, name);
+  const directory = await shelfDirectory(workingCopyPath, name);
   await readMetadata(directory);
   return readFile(join(directory, 'changes.patch'), 'utf8');
 }
@@ -343,9 +368,9 @@ export async function portableShelfRename(
   assertSafeShelfName(name, 'Shelf name');
   assertSafeShelfName(newName, 'New shelf name');
   validateSvnTargets([workingCopyPath], 'Portable shelf target');
-  const directory = shelfDirectory(workingCopyPath, name);
+  const directory = await shelfDirectory(workingCopyPath, name);
   await readMetadata(directory);
-  const newDirectory = shelfDirectory(workingCopyPath, newName);
+  const newDirectory = await shelfDirectory(workingCopyPath, newName);
   if (directory === newDirectory) {
     return { success: false, error: 'The new shelf name is the same as the old one.' };
   }
@@ -377,7 +402,7 @@ export async function portableShelfExport(
 ): Promise<SvnMutationResult> {
   assertSafeShelfName(name, 'Shelf name');
   validateSvnTargets([workingCopyPath, outputPath], 'Portable shelf export target');
-  const directory = shelfDirectory(workingCopyPath, name);
+  const directory = await shelfDirectory(workingCopyPath, name);
   await readMetadata(directory);
   const destination = join(outputPath, `portable-shelf-${shelfNameSlug(name)}`);
   try {
@@ -392,7 +417,11 @@ export async function portableShelfExport(
   await mkdir(outputPath, { recursive: true });
   // SECURITY: the destination stays under the user-chosen output directory; the
   // source is the store's own shelf directory.
-  const guardedDestination = assertWithinRoot(outputPath, destination, 'Portable shelf export');
+  const guardedDestination = await assertWithinRootAsync(
+    outputPath,
+    destination,
+    'Portable shelf export'
+  );
   await cp(directory, guardedDestination, { recursive: true });
   return { success: true, output: guardedDestination };
 }
@@ -411,7 +440,7 @@ export async function portableShelfImport(
   for (const file of metadata.files) {
     assertSafeEntryRelativePath(file?.relativePath, 'Portable shelf entry');
   }
-  const directory = shelfDirectory(targetWorkingCopyPath, metadata.name);
+  const directory = await shelfDirectory(targetWorkingCopyPath, metadata.name);
   try {
     await stat(directory);
     return {

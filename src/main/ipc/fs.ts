@@ -11,9 +11,13 @@ import type {
   SvnStatusChar,
 } from '@shared/types';
 import { MAX_FILE_PREVIEW_SIZE_BYTES, MAX_FILE_WRITE_SIZE_BYTES } from '@shared/constants';
-import { validatePath, InputValidationError } from '../utils/validation';
-import { assertPathApprovedForIpc, isPathApprovedForIpc } from '../utils/approved-paths';
-import { assertRealpathSatisfies, assertSanitizedPath, realpathOfLongestExistingPrefix } from '../utils/path-guard';
+import { validatePathAsync, InputValidationError } from '../utils/validation';
+import { assertPathApprovedForIpcAsync, isPathApprovedForIpcAsync } from '../utils/approved-paths';
+import {
+  assertRealpathSatisfiesAsync,
+  assertSanitizedPath,
+  realpathOfLongestExistingPrefixAsync,
+} from '../utils/path-guard';
 import { resolveSvnExecution, runSvnText } from '../services/svn-executor';
 import { getWorkerFsStatus } from '../services/svn-status-worker';
 import {
@@ -384,9 +388,11 @@ function isPathEqualOrInside(parent: string, child: string): boolean {
  */
 export async function closeFileWatchersForPath(rootPath: string): Promise<void> {
   const lexicalRoot = resolve(rootPath);
-  const canonicalRoot = realpathOfLongestExistingPrefix(lexicalRoot);
-  const matches = Array.from(activeWatchers.values()).filter(({ path: watchedPath }) =>
-    isPathEqualOrInside(lexicalRoot, watchedPath) || isPathEqualOrInside(canonicalRoot, watchedPath)
+  const canonicalRoot = await realpathOfLongestExistingPrefixAsync(lexicalRoot);
+  const matches = Array.from(activeWatchers.values()).filter(
+    ({ path: watchedPath }) =>
+      isPathEqualOrInside(lexicalRoot, watchedPath) ||
+      isPathEqualOrInside(canonicalRoot, watchedPath)
   );
   await Promise.allSettled(matches.map((subscription) => disposeOwnedWatcher(subscription)));
   for (const subscription of matches) {
@@ -685,8 +691,8 @@ export function getParentPath(path: string): string | null {
  * Calculate sizes for multiple folders
  */
 async function calculateFolderSizes(folderPaths: string[]): Promise<Record<string, number>> {
-  const approvedPaths = folderPaths.map((folderPath) =>
-    assertApprovedFsPath(folderPath, 'Folder size calculation')
+  const approvedPaths = await Promise.all(
+    folderPaths.map((folderPath) => assertApprovedFsPath(folderPath, 'Folder size calculation'))
   );
 
   return getSharedWorkerPool().run(
@@ -706,26 +712,26 @@ async function calculateFolderSizes(folderPaths: string[]): Promise<Record<strin
  * path handled in this module.
  * 1. `assertSanitizedPath` rejects null bytes, UNC/Win32 namespace prefixes,
  *    drive-relative paths and reserved Windows device names.
- * 2. `validatePath` + `assertPathApprovedForIpc` enforce lexical containment
+ * 2. `validatePath` + `assertPathApprovedForIpcAsync` enforce lexical containment
  *    inside an approved root (native-picker selection or application home).
- * 3. `assertRealpathSatisfies` audits symlinks: the target canonicalized
+ * 3. `assertRealpathSatisfiesAsync` audits symlinks: the target canonicalized
  *    through every existing ancestor must still resolve inside an approved
  *    root, so `approved/link -> /etc` cannot escape.
  */
-function assertApprovedFsPath(path: string, operation: string): string {
+async function assertApprovedFsPath(path: string, operation: string): Promise<string> {
   assertSanitizedPath(path, operation);
-  const validatedPath = validatePath(path, { allowAbsolute: true });
-  const approvedPath = assertPathApprovedForIpc(validatedPath, operation);
-  return assertRealpathSatisfies(approvedPath, isPathApprovedForIpc, operation);
+  const validatedPath = await validatePathAsync(path, { allowAbsolute: true });
+  const approvedPath = await assertPathApprovedForIpcAsync(validatedPath, operation);
+  return assertRealpathSatisfiesAsync(approvedPath, isPathApprovedForIpcAsync, operation);
 }
 
-function getApprovedParentPath(path: string): string | null {
+async function getApprovedParentPath(path: string): Promise<string | null> {
   const parentPath = getParentPath(path);
   if (!parentPath || parentPath === 'DRIVES://') {
     return parentPath;
   }
 
-  return isPathApprovedForIpc(parentPath) ? parentPath : null;
+  return (await isPathApprovedForIpcAsync(parentPath)) ? parentPath : null;
 }
 
 export function registerFsHandlers(): void {
@@ -736,7 +742,7 @@ export function registerFsHandlers(): void {
       if (path === 'DRIVES://') {
         return listDrives();
       }
-      return listDirectoryFiles(assertApprovedFsPath(path, 'Directory listing'));
+      return listDirectoryFiles(await assertApprovedFsPath(path, 'Directory listing'));
     } catch (error) {
       if (
         (error instanceof Error ? error.message : String(error)).includes(
@@ -763,7 +769,10 @@ export function registerFsHandlers(): void {
     'fs:getDirectoryMetadata',
     async (_, path: string, hasFiles?: boolean): Promise<DirectoryMetadataResult> => {
       try {
-        return getDirectoryMetadata(assertApprovedFsPath(path, 'Directory metadata'), hasFiles);
+        return getDirectoryMetadata(
+          await assertApprovedFsPath(path, 'Directory metadata'),
+          hasFiles
+        );
       } catch (error) {
         if (
           (error instanceof Error ? error.message : String(error)).includes(
@@ -789,7 +798,7 @@ export function registerFsHandlers(): void {
     if (path === 'DRIVES://') return null;
 
     try {
-      return getApprovedParentPath(assertApprovedFsPath(path, 'Parent lookup'));
+      return getApprovedParentPath(await assertApprovedFsPath(path, 'Parent lookup'));
     } catch {
       return null;
     }
@@ -802,7 +811,7 @@ export function registerFsHandlers(): void {
       if (path === 'DRIVES://') {
         return { directStatus: {}, allEntries: [] };
       }
-      return getSvnStatus(assertApprovedFsPath(path, 'SVN status'), 'immediates');
+      return getSvnStatus(await assertApprovedFsPath(path, 'SVN status'), 'immediates');
     } catch (error) {
       console.error('[FS] Status error:', error);
       return { directStatus: {}, allEntries: [] };
@@ -816,7 +825,7 @@ export function registerFsHandlers(): void {
       if (path === 'DRIVES://') {
         return { directStatus: {}, allEntries: [] };
       }
-      const approvedPath = assertApprovedFsPath(path, 'Deep SVN status');
+      const approvedPath = await assertApprovedFsPath(path, 'Deep SVN status');
       const statusService = getStatusService();
       const cached = statusService.getDeepStatus(approvedPath);
       if (cached) {
@@ -857,7 +866,7 @@ export function registerFsHandlers(): void {
     // Drives list is never versioned
     if (path === 'DRIVES://') return false;
     try {
-      return isVersioned(assertApprovedFsPath(path, 'Version check'));
+      return isVersioned(await assertApprovedFsPath(path, 'Version check'));
     } catch {
       return false;
     }
@@ -870,8 +879,8 @@ export function registerFsHandlers(): void {
       try {
         // File explorer entries are absolute paths. Keep reads constrained to roots
         // selected through ShellySVN, then apply the file-specific validation.
-        const approvedPath = assertApprovedFsPath(path, 'File preview');
-        const validatedPath = validatePath(approvedPath, {
+        const approvedPath = await assertApprovedFsPath(path, 'File preview');
+        const validatedPath = await validatePathAsync(approvedPath, {
           allowAbsolute: true,
           mustExist: true,
           mustBeFile: true,
@@ -904,8 +913,8 @@ export function registerFsHandlers(): void {
     'fs:readImageAsBase64',
     async (_, filePath: string): Promise<{ success: boolean; data?: string; error?: string }> => {
       try {
-        const approvedPath = assertApprovedFsPath(filePath, 'Image preview');
-        const validatedPath = validatePath(approvedPath, {
+        const approvedPath = await assertApprovedFsPath(filePath, 'Image preview');
+        const validatedPath = await validatePathAsync(approvedPath, {
           mustExist: true,
           mustBeFile: true,
           allowedExtensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp'],
@@ -939,7 +948,7 @@ export function registerFsHandlers(): void {
   // Cancel active scan
   ipcMain.handle('fs:cancelScan', async (_, path: string) => {
     try {
-      cancelDeepScan(assertApprovedFsPath(path, 'Scan cancellation'));
+      cancelDeepScan(await assertApprovedFsPath(path, 'Scan cancellation'));
     } catch {
       // Ignore cancellation for paths the renderer is not allowed to address.
     }
@@ -965,13 +974,13 @@ export function registerFsHandlers(): void {
       try {
         // SECURITY: Validate both paths (sanitization, approved roots and
         // symlink audit first, then the file-specific existence checks).
-        const approvedSource = assertApprovedFsPath(source, 'File copy source');
-        const validatedSource = validatePath(approvedSource, {
+        const approvedSource = await assertApprovedFsPath(source, 'File copy source');
+        const validatedSource = await validatePathAsync(approvedSource, {
           mustExist: true,
           mustBeFile: true,
           allowAbsolute: true,
         });
-        const approvedTarget = assertApprovedFsPath(target, 'File copy target');
+        const approvedTarget = await assertApprovedFsPath(target, 'File copy target');
 
         // Ensure target directory exists (mkdir with recursive won't throw if exists)
         const targetDir = dirname(approvedTarget);
@@ -1001,7 +1010,7 @@ export function registerFsHandlers(): void {
           return { success: false, error: 'Content too large (max 10MB)' };
         }
 
-        const approvedPath = assertApprovedFsPath(path, 'File write');
+        const approvedPath = await assertApprovedFsPath(path, 'File write');
 
         // Ensure directory exists
         const dir = dirname(approvedPath);
@@ -1037,7 +1046,7 @@ export function registerFsHandlers(): void {
           return { success: false, error: 'Content too large (max 32MB)' };
         }
 
-        const approvedPath = assertApprovedFsPath(path, 'Binary file write');
+        const approvedPath = await assertApprovedFsPath(path, 'Binary file write');
         await mkdir(dirname(approvedPath), { recursive: true });
         await fsWriteFile(approvedPath, content);
         return { success: true };
@@ -1062,7 +1071,7 @@ export function registerFsHandlers(): void {
       }
     ): Promise<{ success: boolean; error?: string }> => {
       try {
-        const approvedPath = assertApprovedFsPath(path, 'File watching');
+        const approvedPath = await assertApprovedFsPath(path, 'File watching');
         const key = watcherKey(event.sender, approvedPath);
 
         if (activeWatchers.has(key)) {
@@ -1116,7 +1125,7 @@ export function registerFsHandlers(): void {
 
   ipcMain.handle('fs:unwatch', async (event, path: string): Promise<{ success: boolean }> => {
     try {
-      const approvedPath = assertApprovedFsPath(path, 'File watching');
+      const approvedPath = await assertApprovedFsPath(path, 'File watching');
       const key = watcherKey(event.sender, approvedPath);
       const subscription = activeWatchers.get(key);
       if (subscription) {
@@ -1132,7 +1141,7 @@ export function registerFsHandlers(): void {
 
   ipcMain.handle('fs:exists', async (_, path: string): Promise<boolean> => {
     try {
-      await stat(assertApprovedFsPath(path, 'Path existence check'));
+      await stat(await assertApprovedFsPath(path, 'Path existence check'));
       return true;
     } catch {
       return false;

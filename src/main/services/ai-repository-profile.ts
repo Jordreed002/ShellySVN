@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { writeSecureJson } from '../utils/secure-json';
 import type {
   AiDraftTransformation,
@@ -32,7 +32,9 @@ function ratio(value: unknown): number {
 
 function count(value: unknown): number {
   const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.min(MAX_SAMPLED_COMMITS, Math.max(0, Math.floor(numeric))) : 0;
+  return Number.isFinite(numeric)
+    ? Math.min(MAX_SAMPLED_COMMITS, Math.max(0, Math.floor(numeric)))
+    : 0;
 }
 
 /** Averages keep one decimal; everything else stays an integer. */
@@ -73,7 +75,8 @@ function safeStyleHints(value: unknown): RepositoryAiStyleHints | undefined {
     maxSubjectLength: count(raw.maxSubjectLength),
     imperativeMoodRatio: ratio(raw.imperativeMoodRatio),
     prefixCounts,
-    dominantPrefix: dominant !== undefined && prefixCounts[dominant] !== undefined ? dominant : undefined,
+    dominantPrefix:
+      dominant !== undefined && prefixCounts[dominant] !== undefined ? dominant : undefined,
     includesBodyRatio: ratio(raw.includesBodyRatio),
     bodyBulletStyle: bulletStyle,
     issueIdRatio: ratio(raw.issueIdRatio),
@@ -201,7 +204,7 @@ export class RepositoryAiProfileStore {
     return join(this.storageDirectory, 'ai-repository-profiles.json');
   }
   private async identity(workingCopyPath: string): Promise<string> {
-    const approved = assertPathApprovedForIpc(workingCopyPath, 'Repository AI profile');
+    const approved = await assertPathApprovedForIpcAsync(workingCopyPath, 'Repository AI profile');
     const canonical = await realpath(approved).catch(() => approved);
     return createHash('sha256').update(canonical).digest('hex');
   }

@@ -6,6 +6,7 @@
  */
 
 import { isAbsolute, normalize, win32 } from 'path';
+import { stat } from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
 import { MAX_COMMIT_MESSAGE_LENGTH } from '@shared/constants';
 
@@ -116,6 +117,34 @@ export function validatePath(path: unknown, options: PathValidationOptions = {})
   }
 
   return normalizedPath;
+}
+
+/** Validate path shape first, then perform any disk checks without blocking main. */
+export async function validatePathAsync(
+  path: unknown,
+  options: PathValidationOptions = {}
+): Promise<string> {
+  const normalized = validatePath(path, {
+    allowAbsolute: options.allowAbsolute,
+    allowedExtensions: options.allowedExtensions,
+  });
+  if (options.mustExist || options.mustBeDirectory || options.mustBeFile || options.maxSize) {
+    const stats = await stat(normalized).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
+      throw error;
+    });
+    if (!stats && options.mustExist) throw new InputValidationError('Path does not exist', 'path');
+    if (stats && options.mustBeDirectory && !stats.isDirectory())
+      throw new InputValidationError('Path must be a directory', 'path');
+    if (stats && options.mustBeFile && !stats.isFile())
+      throw new InputValidationError('Path must be a file', 'path');
+    if (stats && options.maxSize && stats.size > options.maxSize)
+      throw new InputValidationError(
+        `File too large (max ${Math.round(options.maxSize / 1024)}KB)`,
+        'path'
+      );
+  }
+  return normalized;
 }
 
 /**

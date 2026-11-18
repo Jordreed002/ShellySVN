@@ -40,7 +40,7 @@ import { access, lstat, mkdtemp, open, readFile, realpath, rm, writeFile } from 
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { getSettingsManager } from '../settings-manager';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { terminateProcessTree } from '../utils/process-tree';
 import { validateSvnTargets, withSvnTargets } from '../utils/svn-targets';
 import { runSvnText } from './svn-executor';
@@ -431,7 +431,9 @@ function validateOperationId(operationId: string): void {
   }
 }
 
-function validateRequestPaths(request: AiSelectedPathsRequest): { root: string; paths: string[] } {
+async function validateRequestPaths(
+  request: AiSelectedPathsRequest
+): Promise<{ root: string; paths: string[] }> {
   validateOperationId(request.operationId);
   if (!Array.isArray(request.paths) || request.paths.length === 0) {
     throw new Error('Select at least one changed path.');
@@ -440,16 +442,24 @@ function validateRequestPaths(request: AiSelectedPathsRequest): { root: string; 
     throw new Error(`At most ${MAX_SELECTED_PATHS} paths can be summarized at once.`);
   }
 
-  const root = assertPathApprovedForIpc(request.workingCopyPath, 'AI commit-message generation');
-  const uniquePaths = Array.from(new Set(request.paths)).map((path) => {
-    const absolutePath = resolve(root, path);
-    const approvedPath = assertPathApprovedForIpc(absolutePath, 'AI commit-message generation');
-    const pathFromRoot = relative(root, approvedPath);
-    if (pathFromRoot.startsWith('..') || isAbsolute(pathFromRoot)) {
-      throw new Error('Selected paths must be inside the approved working copy.');
-    }
-    return approvedPath;
-  });
+  const root = await assertPathApprovedForIpcAsync(
+    request.workingCopyPath,
+    'AI commit-message generation'
+  );
+  const uniquePaths = await Promise.all(
+    Array.from(new Set(request.paths)).map(async (path) => {
+      const absolutePath = resolve(root, path);
+      const approvedPath = await assertPathApprovedForIpcAsync(
+        absolutePath,
+        'AI commit-message generation'
+      );
+      const pathFromRoot = relative(root, approvedPath);
+      if (pathFromRoot.startsWith('..') || isAbsolute(pathFromRoot)) {
+        throw new Error('Selected paths must be inside the approved working copy.');
+      }
+      return approvedPath;
+    })
+  );
   validateSvnTargets(uniquePaths, 'AI diff target');
   return { root, paths: uniquePaths };
 }
@@ -820,7 +830,7 @@ async function collectPreparedDiff(
   controller: AbortController,
   settings: AppSettings['aiCommit']
 ): Promise<{ root: string; paths: string[]; prepared: PreparedAiDiff }> {
-  const { root, paths } = validateRequestPaths(request);
+  const { root, paths } = await validateRequestPaths(request);
   const configuredMax = Number.isFinite(settings.maxDiffBytes)
     ? settings.maxDiffBytes
     : DEFAULT_MAX_DIFF_BYTES;
@@ -919,7 +929,7 @@ async function collectProfiledPreparedDiff(
   prepared: PreparedAiDiff;
   profile: Awaited<ReturnType<RepositoryAiProfileStore['get']>>;
 }> {
-  const validated = validateRequestPaths(request);
+  const validated = await validateRequestPaths(request);
   const profile = await new RepositoryAiProfileStore(app.getPath('userData')).get(validated.root);
   const includedPaths = validated.paths.filter(
     (path) =>
@@ -1242,7 +1252,7 @@ export async function prepareAiPrompt(
     let omittedBinaryFiles: string[] = [];
     let includedHistoryMessages = 0;
     if (request.task === 'conflict-resolution' && 'filePath' in value) {
-      assertPathApprovedForIpc(value.filePath, 'AI prompt preview');
+      await assertPathApprovedForIpcAsync(value.filePath, 'AI prompt preview');
       const secretSafe = redactAiSecrets(
         `<base>\n${value.baseContent}\n</base>\n<mine>\n${value.mineContent}\n</mine>\n<theirs>\n${value.theirsContent}\n</theirs>`
       );
@@ -1251,7 +1261,7 @@ export async function prepareAiPrompt(
       truncated = bounded.truncated;
       redacted = secretSafe.redacted;
     } else if (request.task === 'release-notes' && 'startRevision' in value) {
-      const approved = assertPathApprovedForIpc(value.path, 'AI prompt preview');
+      const approved = await assertPathApprovedForIpcAsync(value.path, 'AI prompt preview');
       if (!Number.isInteger(value.startRevision) || !Number.isInteger(value.endRevision))
         throw new Error('Select a valid ascending revision range.');
       const start = value.startRevision;
@@ -1939,7 +1949,7 @@ export async function generateAiReleaseNotes(
   const controller = beginOperation(request.operationId, ownerId);
   try {
     const settings = await getEnabledAiSettings();
-    const path = assertPathApprovedForIpc(request.path, 'AI release-note generation');
+    const path = await assertPathApprovedForIpcAsync(request.path, 'AI release-note generation');
     if (!Number.isInteger(request.startRevision) || !Number.isInteger(request.endRevision)) {
       throw new Error('Select a valid ascending revision range.');
     }
@@ -1995,7 +2005,7 @@ export async function proposeAiConflictResolution(
   const controller = beginOperation(request.operationId, ownerId);
   try {
     const settings = await getEnabledAiSettings();
-    const filePath = assertPathApprovedForIpc(request.filePath, 'AI conflict proposal');
+    const filePath = await assertPathApprovedForIpcAsync(request.filePath, 'AI conflict proposal');
     const redacted = redactAiSecrets(
       `<base>\n${request.baseContent}\n</base>\n<mine>\n${request.mineContent}\n</mine>\n<theirs>\n${request.theirsContent}\n</theirs>`
     );

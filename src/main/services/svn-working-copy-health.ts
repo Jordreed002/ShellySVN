@@ -15,7 +15,7 @@ import type {
 } from '@shared/types';
 import { lstat, readdir, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { parseSvnStatusXml } from '@shared/svn-parsers';
 import { createSvnXmlParser } from '../utils/svn-xml';
 import { withSvnTargets } from '../utils/svn-targets';
@@ -282,7 +282,7 @@ async function findNestedWorkingCopies(root: string): Promise<string[]> {
 }
 
 export async function scanWorkingCopyHealth(path: string): Promise<WorkingCopyHealthReport> {
-  const approvedPath = assertPathApprovedForIpc(path, 'Working-copy health scan');
+  const approvedPath = await assertPathApprovedForIpcAsync(path, 'Working-copy health scan');
   const [statusXml, infoXml, nestedWorkingCopies] = await Promise.all([
     runSvnText(
       withSvnTargets(['status', '--xml', '--no-ignore', '--depth', 'infinity'], [approvedPath]),
@@ -354,7 +354,7 @@ export async function removeStaleWorkingCopyLock(path: string): Promise<{
   success: boolean;
   error?: string;
 }> {
-  const approvedPath = assertPathApprovedForIpc(path, 'Stale working-copy lock removal');
+  const approvedPath = await assertPathApprovedForIpcAsync(path, 'Stale working-copy lock removal');
   const lockPath = join(approvedPath, '.svn', 'lock');
   try {
     const stats = await lstat(lockPath);
@@ -648,7 +648,10 @@ export async function executeInterruptedMutationRecoveryPlan(
   steps: InterruptedMutationRecoveryStepResult[];
   allSucceeded: boolean;
 }> {
-  const approvedPath = assertPathApprovedForIpc(workingCopyPath, 'Interrupted-mutation recovery');
+  const approvedPath = await assertPathApprovedForIpcAsync(
+    workingCopyPath,
+    'Interrupted-mutation recovery'
+  );
 
   return runSerializedWorkingCopyMutation(approvedPath, async () => {
     const results: InterruptedMutationRecoveryStepResult[] = [];

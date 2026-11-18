@@ -1,6 +1,6 @@
 import { ipcMain, dialog } from 'electron';
 import type { ConfirmDialogOptions, FileFilter, MessageDialogOptions } from '@shared/types';
-import { approvePathForIpc } from '../utils/approved-paths';
+import { approvePathForIpcAsync } from '../utils/approved-paths';
 
 export function registerDialogHandlers(): void {
   ipcMain.handle('dialog:openDirectory', async (_, defaultPath?: string) => {
@@ -19,7 +19,7 @@ export function registerDialogHandlers(): void {
       return null;
     }
 
-    return approvePathForIpc(result.filePaths[0], 'directory');
+    return approvePathForIpcAsync(result.filePaths[0], 'directory');
   });
 
   ipcMain.handle('dialog:openFile', async (_, filters?: FileFilter[]) => {
@@ -47,7 +47,7 @@ export function registerDialogHandlers(): void {
       return null;
     }
 
-    return approvePathForIpc(result.filePaths[0], 'file');
+    return approvePathForIpcAsync(result.filePaths[0], 'file');
   });
 
   ipcMain.handle('dialog:saveFile', async (_, defaultName?: string) => {
@@ -65,7 +65,7 @@ export function registerDialogHandlers(): void {
       return null;
     }
 
-    return approvePathForIpc(result.filePath, 'file');
+    return approvePathForIpcAsync(result.filePath, 'file');
   });
 
   ipcMain.handle('dialog:showMessage', async (_, options: MessageDialogOptions) => {

@@ -63,6 +63,7 @@ vi.mock('child_process', () => ({
 
 vi.mock('../utils/approved-paths', () => ({
   assertPathApprovedForIpc: mockAssertPathApproved,
+  assertPathApprovedForIpcAsync: mockAssertPathApproved,
 }));
 
 import { SettingsManager } from '../settings-manager';

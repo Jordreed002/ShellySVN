@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { BrowserWindow } from 'electron';
 import { constants } from 'fs';
 import { access, stat } from 'fs/promises';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { terminateProcessTree } from '../utils/process-tree';
 import { sendToRenderer } from '../utils/safe-renderer-send';
 
@@ -49,7 +49,7 @@ export interface HookResult {
 export async function executeHook(hook: HookScript, context: HookContext): Promise<HookResult> {
   let hookPath: string;
   try {
-    hookPath = assertPathApprovedForIpc(hook.path, `Hook "${hook.name}"`);
+    hookPath = await assertPathApprovedForIpcAsync(hook.path, `Hook "${hook.name}"`);
     if (!(await stat(hookPath)).isFile()) {
       throw new Error('Hook path must point to a file.');
     }
@@ -64,7 +64,6 @@ export async function executeHook(hook: HookScript, context: HookContext): Promi
   }
 
   return new Promise((resolve) => {
-
     const args = [context.workingCopyPath];
 
     if (context.files && context.files.length > 0) {

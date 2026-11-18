@@ -26,6 +26,7 @@ vi.mock('fs/promises', async () => {
 vi.mock('../../utils/approved-paths', () => ({
   // Passthrough: return the path unchanged so the hook can run.
   assertPathApprovedForIpc: vi.fn((path: string) => path),
+  assertPathApprovedForIpcAsync: vi.fn((path: string) => path),
 }));
 
 vi.mock('../../utils/safe-renderer-send', () => ({ sendToRenderer: vi.fn() }));

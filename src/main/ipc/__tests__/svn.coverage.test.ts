@@ -86,7 +86,9 @@ vi.mock('../../settings-manager', () => ({
 }));
 vi.mock('../../utils/approved-paths', () => ({
   approvePathForIpc: vi.fn((path: string) => path),
+  approvePathForIpcAsync: vi.fn((path: string) => path),
   assertPathApprovedForIpc: vi.fn((path: string) => path),
+  assertPathApprovedForIpcAsync: vi.fn((path: string) => path),
 }));
 vi.mock('../monitor', () => ({
   getMonitoredWorkingCopies: vi.fn(() => [
@@ -223,7 +225,7 @@ import * as secrets from '../../services/secret-scanner';
 import * as relink from '../../services/wc-relink-detector';
 import { getStatusService } from '../../services/status-service';
 import { getSvnReadError } from '../../utils/svn-errors';
-import { assertPathApprovedForIpc } from '../../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../../utils/approved-paths';
 import { getMonitoredWorkingCopies, renameMonitoredWorkingCopy } from '../monitor';
 import { closeFileWatchersForPath } from '../fs';
 import * as patchMod from '../../services/svn-patch';
@@ -555,7 +557,7 @@ describe('svn IPC handlers — Phase 2 channel wiring', () => {
     await handlers.get('svn:analyzePristine')!(event(), '/wc', {
       computeWorkingCopySize: true,
     });
-    expect(vi.mocked(assertPathApprovedForIpc)).toHaveBeenCalledWith(
+    expect(vi.mocked(assertPathApprovedForIpcAsync)).toHaveBeenCalledWith(
       '/wc',
       'Pristine analysis'
     );
@@ -568,8 +570,8 @@ describe('svn IPC handlers — Phase 2 channel wiring', () => {
     await handlers.get('svn:scanSecrets')!(event(), ['/wc/a', '/wc/b'], {
       maxFindingsPerFile: 10,
     });
-    expect(vi.mocked(assertPathApprovedForIpc)).toHaveBeenCalledWith('/wc/a', 'Secret scan');
-    expect(vi.mocked(assertPathApprovedForIpc)).toHaveBeenCalledWith('/wc/b', 'Secret scan');
+    expect(vi.mocked(assertPathApprovedForIpcAsync)).toHaveBeenCalledWith('/wc/a', 'Secret scan');
+    expect(vi.mocked(assertPathApprovedForIpcAsync)).toHaveBeenCalledWith('/wc/b', 'Secret scan');
     expect(vi.mocked(secrets.scanFilesForSecrets)).toHaveBeenCalledWith(['/wc/a', '/wc/b'], {
       maxFindingsPerFile: 10,
     });

@@ -13,6 +13,7 @@ const { handlers, mocks } = vi.hoisted(() => ({
   mocks: {
     runSvnText: vi.fn(),
     assertPathApprovedForIpc: vi.fn(),
+    assertPathApprovedForIpcAsync: vi.fn(),
     parseSvnInfoSummaryXml: vi.fn(),
     parseSvnStatusEntriesXml: vi.fn(),
     closeFileWatchersForPath: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('electron', () => ({
 }));
 vi.mock('../../utils/approved-paths', () => ({
   assertPathApprovedForIpc: mocks.assertPathApprovedForIpc,
+  assertPathApprovedForIpcAsync: mocks.assertPathApprovedForIpc,
 }));
 vi.mock('../../services/svn-executor', () => ({ runSvnText: mocks.runSvnText }));
 vi.mock('../../utils/svn-xml', () => ({

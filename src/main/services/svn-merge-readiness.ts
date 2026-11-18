@@ -1,6 +1,6 @@
 import type { MergeReadinessReport, SvnInfoResult, SvnStatusEntry } from '@shared/types';
 import { parseSvnStatusXml } from '@shared/svn-parsers';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { withSvnTargets } from '../utils/svn-targets';
 import { parseSvnInfoXml } from '../svn/parsers';
 import { runSvnText } from './svn-executor';
@@ -100,8 +100,8 @@ export async function getMergeReadiness(
   sourceUrl: string,
   targetPath: string
 ): Promise<MergeReadinessReport> {
-  const source = validateRepositoryUrl(sourceUrl, 'Merge source');
-  const target = assertPathApprovedForIpc(targetPath, 'Merge target');
+  const source = await validateRepositoryUrl(sourceUrl, 'Merge source');
+  const target = await assertPathApprovedForIpcAsync(targetPath, 'Merge target');
   const [statusXml, sourceInfoXml, targetInfoXml, eligible, merged] = await Promise.all([
     runSvnText(withSvnTargets(['status', '--xml', '--depth', 'infinity'], [target]), {
       cwd: target,

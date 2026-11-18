@@ -7,7 +7,7 @@ import { OFFLINE_CACHE_SIZE_BYTES } from '@shared/constants';
 import type { SvnCacheEntry, SvnCacheNamespace, SvnCacheStats } from '@shared/types';
 
 import { getSettingsManager } from '../settings-manager';
-import { isPathApprovedForIpc } from '../utils/approved-paths';
+import { isPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { normalizeRepoUrl } from '../utils/svn-url';
 
 const CACHE_FILE_NAME = 'svn-cache-v2.json';
@@ -82,7 +82,7 @@ function entrySerializedSize(entry: Omit<SvnCacheEntry, 'sizeBytes'>): number {
 export async function resolveSvnCacheRoot(
   configuredRoot: string,
   defaultRoot: string,
-  isApproved: (path: string) => boolean = isPathApprovedForIpc,
+  isApproved: (path: string) => boolean | Promise<boolean> = isPathApprovedForIpcAsync,
   prepare: (path: string) => Promise<void> = async (path) => {
     await mkdir(path, { recursive: true });
     await new Promise<void>((resolve, reject) => {
@@ -91,7 +91,7 @@ export async function resolveSvnCacheRoot(
   }
 ): Promise<string> {
   if (!configuredRoot) return defaultRoot;
-  if (!isAbsolute(configuredRoot) || !isApproved(configuredRoot)) {
+  if (!isAbsolute(configuredRoot) || !(await isApproved(configuredRoot))) {
     console.warn('[SVN Cache] Ignoring an unapproved custom cache directory.');
     return defaultRoot;
   }

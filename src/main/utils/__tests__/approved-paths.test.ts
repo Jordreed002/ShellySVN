@@ -5,6 +5,9 @@ import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   approvePathForIpc,
+  approvePathForIpcAsync,
+  assertPathApprovedForIpcAsync,
+  isPathApprovedForIpcAsync,
   assertPathApprovedForIpc,
   clearApprovedPathsForTests,
   isPathApprovedForIpc,
@@ -46,4 +49,27 @@ describe('approved renderer paths', () => {
       ).toThrow('selected through ShellySVN');
     }
   );
+  it('asynchronously approves roots and retains missing target suffixes', async () => {
+    const approved = join(root, 'async-approved');
+    await mkdir(approved);
+    await approvePathForIpcAsync(approved);
+    const candidate = join(approved, 'missing-directory', 'new-file.txt');
+    await expect(assertPathApprovedForIpcAsync(candidate, 'File write')).resolves.toBe(candidate);
+    await expect(isPathApprovedForIpcAsync(join(root, 'other'))).resolves.toBe(false);
+  });
+
+  it('asynchronously rejects directory symlinks that escape an approved root', async () => {
+    const approved = join(root, 'async-approved');
+    const outside = join(root, 'outside');
+    await Promise.all([mkdir(approved), mkdir(outside)]);
+    await symlink(
+      outside,
+      join(approved, 'escape'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    await approvePathForIpcAsync(approved);
+    await expect(
+      assertPathApprovedForIpcAsync(join(approved, 'escape', 'secret.txt'), 'File read')
+    ).rejects.toThrow('selected through ShellySVN');
+  });
 });

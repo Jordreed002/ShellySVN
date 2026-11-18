@@ -3,7 +3,7 @@ import type { WorkingCopyInfo } from '@shared/types';
 import { MONITOR_REFRESH_INTERVAL_MS } from '@shared/constants';
 import { parseSvnInfoSummaryXml, parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import { runSvnText } from '../services/svn-executor';
-import { assertPathApprovedForIpc } from '../utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from '../utils/approved-paths';
 import { withSvnTargets } from '../utils/svn-targets';
 import { closeFileWatchersForPath } from './fs';
 import { setWorkingCopyUrlLookup } from '../services/wc-operation-context';
@@ -81,7 +81,7 @@ export function registerMonitorHandlers(): void {
     'monitor:addWorkingCopy',
     async (_, path: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        const approvedPath = assertPathApprovedForIpc(path, 'Working-copy monitoring');
+        const approvedPath = await assertPathApprovedForIpcAsync(path, 'Working-copy monitoring');
         // Get info about the working copy
         const info = await getSvnInfo(approvedPath);
         if (!info) {
@@ -106,7 +106,7 @@ export function registerMonitorHandlers(): void {
   ipcMain.handle(
     'monitor:removeWorkingCopy',
     async (_, path: string): Promise<{ success: boolean; removed: boolean }> => {
-      const approvedPath = assertPathApprovedForIpc(path, 'Working-copy monitoring');
+      const approvedPath = await assertPathApprovedForIpcAsync(path, 'Working-copy monitoring');
       try {
         // Retire file watchers rooted at the removed copy so they cannot keep
         // firing against a working copy the user just removed.
@@ -122,7 +122,7 @@ export function registerMonitorHandlers(): void {
   ipcMain.handle(
     'monitor:refreshStatus',
     async (_, path: string): Promise<WorkingCopyInfo | null> => {
-      const approvedPath = assertPathApprovedForIpc(path, 'Working-copy monitoring');
+      const approvedPath = await assertPathApprovedForIpcAsync(path, 'Working-copy monitoring');
       const info = monitoredWorkingCopies.get(approvedPath);
       if (!info) return null;
 

@@ -32,6 +32,7 @@
  *   approved-paths behavior.
  */
 
+import { lstat, realpath } from 'node:fs/promises';
 import { lstatSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, normalize, relative, resolve, win32 } from 'path';
 
@@ -96,6 +97,36 @@ export function realpathOfLongestExistingPrefix(path: string): string {
   }
 }
 
+export async function realpathOfLongestExistingPrefixAsync(path: string): Promise<string> {
+  const resolved = resolve(path);
+  let current = resolved;
+  for (;;) {
+    try {
+      return resolve(await realpath(current), relative(current, resolved));
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return resolved;
+      current = parent;
+    }
+  }
+}
+
+export async function assertRealpathSatisfiesAsync(
+  targetPath: string,
+  isAllowed: (path: string) => boolean | Promise<boolean>,
+  operation: string
+): Promise<string> {
+  const resolved = resolve(targetPath);
+  const real = await realpathOfLongestExistingPrefixAsync(resolved);
+  if (!(await isAllowed(real))) {
+    throw new PathGuardError(
+      `${operation} failed: "${resolved}" resolves through symlinks to "${real}", which is outside the approved roots.`,
+      'symlink-escape'
+    );
+  }
+  return resolved;
+}
+
 function isContained(root: string, candidate: string): boolean {
   const rel =
     process.platform === 'win32'
@@ -117,7 +148,10 @@ export function assertSanitizedPath(path: string, operation = 'Path access'): st
     throw new PathGuardError(`${operation} failed: path must not be empty.`, 'invalid-character');
   }
   if (NULL_BYTE.test(path)) {
-    throw new PathGuardError(`${operation} failed: path contains a null byte.`, 'invalid-character');
+    throw new PathGuardError(
+      `${operation} failed: path contains a null byte.`,
+      'invalid-character'
+    );
   }
   if (WIN32_NAMESPACE_PREFIX.test(path) || UNC_OR_DOUBLE_SLASH_PREFIX.test(path)) {
     throw new PathGuardError(
@@ -151,10 +185,7 @@ export function assertSanitizedPath(path: string, operation = 'Path access'): st
 export function assertSafeEntryRelativePath(entryPath: string, operation = 'Entry path'): string {
   assertSanitizedPath(entryPath, operation);
   if (isAbsolute(entryPath) || win32.isAbsolute(entryPath)) {
-    throw new PathGuardError(
-      `${operation} "${entryPath}" must be relative.`,
-      'absolute-entry'
-    );
+    throw new PathGuardError(`${operation} "${entryPath}" must be relative.`, 'absolute-entry');
   }
   for (const segment of pathSegments(entryPath)) {
     if (segment === '..') {
@@ -221,14 +252,86 @@ export function assertWithinRoot(
   const anchoredTarget = resolve(lexicalRoot, targetPath);
   const targetRelative = relative(lexicalRoot, anchoredTarget);
   const isAnchored =
-    targetRelative === '' ||
-    (!targetRelative.startsWith('..') && !isAbsolute(targetRelative));
+    targetRelative === '' || (!targetRelative.startsWith('..') && !isAbsolute(targetRelative));
   const resolvedTarget = isAnchored ? resolve(canonicalRoot, targetRelative) : anchoredTarget;
   const canonicalTarget = realpathOfLongestExistingPrefix(resolvedTarget);
 
   if (!isContained(canonicalRoot, canonicalTarget)) {
+    const escapingSymlink = isAnchored ? findEscapingSymlink(canonicalRoot, resolvedTarget) : null;
+    if (escapingSymlink) {
+      throw new PathGuardError(
+        `${operation} failed: "${escapingSymlink}" is a symlink that redirects outside the approved root.`,
+        'symlink-escape'
+      );
+    }
+    throw new PathGuardError(
+      `${operation} failed: "${targetPath}" resolves outside the approved root "${canonicalRoot}".`,
+      'escapes-root'
+    );
+  }
+
+  return resolvedTarget;
+}
+
+async function findEscapingSymlinkAsync(
+  canonicalRoot: string,
+  resolvedTarget: string
+): Promise<string | null> {
+  const rel = relative(canonicalRoot, resolvedTarget);
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+    // Lexical escape (or the root itself) — not a symlink concern.
+    return null;
+  }
+
+  let current = canonicalRoot;
+  for (const segment of rel.split(/[/\\]+/).filter(Boolean)) {
+    const candidate = join(current, segment);
+    let stats: { isSymbolicLink(): boolean } | null = null;
+    try {
+      stats = await lstat(candidate);
+    } catch {
+      stats = null;
+    }
+    if (!stats) break; // Nothing below this point exists on disk yet.
+    if (stats.isSymbolicLink()) {
+      const real = await realpathOfLongestExistingPrefixAsync(candidate);
+      if (!isContained(canonicalRoot, real)) return candidate;
+      current = real;
+    } else {
+      current = candidate;
+    }
+  }
+  return null;
+}
+
+/**
+ * Assert that `targetPath` (absolute, or relative to `root`) stays inside
+ * `root` under real path semantics: the resolved target, canonicalized
+ * through every existing ancestor, must remain contained. Returns the target
+ * re-anchored under the canonical root (absolute targets whose lexical
+ * prefix differs from the canonical root, e.g. `/tmp/...` on macOS, keep
+ * their lexical form — both forms address the same location).
+ */
+export async function assertWithinRootAsync(
+  root: string,
+  targetPath: string,
+  operation = 'Path access'
+): Promise<string> {
+  assertSanitizedPath(targetPath, operation);
+  assertSanitizedPath(root, `${operation} root`);
+
+  const lexicalRoot = resolve(root);
+  const canonicalRoot = await realpathOfLongestExistingPrefixAsync(lexicalRoot);
+  const anchoredTarget = resolve(lexicalRoot, targetPath);
+  const targetRelative = relative(lexicalRoot, anchoredTarget);
+  const isAnchored =
+    targetRelative === '' || (!targetRelative.startsWith('..') && !isAbsolute(targetRelative));
+  const resolvedTarget = isAnchored ? resolve(canonicalRoot, targetRelative) : anchoredTarget;
+  const canonicalTarget = await realpathOfLongestExistingPrefixAsync(resolvedTarget);
+
+  if (!isContained(canonicalRoot, canonicalTarget)) {
     const escapingSymlink = isAnchored
-      ? findEscapingSymlink(canonicalRoot, resolvedTarget)
+      ? await findEscapingSymlinkAsync(canonicalRoot, resolvedTarget)
       : null;
     if (escapingSymlink) {
       throw new PathGuardError(

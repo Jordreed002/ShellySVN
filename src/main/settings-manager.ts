@@ -31,7 +31,7 @@ import {
   KNOWN_MERGE_TOOL_ALIASES,
   validateExternalToolSetting,
 } from './utils/external-tool-validation';
-import { assertPathApprovedForIpc } from './utils/approved-paths';
+import { assertPathApprovedForIpcAsync } from './utils/approved-paths';
 import { writeSecureJson } from './utils/secure-json';
 import {
   ENCRYPTED_VALUE_PREFIX,
@@ -193,7 +193,10 @@ class SettingsManager {
     this.validatedSvnClient = null;
     if (!trimmedPath) return;
 
-    const approvedPath = assertPathApprovedForIpc(trimmedPath, 'Custom SVN client selection');
+    const approvedPath = await assertPathApprovedForIpcAsync(
+      trimmedPath,
+      'Custom SVN client selection'
+    );
 
     if (/\.(?:cmd|bat|ps1|vbs|js|mjs|cjs|py|pl|rb|sh)$/i.test(approvedPath)) {
       throw new Error(
@@ -251,7 +254,10 @@ class SettingsManager {
 
   private async validateLogCacheSettings(path?: string, maxSize?: number): Promise<void> {
     if (path !== undefined && path.trim()) {
-      const approvedPath = assertPathApprovedForIpc(path.trim(), 'Custom SVN cache storage');
+      const approvedPath = await assertPathApprovedForIpcAsync(
+        path.trim(),
+        'Custom SVN cache storage'
+      );
       let isDirectory = false;
       try {
         isDirectory = (await stat(approvedPath)).isDirectory();
@@ -379,8 +385,8 @@ class SettingsManager {
     // role are verified at launch time, not here.
     const templateIds = new Set(
       [
-        ...((this.settings.externalToolTemplates ?? []).map((tool) => tool?.id)),
-        ...((updates.externalToolTemplates ?? []).map((tool) => tool?.id)),
+        ...(this.settings.externalToolTemplates ?? []).map((tool) => tool?.id),
+        ...(updates.externalToolTemplates ?? []).map((tool) => tool?.id),
       ].filter((id): id is string => typeof id === 'string' && id.length > 0)
     );
     const isAllowedExternalToolId = (value: string): boolean =>
@@ -462,20 +468,10 @@ class SettingsManager {
    */
   getSvnClientPath(): string {
     if (this.settings.svnClientPath && this.settings.svnClientPath.trim()) {
-      try {
-        const approvedPath = assertPathApprovedForIpc(
-          this.settings.svnClientPath.trim(),
-          'Custom SVN client selection'
-        );
-        // This synchronous accessor must never launch a process on Electron's
-        // main event loop. Async callers use resolveSvnClientPath() below.
-        if (this.validatedSvnClient?.path === approvedPath) return approvedPath;
-      } catch (error) {
-        console.warn(
-          '[SECURITY] Ignoring invalid custom SVN client path:',
-          (error as Error).message
-        );
-      }
+      // Only return an already validated value. Disk validation belongs to the
+      // asynchronous resolver; this accessor must remain free of filesystem I/O.
+      if (this.validatedSvnClient?.path === this.settings.svnClientPath.trim())
+        return this.validatedSvnClient.path;
     }
     // Default to system SVN
     return process.platform === 'win32' ? 'svn.exe' : 'svn';
@@ -487,7 +483,7 @@ class SettingsManager {
     if (!configuredPath) return this.getSvnClientPath();
 
     try {
-      const approvedPath = assertPathApprovedForIpc(
+      const approvedPath = await assertPathApprovedForIpcAsync(
         configuredPath,
         'Custom SVN client selection'
       );
@@ -496,10 +492,7 @@ class SettingsManager {
       }
       return approvedPath;
     } catch (error) {
-      console.warn(
-        '[SECURITY] Ignoring invalid custom SVN client path:',
-        (error as Error).message
-      );
+      console.warn('[SECURITY] Ignoring invalid custom SVN client path:', (error as Error).message);
       return process.platform === 'win32' ? 'svn.exe' : 'svn';
     }
   }

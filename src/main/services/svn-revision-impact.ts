@@ -63,7 +63,7 @@ export async function getRevisionImpact(
   limit = 100,
   revision?: number
 ): Promise<RevisionImpactReport> {
-  const approvedTarget = validateRepositoryTarget(target, 'Revision impact target');
+  const approvedTarget = await validateRepositoryTarget(target, 'Revision impact target');
   if (!Number.isFinite(limit)) throw new Error('Revision impact limit must be a finite number.');
   if (revision !== undefined && (!Number.isInteger(revision) || revision < 0)) {
     throw new Error('Revision impact revision must be a non-negative integer.');
