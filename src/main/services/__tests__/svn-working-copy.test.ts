@@ -10,6 +10,8 @@ const mockState = vi.hoisted(() => ({
   sslReady: vi.fn().mockResolvedValue(undefined),
   sslFindForUrl: vi.fn(),
   existsSync: vi.fn(),
+  lstat: vi.fn(),
+  realpath: vi.fn().mockRejectedValue(new Error('Path does not exist')),
   executeHooksForType: vi.fn(),
 }));
 
@@ -22,6 +24,12 @@ vi.mock('fs', async () => {
     existsSync: mockState.existsSync,
   };
 });
+
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs/promises')>()),
+  lstat: mockState.lstat,
+  realpath: mockState.realpath,
+}));
 
 vi.mock('../svn-executor', async (importOriginal) => {
   // Keep the pure disk-full classifiers real (item #30 coverage) while the
@@ -115,6 +123,30 @@ describe('working-copy URL mapping', () => {
   const isWin = process.platform === 'win32';
   const host = (p: string) => (isWin ? p.replace(/\//g, '\\') : p);
   const normTarget = (t: string | undefined) => (t ?? '').replace(/\\/g, '/');
+
+  it('awaits canonical paths and rejects a target outside the canonical working-copy root', async () => {
+    mockState.realpath.mockResolvedValueOnce(host('/elsewhere/file.txt'));
+    mockState.runSvnText.mockImplementation(async (args: string[]) => {
+      if (normTarget(args.at(-1)) !== '/elsewhere/file.txt') throw new Error('not versioned');
+      return [
+        '<info><entry path="/elsewhere/file.txt" revision="1" kind="file">',
+        '<url>https://svn.example.com/repo/trunk/file.txt</url>',
+        '<repository><root>https://svn.example.com/repo</root></repository>',
+        '<wc-info><wcroot-abspath>/wc</wcroot-abspath></wc-info>',
+        '</entry></info>',
+      ].join('');
+    });
+
+    await expect(getWorkingCopyContext('/wc/link.txt')).resolves.toBeNull();
+    expect(mockState.runSvnText).toHaveBeenCalledWith([
+      'info',
+      '--xml',
+      '--',
+      host('/elsewhere/file.txt'),
+    ]);
+    expect(mockState.realpath).toHaveBeenCalledWith(host('/wc'));
+    expect(mockState.existsSync).not.toHaveBeenCalled();
+  });
 
   it('anchors a sparse target at the nearest switched versioned ancestor', async () => {
     mockState.runSvnText.mockImplementation(async (args: string[]) => {
@@ -282,13 +314,23 @@ describe('svn-working-copy revert depth', () => {
 });
 
 describe('svn-working-copy sparse exclusion', () => {
+  const status = (entries = '') =>
+    `<status><target path="/wc/generated">${entries}</target></status>`;
+  const entry = (item: string, props = 'none', extra = '') =>
+    `<entry path="/wc/generated/file.txt"><wc-status item="${item}" props="${props}" ${extra}/></entry>`;
   beforeEach(() => {
     vi.clearAllMocks();
-    mockState.runSvnText.mockResolvedValue('Updated to revision 42.');
-    mockState.existsSync.mockReturnValue(false);
+    mockState.runSvnText.mockImplementation(async (args: string[]) =>
+      args[0] === 'status' ? status() : 'Updated to revision 42.'
+    );
+    mockState.lstat.mockRejectedValue(Object.assign(new Error('absent'), { code: 'ENOENT' }));
+    mockState.trashItem.mockResolvedValue(undefined);
+    mockState.existsSync.mockImplementation(() => {
+      throw new Error('Synchronous filesystem probe');
+    });
   });
 
-  it('sets sticky exclude depth without scheduling repository deletion', async () => {
+  it('sets sticky exclude depth without synchronous filesystem probes or repository deletion', async () => {
     await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toEqual({ success: true });
     expect(mockState.runSvnText).toHaveBeenCalledWith([
       'update',
@@ -300,13 +342,16 @@ describe('svn-working-copy sparse exclusion', () => {
     expect(mockState.trashItem).not.toHaveBeenCalled();
   });
 
-  it('removes a whole selection of files and folders in one command', async () => {
+  it('preflights the whole selection before issuing a single update', async () => {
     await expect(excludeFromWorkingCopy(['/wc/generated', '/wc/notes.txt'])).resolves.toEqual({
       success: true,
     });
-
-    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
+    expect(mockState.runSvnText.mock.calls.map(([args]) => args[0])).toEqual([
+      'status',
+      'status',
+      'update',
+    ]);
+    expect(mockState.runSvnText).toHaveBeenLastCalledWith([
       'update',
       '--set-depth',
       'exclude',
@@ -316,56 +361,90 @@ describe('svn-working-copy sparse exclusion', () => {
     ]);
   });
 
-  it('refuses an empty selection instead of running svn with no target', async () => {
-    await expect(excludeFromWorkingCopy([])).resolves.toEqual({
-      success: false,
-      error: 'Nothing selected to remove from the working copy',
-    });
+  it('refuses an empty selection', async () => {
+    await expect(excludeFromWorkingCopy([])).resolves.toMatchObject({ success: false });
     expect(mockState.runSvnText).not.toHaveBeenCalled();
   });
 
-  it('trashes every selected leftover, not just the first', async () => {
-    mockState.existsSync.mockReturnValue(true);
-
-    await expect(excludeFromWorkingCopy(['/wc/a', '/wc/b'])).resolves.toEqual({ success: true });
-
-    expect(mockState.trashItem).toHaveBeenCalledWith('/wc/a');
-    expect(mockState.trashItem).toHaveBeenCalledWith('/wc/b');
-  });
-
-  it('moves a folder left behind by unversioned content to the OS trash', async () => {
-    mockState.existsSync.mockReturnValue(true);
-
-    await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toEqual({ success: true });
-
-    expect(mockState.runSvnText).toHaveBeenCalled();
-    expect(mockState.trashItem).toHaveBeenCalledWith('/wc/generated');
-    expect(mockState.runSvnText.mock.invocationCallOrder[0]).toBeLessThan(
-      mockState.trashItem.mock.invocationCallOrder[0]
-    );
-  });
-
-  it('does not remove the local folder when SVN exclusion fails', async () => {
-    mockState.existsSync.mockReturnValue(true);
-    mockState.runSvnText.mockRejectedValue(new Error('local modifications prevent exclusion'));
-
-    await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toEqual({
+  it.each([
+    ['modified', 'none', ''],
+    ['added', 'none', ''],
+    ['deleted', 'none', ''],
+    ['conflicted', 'none', ''],
+    ['normal', 'modified', ''],
+    ['normal', 'conflicted', ''],
+    ['normal', 'none', 'tree-conflicted="true"'],
+  ])('preserves versioned local changes: %s %s %s', async (item, props, extra) => {
+    mockState.runSvnText.mockResolvedValue(status(entry(item, props, extra)));
+    await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toMatchObject({
       success: false,
-      error: 'local modifications prevent exclusion',
+      error: expect.stringContaining('local versioned changes'),
     });
-
+    expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
     expect(mockState.trashItem).not.toHaveBeenCalled();
   });
 
-  it('reports when SVN exclusion succeeds but trashing residual files fails', async () => {
-    mockState.existsSync.mockReturnValue(true);
-    mockState.trashItem.mockRejectedValueOnce(new Error('trash unavailable'));
+  it.each(['props="modified"', 'props="none" tree-conflicted="true"'])(
+    'rejects changes on the selected directory itself: %s',
+    async (attributes) => {
+      mockState.runSvnText.mockResolvedValue(
+        status(`<entry path="/wc/generated"><wc-status item="normal" ${attributes}/></entry>`)
+      );
+      await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toMatchObject({
+        success: false,
+      });
+      expect(mockState.trashItem).not.toHaveBeenCalled();
+      expect(mockState.runSvnText).toHaveBeenCalledTimes(1);
+    }
+  );
 
+  it('does not trash local-only content if another selected target has local edits', async () => {
+    mockState.runSvnText
+      .mockResolvedValueOnce(status(entry('unversioned')))
+      .mockResolvedValueOnce(status(entry('modified')));
+    await expect(excludeFromWorkingCopy(['/wc/generated', '/wc/other'])).resolves.toMatchObject({
+      success: false,
+    });
+    expect(mockState.trashItem).not.toHaveBeenCalled();
+  });
+
+  it('fails closed if status cannot be read', async () => {
+    mockState.runSvnText.mockRejectedValueOnce(new Error('status failed'));
     await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toEqual({
       success: false,
-      error:
-        'SVN excluded the selection, but remaining local files could not be moved to the trash: trash unavailable',
+      error: 'status failed',
     });
+    expect(mockState.trashItem).not.toHaveBeenCalled();
+  });
+
+  it('trashes only known local-only content before exclusion', async () => {
+    mockState.runSvnText.mockResolvedValueOnce(status(entry('unversioned')));
+    mockState.lstat.mockResolvedValueOnce({});
+    await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toEqual({ success: true });
+    expect(mockState.trashItem).toHaveBeenCalledExactlyOnceWith('/wc/generated/file.txt');
+    expect(mockState.trashItem.mock.invocationCallOrder[0]).toBeLessThan(
+      mockState.runSvnText.mock.invocationCallOrder[1]
+    );
+  });
+
+  it('preserves leftovers even when SVN exits successfully, including edits racing preflight', async () => {
+    mockState.lstat.mockResolvedValue({});
+    await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('Remaining local files were preserved'),
+    });
+    expect(mockState.trashItem).not.toHaveBeenCalled();
+  });
+
+  it('does not remove the local folder when SVN exclusion fails', async () => {
+    mockState.runSvnText
+      .mockResolvedValueOnce(status())
+      .mockRejectedValueOnce(new Error('exclusion failed'));
+    await expect(excludeFromWorkingCopy('/wc/generated')).resolves.toEqual({
+      success: false,
+      error: 'exclusion failed',
+    });
+    expect(mockState.trashItem).not.toHaveBeenCalled();
   });
 });
 

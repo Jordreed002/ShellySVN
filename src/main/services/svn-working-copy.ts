@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from 'fs';
+import { lstat, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, normalize, relative, win32 } from 'path';
 import { shell, type IpcMainInvokeEvent } from 'electron';
 
@@ -123,11 +123,10 @@ function getWorkingCopyRelativePath(workingCopyRoot: string, localPath: string):
   return relativePath;
 }
 
-function canonicalizeLocalPath(path: string): string {
+async function canonicalizeLocalPath(path: string): Promise<string> {
   const normalizedPath = isWindowsAbsolutePath(path) ? win32.normalize(path) : normalize(path);
-  if (!existsSync(normalizedPath)) return normalizedPath;
   try {
-    return normalize(realpathSync.native(normalizedPath));
+    return normalize(await realpath(normalizedPath));
   } catch {
     return normalizedPath;
   }
@@ -181,7 +180,7 @@ async function getCachedCredentialsForWorkingCopy(
 export async function getWorkingCopyContext(
   localPath: string
 ): Promise<SvnWorkingCopyContext | null> {
-  const requestedPath = canonicalizeLocalPath(localPath);
+  const requestedPath = await canonicalizeLocalPath(localPath);
   let currentPath = requestedPath;
 
   for (let attempts = 0; attempts < 50; attempts++) {
@@ -191,8 +190,10 @@ export async function getWorkingCopyContext(
       );
 
       if (info.workingCopyRoot && info.repositoryRoot && info.url) {
-        const nearestVersionedPath = canonicalizeLocalPath(currentPath);
-        const workingCopyRoot = canonicalizeLocalPath(info.workingCopyRoot);
+        const [nearestVersionedPath, workingCopyRoot] = await Promise.all([
+          canonicalizeLocalPath(currentPath),
+          canonicalizeLocalPath(info.workingCopyRoot),
+        ]);
         // Both checks are intentionally segment-aware. The first prevents an
         // ancestor probe from accepting a sibling prefix; the second catches a
         // symlink that escapes the administrative working-copy root.
@@ -834,47 +835,44 @@ export async function unversion(paths: string[]): Promise<{ success: boolean }> 
   });
 }
 
-/**
- * Remove a versioned folder from the local working copy while leaving the
- * repository unchanged. SVN records a sticky `exclude` depth so later updates
- * do not bring the folder back automatically.
- */
-/**
- * Unversioned and ignored files inside a target, deepest first so trashing a
- * child never removes the ground under a later entry.
- */
-async function listLocalOnlyContent(targets: string[]): Promise<string[]> {
+/** Preflight the whole selection before moving any local-only content. */
+async function inspectExclusionTargets(targets: string[]): Promise<string[]> {
   const found = new Set<string>();
   for (const target of targets) {
-    if (!existsSync(target)) continue;
-    try {
-      const xml = await runSvnText(
-        withSvnTargets(['status', '--xml', '--no-ignore', '--depth', 'infinity'], [target])
-      );
-      for (const entry of parseSvnStatusEntriesXml(xml)) {
-        if (entry.item === 'unversioned' || entry.item === 'ignored') found.add(entry.path);
+    const xml = await runSvnText(
+      withSvnTargets(['status', '--xml', '--no-ignore', '--depth', 'infinity'], [target])
+    );
+    if (!xml.includes('<status') || !xml.includes('</status>')) {
+      throw new Error('Could not verify working-copy status before exclusion.');
+    }
+    for (const entry of parseSvnStatusEntriesXml(xml, true)) {
+      const unchanged = ['normal', 'none', 'external', 'unversioned', 'ignored'];
+      if (
+        !unchanged.includes(entry.item) ||
+        (entry.props && !['normal', 'none'].includes(entry.props)) ||
+        entry.treeConflicted
+      ) {
+        throw new Error(
+          `Cannot exclude ${target}: local versioned changes exist at ${entry.path}. Commit, shelve, or revert them first.`
+        );
       }
-    } catch (error) {
-      debug.warn('[SVN] Could not list local-only content before excluding:', error);
+      if (entry.item === 'unversioned' || entry.item === 'ignored') found.add(entry.path);
     }
   }
   return Array.from(found).sort((a, b) => b.length - a.length);
 }
 
-/**
- * Drop files or folders from this checkout without touching the repository:
- * `--set-depth exclude` is sticky, so `svn status` stays quiet about them and a
- * later update does not bring them back — and `svn update --depth infinity` on
- * the same target is the way back. SVN accepts several targets at once, so a
- * whole selection costs one process.
- *
- * Order matters, and getting it wrong corrupts the working copy: unversioned or
- * ignored content stops SVN from removing the directory, and it then leaves the
- * exclusion half-applied — the working copy locked, the entry recorded at depth
- * `empty` instead of `exclude`, and the folder reported as missing (`!`) forever
- * after. Exiting 0 while doing that gives no signal to check for. So the local-
- * only content goes to the trash first, and SVN gets a directory it can remove.
- */
+async function exclusionPathExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/** Exclude clean versioned targets, preserving anything SVN leaves on disk. */
 export async function excludeFromWorkingCopy(
   paths: string | string[]
 ): Promise<{ success: boolean; error?: string }> {
@@ -884,8 +882,14 @@ export async function excludeFromWorkingCopy(
   }
   validateSvnTargets(targets, 'Sparse exclude target');
   return runSerializedWorkingCopyMutation(targets[0], async () => {
-    for (const localOnlyPath of await listLocalOnlyContent(targets)) {
-      if (!existsSync(localOnlyPath)) continue;
+    let localOnlyPaths: string[];
+    try {
+      localOnlyPaths = await inspectExclusionTargets(targets);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+    for (const localOnlyPath of localOnlyPaths) {
+      if (!(await exclusionPathExists(localOnlyPath))) continue;
       try {
         await shell.trashItem(localOnlyPath);
       } catch (error) {
@@ -907,19 +911,14 @@ export async function excludeFromWorkingCopy(
       };
     }
 
-    // With the local-only content gone SVN removes the item itself. Anything
-    // still here (a file appearing mid-operation, say) is trashed so the view
-    // matches the exclusion rather than showing a phantom.
-    const leftBehind = targets.filter((target) => existsSync(target));
-    for (const target of leftBehind) {
-      try {
-        await shell.trashItem(target);
-      } catch (error) {
+    // A successful exit does not prove SVN removed the target. In particular,
+    // it preserves versioned files edited while the update was in progress.
+    // Never trash that content to make the view match the requested depth.
+    for (const target of targets) {
+      if (await exclusionPathExists(target)) {
         return {
           success: false,
-          error: `SVN excluded the selection, but remaining local files could not be moved to the trash: ${
-            (error as Error)?.message || 'Unknown filesystem error'
-          }`,
+          error: `SVN did not fully exclude ${target}. Remaining local files were preserved. Check working-copy status before retrying.`,
         };
       }
     }
