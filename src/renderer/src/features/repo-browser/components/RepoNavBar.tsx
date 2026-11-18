@@ -12,6 +12,7 @@
  * Presentational only: every handler and every disabled state arrives as a prop.
  */
 
+import { isMacPlatform } from '@renderer/lib/platformKeys';
 import {
   ArrowUp,
   ChevronLeft,
@@ -103,7 +104,7 @@ export function RepoNavBar({
   canCreateFolder = true,
   onToggleDetail,
   detailVisible = true,
-  modifierKey = '⌘',
+  modifierKey = isMacPlatform() ? '⌘' : 'Ctrl+',
   className,
 }: RepoNavBarProps): JSX.Element {
   const wholeRepo = searchScope === 'repository';

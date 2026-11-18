@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { displayShortcut } from '@renderer/lib/platformKeys';
 import {
   Download,
   Upload,
@@ -389,8 +390,8 @@ export function ContextMenu({
                 )}
               </span>
               {item.shortcut && (
-                <span className="ml-auto flex-none font-mono text-[9.5px] text-text-faint group-hover:text-white/80">
-                  {item.shortcut}
+                <span className="ml-auto flex-none font-mono text-11 text-text-muted group-hover:text-white/80">
+                  {displayShortcut(item.shortcut)}
                 </span>
               )}
               {hasSubmenu && (

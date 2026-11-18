@@ -54,6 +54,7 @@ import {
   X,
 } from 'lucide-react';
 import { rankCommands } from '../../lib/commandPaletteFuzzy';
+import { displayShortcut } from '../../lib/platformKeys';
 import { loadPaletteUsage, recordPaletteUsage, savePaletteUsage } from '../../lib/commandPaletteUsage';
 
 interface CommandItem {
@@ -1140,7 +1141,9 @@ export function CommandPalette({
             >
               {cmd.title}
             </span>
-            {cmd.shortcut && <span className="kbd flex-shrink-0">{cmd.shortcut}</span>}
+            {cmd.shortcut && (
+              <span className="kbd flex-shrink-0">{displayShortcut(cmd.shortcut)}</span>
+            )}
           </div>
           {cmd.description && (
             <p className="text-xs text-text-muted truncate mt-0.5">{cmd.description}</p>

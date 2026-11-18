@@ -3,6 +3,7 @@ import { AlertTriangle, Keyboard, Pencil, RotateCcw, X } from 'lucide-react';
 import { useShortcutBindings } from '../../hooks/useShortcutBindings';
 import { normalizeShortcutKey, shortcutComboFromEvent } from '../../lib/shortcutStore';
 import { DialogBase } from './DialogBase';
+import { displayShortcut, isMacPlatform } from '../../lib/platformKeys';
 
 /**
  * A row of the cheat sheet. Rows whose action is user-remappable carry the
@@ -108,8 +109,15 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta']);
 
 /** Split a canonical combo (`Ctrl+Shift+K`) into display parts. */
+const MAC_KEY_PART: Record<string, string> = { Ctrl: '⌘', Cmd: '⌘', Alt: '⌥', Shift: '⇧' };
+
+/** Split a canonical binding into keycaps, in this platform's words (⌘ on macOS, Ctrl elsewhere). */
 function keyParts(key: string): string[] {
-  return key.split('+').filter(Boolean);
+  const mac = isMacPlatform();
+  return key
+    .split('+')
+    .filter(Boolean)
+    .map((part) => (mac ? (MAC_KEY_PART[part] ?? part) : part));
 }
 
 interface KeyboardShortcutsDialogProps {
@@ -243,7 +251,7 @@ export function KeyboardShortcutsDialog({ isOpen, onClose }: KeyboardShortcutsDi
                     const binding = shortcut.bindingId
                       ? bindingById.get(shortcut.bindingId)
                       : undefined;
-                    const keys = binding ? keyParts(binding.currentKey) : shortcut.keys;
+                    const keys = binding ? keyParts(binding.currentKey) : shortcut.keys.flatMap((part) => keyParts(part));
                     return (
                       <div key={index} className="flex items-center justify-between text-sm">
                         <span
@@ -329,7 +337,7 @@ export function KeyboardShortcutsDialog({ isOpen, onClose }: KeyboardShortcutsDi
                                 binding.enabled ? 'text-text' : 'text-text-faint'
                               }`}
                             >
-                              {binding.currentKey}
+                              {displayShortcut(binding.currentKey)}
                             </kbd>
                           )}
 
