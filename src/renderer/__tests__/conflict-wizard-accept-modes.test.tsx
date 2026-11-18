@@ -1,6 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,14 +21,22 @@ function createWrapper() {
   };
 }
 
+function conflictRegion(mine: string, theirs: string): string {
+  return ['<<<<<<< .mine', mine, '=======', theirs, '>>>>>>> .r14'].join('\n');
+}
+
 describe('conflict wizard accept modes, previews, and batch resolution (#55)', () => {
   const resolve = vi.fn();
   const cat = vi.fn();
   const listDirectory = vi.fn();
   const readFile = vi.fn();
+  const writeFile = vi.fn();
+  const confirm = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    writeFile.mockResolvedValue({ success: true });
+    confirm.mockResolvedValue(true);
     mockUseSettings.mockReturnValue({
       settings: {
         diffMerge: {
@@ -69,9 +77,125 @@ describe('conflict wizard accept modes, previews, and batch resolution (#55)', (
       configurable: true,
       value: {
         svn: { resolve, cat },
-        fs: { listDirectory, readFile },
+        fs: { listDirectory, readFile, writeFile },
+        dialog: { confirm },
       },
     });
+  });
+
+  function openMergeWizard(conflictPaths: string[]) {
+    const props = { conflictPaths, workingCopyPath: '/wc', onClose: vi.fn() };
+    const view = render(<ConflictResolutionWizard isOpen {...props} />, {
+      wrapper: createWrapper(),
+    });
+    fireEvent.click(screen.getByText('resolve'));
+    return { ...view, props };
+  }
+
+  it('discards an old merge read after moving to a different file', async () => {
+    const a = 'src/a.ts';
+    const b = 'src/b.ts';
+    listDirectory.mockResolvedValue(
+      ['a.ts.mine', 'b.ts.mine'].map((name) => ({ name, isDirectory: false }))
+    );
+    const aConflict = conflictRegion('A mine', 'A theirs');
+    const bConflict = conflictRegion('B mine', 'B theirs');
+    readFile.mockImplementation(async (path: string) => ({
+      success: true,
+      content: path === a ? aConflict : bConflict,
+    }));
+    openMergeWizard([a, b]);
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith(b));
+
+    let finishA!: (result: { success: boolean; content: string }) => void;
+    const delayedA = new Promise<{ success: boolean; content: string }>((resolve) => {
+      finishA = resolve;
+    });
+    readFile.mockImplementation((path: string) =>
+      path === a ? delayedA : Promise.resolve({ success: true, content: bConflict })
+    );
+
+    const openEditor = () =>
+      fireEvent.click(screen.getByRole('button', { name: /Open Built-in Merge Editor/ }));
+    openEditor();
+    fireEvent.click(screen.getByRole('button', { name: 'Defer' }));
+    await screen.findByText('Conflict 2 of 2');
+    openEditor();
+    await screen.findByRole('button', { name: 'Use All Mine' });
+
+    await act(async () => finishA({ success: true, content: aConflict }));
+    expect(screen.queryByText('A mine')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Use All Mine' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Merged File' }));
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith(b, 'working'));
+    expect(writeFile).toHaveBeenCalledExactlyOnceWith(b, 'B mine');
+  });
+
+  it('discards a pending read when the wizard closes and reopens for the same file', async () => {
+    const path = 'src/app.ts';
+    const conflict = conflictRegion('mine', 'theirs');
+    readFile.mockResolvedValue({ success: true, content: conflict });
+    const { rerender, props } = openMergeWizard([path]);
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith(path));
+
+    let finishRead!: (result: { success: boolean; content: string }) => void;
+    const pendingRead = new Promise<{ success: boolean; content: string }>((resolve) => {
+      finishRead = resolve;
+    });
+    readFile.mockImplementation((requestedPath: string) =>
+      requestedPath === path
+        ? pendingRead
+        : Promise.resolve({ success: true, content: 'artifact' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Open Built-in Merge Editor/ }));
+    rerender(<ConflictResolutionWizard isOpen={false} {...props} />);
+    rerender(<ConflictResolutionWizard isOpen {...props} />);
+    fireEvent.click(screen.getByText('resolve'));
+
+    await act(async () => finishRead({ success: true, content: conflict }));
+    expect(screen.queryByRole('button', { name: 'Save Merged File' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Open Built-in Merge Editor/ })).toBeEnabled();
+  });
+
+  it('saves a partial merge as a draft without clearing SVN conflict status', async () => {
+    const remaining = conflictRegion('second mine', 'second theirs');
+    readFile.mockResolvedValue({
+      success: true,
+      content: `${conflictRegion('first mine', 'first theirs')}\n${remaining}`,
+    });
+    openMergeWizard(['src/app.ts']);
+    fireEvent.click(screen.getByRole('button', { name: /Open Built-in Merge Editor/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Use Mine', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Merged File' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Save Merged File' })).not.toBeInTheDocument()
+    );
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ confirmLabel: 'Save Draft' }));
+    expect(writeFile).toHaveBeenCalledExactlyOnceWith('src/app.ts', `first mine\n${remaining}`);
+    expect(resolve).not.toHaveBeenCalled();
+    expect(screen.getByText('0/1 resolved')).toBeInTheDocument();
+  });
+
+  it('keeps the editor open and reports text saved when SVN rejects resolution', async () => {
+    readFile.mockResolvedValue({
+      success: true,
+      content: conflictRegion('mine', 'theirs'),
+    });
+    resolve.mockResolvedValueOnce({ success: false, error: 'Working copy locked' });
+    openMergeWizard(['src/app.ts']);
+    fireEvent.click(screen.getByRole('button', { name: /Open Built-in Merge Editor/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Use All Mine' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Merged File' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'File saved, but SVN could not mark it resolved: Working copy locked'
+    );
+    expect(writeFile).toHaveBeenCalledExactlyOnceWith('src/app.ts', 'mine');
+    expect(screen.getByText('0/1 resolved')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revert Changes' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save Merged File' }));
+    await waitFor(() => expect(screen.getByText('1/1 resolved')).toBeInTheDocument());
   });
 
   it('offers every svn accept mode for text conflicts with plain-language consequences', async () => {

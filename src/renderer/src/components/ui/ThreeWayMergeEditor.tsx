@@ -33,7 +33,10 @@ interface ThreeWayMergeEditorProps {
   baseContent: string;
   mergedContent?: string;
   onClose: () => void;
-  onSave: (mergedContent: string) => Promise<void>;
+  onSave: (
+    mergedContent: string,
+    mode: 'draft' | 'resolve'
+  ) => Promise<void | { resolutionError: string }>;
   onProposalMetadata?: (metadata: { confidence: number; unresolvedQuestions: string[] }) => void;
 }
 
@@ -44,6 +47,7 @@ interface ConflictRegion {
   mineContent: string[];
   theirsContent: string[];
   baseContent: string[];
+  baseAvailable: boolean;
   resolved: boolean;
   resolution:
     | 'mine'
@@ -170,18 +174,13 @@ export function ThreeWayMergeEditor({
 
   // Parse conflict markers from merged content (SVN conflict format).
   useEffect(() => {
-    if (!sourceContent) return;
-
     const lines = sourceContent.split('\n');
-    const explicitMineLines =
-      mineContent && mineContent !== sourceContent ? mineContent.split('\n') : null;
-    const explicitTheirsLines =
-      theirsContent && theirsContent !== sourceContent ? theirsContent.split('\n') : null;
-    const explicitBaseLines = baseContent ? baseContent.split('\n') : null;
     const parsedConflicts: ConflictRegion[] = [];
     let currentConflict: Partial<ConflictRegion> | null = null;
     let inMineSection = false;
     let inTheirsSection = false;
+    let inBaseSection = false;
+    let hasInlineBase = false;
     let mineLines: string[] = [];
     let theirsLines: string[] = [];
     let baseLines: string[] = [];
@@ -202,14 +201,25 @@ export function ThreeWayMergeEditor({
         mineLines = [];
         theirsLines = [];
         baseLines = [];
+        inBaseSection = false;
+        hasInlineBase = false;
         conflictStartLine = i;
         continue;
       }
 
-      // Detect separator: ======= or ------- (with revision info)
-      if (line.startsWith('=======') && inMineSection) {
+      // Diff3 markers include the ancestor region between mine and theirs.
+      if (line.startsWith('|||||||') && inMineSection) {
+        inMineSection = false;
+        inBaseSection = true;
+        hasInlineBase = true;
+        continue;
+      }
+
+      // Detect the incoming section.
+      if (line.startsWith('=======') && (inMineSection || inBaseSection)) {
         inMineSection = false;
         inTheirsSection = true;
+        inBaseSection = false;
         continue;
       }
 
@@ -220,9 +230,10 @@ export function ThreeWayMergeEditor({
             id: currentConflict.id!,
             startLine: conflictStartLine,
             endLine: i,
-            mineContent: explicitMineLines ?? mineLines,
-            theirsContent: explicitTheirsLines ?? theirsLines,
-            baseContent: explicitBaseLines ?? baseLines,
+            mineContent: mineLines,
+            theirsContent: theirsLines,
+            baseContent: baseLines,
+            baseAvailable: hasInlineBase,
             resolved: false,
             resolution: null,
           });
@@ -236,11 +247,24 @@ export function ThreeWayMergeEditor({
       // Collect lines
       if (inMineSection) {
         mineLines.push(line);
+      } else if (inBaseSection) {
+        baseLines.push(line);
       } else if (inTheirsSection) {
         theirsLines.push(line);
       }
     }
 
+    // A whole-file conflict can use the full ancestor without any alignment.
+    // For partial conflicts without inline ancestor markers, keep Base unavailable:
+    // the full ancestor file is not a replacement for one conflict region.
+    if (parsedConflicts.length === 1 && !parsedConflicts[0].baseAvailable) {
+      const conflict = parsedConflicts[0];
+      if (conflict.startLine === 0 && conflict.endLine === lines.length - 1) {
+        conflict.baseContent = baseContent === '' ? [] : baseContent.split('\n');
+        conflict.baseAvailable = true;
+      }
+    }
+    setCurrentConflictIndex(0);
     setConflicts(parsedConflicts);
   }, [mineContent, theirsContent, baseContent, sourceContent]);
 
@@ -286,11 +310,7 @@ export function ThreeWayMergeEditor({
           result.push(...resolvedLines);
         } else {
           // Unresolved - keep conflict markers
-          result.push('<<<<<<< .mine');
-          result.push(...conflict.mineContent);
-          result.push('=======');
-          result.push(...conflict.theirsContent);
-          result.push('>>>>>>> .r???');
+          result.push(...lines.slice(conflict.startLine, conflict.endLine + 1));
         }
 
         skipUntil = conflict.endLine + 1;
@@ -317,7 +337,11 @@ export function ThreeWayMergeEditor({
   // Handle resolution
   const handleResolve = (conflictId: string, resolution: ConflictRegion['resolution']) => {
     setConflicts((prev) =>
-      prev.map((c) => (c.id === conflictId ? { ...c, resolved: true, resolution } : c))
+      prev.map((c) =>
+        c.id === conflictId && (resolution !== 'base' || c.baseAvailable)
+          ? { ...c, resolved: true, resolution }
+          : c
+      )
     );
   };
 
@@ -489,21 +513,27 @@ export function ThreeWayMergeEditor({
   const handleSave = useCallback(async () => {
     if (isSaving) return;
 
-    const unresolvedCount = conflicts.filter((c) => !c.resolved).length;
-    if (unresolvedCount > 0) {
-      const proceed = await confirmAppAction({
-        type: 'warning',
-        message: `There are ${unresolvedCount} unresolved conflicts. Save anyway?`,
-        confirmLabel: 'Save',
-      });
-      if (!proceed) return;
-    }
-
     setIsSaving(true);
     setSaveError(null);
     try {
-      await onSave(mergedContent);
+      // A custom or generated resolution can also leave markers behind.
+      const hasUnresolvedConflict =
+        conflicts.some((conflict) => !conflict.resolved) || /^(?:<{7}|>{7})/m.test(mergedContent);
+      if (hasUnresolvedConflict) {
+        const proceed = await confirmAppAction({
+          type: 'warning',
+          message: 'Unresolved conflicts remain. Save a draft and keep this file conflicted?',
+          confirmLabel: 'Save Draft',
+        });
+        if (!proceed) return;
+      }
+
+      const result = await onSave(mergedContent, hasUnresolvedConflict ? 'draft' : 'resolve');
       setLastSavedContent(mergedContent);
+      if (result) {
+        setSaveError(result.resolutionError);
+        return;
+      }
       onClose();
     } catch (err) {
       setSaveError((err as Error).message || 'Failed to save merged content');
@@ -766,7 +796,14 @@ export function ThreeWayMergeEditor({
                   </span>
                   <button
                     onClick={() => currentConflict && handleResolve(currentConflict.id, 'base')}
-                    disabled={!currentConflict || currentConflict.resolved}
+                    disabled={
+                      !currentConflict || currentConflict.resolved || !currentConflict.baseAvailable
+                    }
+                    title={
+                      currentConflict?.baseAvailable
+                        ? 'Use ancestor region'
+                        : 'Ancestor content is unavailable for this conflict region'
+                    }
                     className="btn btn-secondary btn-sm text-xs py-1 px-2"
                   >
                     <Copy className="w-3 h-3" />
@@ -777,6 +814,11 @@ export function ThreeWayMergeEditor({
                   lines={currentConflict?.baseContent ?? []}
                   showLineNumbers={showLineNumbers}
                   lineClassName="text-text-secondary"
+                  emptyMessage={
+                    currentConflict?.baseAvailable
+                      ? 'Empty ancestor region'
+                      : 'Ancestor content is unavailable for this conflict region'
+                  }
                 />
               </div>
 

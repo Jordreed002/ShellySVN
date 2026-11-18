@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -90,6 +90,16 @@ interface MergeEditorContents {
   theirsContent: string;
   mergedContent: string;
 }
+
+interface MergeEditorRequest {
+  path: string;
+}
+
+type MergeEditorState = { request: MergeEditorRequest } & (
+  | { status: 'loading' }
+  | { status: 'ready'; contents: MergeEditorContents }
+  | { status: 'error'; message: string }
+);
 
 interface ConflictArtifactPaths {
   basePath: string;
@@ -243,14 +253,12 @@ export function ConflictResolutionWizard({
   const [currentStep, setCurrentStep] = useState<WizardStep>('overview');
   const [conflictFiles, setConflictFiles] = useState<ConflictFile[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [showMergeEditor, setShowMergeEditor] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLaunchingExternalTool, setIsLaunchingExternalTool] = useState(false);
   const [externalToolError, setExternalToolError] = useState<string | null>(null);
-  const [mergeEditorContents, setMergeEditorContents] = useState<MergeEditorContents | null>(null);
-  const [mergeEditorError, setMergeEditorError] = useState<string | null>(null);
-  const [isLoadingMergeEditor, setIsLoadingMergeEditor] = useState(false);
+  const [mergeEditor, setMergeEditor] = useState<MergeEditorState | null>(null);
+  const activeMergeEditorRequest = useRef<MergeEditorRequest | null>(null);
 
   // Preview + quick compare state (#55)
   const [previewSide, setPreviewSide] = useState<PreviewSide | null>(null);
@@ -332,6 +340,17 @@ export function ConflictResolutionWizard({
 
   // Get current conflict file
   const currentFile = conflictFiles[currentIndex];
+  const currentPath = currentFile?.path;
+  // Invalidate the request even when the user navigates away and back before it finishes.
+  useLayoutEffect(() => {
+    setMergeEditor(null);
+    return () => {
+      activeMergeEditorRequest.current = null;
+    };
+  }, [isOpen, currentPath, currentStep, conflictPaths, conflicts, workingCopyPath]);
+
+  const isLoadingMergeEditor = mergeEditor?.status === 'loading';
+  const mergeEditorError = mergeEditor?.status === 'error' ? mergeEditor.message : null;
   const currentKind: ConflictKind = currentFile?.kind ?? 'text';
   const externalMergeTool = currentFile
     ? resolveExternalToolForPath(settings.diffMerge, currentFile.path, 'merge')
@@ -358,9 +377,21 @@ export function ConflictResolutionWizard({
     }
   };
 
+  const closeMergeEditor = (request?: MergeEditorRequest) => {
+    if (request && activeMergeEditorRequest.current !== request) return;
+    activeMergeEditorRequest.current = null;
+    setMergeEditor(null);
+  };
+
   // Handle resolution
-  const handleResolve = async (resolution: ConflictResolutionMode | 'merged' | 'custom') => {
-    if (!currentFile) return;
+  const handleResolve = async (
+    resolution: ConflictResolutionMode | 'merged' | 'custom',
+    editorRequest?: MergeEditorRequest
+  ) => {
+    const path = editorRequest?.path ?? currentPath;
+    if (!path) return;
+    const editorStillActive = () =>
+      !editorRequest || activeMergeEditorRequest.current === editorRequest;
 
     const mode = normalizeWizardResolution(resolution);
     const svnArg = toSvnResolveArg(mode);
@@ -371,41 +402,45 @@ export function ConflictResolutionWizard({
       return;
     }
 
+    if (!editorRequest) closeMergeEditor();
     setIsProcessing(true);
 
     try {
       // Keep the UI provisional until SVN confirms that every conflict marker
       // (text, property, or tree) has actually cleared.
       setConflictFiles((prev) =>
-        prev.map((f, i) => (i === currentIndex ? { ...f, status: 'in-progress', resolution: mode } : f))
+        prev.map((f) => (f.path === path ? { ...f, status: 'in-progress', resolution: mode } : f))
       );
 
-      await window.api.svn.resolve(currentFile.path, svnArg);
+      const result = await window.api.svn.resolve(path, svnArg);
+      if (result?.success === false) {
+        throw new Error(result.error || 'SVN could not mark the file resolved.');
+      }
+      void queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
+
       setConflictFiles((prev) =>
-        prev.map((f, i) =>
-          i === currentIndex ? { ...f, status: 'resolved', resolution: mode, error: undefined } : f
+        prev.map((f) =>
+          f.path === path ? { ...f, status: 'resolved', resolution: mode, error: undefined } : f
         )
       );
-
-      // Invalidate status cache
-      queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
+      if (!editorStillActive()) return;
 
       // Auto-advance to next conflict
       const nextIndex = conflictFiles.findIndex(
-        (file, index) => index !== currentIndex && file.status !== 'resolved'
+        (file) => file.path !== path && file.status !== 'resolved'
       );
       if (autoAdvance && nextIndex >= 0) {
         setCurrentIndex(nextIndex);
       } else if (nextIndex < 0) {
         setCurrentStep('complete');
       }
-    } catch (err) {
-      console.error('Failed to resolve conflict:', err);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       setConflictFiles((prev) =>
-        prev.map((f, i) =>
-          i === currentIndex ? { ...f, status: 'pending', error: (err as Error).message } : f
-        )
+        prev.map((f) => (f.path === path ? { ...f, status: 'pending', error: message } : f))
       );
+      if (editorRequest) throw error;
+      console.error('Failed to resolve conflict:', error);
     } finally {
       setIsProcessing(false);
     }
@@ -413,6 +448,7 @@ export function ConflictResolutionWizard({
 
   // Skip current conflict
   const handleDefer = () => {
+    closeMergeEditor();
     setConflictFiles((prev) => prev.map((f, i) => (i === currentIndex ? { ...f, status: 'skipped' } : f)));
 
     const nextIndex = conflictFiles.findIndex(
@@ -445,18 +481,21 @@ export function ConflictResolutionWizard({
 
   // Open merge editor
   const handleOpenMergeEditor = async () => {
-    if (!currentFile) return;
+    if (!currentPath) return;
 
-    setIsLoadingMergeEditor(true);
-    setMergeEditorError(null);
+    const request = { path: currentPath };
+    activeMergeEditorRequest.current = request;
+    setMergeEditor({ request, status: 'loading' });
 
     try {
-      const contents = await loadMergeEditorContents(currentFile.path);
+      const contents = await loadMergeEditorContents(request.path);
+      if (activeMergeEditorRequest.current !== request) return;
+
       const fingerprint = conflictSourceFingerprint(contents);
-      setMergeEditorContents(contents);
+      setMergeEditor({ request, status: 'ready', contents });
       setConflictFiles((previous) =>
-        previous.map((file, index) =>
-          index === currentIndex
+        previous.map((file) =>
+          file.path === request.path
             ? {
                 ...file,
                 proposalStale:
@@ -466,11 +505,13 @@ export function ConflictResolutionWizard({
             : file
         )
       );
-      setShowMergeEditor(true);
     } catch (err) {
-      setMergeEditorError((err as Error).message || 'Failed to load merge editor files');
-    } finally {
-      setIsLoadingMergeEditor(false);
+      if (activeMergeEditorRequest.current !== request) return;
+      setMergeEditor({
+        request,
+        status: 'error',
+        message: (err as Error).message || 'Failed to load merge editor files',
+      });
     }
   };
 
@@ -593,17 +634,31 @@ export function ConflictResolutionWizard({
   };
 
   // Handle merge editor save
-  const handleMergeEditorSave = async (content: string) => {
-    if (!currentFile) return;
+  const handleMergeEditorSave = async (
+    request: MergeEditorRequest,
+    content: string,
+    mode: 'draft' | 'resolve'
+  ) => {
+    if (activeMergeEditorRequest.current !== request) return;
 
-    const result = await window.api.fs.writeFile(currentFile.path, content);
+    const result = await window.api.fs.writeFile(request.path, content);
     if (!result.success) {
       throw new Error(result.error || 'Failed to save merged content');
     }
 
-    // Mark as resolved
-    await handleResolve('merged');
-    setShowMergeEditor(false);
+    if (mode === 'draft' || activeMergeEditorRequest.current !== request) {
+      void queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
+      return;
+    }
+
+    try {
+      await handleResolve('merged', request);
+    } catch (error) {
+      void queryClient.invalidateQueries({ queryKey: svnStatus(workingCopyPath) });
+      const message = error instanceof Error ? error.message : String(error);
+      return { resolutionError: `File saved, but SVN could not mark it resolved: ${message}` };
+    }
+    return;
   };
 
   // Preview one side of the current conflict (#55)
@@ -1401,7 +1456,7 @@ export function ConflictResolutionWizard({
                 {currentKind === 'text' && (
                   <button
                     onClick={handleOpenMergeEditor}
-                    disabled={isLoadingMergeEditor}
+                    disabled={isLoadingMergeEditor || isProcessing}
                     className="btn btn-secondary w-full"
                   >
                     {isLoadingMergeEditor ? (
@@ -1587,20 +1642,18 @@ export function ConflictResolutionWizard({
         </div>
 
         {/* Merge Editor Overlay */}
-        {showMergeEditor && currentFile && mergeEditorContents && (
+        {mergeEditor?.status === 'ready' && mergeEditor.request.path === currentPath && (
           <ThreeWayMergeEditor
-            isOpen={showMergeEditor}
-            filePath={currentFile.path}
-            mineContent={mergeEditorContents.mineContent}
-            theirsContent={mergeEditorContents.theirsContent}
-            baseContent={mergeEditorContents.baseContent}
-            mergedContent={mergeEditorContents.mergedContent}
-            onClose={() => setShowMergeEditor(false)}
-            onSave={handleMergeEditorSave}
+            isOpen
+            filePath={mergeEditor.request.path}
+            {...mergeEditor.contents}
+            onClose={() => closeMergeEditor(mergeEditor.request)}
+            onSave={(content, mode) => handleMergeEditorSave(mergeEditor.request, content, mode)}
             onProposalMetadata={(metadata) => {
+              if (activeMergeEditorRequest.current !== mergeEditor.request) return;
               setConflictFiles((previous) =>
-                previous.map((file, index) =>
-                  index === currentIndex
+                previous.map((file) =>
+                  file.path === mergeEditor.request.path
                     ? {
                         ...file,
                         proposal: {

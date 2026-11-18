@@ -82,6 +82,8 @@ describe('three-way merge editor loading', () => {
           'shared line',
           '<<<<<<< .mine',
           'mine-only line',
+          '||||||| .r10',
+          'base-only line',
           '=======',
           'theirs-only line',
           '>>>>>>> .r14',
@@ -143,5 +145,105 @@ describe('three-way merge editor loading', () => {
     await waitFor(() => {
       expect(screen.getByText('Choose resolution from left panels')).toBeInTheDocument();
     });
+  });
+
+  it.each([
+    ['Use All Mine', 'mine one', 'mine two'],
+    ['Use All Theirs', 'theirs one', 'theirs two'],
+  ])('saves only conflict-region content with %s', async (button, first, second) => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ThreeWayMergeEditor
+        isOpen
+        filePath="C:/wc/app.ts"
+        mineContent={'header\nmine one\nmiddle\nmine two\nfooter\n'}
+        theirsContent={'header\ntheirs one\nmiddle\ntheirs two\nfooter\n'}
+        baseContent={'header\nbase one\nmiddle\nbase two\nfooter\n'}
+        mergedContent={[
+          'header',
+          '<<<<<<< .mine',
+          'mine one',
+          '=======',
+          'theirs one',
+          '>>>>>>> .r14',
+          'middle',
+          '<<<<<<< .mine',
+          'mine two',
+          '=======',
+          'theirs two',
+          '>>>>>>> .r14',
+          'footer',
+          '',
+        ].join('\n')}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: button }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Merged File' }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(`header\n${first}\nmiddle\n${second}\nfooter\n`, 'resolve')
+    );
+  });
+
+  it('uses inline ancestor regions and preserves surrounding content', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ThreeWayMergeEditor
+        isOpen
+        filePath="C:/wc/app.ts"
+        mineContent={'header\nmine\nfooter'}
+        theirsContent={'header\ntheirs\nfooter'}
+        baseContent={'header\nbase\nfooter'}
+        mergedContent={
+          'header\n<<<<<<< .mine\nmine\n||||||| .r10\nbase\n=======\ntheirs\n>>>>>>> .r14\nfooter'
+        }
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Use', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Merged File' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith('header\nbase\nfooter', 'resolve'));
+  });
+
+  it('disables ancestor resolution when only the full base file is available', () => {
+    render(
+      <ThreeWayMergeEditor
+        isOpen
+        filePath="C:/wc/app.ts"
+        mineContent={'header\nmine\nfooter'}
+        theirsContent={'header\ntheirs\nfooter'}
+        baseContent={'header\nbase\nfooter'}
+        mergedContent={'header\n<<<<<<< .mine\nmine\n=======\ntheirs\n>>>>>>> .r14\nfooter'}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Use', exact: true })).toBeDisabled();
+    expect(
+      screen.getByText('Ancestor content is unavailable for this conflict region')
+    ).toBeInTheDocument();
+  });
+
+  it('preserves unresolved diff3 markers exactly when saving', async () => {
+    mockConfirmAppAction.mockResolvedValue(true);
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const source =
+      'header\n<<<<<<< .mine\nmine\n||||||| .r10\nbase\n=======\ntheirs\n>>>>>>> .r14\nfooter\n';
+    render(
+      <ThreeWayMergeEditor
+        isOpen
+        filePath="C:/wc/app.ts"
+        mineContent="whole mine"
+        theirsContent="whole theirs"
+        baseContent="whole base"
+        mergedContent={source}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save Merged File' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(source, 'draft'));
   });
 });
