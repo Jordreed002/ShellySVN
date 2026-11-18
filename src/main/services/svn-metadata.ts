@@ -17,7 +17,9 @@ import type {
 import { existsSync } from 'fs';
 import { mkdir, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
-import { parseSvnExternals, parseSvnInfoXml, parseSvnListXml } from '../svn/parsers';
+import { parseSvnExternals, parseSvnInfoXml } from '../svn/parsers';
+import { DEFAULT_READ_WORKER_TIMEOUT_MS, getSharedWorkerPool } from '../workers/WorkerPool';
+export { parseRepositoryListing } from '../svn/list-parser';
 import {
   parseSvnPropertiesXml,
   parseSvnShelvesXml,
@@ -79,15 +81,11 @@ function assertRelativeExternalPath(path: string): void {
  * `invalid option: --list` instead of anything naming the command — the
  * caller's args disambiguate that case.
  */
-function getShelvingUnsupportedReason(
-  error: unknown,
-  args: string[] = []
-): string | null {
+function getShelvingUnsupportedReason(error: unknown, args: string[] = []): string | null {
   const message = error instanceof Error ? error.message : String(error || '');
   const shelvingCommand = args[0] === 'shelve' || args[0] === 'unshelve';
   const unknownCommand =
-    /unknown (?:command|subcommand)/i.test(message) &&
-    /\b(?:shelve|unshelve)\b/i.test(message);
+    /unknown (?:command|subcommand)/i.test(message) && /\b(?:shelve|unshelve)\b/i.test(message);
   const rejectedOption = shelvingCommand && /invalid option/i.test(message);
   return unknownCommand || rejectedOption ? SHELVING_UNSUPPORTED_MESSAGE : null;
 }
@@ -112,7 +110,13 @@ export async function listRepository(
     if (revision) args.push('-r', assertRevision(revision, 'list revision'));
     if (depth) args.push('--depth', depth);
     const xml = await runSvnText(withSvnTargets(args, [rootUrl]), { credentials });
-    return parseRepositoryListing(xml, rootUrl);
+    // Parsing and child-URL construction can be CPU-heavy for recursive lists.
+    // Await the worker inside this try so failures retain the structured read error.
+    return await getSharedWorkerPool().run(
+      'svn:parseList',
+      { xml, rootUrl },
+      { priority: 'interactive', timeoutMs: DEFAULT_READ_WORKER_TIMEOUT_MS }
+    );
   } catch (error) {
     return {
       path: rootUrl,
@@ -120,23 +124,6 @@ export async function listRepository(
       ...getSvnReadError(error, { command: 'list', target: rootUrl }),
     };
   }
-}
-
-/**
- * Parse `svn list --xml` output into entries whose child URLs are built with
- * the shared URL utilities. `svn list --xml` emits DECODED entry names
- * (`Répo Dir`, a literal `a%20b.txt`), so naive `baseUrl + '/' + name`
- * concatenation produces URLs that SVN resolves to different paths; each
- * name is re-encoded exactly once here.
- */
-export function parseRepositoryListing(xml: string, rootUrl: string): SvnListResult {
-  const canonicalRoot = normalizeRepoUrl(rootUrl);
-  const parsed = parseSvnListXml(xml, canonicalRoot);
-  const entries = parsed.entries.map((entry) => {
-    const childUrl = joinRepoUrl(canonicalRoot, entry.name.replace(/\/+$/, ''));
-    return { ...entry, path: childUrl, url: childUrl };
-  });
-  return { ...parsed, path: canonicalRoot, entries };
 }
 
 // ============================================
@@ -448,7 +435,10 @@ export async function shelveDiff(
     return { success: true, diff: await runSvnText(withSvnTargets(args, [path])), against };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || '');
-    if (getShelvingUnsupportedReason(error, args) || /invalid option|unknown option/i.test(message)) {
+    if (
+      getShelvingUnsupportedReason(error, args) ||
+      /invalid option|unknown option/i.test(message)
+    ) {
       return runPortable();
     }
     return { success: false, diff: '', against, ...getSvnReadError(error) };
@@ -468,9 +458,8 @@ export async function shelveExport(
 ): Promise<SvnMutationResult> {
   assertSafeName(name, 'Shelf name');
   validateSvnTargets([path, outputPath], 'Shelf export target');
-  const { portableShelfExists, portableShelfExport, shelfNameSlug } = await import(
-    './svn-portable-shelves'
-  );
+  const { portableShelfExists, portableShelfExport, shelfNameSlug } =
+    await import('./svn-portable-shelves');
   if (await portableShelfExists(name, path)) {
     try {
       return await portableShelfExport(name, path, outputPath);

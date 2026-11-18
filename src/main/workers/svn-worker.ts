@@ -11,6 +11,7 @@ import {
   parseSvnStatusXml as parseWorkingCopyStatusXml,
 } from '../svn/parsers';
 import { parseDiffStreaming } from '../utils/diff-parser';
+import { parseRepositoryListing } from '../svn/list-parser';
 import { escapeLocalPegTargets } from '../utils/svn-targets';
 import { parseSvnStatusEntriesXml } from '../utils/svn-xml';
 import type {
@@ -224,6 +225,10 @@ async function runLog(job: WorkerJobMessage<'svn:log'>) {
   const args = ['log', '--xml', '-v', '-l', String(payload.limit)];
   if (payload.startRev !== undefined && payload.endRev !== undefined) {
     args.push('-r', `${payload.startRev}:${payload.endRev}`);
+  } else {
+    // A local target otherwise defaults to BASE, hiding commits made since
+    // the last update. Read repository history without updating local files.
+    args.push('-r', `${payload.startRev ?? 'HEAD'}:${payload.endRev ?? 0}`);
   }
   if (payload.useMergeHistory) {
     args.push('--use-merge-history');
@@ -371,6 +376,13 @@ parentPort?.on('message', (message: WorkerParentMessage) => {
 
   void (async () => {
     try {
+      if (message.name === 'svn:parseList') {
+        const { xml, rootUrl } = (message as WorkerJobMessage<'svn:parseList'>).payload;
+        const result = parseRepositoryListing(xml, rootUrl);
+        parentPort?.postMessage({ type: 'result', id: message.id, result });
+        return;
+      }
+
       if (message.name === 'svn:deepStatus') {
         const result = await runDeepStatus(message as WorkerJobMessage<'svn:deepStatus'>);
         parentPort?.postMessage({ type: 'result', id: message.id, result });

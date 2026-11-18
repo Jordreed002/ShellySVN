@@ -61,6 +61,25 @@ afterEach(async () => {
 });
 
 describe('svn worker', () => {
+  it('parses listing XML and constructs encoded child URLs in the actual worker', async () => {
+    const pool = new WorkerPool({ maxWorkers: 1 });
+    const rootUrl = 'svn://svn.example.test/repo';
+    const xml = `<lists><list path="${rootUrl}">
+      <entry kind="dir"><name>Répo Dir</name><commit revision="12"><author>alice</author></commit></entry>
+      <entry kind="file"><name>a%20b.txt</name><size>3</size><commit revision="13"><author>bob</author></commit></entry>
+    </list></lists>`;
+    try {
+      const result = await pool.run('svn:parseList', { xml, rootUrl }, { timeoutMs: 10_000 });
+      expect(result.path).toBe(rootUrl);
+      expect(result.entries.map(({ name, path, url }) => ({ name, path, url }))).toEqual([
+        { name: 'Répo Dir', path: `${rootUrl}/R%C3%A9po%20Dir`, url: `${rootUrl}/R%C3%A9po%20Dir` },
+        { name: 'a%20b.txt', path: `${rootUrl}/a%2520b.txt`, url: `${rootUrl}/a%2520b.txt` },
+      ]);
+    } finally {
+      await pool.shutdown();
+    }
+  });
+
   it('returns the expected filesystem status shape from the actual worker script', async () => {
     const workingCopy = await createTempDir();
     const changedPath = join(workingCopy, 'changed.txt');
@@ -214,7 +233,7 @@ process.stdout.write(${JSON.stringify(`<?xml version="1.0" encoding="UTF-8"?>
     }
   });
 
-  it('terminates and peg-escapes log targets so svn never reads a filename as an option or peg', async () => {
+  it('reads HEAD history in the worker and peg-escapes local log targets', async () => {
     const workingCopy = await createTempDir();
     const pegTarget = join(workingCopy, 'pic@2.png');
     const expectedArgs = [
@@ -223,6 +242,8 @@ process.stdout.write(${JSON.stringify(`<?xml version="1.0" encoding="UTF-8"?>
       '-v',
       '-l',
       '5',
+      '-r',
+      'HEAD:0',
       '--non-interactive',
       '--',
       `${pegTarget}@`,

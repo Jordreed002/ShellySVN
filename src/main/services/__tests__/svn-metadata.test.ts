@@ -10,6 +10,7 @@ const mockState = vi.hoisted(() => ({
   runSvnText: vi.fn(),
   runSvn: vi.fn(),
   runSvnMuccText: vi.fn(),
+  workerRun: vi.fn(),
   getNetworkOptionsForWorkingCopyPath: vi.fn(),
   portableShelfList: vi.fn(),
   portableShelfSave: vi.fn(),
@@ -32,6 +33,11 @@ vi.mock('../svn-executor', () => ({
   runSvnText: mockState.runSvnText,
   runSvn: mockState.runSvn,
   runSvnMuccText: mockState.runSvnMuccText,
+}));
+
+vi.mock('../../workers/WorkerPool', () => ({
+  DEFAULT_READ_WORKER_TIMEOUT_MS: 300_000,
+  getSharedWorkerPool: () => ({ run: mockState.workerRun }),
 }));
 
 vi.mock('../svn-network-context', () => ({
@@ -86,8 +92,13 @@ import {
   shelveSave,
 } from '../svn-metadata';
 import { normalizeRepoUrl } from '../../utils/svn-url';
+import { parseRepositoryListing as parseListingInWorker } from '../../svn/list-parser';
 
 beforeEach(() => {
+  mockState.workerRun.mockReset();
+  mockState.workerRun.mockImplementation(async (_name, { xml, rootUrl }) =>
+    parseListingInWorker(xml, rootUrl)
+  );
   mockState.runSvnText.mockReset();
   mockState.runSvn.mockReset();
   mockState.runSvn.mockResolvedValue({ code: 0, stdout: 'shelve help', stderr: '' });
@@ -110,6 +121,33 @@ beforeEach(() => {
 describe('svn-metadata repository browsing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('dispatches raw XML to the worker and uses its result without parsing on main', async () => {
+    const xml = 'raw XML is deliberately not parsed on the main process';
+    const result = { path: 'svn://example.test/repo', entries: [] };
+    mockState.runSvnText.mockResolvedValue(xml);
+    mockState.workerRun.mockResolvedValue(result);
+
+    await expect(listRepository(result.path)).resolves.toBe(result);
+    expect(mockState.workerRun).toHaveBeenCalledWith(
+      'svn:parseList',
+      { xml, rootUrl: result.path },
+      { priority: 'interactive', timeoutMs: 300_000 }
+    );
+  });
+
+  it('reports worker failure without falling back to synchronous parsing', async () => {
+    mockState.runSvnText.mockResolvedValue(
+      '<lists><list path="svn://example.test/repo" /></lists>'
+    );
+    mockState.workerRun.mockRejectedValue(new Error('Worker job timed out'));
+
+    await expect(listRepository('svn://example.test/repo')).resolves.toMatchObject({
+      entries: [],
+      error: expect.stringContaining('Worker job timed out'),
+    });
+    expect(mockState.workerRun).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -290,7 +328,10 @@ describe('svn-metadata repository layout detection', () => {
 </info>`;
   }
 
-  function listXml(rootUrl: string, entries: Array<{ name: string; kind: 'dir' | 'file' }>): string {
+  function listXml(
+    rootUrl: string,
+    entries: Array<{ name: string; kind: 'dir' | 'file' }>
+  ): string {
     const entryXml = entries
       .map(
         (entry) => `    <entry kind="${entry.kind}">
@@ -335,7 +376,10 @@ ${entryXml}
       ],
       4
     );
-    expect(trunkOnly).toMatchObject({ kind: 'trunk-only', trunk: 'svn://svn.example.com/repo/trunk' });
+    expect(trunkOnly).toMatchObject({
+      kind: 'trunk-only',
+      trunk: 'svn://svn.example.com/repo/trunk',
+    });
     expect(trunkOnly.branches).toBeUndefined();
     expect(trunkOnly.customDirs).toEqual([
       { name: 'docs', url: 'svn://svn.example.com/repo/docs', kind: 'dir' },
@@ -406,7 +450,15 @@ ${entryXml}
       { credentials: undefined }
     );
     expect(mockState.runSvnText).toHaveBeenCalledWith(
-      ['list', '--xml', '--non-interactive', '--depth', 'immediates', '--', 'file:///tmp/empty-repo'],
+      [
+        'list',
+        '--xml',
+        '--non-interactive',
+        '--depth',
+        'immediates',
+        '--',
+        'file:///tmp/empty-repo',
+      ],
       { credentials: undefined }
     );
   });
@@ -755,7 +807,11 @@ describe('svn-metadata shelving', () => {
   it('probes shelving support once and skips the doomed native command', async () => {
     // TortoiseSVN-style: `svn help shelve` exits 0 with the explanation on
     // stderr, which the probe must read to detect the missing command.
-    mockState.runSvn.mockResolvedValue({ code: 0, stdout: '', stderr: '"shelve": unknown command.' });
+    mockState.runSvn.mockResolvedValue({
+      code: 0,
+      stdout: '',
+      stderr: '"shelve": unknown command.',
+    });
 
     await expect(shelveList('C:\\wc')).resolves.toEqual({ shelves: [] });
 
@@ -818,12 +874,7 @@ describe('svn-metadata shelving', () => {
       diff: '--- a/README\n+++ b/README\n',
       against: 'working-copy',
     });
-    expect(mockState.runSvnText).toHaveBeenCalledWith([
-      'diff',
-      '--shelved=work',
-      '--',
-      'C:\\wc',
-    ]);
+    expect(mockState.runSvnText).toHaveBeenCalledWith(['diff', '--shelved=work', '--', 'C:\\wc']);
 
     mockState.runSvnText.mockClear();
     await shelveDiff('work', 'C:\\wc', 'HEAD');
@@ -891,7 +942,9 @@ describe('svn-metadata shelving', () => {
     });
     expect(mockState.portableShelfImport).toHaveBeenCalledWith('/bundles/work', 'C:\\wc');
 
-    mockState.portableShelfImport.mockRejectedValue(new Error('Portable shelf metadata is invalid'));
+    mockState.portableShelfImport.mockRejectedValue(
+      new Error('Portable shelf metadata is invalid')
+    );
     await expect(shelveImport('/bundles/broken', 'C:\\wc')).resolves.toMatchObject({
       success: false,
       error: /not a valid portable shelf/,

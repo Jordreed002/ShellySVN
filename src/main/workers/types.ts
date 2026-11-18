@@ -4,6 +4,7 @@ import type {
   SvnDiffResult,
   SvnExecutionContext,
   SvnLogResult,
+  SvnListResult,
   SvnStatusChar,
   SvnStatusResult,
 } from '@shared/types';
@@ -31,6 +32,7 @@ export type WorkerJobName =
   | 'svn:diffStreaming'
   | 'svn:diffUrls'
   | 'svn:log'
+  | 'svn:parseList'
   | 'svn:blame'
   | 'svn:cat';
 
@@ -110,6 +112,7 @@ export interface CatPayload {
 }
 
 export type WorkerJobPayloadMap = {
+  'svn:parseList': { xml: string; rootUrl: string };
   'fs:folderSizes': FolderSizesPayload;
   'svn:deepStatus': DeepStatusPayload;
   'svn:fsStatus': StatusPayload;
@@ -123,6 +126,7 @@ export type WorkerJobPayloadMap = {
 };
 
 export type WorkerJobResultMap = {
+  'svn:parseList': SvnListResult;
   'fs:folderSizes': Record<string, number>;
   'svn:deepStatus': FsSvnStatusResult;
   'svn:fsStatus': FsSvnStatusResult;
