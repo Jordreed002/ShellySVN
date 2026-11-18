@@ -14,10 +14,11 @@ import { useFocusTrap } from '@renderer/hooks/useFocusTrap';
  * - Focus restoration
  * - Screen reader announcements
  *
- * Visually this is the prototype's `.modal` (`prototypes/12-browser.html`): a
- * 14px-radius card on a hairline border, a header block led by a 36px
- * accent-tinted icon tile, a scrolling body, and a footer on a recessed surface
- * where a muted note sits left of the actions.
+ * Visually this is the same `.modal` / `.modal-header` / `.modal-body` /
+ * `.modal-footer` shell `DialogBase` renders, so the two dialog families look
+ * like one system: a compact header with a small inline glyph (tinted only for
+ * warning/danger), a sentence-case title and an optional description, a
+ * scrolling body, and a footer where a muted note sits left of the actions.
  */
 export interface AccessibleDialogProps {
   /** Whether the dialog is open */
@@ -62,11 +63,11 @@ export interface AccessibleDialogProps {
   onCloseComplete?: () => void;
 }
 
-/** Header-tile tints. Complete class strings so Tailwind's scanner sees them. */
+/** Header-glyph tints. Neutral by default; colour only when it carries meaning. */
 const HEADER_TONE: Record<'accent' | 'warning' | 'danger', string> = {
-  accent: 'border-accent/40 bg-accent/10 text-accent',
-  warning: 'border-svn-modified/40 bg-svn-modified/10 text-svn-modified',
-  danger: 'border-svn-conflict/40 bg-svn-conflict/10 text-svn-conflict',
+  accent: 'text-text-muted',
+  warning: 'text-svn-modified',
+  danger: 'text-svn-conflict',
 };
 
 const sizeClasses: Record<string, string> = {
@@ -187,7 +188,7 @@ export function AccessibleDialog({
     >
       <div
         ref={containerRef}
-        className={`modal m-auto flex max-h-[88vh] flex-col overflow-hidden rounded-[14px] border border-border-strong bg-bg-secondary shadow-overlay ${sizeClasses[size]} ${className}`}
+        className={`modal m-auto flex max-h-[88vh] flex-col overflow-hidden ${sizeClasses[size]} ${className}`}
         role="dialog"
         aria-modal={modal}
         aria-labelledby={titleId}
@@ -195,32 +196,27 @@ export function AccessibleDialog({
         onClick={(e) => e.stopPropagation()}
         data-portal
       >
-        {/* Header — icon tile, title, and what the dialog is for */}
-        <div className="modal-header relative block flex-none border-b border-border px-5 pb-[15px] pt-[18px]">
-          <span
-            className={`mb-[11px] grid h-9 w-9 place-items-center rounded-[10px] border ${HEADER_TONE[tone]}`}
-          >
-            <HeaderIcon className="h-[18px] w-[18px]" aria-hidden="true" />
-          </span>
-          <h2
-            id={titleId}
-            className="modal-title pr-9 text-[18px] font-bold leading-tight tracking-[-0.025em] text-text"
-          >
-            {title}
-          </h2>
-          {description && (
-            <p
-              id={descriptionId}
-              className="mt-1.5 text-[12.5px] leading-relaxed text-text-secondary"
-            >
-              {description}
-            </p>
-          )}
+        {/* Header — small glyph, title, and what the dialog is for */}
+        <div className="modal-header relative flex-none items-start justify-start gap-2.5 pr-12">
+          <HeaderIcon
+            className={`mt-[3px] h-4 w-4 flex-shrink-0 ${HEADER_TONE[tone]}`}
+            aria-hidden="true"
+          />
+          <div className="min-w-0 flex-1">
+            <h2 id={titleId} className="modal-title text-14 font-semibold leading-snug text-text">
+              {title}
+            </h2>
+            {description && (
+              <p id={descriptionId} className="mt-1 text-12.5 leading-relaxed text-text-secondary">
+                {description}
+              </p>
+            )}
+          </div>
           {showCloseButton && (
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3.5 top-3.5 grid h-8 w-8 place-items-center rounded-lg border border-transparent text-text-secondary transition-fast hover:border-border hover:bg-bg-tertiary hover:text-text"
+              className="btn-icon-sm absolute right-3 top-3"
               aria-label={closeButtonLabel}
             >
               <X className="h-4 w-4" aria-hidden="true" />
@@ -248,7 +244,7 @@ export function AccessibleDialogBody({
   className?: string;
 }) {
   return (
-    <div className={`modal-body min-h-0 flex-1 overflow-auto px-5 py-4 ${className}`}>
+    <div className={`modal-body min-h-0 flex-1 overflow-auto ${className}`}>
       {children}
     </div>
   );
@@ -269,7 +265,7 @@ export function AccessibleDialogFooter({
 }) {
   return (
     <div
-      className={`modal-footer flex flex-none items-center justify-end gap-2.5 border-t border-border bg-bg-tertiary px-5 py-[13px] text-[12.5px] ${className}`}
+      className={`modal-footer flex flex-none items-center justify-end gap-2 text-12.5 ${className}`}
     >
       {children}
     </div>
@@ -313,13 +309,13 @@ export function AccessibleConfirmationDialog({
       closeOnEscape={!isLoading}
     >
       <AccessibleDialogBody>
-        <p className="text-[12.5px] leading-relaxed text-text-secondary">{message}</p>
+        <p className="text-13 leading-relaxed text-text-secondary">{message}</p>
       </AccessibleDialogBody>
       <AccessibleDialogFooter>
         <button
           type="button"
           onClick={onClose}
-          className="btn btn-secondary h-8 rounded-lg px-3 text-[12.5px] font-semibold"
+          className="btn btn-secondary btn-sm"
           disabled={isLoading}
         >
           {cancelLabel}
@@ -327,7 +323,7 @@ export function AccessibleConfirmationDialog({
         <button
           type="button"
           onClick={onConfirm}
-          className={`btn h-8 rounded-lg px-3 text-[12.5px] font-semibold ${
+          className={`btn btn-sm ${
             variant === 'danger' ? 'btn-danger' : 'btn-primary'
           }`}
           disabled={isLoading}

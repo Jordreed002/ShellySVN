@@ -101,10 +101,11 @@ module.exports = {
        * Tailwind's own `xs`/`sm`/`base`/... keys are untouched.
        */
       fontSize: {
-        '2xs': ['0.625rem', { lineHeight: '0.875rem' }], // legacy alias of text-10
-        9.5: ['9.5px', { lineHeight: '1.35' }], // mono counts, badges, caps micro-labels
-        10: ['10px', { lineHeight: '1.4' }], // eyebrow, column headers, mono meta
-        10.5: ['10.5px', { lineHeight: '1.4' }], // pills, status bar, kbd, hunk headers
+        // Legacy micro-size names retain a readable 11px floor.
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+        9.5: ['11px', { lineHeight: '1.4' }],
+        10: ['11px', { lineHeight: '1.4' }],
+        10.5: ['11px', { lineHeight: '1.4' }],
         11: ['11px', { lineHeight: '1.45' }], // flags, crumbs, mono revision numbers
         11.5: ['11.5px', { lineHeight: '1.5' }], // small buttons, tabs, diff/blame body
         12: ['12px', { lineHeight: '1.5' }], // dense prose, field labels
@@ -117,8 +118,8 @@ module.exports = {
         18: ['18px', { lineHeight: '1.2' }], // modal / section headings
       },
       letterSpacing: {
-        eyebrow: '0.13em', // .eyebrow, context-menu group labels
-        caps: '0.08em', // column headers, quieter uppercase labels
+        eyebrow: '0.02em', // quiet section and menu group labels
+        caps: '0.04em', // column headers
       },
       /*
        * Radius scale ported from the prototype: 4–11px in 1px steps, plus a 14px
